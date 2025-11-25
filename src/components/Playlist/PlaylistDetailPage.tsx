@@ -68,7 +68,7 @@ export const PlaylistDetailPage: React.FC = () => {
     };
 
     return (
-        <div style={{ padding: '24px' }}>
+        <div className="animate-fade-in" style={{ padding: '24px' }}>
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
                 <button

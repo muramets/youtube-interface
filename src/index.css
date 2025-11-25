@@ -1,3 +1,5 @@
+@import './styles/animations.css';
+
 :root {
   --bg-primary: #ffffff;
   --bg-secondary: #f9f9f9;

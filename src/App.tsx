@@ -25,10 +25,10 @@ function App() {
               <main className="content-area">
                 <Routes>
                   <Route path="/" element={
-                    <>
+                    <div className="animate-fade-in">
                       <CategoryBar />
                       <VideoGrid />
-                    </>
+                    </div>
                   } />
                   <Route path="/watch/:id" element={<WatchPage />} />
                   <Route path="/playlists" element={<PlaylistsPage />} />

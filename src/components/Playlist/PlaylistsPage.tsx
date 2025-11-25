@@ -91,7 +91,7 @@ export const PlaylistsPage: React.FC = () => {
     };
 
     return (
-        <div style={{ padding: '24px' }}>
+        <div className="animate-fade-in" style={{ padding: '24px' }}>
             <h1 style={{ fontSize: '24px', marginBottom: '24px' }}>Your Playlists</h1>
 
             <DndContext

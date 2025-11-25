@@ -30,7 +30,7 @@ export const Header: React.FC = () => {
           <div style={{ width: '30px', height: '20px', background: 'red', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ width: 0, height: 0, borderTop: '4px solid transparent', borderBottom: '4px solid transparent', borderLeft: '6px solid white' }}></div>
           </div>
-          <span>YouTube TV</span>
+          <span>YouTube</span>
         </div>
       </div>
 

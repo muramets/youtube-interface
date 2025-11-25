@@ -61,6 +61,7 @@ export const PlaylistMenu: React.FC<PlaylistMenuProps> = ({
     return createPortal(
         <div
             ref={menuRef}
+            className="animate-scale-in"
             style={{
                 position: 'fixed',
                 top: position.top,

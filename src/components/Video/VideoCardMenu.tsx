@@ -73,7 +73,7 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
     return createPortal(
         <div
             ref={menuRef}
-            className="video-menu-portal"
+            className="video-menu-portal animate-scale-in"
             style={{
                 top: position.top,
                 left: position.left,

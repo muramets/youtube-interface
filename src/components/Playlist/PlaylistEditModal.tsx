@@ -75,27 +75,35 @@ export const PlaylistEditModal: React.FC<PlaylistEditModalProps> = ({ isOpen, on
     };
 
     return (
-        <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 2000
-        }} onClick={onClose}>
-            <div style={{
-                backgroundColor: 'var(--bg-secondary)',
-                borderRadius: '12px',
-                width: '500px',
-                maxWidth: '90vw',
+        <div
+            className="animate-fade-in"
+            style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0,0,0,0.7)',
                 display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden'
-            }} onClick={e => e.stopPropagation()}>
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 2000
+            }}
+            onClick={onClose}
+        >
+            <div
+                className="animate-scale-in-center"
+                style={{
+                    backgroundColor: 'var(--bg-secondary)',
+                    borderRadius: '12px',
+                    width: '500px',
+                    maxWidth: '90vw',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden'
+                }}
+                onClick={e => e.stopPropagation()}
+            >
                 <div style={{
                     padding: '16px 24px',
                     display: 'flex',

@@ -17,6 +17,7 @@
     justify-content: space-between;
     cursor: pointer;
     border-radius: 8px;
+    font-size: 14px;
 }
 
 .settings-menu-item:hover {
@@ -40,7 +41,7 @@
 }
 
 .settings-header-title {
-    font-size: 16px;
+    font-size: 14px;
 }
 
 .settings-section-label {
@@ -56,6 +57,7 @@
     align-items: center;
     gap: 12px;
     border-radius: 8px;
+    font-size: 14px;
 }
 
 .settings-option:hover {

@@ -147,15 +147,18 @@ export const WatchPage: React.FC = () => {
     }
 
     return (
-        <div style={{
-            display: 'flex',
-            gap: '24px',
-            padding: '24px',
-            maxWidth: '1800px',
-            margin: '0 auto',
-            minHeight: '100vh',
-            boxSizing: 'border-box'
-        }}>
+        <div
+            className="animate-fade-in"
+            style={{
+                display: 'flex',
+                gap: '24px',
+                padding: '24px',
+                maxWidth: '1800px',
+                margin: '0 auto',
+                minHeight: '100vh',
+                boxSizing: 'border-box'
+            }}
+        >
             {/* Main Content */}
             <div style={{ flex: 1, minWidth: 0 }}>
                 {/* Video Player */}

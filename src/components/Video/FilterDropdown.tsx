@@ -86,6 +86,7 @@ export const FilterDropdown: React.FC = () => {
             {isOpen && position && createPortal(
                 <div
                     ref={dropdownRef}
+                    className="animate-scale-in"
                     style={{
                         position: 'fixed',
                         top: position.top,

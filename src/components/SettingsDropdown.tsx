@@ -185,7 +185,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
     return createPortal(
         <div
             ref={dropdownRef}
-            className="settings-dropdown"
+            className="settings-dropdown animate-scale-in"
             style={{
                 top: position.top,
                 left: position.left,
