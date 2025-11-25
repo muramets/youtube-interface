@@ -103,7 +103,11 @@ export const PlaylistDetailPage: React.FC = () => {
                     <div>
                         <h1 style={{ margin: 0, fontSize: '24px' }}>{playlist.name}</h1>
                         <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
-                            {playlistVideos.length} videos • Updated {new Date().toLocaleDateString()}
+                            {playlistVideos.length} videos
+                            {playlist.updatedAt && playlist.updatedAt > playlist.createdAt && (
+                                <> • Updated {new Date(playlist.updatedAt).toLocaleDateString()}</>
+                            )}
+                            {' • '}Created {new Date(playlist.createdAt).toLocaleDateString()}
                         </span>
                     </div>
                 </div>

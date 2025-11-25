@@ -166,7 +166,10 @@ export const PlaylistsPage: React.FC = () => {
                             <div>
                                 <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', color: 'var(--text-primary)' }}>{playlist.name}</h3>
                                 <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)' }}>
-                                    Created {new Date(playlist.createdAt).toLocaleDateString()}
+                                    {playlist.updatedAt && playlist.updatedAt > playlist.createdAt
+                                        ? `Updated ${new Date(playlist.updatedAt).toLocaleDateString()}`
+                                        : `Created ${new Date(playlist.createdAt).toLocaleDateString()}`
+                                    }
                                 </p>
                             </div>
                             <div style={{ position: 'relative' }}>

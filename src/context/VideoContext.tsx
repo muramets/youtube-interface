@@ -8,6 +8,7 @@ export interface Playlist {
     coverImage?: string;
     videoIds: string[];
     createdAt: number;
+    updatedAt?: number;
 }
 
 interface VideoContextType {
@@ -98,6 +99,25 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         localStorage.setItem('youtube_recommendation_orders', JSON.stringify(recommendationOrders));
     }, [recommendationOrders]);
 
+    // Sanitize playlists: remove video IDs that don't exist in videos
+    useEffect(() => {
+        setPlaylists(prevPlaylists => {
+            const videoIdsSet = new Set(videos.map(v => v.id));
+            let hasChanges = false;
+
+            const newPlaylists = prevPlaylists.map(playlist => {
+                const validVideoIds = playlist.videoIds.filter(id => videoIdsSet.has(id));
+                if (validVideoIds.length !== playlist.videoIds.length) {
+                    hasChanges = true;
+                    return { ...playlist, videoIds: validVideoIds };
+                }
+                return playlist;
+            });
+
+            return hasChanges ? newPlaylists : prevPlaylists;
+        });
+    }, [videos]);
+
     const setApiKey = (key: string) => {
         setApiKeyState(key);
     };
@@ -150,6 +170,13 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const removeVideo = (id: string) => {
         setVideos(prev => prev.filter(v => v.id !== id));
+
+        // Remove video from all playlists
+        setPlaylists(prev => prev.map(playlist => ({
+            ...playlist,
+            videoIds: playlist.videoIds.filter(videoId => videoId !== id)
+        })));
+
         // Cleanup recommendation orders for this video if needed, 
         // but also we should remove this video ID from OTHER videos' recommendation lists?
         // For now, simple cleanup:
@@ -207,11 +234,13 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, [playlists]);
 
     const createPlaylist = (name: string) => {
+        const now = Date.now();
         const newPlaylist: Playlist = {
-            id: `playlist-${Date.now()}`,
+            id: `playlist-${now}`,
             name,
             videoIds: [],
-            createdAt: Date.now()
+            createdAt: now,
+            updatedAt: now
         };
         setPlaylists(prev => [...prev, newPlaylist]);
     };
@@ -245,7 +274,8 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 return {
                     ...playlist,
                     videoIds: [...playlist.videoIds, videoId],
-                    coverImage: newCover
+                    coverImage: newCover,
+                    updatedAt: Date.now()
                 };
             }
             return playlist;
@@ -255,20 +285,24 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const removeVideoFromPlaylist = (playlistId: string, videoId: string) => {
         setPlaylists(prev => prev.map(p => {
             if (p.id === playlistId) {
-                return { ...p, videoIds: p.videoIds.filter(id => id !== videoId) };
+                return {
+                    ...p,
+                    videoIds: p.videoIds.filter(id => id !== videoId),
+                    updatedAt: Date.now()
+                };
             }
             return p;
         }));
     };
 
     const updatePlaylist = (id: string, updates: Partial<Playlist>) => {
-        setPlaylists(prev => prev.map(p => (p.id === id ? { ...p, ...updates } : p)));
+        setPlaylists(prev => prev.map(p => (p.id === id ? { ...p, ...updates, updatedAt: Date.now() } : p)));
     };
 
     const reorderPlaylistVideos = (playlistId: string, newOrder: string[]) => {
         setPlaylists(prev => prev.map(p => {
             if (p.id === playlistId) {
-                return { ...p, videoIds: newOrder };
+                return { ...p, videoIds: newOrder, updatedAt: Date.now() };
             }
             return p;
         }));
