@@ -1,8 +1,9 @@
 import React from 'react';
-import { Home, Compass, PlaySquare, Clock, ThumbsUp, Film } from 'lucide-react';
+import { Home } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const SidebarItem: React.FC<{ icon: React.ReactNode; label: string; active?: boolean }> = ({ icon, label, active }) => (
-  <div style={{
+  <div className="hover-bg" style={{
     display: 'flex',
     alignItems: 'center',
     gap: '24px',
@@ -11,7 +12,8 @@ const SidebarItem: React.FC<{ icon: React.ReactNode; label: string; active?: boo
     backgroundColor: active ? 'var(--bg-secondary)' : 'transparent',
     borderRadius: '10px',
     margin: '0 12px',
-    color: 'var(--text-primary)'
+    color: 'var(--text-primary)',
+    transition: 'background-color 0.2s'
   }}>
     {icon}
     <span style={{ fontSize: '14px', fontWeight: active ? '500' : '400' }}>{label}</span>
@@ -19,25 +21,22 @@ const SidebarItem: React.FC<{ icon: React.ReactNode; label: string; active?: boo
 );
 
 export const Sidebar: React.FC = () => {
+  const navigate = useNavigate();
+
   return (
     <aside style={{
       width: '240px',
-      height: 'calc(100vh - 56px)',
-      position: 'sticky',
-      top: '56px',
+      height: '100%',
       overflowY: 'auto',
       padding: '12px 0',
       display: 'flex',
       flexDirection: 'column',
-      gap: '4px'
+      gap: '4px',
+      flexShrink: 0
     }}>
-      <SidebarItem icon={<Home size={24} />} label="Home" active />
-      <SidebarItem icon={<Compass size={24} />} label="Explore" />
-      <SidebarItem icon={<PlaySquare size={24} />} label="Subscriptions" />
-      <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '12px 24px' }}></div>
-      <SidebarItem icon={<Clock size={24} />} label="History" />
-      <SidebarItem icon={<Film size={24} />} label="Your Videos" />
-      <SidebarItem icon={<ThumbsUp size={24} />} label="Liked Videos" />
+      <div onClick={() => navigate('/')}>
+        <SidebarItem icon={<Home size={24} />} label="Home" active />
+      </div>
     </aside>
   );
 };

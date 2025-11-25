@@ -17,7 +17,8 @@
   display: flex;
   flex: 1;
   overflow: hidden;
-  height: calc(100vh - 56px); /* Subtract header height */
+  height: calc(100vh - 56px);
+  /* Subtract header height */
 }
 
 .content-area {
@@ -79,4 +80,43 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-primary);
+}
+
+/* Global Hover Effects */
+.hover-bg:hover {
+  background-color: var(--hover);
+  transition: background-color 0.2s ease;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+/* Video Card Hover Effects */
+.video-card-container {
+  position: relative;
+  padding: 8px;
+  border-radius: 12px;
+  isolation: isolate;
+  /* Create new stacking context */
+}
+
+.video-card-hover-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--bg-secondary);
+  border-radius: 12px;
+  opacity: 0;
+  transform: scale(0.9);
+  transition: all 0.2s ease-out;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.video-card-container:hover .video-card-hover-bg {
+  opacity: 1;
+  transform: scale(1);
 }

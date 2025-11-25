@@ -30,8 +30,12 @@ export const formatDuration = (duration: string | undefined): string => {
         const seconds = (match[3] || '').replace('S', '');
 
         const parts = [];
-        if (hours) parts.push(hours);
-        parts.push(minutes || (hours ? '00' : '0'));
+        if (hours) {
+            parts.push(hours);
+            parts.push(minutes.padStart(2, '0') || '00');
+        } else {
+            parts.push(minutes || '0');
+        }
         parts.push(seconds.padStart(2, '0') || '00');
 
         return parts.join(':');

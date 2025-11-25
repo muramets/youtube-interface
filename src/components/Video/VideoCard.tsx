@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { MoreVertical, Trash2, RefreshCw, Edit } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import type { VideoDetails } from '../../utils/youtubeApi';
 import { useVideo } from '../../context/VideoContext';
 import { CustomVideoModal } from './CustomVideoModal';
@@ -16,6 +17,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   const {
     attributes,
@@ -30,7 +32,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    cursor: 'grab',
+    cursor: 'pointer',
     touchAction: 'none',
     position: 'relative' as const,
   };
@@ -75,8 +77,16 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video }) => {
 
   return (
     <>
-      <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
+        onClick={() => navigate(`/watch/${video.id}`)}
+        className="video-card-container"
+      >
+        <div className="video-card-hover-bg" />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', position: 'relative', zIndex: 1 }}>
           {/* Thumbnail */}
           <div style={{
             width: '100%',

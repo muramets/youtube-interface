@@ -1,8 +1,10 @@
+import { Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { VideoProvider, useVideo } from './context/VideoContext';
 import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
 import { VideoGrid } from './components/Video/VideoGrid';
+import { WatchPage } from './components/Watch/WatchPage';
 import './App.css';
 
 import { UserProfileProvider } from './context/UserProfileContext';
@@ -17,8 +19,15 @@ function App() {
             <div className="main-content">
               <Sidebar />
               <main className="content-area">
-                <CategoryBar />
-                <VideoGrid />
+                <Routes>
+                  <Route path="/" element={
+                    <>
+                      <CategoryBar />
+                      <VideoGrid />
+                    </>
+                  } />
+                  <Route path="/watch/:id" element={<WatchPage />} />
+                </Routes>
               </main>
             </div>
           </div>

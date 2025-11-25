@@ -3,6 +3,8 @@ import { ChevronRight, Moon, Sun, Check, ArrowLeft, Key, Monitor } from 'lucide-
 import { useTheme } from '../context/ThemeContext';
 import { useVideo } from '../context/VideoContext';
 
+import { useLocation } from 'react-router-dom';
+
 interface SettingsDropdownProps {
     onClose: () => void;
 }
@@ -11,10 +13,13 @@ type MenuView = 'main' | 'appearance' | 'apiKey' | 'cardSize';
 
 export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose }) => {
     const { theme, setTheme } = useTheme();
-    const { apiKey, setApiKey, cardsPerRow, updateCardsPerRow } = useVideo();
+    const { apiKey, setApiKey, cardsPerRow, updateCardsPerRow, watchPageCardsPerRow, updateWatchPageCardsPerRow } = useVideo();
     const [menuView, setMenuView] = useState<MenuView>('main');
     const [tempApiKey, setTempApiKey] = useState(apiKey);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const location = useLocation();
+    const isWatchPage = location.pathname.startsWith('/watch/');
+    const currentCardsPerRow = isWatchPage ? watchPageCardsPerRow : cardsPerRow;
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -37,17 +42,16 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose }) =
     const renderMainView = () => (
         <>
             <div
+                className="hover-bg"
                 style={{
                     padding: '12px 16px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     cursor: 'pointer',
-                    transition: 'background-color 0.2s'
+                    borderRadius: '8px'
                 }}
                 onClick={() => setMenuView('appearance')}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     {theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
@@ -57,17 +61,16 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose }) =
             </div>
 
             <div
+                className="hover-bg"
                 style={{
                     padding: '12px 16px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     cursor: 'pointer',
-                    transition: 'background-color 0.2s'
+                    borderRadius: '8px'
                 }}
                 onClick={() => setMenuView('cardSize')}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <Monitor size={20} />
@@ -77,20 +80,19 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose }) =
             </div>
 
             <div
+                className="hover-bg"
                 style={{
                     padding: '12px 16px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     cursor: 'pointer',
-                    transition: 'background-color 0.2s'
+                    borderRadius: '8px'
                 }}
                 onClick={() => {
                     setTempApiKey(apiKey);
                     setMenuView('apiKey');
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
             >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <Key size={20} />
@@ -124,10 +126,9 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose }) =
                     Setting
                 </div>
                 <div
-                    style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}
+                    className="hover-bg"
+                    style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', borderRadius: '8px' }}
                     onClick={() => setTheme('dark')}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                 >
                     <div style={{ width: '20px', display: 'flex', justifyContent: 'center' }}>
                         {theme === 'dark' && <Check size={18} />}
@@ -135,10 +136,9 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose }) =
                     <span>Dark theme</span>
                 </div>
                 <div
-                    style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}
+                    className="hover-bg"
+                    style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', borderRadius: '8px' }}
                     onClick={() => setTheme('light')}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                 >
                     <div style={{ width: '20px', display: 'flex', justifyContent: 'center' }}>
                         {theme === 'light' && <Check size={18} />}
@@ -169,12 +169,12 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose }) =
 
             <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
                 <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-                    Adjust cards per row (3-9)
+                    {isWatchPage ? 'Adjust Sidebar Scale' : 'Adjust Grid Size'}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
                     <button
-                        onClick={() => updateCardsPerRow(cardsPerRow + 1)}
-                        disabled={cardsPerRow >= 9}
+                        onClick={() => isWatchPage ? updateWatchPageCardsPerRow(currentCardsPerRow + 1) : updateCardsPerRow(currentCardsPerRow + 1)}
+                        disabled={currentCardsPerRow >= 9}
                         style={{
                             width: '40px',
                             height: '40px',
@@ -183,8 +183,8 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose }) =
                             backgroundColor: 'var(--bg-primary)',
                             color: 'var(--text-primary)',
                             fontSize: '24px',
-                            cursor: cardsPerRow >= 9 ? 'not-allowed' : 'pointer',
-                            opacity: cardsPerRow >= 9 ? 0.5 : 1,
+                            cursor: currentCardsPerRow >= 9 ? 'not-allowed' : 'pointer',
+                            opacity: currentCardsPerRow >= 9 ? 0.5 : 1,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center'
@@ -192,10 +192,10 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose }) =
                     >
                         -
                     </button>
-                    <span style={{ fontSize: '24px', fontWeight: 'bold' }}>{cardsPerRow}</span>
+                    <span style={{ fontSize: '24px', fontWeight: 'bold' }}>{currentCardsPerRow}</span>
                     <button
-                        onClick={() => updateCardsPerRow(cardsPerRow - 1)}
-                        disabled={cardsPerRow <= 3}
+                        onClick={() => isWatchPage ? updateWatchPageCardsPerRow(currentCardsPerRow - 1) : updateCardsPerRow(currentCardsPerRow - 1)}
+                        disabled={currentCardsPerRow <= 3}
                         style={{
                             width: '40px',
                             height: '40px',
@@ -204,8 +204,8 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose }) =
                             backgroundColor: 'var(--bg-primary)',
                             color: 'var(--text-primary)',
                             fontSize: '24px',
-                            cursor: cardsPerRow <= 3 ? 'not-allowed' : 'pointer',
-                            opacity: cardsPerRow <= 3 ? 0.5 : 1,
+                            cursor: currentCardsPerRow <= 3 ? 'not-allowed' : 'pointer',
+                            opacity: currentCardsPerRow <= 3 ? 0.5 : 1,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center'
@@ -215,7 +215,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose }) =
                     </button>
                 </div>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                    Current: {cardsPerRow} cards per row
+                    Current: {currentCardsPerRow} {isWatchPage ? 'scale' : 'cards per row'}
                 </div>
             </div>
         </>

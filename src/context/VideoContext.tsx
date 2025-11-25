@@ -12,10 +12,14 @@ interface VideoContextType {
     moveVideo: (dragIndex: number, hoverIndex: number) => void;
     cardsPerRow: number;
     updateCardsPerRow: (count: number) => void;
+    watchPageCardsPerRow: number;
+    updateWatchPageCardsPerRow: (count: number) => void;
     selectedChannel: string;
     setSelectedChannel: (channel: string) => void;
     uniqueChannels: string[];
     addCustomVideo: (video: Omit<VideoDetails, 'id'>) => void;
+    recommendationOrders: Record<string, string[]>;
+    updateRecommendationOrder: (videoId: string, newOrder: string[]) => void;
 }
 
 const VideoContext = createContext<VideoContextType | undefined>(undefined);
@@ -35,12 +39,22 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return saved ? parseInt(saved, 10) : 3;
     });
 
+    const [watchPageCardsPerRow, setWatchPageCardsPerRow] = useState<number>(() => {
+        const saved = localStorage.getItem('youtube_watch_cards_per_row');
+        return saved ? parseInt(saved, 10) : 3;
+    });
+
     const [selectedChannel, setSelectedChannel] = useState<string>('All');
 
     const uniqueChannels = React.useMemo(() => {
         const channels = new Set(videos.map(v => v.channelTitle));
         return Array.from(channels).sort();
     }, [videos]);
+
+    const [recommendationOrders, setRecommendationOrders] = useState<Record<string, string[]>>(() => {
+        const saved = localStorage.getItem('youtube_recommendation_orders');
+        return saved ? JSON.parse(saved) : {};
+    });
 
     useEffect(() => {
         localStorage.setItem('youtube_api_key', apiKey);
@@ -61,6 +75,14 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         localStorage.setItem('youtube_cards_per_row', cardsPerRow.toString());
     }, [cardsPerRow]);
 
+    useEffect(() => {
+        localStorage.setItem('youtube_watch_cards_per_row', watchPageCardsPerRow.toString());
+    }, [watchPageCardsPerRow]);
+
+    useEffect(() => {
+        localStorage.setItem('youtube_recommendation_orders', JSON.stringify(recommendationOrders));
+    }, [recommendationOrders]);
+
     const setApiKey = (key: string) => {
         setApiKeyState(key);
     };
@@ -69,6 +91,19 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (count >= 3 && count <= 9) {
             setCardsPerRow(count);
         }
+    };
+
+    const updateWatchPageCardsPerRow = (count: number) => {
+        if (count >= 3 && count <= 9) {
+            setWatchPageCardsPerRow(count);
+        }
+    };
+
+    const updateRecommendationOrder = (videoId: string, newOrder: string[]) => {
+        setRecommendationOrders(prev => ({
+            ...prev,
+            [videoId]: newOrder
+        }));
     };
 
     const addVideo = async (url: string): Promise<boolean> => {
@@ -100,6 +135,16 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const removeVideo = (id: string) => {
         setVideos(prev => prev.filter(v => v.id !== id));
+        // Cleanup recommendation orders for this video if needed, 
+        // but also we should remove this video ID from OTHER videos' recommendation lists?
+        // For now, simple cleanup:
+        setRecommendationOrders(prev => {
+            const newOrders = { ...prev };
+            delete newOrders[id];
+            // Optional: Remove id from all other lists. 
+            // Since we filter by 'videos' existence in WatchPage, this is self-correcting visually.
+            return newOrders;
+        });
     };
 
     const addCustomVideo = (video: Omit<VideoDetails, 'id'>) => {
@@ -148,10 +193,14 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             moveVideo,
             cardsPerRow,
             updateCardsPerRow,
+            watchPageCardsPerRow,
+            updateWatchPageCardsPerRow,
             selectedChannel,
             setSelectedChannel,
             uniqueChannels,
-            addCustomVideo
+            addCustomVideo,
+            recommendationOrders,
+            updateRecommendationOrder
         }}>
             {children}
         </VideoContext.Provider>
