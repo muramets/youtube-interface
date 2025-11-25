@@ -6,6 +6,7 @@
     position: relative;
     border-radius: 12px;
     padding: 8px;
+    isolation: isolate;
 }
 
 .video-card-hover-bg {
@@ -56,7 +57,7 @@
 .video-info-container {
     display: flex;
     gap: 12px;
-    padding-right: 24px;
+    padding-right: 36px;
     position: relative;
 }
 
@@ -112,7 +113,7 @@
 .menu-button-container {
     position: absolute;
     top: 0;
-    right: -12px;
+    right: 0;
 }
 
 .menu-button {
@@ -151,6 +152,8 @@
     gap: 12px;
     cursor: pointer;
     color: var(--text-primary);
+    border-radius: 8px;
+    margin: 0 8px;
 }
 
 .menu-item:hover {

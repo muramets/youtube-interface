@@ -1,6 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
-import { VideoProvider, useVideo } from './context/VideoContext';
+import { VideoProvider } from './context/VideoContext';
 import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
 import { VideoGrid } from './components/Video/VideoGrid';
@@ -10,6 +10,8 @@ import { PlaylistDetailPage } from './components/Playlist/PlaylistDetailPage';
 import './App.css';
 
 import { UserProfileProvider } from './context/UserProfileContext';
+
+import { CategoryBar } from './components/Video/CategoryBar';
 
 function App() {
   return (
@@ -40,24 +42,5 @@ function App() {
     </ThemeProvider>
   );
 }
-
-const CategoryBar = () => {
-  const { uniqueChannels, selectedChannel, setSelectedChannel } = useVideo();
-  const categories = ['All', ...uniqueChannels];
-
-  return (
-    <div className="categories">
-      {categories.map((category, index) => (
-        <button
-          key={index}
-          className={`category-pill ${selectedChannel === category ? 'active' : ''}`}
-          onClick={() => setSelectedChannel(category)}
-        >
-          {category}
-        </button>
-      ))}
-    </div>
-  );
-};
 
 export default App;

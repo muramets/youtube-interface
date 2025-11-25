@@ -1,0 +1,135 @@
+.settings-dropdown {
+    position: fixed;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 8px 0;
+    width: 300px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    color: var(--text-primary);
+}
+
+.settings-menu-item {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    border-radius: 8px;
+}
+
+.settings-menu-item:hover {
+    background-color: var(--hover-bg);
+}
+
+.settings-menu-item-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.settings-header {
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+    cursor: pointer;
+}
+
+.settings-header-title {
+    font-size: 16px;
+}
+
+.settings-section-label {
+    padding: 8px 16px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.settings-option {
+    padding: 8px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-radius: 8px;
+}
+
+.settings-option:hover {
+    background-color: var(--hover-bg);
+}
+
+.check-icon-container {
+    width: 20px;
+    display: flex;
+    justify-content: center;
+}
+
+.card-size-container {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    align-items: center;
+}
+
+.card-size-controls {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+
+.card-size-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.card-size-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.card-size-value {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.api-key-container {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.api-key-input {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.api-key-save-button {
+    padding: 8px 16px;
+    border-radius: 18px;
+    border: none;
+    background-color: #3ea6ff;
+    color: black;
+    font-weight: bold;
+    cursor: pointer;
+    align-self: flex-end;
+}

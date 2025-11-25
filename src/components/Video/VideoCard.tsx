@@ -18,7 +18,7 @@ interface VideoCardProps {
 
 export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange }) => {
   const navigate = useNavigate();
-  const { deleteVideo, updateVideo, removeVideoFromPlaylist } = useVideo();
+  const { removeVideo, updateVideo, removeVideoFromPlaylist } = useVideo();
   const [showMenu, setShowMenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
@@ -83,7 +83,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     if (confirmation.action === 'removeFromPlaylist' && playlistId) {
       removeVideoFromPlaylist(playlistId, video.id);
     } else if (confirmation.action === 'deleteCustom' || confirmation.action === 'removeVideo') {
-      deleteVideo(video.id);
+      removeVideo(video.id);
     }
     setConfirmation({ ...confirmation, isOpen: false });
   };
@@ -188,9 +188,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
 
       {showPlaylistModal && (
         <AddToPlaylistModal
-          isOpen={showPlaylistModal}
           onClose={() => setShowPlaylistModal(false)}
-          video={video}
+          videoId={video.id}
         />
       )}
 
