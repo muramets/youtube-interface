@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { useVideo } from '../../context/VideoContext';
-import { SortableVideoCard } from '../Video/SortableVideoCard';
+import { SortableRecommendationCard } from './SortableRecommendationCard';
+import { WatchPageFilterBar } from './WatchPageFilterBar';
 import type { VideoDetails } from '../../utils/youtubeApi';
 import {
     DndContext,
@@ -26,16 +27,11 @@ export const WatchPage: React.FC = () => {
     const searchParams = new URLSearchParams(location.search);
     const playlistId = searchParams.get('list');
 
-    const { videos, watchPageCardsPerRow, playlists, updateRecommendationOrder, recommendationOrders } = useVideo();
+    const { videos, playlists, updateRecommendationOrder, recommendationOrders, hiddenPlaylistIds } = useVideo();
     const [currentVideo, setCurrentVideo] = useState<VideoDetails | null>(null);
     const [relatedVideos, setRelatedVideos] = useState<VideoDetails[]>([]);
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-
-    // New state for playlist filtering
-    const [activePlaylist, setActivePlaylist] = useState<{ id: string, name: string } | null>(null);
-    const [availablePlaylists, setAvailablePlaylists] = useState<{ id: string, name: string }[]>([]);
-    const [showPlaylistVideos, setShowPlaylistVideos] = useState(true);
-    const [showPlaylistSelector, setShowPlaylistSelector] = useState(false);
+    const [filter, setFilter] = useState<'all' | 'channel'>('all');
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -57,86 +53,82 @@ export const WatchPage: React.FC = () => {
         }
     }, [id, videos]);
 
-    // Logic to determine related videos and active playlist
+    // Logic to determine related videos (base list before filtering)
     useEffect(() => {
         if (currentVideo) {
-            // Find ALL playlists containing this video
-            const containingPlaylists = playlists.filter(p => p.videoIds.includes(currentVideo.id) && p.videoIds.length > 1);
-            setAvailablePlaylists(containingPlaylists.map(p => ({ id: p.id, name: p.name })));
-
-            let playlistToUse = null;
-
-            // If we already have an active playlist and it still contains the video, keep it
-            if (activePlaylist && containingPlaylists.some(p => p.id === activePlaylist.id)) {
-                playlistToUse = playlists.find(p => p.id === activePlaylist.id);
-            }
-            // Otherwise, prioritize URL param
-            else if (playlistId) {
-                playlistToUse = playlists.find(p => p.id === playlistId);
-            }
-            // Finally, default to the first found playlist
-            else if (containingPlaylists.length > 0) {
-                playlistToUse = containingPlaylists[0];
-            }
-
-            if (playlistToUse) {
-                // Only update active playlist if it changed or wasn't set
-                if (!activePlaylist || activePlaylist.id !== playlistToUse.id) {
-                    setActivePlaylist({ id: playlistToUse.id, name: playlistToUse.name });
-                }
-
-                if (showPlaylistVideos) {
-                    const playlistVids = playlistToUse.videoIds
-                        .map(vidId => videos.find(v => v.id === vidId))
-                        .filter((v): v is VideoDetails => v !== undefined);
-                    setRelatedVideos(playlistVids);
-                    return;
-                }
-            } else {
-                setActivePlaylist(null);
-            }
-
-            // Default behavior (or if toggle is off): Filter out current video and show others
+            // Default behavior: Show all other videos
             const others = videos.filter(v => v.id !== currentVideo.id);
             setRelatedVideos(others);
         }
-    }, [currentVideo, videos, playlistId, playlists, showPlaylistVideos, activePlaylist?.id]); // Added activePlaylist.id dependency to prevent loop but allow updates
+    }, [currentVideo, videos]);
 
-    // Derive the list of recommended videos (excluding current)
-    // and sort them based on the saved order for THIS video ID.
-    const recommendedVideos = React.useMemo(() => {
-        if (!id) return [];
-        // Use relatedVideos instead of filtering videos again
-        const otherVideos = relatedVideos.filter(v => v.id !== id);
+    // Derive the list of recommended videos based on filters and order
+    const recommendedVideos = useMemo(() => {
+        if (!id || !currentVideo) return [];
 
-        if (activePlaylist && showPlaylistVideos) {
-            // If in playlist mode, `relatedVideos` is already the playlist videos in order.
-            // We just filtered out the current one above.
-            // So we return `otherVideos` as is (which preserves playlist order minus current).
-            return otherVideos;
+        let filtered = [...relatedVideos];
+
+        // 1. Apply Chip Filters
+        if (filter === 'channel') {
+            filtered = filtered.filter(v => v.channelTitle === currentVideo.channelTitle);
         }
 
-        const savedOrder = recommendationOrders[id];
-        if (!savedOrder) return otherVideos;
+        // 2. Apply Playlist Visibility Filter (Global)
+        // If a video belongs ONLY to hidden playlists, hide it.
+        // Logic: For each video, find all playlists it belongs to.
+        // If it belongs to at least one visible playlist (or no playlists at all?), show it.
+        // Wait, the Home Page logic is: "Hide videos from specific playlists".
+        // If a video is in a hidden playlist, should it be hidden?
+        // Usually, if I hide a playlist, I don't want to see its videos if they are ONLY in that playlist.
+        // But if a video is in multiple playlists, and one is visible, it should probably show.
+        // Let's use a strict "hide if in hidden playlist" approach for now, or match Home Page.
+        // Home Page logic: `videos.filter(video => !hiddenVideoIds.has(video.id))` where hiddenVideoIds are derived from hidden playlists.
+        // Let's replicate that logic.
 
-        // Sort based on savedOrder
-        return [...otherVideos].sort((a, b) => {
-            const indexA = savedOrder.indexOf(a.id);
-            const indexB = savedOrder.indexOf(b.id);
-            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-            if (indexA !== -1) return -1;
-            if (indexB !== -1) return 1;
-            return 0;
-        });
-    }, [relatedVideos, id, recommendationOrders, activePlaylist, showPlaylistVideos]);
+        const hiddenVideoIds = new Set<string>();
+        if (hiddenPlaylistIds.length > 0) {
+            playlists.forEach(playlist => {
+                if (hiddenPlaylistIds.includes(playlist.id)) {
+                    playlist.videoIds.forEach(vidId => hiddenVideoIds.add(vidId));
+                }
+            });
+        }
+
+        // However, if a video is in a hidden playlist AND a visible playlist, should it be hidden?
+        // The Home Page logic (VideoGrid.tsx) hides it if it's in ANY hidden playlist (implied by adding all IDs to the Set).
+        // Let's refine: If a video is in a visible playlist, it should be shown?
+        // Or is "Hidden Playlist" a strong "I don't want to see this content"?
+        // Let's stick to the Home Page implementation for consistency: If it's in a hidden playlist, it's hidden.
+        // Wait, let's check VideoGrid.tsx logic if possible.
+        // Assuming the user wants to filter out specific content.
+
+        filtered = filtered.filter(v => !hiddenVideoIds.has(v.id));
+
+
+        // 3. Apply Sorting (only if 'all' filter is active, otherwise custom sort overrides)
+        if (filter === 'all') {
+            const savedOrder = recommendationOrders[id];
+            if (savedOrder) {
+                filtered.sort((a, b) => {
+                    const indexA = savedOrder.indexOf(a.id);
+                    const indexB = savedOrder.indexOf(b.id);
+                    if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+                    if (indexA !== -1) return -1;
+                    if (indexB !== -1) return 1;
+                    return 0;
+                });
+            }
+        }
+
+        return filtered;
+    }, [relatedVideos, id, currentVideo, filter, recommendationOrders, hiddenPlaylistIds, playlists]);
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
 
         if (active.id !== over?.id && over && id) {
-            // If in playlist mode, maybe disable reordering or update playlist?
-            // For now, let's only allow reordering "Recommendations" (All Videos mode).
-            if (activePlaylist && showPlaylistVideos) return;
+            // Only allow reordering when "All" filter is active to avoid confusion
+            if (filter !== 'all') return;
 
             const oldIndex = recommendedVideos.findIndex((item) => item.id === active.id);
             const newIndex = recommendedVideos.findIndex((item) => item.id === over.id);
@@ -154,11 +146,6 @@ export const WatchPage: React.FC = () => {
         return <div style={{ color: 'var(--text-primary)', padding: '24px' }}>Video not found</div>;
     }
 
-    // Calculate sidebar card scale based on cardsPerRow (3-9)
-    // cardsPerRow = 3 (Large) -> scale = 1
-    // cardsPerRow = 9 (Small) -> scale = 0.7 (example)
-    const scale = Math.max(0.6, 1 - (watchPageCardsPerRow - 3) * 0.06);
-
     return (
         <div style={{
             display: 'flex',
@@ -166,7 +153,7 @@ export const WatchPage: React.FC = () => {
             padding: '24px',
             maxWidth: '1800px',
             margin: '0 auto',
-            minHeight: '100vh', // Ensure full height
+            minHeight: '100vh',
             boxSizing: 'border-box'
         }}>
             {/* Main Content */}
@@ -300,99 +287,11 @@ export const WatchPage: React.FC = () => {
 
             {/* Sidebar Recommendations */}
             <div style={{ width: '400px', flexShrink: 0 }}>
-                {activePlaylist && (
-                    <div style={{
-                        marginBottom: '16px',
-                        padding: '12px',
-                        backgroundColor: 'var(--bg-secondary)',
-                        borderRadius: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        position: 'relative',
-                        zIndex: 100
-                    }}>
-                        <div
-                            style={{ cursor: availablePlaylists.length > 1 ? 'pointer' : 'default', display: 'flex', flexDirection: 'column', gap: '2px' }}
-                            onClick={() => availablePlaylists.length > 1 && setShowPlaylistSelector(!showPlaylistSelector)}
-                        >
-                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Playing from</div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <div style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{activePlaylist.name}</div>
-                                {availablePlaylists.length > 1 && (
-                                    <div style={{ transform: showPlaylistSelector ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', display: 'flex', alignItems: 'center' }}>
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {showPlaylistSelector && (
-                            <div style={{
-                                position: 'absolute',
-                                top: '100%',
-                                left: 0,
-                                right: 0,
-                                backgroundColor: 'var(--bg-secondary)',
-                                borderRadius: '12px',
-                                padding: '8px',
-                                marginTop: '4px',
-                                boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '4px'
-                            }}>
-                                {availablePlaylists.map(p => (
-                                    <div
-                                        key={p.id}
-                                        className="hover-bg"
-                                        onClick={() => {
-                                            setActivePlaylist(p);
-                                            setShowPlaylistSelector(false);
-                                        }}
-                                        style={{
-                                            padding: '8px',
-                                            borderRadius: '8px',
-                                            cursor: 'pointer',
-                                            fontWeight: p.id === activePlaylist.id ? 'bold' : 'normal',
-                                            color: p.id === activePlaylist.id ? 'var(--text-primary)' : 'var(--text-secondary)'
-                                        }}
-                                    >
-                                        {p.name}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '12px', color: !showPlaylistVideos ? 'var(--text-primary)' : 'var(--text-secondary)' }}>All</span>
-                            <div
-                                onClick={() => setShowPlaylistVideos(!showPlaylistVideos)}
-                                style={{
-                                    width: '40px',
-                                    height: '20px',
-                                    backgroundColor: showPlaylistVideos ? '#3ea6ff' : 'var(--border)',
-                                    borderRadius: '10px',
-                                    position: 'relative',
-                                    cursor: 'pointer',
-                                    transition: 'background-color 0.2s'
-                                }}
-                            >
-                                <div style={{
-                                    width: '16px',
-                                    height: '16px',
-                                    backgroundColor: 'white',
-                                    borderRadius: '50%',
-                                    position: 'absolute',
-                                    top: '2px',
-                                    left: showPlaylistVideos ? '22px' : '2px',
-                                    transition: 'left 0.2s'
-                                }}></div>
-                            </div>
-                            <span style={{ fontSize: '12px', color: showPlaylistVideos ? 'var(--text-primary)' : 'var(--text-secondary)' }}>Playlist</span>
-                        </div>
-                    </div>
-                )}
+                <WatchPageFilterBar
+                    channelName={currentVideo.channelTitle}
+                    selectedFilter={filter}
+                    onFilterChange={setFilter}
+                />
 
                 <DndContext
                     sensors={sensors}
@@ -406,10 +305,9 @@ export const WatchPage: React.FC = () => {
                                     zIndex: openMenuId === v.id ? 9999 : recommendedVideos.length - index,
                                     position: 'relative'
                                 }}>
-                                    <SortableVideoCard
+                                    <SortableRecommendationCard
                                         video={v}
                                         playlistId={playlistId || undefined}
-                                        scale={scale}
                                         onMenuOpenChange={(isOpen) => setOpenMenuId(isOpen ? v.id : null)}
                                     />
                                 </div>

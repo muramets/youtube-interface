@@ -21,8 +21,6 @@ interface VideoContextType {
     moveVideo: (dragIndex: number, hoverIndex: number) => void;
     cardsPerRow: number;
     updateCardsPerRow: (count: number) => void;
-    watchPageCardsPerRow: number;
-    updateWatchPageCardsPerRow: (count: number) => void;
     selectedChannel: string;
     setSelectedChannel: (channel: string) => void;
     uniqueChannels: string[];
@@ -58,10 +56,7 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return saved ? parseInt(saved, 10) : 3;
     });
 
-    const [watchPageCardsPerRow, setWatchPageCardsPerRow] = useState<number>(() => {
-        const saved = localStorage.getItem('youtube_watch_cards_per_row');
-        return saved ? parseInt(saved, 10) : 3;
-    });
+
 
     const [selectedChannel, setSelectedChannel] = useState<string>('All');
 
@@ -95,10 +90,6 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, [cardsPerRow]);
 
     useEffect(() => {
-        localStorage.setItem('youtube_watch_cards_per_row', watchPageCardsPerRow.toString());
-    }, [watchPageCardsPerRow]);
-
-    useEffect(() => {
         localStorage.setItem('youtube_recommendation_orders', JSON.stringify(recommendationOrders));
     }, [recommendationOrders]);
 
@@ -128,12 +119,6 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const updateCardsPerRow = (count: number) => {
         if (count >= 3 && count <= 9) {
             setCardsPerRow(count);
-        }
-    };
-
-    const updateWatchPageCardsPerRow = (count: number) => {
-        if (count >= 3 && count <= 9) {
-            setWatchPageCardsPerRow(count);
         }
     };
 
@@ -345,8 +330,6 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             moveVideo,
             cardsPerRow,
             updateCardsPerRow,
-            watchPageCardsPerRow,
-            updateWatchPageCardsPerRow,
             selectedChannel,
             setSelectedChannel,
             uniqueChannels,
