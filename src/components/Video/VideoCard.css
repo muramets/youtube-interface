@@ -1,12 +1,14 @@
 .video-card-container {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 0.75em;
     cursor: pointer;
     position: relative;
-    border-radius: 12px;
-    padding: 8px;
+    border-radius: 0.75em;
+    padding: 0.5em;
     isolation: isolate;
+    font-size: 1rem;
+    /* Default base size */
 }
 
 .video-card-hover-bg {
@@ -16,7 +18,7 @@
     right: 0;
     bottom: 0;
     background-color: var(--bg-secondary);
-    border-radius: 12px;
+    border-radius: 0.75em;
     opacity: 0;
     transform: scale(0.9);
     transition: all 0.2s ease-out;
@@ -31,7 +33,7 @@
 
 .video-thumbnail-container {
     position: relative;
-    border-radius: 12px;
+    border-radius: 0.75em;
     overflow: hidden;
     aspect-ratio: 16/9;
 }
@@ -44,20 +46,20 @@
 
 .video-duration {
     position: absolute;
-    bottom: 8px;
-    right: 8px;
+    bottom: 0.5em;
+    right: 0.5em;
     background-color: rgba(0, 0, 0, 0.8);
     color: white;
-    padding: 2px 4px;
-    border-radius: 4px;
-    font-size: 12px;
+    padding: 0.125em 0.25em;
+    border-radius: 0.25em;
+    font-size: 0.75em;
     font-weight: 500;
 }
 
 .video-info-container {
     display: flex;
-    gap: 12px;
-    padding-right: 36px;
+    gap: 0.75em;
+    padding-right: 2.25em;
     position: relative;
 }
 
@@ -66,8 +68,8 @@
 }
 
 .channel-avatar {
-    width: 36px;
-    height: 36px;
+    width: 2.25em;
+    height: 2.25em;
     border-radius: 50%;
     overflow: hidden;
 }
@@ -79,8 +81,8 @@
 }
 
 .channel-avatar-placeholder {
-    width: 36px;
-    height: 36px;
+    width: 2.25em;
+    height: 2.25em;
     border-radius: 50%;
     background-color: #ccc;
 }
@@ -88,13 +90,13 @@
 .video-text-info {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 0.25em;
     flex: 1;
 }
 
 .video-title {
     margin: 0;
-    font-size: 16px;
+    font-size: 1em;
     font-weight: 600;
     line-height: 1.4;
     display: -webkit-box;
@@ -107,7 +109,7 @@
 
 .video-meta {
     color: var(--text-secondary);
-    font-size: 14px;
+    font-size: 0.875em;
 }
 
 .menu-button-container {
@@ -120,7 +122,7 @@
     background: transparent;
     border: none;
     cursor: pointer;
-    padding: 8px;
+    padding: 0.5em;
     border-radius: 50%;
     color: var(--text-primary);
     display: flex;
@@ -136,24 +138,28 @@
 .video-menu-portal {
     position: fixed;
     background-color: var(--bg-secondary);
-    border-radius: 12px;
-    padding: 8px 0;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    border-radius: 0.75em;
+    padding: 0.5em 0;
+    box-shadow: 0 0.25em 0.75em rgba(0, 0, 0, 0.5);
     z-index: 9999;
-    width: 200px;
+    width: 12.5em;
     display: flex;
     flex-direction: column;
+    font-size: 1rem;
+    /* Reset font size for menu to avoid inheriting scaled size if we don't want it to scale */
 }
 
 .menu-item {
-    padding: 8px 16px;
+    padding: 0.5em 1em;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 0.75em;
     cursor: pointer;
     color: var(--text-primary);
-    border-radius: 8px;
-    margin: 0 8px;
+    border-radius: 0.5em;
+    margin: 0 0.5em;
+    font-size: 0.875em;
+    /* 14px */
 }
 
 .menu-item:hover {
@@ -163,5 +169,5 @@
 .menu-divider {
     height: 1px;
     background-color: var(--border);
-    margin: 4px 0;
+    margin: 0.25em 0;
 }

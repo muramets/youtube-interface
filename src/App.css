@@ -6,19 +6,19 @@
 }
 
 .app-container {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   background-color: var(--bg-primary);
   color: var(--text-primary);
+  overflow: hidden;
 }
 
 .main-content {
   display: flex;
   flex: 1;
   overflow: hidden;
-  height: calc(100vh - 56px);
-  /* Subtract header height */
+  position: relative;
 }
 
 .content-area {

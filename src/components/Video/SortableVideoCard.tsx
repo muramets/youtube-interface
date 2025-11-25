@@ -29,11 +29,10 @@ export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, pla
         touchAction: 'none',
         position: 'relative' as const,
         zIndex: isDragging ? 999 : 'auto',
-        // Apply scale if provided (for WatchPage sidebar)
+        // Apply scaling if provided (for WatchPage sidebar)
         ...(scale !== 1 ? {
-            transform: `${CSS.Transform.toString(transform)} scale(${scale})`,
-            transformOrigin: 'top left',
-            marginBottom: `calc(-${(1 - scale) * 100}% + 12px)`
+            width: `${scale * 100}%`,
+            fontSize: `${scale}rem`,
         } : {})
     };
 

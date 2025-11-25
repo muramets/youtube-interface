@@ -36,6 +36,9 @@ interface VideoContextType {
     removeVideoFromPlaylist: (playlistId: string, videoId: string) => void;
     updatePlaylist: (id: string, updates: Partial<Playlist>) => void;
     reorderPlaylistVideos: (playlistId: string, newOrder: string[]) => void;
+    reorderPlaylists: (newPlaylists: Playlist[]) => void;
+    hiddenPlaylistIds: string[];
+    togglePlaylistVisibility: (playlistId: string) => void;
 }
 
 const VideoContext = createContext<VideoContextType | undefined>(undefined);
@@ -308,6 +311,29 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }));
     };
 
+    const reorderPlaylists = (newPlaylists: Playlist[]) => {
+        setPlaylists(newPlaylists);
+    };
+
+    const [hiddenPlaylistIds, setHiddenPlaylistIds] = useState<string[]>(() => {
+        const saved = localStorage.getItem('youtube_hidden_playlists');
+        return saved ? JSON.parse(saved) : [];
+    });
+
+    useEffect(() => {
+        localStorage.setItem('youtube_hidden_playlists', JSON.stringify(hiddenPlaylistIds));
+    }, [hiddenPlaylistIds]);
+
+    const togglePlaylistVisibility = (playlistId: string) => {
+        setHiddenPlaylistIds(prev => {
+            if (prev.includes(playlistId)) {
+                return prev.filter(id => id !== playlistId);
+            } else {
+                return [...prev, playlistId];
+            }
+        });
+    };
+
     return (
         <VideoContext.Provider value={{
             videos,
@@ -333,7 +359,10 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             addVideoToPlaylist,
             removeVideoFromPlaylist,
             updatePlaylist,
-            reorderPlaylistVideos
+            reorderPlaylistVideos,
+            reorderPlaylists,
+            hiddenPlaylistIds,
+            togglePlaylistVisibility
         }}>
             {children}
         </VideoContext.Provider>

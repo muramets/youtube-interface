@@ -85,7 +85,9 @@ export const PlaylistMenu: React.FC<PlaylistMenuProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '12px',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    borderRadius: '8px',
+                    margin: '0 8px'
                 }}
             >
                 <Edit2 size={16} />
@@ -100,7 +102,9 @@ export const PlaylistMenu: React.FC<PlaylistMenuProps> = ({
                     alignItems: 'center',
                     gap: '12px',
                     cursor: 'pointer',
-                    color: '#ff4d4d'
+                    color: '#ff4d4d',
+                    borderRadius: '8px',
+                    margin: '0 8px'
                 }}
             >
                 <Trash2 size={16} />
