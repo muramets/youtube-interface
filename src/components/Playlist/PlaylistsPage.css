@@ -14,3 +14,15 @@
 .playlist-menu-button:hover {
     background-color: var(--hover);
 }
+
+/* Playlist Card Specific Hover Effects */
+.playlist-card-container .video-card-hover-bg {
+    transform: scale(1);
+    transition: all 0.2s ease-out;
+    opacity: 0;
+}
+
+.playlist-card-container:hover .video-card-hover-bg {
+    transform: scale(1.05);
+    opacity: 1;
+}

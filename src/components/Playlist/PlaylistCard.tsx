@@ -29,7 +29,7 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
 }) => {
     return (
         <div
-            className="video-card-container" // Reusing VideoCard container style for consistency
+            className="video-card-container playlist-card-container" // Reusing VideoCard container style for consistency
             onClick={() => navigate(`/playlists/${playlist.id}`)}
             style={{ padding: 0 }} // Override padding if needed, or keep consistent
         >
