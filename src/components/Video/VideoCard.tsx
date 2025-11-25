@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { MoreVertical, Edit2, ListPlus, Trash2, RefreshCw, Clock, Share2, ListMinus } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { MoreVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useVideo } from '../../context/VideoContext';
 import type { VideoDetails } from '../../utils/youtubeApi';
@@ -7,6 +7,8 @@ import { CustomVideoModal } from './CustomVideoModal';
 import { formatViewCount, formatDuration } from '../../utils/formatUtils';
 import { AddToPlaylistModal } from '../Playlist/AddToPlaylistModal';
 import { ConfirmationModal } from '../Shared/ConfirmationModal';
+import { VideoCardMenu } from './VideoCardMenu';
+import './VideoCard.css';
 
 interface VideoCardProps {
   video: VideoDetails;
@@ -26,21 +28,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     title: string;
     message: string;
   }>({ isOpen: false, action: null, title: '', message: '' });
-  const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowMenu(false);
-        onMenuOpenChange?.(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [onMenuOpenChange]);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   const handleVideoClick = () => {
     if (playlistId) {
@@ -57,9 +46,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     onMenuOpenChange?.(newState);
   };
 
+  const handleCloseMenu = () => {
+    setShowMenu(false);
+    onMenuOpenChange?.(false);
+  };
+
   const handleRemove = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setShowMenu(false);
+    handleCloseMenu();
 
     if (playlistId) {
       setConfirmation({
@@ -97,12 +91,12 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const handleAddToPlaylist = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowPlaylistModal(true);
-    setShowMenu(false);
+    handleCloseMenu();
   };
 
   const handleUpdate = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    setShowMenu(false);
+    handleCloseMenu();
     if (video.isCustom) {
       setShowEditModal(true);
     } else {
@@ -113,63 +107,42 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   return (
     <>
       <div
-        className="video-card-container clickable"
+        className="video-card-container"
         onClick={handleVideoClick}
-        style={{ display: 'flex', flexDirection: 'column', gap: '12px', cursor: 'pointer' }}
       >
         <div className="video-card-hover-bg"></div>
 
         {/* Thumbnail Container */}
-        <div style={{ position: 'relative', borderRadius: '12px', overflow: 'hidden', aspectRatio: '16/9' }}>
+        <div className="video-thumbnail-container">
           <img
             src={video.isCustom ? (video.customImage || video.thumbnail) : video.thumbnail}
             alt={video.title}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            className="video-thumbnail"
           />
-          <div style={{
-            position: 'absolute',
-            bottom: '8px',
-            right: '8px',
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            color: 'white',
-            padding: '2px 4px',
-            borderRadius: '4px',
-            fontSize: '12px',
-            fontWeight: '500'
-          }}>
+          <div className="video-duration">
             {formatDuration(video.duration)}
           </div>
         </div>
 
         {/* Info Container */}
-        <div style={{ display: 'flex', gap: '12px', paddingRight: '24px', position: 'relative' }}>
+        <div className="video-info-container">
           {/* Avatar */}
-          <div style={{ flexShrink: 0 }}>
+          <div className="channel-avatar-container">
             {video.channelAvatar ? (
-              <div style={{ width: '36px', height: '36px', borderRadius: '50%', overflow: 'hidden' }}>
-                <img src={video.channelAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <div className="channel-avatar">
+                <img src={video.channelAvatar} alt="" className="channel-avatar-img" />
               </div>
             ) : (
-              <div style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#ccc' }}></div>
+              <div className="channel-avatar-placeholder"></div>
             )}
           </div>
 
           {/* Text Info */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
-            <h3 style={{
-              margin: 0,
-              fontSize: '16px',
-              fontWeight: '600',
-              lineHeight: '1.4',
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
-              color: 'var(--text-primary)'
-            }}>
+          <div className="video-text-info">
+            <h3 className="video-title">
               {video.title}
             </h3>
-            <div style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+            <div className="video-meta">
               <div>{video.channelTitle}</div>
               <div>
                 {video.viewCount ? `${formatViewCount(video.viewCount)} views` : ''} • {new Date(video.publishedAt).toLocaleDateString()}
@@ -178,99 +151,25 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
           </div>
 
           {/* Menu Button */}
-          <div style={{ position: 'absolute', top: 0, right: -12 }}>
+          <div className="menu-button-container">
             <button
-              className="hover-bg"
+              ref={menuButtonRef}
+              className="menu-button"
               onClick={handleMenuClick}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '8px',
-                borderRadius: '50%',
-                color: 'var(--text-primary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
             >
               <MoreVertical size={20} />
             </button>
 
-            {/* Dropdown Menu */}
-            {showMenu && (
-              <div
-                ref={menuRef}
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  backgroundColor: 'var(--bg-secondary)',
-                  borderRadius: '12px',
-                  padding: '8px 0',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                  zIndex: 100,
-                  width: '200px',
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}
-              >
-                {!playlistId && (
-                  <div
-                    className="hover-bg"
-                    onClick={handleAddToPlaylist}
-                    style={{
-                      padding: '8px 16px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <ListPlus size={20} />
-                    <span>Save to playlist</span>
-                  </div>
-                )}
-
-                <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '4px 0' }}></div>
-
-                {(video.isCustom || playlistId) && (
-                  <>
-                    {video.isCustom && (
-                      <div
-                        className="hover-bg"
-                        onClick={handleUpdate}
-                        style={{
-                          padding: '8px 16px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '12px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <Edit2 size={20} />
-                        <span>Edit</span>
-                      </div>
-                    )}
-
-                    <div
-                      className="hover-bg"
-                      onClick={handleRemove}
-                      style={{
-                        padding: '8px 16px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <Trash2 size={20} />
-                      <span>{playlistId ? 'Remove from playlist' : 'Delete'}</span>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+            <VideoCardMenu
+              isOpen={showMenu}
+              onClose={handleCloseMenu}
+              anchorEl={menuButtonRef.current}
+              playlistId={playlistId}
+              isCustom={video.isCustom}
+              onAddToPlaylist={handleAddToPlaylist}
+              onEdit={handleUpdate}
+              onRemove={handleRemove}
+            />
           </div>
         </div>
       </div>

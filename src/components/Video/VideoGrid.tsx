@@ -1,18 +1,4 @@
 import React, { useState } from 'react';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  rectSortingStrategy,
-} from '@dnd-kit/sortable';
 import { Plus, X, Youtube, Upload } from 'lucide-react';
 import { VideoCard } from './VideoCard';
 import { useVideo } from '../../context/VideoContext';
@@ -21,33 +7,11 @@ import { CustomVideoModal } from './CustomVideoModal';
 type AddingMode = 'idle' | 'choosing' | 'youtube';
 
 export const VideoGrid: React.FC = () => {
-  const { videos, moveVideo, addVideo, cardsPerRow, selectedChannel, addCustomVideo } = useVideo();
+  const { videos, addVideo, cardsPerRow, selectedChannel, addCustomVideo } = useVideo();
   const [addingMode, setAddingMode] = useState<AddingMode>('idle');
   const [newVideoUrl, setNewVideoUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-
-    if (active.id !== over?.id && over) {
-      const oldIndex = videos.findIndex((item) => item.id === active.id);
-      const newIndex = videos.findIndex((item) => item.id === over.id);
-      moveVideo(oldIndex, newIndex);
-    }
-  };
 
   const handleAddYouTubeVideo = async () => {
     if (!newVideoUrl.trim()) return;
@@ -74,12 +38,10 @@ export const VideoGrid: React.FC = () => {
       width: '100%'
     }}>
       {filteredVideos.map((video) => (
-        <div key={video.id} style={{ position: 'relative', zIndex: openMenuId === video.id ? 9999 : 'auto', overflow: 'visible' }}>
-          <VideoCard
-            video={video}
-            onMenuOpenChange={(isOpen) => setOpenMenuId(isOpen ? video.id : null)}
-          />
-        </div>
+        <VideoCard
+          key={video.id}
+          video={video}
+        />
       ))}
 
       {/* Add Video Card - Only show when "All" is selected */}

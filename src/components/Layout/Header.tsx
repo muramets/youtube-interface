@@ -8,6 +8,7 @@ export const Header: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = React.useState(false);
   const { avatarDataUrl } = useUserProfile();
+  const settingsButtonRef = React.useRef<HTMLButtonElement>(null);
 
   return (
     <header style={{
@@ -57,13 +58,14 @@ export const Header: React.FC = () => {
         <Bell size={24} color="var(--text-primary)" />
         <div style={{ position: 'relative' }}>
           <button
+            ref={settingsButtonRef}
             onClick={() => setIsSettingsOpen(!isSettingsOpen)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)' }}
             title="Settings"
           >
             <Settings size={24} />
           </button>
-          {isSettingsOpen && <SettingsDropdown onClose={() => setIsSettingsOpen(false)} />}
+          {isSettingsOpen && <SettingsDropdown onClose={() => setIsSettingsOpen(false)} anchorEl={settingsButtonRef.current} />}
         </div>
         <div
           onClick={() => setIsProfileModalOpen(true)}

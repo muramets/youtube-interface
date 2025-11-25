@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronRight, Moon, Sun, Check, ArrowLeft, Key, Monitor } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useVideo } from '../context/VideoContext';
-
 import { useLocation } from 'react-router-dom';
 
 interface SettingsDropdownProps {
     onClose: () => void;
+    anchorEl: HTMLElement | null;
 }
 
 type MenuView = 'main' | 'appearance' | 'apiKey' | 'cardSize';
 
-export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose }) => {
+export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anchorEl }) => {
     const { theme, setTheme } = useTheme();
     const { apiKey, setApiKey, cardsPerRow, updateCardsPerRow, watchPageCardsPerRow, updateWatchPageCardsPerRow } = useVideo();
     const [menuView, setMenuView] = useState<MenuView>('main');
@@ -20,19 +21,42 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose }) =
     const location = useLocation();
     const isWatchPage = location.pathname.startsWith('/watch/');
     const currentCardsPerRow = isWatchPage ? watchPageCardsPerRow : cardsPerRow;
+    const [position, setPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+
+    useEffect(() => {
+        if (anchorEl) {
+            const rect = anchorEl.getBoundingClientRect();
+            const menuWidth = 300;
+            const menuHeight = 400; // Approximate max height
+
+            let top = rect.bottom + 8;
+            let left = rect.right - menuWidth;
+
+            // Adjust if going off screen
+            if (left < 16) left = 16;
+            if (top + menuHeight > window.innerHeight) top = rect.top - menuHeight - 8;
+
+            setPosition({ top, left });
+        }
+    }, [anchorEl]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) && anchorEl && !anchorEl.contains(event.target as Node)) {
                 onClose();
             }
         };
 
         document.addEventListener('mousedown', handleClickOutside);
+        window.addEventListener('scroll', onClose, true);
+        window.addEventListener('resize', onClose);
+
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
+            window.removeEventListener('scroll', onClose, true);
+            window.removeEventListener('resize', onClose);
         };
-    }, [onClose]);
+    }, [onClose, anchorEl]);
 
     const handleSaveApiKey = () => {
         setApiKey(tempApiKey);
@@ -277,14 +301,13 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose }) =
         </>
     );
 
-    return (
+    return createPortal(
         <div
             ref={dropdownRef}
             style={{
-                position: 'absolute',
-                top: '100%',
-                right: 0,
-                marginTop: '8px',
+                position: 'fixed',
+                top: position.top,
+                left: position.left,
                 backgroundColor: 'var(--bg-secondary)',
                 border: '1px solid var(--border)',
                 borderRadius: '12px',
@@ -294,11 +317,13 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose }) =
                 zIndex: 1000,
                 color: 'var(--text-primary)'
             }}
+            onClick={(e) => e.stopPropagation()}
         >
             {menuView === 'main' && renderMainView()}
             {menuView === 'appearance' && renderAppearanceView()}
             {menuView === 'cardSize' && renderCardSizeView()}
             {menuView === 'apiKey' && renderApiKeyView()}
-        </div>
+        </div>,
+        document.body
     );
 };

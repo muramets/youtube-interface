@@ -1,9 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { useVideo, type Playlist } from '../../context/VideoContext';
-import { Plus, PlaySquare, Trash2, MoreVertical, Edit2 } from 'lucide-react';
+import { Plus, PlaySquare, MoreVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PlaylistEditModal } from './PlaylistEditModal';
 import { ConfirmationModal } from '../Shared/ConfirmationModal';
+import { PlaylistMenu } from './PlaylistMenu';
 
 export const PlaylistsPage: React.FC = () => {
     const { playlists, createPlaylist, deletePlaylist, updatePlaylist } = useVideo();
@@ -13,20 +14,9 @@ export const PlaylistsPage: React.FC = () => {
     const [editingPlaylist, setEditingPlaylist] = useState<Playlist | null>(null);
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean, playlistId: string | null }>({ isOpen: false, playlistId: null });
-    const menuRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-                setOpenMenuId(null);
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, []);
+    // Store refs for each playlist menu button
+    const menuButtonRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
 
     const handleCreate = (e: React.FormEvent) => {
         e.preventDefault();
@@ -181,6 +171,7 @@ export const PlaylistsPage: React.FC = () => {
                             </div>
                             <div style={{ position: 'relative' }}>
                                 <button
+                                    ref={el => { menuButtonRefs.current[playlist.id] = el; }}
                                     onClick={(e) => handleMenuClick(e, playlist.id)}
                                     style={{
                                         background: 'transparent',
@@ -192,55 +183,13 @@ export const PlaylistsPage: React.FC = () => {
                                 >
                                     <MoreVertical size={20} />
                                 </button>
-                                {openMenuId === playlist.id && (
-                                    <div
-                                        ref={menuRef}
-                                        style={{
-                                            position: 'absolute',
-                                            top: '100%',
-                                            right: 0,
-                                            backgroundColor: 'var(--bg-secondary)',
-                                            borderRadius: '8px',
-                                            padding: '8px 0',
-                                            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                                            zIndex: 10,
-                                            width: '150px',
-                                            display: 'flex',
-                                            flexDirection: 'column'
-                                        }}
-                                        onClick={e => e.stopPropagation()}
-                                    >
-                                        <div
-                                            className="hover-bg"
-                                            onClick={(e) => handleEdit(e, playlist)}
-                                            style={{
-                                                padding: '8px 16px',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '12px',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            <Edit2 size={16} />
-                                            <span>Edit</span>
-                                        </div>
-                                        <div
-                                            className="hover-bg"
-                                            onClick={(e) => handleDeleteClick(e, playlist.id)}
-                                            style={{
-                                                padding: '8px 16px',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '12px',
-                                                cursor: 'pointer',
-                                                color: '#ff4d4d'
-                                            }}
-                                        >
-                                            <Trash2 size={16} />
-                                            <span>Delete</span>
-                                        </div>
-                                    </div>
-                                )}
+                                <PlaylistMenu
+                                    isOpen={openMenuId === playlist.id}
+                                    onClose={() => setOpenMenuId(null)}
+                                    anchorEl={menuButtonRefs.current[playlist.id]}
+                                    onEdit={(e) => handleEdit(e, playlist)}
+                                    onDelete={(e) => handleDeleteClick(e, playlist.id)}
+                                />
                             </div>
                         </div>
                     </div>
