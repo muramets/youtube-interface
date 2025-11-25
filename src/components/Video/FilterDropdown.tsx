@@ -60,7 +60,7 @@ export const FilterDropdown: React.FC = () => {
                     alignItems: 'center',
                     gap: '6px',
                     padding: '6px 12px',
-                    marginLeft: '8px'
+                    /* marginLeft removed to flow naturally */
                 }}
             >
                 <Filter size={16} />

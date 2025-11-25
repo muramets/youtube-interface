@@ -5,6 +5,8 @@
     margin-bottom: 16px;
     /* Ensure container doesn't overflow its parent */
     min-width: 0;
+    height: 56px;
+    /* Fixed height for alignment */
 }
 
 .watch-filter-scroll-container {
@@ -20,8 +22,7 @@
     /* IE/Edge */
     scroll-behavior: smooth;
     flex: 1;
-    padding-bottom: 4px;
-    /* Space for potential scrollbar if it were visible */
+    height: 100%;
 }
 
 .watch-filter-scroll-container::-webkit-scrollbar {
@@ -29,30 +30,56 @@
     /* Chrome/Safari/Opera */
 }
 
-/* If the dropdown is separate, we might need to adjust. 
-   But based on the design, the dropdown is likely part of the scrollable area or fixed to the right?
-   The previous implementation had the dropdown inside the flex container with `marginLeft: auto`.
-   If we want the chips to scroll but the dropdown to stay fixed, we need to separate them.
-   The user said "filter bar should scroll", usually the whole thing or just chips.
-   YouTube's filter bar on Watch Page: The chips scroll. The "All/Playlist" dropdown isn't standard YouTube.
-   But in our design, we have chips + dropdown.
-   If we want arrows, usually it's for the chips list.
-   Let's assume the dropdown should be FIXED at the end or scroll with them?
-   If it scrolls, it might get hidden. 
-   Let's try to keep the dropdown fixed at the right if possible, or just let it be part of the flow.
-   The user's screenshot shows chips.
-   Let's assume the chips scroll. The dropdown might be better fixed to the right or left?
-   Actually, the previous code had `marginLeft: auto` for the dropdown.
-   If we put everything in `overflow-x: auto`, `marginLeft: auto` works but you have to scroll to see it if it overflows.
-   Let's separate: Scrollable Chips Area + Fixed Dropdown?
-   Or just Scrollable Area containing everything.
-   Given the "arrows" request, it implies a long list of chips.
-   Let's make the chips scrollable and keep the dropdown fixed to the right if there's space, or just let it be part of the flow.
-   Actually, standard YouTube Watch Page doesn't have a dropdown there.
-   Our design has it.
-   Let's put the chips in the scroll container and the dropdown outside/fixed?
-   No, the user said "filter bar... should scroll".
-   Let's assume the user wants the CHIPS to scroll.
-   
-   Let's update the CSS to support the arrow buttons.
-*/
+.filter-arrow-container {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 100px;
+    /* Wider fade area */
+    display: flex;
+    align-items: center;
+    z-index: 10;
+    pointer-events: none;
+    /* Let clicks pass through the gradient area */
+}
+
+.filter-arrow-container.left {
+    left: 0;
+    /* Fade from solid background to transparent. 
+       Start solid (0-40%), then fade to transparent (100%). 
+       This ensures content behind the button is hidden. */
+    background: linear-gradient(to right, var(--bg-primary) 40%, transparent);
+    padding-left: 8px;
+    justify-content: flex-start;
+}
+
+.filter-arrow-container.right {
+    right: 0;
+    /* Fade from solid background to transparent. */
+    background: linear-gradient(to left, var(--bg-primary) 40%, transparent);
+    padding-right: 8px;
+    justify-content: flex-end;
+}
+
+.filter-arrow-button {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background-color: transparent;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    pointer-events: auto;
+    /* Re-enable clicks on the button itself */
+    transition: background-color 0.2s;
+}
+
+.filter-arrow-button:hover {
+    background-color: var(--hover-bg);
+    /* Use hover-bg or secondary for the circle */
+}
+
+/* Dropdown is now part of the flow */

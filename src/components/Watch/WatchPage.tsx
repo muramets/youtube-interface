@@ -31,7 +31,8 @@ export const WatchPage: React.FC = () => {
     const [currentVideo, setCurrentVideo] = useState<VideoDetails | null>(null);
     const [relatedVideos, setRelatedVideos] = useState<VideoDetails[]>([]);
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-    const [filter, setFilter] = useState<'all' | 'channel'>('all');
+    const [filterMode, setFilterMode] = useState<'all' | 'channel' | 'playlists'>('all');
+    const [selectedPlaylistIds, setSelectedPlaylistIds] = useState<string[]>([]);
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -62,6 +63,39 @@ export const WatchPage: React.FC = () => {
         }
     }, [currentVideo, videos]);
 
+    // Calculate playlists that contain the current video
+    const containingPlaylists = useMemo(() => {
+        if (!currentVideo) return [];
+        return playlists.filter(p => p.videoIds.includes(currentVideo.id));
+    }, [currentVideo, playlists]);
+
+    const handleFilterChange = (mode: 'all' | 'channel') => {
+        setFilterMode(mode);
+        setSelectedPlaylistIds([]);
+    };
+
+    const handlePlaylistToggle = (playlistId: string) => {
+        if (filterMode !== 'playlists') {
+            // Switch to playlist mode and select this playlist
+            setFilterMode('playlists');
+            setSelectedPlaylistIds([playlistId]);
+        } else {
+            // Toggle selection
+            if (selectedPlaylistIds.includes(playlistId)) {
+                const newSelection = selectedPlaylistIds.filter(id => id !== playlistId);
+                if (newSelection.length === 0) {
+                    // If no playlists selected, revert to 'all'
+                    setFilterMode('all');
+                    setSelectedPlaylistIds([]);
+                } else {
+                    setSelectedPlaylistIds(newSelection);
+                }
+            } else {
+                setSelectedPlaylistIds([...selectedPlaylistIds, playlistId]);
+            }
+        }
+    };
+
     // Derive the list of recommended videos based on filters and order
     const recommendedVideos = useMemo(() => {
         if (!id || !currentVideo) return [];
@@ -69,22 +103,22 @@ export const WatchPage: React.FC = () => {
         let filtered = [...relatedVideos];
 
         // 1. Apply Chip Filters
-        if (filter === 'channel') {
+        if (filterMode === 'channel') {
             filtered = filtered.filter(v => v.channelTitle === currentVideo.channelTitle);
+        } else if (filterMode === 'playlists') {
+            // Show videos that are in ANY of the selected playlists
+            // First, get all video IDs from selected playlists
+            const allowedVideoIds = new Set<string>();
+            playlists.forEach(p => {
+                if (selectedPlaylistIds.includes(p.id)) {
+                    p.videoIds.forEach(vidId => allowedVideoIds.add(vidId));
+                }
+            });
+            filtered = filtered.filter(v => allowedVideoIds.has(v.id));
         }
 
         // 2. Apply Playlist Visibility Filter (Global)
         // If a video belongs ONLY to hidden playlists, hide it.
-        // Logic: For each video, find all playlists it belongs to.
-        // If it belongs to at least one visible playlist (or no playlists at all?), show it.
-        // Wait, the Home Page logic is: "Hide videos from specific playlists".
-        // If a video is in a hidden playlist, should it be hidden?
-        // Usually, if I hide a playlist, I don't want to see its videos if they are ONLY in that playlist.
-        // But if a video is in multiple playlists, and one is visible, it should probably show.
-        // Let's use a strict "hide if in hidden playlist" approach for now, or match Home Page.
-        // Home Page logic: `videos.filter(video => !hiddenVideoIds.has(video.id))` where hiddenVideoIds are derived from hidden playlists.
-        // Let's replicate that logic.
-
         const hiddenVideoIds = new Set<string>();
         if (hiddenPlaylistIds.length > 0) {
             playlists.forEach(playlist => {
@@ -93,20 +127,11 @@ export const WatchPage: React.FC = () => {
                 }
             });
         }
-
-        // However, if a video is in a hidden playlist AND a visible playlist, should it be hidden?
-        // The Home Page logic (VideoGrid.tsx) hides it if it's in ANY hidden playlist (implied by adding all IDs to the Set).
-        // Let's refine: If a video is in a visible playlist, it should be shown?
-        // Or is "Hidden Playlist" a strong "I don't want to see this content"?
-        // Let's stick to the Home Page implementation for consistency: If it's in a hidden playlist, it's hidden.
-        // Wait, let's check VideoGrid.tsx logic if possible.
-        // Assuming the user wants to filter out specific content.
-
         filtered = filtered.filter(v => !hiddenVideoIds.has(v.id));
 
 
         // 3. Apply Sorting (only if 'all' filter is active, otherwise custom sort overrides)
-        if (filter === 'all') {
+        if (filterMode === 'all') {
             const savedOrder = recommendationOrders[id];
             if (savedOrder) {
                 filtered.sort((a, b) => {
@@ -121,14 +146,14 @@ export const WatchPage: React.FC = () => {
         }
 
         return filtered;
-    }, [relatedVideos, id, currentVideo, filter, recommendationOrders, hiddenPlaylistIds, playlists]);
+    }, [relatedVideos, id, currentVideo, filterMode, selectedPlaylistIds, recommendationOrders, hiddenPlaylistIds, playlists]);
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
 
         if (active.id !== over?.id && over && id) {
             // Only allow reordering when "All" filter is active to avoid confusion
-            if (filter !== 'all') return;
+            if (filterMode !== 'all') return;
 
             const oldIndex = recommendedVideos.findIndex((item) => item.id === active.id);
             const newIndex = recommendedVideos.findIndex((item) => item.id === over.id);
@@ -292,8 +317,11 @@ export const WatchPage: React.FC = () => {
             <div style={{ width: '400px', flexShrink: 0 }}>
                 <WatchPageFilterBar
                     channelName={currentVideo.channelTitle}
-                    selectedFilter={filter}
-                    onFilterChange={setFilter}
+                    selectedFilter={filterMode}
+                    selectedPlaylistIds={selectedPlaylistIds}
+                    containingPlaylists={containingPlaylists}
+                    onFilterChange={handleFilterChange}
+                    onPlaylistToggle={handlePlaylistToggle}
                 />
 
                 <DndContext

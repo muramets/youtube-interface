@@ -3,16 +3,24 @@ import { FilterDropdown } from '../Video/FilterDropdown';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import './WatchPageFilterBar.css';
 
+import { type Playlist } from '../../context/VideoContext';
+
 interface WatchPageFilterBarProps {
     channelName: string;
-    selectedFilter: 'all' | 'channel';
+    selectedFilter: 'all' | 'channel' | 'playlists';
+    selectedPlaylistIds: string[];
+    containingPlaylists: Playlist[];
     onFilterChange: (filter: 'all' | 'channel') => void;
+    onPlaylistToggle: (playlistId: string) => void;
 }
 
 export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
     channelName,
     selectedFilter,
-    onFilterChange
+    selectedPlaylistIds,
+    containingPlaylists,
+    onFilterChange,
+    onPlaylistToggle
 }) => {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [showLeftArrow, setShowLeftArrow] = useState(false);
@@ -42,7 +50,7 @@ export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
                 window.removeEventListener('resize', checkScroll);
             };
         }
-    }, []);
+    }, [containingPlaylists]); // Re-check scroll when playlists change
 
     const scroll = (direction: 'left' | 'right') => {
         if (scrollContainerRef.current) {
@@ -84,9 +92,17 @@ export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
                     From {channelName}
                 </button>
 
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
-                    <FilterDropdown />
-                </div>
+                {containingPlaylists.map(playlist => (
+                    <button
+                        key={playlist.id}
+                        className={`category-pill ${selectedFilter === 'playlists' && selectedPlaylistIds.includes(playlist.id) ? 'active' : ''}`}
+                        onClick={() => onPlaylistToggle(playlist.id)}
+                    >
+                        From {playlist.name}
+                    </button>
+                ))}
+
+                <FilterDropdown />
             </div>
 
             {showRightArrow && (
