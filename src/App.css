@@ -97,8 +97,6 @@
   position: relative;
   padding: 8px;
   border-radius: 12px;
-  isolation: isolate;
-  /* Create new stacking context */
 }
 
 .video-card-hover-bg {

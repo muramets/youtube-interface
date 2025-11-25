@@ -5,6 +5,8 @@ import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
 import { VideoGrid } from './components/Video/VideoGrid';
 import { WatchPage } from './components/Watch/WatchPage';
+import { PlaylistsPage } from './components/Playlist/PlaylistsPage';
+import { PlaylistDetailPage } from './components/Playlist/PlaylistDetailPage';
 import './App.css';
 
 import { UserProfileProvider } from './context/UserProfileContext';
@@ -27,6 +29,8 @@ function App() {
                     </>
                   } />
                   <Route path="/watch/:id" element={<WatchPage />} />
+                  <Route path="/playlists" element={<PlaylistsPage />} />
+                  <Route path="/playlists/:id" element={<PlaylistDetailPage />} />
                 </Routes>
               </main>
             </div>

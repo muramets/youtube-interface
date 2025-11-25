@@ -1,6 +1,6 @@
 import React from 'react';
-import { Home } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Home, List } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const SidebarItem: React.FC<{ icon: React.ReactNode; label: string; active?: boolean }> = ({ icon, label, active }) => (
   <div className="hover-bg" style={{
@@ -22,6 +22,7 @@ const SidebarItem: React.FC<{ icon: React.ReactNode; label: string; active?: boo
 
 export const Sidebar: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   return (
     <aside style={{
@@ -35,7 +36,10 @@ export const Sidebar: React.FC = () => {
       flexShrink: 0
     }}>
       <div onClick={() => navigate('/')}>
-        <SidebarItem icon={<Home size={24} />} label="Home" active />
+        <SidebarItem icon={<Home size={24} />} label="Home" active={location.pathname === '/'} />
+      </div>
+      <div onClick={() => navigate('/playlists')}>
+        <SidebarItem icon={<List size={24} />} label="Playlists" active={location.pathname.startsWith('/playlists')} />
       </div>
     </aside>
   );
