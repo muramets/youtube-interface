@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { Filter, Check } from 'lucide-react';
 import { useVideo } from '../../context/VideoContext';
 import { createPortal } from 'react-dom';
@@ -8,15 +8,17 @@ export const FilterDropdown: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const [position, setPosition] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
+    const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (isOpen && buttonRef.current) {
             const rect = buttonRef.current.getBoundingClientRect();
             setPosition({
                 top: rect.bottom + 8,
                 right: window.innerWidth - rect.right
             });
+        } else {
+            setPosition(null);
         }
     }, [isOpen]);
 
@@ -81,7 +83,7 @@ export const FilterDropdown: React.FC = () => {
                 )}
             </button>
 
-            {isOpen && createPortal(
+            {isOpen && position && createPortal(
                 <div
                     ref={dropdownRef}
                     style={{

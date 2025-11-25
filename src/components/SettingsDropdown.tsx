@@ -15,13 +15,13 @@ type MenuView = 'main' | 'appearance' | 'apiKey' | 'cardSize';
 
 export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anchorEl }) => {
     const { theme, setTheme } = useTheme();
-    const { apiKey, setApiKey, cardsPerRow, updateCardsPerRow, watchPageCardsPerRow, updateWatchPageCardsPerRow } = useVideo();
+    const { apiKey, setApiKey, cardsPerRow, updateCardsPerRow } = useVideo();
     const [menuView, setMenuView] = useState<MenuView>('main');
     const [tempApiKey, setTempApiKey] = useState(apiKey);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const location = useLocation();
     const isWatchPage = location.pathname.startsWith('/watch/');
-    const currentCardsPerRow = isWatchPage ? watchPageCardsPerRow : cardsPerRow;
+    const currentCardsPerRow = cardsPerRow;
     const [position, setPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
 
     useEffect(() => {
@@ -74,13 +74,15 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
                 <ChevronRight size={20} />
             </div>
 
-            <div className="settings-menu-item" onClick={() => setMenuView('cardSize')}>
-                <div className="settings-menu-item-content">
-                    <Monitor size={20} />
-                    <span>Card Size</span>
+            {!isWatchPage && (
+                <div className="settings-menu-item" onClick={() => setMenuView('cardSize')}>
+                    <div className="settings-menu-item-content">
+                        <Monitor size={20} />
+                        <span>Card Size</span>
+                    </div>
+                    <ChevronRight size={20} />
                 </div>
-                <ChevronRight size={20} />
-            </div>
+            )}
 
             <div className="settings-menu-item" onClick={() => {
                 setTempApiKey(apiKey);
@@ -129,12 +131,12 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
 
             <div className="card-size-container">
                 <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-                    {isWatchPage ? 'Adjust Sidebar Scale' : 'Adjust Grid Size'}
+                    Adjust Grid Size
                 </div>
                 <div className="card-size-controls">
                     <button
                         className="card-size-button"
-                        onClick={() => isWatchPage ? updateWatchPageCardsPerRow(currentCardsPerRow + 1) : updateCardsPerRow(currentCardsPerRow + 1)}
+                        onClick={() => updateCardsPerRow(currentCardsPerRow + 1)}
                         disabled={currentCardsPerRow >= 9}
                     >
                         -
@@ -142,14 +144,14 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
                     <span className="card-size-value">{currentCardsPerRow}</span>
                     <button
                         className="card-size-button"
-                        onClick={() => isWatchPage ? updateWatchPageCardsPerRow(currentCardsPerRow - 1) : updateCardsPerRow(currentCardsPerRow - 1)}
+                        onClick={() => updateCardsPerRow(currentCardsPerRow - 1)}
                         disabled={currentCardsPerRow <= 3}
                     >
                         +
                     </button>
                 </div>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                    Current: {currentCardsPerRow} {isWatchPage ? 'scale' : 'cards per row'}
+                    Current: {currentCardsPerRow} cards per row
                 </div>
             </div>
         </>
