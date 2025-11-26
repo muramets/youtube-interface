@@ -16,6 +16,10 @@ export interface VideoDetails {
     embedUrl?: string;
     tags?: string[];
     lastUpdated?: number;
+    coverHistory?: { url: string; version: number; timestamp: number; originalName?: string }[];
+    customImageName?: string;
+    customImageVersion?: number;
+    highestVersion?: number;
 }
 
 export const extractVideoId = (url: string): string | null => {
