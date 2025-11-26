@@ -2,8 +2,9 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useVideo } from '../../context/VideoContext';
 import { useChannel } from '../../context/ChannelContext';
-import { ThumbsUp, ThumbsDown, Share2, MoreHorizontal, User } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, Share2, MoreHorizontal, User, Trash2, Send } from 'lucide-react';
 import { formatViewCount } from '../../utils/formatUtils';
+import type { VideoNote } from '../../utils/youtubeApi';
 import {
     DndContext,
     closestCenter,
@@ -36,8 +37,34 @@ export const WatchPage: React.FC = () => {
     const [selectedFilter, setSelectedFilter] = useState<'all' | 'channel' | 'playlists'>('all');
     const [selectedPlaylistIds, setSelectedPlaylistIds] = useState<string[]>([]);
     const [sortBy, setSortBy] = useState<'default' | 'views' | 'date'>('default');
+    const [noteText, setNoteText] = useState('');
+    const { updateVideo } = useVideo();
 
     const video = videos.find(v => v.id === id);
+
+    const handleAddNote = async () => {
+        if (!video || !noteText.trim()) return;
+
+        const newNote: VideoNote = {
+            id: Date.now().toString(),
+            text: noteText.trim(),
+            timestamp: Date.now(),
+            userId: currentChannel?.id
+        };
+
+        const updatedNotes = [...(video.notes || []), newNote];
+
+        // Optimistic update handled by Context if we update the video object directly?
+        // Actually updateVideo updates Firestore/State.
+        await updateVideo(video.id, { notes: updatedNotes });
+        setNoteText('');
+    };
+
+    const handleDeleteNote = async (noteId: string) => {
+        if (!video || !video.notes) return;
+        const updatedNotes = video.notes.filter(n => n.id !== noteId);
+        await updateVideo(video.id, { notes: updatedNotes });
+    };
 
     useEffect(() => {
         // Scroll the main container to top, not window
@@ -298,14 +325,18 @@ export const WatchPage: React.FC = () => {
                     </div>
                 )}
 
-                {/* Comments Placeholder */}
+                {/* Personal Notes Section */}
                 <div className="mt-6">
-                    <h3 className="text-xl font-bold text-text-primary mb-6">Comments</h3>
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-xl font-bold text-text-primary m-0">My Notes</h3>
+                        <span className="text-xs text-text-secondary bg-bg-secondary px-2 py-1 rounded-md">
+                            Private • Visible only to you
+                        </span>
+                    </div>
 
-                    {/* Add Comment Input */}
+                    {/* Add Note Input */}
                     <div className="flex gap-4 mb-8">
                         <div className="w-10 h-10 rounded-full bg-bg-secondary flex-shrink-0 overflow-hidden">
-                            {/* User Avatar Placeholder */}
                             {currentChannel?.avatar ? (
                                 <img src={currentChannel.avatar} alt="User" className="w-full h-full object-cover" />
                             ) : (
@@ -315,38 +346,73 @@ export const WatchPage: React.FC = () => {
                             )}
                         </div>
                         <div className="flex-1">
-                            <input
-                                type="text"
-                                placeholder="Add a comment..."
-                                className="w-full bg-transparent border-none border-b border-border py-2 text-text-primary outline-none focus:border-text-primary transition-colors"
-                            />
+                            <div className="relative group">
+                                <input
+                                    type="text"
+                                    value={noteText}
+                                    onChange={(e) => setNoteText(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleAddNote();
+                                        }
+                                    }}
+                                    placeholder="Add a private note..."
+                                    className="w-full bg-transparent border-0 border-b border-border focus:border-b-2 focus:border-text-primary py-2 pr-10 text-text-primary outline-none placeholder:text-text-secondary transition-all"
+                                />
+                                <button
+                                    onClick={handleAddNote}
+                                    disabled={!noteText.trim()}
+                                    className="absolute right-0 top-1/2 -translate-y-1/2 bg-transparent border-none text-text-primary cursor-pointer disabled:opacity-30 hover:text-blue-500 transition-colors p-2 flex items-center justify-center"
+                                >
+                                    <Send size={18} />
+                                </button>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Dummy Comments */}
-                    {[1, 2, 3].map((i) => (
-                        <div key={i} className="flex gap-4 mb-6">
-                            <div className="w-10 h-10 rounded-full bg-bg-secondary flex-shrink-0"></div>
-                            <div>
-                                <div className="flex gap-2 items-center mb-1">
-                                    <span className="font-bold text-xs text-text-primary">@user{i}</span>
-                                    <span className="text-xs text-text-secondary">2 days ago</span>
-                                </div>
-                                <div className="text-sm text-text-primary mb-2">
-                                    This is a placeholder comment to simulate the comments section. It looks just like the real thing!
-                                </div>
-                                <div className="flex gap-4 items-center">
-                                    <button className="bg-transparent border-none text-text-primary cursor-pointer text-xs flex items-center gap-1 hover:bg-hover-bg p-1 rounded-full">
-                                        <ThumbsUp size={14} /> 12
-                                    </button>
-                                    <button className="bg-transparent border-none text-text-primary cursor-pointer text-xs flex items-center hover:bg-hover-bg p-1 rounded-full">
-                                        <ThumbsDown size={14} />
-                                    </button>
-                                    <button className="bg-transparent border-none text-text-primary cursor-pointer text-xs font-medium hover:bg-hover-bg py-1 px-2 rounded-full">Reply</button>
-                                </div>
+                    {/* Notes List */}
+                    <div className="flex flex-col gap-6">
+                        {(!video.notes || video.notes.length === 0) ? (
+                            <div className="text-center text-text-secondary py-8 italic text-sm">
+                                No notes yet. Write something to remember!
                             </div>
-                        </div>
-                    ))}
+                        ) : (
+                            [...(video.notes)].sort((a, b) => b.timestamp - a.timestamp).map((note) => (
+                                <div key={note.id} className="flex gap-4 group animate-fade-in items-start">
+                                    <div className="w-10 h-10 rounded-full bg-bg-secondary flex-shrink-0 overflow-hidden mt-1">
+                                        {currentChannel?.avatar ? (
+                                            <img src={currentChannel.avatar} alt="User" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center bg-purple-600 text-white font-bold">
+                                                {currentChannel?.name?.[0]?.toUpperCase() || 'U'}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex-1 pt-1">
+                                        <div className="flex gap-2 items-center mb-1">
+                                            <span className="font-bold text-xs text-text-primary">
+                                                {currentChannel?.name || 'You'}
+                                            </span>
+                                            <span className="text-xs text-text-secondary">
+                                                {new Date(note.timestamp).toLocaleDateString()} • {new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                        </div>
+                                        <div className="text-sm text-text-primary whitespace-pre-wrap">
+                                            {note.text}
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => handleDeleteNote(note.id)}
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity bg-transparent border-none text-text-secondary hover:text-red-500 cursor-pointer p-2 mt-1"
+                                        title="Delete note"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                            ))
+                        )}
+                    </div>
                 </div>
             </div>
 

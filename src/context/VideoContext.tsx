@@ -377,10 +377,17 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
 
         if (!apiKey) return false;
+
+        if (customUpdates) {
+            const videoRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${id}`);
+            await setDoc(videoRef, customUpdates, { merge: true });
+            return true;
+        }
+
         const details = await fetchVideoDetails(id, apiKey);
         if (details) {
             const videoRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${id}`);
-            await setDoc(videoRef, details);
+            await setDoc(videoRef, details, { merge: true }); // Use merge here too just in case
             return true;
         }
         return false;

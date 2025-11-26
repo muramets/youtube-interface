@@ -20,6 +20,14 @@ export interface VideoDetails {
     customImageName?: string;
     customImageVersion?: number;
     highestVersion?: number;
+    notes?: VideoNote[];
+}
+
+export interface VideoNote {
+    id: string;
+    text: string;
+    timestamp: number;
+    userId?: string;
 }
 
 export const extractVideoId = (url: string): string | null => {
