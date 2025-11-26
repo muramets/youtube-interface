@@ -1,8 +1,6 @@
-import React, { useState } from 'react';
-import { Plus, X, Youtube, Upload } from 'lucide-react';
+import React from 'react';
 import { VideoCard } from './VideoCard';
 import { useVideo } from '../../context/VideoContext';
-import { CustomVideoModal } from './CustomVideoModal';
 import {
   DndContext,
   closestCenter,
@@ -20,8 +18,6 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useChannel } from '../../context/ChannelContext';
-
-type AddingMode = 'idle' | 'choosing' | 'youtube';
 
 interface SortableVideoCardProps {
   video: any;
@@ -53,12 +49,8 @@ const SortableVideoCard = ({ video }: SortableVideoCardProps) => {
 };
 
 export const VideoGrid: React.FC = () => {
-  const { videos, addVideo, cardsPerRow, selectedChannel, addCustomVideo, playlists, hiddenPlaylistIds, moveVideo, searchQuery, homeSortBy } = useVideo();
+  const { videos, cardsPerRow, selectedChannel, playlists, hiddenPlaylistIds, moveVideo, searchQuery, homeSortBy } = useVideo();
   const { currentChannel } = useChannel();
-  const [addingMode, setAddingMode] = useState<AddingMode>('idle');
-  const [newVideoUrl, setNewVideoUrl] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -70,19 +62,6 @@ export const VideoGrid: React.FC = () => {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
-
-  const handleAddYouTubeVideo = async () => {
-    if (!newVideoUrl.trim()) return;
-
-    setIsLoading(true);
-    const success = await addVideo(newVideoUrl);
-    setIsLoading(false);
-
-    if (success) {
-      setNewVideoUrl('');
-      setAddingMode('idle');
-    }
-  };
 
   const filteredVideos = React.useMemo(() => {
     // Get Set of hidden video IDs
@@ -165,111 +144,6 @@ export const VideoGrid: React.FC = () => {
             <VideoCard key={video.id} video={video} />
           ))
         )}
-
-        {/* Add Video Card - Only show when "All" is selected */}
-        {selectedChannel === 'All' && (
-          <div
-            className={`flex flex-col gap-3 ${addingMode === 'idle' ? 'cursor-pointer' : 'cursor-default'}`}
-            onClick={() => addingMode === 'idle' && setAddingMode('choosing')}
-          >
-            <div className="w-full aspect-video bg-bg-secondary rounded-xl flex flex-col items-center justify-center border-2 border-dashed border-border p-4 relative box-border">
-              {addingMode === 'idle' ? (
-                <Plus size={32} className="text-text-secondary" />
-              ) : addingMode === 'choosing' ? (
-                <div className="w-full h-full flex flex-col gap-3 justify-center" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex justify-between items-center w-full">
-                    <span className="font-semibold text-text-primary text-sm">Add Video</span>
-                    <button
-                      onClick={() => setAddingMode('idle')}
-                      className="bg-transparent border-none cursor-pointer text-text-secondary p-0 hover:text-text-primary"
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
-
-                  <button
-                    onClick={() => setAddingMode('youtube')}
-                    className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary cursor-pointer flex items-center gap-2 text-xs w-full hover:bg-hover-bg transition-colors"
-                  >
-                    <Youtube size={18} color="red" />
-                    Add YouTube Video
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setAddingMode('idle');
-                      setIsCustomModalOpen(true);
-                    }}
-                    className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary cursor-pointer flex items-center gap-2 text-xs w-full hover:bg-hover-bg transition-colors"
-                  >
-                    <Upload size={18} color="#3ea6ff" />
-                    Create My Video
-                  </button>
-                </div>
-              ) : (
-                <div className="w-full h-full flex flex-col gap-2 justify-center" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex justify-between items-center w-full mb-1">
-                    <span className="font-semibold text-text-primary text-sm">Add YouTube Video</span>
-                    <button
-                      onClick={() => setAddingMode('choosing')}
-                      className="bg-transparent border-none cursor-pointer text-text-secondary p-0 hover:text-text-primary"
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
-
-                  <input
-                    type="text"
-                    placeholder="Paste YouTube URL..."
-                    value={newVideoUrl}
-                    onChange={(e) => setNewVideoUrl(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddYouTubeVideo()}
-                    className="p-2 rounded-md border border-border bg-bg-primary text-text-primary w-full box-border text-xs outline-none focus:border-blue-500"
-                    autoFocus
-                  />
-
-                  <button
-                    onClick={handleAddYouTubeVideo}
-                    disabled={isLoading}
-                    className={`py-1.5 px-3 rounded-full border-none font-bold cursor-pointer w-full text-xs transition-colors ${isLoading ? 'bg-text-secondary cursor-not-allowed' : 'bg-[#3ea6ff] text-black hover:bg-[#3ea6ff]/90'}`}
-                  >
-                    {isLoading ? 'Loading...' : 'Add Video'}
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Meta placeholder to match VideoCard height */}
-            <div className={`flex gap-3 transition-opacity duration-200 ${addingMode === 'idle' ? 'opacity-100' : 'opacity-0'}`}>
-              <div className="w-9 h-9 rounded-full bg-bg-secondary flex-shrink-0 overflow-hidden">
-                {currentChannel?.avatar ? (
-                  <img
-                    src={currentChannel.avatar}
-                    alt="User Avatar"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-purple-600 flex items-center justify-center text-white font-bold">
-                    {currentChannel?.name?.[0]?.toUpperCase() || 'U'}
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-col flex-1">
-                <h3 className="m-0 text-base font-semibold text-text-primary leading-snug">
-                  Add Video
-                </h3>
-                <div className="mt-1 text-text-secondary text-sm">
-                  Paste a YouTube URL or Upload Your Video
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-        <CustomVideoModal
-          isOpen={isCustomModalOpen}
-          onClose={() => setIsCustomModalOpen(false)}
-          onSave={addCustomVideo}
-        />
       </div>
     </DndContext>
   );

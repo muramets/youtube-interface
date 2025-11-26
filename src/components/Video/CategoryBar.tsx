@@ -1,6 +1,7 @@
 import React from 'react';
 import { useVideo } from '../../context/VideoContext';
 import { FilterSortDropdown } from '../Shared/FilterSortDropdown';
+import { AddContentMenu } from '../Shared/AddContentMenu';
 
 export const CategoryBar: React.FC = () => {
     const { uniqueChannels, selectedChannel, setSelectedChannel, homeSortBy, setHomeSortBy } = useVideo();
@@ -26,7 +27,8 @@ export const CategoryBar: React.FC = () => {
                     {category}
                 </button>
             ))}
-            <div className="ml-auto flex items-center pl-2 sticky right-0 bg-gradient-to-l from-bg-primary via-bg-primary to-transparent">
+            <div className="ml-auto flex items-center pl-2 sticky right-0 bg-gradient-to-l from-bg-primary via-bg-primary to-transparent gap-1">
+                <AddContentMenu showPlaylist={false} />
                 <FilterSortDropdown
                     sortOptions={sortOptions}
                     activeSort={homeSortBy}
