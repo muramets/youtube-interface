@@ -14,13 +14,15 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({ isOpen, onCl
     const [avatarUrl, setAvatarUrl] = useState(channel.avatar || '');
     const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const { updateChannel } = useChannel();
+    const { updateChannel, deleteChannel } = useChannel();
     const [loading, setLoading] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
             setName(channel.name);
             setAvatarUrl(channel.avatar || '');
+            setShowDeleteConfirm(false);
         }
     }, [isOpen, channel]);
 
@@ -71,9 +73,51 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({ isOpen, onCl
         }
     };
 
+    const handleDelete = async () => {
+        setLoading(true);
+        try {
+            await deleteChannel(channel.id);
+            onClose();
+        } catch (error) {
+            console.error('Error deleting channel:', error);
+            alert('Failed to delete channel.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (showDeleteConfirm) {
+        return (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 animate-fade-in">
+                <div className="bg-[#1f1f1f] rounded-xl w-full max-w-sm p-6 relative shadow-2xl animate-scale-in border border-red-900/50">
+                    <h3 className="text-xl font-bold text-white mb-2">Delete Channel?</h3>
+                    <p className="text-gray-400 mb-6 text-sm">
+                        Are you sure you want to delete <strong>{channel.name}</strong>? This action cannot be undone and all videos, playlists, and settings associated with this channel will be permanently lost.
+                    </p>
+                    <div className="flex justify-end gap-3">
+                        <button
+                            onClick={() => setShowDeleteConfirm(false)}
+                            className="px-4 py-2 text-gray-300 hover:text-white font-medium"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleDelete}
+                            disabled={loading}
+                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium"
+                        >
+                            {loading ? 'Deleting...' : 'Delete Forever'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in">
             <div className="bg-[#1f1f1f] rounded-xl w-full max-w-md p-6 relative shadow-2xl animate-scale-in">
+                {/* ... (existing modal content) */}
                 <button
                     onClick={onClose}
                     className="absolute top-4 right-4 text-gray-400 hover:text-white"
@@ -128,21 +172,30 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({ isOpen, onCl
                         />
                     </div>
 
-                    <div className="flex justify-end gap-3 pt-2">
+                    <div className="flex justify-between items-center pt-2">
                         <button
                             type="button"
-                            onClick={onClose}
-                            className="px-4 py-2 text-gray-300 hover:text-white font-medium"
+                            onClick={() => setShowDeleteConfirm(true)}
+                            className="text-red-500 hover:text-red-400 text-sm font-medium px-2 py-1 rounded hover:bg-red-500/10 transition-colors"
                         >
-                            Cancel
+                            Delete Channel
                         </button>
-                        <button
-                            type="submit"
-                            disabled={loading || !name.trim()}
-                            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {loading ? 'Saving...' : 'Save Changes'}
-                        </button>
+                        <div className="flex gap-3">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="px-4 py-2 text-gray-300 hover:text-white font-medium"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={loading || !name.trim()}
+                                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {loading ? 'Saving...' : 'Save Changes'}
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>

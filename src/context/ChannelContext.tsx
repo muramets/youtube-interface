@@ -22,6 +22,7 @@ interface ChannelContextType {
     createChannel: (name: string, avatar?: string) => Promise<void>;
     updateChannel: (channelId: string, updates: Partial<Channel>) => Promise<void>;
     switchChannel: (channelId: string) => void;
+    deleteChannel: (channelId: string) => Promise<void>;
 }
 
 const ChannelContext = createContext<ChannelContextType | undefined>(undefined);
@@ -52,23 +53,25 @@ export const ChannelProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
             loadedChannels.sort((a, b) => a.createdAt - b.createdAt);
 
-            // Deduplicate by name (keep the oldest one)
-            const uniqueChannels = loadedChannels.reduce((acc, current) => {
-                const x = acc.find(item => item.name === current.name);
-                if (!x) {
-                    return acc.concat([current]);
-                } else {
-                    return acc;
-                }
-            }, [] as Channel[]);
+            // Deduplicate by name (keep the oldest one) - REMOVED to show all channels
+            // const uniqueChannels = loadedChannels.reduce((acc, current) => {
+            //     const x = acc.find(item => item.name === current.name);
+            //     if (!x) {
+            //         return acc.concat([current]);
+            //     } else {
+            //         return acc;
+            //     }
+            // }, [] as Channel[]);
 
+            const uniqueChannels = loadedChannels;
             setChannels(uniqueChannels);
 
             if (uniqueChannels.length > 0) {
                 // Auto-select the first channel or restore from local storage
                 setCurrentChannel(prev => {
-                    if (prev && loadedChannels.find(c => c.id === prev.id)) {
-                        return prev;
+                    const existing = loadedChannels.find(c => c.id === prev?.id);
+                    if (prev && existing) {
+                        return existing;
                     }
                     const savedChannelId = localStorage.getItem(`last_channel_${user.uid}`);
                     const savedChannelName = localStorage.getItem(`last_channel_name_${user.uid}`);
@@ -80,20 +83,22 @@ export const ChannelProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 });
             } else {
                 setCurrentChannel(null);
+                // Auto-create default channel if none exists
+                const defaultName = user.displayName || 'My Channel';
+                const newChannelRef = doc(collection(db, `users/${user.uid}/channels`));
+                const newChannel: Channel = {
+                    id: newChannelRef.id,
+                    name: defaultName,
+                    avatar: user.photoURL || undefined,
+                    createdAt: Date.now()
+                };
+                setDoc(newChannelRef, newChannel);
             }
             setLoading(false);
         });
 
         return () => unsubscribe();
     }, [user]);
-
-    // Auto-create default channel if none exists
-    useEffect(() => {
-        if (!loading && user && channels.length === 0) {
-            const defaultName = user.displayName || 'My Channel';
-            createChannel(defaultName);
-        }
-    }, [loading, user, channels.length]);
 
 
     // Persist current channel selection
@@ -128,43 +133,6 @@ export const ChannelProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setCurrentChannel(newChannel);
     };
 
-    // Cleanup Duplicates Effect (Run once when channels change to clean up DB)
-    useEffect(() => {
-        const cleanupDuplicates = async () => {
-            if (channels.length === 0) return;
-
-            const uniqueNames = new Set();
-            const duplicates: Channel[] = [];
-
-            // Identify duplicates (keep oldest)
-            // Channels are already sorted by createdAt (oldest first)
-            channels.forEach(channel => {
-                if (uniqueNames.has(channel.name)) {
-                    duplicates.push(channel);
-                } else {
-                    uniqueNames.add(channel.name);
-                }
-            });
-
-            if (duplicates.length > 0) {
-                console.log(`Cleaning up ${duplicates.length} duplicate channels...`);
-                const { deleteDoc, doc } = await import('firebase/firestore');
-
-                for (const duplicate of duplicates) {
-                    try {
-                        const channelRef = doc(db, `users/${user!.uid}/channels/${duplicate.id}`);
-                        await deleteDoc(channelRef);
-                        console.log(`Deleted duplicate channel: ${duplicate.name} (${duplicate.id})`);
-                    } catch (error) {
-                        console.error("Error deleting duplicate channel:", error);
-                    }
-                }
-            }
-        };
-
-        cleanupDuplicates();
-    }, [channels, user]);
-
     const updateChannel = async (channelId: string, updates: Partial<Channel>) => {
         if (!user) return;
 
@@ -184,6 +152,40 @@ export const ChannelProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
     };
 
+    const deleteChannel = async (channelId: string) => {
+        if (!user) return;
+
+        const { deleteDoc, getDocs } = await import('firebase/firestore');
+
+        // 1. Delete Subcollections (Videos, Playlists, Settings)
+        // Note: Firestore does not support recursive delete on client SDK easily.
+        // We must fetch and delete docs in subcollections.
+
+        const subcollections = ['videos', 'playlists', 'settings'];
+
+        for (const sub of subcollections) {
+            const subRef = collection(db, `users/${user.uid}/channels/${channelId}/${sub}`);
+            const snapshot = await getDocs(subRef);
+            const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+            await Promise.all(deletePromises);
+        }
+
+        // 2. Delete Channel Document
+        const channelRef = doc(db, `users/${user.uid}/channels/${channelId}`);
+        await deleteDoc(channelRef);
+
+        // 3. Update State (Switch to another channel if current was deleted)
+        if (currentChannel?.id === channelId) {
+            const remaining = channels.filter(c => c.id !== channelId);
+            if (remaining.length > 0) {
+                setCurrentChannel(remaining[0]);
+            } else {
+                setCurrentChannel(null);
+                // Ideally create a default one if all are gone, but useEffect will handle that
+            }
+        }
+    };
+
     return (
         <ChannelContext.Provider value={{
             channels,
@@ -191,7 +193,8 @@ export const ChannelProvider: React.FC<{ children: React.ReactNode }> = ({ child
             loading,
             createChannel,
             updateChannel,
-            switchChannel
+            switchChannel,
+            deleteChannel
         }}>
             {children}
         </ChannelContext.Provider>
