@@ -1,22 +1,9 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useVideo } from '../../context/VideoContext';
-import { SortableVideoCard } from '../Video/SortableVideoCard';
 import { ArrowLeft, PlaySquare } from 'lucide-react';
-import {
-    DndContext,
-    closestCenter,
-    KeyboardSensor,
-    PointerSensor,
-    useSensor,
-    useSensors,
-    type DragEndEvent,
-} from '@dnd-kit/core';
-import {
-    SortableContext,
-    sortableKeyboardCoordinates,
-    rectSortingStrategy,
-} from '@dnd-kit/sortable';
+import { VideoGrid } from '../Video/VideoGrid';
+import { ZoomControls } from '../Video/ZoomControls';
 
 export const PlaylistDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -24,17 +11,6 @@ export const PlaylistDetailPage: React.FC = () => {
     const navigate = useNavigate();
 
     const playlist = playlists.find(p => p.id === id);
-
-    const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 8,
-            },
-        }),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        })
-    );
 
     if (!playlist) {
         return (
@@ -51,26 +27,36 @@ export const PlaylistDetailPage: React.FC = () => {
         .map(videoId => videos.find(v => v.id === videoId))
         .filter((v): v is NonNullable<typeof v> => v !== undefined);
 
-    const handleDragEnd = (event: DragEndEvent) => {
-        const { active, over } = event;
+    const handlePlaylistReorder = (oldIndex: number, newIndex: number) => {
+        if (oldIndex !== -1 && newIndex !== -1) {
+            // We need to be careful here: playlistVideos might be shorter than playlist.videoIds if some videos were deleted but not removed from playlist.
+            // But reorderPlaylistVideos expects a list of IDs.
+            // The indices passed from VideoGrid correspond to the `playlistVideos` array.
 
-        if (active.id !== over?.id && over && id) {
-            const oldIndex = playlist.videoIds.indexOf(active.id as string);
-            const newIndex = playlist.videoIds.indexOf(over.id as string);
+            // Let's map the indices back to the video IDs.
+            const movedVideoId = playlistVideos[oldIndex].id;
+            const targetVideoId = playlistVideos[newIndex].id;
 
-            if (oldIndex !== -1 && newIndex !== -1) {
-                const newOrder = [...playlist.videoIds];
-                const [movedItem] = newOrder.splice(oldIndex, 1);
-                newOrder.splice(newIndex, 0, movedItem);
-                reorderPlaylistVideos(id, newOrder);
+            // Now find these IDs in the original playlist.videoIds list to handle the move safely
+            const originalOldIndex = playlist.videoIds.indexOf(movedVideoId);
+            const originalNewIndex = playlist.videoIds.indexOf(targetVideoId);
+
+            if (originalOldIndex !== -1 && originalNewIndex !== -1) {
+                const fullOrder = [...playlist.videoIds];
+                const [movedItem] = fullOrder.splice(originalOldIndex, 1);
+                fullOrder.splice(originalNewIndex, 0, movedItem);
+                reorderPlaylistVideos(playlist.id, fullOrder);
             }
         }
     };
 
     return (
-        <div className="animate-fade-in" style={{ padding: '24px' }}>
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
+        <div className="animate-fade-in flex flex-col h-full relative">
+            {/* Header - Fixed at top of main content area? Or just scroll with content? 
+                 Home page has CategoryBar sticky. 
+                 Let's make the header scrollable for now, but the ZoomControls will be fixed.
+             */}
+            <div style={{ padding: '24px 24px 0 24px', display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '0' }}>
                 <button
                     onClick={() => navigate('/playlists')}
                     style={{
@@ -92,10 +78,11 @@ export const PlaylistDetailPage: React.FC = () => {
                         borderRadius: '8px',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center'
+                        justifyContent: 'center',
+                        overflow: 'hidden'
                     }}>
                         {playlist.coverImage ? (
-                            <img src={playlist.coverImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} />
+                            <img src={playlist.coverImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         ) : (
                             <PlaySquare size={24} color="var(--text-secondary)" />
                         )}
@@ -113,28 +100,15 @@ export const PlaylistDetailPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Video Grid */}
-            <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-            >
-                <SortableContext items={playlistVideos} strategy={rectSortingStrategy}>
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-                        gap: '24px'
-                    }}>
-                        {playlistVideos.map((video) => (
-                            <SortableVideoCard
-                                key={video.id}
-                                video={video}
-                                playlistId={id}
-                            />
-                        ))}
-                    </div>
-                </SortableContext>
-            </DndContext>
+            {/* Reusable Video Grid */}
+            <VideoGrid
+                videos={playlistVideos}
+                onVideoMove={handlePlaylistReorder}
+                disableChannelFilter={true}
+            />
+
+            {/* Floating Zoom Controls */}
+            <ZoomControls />
 
             {playlistVideos.length === 0 && (
                 <div style={{ textAlign: 'center', color: 'var(--text-secondary)', marginTop: '48px' }}>
