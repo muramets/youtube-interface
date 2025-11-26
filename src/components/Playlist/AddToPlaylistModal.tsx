@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { useVideo } from '../../context/VideoContext';
 import { X, Plus, Check } from 'lucide-react';
 
@@ -34,7 +35,7 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoId,
         }
     };
 
-    return (
+    return createPortal(
         <div
             className="animate-fade-in"
             style={{
@@ -63,6 +64,8 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoId,
                     overflow: 'hidden'
                 }}
                 onClick={e => e.stopPropagation()}
+                onPointerDown={e => e.stopPropagation()}
+                onMouseDown={e => e.stopPropagation()}
             >
                 <div style={{
                     padding: '16px',
@@ -145,6 +148,7 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoId,
                                     backgroundColor: 'var(--bg-primary)',
                                     color: 'var(--text-primary)'
                                 }}
+                                onKeyDown={(e) => e.stopPropagation()}
                             />
                             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                                 <button
@@ -166,6 +170,7 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoId,
                     )}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };

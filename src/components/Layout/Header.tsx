@@ -2,13 +2,14 @@ import React from 'react';
 import { Menu, Search, Settings, Video, Bell, User } from 'lucide-react';
 import { SettingsDropdown } from '../SettingsDropdown';
 import { useUserProfile } from '../../context/UserProfileContext';
-import { ProfileModal } from '../Profile/ProfileModal';
+import { ChannelDropdown } from '../ChannelDropdown';
 
 export const Header: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
-  const [isProfileModalOpen, setIsProfileModalOpen] = React.useState(false);
+  const [isChannelDropdownOpen, setIsChannelDropdownOpen] = React.useState(false);
   const { avatarDataUrl } = useUserProfile();
   const settingsButtonRef = React.useRef<HTMLButtonElement>(null);
+  const avatarButtonRef = React.useRef<HTMLDivElement>(null);
 
   return (
     <header style={{
@@ -53,14 +54,18 @@ export const Header: React.FC = () => {
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-        <Video size={24} color="var(--text-primary)" />
-        <Bell size={24} color="var(--text-primary)" />
-        <div style={{ position: 'relative' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
+          <Video size={24} />
+        </button>
+        <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
+          <Bell size={24} />
+        </button>
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
           <button
             ref={settingsButtonRef}
             onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)' }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}
             title="Settings"
           >
             <Settings size={24} />
@@ -68,7 +73,8 @@ export const Header: React.FC = () => {
           {isSettingsOpen && <SettingsDropdown onClose={() => setIsSettingsOpen(false)} anchorEl={settingsButtonRef.current} />}
         </div>
         <div
-          onClick={() => setIsProfileModalOpen(true)}
+          ref={avatarButtonRef}
+          onClick={() => setIsChannelDropdownOpen(!isChannelDropdownOpen)}
           style={{
             width: '32px',
             height: '32px',
@@ -79,7 +85,8 @@ export const Header: React.FC = () => {
             justifyContent: 'center',
             color: 'white',
             cursor: 'pointer',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            marginLeft: '8px'
           }}
         >
           {avatarDataUrl ? (
@@ -88,8 +95,8 @@ export const Header: React.FC = () => {
             <User size={20} />
           )}
         </div>
+        {isChannelDropdownOpen && <ChannelDropdown onClose={() => setIsChannelDropdownOpen(false)} anchorEl={avatarButtonRef.current} />}
       </div>
-      <ProfileModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} />
     </header>
   );
 };

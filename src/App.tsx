@@ -10,36 +10,68 @@ import { PlaylistDetailPage } from './components/Playlist/PlaylistDetailPage';
 import './App.css';
 
 import { UserProfileProvider } from './context/UserProfileContext';
+import { AuthProvider } from './context/AuthContext';
+import { ChannelProvider } from './context/ChannelContext';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { LoginPage } from './pages/LoginPage';
 
 import { CategoryBar } from './components/Video/CategoryBar';
 
+// import { useAuth } from './context/AuthContext';
+// import { useChannel } from './context/ChannelContext';
+
+function AppContent() {
+  // const { user } = useAuth();
+  // const { currentChannel, loading } = useChannel();
+
+  // Modal removed as per user request
+  // const showSelector = !!user && !loading && !currentChannel;
+
+  return (
+    <div className="app-container">
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/*" element={
+          <ProtectedRoute>
+            <>
+              <Header />
+              <div className="main-content">
+                <Sidebar />
+                <main className="content-area">
+                  <Routes>
+                    <Route path="/" element={
+                      <div className="animate-fade-in">
+                        <CategoryBar />
+                        <VideoGrid />
+                      </div>
+                    } />
+                    <Route path="/watch/:id" element={<WatchPage />} />
+                    <Route path="/playlists" element={<PlaylistsPage />} />
+                    <Route path="/playlists/:id" element={<PlaylistDetailPage />} />
+                  </Routes>
+                </main>
+              </div>
+            </>
+          </ProtectedRoute>
+        } />
+      </Routes>
+    </div>
+  );
+}
+
 function App() {
   return (
-    <ThemeProvider>
-      <UserProfileProvider>
-        <VideoProvider>
-          <div className="app-container">
-            <Header />
-            <div className="main-content">
-              <Sidebar />
-              <main className="content-area">
-                <Routes>
-                  <Route path="/" element={
-                    <div className="animate-fade-in">
-                      <CategoryBar />
-                      <VideoGrid />
-                    </div>
-                  } />
-                  <Route path="/watch/:id" element={<WatchPage />} />
-                  <Route path="/playlists" element={<PlaylistsPage />} />
-                  <Route path="/playlists/:id" element={<PlaylistDetailPage />} />
-                </Routes>
-              </main>
-            </div>
-          </div>
-        </VideoProvider>
-      </UserProfileProvider>
-    </ThemeProvider>
+    <AuthProvider>
+      <ChannelProvider>
+        <ThemeProvider>
+          <UserProfileProvider>
+            <VideoProvider>
+              <AppContent />
+            </VideoProvider>
+          </UserProfileProvider>
+        </ThemeProvider>
+      </ChannelProvider>
+    </AuthProvider>
   );
 }
 

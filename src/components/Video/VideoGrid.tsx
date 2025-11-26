@@ -51,8 +51,13 @@ const SortableVideoCard = ({ video }: SortableVideoCardProps) => {
   );
 };
 
+import { useChannel } from '../../context/ChannelContext';
+
+// ...
+
 export const VideoGrid: React.FC = () => {
   const { videos, addVideo, cardsPerRow, selectedChannel, addCustomVideo, playlists, hiddenPlaylistIds, moveVideo } = useVideo();
+  const { currentChannel } = useChannel();
   const [addingMode, setAddingMode] = useState<AddingMode>('idle');
   const [newVideoUrl, setNewVideoUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -289,12 +294,16 @@ export const VideoGrid: React.FC = () => {
                   overflow: 'hidden'
                 }}
               >
-                {localStorage.getItem('youtube_profile_avatar') && (
+                {currentChannel?.avatar ? (
                   <img
-                    src={localStorage.getItem('youtube_profile_avatar') || ''}
+                    src={currentChannel.avatar}
                     alt="User Avatar"
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', backgroundColor: 'purple', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold' }}>
+                    {currentChannel?.name?.[0]?.toUpperCase() || 'U'}
+                  </div>
                 )}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>

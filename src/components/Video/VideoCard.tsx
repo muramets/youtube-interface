@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { MoreVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useVideo } from '../../context/VideoContext';
+import { useChannel } from '../../context/ChannelContext';
 import type { VideoDetails } from '../../utils/youtubeApi';
 import { CustomVideoModal } from './CustomVideoModal';
 import { formatViewCount, formatDuration } from '../../utils/formatUtils';
@@ -19,6 +20,7 @@ interface VideoCardProps {
 export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange }) => {
   const navigate = useNavigate();
   const { removeVideo, updateVideo, removeVideoFromPlaylist } = useVideo();
+  const { currentChannel } = useChannel();
   const [showMenu, setShowMenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
@@ -128,7 +130,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         <div className="video-info-container">
           {/* Avatar */}
           <div className="channel-avatar-container">
-            {video.channelAvatar ? (
+            {(video.isCustom && currentChannel?.avatar) ? (
+              <div className="channel-avatar">
+                <img src={currentChannel.avatar} alt="" className="channel-avatar-img" />
+              </div>
+            ) : video.channelAvatar ? (
               <div className="channel-avatar">
                 <img src={video.channelAvatar} alt="" className="channel-avatar-img" />
               </div>

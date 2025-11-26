@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Image as ImageIcon } from 'lucide-react';
 import type { VideoDetails } from '../../utils/youtubeApi';
 import { resizeImage } from '../../utils/imageUtils';
@@ -85,14 +86,15 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
             viewCount: viewCount,
             duration: duration || '0:00',
             isCustom: true,
-            customImage: coverImage
+            customImage: coverImage,
+            createdAt: initialData?.createdAt
         };
 
         onSave(videoData);
         onClose();
     };
 
-    return (
+    return createPortal(
         <div
             className="animate-fade-in"
             style={{
@@ -121,6 +123,8 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                     color: 'var(--text-primary)'
                 }}
                 onClick={e => e.stopPropagation()}
+                onPointerDown={e => e.stopPropagation()}
+                onMouseDown={e => e.stopPropagation()}
             >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                     <h2 style={{ margin: 0, fontSize: '20px' }}>{initialData ? 'Edit Video' : 'Create My Video'}</h2>
@@ -178,6 +182,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
                             placeholder="Enter video title..."
+                            onKeyDown={(e) => e.stopPropagation()}
                             style={{
                                 padding: '10px',
                                 borderRadius: '4px',
@@ -197,6 +202,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                             value={viewCount}
                             onChange={(e) => setViewCount(e.target.value)}
                             placeholder="e.g. 1.5M or 1500000"
+                            onKeyDown={(e) => e.stopPropagation()}
                             style={{
                                 padding: '10px',
                                 borderRadius: '4px',
@@ -216,6 +222,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                             value={duration}
                             onChange={(e) => setDuration(e.target.value)}
                             placeholder="e.g. 10:05"
+                            onKeyDown={(e) => e.stopPropagation()}
                             style={{
                                 padding: '10px',
                                 borderRadius: '4px',
@@ -259,6 +266,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };

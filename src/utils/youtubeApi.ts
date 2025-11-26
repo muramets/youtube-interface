@@ -9,6 +9,7 @@ export interface VideoDetails {
     duration?: string;
     isCustom?: boolean;
     customImage?: string;
+    createdAt?: number;
 }
 
 export const extractVideoId = (url: string): string | null => {

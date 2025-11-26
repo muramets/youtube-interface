@@ -1,6 +1,19 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { fetchVideoDetails, extractVideoId } from '../utils/youtubeApi';
 import type { VideoDetails } from '../utils/youtubeApi';
+import { useAuth } from './AuthContext';
+import { useChannel } from './ChannelContext';
+import { db } from '../firebase';
+import {
+    collection,
+    doc,
+    setDoc,
+    deleteDoc,
+    updateDoc,
+    onSnapshot,
+    query,
+    orderBy
+} from 'firebase/firestore';
 
 export interface Playlist {
     id: string;
@@ -42,22 +55,167 @@ interface VideoContextType {
 const VideoContext = createContext<VideoContextType | undefined>(undefined);
 
 export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const { user } = useAuth();
+    const { currentChannel } = useChannel();
+
+    // API Key (Local Storage - Global)
     const [apiKey, setApiKeyState] = useState<string>(() => {
         return localStorage.getItem('youtube_api_key') || '';
     });
 
-    const [videos, setVideos] = useState<VideoDetails[]>(() => {
-        const savedVideos = localStorage.getItem('youtube_videos');
-        return savedVideos ? JSON.parse(savedVideos) : [];
-    });
+    useEffect(() => {
+        localStorage.setItem('youtube_api_key', apiKey);
+    }, [apiKey]);
 
-    const [cardsPerRow, setCardsPerRow] = useState<number>(() => {
-        const saved = localStorage.getItem('youtube_cards_per_row');
-        return saved ? parseInt(saved, 10) : 3;
-    });
+    const setApiKey = (key: string) => {
+        setApiKeyState(key);
+    };
 
+    // Videos (Firestore)
+    const [videos, setVideos] = useState<VideoDetails[]>([]);
+    const [rawVideos, setRawVideos] = useState<VideoDetails[]>([]);
+    const [videoOrder, setVideoOrder] = useState<string[]>([]);
 
+    // Fetch Raw Videos
+    useEffect(() => {
+        if (!user || !currentChannel) {
+            setRawVideos([]);
+            return;
+        }
 
+        const videosRef = collection(db, `users/${user.uid}/channels/${currentChannel.id}/videos`);
+        const unsubscribe = onSnapshot(videosRef, (snapshot) => {
+            const loadedVideos: VideoDetails[] = [];
+            snapshot.forEach((doc) => {
+                loadedVideos.push(doc.data() as VideoDetails);
+            });
+            setRawVideos(loadedVideos);
+        });
+
+        return () => unsubscribe();
+    }, [user, currentChannel]);
+
+    // Fetch Video Order
+    useEffect(() => {
+        if (!user || !currentChannel) {
+            setVideoOrder([]);
+            return;
+        }
+
+        const orderRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/videoOrder`);
+        const unsubscribe = onSnapshot(orderRef, (doc) => {
+            if (doc.exists()) {
+                setVideoOrder(doc.data().order || []);
+            } else {
+                setVideoOrder([]);
+            }
+        });
+
+        return () => unsubscribe();
+    }, [user, currentChannel]);
+
+    // Combine and Sort Videos
+    useEffect(() => {
+        if (rawVideos.length === 0) {
+            setVideos([]);
+            return;
+        }
+
+        const videoMap = new Map(rawVideos.map(v => [v.id, v]));
+        const sortedVideos: VideoDetails[] = [];
+        const processedIds = new Set<string>();
+
+        // 1. Add videos from the order list
+        videoOrder.forEach(id => {
+            const video = videoMap.get(id);
+            if (video) {
+                sortedVideos.push(video);
+                processedIds.add(id);
+            }
+        });
+
+        // 2. Add remaining videos (newly added or not in order list)
+        // Sort them by createdAt desc (newest first)
+        const remainingVideos = rawVideos
+            .filter(v => !processedIds.has(v.id))
+            .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+        // Prepend remaining videos (so new ones appear at top)
+        setVideos([...remainingVideos, ...sortedVideos]);
+
+    }, [rawVideos, videoOrder]);
+
+    // Playlists (Firestore)
+    const [playlists, setPlaylists] = useState<Playlist[]>([]);
+
+    useEffect(() => {
+        if (!user || !currentChannel) {
+            setPlaylists([]);
+            return;
+        }
+
+        const playlistsRef = collection(db, `users/${user.uid}/channels/${currentChannel.id}/playlists`);
+        const q = query(playlistsRef, orderBy('createdAt'));
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const loadedPlaylists: Playlist[] = [];
+            snapshot.forEach((doc) => {
+                loadedPlaylists.push(doc.data() as Playlist);
+            });
+            setPlaylists(loadedPlaylists);
+        });
+
+        return () => unsubscribe();
+    }, [user, currentChannel]);
+
+    // Cards Per Row (Local Storage - Per Channel?)
+    // Let's keep it global for simplicity, or per channel if we want.
+    // User said "settings... preferences: { cardsPerRow }" in plan.
+    // Let's try to use Firestore if we can, but fallback to local.
+    const [cardsPerRow, setCardsPerRow] = useState<number>(3);
+
+    // Load settings from Firestore
+    useEffect(() => {
+        if (!user || !currentChannel) return;
+        const settingsRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/general`);
+        const unsubscribe = onSnapshot(settingsRef, (doc) => {
+            if (doc.exists()) {
+                const data = doc.data();
+                if (data.cardsPerRow) setCardsPerRow(data.cardsPerRow);
+                if (data.hiddenPlaylistIds) setHiddenPlaylistIds(data.hiddenPlaylistIds);
+            }
+        });
+        return () => unsubscribe();
+    }, [user, currentChannel]);
+
+    const updateCardsPerRow = async (count: number) => {
+        if (count >= 3 && count <= 9) {
+            setCardsPerRow(count); // Optimistic
+            if (user && currentChannel) {
+                const settingsRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/general`);
+                await setDoc(settingsRef, { cardsPerRow: count }, { merge: true });
+            }
+        }
+    };
+
+    // Hidden Playlists
+    const [hiddenPlaylistIds, setHiddenPlaylistIds] = useState<string[]>([]);
+
+    const togglePlaylistVisibility = async (playlistId: string) => {
+        const newHidden = hiddenPlaylistIds.includes(playlistId)
+            ? hiddenPlaylistIds.filter(id => id !== playlistId)
+            : [...hiddenPlaylistIds, playlistId];
+
+        setHiddenPlaylistIds(newHidden); // Optimistic
+
+        if (user && currentChannel) {
+            const settingsRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/general`);
+            await setDoc(settingsRef, { hiddenPlaylistIds: newHidden }, { merge: true });
+        }
+    };
+
+    // Selected Channel (Filter for Sidebar) - This is purely UI state, not the "Current Channel" context.
+    // This is for filtering videos by channel name in the grid.
     const [selectedChannel, setSelectedChannel] = useState<string>('All');
 
     const uniqueChannels = React.useMemo(() => {
@@ -65,73 +223,37 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return Array.from(channels).sort();
     }, [videos]);
 
-    const [recommendationOrders, setRecommendationOrders] = useState<Record<string, string[]>>(() => {
-        const saved = localStorage.getItem('youtube_recommendation_orders');
-        return saved ? JSON.parse(saved) : {};
-    });
+    // Recommendation Orders (Local Storage - Per Channel Key)
+    const [recommendationOrders, setRecommendationOrders] = useState<Record<string, string[]>>({});
 
     useEffect(() => {
-        localStorage.setItem('youtube_api_key', apiKey);
-    }, [apiKey]);
-
-    useEffect(() => {
-        try {
-            localStorage.setItem('youtube_videos', JSON.stringify(videos));
-        } catch (error) {
-            console.error('Failed to save videos to localStorage:', error);
-            if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-                alert('Storage limit exceeded. Unable to save new video. Please remove some custom videos or use smaller images.');
-            }
+        if (currentChannel) {
+            const saved = localStorage.getItem(`youtube_recommendation_orders_${currentChannel.id}`);
+            setRecommendationOrders(saved ? JSON.parse(saved) : {});
+        } else {
+            setRecommendationOrders({});
         }
-    }, [videos]);
-
-    useEffect(() => {
-        localStorage.setItem('youtube_cards_per_row', cardsPerRow.toString());
-    }, [cardsPerRow]);
-
-    useEffect(() => {
-        localStorage.setItem('youtube_recommendation_orders', JSON.stringify(recommendationOrders));
-    }, [recommendationOrders]);
-
-    // Sanitize playlists: remove video IDs that don't exist in videos
-    useEffect(() => {
-        setPlaylists(prevPlaylists => {
-            const videoIdsSet = new Set(videos.map(v => v.id));
-            let hasChanges = false;
-
-            const newPlaylists = prevPlaylists.map(playlist => {
-                const validVideoIds = playlist.videoIds.filter(id => videoIdsSet.has(id));
-                if (validVideoIds.length !== playlist.videoIds.length) {
-                    hasChanges = true;
-                    return { ...playlist, videoIds: validVideoIds };
-                }
-                return playlist;
-            });
-
-            return hasChanges ? newPlaylists : prevPlaylists;
-        });
-    }, [videos]);
-
-    const setApiKey = (key: string) => {
-        setApiKeyState(key);
-    };
-
-    const updateCardsPerRow = (count: number) => {
-        if (count >= 3 && count <= 9) {
-            setCardsPerRow(count);
-        }
-    };
+    }, [currentChannel]);
 
     const updateRecommendationOrder = (videoId: string, newOrder: string[]) => {
-        setRecommendationOrders(prev => ({
-            ...prev,
-            [videoId]: newOrder
-        }));
+        setRecommendationOrders(prev => {
+            const next = { ...prev, [videoId]: newOrder };
+            if (currentChannel) {
+                localStorage.setItem(`youtube_recommendation_orders_${currentChannel.id}`, JSON.stringify(next));
+            }
+            return next;
+        });
     };
+
+    // Actions
 
     const addVideo = async (url: string): Promise<boolean> => {
         if (!apiKey) {
             alert('Please set your YouTube API Key in settings first.');
+            return false;
+        }
+        if (!user || !currentChannel) {
+            alert('Please sign in and select a channel.');
             return false;
         }
 
@@ -148,7 +270,27 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         const details = await fetchVideoDetails(videoId, apiKey);
         if (details) {
-            setVideos(prev => [...prev, details]);
+            const videoWithTimestamp: VideoDetails = {
+                ...details,
+                createdAt: Date.now()
+            };
+
+            // 1. Save Video
+            const videoRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${details.id}`);
+            await setDoc(videoRef, videoWithTimestamp);
+
+            // 2. Update Order (Prepend)
+            const orderRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/videoOrder`);
+            // We need to get current order first to be safe, but we have it in state 'videoOrder'.
+            // However, state might be slightly stale vs DB. Best to use arrayUnion if we could prepend, 
+            // but Firestore arrayUnion appends.
+            // So we just write the new list based on state + new ID.
+            // Actually, we should put it at the BEGINNING.
+            // If we have 'remainingVideos' logic, they appear at top anyway.
+            // But let's explicitly add it to the order list at index 0 to persist that position.
+            const newOrder = [details.id, ...videoOrder];
+            await setDoc(orderRef, { order: newOrder }, { merge: true });
+
             return true;
         } else {
             alert('Failed to fetch video details. Check your API key or the URL.');
@@ -156,40 +298,56 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     };
 
-    const removeVideo = (id: string) => {
-        setVideos(prev => prev.filter(v => v.id !== id));
+    const removeVideo = async (id: string) => {
+        if (!user || !currentChannel) return;
 
-        // Remove video from all playlists
-        setPlaylists(prev => prev.map(playlist => ({
-            ...playlist,
-            videoIds: playlist.videoIds.filter(videoId => videoId !== id)
-        })));
+        // Delete from videos collection
+        await deleteDoc(doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${id}`));
 
-        // Cleanup recommendation orders for this video if needed, 
-        // but also we should remove this video ID from OTHER videos' recommendation lists?
-        // For now, simple cleanup:
-        setRecommendationOrders(prev => {
-            const newOrders = { ...prev };
-            delete newOrders[id];
-            // Optional: Remove id from all other lists. 
-            // Since we filter by 'videos' existence in WatchPage, this is self-correcting visually.
-            return newOrders;
+        // Update Order
+        const orderRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/videoOrder`);
+        const newOrder = videoOrder.filter(videoId => videoId !== id);
+        await setDoc(orderRef, { order: newOrder }, { merge: true });
+
+        // Remove from all playlists
+        // We need to iterate playlists and update them.
+        // This is a bit heavy, but fine for now.
+        playlists.forEach(async (playlist) => {
+            if (playlist.videoIds.includes(id)) {
+                const newVideoIds = playlist.videoIds.filter(vid => vid !== id);
+                const playlistRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/playlists/${playlist.id}`);
+                await updateDoc(playlistRef, { videoIds: newVideoIds, updatedAt: Date.now() });
+            }
         });
     };
 
-    const addCustomVideo = (video: Omit<VideoDetails, 'id'>) => {
+    const addCustomVideo = async (video: Omit<VideoDetails, 'id'>) => {
+        if (!user || !currentChannel) return;
+        const id = `custom-${Date.now()}`;
         const newVideo: VideoDetails = {
             ...video,
-            id: `custom-${Date.now()}`,
-            isCustom: true
+            id,
+            isCustom: true,
+            createdAt: Date.now()
         };
-        setVideos(prev => [...prev, newVideo]);
+
+        // 1. Save Video
+        const videoRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${id}`);
+        await setDoc(videoRef, newVideo);
+
+        // 2. Update Order (Prepend)
+        const orderRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/videoOrder`);
+        const newOrder = [id, ...videoOrder];
+        await setDoc(orderRef, { order: newOrder }, { merge: true });
     };
 
     const updateVideo = async (id: string, customUpdates?: Partial<VideoDetails>): Promise<boolean> => {
+        if (!user || !currentChannel) return false;
+
         if (id.startsWith('custom-')) {
             if (customUpdates) {
-                setVideos(prev => prev.map(v => (v.id === id ? { ...v, ...customUpdates } : v)));
+                const videoRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${id}`);
+                await updateDoc(videoRef, customUpdates);
                 return true;
             }
             return false;
@@ -198,125 +356,97 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (!apiKey) return false;
         const details = await fetchVideoDetails(id, apiKey);
         if (details) {
-            setVideos(prev => prev.map(v => (v.id === id ? details : v)));
+            const videoRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${id}`);
+            await setDoc(videoRef, details);
             return true;
         }
         return false;
     };
 
-    const moveVideo = (dragIndex: number, hoverIndex: number) => {
+    const moveVideo = async (dragIndex: number, hoverIndex: number) => {
+        // Optimistic update
         const dragVideo = videos[dragIndex];
         const newVideos = [...videos];
         newVideos.splice(dragIndex, 1);
         newVideos.splice(hoverIndex, 0, dragVideo);
         setVideos(newVideos);
+
+        // Persist order
+        if (user && currentChannel) {
+            const newOrder = newVideos.map(v => v.id);
+            setVideoOrder(newOrder); // Update local order state immediately
+            const orderRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/videoOrder`);
+            await setDoc(orderRef, { order: newOrder }, { merge: true });
+        }
     };
 
-    const [playlists, setPlaylists] = useState<Playlist[]>(() => {
-        const saved = localStorage.getItem('youtube_playlists');
-        return saved ? JSON.parse(saved) : [];
-    });
-
-    useEffect(() => {
-        localStorage.setItem('youtube_playlists', JSON.stringify(playlists));
-    }, [playlists]);
-
-    const createPlaylist = (name: string) => {
+    const createPlaylist = async (name: string) => {
+        if (!user || !currentChannel) return;
         const now = Date.now();
+        const id = `playlist-${now}`;
         const newPlaylist: Playlist = {
-            id: `playlist-${now}`,
+            id,
             name,
             videoIds: [],
             createdAt: now,
             updatedAt: now
         };
-        setPlaylists(prev => [...prev, newPlaylist]);
+        const playlistRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/playlists/${id}`);
+        await setDoc(playlistRef, newPlaylist);
     };
 
-    const deletePlaylist = (id: string) => {
-        setPlaylists(prev => prev.filter(p => p.id !== id));
+    const deletePlaylist = async (id: string) => {
+        if (!user || !currentChannel) return;
+        await deleteDoc(doc(db, `users/${user.uid}/channels/${currentChannel.id}/playlists/${id}`));
     };
 
-    const addVideoToPlaylist = (playlistId: string, videoId: string) => {
-        setPlaylists(prev => prev.map(playlist => {
-            if (playlist.id === playlistId) {
-                if (playlist.videoIds.includes(videoId)) return playlist;
+    const addVideoToPlaylist = async (playlistId: string, videoId: string) => {
+        if (!user || !currentChannel) return;
+        const playlist = playlists.find(p => p.id === playlistId);
+        if (!playlist) return;
+        if (playlist.videoIds.includes(videoId)) return;
 
-                // Get the video to use its thumbnail as cover if needed
-                const video = videos.find(v => v.id === videoId);
-                let newCover = playlist.coverImage;
+        const video = videos.find(v => v.id === videoId);
+        let newCover = playlist.coverImage;
+        if (!newCover && video) {
+            newCover = video.thumbnail;
+        }
 
-                // If no cover image exists, use this video's thumbnail
-                // Or if we want "last added" to always be the cover, we could update it here.
-                // The requirement says "automatically use the last added video's cover if no custom cover is provided".
-                // This implies if the user hasn't uploaded a custom one, we default to the last added.
-                // Since we don't track "isCustomCover", we'll just assume if it's empty we set it.
-                // To strictly follow "last added", we should probably update it every time if it's not "custom".
-                // For now, let's just set it if it's empty to ensure there's a cover.
-                // Refinement: If we want to support "last added", we might need a flag or just update it.
-                // Let's stick to: set if empty.
-                if (!newCover && video) {
-                    newCover = video.thumbnail;
-                }
-
-                return {
-                    ...playlist,
-                    videoIds: [...playlist.videoIds, videoId],
-                    coverImage: newCover,
-                    updatedAt: Date.now()
-                };
-            }
-            return playlist;
-        }));
+        const playlistRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/playlists/${playlistId}`);
+        await updateDoc(playlistRef, {
+            videoIds: [...playlist.videoIds, videoId],
+            coverImage: newCover,
+            updatedAt: Date.now()
+        });
     };
 
-    const removeVideoFromPlaylist = (playlistId: string, videoId: string) => {
-        setPlaylists(prev => prev.map(p => {
-            if (p.id === playlistId) {
-                return {
-                    ...p,
-                    videoIds: p.videoIds.filter(id => id !== videoId),
-                    updatedAt: Date.now()
-                };
-            }
-            return p;
-        }));
+    const removeVideoFromPlaylist = async (playlistId: string, videoId: string) => {
+        if (!user || !currentChannel) return;
+        const playlist = playlists.find(p => p.id === playlistId);
+        if (!playlist) return;
+
+        const playlistRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/playlists/${playlistId}`);
+        await updateDoc(playlistRef, {
+            videoIds: playlist.videoIds.filter(id => id !== videoId),
+            updatedAt: Date.now()
+        });
     };
 
-    const updatePlaylist = (id: string, updates: Partial<Playlist>) => {
-        setPlaylists(prev => prev.map(p => (p.id === id ? { ...p, ...updates, updatedAt: Date.now() } : p)));
+    const updatePlaylist = async (id: string, updates: Partial<Playlist>) => {
+        if (!user || !currentChannel) return;
+        const playlistRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/playlists/${id}`);
+        await updateDoc(playlistRef, { ...updates, updatedAt: Date.now() });
     };
 
-    const reorderPlaylistVideos = (playlistId: string, newOrder: string[]) => {
-        setPlaylists(prev => prev.map(p => {
-            if (p.id === playlistId) {
-                return { ...p, videoIds: newOrder, updatedAt: Date.now() };
-            }
-            return p;
-        }));
+    const reorderPlaylistVideos = async (playlistId: string, newOrder: string[]) => {
+        if (!user || !currentChannel) return;
+        const playlistRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/playlists/${playlistId}`);
+        await updateDoc(playlistRef, { videoIds: newOrder, updatedAt: Date.now() });
     };
 
     const reorderPlaylists = (newPlaylists: Playlist[]) => {
+        // Reordering playlists themselves is also not persisted unless we add an order field.
         setPlaylists(newPlaylists);
-    };
-
-    const [hiddenPlaylistIds, setHiddenPlaylistIds] = useState<string[]>(() => {
-        const saved = localStorage.getItem('youtube_hidden_playlists');
-        return saved ? JSON.parse(saved) : [];
-    });
-
-    useEffect(() => {
-        localStorage.setItem('youtube_hidden_playlists', JSON.stringify(hiddenPlaylistIds));
-    }, [hiddenPlaylistIds]);
-
-    const togglePlaylistVisibility = (playlistId: string) => {
-        setHiddenPlaylistIds(prev => {
-            if (prev.includes(playlistId)) {
-                return prev.filter(id => id !== playlistId);
-            } else {
-                return [...prev, playlistId];
-            }
-        });
     };
 
     return (

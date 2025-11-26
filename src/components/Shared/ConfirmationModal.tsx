@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface ConfirmationModalProps {
@@ -22,7 +23,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 }) => {
     if (!isOpen) return null;
 
-    return (
+    return createPortal(
         <div
             className="animate-fade-in"
             style={{
@@ -51,6 +52,8 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                     overflow: 'hidden'
                 }}
                 onClick={e => e.stopPropagation()}
+                onPointerDown={e => e.stopPropagation()}
+                onMouseDown={e => e.stopPropagation()}
             >
                 <div style={{
                     padding: '16px 24px',
@@ -103,6 +106,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                     </button>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 };

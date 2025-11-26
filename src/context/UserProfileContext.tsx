@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext } from 'react';
+import { useChannel } from './ChannelContext';
 
 interface UserProfileContextType {
     channelName: string;
@@ -9,29 +10,18 @@ interface UserProfileContextType {
 const UserProfileContext = createContext<UserProfileContextType | undefined>(undefined);
 
 export const UserProfileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [channelName, setChannelName] = useState<string>(() => {
-        return localStorage.getItem('youtube_profile_name') || 'Guest Channel';
-    });
+    const { currentChannel, updateChannel } = useChannel();
 
-    const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(() => {
-        return localStorage.getItem('youtube_profile_avatar');
-    });
-
-    useEffect(() => {
-        localStorage.setItem('youtube_profile_name', channelName);
-    }, [channelName]);
-
-    useEffect(() => {
-        if (avatarDataUrl) {
-            localStorage.setItem('youtube_profile_avatar', avatarDataUrl);
-        } else {
-            localStorage.removeItem('youtube_profile_avatar');
-        }
-    }, [avatarDataUrl]);
+    const channelName = currentChannel?.name || 'Guest Channel';
+    const avatarDataUrl = currentChannel?.avatar || null;
 
     const updateProfile = (name: string, avatar: string | null) => {
-        setChannelName(name);
-        setAvatarDataUrl(avatar);
+        if (currentChannel) {
+            updateChannel(currentChannel.id, {
+                name,
+                avatar: avatar || undefined
+            });
+        }
     };
 
     return (
