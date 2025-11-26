@@ -2,6 +2,7 @@ export interface VideoDetails {
     id: string;
     title: string;
     thumbnail: string;
+    channelId: string;
     channelTitle: string;
     channelAvatar: string;
     publishedAt: string;
@@ -66,6 +67,7 @@ export const fetchVideoDetails = async (videoId: string, apiKey: string): Promis
             id: videoId,
             title: snippet.title,
             thumbnail: snippet.thumbnails.maxres?.url || snippet.thumbnails.high?.url || snippet.thumbnails.medium?.url,
+            channelId: snippet.channelId,
             channelTitle: snippet.channelTitle,
             channelAvatar: channelAvatar,
             publishedAt: snippet.publishedAt,

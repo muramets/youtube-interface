@@ -255,7 +255,20 @@ export const WatchPage: React.FC = () => {
                         </div>
                         <div className="flex flex-col gap-0.5">
                             <span className="font-bold text-text-primary text-base">
-                                {(video.isCustom && currentChannel) ? currentChannel.name : video.channelTitle}
+                                {(video.isCustom && currentChannel) ? (
+                                    currentChannel.name
+                                ) : video.channelId ? (
+                                    <a
+                                        href={`https://www.youtube.com/channel/${video.channelId}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-inherit no-underline hover:text-blue-500 transition-colors"
+                                    >
+                                        {video.channelTitle}
+                                    </a>
+                                ) : (
+                                    video.channelTitle
+                                )}
                             </span>
                             <span className="text-xs text-text-secondary">
                                 {video.subscriberCount || '1.2M'} subscribers

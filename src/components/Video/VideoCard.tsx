@@ -148,7 +148,23 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
               {video.title}
             </h3>
             <div className="text-sm text-text-secondary flex flex-col">
-              <div className="hover:text-text-primary transition-colors">{(video.isCustom && currentChannel) ? currentChannel.name : video.channelTitle}</div>
+              <div className="hover:text-text-primary transition-colors">
+                {(video.isCustom && currentChannel) ? (
+                  currentChannel.name
+                ) : video.channelId ? (
+                  <a
+                    href={`https://www.youtube.com/channel/${video.channelId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-inherit no-underline hover:text-text-primary"
+                  >
+                    {video.channelTitle}
+                  </a>
+                ) : (
+                  video.channelTitle
+                )}
+              </div>
               <div>
                 {video.viewCount ? `${formatViewCount(video.viewCount)} views` : ''} • {new Date(video.publishedAt).toLocaleDateString()}
               </div>
