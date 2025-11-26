@@ -14,6 +14,8 @@ export interface VideoDetails {
     likeCount?: string;
     subscriberCount?: string;
     embedUrl?: string;
+    tags?: string[];
+    lastUpdated?: number;
 }
 
 export const extractVideoId = (url: string): string | null => {
@@ -60,6 +62,7 @@ export const fetchVideoDetails = async (videoId: string, apiKey: string): Promis
             description: snippet.description,
             likeCount: statistics.likeCount,
             subscriberCount: subscriberCount,
+            tags: snippet.tags || [],
         };
     } catch (error) {
         console.error('Error fetching video details:', error);

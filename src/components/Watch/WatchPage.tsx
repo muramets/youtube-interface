@@ -20,6 +20,7 @@ import {
 } from '@dnd-kit/sortable';
 import { SortableRecommendationCard } from './SortableRecommendationCard';
 import { WatchPageFilterBar } from './WatchPageFilterBar';
+import { Toast } from '../Shared/Toast';
 
 export const WatchPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -28,6 +29,8 @@ export const WatchPage: React.FC = () => {
     const { videos, playlists, moveVideo, searchQuery, hiddenPlaylistIds } = useVideo();
     const { currentChannel } = useChannel();
     const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+    const [toastMessage, setToastMessage] = useState('');
+    const [showToast, setShowToast] = useState(false);
 
     // Filter states
     const [selectedFilter, setSelectedFilter] = useState<'all' | 'channel' | 'playlists'>('all');
@@ -174,7 +177,7 @@ export const WatchPage: React.FC = () => {
     const description = video.description || '';
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 p-6 w-full max-w-[2200px] min-h-screen box-border">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 p-6 w-full max-w-[1800px] mx-auto min-h-screen box-border items-start">
             {/* Main Content (Video Player + Info) */}
             <div className="min-w-0">
                 {/* Video Player Container */}
@@ -258,7 +261,7 @@ export const WatchPage: React.FC = () => {
 
                 {/* Description Box */}
                 <div
-                    className="bg-bg-secondary rounded-xl p-3 text-sm text-text-primary cursor-pointer hover:bg-hover-bg transition-colors mb-6"
+                    className="bg-bg-secondary rounded-xl p-3 text-sm text-text-primary cursor-pointer hover:bg-hover-bg transition-colors mb-2"
                     onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
                 >
                     <div className="font-bold mb-2">
@@ -273,6 +276,27 @@ export const WatchPage: React.FC = () => {
                         {isDescriptionExpanded ? 'Show less' : '...more'}
                     </button>
                 </div>
+
+                {/* Tags */}
+                {video.tags && video.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-6 px-1">
+                        {video.tags.map((tag, index) => (
+                            <button
+                                key={index}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigator.clipboard.writeText(tag);
+                                    setToastMessage(`Tag #${tag.replace(/\s+/g, '')} copied to clipboard`);
+                                    setShowToast(true);
+                                }}
+                                className="text-blue-500 text-xs font-medium cursor-pointer hover:underline bg-transparent border-none p-0"
+                                title="Click to copy"
+                            >
+                                #{tag.replace(/\s+/g, '')}
+                            </button>
+                        ))}
+                    </div>
+                )}
 
                 {/* Comments Placeholder */}
                 <div className="mt-6">
@@ -370,6 +394,11 @@ export const WatchPage: React.FC = () => {
                     )}
                 </div>
             </div>
+            <Toast
+                message={toastMessage}
+                isVisible={showToast}
+                onClose={() => setShowToast(false)}
+            />
         </div>
     );
 };

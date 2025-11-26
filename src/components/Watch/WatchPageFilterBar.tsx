@@ -72,11 +72,11 @@ export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
     ];
 
     return (
-        <div className="relative flex items-center w-full mb-4">
+        <div className="relative flex items-start w-full mb-4">
             {showLeftArrow && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 z-10 flex items-center bg-gradient-to-r from-bg-primary via-bg-primary to-transparent pr-4 pl-0 h-full">
+                <div className="absolute left-0 top-0 z-10 flex items-center bg-gradient-to-r from-bg-primary via-bg-primary to-transparent pr-4 pl-0 h-full">
                     <button
-                        className="w-8 h-8 rounded-full bg-bg-secondary hover:bg-hover-bg flex items-center justify-center border-none cursor-pointer text-text-primary shadow-sm"
+                        className="w-8 h-8 rounded-full bg-transparent hover:bg-bg-secondary flex items-center justify-center border-none cursor-pointer text-text-primary shadow-sm"
                         onClick={() => scroll('left')}
                     >
                         <ChevronLeft size={20} />
@@ -85,7 +85,7 @@ export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
             )}
 
             <div
-                className="flex gap-3 overflow-x-auto scrollbar-hide scroll-smooth px-1 py-1 w-full items-center"
+                className="flex gap-3 overflow-x-auto scrollbar-hide scroll-smooth px-1 w-full items-start"
                 ref={scrollContainerRef}
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
@@ -121,9 +121,9 @@ export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
             </div>
 
             {showRightArrow && (
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10 flex items-center bg-gradient-to-l from-bg-primary via-bg-primary to-transparent pl-4 pr-0 h-full">
+                <div className="absolute right-0 top-0 z-10 flex items-center bg-gradient-to-l from-bg-primary via-bg-primary to-transparent pl-4 pr-0 h-full">
                     <button
-                        className="w-8 h-8 rounded-full bg-bg-secondary hover:bg-hover-bg flex items-center justify-center border-none cursor-pointer text-text-primary shadow-sm"
+                        className="w-8 h-8 rounded-full bg-transparent hover:bg-bg-secondary flex items-center justify-center border-none cursor-pointer text-text-primary shadow-sm"
                         onClick={() => scroll('right')}
                     >
                         <ChevronRight size={20} />

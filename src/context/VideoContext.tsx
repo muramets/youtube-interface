@@ -55,6 +55,10 @@ interface VideoContextType {
     setSearchQuery: (query: string) => void;
     homeSortBy: 'default' | 'views' | 'date';
     setHomeSortBy: (sort: 'default' | 'views' | 'date') => void;
+    syncSettings: { autoSync: boolean; frequencyHours: number };
+    updateSyncSettings: (settings: { autoSync: boolean; frequencyHours: number }) => void;
+    isSyncing: boolean;
+    manualSync: () => Promise<void>;
 }
 
 const VideoContext = createContext<VideoContextType | undefined>(undefined);
@@ -474,6 +478,91 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Home Sort
     const [homeSortBy, setHomeSortBy] = useState<'default' | 'views' | 'date'>('default');
 
+    // Sync Settings
+    const [syncSettings, setSyncSettings] = useState<{ autoSync: boolean; frequencyHours: number }>({
+        autoSync: true,
+        frequencyHours: 24
+    });
+    const [isSyncing, setIsSyncing] = useState(false);
+
+    // Load Sync Settings
+    useEffect(() => {
+        if (!user || !currentChannel) return;
+        const settingsRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/sync`);
+        const unsubscribe = onSnapshot(settingsRef, (doc) => {
+            if (doc.exists()) {
+                setSyncSettings(doc.data() as any);
+            }
+        });
+        return () => unsubscribe();
+    }, [user, currentChannel]);
+
+    const updateSyncSettings = async (settings: { autoSync: boolean; frequencyHours: number }) => {
+        setSyncSettings(settings); // Optimistic
+        if (user && currentChannel) {
+            const settingsRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/sync`);
+            await setDoc(settingsRef, settings, { merge: true });
+        }
+    };
+
+    const syncVideoData = async (force: boolean = false) => {
+        if (!user || !currentChannel || !apiKey || isSyncing) return;
+
+        setIsSyncing(true);
+        try {
+            const now = Date.now();
+            const videosToUpdate = videos.filter(v => {
+                if (v.isCustom) return false; // Don't sync custom videos
+                if (force) return true;
+
+                const lastUpdated = v.lastUpdated || 0;
+                const hoursSinceUpdate = (now - lastUpdated) / (1000 * 60 * 60);
+                return hoursSinceUpdate >= syncSettings.frequencyHours;
+            });
+
+            console.log(`Syncing ${videosToUpdate.length} videos...`);
+
+            for (const video of videosToUpdate) {
+                const details = await fetchVideoDetails(video.id, apiKey);
+                if (details) {
+                    const updatedVideo: VideoDetails = {
+                        ...video, // Keep existing local fields like createdAt
+                        ...details, // Overwrite with fresh API data
+                        lastUpdated: now
+                    };
+                    const videoRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${video.id}`);
+                    await updateDoc(videoRef, updatedVideo as any);
+                }
+                // Add a small delay to avoid hitting rate limits too hard if many videos
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        } catch (error) {
+            console.error("Sync failed:", error);
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
+    const manualSync = () => syncVideoData(true);
+
+    // Auto-Sync Effect
+    useEffect(() => {
+        if (syncSettings.autoSync) {
+            const checkSync = () => syncVideoData(false);
+
+            // Initial check on load (with a small delay to ensure data is loaded)
+            const timeoutId = setTimeout(checkSync, 5000);
+
+            // Periodic check (every hour)
+            const intervalId = setInterval(checkSync, 60 * 60 * 1000);
+
+            return () => {
+                clearTimeout(timeoutId);
+                clearInterval(intervalId);
+            };
+        }
+    }, [syncSettings.autoSync, syncSettings.frequencyHours, videos, apiKey, user, currentChannel]); // Dependencies ensure it runs when data changes
+
     return (
         <VideoContext.Provider value={{
             videos,
@@ -505,7 +594,11 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             searchQuery,
             setSearchQuery,
             homeSortBy,
-            setHomeSortBy
+            setHomeSortBy,
+            syncSettings,
+            updateSyncSettings,
+            isSyncing,
+            manualSync
         }}>
             {children}
         </VideoContext.Provider>
