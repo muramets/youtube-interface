@@ -125,9 +125,12 @@ export const ChannelProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const newChannel: Channel = {
             id: newChannelRef.id,
             name,
-            avatar: avatar || user.photoURL || undefined,
             createdAt: Date.now()
         };
+
+        if (avatar) {
+            newChannel.avatar = avatar;
+        }
 
         await setDoc(newChannelRef, newChannel);
         setCurrentChannel(newChannel);

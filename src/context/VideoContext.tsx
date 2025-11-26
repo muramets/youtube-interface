@@ -192,6 +192,9 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 const data = doc.data();
                 if (data.cardsPerRow) setCardsPerRow(data.cardsPerRow);
                 if (data.hiddenPlaylistIds) setHiddenPlaylistIds(data.hiddenPlaylistIds);
+            } else {
+                setCardsPerRow(3);
+                setHiddenPlaylistIds([]);
             }
         });
         return () => unsubscribe();
@@ -499,6 +502,8 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const unsubscribe = onSnapshot(settingsRef, (doc) => {
             if (doc.exists()) {
                 setSyncSettings(doc.data() as any);
+            } else {
+                setSyncSettings({ autoSync: true, frequencyHours: 24 });
             }
         });
         return () => unsubscribe();

@@ -189,19 +189,19 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
     const { currentChannel } = useChannel();
 
     const handleSave = () => {
-        if (!title || !coverImage) {
-            alert('Please provide a title and a cover image.');
+        if (!coverImage) {
+            alert('Please provide a cover image.');
             return;
         }
 
         const videoData: Omit<VideoDetails, 'id'> = {
-            title,
+            title: title || 'Very good playlist for you',
             thumbnail: coverImage,
             channelTitle: currentChannel?.name || 'My Channel',
             channelAvatar: currentChannel?.avatar || '',
             publishedAt: initialData ? initialData.publishedAt : new Date().toISOString(),
-            viewCount: viewCount || '0',
-            duration: duration || '0:00',
+            viewCount: viewCount || '1M',
+            duration: duration || '1:02:11',
             isCustom: true,
             customImage: coverImage,
             createdAt: initialData?.createdAt,
@@ -381,7 +381,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                             type="text"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
-                            placeholder="e.g. My Amazing Trip to Japan 2025"
+                            placeholder="Very good playlist for you"
                             onKeyDown={(e) => e.stopPropagation()}
                             className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary text-base focus:outline-none focus:border-blue-500 transition-colors placeholder:text-text-secondary/50"
                         />
@@ -394,7 +394,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                             type="text"
                             value={viewCount}
                             onChange={(e) => setViewCount(e.target.value)}
-                            placeholder="e.g. 1.2M"
+                            placeholder="1M"
                             onKeyDown={(e) => e.stopPropagation()}
                             className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary text-base focus:outline-none focus:border-blue-500 transition-colors placeholder:text-text-secondary/50"
                         />
@@ -407,7 +407,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                             type="text"
                             value={duration}
                             onChange={(e) => setDuration(e.target.value)}
-                            placeholder="e.g. 14:20"
+                            placeholder="1:02:11"
                             onKeyDown={(e) => e.stopPropagation()}
                             className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary text-base focus:outline-none focus:border-blue-500 transition-colors placeholder:text-text-secondary/50"
                         />

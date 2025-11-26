@@ -166,6 +166,15 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
     ? (!!onVideoMove && !searchQuery)
     : (selectedChannel === 'All' && !searchQuery && homeSortBy === 'default');
 
+  if (filteredVideos.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center w-full h-[50vh] text-text-secondary">
+        <p className="text-xl font-medium">No videos found</p>
+        <p className="text-sm mt-2">Try adjusting your filters or add new videos.</p>
+      </div>
+    );
+  }
+
   return (
     <DndContext
       sensors={sensors}

@@ -1,6 +1,11 @@
 export const formatViewCount = (viewCount: string | number | undefined): string => {
     if (!viewCount) return '';
 
+    // If it's already formatted (contains M or K), return as is
+    if (typeof viewCount === 'string' && /[MKmk]/.test(viewCount)) {
+        return viewCount;
+    }
+
     const num = typeof viewCount === 'string' ? parseInt(viewCount.replace(/,/g, ''), 10) : viewCount;
 
     if (isNaN(num)) return viewCount.toString();
