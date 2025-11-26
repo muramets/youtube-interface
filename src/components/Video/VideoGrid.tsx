@@ -136,12 +136,16 @@ export const VideoGrid: React.FC = () => {
             strategy={rectSortingStrategy}
           >
             {filteredVideos.map((video) => (
-              <SortableVideoCard key={video.id} video={video} />
+              <div key={video.id} className="min-w-0">
+                <SortableVideoCard video={video} />
+              </div>
             ))}
           </SortableContext>
         ) : (
           filteredVideos.map((video) => (
-            <VideoCard key={video.id} video={video} />
+            <div key={video.id} className="min-w-0">
+              <VideoCard video={video} />
+            </div>
           ))
         )}
       </div>

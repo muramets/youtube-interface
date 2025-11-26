@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { ChevronRight, Moon, Sun, Check, ArrowLeft, Key, Monitor, RefreshCw } from 'lucide-react';
+import { ChevronRight, Moon, Sun, Check, ArrowLeft, Key, RefreshCw } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useVideo } from '../context/VideoContext';
-import { useLocation } from 'react-router-dom';
 import { Dropdown } from './Shared/Dropdown';
 
 interface SettingsDropdownProps {
@@ -10,17 +9,14 @@ interface SettingsDropdownProps {
     anchorEl: HTMLElement | null;
 }
 
-type MenuView = 'main' | 'appearance' | 'apiKey' | 'cardSize' | 'sync';
+type MenuView = 'main' | 'appearance' | 'apiKey' | 'sync';
 
 export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anchorEl }) => {
     const { theme, setTheme } = useTheme();
-    const { apiKey, setApiKey, cardsPerRow, updateCardsPerRow, syncSettings, updateSyncSettings, manualSync, isSyncing } = useVideo();
+    const { apiKey, setApiKey, syncSettings, updateSyncSettings, manualSync, isSyncing } = useVideo();
     const [menuView, setMenuView] = useState<MenuView>('main');
     const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
     const [tempApiKey, setTempApiKey] = useState(apiKey);
-    const location = useLocation();
-    const isWatchPage = location.pathname.startsWith('/watch/');
-    const currentCardsPerRow = cardsPerRow;
 
     const handleSaveApiKey = () => {
         setApiKey(tempApiKey);
@@ -40,18 +36,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
                 <ChevronRight size={20} />
             </div>
 
-            {!isWatchPage && (
-                <div
-                    className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-hover-bg text-sm"
-                    onClick={() => setMenuView('cardSize')}
-                >
-                    <div className="flex items-center gap-3">
-                        <Monitor size={20} />
-                        <span>Card Size</span>
-                    </div>
-                    <ChevronRight size={20} />
-                </div>
-            )}
+
 
             <div
                 className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-hover-bg text-sm"
@@ -114,43 +99,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
         </>
     );
 
-    const renderCardSizeView = () => (
-        <>
-            <div
-                className="flex items-center gap-3 px-4 py-2 border-b border-border mb-2 cursor-pointer hover:bg-hover-bg"
-                onClick={() => setMenuView('main')}
-            >
-                <ArrowLeft size={20} />
-                <span className="text-sm">Card Size</span>
-            </div>
 
-            <div className="p-4 flex flex-col gap-4 items-center">
-                <div className="text-sm text-text-secondary">
-                    Adjust Grid Size
-                </div>
-                <div className="flex items-center gap-6">
-                    <button
-                        className="w-10 h-10 rounded-full border border-border bg-bg-primary text-text-primary text-2xl flex items-center justify-center cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 hover:bg-hover-bg transition-colors"
-                        onClick={() => updateCardsPerRow(currentCardsPerRow + 1)}
-                        disabled={currentCardsPerRow >= 9}
-                    >
-                        -
-                    </button>
-                    <span className="text-2xl font-bold">{currentCardsPerRow}</span>
-                    <button
-                        className="w-10 h-10 rounded-full border border-border bg-bg-primary text-text-primary text-2xl flex items-center justify-center cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 hover:bg-hover-bg transition-colors"
-                        onClick={() => updateCardsPerRow(currentCardsPerRow - 1)}
-                        disabled={currentCardsPerRow <= 3}
-                    >
-                        +
-                    </button>
-                </div>
-                <div className="text-xs text-text-secondary">
-                    Current: {currentCardsPerRow} cards per row
-                </div>
-            </div>
-        </>
-    );
 
     const renderSyncView = () => (
         <>
@@ -349,7 +298,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
         >
             {menuView === 'main' && renderMainView()}
             {menuView === 'appearance' && renderAppearanceView()}
-            {menuView === 'cardSize' && renderCardSizeView()}
+
             {menuView === 'sync' && renderSyncView()}
             {menuView === 'apiKey' && renderApiKeyView()}
         </Dropdown>

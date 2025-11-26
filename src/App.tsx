@@ -16,6 +16,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
 
 import { CategoryBar } from './components/Video/CategoryBar';
+import { ZoomControls } from './components/Video/ZoomControls';
 
 // import { useAuth } from './context/AuthContext';
 // import { useChannel } from './context/ChannelContext';
@@ -43,6 +44,7 @@ function AppContent() {
                       <div className="animate-fade-in">
                         <CategoryBar />
                         <VideoGrid />
+                        <ZoomControls />
                       </div>
                     } />
                     <Route path="/watch/:id" element={<WatchPage />} />
