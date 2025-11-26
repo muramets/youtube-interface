@@ -25,13 +25,14 @@ export const WatchPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const [searchParams] = useSearchParams();
     const playlistId = searchParams.get('list');
-    const { videos, playlists, moveVideo, searchQuery } = useVideo();
+    const { videos, playlists, moveVideo, searchQuery, hiddenPlaylistIds } = useVideo();
     const { currentChannel } = useChannel();
     const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
     // Filter states
     const [selectedFilter, setSelectedFilter] = useState<'all' | 'channel' | 'playlists'>('all');
     const [selectedPlaylistIds, setSelectedPlaylistIds] = useState<string[]>([]);
+    const [sortBy, setSortBy] = useState<'default' | 'views' | 'date'>('default');
 
     const video = videos.find(v => v.id === id);
 
@@ -67,6 +68,17 @@ export const WatchPage: React.FC = () => {
     const recommendedVideos = useMemo(() => {
         let recs = videos.filter(v => v.id !== video.id);
 
+        // Filter out hidden playlists
+        if (hiddenPlaylistIds.length > 0) {
+            const hiddenVideoIds = new Set<string>();
+            playlists.forEach(playlist => {
+                if (hiddenPlaylistIds.includes(playlist.id)) {
+                    playlist.videoIds.forEach(id => hiddenVideoIds.add(id));
+                }
+            });
+            recs = recs.filter(v => !hiddenVideoIds.has(v.id));
+        }
+
         if (selectedFilter === 'channel') {
             recs = recs.filter(v => v.channelTitle === video.channelTitle);
         } else if (selectedFilter === 'playlists') {
@@ -86,8 +98,23 @@ export const WatchPage: React.FC = () => {
             recs = recs.filter(v => v.title.toLowerCase().includes(searchQuery.toLowerCase()));
         }
 
+        // Sorting
+        if (sortBy === 'views') {
+            recs = [...recs].sort((a, b) => {
+                const viewsA = parseInt(a.viewCount?.replace(/[^0-9]/g, '') || '0', 10);
+                const viewsB = parseInt(b.viewCount?.replace(/[^0-9]/g, '') || '0', 10);
+                return viewsB - viewsA;
+            });
+        } else if (sortBy === 'date') {
+            recs = [...recs].sort((a, b) => {
+                const dateA = new Date(a.publishedAt).getTime();
+                const dateB = new Date(b.publishedAt).getTime();
+                return dateB - dateA;
+            });
+        }
+
         return recs;
-    }, [videos, video.id, video.channelTitle, selectedFilter, selectedPlaylistIds, playlists, searchQuery]);
+    }, [videos, video.id, video.channelTitle, selectedFilter, selectedPlaylistIds, playlists, searchQuery, sortBy, hiddenPlaylistIds]);
 
 
     const handleFilterChange = (filter: 'all' | 'channel') => {
@@ -308,6 +335,8 @@ export const WatchPage: React.FC = () => {
                     containingPlaylists={containingPlaylists}
                     onFilterChange={handleFilterChange}
                     onPlaylistToggle={handlePlaylistToggle}
+                    sortBy={sortBy}
+                    onSortChange={(val) => setSortBy(val)}
                 />
 
                 <div className="flex flex-col gap-2">

@@ -53,7 +53,7 @@ const SortableVideoCard = ({ video }: SortableVideoCardProps) => {
 };
 
 export const VideoGrid: React.FC = () => {
-  const { videos, addVideo, cardsPerRow, selectedChannel, addCustomVideo, playlists, hiddenPlaylistIds, moveVideo, searchQuery } = useVideo();
+  const { videos, addVideo, cardsPerRow, selectedChannel, addCustomVideo, playlists, hiddenPlaylistIds, moveVideo, searchQuery, homeSortBy } = useVideo();
   const { currentChannel } = useChannel();
   const [addingMode, setAddingMode] = useState<AddingMode>('idle');
   const [newVideoUrl, setNewVideoUrl] = useState('');
@@ -84,25 +84,44 @@ export const VideoGrid: React.FC = () => {
     }
   };
 
-  // Get Set of hidden video IDs
-  const hiddenVideoIds = new Set<string>();
-  playlists.forEach(playlist => {
-    if (hiddenPlaylistIds.includes(playlist.id)) {
-      playlist.videoIds.forEach(id => hiddenVideoIds.add(id));
-    }
-  });
-
-  const filteredVideos = (selectedChannel === 'All'
-    ? videos
-    : videos.filter(video => {
-      const effectiveChannelTitle = (video.isCustom && currentChannel) ? currentChannel.name : video.channelTitle;
-      return effectiveChannelTitle === selectedChannel;
-    })
-  ).filter(video => !hiddenVideoIds.has(video.id))
-    .filter(video => {
-      if (!searchQuery) return true;
-      return video.title.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredVideos = React.useMemo(() => {
+    // Get Set of hidden video IDs
+    const hiddenVideoIds = new Set<string>();
+    playlists.forEach(playlist => {
+      if (hiddenPlaylistIds.includes(playlist.id)) {
+        playlist.videoIds.forEach(id => hiddenVideoIds.add(id));
+      }
     });
+
+    let result = (selectedChannel === 'All'
+      ? videos
+      : videos.filter(video => {
+        const effectiveChannelTitle = (video.isCustom && currentChannel) ? currentChannel.name : video.channelTitle;
+        return effectiveChannelTitle === selectedChannel;
+      })
+    ).filter(video => !hiddenVideoIds.has(video.id))
+      .filter(video => {
+        if (!searchQuery) return true;
+        return video.title.toLowerCase().includes(searchQuery.toLowerCase());
+      });
+
+    // Sorting
+    if (homeSortBy === 'views') {
+      result = [...result].sort((a, b) => {
+        const viewsA = parseInt(a.viewCount?.replace(/[^0-9]/g, '') || '0', 10);
+        const viewsB = parseInt(b.viewCount?.replace(/[^0-9]/g, '') || '0', 10);
+        return viewsB - viewsA;
+      });
+    } else if (homeSortBy === 'date') {
+      result = [...result].sort((a, b) => {
+        const dateA = new Date(a.publishedAt).getTime();
+        const dateB = new Date(b.publishedAt).getTime();
+        return dateB - dateA;
+      });
+    }
+
+    return result;
+  }, [videos, selectedChannel, playlists, hiddenPlaylistIds, searchQuery, homeSortBy, currentChannel]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -112,13 +131,13 @@ export const VideoGrid: React.FC = () => {
       const newIndex = videos.findIndex((v) => v.id === over.id);
 
       // Only allow reordering if we are viewing 'All' videos and indices are valid
-      if (selectedChannel === 'All' && !searchQuery && oldIndex !== -1 && newIndex !== -1) {
+      if (selectedChannel === 'All' && !searchQuery && homeSortBy === 'default' && oldIndex !== -1 && newIndex !== -1) {
         moveVideo(oldIndex, newIndex);
       }
     }
   };
 
-  const isDraggable = selectedChannel === 'All' && !searchQuery;
+  const isDraggable = selectedChannel === 'All' && !searchQuery && homeSortBy === 'default';
 
   return (
     <DndContext

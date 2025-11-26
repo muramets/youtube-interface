@@ -50,8 +50,11 @@ interface VideoContextType {
     reorderPlaylists: (newPlaylists: Playlist[]) => void;
     hiddenPlaylistIds: string[];
     togglePlaylistVisibility: (playlistId: string) => void;
+    clearHiddenPlaylists: () => void;
     searchQuery: string;
     setSearchQuery: (query: string) => void;
+    homeSortBy: 'default' | 'views' | 'date';
+    setHomeSortBy: (sort: 'default' | 'views' | 'date') => void;
 }
 
 const VideoContext = createContext<VideoContextType | undefined>(undefined);
@@ -213,6 +216,15 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (user && currentChannel) {
             const settingsRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/general`);
             await setDoc(settingsRef, { hiddenPlaylistIds: newHidden }, { merge: true });
+        }
+    };
+
+    const clearHiddenPlaylists = async () => {
+        setHiddenPlaylistIds([]); // Optimistic
+
+        if (user && currentChannel) {
+            const settingsRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/general`);
+            await setDoc(settingsRef, { hiddenPlaylistIds: [] }, { merge: true });
         }
     };
 
@@ -459,6 +471,9 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Search Query
     const [searchQuery, setSearchQuery] = useState<string>('');
 
+    // Home Sort
+    const [homeSortBy, setHomeSortBy] = useState<'default' | 'views' | 'date'>('default');
+
     return (
         <VideoContext.Provider value={{
             videos,
@@ -486,8 +501,11 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             reorderPlaylists,
             hiddenPlaylistIds,
             togglePlaylistVisibility,
+            clearHiddenPlaylists,
             searchQuery,
-            setSearchQuery
+            setSearchQuery,
+            homeSortBy,
+            setHomeSortBy
         }}>
             {children}
         </VideoContext.Provider>

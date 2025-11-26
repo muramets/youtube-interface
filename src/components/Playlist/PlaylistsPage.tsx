@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { PlaylistEditModal } from './PlaylistEditModal';
 import { ConfirmationModal } from '../Shared/ConfirmationModal';
+import { FilterSortDropdown } from '../Shared/FilterSortDropdown';
 import {
     DndContext,
     closestCenter,
@@ -25,13 +26,14 @@ import './PlaylistsPage.css';
 import { SortablePlaylistCard } from './PlaylistCard';
 
 export const PlaylistsPage: React.FC = () => {
-    const { playlists, createPlaylist, deletePlaylist, updatePlaylist, reorderPlaylists, searchQuery } = useVideo();
+    const { playlists, createPlaylist, deletePlaylist, updatePlaylist, reorderPlaylists, searchQuery, videos } = useVideo();
     const navigate = useNavigate();
     const [isCreating, setIsCreating] = useState(false);
     const [newPlaylistName, setNewPlaylistName] = useState('');
     const [editingPlaylist, setEditingPlaylist] = useState<Playlist | null>(null);
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean, playlistId: string | null }>({ isOpen: false, playlistId: null });
+    const [sortBy, setSortBy] = useState<'default' | 'views' | 'updated' | 'created'>('default');
 
     // Store refs for each playlist menu button
     const menuButtonRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
@@ -81,7 +83,7 @@ export const PlaylistsPage: React.FC = () => {
     };
 
     const handleDragEnd = (event: DragEndEvent) => {
-        if (searchQuery) return;
+        if (searchQuery || sortBy !== 'default') return;
 
         const { active, over } = event;
 
@@ -92,14 +94,48 @@ export const PlaylistsPage: React.FC = () => {
         }
     };
 
-    const filteredPlaylists = playlists.filter(playlist => {
-        if (!searchQuery) return true;
-        return playlist.name.toLowerCase().includes(searchQuery.toLowerCase());
-    });
+    const filteredPlaylists = React.useMemo(() => {
+        let result = playlists.filter(playlist => {
+            if (!searchQuery) return true;
+            return playlist.name.toLowerCase().includes(searchQuery.toLowerCase());
+        });
+
+        if (sortBy === 'views') {
+            result = [...result].sort((a, b) => {
+                const getViews = (p: Playlist) => p.videoIds.reduce((acc, vidId) => {
+                    const video = videos.find(v => v.id === vidId);
+                    const views = parseInt(video?.viewCount?.replace(/[^0-9]/g, '') || '0', 10);
+                    return acc + views;
+                }, 0);
+                return getViews(b) - getViews(a);
+            });
+        } else if (sortBy === 'updated') {
+            result = [...result].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        } else if (sortBy === 'created') {
+            result = [...result].sort((a, b) => b.createdAt - a.createdAt);
+        }
+
+        return result;
+    }, [playlists, searchQuery, sortBy, videos]);
+
+    const sortOptions = [
+        { label: 'Default (Manual)', value: 'default' },
+        { label: 'Total Views', value: 'views' },
+        { label: 'Date Updated', value: 'updated' },
+        { label: 'Date Created', value: 'created' },
+    ];
 
     return (
         <div className="animate-fade-in" style={{ padding: '24px' }}>
-            <h1 style={{ fontSize: '24px', marginBottom: '24px' }}>Your Playlists</h1>
+            <div className="flex items-center justify-between mb-6">
+                <h1 style={{ fontSize: '24px', margin: 0 }}>Your Playlists</h1>
+                <FilterSortDropdown
+                    sortOptions={sortOptions}
+                    activeSort={sortBy}
+                    onSortChange={(val) => setSortBy(val as any)}
+                    showPlaylistFilter={false}
+                />
+            </div>
 
             <DndContext
                 sensors={sensors}

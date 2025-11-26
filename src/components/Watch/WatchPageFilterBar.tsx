@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { FilterDropdown } from '../Video/FilterDropdown';
+import { FilterSortDropdown } from '../Shared/FilterSortDropdown';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { type Playlist } from '../../context/VideoContext';
@@ -11,6 +11,8 @@ interface WatchPageFilterBarProps {
     containingPlaylists: Playlist[];
     onFilterChange: (filter: 'all' | 'channel') => void;
     onPlaylistToggle: (playlistId: string) => void;
+    sortBy: 'default' | 'views' | 'date';
+    onSortChange: (sort: 'default' | 'views' | 'date') => void;
 }
 
 export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
@@ -19,7 +21,9 @@ export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
     selectedPlaylistIds,
     containingPlaylists,
     onFilterChange,
-    onPlaylistToggle
+    onPlaylistToggle,
+    sortBy,
+    onSortChange
 }) => {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [showLeftArrow, setShowLeftArrow] = useState(false);
@@ -60,6 +64,12 @@ export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
             });
         }
     };
+
+    const sortOptions = [
+        { label: 'Default', value: 'default' },
+        { label: 'Most Viewed', value: 'views' },
+        { label: 'Newest First', value: 'date' },
+    ];
 
     return (
         <div className="relative flex items-center w-full mb-4">
@@ -102,7 +112,12 @@ export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
                     </button>
                 ))}
 
-                <FilterDropdown />
+                <FilterSortDropdown
+                    sortOptions={sortOptions}
+                    activeSort={sortBy}
+                    onSortChange={(val) => onSortChange(val as any)}
+                    showPlaylistFilter={true}
+                />
             </div>
 
             {showRightArrow && (
