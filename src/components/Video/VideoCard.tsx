@@ -9,7 +9,6 @@ import { formatViewCount, formatDuration } from '../../utils/formatUtils';
 import { AddToPlaylistModal } from '../Playlist/AddToPlaylistModal';
 import { ConfirmationModal } from '../Shared/ConfirmationModal';
 import { VideoCardMenu } from './VideoCardMenu';
-import './VideoCard.css';
 
 interface VideoCardProps {
   video: VideoDetails;
@@ -109,47 +108,47 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   return (
     <>
       <div
-        className="video-card-container"
+        className="flex flex-col gap-3 cursor-pointer group relative p-2 rounded-xl"
         onClick={handleVideoClick}
       >
-        <div className="video-card-hover-bg"></div>
-
+        {/* Hover Substrate */}
+        <div className="absolute inset-0 bg-bg-secondary rounded-xl opacity-0 scale-90 transition-all duration-200 ease-out group-hover:opacity-100 group-hover:scale-100 -z-10 pointer-events-none" />
         {/* Thumbnail Container */}
-        <div className="video-thumbnail-container">
+        <div className="relative w-full aspect-video bg-bg-secondary rounded-xl overflow-hidden">
           <img
             src={video.isCustom ? (video.customImage || video.thumbnail) : video.thumbnail}
             alt={video.title}
-            className="video-thumbnail"
+            className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
           />
-          <div className="video-duration">
+          <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1 py-0.5 rounded font-medium">
             {formatDuration(video.duration)}
           </div>
         </div>
 
         {/* Info Container */}
-        <div className="video-info-container">
+        <div className="flex gap-3 items-start pr-6 relative">
           {/* Avatar */}
-          <div className="channel-avatar-container">
+          <div className="flex-shrink-0">
             {(video.isCustom && currentChannel?.avatar) ? (
-              <div className="channel-avatar">
-                <img src={currentChannel.avatar} alt="" className="channel-avatar-img" />
+              <div className="w-9 h-9 rounded-full overflow-hidden bg-bg-secondary">
+                <img src={currentChannel.avatar} alt="" className="w-full h-full object-cover" />
               </div>
             ) : video.channelAvatar ? (
-              <div className="channel-avatar">
-                <img src={video.channelAvatar} alt="" className="channel-avatar-img" />
+              <div className="w-9 h-9 rounded-full overflow-hidden bg-bg-secondary">
+                <img src={video.channelAvatar} alt="" className="w-full h-full object-cover" />
               </div>
             ) : (
-              <div className="channel-avatar-placeholder"></div>
+              <div className="w-9 h-9 rounded-full bg-bg-secondary"></div>
             )}
           </div>
 
           {/* Text Info */}
-          <div className="video-text-info">
-            <h3 className="video-title">
+          <div className="flex flex-col gap-1 min-w-0 flex-1">
+            <h3 className="m-0 text-base font-bold text-text-primary line-clamp-2 leading-snug">
               {video.title}
             </h3>
-            <div className="video-meta">
-              <div>{video.channelTitle}</div>
+            <div className="text-sm text-text-secondary flex flex-col">
+              <div className="hover:text-text-primary transition-colors">{(video.isCustom && currentChannel) ? currentChannel.name : video.channelTitle}</div>
               <div>
                 {video.viewCount ? `${formatViewCount(video.viewCount)} views` : ''} • {new Date(video.publishedAt).toLocaleDateString()}
               </div>
@@ -157,10 +156,10 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
           </div>
 
           {/* Menu Button */}
-          <div className="menu-button-container">
+          <div className="absolute top-0 right-0">
             <button
               ref={menuButtonRef}
-              className="menu-button"
+              className="bg-transparent border-none p-2 rounded-full cursor-pointer text-text-primary opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-hover-bg"
               onClick={handleMenuClick}
             >
               <MoreVertical size={20} />

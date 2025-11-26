@@ -10,6 +10,10 @@ export interface VideoDetails {
     isCustom?: boolean;
     customImage?: string;
     createdAt?: number;
+    description?: string;
+    likeCount?: string;
+    subscriberCount?: string;
+    embedUrl?: string;
 }
 
 export const extractVideoId = (url: string): string | null => {
@@ -35,12 +39,14 @@ export const fetchVideoDetails = async (videoId: string, apiKey: string): Promis
         const contentDetails = videoItem.contentDetails;
         const statistics = videoItem.statistics;
 
-        // Fetch channel details for avatar
+        // Fetch channel details for avatar and subscriber count
         const channelResponse = await fetch(
-            `https://www.googleapis.com/youtube/v3/channels?part=snippet&id=${snippet.channelId}&key=${apiKey}`
+            `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${snippet.channelId}&key=${apiKey}`
         );
         const channelData = await channelResponse.json();
-        const channelAvatar = channelData.items?.[0]?.snippet?.thumbnails?.default?.url || '';
+        const channelItem = channelData.items?.[0];
+        const channelAvatar = channelItem?.snippet?.thumbnails?.default?.url || '';
+        const subscriberCount = channelItem?.statistics?.subscriberCount;
 
         return {
             id: videoId,
@@ -51,6 +57,9 @@ export const fetchVideoDetails = async (videoId: string, apiKey: string): Promis
             publishedAt: snippet.publishedAt,
             viewCount: statistics.viewCount,
             duration: contentDetails.duration,
+            description: snippet.description,
+            likeCount: statistics.likeCount,
+            subscriberCount: subscriberCount,
         };
     } catch (error) {
         console.error('Error fetching video details:', error);

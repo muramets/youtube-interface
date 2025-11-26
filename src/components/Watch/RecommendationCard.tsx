@@ -8,7 +8,6 @@ import { VideoCardMenu } from '../Video/VideoCardMenu';
 import { AddToPlaylistModal } from '../Playlist/AddToPlaylistModal';
 import { ConfirmationModal } from '../Shared/ConfirmationModal';
 import { CustomVideoModal } from '../Video/CustomVideoModal';
-import './RecommendationCard.css';
 
 interface RecommendationCardProps {
     video: VideoDetails;
@@ -106,38 +105,39 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
 
     return (
         <>
-            <div className="recommendation-card-container" onClick={handleVideoClick}>
-                <div className="recommendation-card-hover-bg"></div>
-
+            <div
+                className="flex gap-2 cursor-pointer group p-2 rounded-lg hover:bg-hover-bg relative"
+                onClick={handleVideoClick}
+            >
                 {/* Thumbnail Container */}
-                <div className="recommendation-thumbnail-container">
+                <div className="relative w-[168px] h-[94px] flex-shrink-0 bg-bg-secondary rounded-lg overflow-hidden">
                     <img
                         src={video.isCustom ? (video.customImage || video.thumbnail) : video.thumbnail}
                         alt={video.title}
-                        className="recommendation-thumbnail"
+                        className="w-full h-full object-cover"
                     />
-                    <div className="recommendation-duration">
+                    <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1 py-0.5 rounded font-medium">
                         {formatDuration(video.duration)}
                     </div>
                 </div>
 
                 {/* Info Container */}
-                <div className="recommendation-info-container">
-                    <h3 className="recommendation-title">
+                <div className="flex flex-col gap-1 min-w-0 flex-1 pr-6 relative">
+                    <h3 className="m-0 text-sm font-semibold text-text-primary line-clamp-2 leading-snug">
                         {video.title}
                     </h3>
-                    <div className="recommendation-meta">
-                        <div>{video.channelTitle}</div>
+                    <div className="text-xs text-text-secondary flex flex-col">
+                        <div className="hover:text-text-primary transition-colors">{video.channelTitle}</div>
                         <div>
                             {video.viewCount ? `${formatViewCount(video.viewCount)} views` : ''} • {new Date(video.publishedAt).toLocaleDateString()}
                         </div>
                     </div>
 
                     {/* Menu Button */}
-                    <div className="recommendation-menu-button-container">
+                    <div className="absolute top-0 right-[-8px]">
                         <button
                             ref={menuButtonRef}
-                            className="recommendation-menu-button"
+                            className="bg-transparent border-none p-1.5 rounded-full cursor-pointer text-text-primary opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-hover-bg"
                             onClick={handleMenuClick}
                         >
                             <MoreVertical size={20} />

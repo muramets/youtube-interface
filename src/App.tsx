@@ -7,7 +7,7 @@ import { VideoGrid } from './components/Video/VideoGrid';
 import { WatchPage } from './components/Watch/WatchPage';
 import { PlaylistsPage } from './components/Playlist/PlaylistsPage';
 import { PlaylistDetailPage } from './components/Playlist/PlaylistDetailPage';
-import './App.css';
+
 
 import { UserProfileProvider } from './context/UserProfileContext';
 import { AuthProvider } from './context/AuthContext';
@@ -28,16 +28,16 @@ function AppContent() {
   // const showSelector = !!user && !loading && !currentChannel;
 
   return (
-    <div className="app-container">
+    <div className="h-screen flex flex-col bg-bg-primary text-text-primary overflow-hidden">
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/*" element={
           <ProtectedRoute>
             <>
               <Header />
-              <div className="main-content">
+              <div className="flex flex-1 overflow-hidden relative">
                 <Sidebar />
-                <main className="content-area">
+                <main className="flex-1 flex flex-col overflow-y-auto relative">
                   <Routes>
                     <Route path="/" element={
                       <div className="animate-fade-in">

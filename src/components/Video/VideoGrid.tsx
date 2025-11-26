@@ -19,11 +19,12 @@ import {
   useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useChannel } from '../../context/ChannelContext';
 
 type AddingMode = 'idle' | 'choosing' | 'youtube';
 
 interface SortableVideoCardProps {
-  video: any; // Using any here to avoid importing VideoDetails if not needed, or better import it
+  video: any;
 }
 
 // Helper component for sortable item
@@ -51,12 +52,8 @@ const SortableVideoCard = ({ video }: SortableVideoCardProps) => {
   );
 };
 
-import { useChannel } from '../../context/ChannelContext';
-
-// ...
-
 export const VideoGrid: React.FC = () => {
-  const { videos, addVideo, cardsPerRow, selectedChannel, addCustomVideo, playlists, hiddenPlaylistIds, moveVideo } = useVideo();
+  const { videos, addVideo, cardsPerRow, selectedChannel, addCustomVideo, playlists, hiddenPlaylistIds, moveVideo, searchQuery } = useVideo();
   const { currentChannel } = useChannel();
   const [addingMode, setAddingMode] = useState<AddingMode>('idle');
   const [newVideoUrl, setNewVideoUrl] = useState('');
@@ -97,8 +94,15 @@ export const VideoGrid: React.FC = () => {
 
   const filteredVideos = (selectedChannel === 'All'
     ? videos
-    : videos.filter(video => video.channelTitle === selectedChannel)
-  ).filter(video => !hiddenVideoIds.has(video.id));
+    : videos.filter(video => {
+      const effectiveChannelTitle = (video.isCustom && currentChannel) ? currentChannel.name : video.channelTitle;
+      return effectiveChannelTitle === selectedChannel;
+    })
+  ).filter(video => !hiddenVideoIds.has(video.id))
+    .filter(video => {
+      if (!searchQuery) return true;
+      return video.title.toLowerCase().includes(searchQuery.toLowerCase());
+    });
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -108,13 +112,13 @@ export const VideoGrid: React.FC = () => {
       const newIndex = videos.findIndex((v) => v.id === over.id);
 
       // Only allow reordering if we are viewing 'All' videos and indices are valid
-      if (selectedChannel === 'All' && oldIndex !== -1 && newIndex !== -1) {
+      if (selectedChannel === 'All' && !searchQuery && oldIndex !== -1 && newIndex !== -1) {
         moveVideo(oldIndex, newIndex);
       }
     }
   };
 
-  const isDraggable = selectedChannel === 'All';
+  const isDraggable = selectedChannel === 'All' && !searchQuery;
 
   return (
     <DndContext
@@ -122,13 +126,12 @@ export const VideoGrid: React.FC = () => {
       collisionDetection={closestCenter}
       onDragEnd={handleDragEnd}
     >
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: `repeat(${cardsPerRow}, 1fr)`,
-        gap: '16px',
-        padding: '24px',
-        width: '100%'
-      }}>
+      <div
+        className="grid gap-4 p-6 w-full"
+        style={{
+          gridTemplateColumns: `repeat(${cardsPerRow}, 1fr)`
+        }}
+      >
         {isDraggable ? (
           <SortableContext
             items={filteredVideos.map(v => v.id)}
@@ -147,39 +150,19 @@ export const VideoGrid: React.FC = () => {
         {/* Add Video Card - Only show when "All" is selected */}
         {selectedChannel === 'All' && (
           <div
-            className="video-card-container"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px',
-              cursor: addingMode === 'idle' ? 'pointer' : 'default',
-            }}
+            className={`flex flex-col gap-3 ${addingMode === 'idle' ? 'cursor-pointer' : 'cursor-default'}`}
             onClick={() => addingMode === 'idle' && setAddingMode('choosing')}
           >
-            <div className="video-card-hover-bg"></div>
-            <div style={{
-              width: '100%',
-              aspectRatio: '16/9',
-              backgroundColor: 'var(--bg-secondary)',
-              borderRadius: '12px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '2px dashed var(--border)',
-              boxSizing: 'border-box',
-              padding: '16px',
-              position: 'relative'
-            }}>
+            <div className="w-full aspect-video bg-bg-secondary rounded-xl flex flex-col items-center justify-center border-2 border-dashed border-border p-4 relative box-border">
               {addingMode === 'idle' ? (
-                <Plus size={32} color="var(--text-secondary)" />
+                <Plus size={32} className="text-text-secondary" />
               ) : addingMode === 'choosing' ? (
-                <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', gap: '12px', justifyContent: 'center' }} onClick={(e) => e.stopPropagation()}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                    <span style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '14px' }}>Add Video</span>
+                <div className="w-full h-full flex flex-col gap-3 justify-center" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex justify-between items-center w-full">
+                    <span className="font-semibold text-text-primary text-sm">Add Video</span>
                     <button
                       onClick={() => setAddingMode('idle')}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: 0 }}
+                      className="bg-transparent border-none cursor-pointer text-text-secondary p-0 hover:text-text-primary"
                     >
                       <X size={18} />
                     </button>
@@ -187,19 +170,7 @@ export const VideoGrid: React.FC = () => {
 
                   <button
                     onClick={() => setAddingMode('youtube')}
-                    style={{
-                      padding: '10px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border)',
-                      backgroundColor: 'var(--bg-primary)',
-                      color: 'var(--text-primary)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      fontSize: '13px',
-                      width: '100%'
-                    }}
+                    className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary cursor-pointer flex items-center gap-2 text-xs w-full hover:bg-hover-bg transition-colors"
                   >
                     <Youtube size={18} color="red" />
                     Add YouTube Video
@@ -210,31 +181,19 @@ export const VideoGrid: React.FC = () => {
                       setAddingMode('idle');
                       setIsCustomModalOpen(true);
                     }}
-                    style={{
-                      padding: '10px',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border)',
-                      backgroundColor: 'var(--bg-primary)',
-                      color: 'var(--text-primary)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      fontSize: '13px',
-                      width: '100%'
-                    }}
+                    className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary cursor-pointer flex items-center gap-2 text-xs w-full hover:bg-hover-bg transition-colors"
                   >
                     <Upload size={18} color="#3ea6ff" />
                     Create My Video
                   </button>
                 </div>
               ) : (
-                <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', gap: '8px', justifyContent: 'center' }} onClick={(e) => e.stopPropagation()}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: '4px' }}>
-                    <span style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '14px' }}>Add YouTube Video</span>
+                <div className="w-full h-full flex flex-col gap-2 justify-center" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex justify-between items-center w-full mb-1">
+                    <span className="font-semibold text-text-primary text-sm">Add YouTube Video</span>
                     <button
                       onClick={() => setAddingMode('choosing')}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: 0 }}
+                      className="bg-transparent border-none cursor-pointer text-text-secondary p-0 hover:text-text-primary"
                     >
                       <X size={18} />
                     </button>
@@ -246,33 +205,14 @@ export const VideoGrid: React.FC = () => {
                     value={newVideoUrl}
                     onChange={(e) => setNewVideoUrl(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleAddYouTubeVideo()}
-                    style={{
-                      padding: '8px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border)',
-                      backgroundColor: 'var(--bg-primary)',
-                      color: 'var(--text-primary)',
-                      width: '100%',
-                      boxSizing: 'border-box',
-                      fontSize: '12px'
-                    }}
+                    className="p-2 rounded-md border border-border bg-bg-primary text-text-primary w-full box-border text-xs outline-none focus:border-blue-500"
                     autoFocus
                   />
 
                   <button
                     onClick={handleAddYouTubeVideo}
                     disabled={isLoading}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '16px',
-                      border: 'none',
-                      backgroundColor: isLoading ? 'var(--text-secondary)' : '#3ea6ff',
-                      color: 'black',
-                      fontWeight: 'bold',
-                      cursor: isLoading ? 'not-allowed' : 'pointer',
-                      width: '100%',
-                      fontSize: '12px'
-                    }}
+                    className={`py-1.5 px-3 rounded-full border-none font-bold cursor-pointer w-full text-xs transition-colors ${isLoading ? 'bg-text-secondary cursor-not-allowed' : 'bg-[#3ea6ff] text-black hover:bg-[#3ea6ff]/90'}`}
                   >
                     {isLoading ? 'Loading...' : 'Add Video'}
                   </button>
@@ -281,42 +221,25 @@ export const VideoGrid: React.FC = () => {
             </div>
 
             {/* Meta placeholder to match VideoCard height */}
-            <div style={{ display: 'flex', gap: '12px', opacity: addingMode === 'idle' ? 1 : 0 }}>
-              <div
-                className="add-video-avatar"
-                style={{
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '50%',
-                  backgroundColor: 'var(--bg-secondary)',
-                  flexShrink: 0,
-                  transition: 'background-color 0.2s',
-                  overflow: 'hidden'
-                }}
-              >
+            <div className={`flex gap-3 transition-opacity duration-200 ${addingMode === 'idle' ? 'opacity-100' : 'opacity-0'}`}>
+              <div className="w-9 h-9 rounded-full bg-bg-secondary flex-shrink-0 overflow-hidden">
                 {currentChannel?.avatar ? (
                   <img
                     src={currentChannel.avatar}
                     alt="User Avatar"
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div style={{ width: '100%', height: '100%', backgroundColor: 'purple', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold' }}>
+                  <div className="w-full h-full bg-purple-600 flex items-center justify-center text-white font-bold">
                     {currentChannel?.name?.[0]?.toUpperCase() || 'U'}
                   </div>
                 )}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                <h3 style={{
-                  margin: 0,
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  color: 'var(--text-primary)',
-                  lineHeight: '1.4'
-                }}>
+              <div className="flex flex-col flex-1">
+                <h3 className="m-0 text-base font-semibold text-text-primary leading-snug">
                   Add Video
                 </h3>
-                <div style={{ marginTop: '4px', color: 'var(--text-secondary)', fontSize: '14px' }}>
+                <div className="mt-1 text-text-secondary text-sm">
                   Paste a YouTube URL or Upload Your Video
                 </div>
               </div>

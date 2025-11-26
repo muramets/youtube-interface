@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Image as ImageIcon } from 'lucide-react';
 import type { VideoDetails } from '../../utils/youtubeApi';
+import { useChannel } from '../../context/ChannelContext';
 import { resizeImage } from '../../utils/imageUtils';
 
 interface CustomVideoModalProps {
@@ -71,6 +72,8 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
         setIsDragging(false);
     };
 
+    const { currentChannel } = useChannel();
+
     const handleSave = () => {
         if (!title || !coverImage) {
             alert('Please provide a title and a cover image.');
@@ -80,8 +83,8 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
         const videoData: Omit<VideoDetails, 'id'> = {
             title,
             thumbnail: coverImage,
-            channelTitle: localStorage.getItem('youtube_profile_name') || 'My Channel',
-            channelAvatar: localStorage.getItem('youtube_profile_avatar') || '',
+            channelTitle: currentChannel?.name || 'My Channel',
+            channelAvatar: currentChannel?.avatar || '',
             publishedAt: initialData ? initialData.publishedAt : new Date().toISOString(),
             viewCount: viewCount,
             duration: duration || '0:00',

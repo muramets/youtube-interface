@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState } from 'react';
 import { ChevronRight, Moon, Sun, Check, ArrowLeft, Key, Monitor } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useVideo } from '../context/VideoContext';
 import { useLocation } from 'react-router-dom';
-import './SettingsDropdown.css';
+import { Dropdown } from './Shared/Dropdown';
 
 interface SettingsDropdownProps {
     onClose: () => void;
@@ -18,46 +17,9 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
     const { apiKey, setApiKey, cardsPerRow, updateCardsPerRow } = useVideo();
     const [menuView, setMenuView] = useState<MenuView>('main');
     const [tempApiKey, setTempApiKey] = useState(apiKey);
-    const dropdownRef = useRef<HTMLDivElement>(null);
     const location = useLocation();
     const isWatchPage = location.pathname.startsWith('/watch/');
     const currentCardsPerRow = cardsPerRow;
-    const [position, setPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-
-    useEffect(() => {
-        if (anchorEl) {
-            const rect = anchorEl.getBoundingClientRect();
-            const menuWidth = 300;
-            const menuHeight = 400; // Approximate max height
-
-            let top = rect.bottom + 8;
-            let left = rect.right - menuWidth;
-
-            // Adjust if going off screen
-            if (left < 16) left = 16;
-            if (top + menuHeight > window.innerHeight) top = rect.top - menuHeight - 8;
-
-            setPosition({ top, left });
-        }
-    }, [anchorEl]);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) && anchorEl && !anchorEl.contains(event.target as Node)) {
-                onClose();
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        window.addEventListener('scroll', onClose, true);
-        window.addEventListener('resize', onClose);
-
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-            window.removeEventListener('scroll', onClose, true);
-            window.removeEventListener('resize', onClose);
-        };
-    }, [onClose, anchorEl]);
 
     const handleSaveApiKey = () => {
         setApiKey(tempApiKey);
@@ -66,8 +28,11 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
 
     const renderMainView = () => (
         <>
-            <div className="settings-menu-item" onClick={() => setMenuView('appearance')}>
-                <div className="settings-menu-item-content">
+            <div
+                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-hover-bg text-sm"
+                onClick={() => setMenuView('appearance')}
+            >
+                <div className="flex items-center gap-3">
                     {theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
                     <span>Appearance: {theme === 'dark' ? 'Dark' : 'Light'}</span>
                 </div>
@@ -75,8 +40,11 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
             </div>
 
             {!isWatchPage && (
-                <div className="settings-menu-item" onClick={() => setMenuView('cardSize')}>
-                    <div className="settings-menu-item-content">
+                <div
+                    className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-hover-bg text-sm"
+                    onClick={() => setMenuView('cardSize')}
+                >
+                    <div className="flex items-center gap-3">
                         <Monitor size={20} />
                         <span>Card Size</span>
                     </div>
@@ -84,11 +52,14 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
                 </div>
             )}
 
-            <div className="settings-menu-item" onClick={() => {
-                setTempApiKey(apiKey);
-                setMenuView('apiKey');
-            }}>
-                <div className="settings-menu-item-content">
+            <div
+                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-hover-bg text-sm"
+                onClick={() => {
+                    setTempApiKey(apiKey);
+                    setMenuView('apiKey');
+                }}
+            >
+                <div className="flex items-center gap-3">
                     <Key size={20} />
                     <span>API Key</span>
                 </div>
@@ -99,21 +70,30 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
 
     const renderAppearanceView = () => (
         <>
-            <div className="settings-header" onClick={() => setMenuView('main')}>
+            <div
+                className="flex items-center gap-3 px-4 py-2 border-b border-border mb-2 cursor-pointer hover:bg-hover-bg"
+                onClick={() => setMenuView('main')}
+            >
                 <ArrowLeft size={20} />
-                <span className="settings-header-title">Appearance</span>
+                <span className="text-sm">Appearance</span>
             </div>
 
-            <div style={{ padding: '0 0 8px 0' }}>
-                <div className="settings-section-label">Setting</div>
-                <div className="settings-option" onClick={() => setTheme('dark')}>
-                    <div className="check-icon-container">
+            <div className="pb-2">
+                <div className="px-4 py-2 text-xs text-text-secondary">Setting</div>
+                <div
+                    className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"
+                    onClick={() => setTheme('dark')}
+                >
+                    <div className="w-5 flex justify-center">
                         {theme === 'dark' && <Check size={18} />}
                     </div>
                     <span>Dark theme</span>
                 </div>
-                <div className="settings-option" onClick={() => setTheme('light')}>
-                    <div className="check-icon-container">
+                <div
+                    className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"
+                    onClick={() => setTheme('light')}
+                >
+                    <div className="w-5 flex justify-center">
                         {theme === 'light' && <Check size={18} />}
                     </div>
                     <span>Light theme</span>
@@ -124,33 +104,36 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
 
     const renderCardSizeView = () => (
         <>
-            <div className="settings-header" onClick={() => setMenuView('main')}>
+            <div
+                className="flex items-center gap-3 px-4 py-2 border-b border-border mb-2 cursor-pointer hover:bg-hover-bg"
+                onClick={() => setMenuView('main')}
+            >
                 <ArrowLeft size={20} />
-                <span className="settings-header-title">Card Size</span>
+                <span className="text-sm">Card Size</span>
             </div>
 
-            <div className="card-size-container">
-                <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
+            <div className="p-4 flex flex-col gap-4 items-center">
+                <div className="text-sm text-text-secondary">
                     Adjust Grid Size
                 </div>
-                <div className="card-size-controls">
+                <div className="flex items-center gap-6">
                     <button
-                        className="card-size-button"
+                        className="w-10 h-10 rounded-full border border-border bg-bg-primary text-text-primary text-2xl flex items-center justify-center cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 hover:bg-hover-bg transition-colors"
                         onClick={() => updateCardsPerRow(currentCardsPerRow + 1)}
                         disabled={currentCardsPerRow >= 9}
                     >
                         -
                     </button>
-                    <span className="card-size-value">{currentCardsPerRow}</span>
+                    <span className="text-2xl font-bold">{currentCardsPerRow}</span>
                     <button
-                        className="card-size-button"
+                        className="w-10 h-10 rounded-full border border-border bg-bg-primary text-text-primary text-2xl flex items-center justify-center cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 hover:bg-hover-bg transition-colors"
                         onClick={() => updateCardsPerRow(currentCardsPerRow - 1)}
                         disabled={currentCardsPerRow <= 3}
                     >
                         +
                     </button>
                 </div>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                <div className="text-xs text-text-secondary">
                     Current: {currentCardsPerRow} cards per row
                 </div>
             </div>
@@ -159,44 +142,46 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
 
     const renderApiKeyView = () => (
         <>
-            <div className="settings-header" onClick={() => setMenuView('main')}>
+            <div
+                className="flex items-center gap-3 px-4 py-2 border-b border-border mb-2 cursor-pointer hover:bg-hover-bg"
+                onClick={() => setMenuView('main')}
+            >
                 <ArrowLeft size={20} />
-                <span className="settings-header-title">API Key</span>
+                <span className="text-sm">API Key</span>
             </div>
 
-            <div className="api-key-container">
-                <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
+            <div className="p-4 flex flex-col gap-3">
+                <div className="text-sm text-text-secondary">
                     Enter your YouTube Data API v3 Key:
                 </div>
                 <input
                     type="text"
-                    className="api-key-input"
+                    className="p-2 rounded border border-border bg-bg-primary text-text-primary w-full box-border focus:outline-none focus:border-blue-500"
                     value={tempApiKey}
                     onChange={(e) => setTempApiKey(e.target.value)}
                     placeholder="AIzaSy..."
                 />
-                <button className="api-key-save-button" onClick={handleSaveApiKey}>
+                <button
+                    className="px-4 py-2 rounded-full border-none bg-[#3ea6ff] text-black font-bold cursor-pointer self-end hover:bg-[#3ea6ff]/90 transition-colors"
+                    onClick={handleSaveApiKey}
+                >
                     Save
                 </button>
             </div>
         </>
     );
 
-    return createPortal(
-        <div
-            ref={dropdownRef}
-            className="settings-dropdown animate-scale-in"
-            style={{
-                top: position.top,
-                left: position.left,
-            }}
-            onClick={(e) => e.stopPropagation()}
+    return (
+        <Dropdown
+            isOpen={Boolean(anchorEl)}
+            onClose={onClose}
+            anchorEl={anchorEl}
+            className="py-2 text-text-primary"
         >
             {menuView === 'main' && renderMainView()}
             {menuView === 'appearance' && renderAppearanceView()}
             {menuView === 'cardSize' && renderCardSizeView()}
             {menuView === 'apiKey' && renderApiKeyView()}
-        </div>,
-        document.body
+        </Dropdown>
     );
 };

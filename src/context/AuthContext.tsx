@@ -33,14 +33,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const loginWithGoogle = async () => {
         try {
             const result = await signInWithPopup(auth, googleProvider);
-            // This gives you a Google Access Token. You can use it to access the Google API.
             const credential = GoogleAuthProvider.credentialFromResult(result);
             const token = credential?.accessToken;
             if (token) {
-                // Store token temporarily in localStorage or state to use for fetching channels
-                // We use localStorage so it persists if we refresh the page immediately, 
-                // though for security strictly in-memory is better, but here we need it across components.
-                // Given the user wants this "critical function", we'll store it.
                 localStorage.setItem('google_access_token', token);
             }
         } catch (error) {

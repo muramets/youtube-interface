@@ -25,7 +25,7 @@ import './PlaylistsPage.css';
 import { SortablePlaylistCard } from './PlaylistCard';
 
 export const PlaylistsPage: React.FC = () => {
-    const { playlists, createPlaylist, deletePlaylist, updatePlaylist, reorderPlaylists } = useVideo();
+    const { playlists, createPlaylist, deletePlaylist, updatePlaylist, reorderPlaylists, searchQuery } = useVideo();
     const navigate = useNavigate();
     const [isCreating, setIsCreating] = useState(false);
     const [newPlaylistName, setNewPlaylistName] = useState('');
@@ -81,6 +81,8 @@ export const PlaylistsPage: React.FC = () => {
     };
 
     const handleDragEnd = (event: DragEndEvent) => {
+        if (searchQuery) return;
+
         const { active, over } = event;
 
         if (over && active.id !== over.id) {
@@ -89,6 +91,11 @@ export const PlaylistsPage: React.FC = () => {
             reorderPlaylists(arrayMove(playlists, oldIndex, newIndex));
         }
     };
+
+    const filteredPlaylists = playlists.filter(playlist => {
+        if (!searchQuery) return true;
+        return playlist.name.toLowerCase().includes(searchQuery.toLowerCase());
+    });
 
     return (
         <div className="animate-fade-in" style={{ padding: '24px' }}>
@@ -161,10 +168,10 @@ export const PlaylistsPage: React.FC = () => {
                     </div>
 
                     <SortableContext
-                        items={playlists.map(p => p.id)}
+                        items={filteredPlaylists.map(p => p.id)}
                         strategy={rectSortingStrategy}
                     >
-                        {playlists.map(playlist => (
+                        {filteredPlaylists.map(playlist => (
                             <SortablePlaylistCard
                                 key={playlist.id}
                                 playlist={playlist}

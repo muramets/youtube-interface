@@ -1,7 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { FilterDropdown } from '../Video/FilterDropdown';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import './WatchPageFilterBar.css';
 
 import { type Playlist } from '../../context/VideoContext';
 
@@ -63,11 +62,11 @@ export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
     };
 
     return (
-        <div className="watch-filter-bar-container">
+        <div className="relative flex items-center w-full mb-4">
             {showLeftArrow && (
-                <div className="filter-arrow-container left">
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 z-10 flex items-center bg-gradient-to-r from-bg-primary via-bg-primary to-transparent pr-4 pl-0 h-full">
                     <button
-                        className="filter-arrow-button"
+                        className="w-8 h-8 rounded-full bg-bg-secondary hover:bg-hover-bg flex items-center justify-center border-none cursor-pointer text-text-primary shadow-sm"
                         onClick={() => scroll('left')}
                     >
                         <ChevronLeft size={20} />
@@ -76,17 +75,18 @@ export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
             )}
 
             <div
-                className="watch-filter-scroll-container"
+                className="flex gap-3 overflow-x-auto scrollbar-hide scroll-smooth px-1 py-1 w-full items-center"
                 ref={scrollContainerRef}
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
                 <button
-                    className={`category-pill ${selectedFilter === 'all' ? 'active' : ''}`}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap cursor-pointer transition-colors border-none ${selectedFilter === 'all' ? 'bg-text-primary text-bg-primary' : 'bg-bg-secondary text-text-primary hover:bg-hover-bg'}`}
                     onClick={() => onFilterChange('all')}
                 >
                     All
                 </button>
                 <button
-                    className={`category-pill ${selectedFilter === 'channel' ? 'active' : ''}`}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap cursor-pointer transition-colors border-none ${selectedFilter === 'channel' ? 'bg-text-primary text-bg-primary' : 'bg-bg-secondary text-text-primary hover:bg-hover-bg'}`}
                     onClick={() => onFilterChange('channel')}
                 >
                     From {channelName}
@@ -95,7 +95,7 @@ export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
                 {containingPlaylists.map(playlist => (
                     <button
                         key={playlist.id}
-                        className={`category-pill ${selectedFilter === 'playlists' && selectedPlaylistIds.includes(playlist.id) ? 'active' : ''}`}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap cursor-pointer transition-colors border-none ${selectedFilter === 'playlists' && selectedPlaylistIds.includes(playlist.id) ? 'bg-text-primary text-bg-primary' : 'bg-bg-secondary text-text-primary hover:bg-hover-bg'}`}
                         onClick={() => onPlaylistToggle(playlist.id)}
                     >
                         From {playlist.name}
@@ -106,9 +106,9 @@ export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
             </div>
 
             {showRightArrow && (
-                <div className="filter-arrow-container right">
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10 flex items-center bg-gradient-to-l from-bg-primary via-bg-primary to-transparent pl-4 pr-0 h-full">
                     <button
-                        className="filter-arrow-button"
+                        className="w-8 h-8 rounded-full bg-bg-secondary hover:bg-hover-bg flex items-center justify-center border-none cursor-pointer text-text-primary shadow-sm"
                         onClick={() => scroll('right')}
                     >
                         <ChevronRight size={20} />

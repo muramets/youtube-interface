@@ -50,6 +50,8 @@ interface VideoContextType {
     reorderPlaylists: (newPlaylists: Playlist[]) => void;
     hiddenPlaylistIds: string[];
     togglePlaylistVisibility: (playlistId: string) => void;
+    searchQuery: string;
+    setSearchQuery: (query: string) => void;
 }
 
 const VideoContext = createContext<VideoContextType | undefined>(undefined);
@@ -219,9 +221,14 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [selectedChannel, setSelectedChannel] = useState<string>('All');
 
     const uniqueChannels = React.useMemo(() => {
-        const channels = new Set(videos.map(v => v.channelTitle));
+        const channels = new Set(videos.map(v => {
+            if (v.isCustom && currentChannel) {
+                return currentChannel.name;
+            }
+            return v.channelTitle;
+        }));
         return Array.from(channels).sort();
-    }, [videos]);
+    }, [videos, currentChannel]);
 
     // Recommendation Orders (Local Storage - Per Channel Key)
     const [recommendationOrders, setRecommendationOrders] = useState<Record<string, string[]>>({});
@@ -449,6 +456,9 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setPlaylists(newPlaylists);
     };
 
+    // Search Query
+    const [searchQuery, setSearchQuery] = useState<string>('');
+
     return (
         <VideoContext.Provider value={{
             videos,
@@ -475,7 +485,9 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             reorderPlaylistVideos,
             reorderPlaylists,
             hiddenPlaylistIds,
-            togglePlaylistVisibility
+            togglePlaylistVisibility,
+            searchQuery,
+            setSearchQuery
         }}>
             {children}
         </VideoContext.Provider>

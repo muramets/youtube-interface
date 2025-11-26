@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useVideo } from '../../context/VideoContext';
-import { SortableRecommendationCard } from './SortableRecommendationCard';
-import { WatchPageFilterBar } from './WatchPageFilterBar';
-import type { VideoDetails } from '../../utils/youtubeApi';
+import { useChannel } from '../../context/ChannelContext';
+import { ThumbsUp, ThumbsDown, Share2, MoreHorizontal, User } from 'lucide-react';
+import { formatViewCount } from '../../utils/formatUtils';
 import {
     DndContext,
     closestCenter,
@@ -11,29 +11,114 @@ import {
     PointerSensor,
     useSensor,
     useSensors,
-    type DragEndEvent,
+    type DragEndEvent
 } from '@dnd-kit/core';
 import {
     SortableContext,
     sortableKeyboardCoordinates,
-    rectSortingStrategy,
+    verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { formatViewCount } from '../../utils/formatUtils';
-import { ThumbsUp, ThumbsDown, Share2 } from 'lucide-react';
+import { SortableRecommendationCard } from './SortableRecommendationCard';
+import { WatchPageFilterBar } from './WatchPageFilterBar';
 
 export const WatchPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const location = useLocation();
-    const searchParams = new URLSearchParams(location.search);
+    const [searchParams] = useSearchParams();
     const playlistId = searchParams.get('list');
+    const { videos, playlists, moveVideo, searchQuery } = useVideo();
+    const { currentChannel } = useChannel();
+    const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
-    const { videos, playlists, updateRecommendationOrder, recommendationOrders, hiddenPlaylistIds } = useVideo();
-    const [currentVideo, setCurrentVideo] = useState<VideoDetails | null>(null);
-    const [relatedVideos, setRelatedVideos] = useState<VideoDetails[]>([]);
-    const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-    const [filterMode, setFilterMode] = useState<'all' | 'channel' | 'playlists'>('all');
+    // Filter states
+    const [selectedFilter, setSelectedFilter] = useState<'all' | 'channel' | 'playlists'>('all');
     const [selectedPlaylistIds, setSelectedPlaylistIds] = useState<string[]>([]);
 
+    const video = videos.find(v => v.id === id);
+
+    useEffect(() => {
+        // Scroll the main container to top, not window
+        const mainContainer = document.querySelector('main');
+        if (mainContainer) {
+            mainContainer.scrollTo(0, 0);
+        }
+    }, [id]);
+
+    // Initialize filter when playlistId is present
+    useEffect(() => {
+        if (playlistId) {
+            setSelectedFilter('playlists');
+            setSelectedPlaylistIds([playlistId]);
+        } else {
+            setSelectedFilter('all');
+            setSelectedPlaylistIds([]);
+        }
+    }, [playlistId]);
+
+    if (!video) {
+        return <div className="p-8 text-text-primary">Video not found</div>;
+    }
+
+    // --- Filtering Logic ---
+    const containingPlaylists = useMemo(() => playlists.filter(playlist =>
+        playlist.videoIds.includes(video.id)
+    ), [playlists, video.id]);
+
+    // Calculate recommended videos
+    const recommendedVideos = useMemo(() => {
+        let recs = videos.filter(v => v.id !== video.id);
+
+        if (selectedFilter === 'channel') {
+            recs = recs.filter(v => v.channelTitle === video.channelTitle);
+        } else if (selectedFilter === 'playlists') {
+            if (selectedPlaylistIds.length > 0) {
+                const videoIdsInSelectedPlaylists = new Set<string>();
+                playlists.forEach(playlist => {
+                    if (selectedPlaylistIds.includes(playlist.id)) {
+                        playlist.videoIds.forEach(vidId => videoIdsInSelectedPlaylists.add(vidId));
+                    }
+                });
+                recs = recs.filter(v => videoIdsInSelectedPlaylists.has(v.id));
+            }
+        }
+
+        // Filter by search query
+        if (searchQuery) {
+            recs = recs.filter(v => v.title.toLowerCase().includes(searchQuery.toLowerCase()));
+        }
+
+        return recs;
+    }, [videos, video.id, video.channelTitle, selectedFilter, selectedPlaylistIds, playlists, searchQuery]);
+
+
+    const handleFilterChange = (filter: 'all' | 'channel') => {
+        setSelectedFilter(filter);
+        // If switching away from playlists, clear selected playlists
+        if (filter !== 'playlists' as any) {
+            setSelectedPlaylistIds([]);
+        }
+    };
+
+    const handlePlaylistToggle = (pId: string) => {
+        if (selectedFilter !== 'playlists') {
+            setSelectedFilter('playlists');
+            setSelectedPlaylistIds([pId]);
+        } else {
+            setSelectedPlaylistIds(prev => {
+                if (prev.includes(pId)) {
+                    const next = prev.filter(id => id !== pId);
+                    if (next.length === 0) {
+                        setSelectedFilter('all'); // Revert to all if no playlists selected
+                        return [];
+                    }
+                    return next;
+                } else {
+                    return [...prev, pId];
+                }
+            });
+        }
+    };
+
+    // --- Drag and Drop Logic ---
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
@@ -45,267 +130,168 @@ export const WatchPage: React.FC = () => {
         })
     );
 
-    useEffect(() => {
-        if (id) {
-            const foundVideo = videos.find(v => v.id === id);
-            if (foundVideo) {
-                setCurrentVideo(foundVideo);
-            }
-        }
-    }, [id, videos]);
-
-    // Logic to determine related videos (base list before filtering)
-    useEffect(() => {
-        if (currentVideo) {
-            // Default behavior: Show all other videos
-            const others = videos.filter(v => v.id !== currentVideo.id);
-            setRelatedVideos(others);
-        }
-    }, [currentVideo, videos]);
-
-    // Calculate playlists that contain the current video
-    const containingPlaylists = useMemo(() => {
-        if (!currentVideo) return [];
-        return playlists.filter(p => p.videoIds.includes(currentVideo.id));
-    }, [currentVideo, playlists]);
-
-    const handleFilterChange = (mode: 'all' | 'channel') => {
-        setFilterMode(mode);
-        setSelectedPlaylistIds([]);
-    };
-
-    const handlePlaylistToggle = (playlistId: string) => {
-        if (filterMode !== 'playlists') {
-            // Switch to playlist mode and select this playlist
-            setFilterMode('playlists');
-            setSelectedPlaylistIds([playlistId]);
-        } else {
-            // Toggle selection
-            if (selectedPlaylistIds.includes(playlistId)) {
-                const newSelection = selectedPlaylistIds.filter(id => id !== playlistId);
-                if (newSelection.length === 0) {
-                    // If no playlists selected, revert to 'all'
-                    setFilterMode('all');
-                    setSelectedPlaylistIds([]);
-                } else {
-                    setSelectedPlaylistIds(newSelection);
-                }
-            } else {
-                setSelectedPlaylistIds([...selectedPlaylistIds, playlistId]);
-            }
-        }
-    };
-
-    // Derive the list of recommended videos based on filters and order
-    const recommendedVideos = useMemo(() => {
-        if (!id || !currentVideo) return [];
-
-        let filtered = [...relatedVideos];
-
-        // 1. Apply Chip Filters
-        if (filterMode === 'channel') {
-            filtered = filtered.filter(v => v.channelTitle === currentVideo.channelTitle);
-        } else if (filterMode === 'playlists') {
-            // Show videos that are in ANY of the selected playlists
-            // First, get all video IDs from selected playlists
-            const allowedVideoIds = new Set<string>();
-            playlists.forEach(p => {
-                if (selectedPlaylistIds.includes(p.id)) {
-                    p.videoIds.forEach(vidId => allowedVideoIds.add(vidId));
-                }
-            });
-            filtered = filtered.filter(v => allowedVideoIds.has(v.id));
-        }
-
-        // 2. Apply Playlist Visibility Filter (Global)
-        // If a video belongs ONLY to hidden playlists, hide it.
-        const hiddenVideoIds = new Set<string>();
-        if (hiddenPlaylistIds.length > 0) {
-            playlists.forEach(playlist => {
-                if (hiddenPlaylistIds.includes(playlist.id)) {
-                    playlist.videoIds.forEach(vidId => hiddenVideoIds.add(vidId));
-                }
-            });
-        }
-        filtered = filtered.filter(v => !hiddenVideoIds.has(v.id));
-
-
-        // 3. Apply Sorting (only if 'all' filter is active, otherwise custom sort overrides)
-        if (filterMode === 'all') {
-            const savedOrder = recommendationOrders[id];
-            if (savedOrder) {
-                filtered.sort((a, b) => {
-                    const indexA = savedOrder.indexOf(a.id);
-                    const indexB = savedOrder.indexOf(b.id);
-                    if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-                    if (indexA !== -1) return -1;
-                    if (indexB !== -1) return 1;
-                    return 0;
-                });
-            }
-        }
-
-        return filtered;
-    }, [relatedVideos, id, currentVideo, filterMode, selectedPlaylistIds, recommendationOrders, hiddenPlaylistIds, playlists]);
-
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
 
-        if (active.id !== over?.id && over && id) {
-            // Only allow reordering when "All" filter is active to avoid confusion
-            if (filterMode !== 'all') return;
+        if (over && active.id !== over.id) {
+            const oldIndex = videos.findIndex((v) => v.id === active.id);
+            const newIndex = videos.findIndex((v) => v.id === over.id);
 
-            const oldIndex = recommendedVideos.findIndex((item) => item.id === active.id);
-            const newIndex = recommendedVideos.findIndex((item) => item.id === over.id);
-
-            const newOrder = [...recommendedVideos];
-            const [movedItem] = newOrder.splice(oldIndex, 1);
-            newOrder.splice(newIndex, 0, movedItem);
-
-            // Save the new order of IDs
-            updateRecommendationOrder(id, newOrder.map(v => v.id));
+            if (oldIndex !== -1 && newIndex !== -1) {
+                moveVideo(oldIndex, newIndex);
+            }
         }
     };
 
-    if (!currentVideo) {
-        return <div style={{ color: 'var(--text-primary)', padding: '24px' }}>Video not found</div>;
-    }
+    const isDraggable = selectedFilter === 'all';
+    const description = video.description || '';
 
     return (
-        <div
-            className="animate-fade-in"
-            style={{
-                display: 'flex',
-                gap: '24px',
-                padding: '24px',
-                maxWidth: '1800px',
-                margin: '0 auto',
-                minHeight: '100vh',
-                boxSizing: 'border-box'
-            }}
-        >
-            {/* Main Content */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-                {/* Video Player */}
-                <div style={{
-                    width: '100%',
-                    aspectRatio: '16/9',
-                    backgroundColor: 'black',
-                    borderRadius: '12px',
-                    overflow: 'hidden',
-                    marginBottom: '12px'
-                }}>
-                    {currentVideo.isCustom ? (
-                        <img src={currentVideo.customImage || currentVideo.thumbnail} alt={currentVideo.title} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 p-6 w-full max-w-[2200px] min-h-screen box-border">
+            {/* Main Content (Video Player + Info) */}
+            <div className="min-w-0">
+                {/* Video Player Container */}
+                <div className="w-full aspect-video bg-black rounded-xl overflow-hidden shadow-lg mb-4 relative group">
+                    {video.isCustom ? (
+                        <div className="w-full h-full relative group cursor-default">
+                            <img
+                                src={video.customImage || video.thumbnail}
+                                alt={video.title}
+                                className="w-full h-full object-cover"
+                            />
+                            {/* Hover Overlay */}
+                            <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                        </div>
                     ) : (
                         <iframe
                             width="100%"
                             height="100%"
-                            src={`https://www.youtube.com/embed/${currentVideo.id}`}
-                            title={currentVideo.title}
+                            src={`https://www.youtube.com/embed/${video.id}`}
+                            title={video.title}
                             frameBorder="0"
-                            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                             allowFullScreen
+                            className="w-full h-full"
                         ></iframe>
                     )}
                 </div>
 
-                {/* Video Info */}
-                <h1 style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--text-primary)', marginBottom: '12px' }}>{currentVideo.title}</h1>
+                {/* Video Title */}
+                <h1 className="text-xl font-bold text-text-primary mb-3 line-clamp-2">
+                    {video.title}
+                </h1>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', overflow: 'hidden', backgroundColor: 'var(--bg-secondary)' }}>
-                            {currentVideo.channelAvatar && <img src={currentVideo.channelAvatar} alt={currentVideo.channelTitle} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                {/* Video Actions & Channel Info */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <div className="flex items-center gap-3">
+                        {/* Channel Avatar */}
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-bg-secondary flex-shrink-0">
+                            {(video.isCustom && currentChannel?.avatar) ? (
+                                <img src={currentChannel.avatar} alt={video.channelTitle} className="w-full h-full object-cover" />
+                            ) : video.channelAvatar ? (
+                                <img src={video.channelAvatar} alt={video.channelTitle} className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="w-full h-full bg-bg-secondary flex items-center justify-center">
+                                    <User size={20} className="text-text-secondary" />
+                                </div>
+                            )}
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                            <div style={{ fontWeight: 'bold', color: 'var(--text-primary)', fontSize: '16px' }}>{currentVideo.channelTitle}</div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>1.2M subscribers</div>
+                        <div className="flex flex-col gap-0.5">
+                            <span className="font-bold text-text-primary text-base">
+                                {(video.isCustom && currentChannel) ? currentChannel.name : video.channelTitle}
+                            </span>
+                            <span className="text-xs text-text-secondary">
+                                {video.subscriberCount || '1.2M'} subscribers
+                            </span>
                         </div>
-                        <button style={{
-                            backgroundColor: 'var(--text-primary)',
-                            color: 'var(--bg-primary)',
-                            border: 'none',
-                            borderRadius: '18px',
-                            padding: '0 16px',
-                            height: '36px',
-                            fontWeight: 'bold',
-                            marginLeft: '24px',
-                            cursor: 'pointer'
-                        }}>Subscribe</button>
+                        <button className="bg-text-primary text-bg-primary px-4 py-2 rounded-full font-medium text-sm ml-6 hover:opacity-90 transition-opacity cursor-pointer border-none">
+                            Subscribe
+                        </button>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                        <div style={{ backgroundColor: 'var(--bg-secondary)', borderRadius: '18px', display: 'flex', alignItems: 'center', height: '36px' }}>
-                            <button className="hover-bg" style={{ background: 'none', border: 'none', color: 'var(--text-primary)', padding: '0 16px', borderRight: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '500', height: '100%', borderRadius: '18px 0 0 18px' }}>
-                                <ThumbsUp size={18} /> 12K
+                    <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+                        <div className="flex items-center bg-bg-secondary rounded-full overflow-hidden h-9">
+                            <button className="flex items-center gap-1.5 px-4 h-full hover:bg-hover-bg cursor-pointer border-none bg-transparent text-text-primary border-r border-border/50">
+                                <ThumbsUp size={18} />
+                                <span className="text-sm font-medium">{formatViewCount(video.likeCount || '0')}</span>
                             </button>
-                            <button className="hover-bg" style={{ background: 'none', border: 'none', color: 'var(--text-primary)', padding: '0 16px', cursor: 'pointer', height: '100%', borderRadius: '0 18px 18px 0', display: 'flex', alignItems: 'center' }}>
+                            <button className="flex items-center px-4 h-full hover:bg-hover-bg cursor-pointer border-none bg-transparent text-text-primary">
                                 <ThumbsDown size={18} />
                             </button>
                         </div>
-                        <button className="hover-bg" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: 'none', borderRadius: '18px', padding: '0 16px', height: '36px', fontWeight: '500', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <Share2 size={18} /> Share
+                        <button className="flex items-center gap-1.5 px-4 h-9 bg-bg-secondary rounded-full hover:bg-hover-bg cursor-pointer border-none text-text-primary whitespace-nowrap text-sm font-medium">
+                            <Share2 size={18} />
+                            Share
+                        </button>
+                        <button className="flex items-center justify-center w-9 h-9 bg-bg-secondary rounded-full hover:bg-hover-bg cursor-pointer border-none text-text-primary flex-shrink-0">
+                            <MoreHorizontal size={20} />
                         </button>
                     </div>
                 </div>
 
-                {/* Description */}
-                <div style={{ backgroundColor: 'var(--bg-secondary)', borderRadius: '12px', padding: '12px', fontSize: '14px', color: 'var(--text-primary)', marginBottom: '24px' }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>{formatViewCount(currentVideo.viewCount)} views • {new Date(currentVideo.publishedAt).toLocaleDateString()}</div>
-                    <div>
-                        This is a placeholder description for the video. In a real application, this would be fetched from the YouTube API.
-                        It can contain multiple lines of text, links, and hashtags.
+                {/* Description Box */}
+                <div
+                    className="bg-bg-secondary rounded-xl p-3 text-sm text-text-primary cursor-pointer hover:bg-hover-bg transition-colors mb-6"
+                    onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                >
+                    <div className="font-bold mb-2">
+                        {formatViewCount(video.viewCount)} views • {new Date(video.publishedAt).toLocaleDateString()}
                     </div>
+                    <div className="whitespace-pre-wrap leading-relaxed">
+                        {isDescriptionExpanded
+                            ? description
+                            : description.slice(0, 150) + (description.length > 150 ? '...' : '')}
+                    </div>
+                    <button className="bg-transparent border-none text-text-primary font-bold mt-1 cursor-pointer p-0">
+                        {isDescriptionExpanded ? 'Show less' : '...more'}
+                    </button>
                 </div>
 
                 {/* Comments Placeholder */}
-                <div style={{ marginTop: '24px' }}>
-                    <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--text-primary)', marginBottom: '24px' }}>Comments</h3>
+                <div className="mt-6">
+                    <h3 className="text-xl font-bold text-text-primary mb-6">Comments</h3>
 
                     {/* Add Comment Input */}
-                    <div style={{ display: 'flex', gap: '16px', marginBottom: '32px' }}>
-                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--bg-secondary)', flexShrink: 0 }}>
+                    <div className="flex gap-4 mb-8">
+                        <div className="w-10 h-10 rounded-full bg-bg-secondary flex-shrink-0 overflow-hidden">
                             {/* User Avatar Placeholder */}
-                            <img src={localStorage.getItem('youtube_profile_avatar') || ''} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', display: localStorage.getItem('youtube_profile_avatar') ? 'block' : 'none' }} />
+                            {currentChannel?.avatar ? (
+                                <img src={currentChannel.avatar} alt="User" className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-purple-600 text-white font-bold">
+                                    {currentChannel?.name?.[0]?.toUpperCase() || 'U'}
+                                </div>
+                            )}
                         </div>
-                        <div style={{ flex: 1 }}>
+                        <div className="flex-1">
                             <input
                                 type="text"
                                 placeholder="Add a comment..."
-                                style={{
-                                    width: '100%',
-                                    background: 'transparent',
-                                    border: 'none',
-                                    borderBottom: '1px solid var(--border)',
-                                    padding: '8px 0',
-                                    color: 'var(--text-primary)',
-                                    outline: 'none'
-                                }}
+                                className="w-full bg-transparent border-none border-b border-border py-2 text-text-primary outline-none focus:border-text-primary transition-colors"
                             />
                         </div>
                     </div>
 
                     {/* Dummy Comments */}
                     {[1, 2, 3].map((i) => (
-                        <div key={i} style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
-                            <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--bg-secondary)', flexShrink: 0 }}></div>
+                        <div key={i} className="flex gap-4 mb-6">
+                            <div className="w-10 h-10 rounded-full bg-bg-secondary flex-shrink-0"></div>
                             <div>
-                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '4px' }}>
-                                    <span style={{ fontWeight: 'bold', fontSize: '13px', color: 'var(--text-primary)' }}>@user{i}</span>
-                                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>2 days ago</span>
+                                <div className="flex gap-2 items-center mb-1">
+                                    <span className="font-bold text-xs text-text-primary">@user{i}</span>
+                                    <span className="text-xs text-text-secondary">2 days ago</span>
                                 </div>
-                                <div style={{ fontSize: '14px', color: 'var(--text-primary)', marginBottom: '8px' }}>
+                                <div className="text-sm text-text-primary mb-2">
                                     This is a placeholder comment to simulate the comments section. It looks just like the real thing!
                                 </div>
-                                <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                                    <button style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <div className="flex gap-4 items-center">
+                                    <button className="bg-transparent border-none text-text-primary cursor-pointer text-xs flex items-center gap-1 hover:bg-hover-bg p-1 rounded-full">
                                         <ThumbsUp size={14} /> 12
                                     </button>
-                                    <button style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center' }}>
+                                    <button className="bg-transparent border-none text-text-primary cursor-pointer text-xs flex items-center hover:bg-hover-bg p-1 rounded-full">
                                         <ThumbsDown size={14} />
                                     </button>
-                                    <button style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '12px', fontWeight: '500' }}>Reply</button>
+                                    <button className="bg-transparent border-none text-text-primary cursor-pointer text-xs font-medium hover:bg-hover-bg py-1 px-2 rounded-full">Reply</button>
                                 </div>
                             </div>
                         </div>
@@ -313,39 +299,47 @@ export const WatchPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Sidebar Recommendations */}
-            <div style={{ width: '400px', flexShrink: 0 }}>
+            {/* Recommendations Sidebar */}
+            <div className="w-full lg:w-auto flex-shrink-0">
                 <WatchPageFilterBar
-                    channelName={currentVideo.channelTitle}
-                    selectedFilter={filterMode}
+                    channelName={video.channelTitle}
+                    selectedFilter={selectedFilter}
                     selectedPlaylistIds={selectedPlaylistIds}
                     containingPlaylists={containingPlaylists}
                     onFilterChange={handleFilterChange}
                     onPlaylistToggle={handlePlaylistToggle}
                 />
 
-                <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEnd}
-                >
-                    <SortableContext items={recommendedVideos} strategy={rectSortingStrategy}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {recommendedVideos.map((v, index) => (
-                                <div key={v.id} style={{
-                                    zIndex: openMenuId === v.id ? 9999 : recommendedVideos.length - index,
-                                    position: 'relative'
-                                }}>
+                <div className="flex flex-col gap-2">
+                    {isDraggable ? (
+                        <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleDragEnd}
+                        >
+                            <SortableContext
+                                items={recommendedVideos.map(v => v.id)}
+                                strategy={verticalListSortingStrategy}
+                            >
+                                {recommendedVideos.map(video => (
                                     <SortableRecommendationCard
-                                        video={v}
+                                        key={video.id}
+                                        video={video}
                                         playlistId={playlistId || undefined}
-                                        onMenuOpenChange={(isOpen) => setOpenMenuId(isOpen ? v.id : null)}
                                     />
-                                </div>
-                            ))}
-                        </div>
-                    </SortableContext>
-                </DndContext>
+                                ))}
+                            </SortableContext>
+                        </DndContext>
+                    ) : (
+                        recommendedVideos.map(video => (
+                            <SortableRecommendationCard
+                                key={video.id}
+                                video={video}
+                                playlistId={playlistId || undefined}
+                            />
+                        ))
+                    )}
+                </div>
             </div>
         </div>
     );

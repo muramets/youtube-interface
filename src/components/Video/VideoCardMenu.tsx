@@ -1,7 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React from 'react';
 import { ListPlus, Edit2, Trash2 } from 'lucide-react';
-import './VideoCard.css';
+import { Dropdown } from '../Shared/Dropdown';
 
 interface VideoCardMenuProps {
     isOpen: boolean;
@@ -24,87 +23,51 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
     onEdit,
     onRemove,
 }) => {
-    const menuRef = useRef<HTMLDivElement>(null);
-    const [position, setPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-
-    useEffect(() => {
-        if (isOpen && anchorEl) {
-            const rect = anchorEl.getBoundingClientRect();
-            const menuWidth = 200; // Approximate width
-            const menuHeight = 150; // Approximate height
-
-            let top = rect.bottom;
-            let left = rect.right - menuWidth;
-
-            // Adjust if going off screen
-            if (left < 0) left = rect.left;
-            if (top + menuHeight > window.innerHeight) top = rect.top - menuHeight;
-
-            setPosition({ top, left });
-        }
-    }, [isOpen, anchorEl]);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (menuRef.current && !menuRef.current.contains(event.target as Node) && anchorEl && !anchorEl.contains(event.target as Node)) {
-                onClose();
-            }
-        };
-
-        if (isOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
-            window.addEventListener('scroll', onClose, true); // Close on scroll
-            window.addEventListener('resize', onClose);
-        }
-
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-            window.removeEventListener('scroll', onClose, true);
-            window.removeEventListener('resize', onClose);
-        };
-    }, [isOpen, onClose, anchorEl]);
-
-    if (!isOpen) return null;
-
     const showSaveToPlaylist = !playlistId;
     const showEdit = isCustom;
     const showDelete = true; // Always allow deleting/removing
 
-    return createPortal(
-        <div
-            ref={menuRef}
-            className="video-menu-portal animate-scale-in"
-            style={{
-                top: position.top,
-                left: position.left,
-            }}
-            onClick={(e) => e.stopPropagation()}
+    return (
+        <Dropdown
+            isOpen={isOpen}
+            onClose={onClose}
+            anchorEl={anchorEl}
+            width={220}
+            className="py-2 text-text-primary"
         >
             {showSaveToPlaylist && (
-                <div className="menu-item" onClick={onAddToPlaylist}>
+                <div
+                    className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"
+                    onClick={onAddToPlaylist}
+                >
                     <ListPlus size={20} />
                     <span>Save to playlist</span>
                 </div>
             )}
 
             {showSaveToPlaylist && (showEdit || showDelete) && (
-                <div className="menu-divider"></div>
+                <div className="h-px bg-border my-2"></div>
             )}
 
             {showEdit && (
-                <div className="menu-item" onClick={onEdit}>
+                <div
+                    className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"
+                    onClick={onEdit}
+                >
                     <Edit2 size={20} />
                     <span>Edit</span>
                 </div>
             )}
 
             {showDelete && (
-                <div className="menu-item" onClick={onRemove}>
+                <div
+                    className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"
+                    onClick={onRemove}
+                >
                     <Trash2 size={20} />
                     <span>{playlistId ? 'Remove from playlist' : 'Delete'}</span>
                 </div>
             )}
-        </div>,
-        document.body
+        </Dropdown>
     );
 };

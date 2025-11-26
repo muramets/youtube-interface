@@ -4,7 +4,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { PlaySquare, MoreVertical } from 'lucide-react';
 import type { Playlist } from '../../context/VideoContext';
 import { PlaylistMenu } from './PlaylistMenu';
-import './PlaylistsPage.css';
+
 
 interface PlaylistCardProps {
     playlist: Playlist;
@@ -29,69 +29,41 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
 }) => {
     return (
         <div
-            className="video-card-container playlist-card-container" // Reusing VideoCard container style for consistency
+            className="group relative p-2 rounded-xl cursor-pointer flex flex-col h-full"
             onClick={() => navigate(`/playlists/${playlist.id}`)}
-            style={{ padding: 0 }} // Override padding if needed, or keep consistent
         >
-            <div className="video-card-hover-bg"></div>
+            {/* Hover Substrate */}
+            <div className="absolute inset-0 bg-bg-secondary rounded-xl opacity-0 scale-90 transition-all duration-200 ease-out group-hover:opacity-100 group-hover:scale-100 -z-10 pointer-events-none" />
 
-            <div
-                style={{
-                    borderRadius: '12px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    position: 'relative',
-                    height: '100%'
-                }}
-            >
+            <div className="flex flex-col relative h-full rounded-xl">
                 {/* Cover Image Area */}
-                <div style={{
-                    aspectRatio: '16/9',
-                    backgroundColor: 'var(--bg-secondary)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    position: 'relative',
-                    borderRadius: '12px 12px 0 0',
-                    overflow: 'hidden'
-                }}>
+                <div className="aspect-video bg-bg-secondary flex items-center justify-center relative rounded-t-xl overflow-hidden">
                     {playlist.coverImage ? (
-                        <img src={playlist.coverImage} alt={playlist.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={playlist.coverImage} alt={playlist.name} className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" />
                     ) : (
-                        <PlaySquare size={48} color="var(--text-secondary)" />
+                        <PlaySquare size={48} className="text-text-secondary" />
                     )}
-                    <div style={{
-                        position: 'absolute',
-                        bottom: '8px',
-                        right: '8px',
-                        backgroundColor: 'rgba(0,0,0,0.8)',
-                        color: 'white',
-                        padding: '2px 4px',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        fontWeight: '500'
-                    }}>
+                    <div className="absolute bottom-2 right-2 bg-black/80 text-white px-1 py-0.5 rounded text-xs font-medium">
                         {playlist.videoIds.length} videos
                     </div>
                 </div>
 
                 {/* Info Area */}
-                <div style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                        <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', color: 'var(--text-primary)' }}>{playlist.name}</h3>
-                        <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)' }}>
+                <div className="p-3 relative">
+                    <div className="pr-6">
+                        <h3 className="m-0 mb-1 text-base text-text-primary font-bold line-clamp-2">{playlist.name}</h3>
+                        <p className="m-0 text-xs text-text-secondary">
                             {playlist.updatedAt && playlist.updatedAt > playlist.createdAt
                                 ? `Updated ${new Date(playlist.updatedAt).toLocaleDateString()}`
                                 : `Created ${new Date(playlist.createdAt).toLocaleDateString()}`
                             }
                         </p>
                     </div>
-                    <div style={{ position: 'relative' }}>
+                    <div className="absolute top-3 right-0">
                         <button
                             ref={el => { menuButtonRefs.current[playlist.id] = el; }}
                             onClick={(e) => handleMenuClick(e, playlist.id)}
-                            className="playlist-menu-button"
+                            className="bg-transparent border-none p-2 rounded-full cursor-pointer text-text-primary opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-hover-bg"
                             onPointerDown={(e) => e.stopPropagation()} // Prevent drag start on menu click
                         >
                             <MoreVertical size={20} />
