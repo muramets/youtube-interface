@@ -561,39 +561,40 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const cloneVideo = async (originalVideo: VideoDetails, coverVersion: any) => {
         if (!user || !currentChannel) return;
-        const now = Date.now();
-        const id = `clone-${now}-${Math.random().toString(36).substr(2, 9)}`;
-        const expiresAt = now + (cloneSettings.cloneDurationSeconds * 1000);
+        try {
+            const now = Date.now();
+            const id = `clone-${now}-${Math.random().toString(36).substr(2, 9)}`;
+            const expiresAt = now + (cloneSettings.cloneDurationSeconds * 1000);
 
-        const newVideo: VideoDetails = {
-            ...originalVideo,
-            id,
-            isCustom: true,
-            isCloned: true,
-            clonedFromId: originalVideo.id,
-            createdAt: now,
-            expiresAt,
-            customImage: coverVersion.url,
-            customImageName: coverVersion.originalName,
-            customImageVersion: coverVersion.version,
-            // Reset history for the clone? Or keep it? Let's keep it empty or copy it. 
-            // The user wants a "duplicate version", implying it's a snapshot.
-            // Let's keep the history so they can see it's based on something, but maybe it's not needed.
-            // For now, let's just copy it.
-            coverHistory: originalVideo.coverHistory
-        };
+            const newVideo: VideoDetails = {
+                ...originalVideo,
+                id,
+                isCustom: true,
+                isCloned: true,
+                clonedFromId: originalVideo.id,
+                createdAt: now,
+                expiresAt,
+                customImage: coverVersion?.url || originalVideo.customImage,
+                customImageName: coverVersion?.originalName || originalVideo.customImageName,
+                customImageVersion: coverVersion?.version || originalVideo.customImageVersion,
+                // Ensure no undefined values are passed to Firestore
+                coverHistory: originalVideo.coverHistory || []
+            };
 
-        // 1. Save Video
-        const videoRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${id}`);
-        await setDoc(videoRef, newVideo);
+            // 1. Save Video
+            const videoRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${id}`);
+            await setDoc(videoRef, newVideo);
 
-        // 2. Update Order (Insert next to original or at top? User didn't specify, but "cloned version" usually implies proximity.
-        // However, our sort logic puts new videos at top or based on order list.
-        // Let's put it at the top for visibility.
-        const orderRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/videoOrder`);
-        const newOrder = [id, ...videoOrder];
-        await setDoc(orderRef, { order: newOrder }, { merge: true });
-        await setDoc(orderRef, { order: newOrder }, { merge: true });
+            // 2. Update Order
+            const orderRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/videoOrder`);
+            const newOrder = [id, ...videoOrder];
+            await setDoc(orderRef, { order: newOrder }, { merge: true });
+
+            // Optional: Copy history subcollection here if needed in future
+        } catch (error) {
+            console.error("Error cloning video:", error);
+            alert("Failed to clone video. See console for details.");
+        }
     };
 
     // History Subcollection Logic

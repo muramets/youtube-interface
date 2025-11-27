@@ -97,9 +97,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
 
   const handleVideoClick = () => {
     if (playlistId) {
-      navigate(`/ watch / ${video.id}?list = ${playlistId} `);
+      navigate(`/watch/${video.id}?list=${playlistId}`);
     } else {
-      navigate(`/ watch / ${video.id} `);
+      navigate(`/watch/${video.id}`);
     }
   };
 
@@ -117,7 +117,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
       setConfirmation({
         isOpen: true,
         title: 'Remove from playlist?',
-        message: `Are you sure you want to remove "${video.title}" from this playlist ? `,
+        message: `Are you sure you want to remove "${video.title}" from this playlist?`,
         onConfirm: () => {
           removeVideoFromPlaylist(playlistId, video.id);
           setConfirmation(prev => ({ ...prev, isOpen: false }));
@@ -127,7 +127,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
       setConfirmation({
         isOpen: true,
         title: 'Delete video?',
-        message: `Are you sure you want to delete "${video.title}" ? This cannot be undone.`,
+        message: `Are you sure you want to delete "${video.title}"? This cannot be undone.`,
         onConfirm: () => {
           onRemove(video.id);
           setConfirmation(prev => ({ ...prev, isOpen: false }));
@@ -152,10 +152,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   };
 
   const handleCloneVideo = async (originalVideo: VideoDetails, version: any) => {
+    setShowEditModal(false);
     await cloneVideo(originalVideo, version);
-    // Don't close modal, maybe show toast? For now just let it happen.
-    // Or maybe close it? User might want to clone multiple versions.
-    // Let's keep it open.
   };
 
   return (
@@ -165,14 +163,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         onClick={handleVideoClick}
       >
         {/* Hover Substrate */}
-        <div className={`absolute inset - 0 rounded - xl transition - all duration - 200 ease - out - z - 10 pointer - events - none ${isMenuOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : 'bg-bg-secondary'} `} />
+        <div className={`absolute inset-0 rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none ${isMenuOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : 'bg-bg-secondary'} `} />
 
         {/* Thumbnail Container */}
         <div className="relative aspect-video rounded-xl overflow-hidden bg-bg-secondary">
           <img
             src={video.isCustom ? (video.customImage || video.thumbnail) : video.thumbnail}
             alt={video.title}
-            className={`w - full h - full object - cover transition - transform duration - 200 ${isMenuOpen ? 'scale-105' : 'group-hover:scale-105'} `}
+            className={`w-full h-full object-cover transition-transform duration-200 ${isMenuOpen ? 'scale-105' : 'group-hover:scale-105'} `}
             loading="lazy"
           />
 
@@ -209,8 +207,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
           {video.isCloned && (
             <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
               <div className="relative group/info">
-                <div className="w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-sm border-none cursor-help">
-                  <Info size={14} />
+                <div className="w-10 h-10 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-sm border-none cursor-help">
+                  <Info size={20} />
                 </div>
                 {/* Tooltip */}
                 <div className="absolute right-0 top-full mt-1 bg-black/90 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg border border-white/10 z-20">
