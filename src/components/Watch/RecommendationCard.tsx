@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { MoreVertical, Play, Clock, Info, Trash2 } from 'lucide-react';
+import { MoreVertical, Info, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useVideo } from '../../context/VideoContext';
 import type { VideoDetails } from '../../utils/youtubeApi';
@@ -9,6 +9,7 @@ import { VideoCardMenu } from '../Video/VideoCardMenu';
 import { AddToPlaylistModal } from '../Playlist/AddToPlaylistModal';
 import { ConfirmationModal } from '../Shared/ConfirmationModal';
 import { CustomVideoModal } from '../Video/CustomVideoModal';
+import { PortalTooltip } from '../Shared/PortalTooltip';
 
 interface RecommendationCardProps {
     video: VideoDetails;
@@ -180,15 +181,11 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                     {/* Cloned Info Icon (Top Right) */}
                     {video.isCloned && (
                         <div className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                            <div className="relative group/info">
+                            <PortalTooltip content={video.customImageName || 'Unknown Filename'} align="left">
                                 <div className="w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-sm border-none cursor-help">
                                     <Info size={16} />
                                 </div>
-                                {/* Tooltip */}
-                                <div className="absolute right-0 top-full mt-1 bg-black/90 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg border border-white/10 z-20">
-                                    {video.customImageName || 'Unknown Filename'}
-                                </div>
-                            </div>
+                            </PortalTooltip>
                         </div>
                     )}
 

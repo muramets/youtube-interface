@@ -26,12 +26,12 @@ export default {
                     '100%': { opacity: '0', transform: 'translateY(20px) scale(0.95)' },
                 },
                 'fade-in-down': {
-                    '0%': { opacity: '0', transform: 'translateY(-20px) scale(0.95)' },
+                    '0%': { opacity: '0', transform: 'translateY(-8px) scale(0.95)' },
                     '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
                 },
                 'fade-out-up': {
                     '0%': { opacity: '1', transform: 'translateY(0) scale(1)' },
-                    '100%': { opacity: '0', transform: 'translateY(-20px) scale(0.95)' },
+                    '100%': { opacity: '0', transform: 'translateY(-8px) scale(0.95)' },
                 },
                 'scale-in': {
                     '0%': { opacity: '0', transform: 'scale(0.95)' },

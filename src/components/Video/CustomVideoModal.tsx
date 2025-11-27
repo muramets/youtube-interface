@@ -5,6 +5,7 @@ import type { VideoDetails } from '../../utils/youtubeApi';
 import { useVideo } from '../../context/VideoContext';
 import { resizeImage } from '../../utils/imageUtils';
 import { Toast } from '../Shared/Toast';
+import { PortalTooltip } from '../Shared/PortalTooltip';
 
 interface CustomVideoModalProps {
     isOpen: boolean;
@@ -456,15 +457,11 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                                                             <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-between p-2 rounded-md">
                                                                 <div className="flex justify-between w-full">
                                                                     {/* Info Button (Top Left) */}
-                                                                    <div className="relative group/info">
+                                                                    <PortalTooltip content={version.originalName || 'Unknown Filename'} align="left">
                                                                         <button className="w-6 h-6 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-sm transition-colors border-none cursor-pointer">
                                                                             <Info size={12} />
                                                                         </button>
-                                                                        {/* Tooltip */}
-                                                                        <div className="absolute left-0 top-full mt-1 bg-black/90 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 whitespace-normal min-w-[120px] max-w-[200px] break-words shadow-lg border border-white/10">
-                                                                            {version.originalName || 'Unknown Filename'}
-                                                                        </div>
-                                                                    </div>
+                                                                    </PortalTooltip>
 
                                                                     {/* Delete Button (Top Right) */}
                                                                     <button
