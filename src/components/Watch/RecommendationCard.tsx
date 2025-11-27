@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { MoreVertical, Play, Clock, Info } from 'lucide-react';
+import { MoreVertical, Play, Clock, Info, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useVideo } from '../../context/VideoContext';
 import type { VideoDetails } from '../../utils/youtubeApi';
@@ -139,7 +139,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                 onClick={handleVideoClick}
             >
                 {/* Hover Substrate */}
-                <div className={`absolute inset-0 rounded-lg transition-opacity duration-200 pointer-events-none opacity-0 group-hover:opacity-100 ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : 'bg-hover-bg'} `} />
+                <div className={`absolute inset-0 rounded-lg transition-opacity duration-200 pointer-events-none opacity-0 group-hover:opacity-100 ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : 'bg-bg-secondary'} `} />
                 {/* Thumbnail Container */}
                 <div className="relative w-[168px] h-[94px] flex-shrink-0 bg-bg-secondary rounded-lg overflow-hidden">
                     <img
@@ -209,26 +209,41 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                         </div>
                     </div>
 
-                    {/* Menu Button */}
-                    <div className="absolute top-0 right-[-8px]">
-                        <button
-                            ref={menuButtonRef}
-                            className="bg-transparent border-none p-1.5 rounded-full cursor-pointer text-text-primary opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-hover-bg"
-                            onClick={handleMenuClick}
-                        >
-                            <MoreVertical size={20} />
-                        </button>
+                    {/* Menu Button or Remove Action for Clones */}
+                    <div className="absolute top-0 right-0">
+                        {video.isCloned ? (
+                            <button
+                                className="bg-transparent border-none p-1.5 rounded-full cursor-pointer text-text-primary opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100 focus:opacity-100 transition-all duration-75 ease-out hover:bg-red-500/10 hover:text-red-500"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemove(e);
+                                }}
+                                title="Remove temporary video"
+                            >
+                                <Trash2 size={20} />
+                            </button>
+                        ) : (
+                            <>
+                                <button
+                                    ref={menuButtonRef}
+                                    className="p-1.5 rounded-full cursor-pointer text-text-primary opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-hover-bg"
+                                    onClick={handleMenuClick}
+                                >
+                                    <MoreVertical size={20} />
+                                </button>
 
-                        <VideoCardMenu
-                            isOpen={showMenu}
-                            onClose={handleCloseMenu}
-                            anchorEl={menuButtonRef.current}
-                            playlistId={playlistId}
-                            isCustom={video.isCustom}
-                            onAddToPlaylist={handleAddToPlaylist}
-                            onEdit={handleUpdate}
-                            onRemove={handleRemove}
-                        />
+                                <VideoCardMenu
+                                    isOpen={showMenu}
+                                    onClose={handleCloseMenu}
+                                    anchorEl={menuButtonRef.current}
+                                    playlistId={playlistId}
+                                    isCustom={video.isCustom}
+                                    onAddToPlaylist={handleAddToPlaylist}
+                                    onEdit={handleUpdate}
+                                    onRemove={handleRemove}
+                                />
+                            </>
+                        )}
                     </div>
                 </div>
             </div>

@@ -66,6 +66,8 @@ interface VideoContextType {
     fetchVideoHistory: (videoId: string) => Promise<any[]>;
     saveVideoHistory: (videoId: string, historyItem: any) => Promise<void>;
     deleteVideoHistoryItem: (videoId: string, historyId: string) => Promise<void>;
+    user: any; // Using any for now to avoid circular dependency or complex type import
+    currentChannel: any;
 }
 
 const VideoContext = createContext<VideoContextType | undefined>(undefined);
@@ -616,7 +618,7 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const deleteVideoHistoryItem = async (videoId: string, historyId: string) => {
         if (!user || !currentChannel) return;
-        const historyDocRef = doc(db, `users / ${user.uid} /channels/${currentChannel.id} /videos/${videoId} /history/${historyId} `);
+        const historyDocRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${videoId}/history/${historyId}`);
         await deleteDoc(historyDocRef);
     };
 
@@ -663,7 +665,7 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                         ...details, // Overwrite with fresh API data
                         lastUpdated: now
                     };
-                    const videoRef = doc(db, `users / ${user.uid} /channels/${currentChannel.id} /videos/${video.id} `);
+                    const videoRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${video.id}`);
                     await updateDoc(videoRef, updatedVideo as any);
                 }
                 // Add a small delay to avoid hitting rate limits too hard if many videos
@@ -688,7 +690,7 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     ...details, // Overwrite with fresh API data
                     lastUpdated: Date.now()
                 };
-                const videoRef = doc(db, `users / ${user.uid} /channels/${currentChannel.id} /videos/${videoId} `);
+                const videoRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${videoId}`);
                 await updateDoc(videoRef, updatedVideo as any);
             }
         } catch (error) {
@@ -758,7 +760,9 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             cloneVideo,
             fetchVideoHistory,
             saveVideoHistory,
-            deleteVideoHistoryItem
+            deleteVideoHistoryItem,
+            user,
+            currentChannel
         }}>
             {children}
         </VideoContext.Provider>
