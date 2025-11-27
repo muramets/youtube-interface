@@ -213,7 +213,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                                 className="bg-transparent border-none p-1.5 rounded-full cursor-pointer text-text-primary opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100 focus:opacity-100 transition-all duration-75 ease-out hover:bg-red-500/10 hover:text-red-500"
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    handleRemove(e);
+                                    removeVideo(video.id);
                                 }}
                                 title="Remove temporary video"
                             >
