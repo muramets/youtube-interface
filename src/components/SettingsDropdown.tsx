@@ -294,7 +294,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
             isOpen={Boolean(anchorEl)}
             onClose={onClose}
             anchorEl={anchorEl}
-            className="py-2 text-text-primary"
+            className="text-text-primary"
         >
             {menuView === 'main' && renderMainView()}
             {menuView === 'appearance' && renderAppearanceView()}

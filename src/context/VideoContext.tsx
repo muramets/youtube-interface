@@ -59,6 +59,7 @@ interface VideoContextType {
     updateSyncSettings: (settings: { autoSync: boolean; frequencyHours: number }) => void;
     isSyncing: boolean;
     manualSync: () => Promise<void>;
+    syncSingleVideo: (videoId: string) => Promise<void>;
 }
 
 const VideoContext = createContext<VideoContextType | undefined>(undefined);
@@ -555,6 +556,26 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     };
 
+    const syncSingleVideo = async (videoId: string) => {
+        if (!user || !currentChannel || !apiKey) return;
+
+        try {
+            const details = await fetchVideoDetails(videoId, apiKey);
+            if (details) {
+                const video = videos.find(v => v.id === videoId);
+                const updatedVideo: VideoDetails = {
+                    ...video, // Keep existing local fields like createdAt
+                    ...details, // Overwrite with fresh API data
+                    lastUpdated: Date.now()
+                };
+                const videoRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${videoId}`);
+                await updateDoc(videoRef, updatedVideo as any);
+            }
+        } catch (error) {
+            console.error("Single video sync failed:", error);
+        }
+    };
+
     const manualSync = () => syncVideoData(true);
 
     // Auto-Sync Effect
@@ -610,7 +631,8 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             syncSettings,
             updateSyncSettings,
             isSyncing,
-            manualSync
+            manualSync,
+            syncSingleVideo
         }}>
             {children}
         </VideoContext.Provider>

@@ -131,10 +131,12 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                 setCoverImage(resizedImage);
                 setCurrentOriginalName(file.name);
 
-                // Increment version
-                const newVersion = highestVersion + 1;
-                setCurrentVersion(newVersion);
-                setHighestVersion(newVersion);
+                // Increment version ONLY if we are replacing an existing image
+                if (coverImage) {
+                    const newVersion = highestVersion + 1;
+                    setCurrentVersion(newVersion);
+                    setHighestVersion(newVersion);
+                }
 
             } catch (error) {
                 console.error('Error resizing image:', error);
@@ -197,6 +199,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
         const videoData: Omit<VideoDetails, 'id'> = {
             title: title || 'Very good playlist for you',
             thumbnail: coverImage,
+            channelId: currentChannel?.id || '',
             channelTitle: currentChannel?.name || 'My Channel',
             channelAvatar: currentChannel?.avatar || '',
             publishedAt: initialData ? initialData.publishedAt : new Date().toISOString(),

@@ -8,6 +8,7 @@ interface DropdownProps {
     children: React.ReactNode;
     className?: string;
     width?: number;
+    align?: 'left' | 'right';
 }
 
 export const Dropdown: React.FC<DropdownProps> = ({
@@ -16,7 +17,8 @@ export const Dropdown: React.FC<DropdownProps> = ({
     anchorEl,
     children,
     className = '',
-    width = 300
+    width = 300,
+    align = 'right'
 }) => {
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [position, setPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
@@ -28,10 +30,13 @@ export const Dropdown: React.FC<DropdownProps> = ({
                 const menuHeight = dropdownRef.current?.offsetHeight || 400; // Estimate if not rendered yet
 
                 let top = rect.bottom + 8;
-                let left = rect.right - width;
+                let left = align === 'right' ? rect.right - width : rect.left;
 
                 // Adjust if going off screen
+                const windowWidth = window.innerWidth;
                 if (left < 16) left = 16;
+                if (left + width > windowWidth - 16) left = windowWidth - width - 16;
+
                 const windowHeight = window.innerHeight;
 
                 // If it goes below the viewport, flip it up or adjust

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ListPlus, Edit2, Trash2 } from 'lucide-react';
+import { ListPlus, Edit2, Trash2, RefreshCw } from 'lucide-react';
 import { Dropdown } from '../Shared/Dropdown';
 
 interface VideoCardMenuProps {
@@ -11,6 +11,8 @@ interface VideoCardMenuProps {
     onAddToPlaylist: (e: React.MouseEvent) => void;
     onEdit: (e: React.MouseEvent) => void;
     onRemove: (e: React.MouseEvent) => void;
+    onSync?: (e: React.MouseEvent) => void;
+    isSyncing?: boolean;
 }
 
 export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
@@ -22,10 +24,13 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
     onAddToPlaylist,
     onEdit,
     onRemove,
+    onSync,
+    isSyncing
 }) => {
     const showSaveToPlaylist = !playlistId;
     const showEdit = isCustom;
     const showDelete = true; // Always allow deleting/removing
+    const showSync = !!onSync;
 
     return (
         <Dropdown
@@ -33,8 +38,23 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
             onClose={onClose}
             anchorEl={anchorEl}
             width={220}
-            className="py-2 text-text-primary"
+            className="text-text-primary"
+            align="left"
         >
+            {showSync && (
+                <div
+                    className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"
+                    onClick={onSync}
+                >
+                    <RefreshCw size={20} className={isSyncing ? 'animate-spin' : ''} />
+                    <span>{isSyncing ? 'Syncing...' : 'Sync'}</span>
+                </div>
+            )}
+
+            {showSync && (showSaveToPlaylist || showEdit || showDelete) && (
+                <div className="h-px bg-border my-2"></div>
+            )}
+
             {showSaveToPlaylist && (
                 <div
                     className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"

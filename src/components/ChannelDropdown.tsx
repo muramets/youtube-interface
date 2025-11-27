@@ -41,7 +41,7 @@ export const ChannelDropdown: React.FC<ChannelDropdownProps> = ({ onClose, ancho
             isOpen={Boolean(anchorEl)}
             onClose={onClose}
             anchorEl={anchorEl}
-            className="py-2 text-text-primary"
+            className="text-text-primary"
         >
             {/* User Account Header (Google Account) */}
             <div className="px-4 py-4 border-b border-border flex items-center gap-3">

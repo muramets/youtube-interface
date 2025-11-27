@@ -1,36 +1,69 @@
 import React, { useState, useRef } from 'react';
-import { MoreVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useVideo } from '../../context/VideoContext';
-import { useChannel } from '../../context/ChannelContext';
+import { MoreVertical } from 'lucide-react';
 import type { VideoDetails } from '../../utils/youtubeApi';
-import { CustomVideoModal } from './CustomVideoModal';
-import { formatViewCount, formatDuration } from '../../utils/formatUtils';
-import { AddToPlaylistModal } from '../Playlist/AddToPlaylistModal';
-import { ConfirmationModal } from '../Shared/ConfirmationModal';
+import { formatDuration } from '../../utils/formatUtils';
+import { useVideo } from '../../context/VideoContext';
 import { VideoCardMenu } from './VideoCardMenu';
+import { CustomVideoModal } from './CustomVideoModal';
+import { AddToPlaylistModal as PlaylistSelectionModal } from '../Playlist/AddToPlaylistModal';
+import { ConfirmationModal } from '../Shared/ConfirmationModal';
 
 interface VideoCardProps {
   video: VideoDetails;
   playlistId?: string;
   onMenuOpenChange?: (isOpen: boolean) => void;
+  onRemove: (videoId: string) => void;
+  onEdit?: (video: VideoDetails) => void;
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange }) => {
+export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange, onRemove, onEdit }) => {
   const navigate = useNavigate();
-  const { removeVideo, updateVideo, removeVideoFromPlaylist } = useVideo();
-  const { currentChannel } = useChannel();
-  const [showMenu, setShowMenu] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
+  const {
+    removeVideoFromPlaylist,
+    syncSingleVideo,
+    updateVideo
+  } = useVideo();
+
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
   const [confirmation, setConfirmation] = useState<{
     isOpen: boolean;
-    action: 'removeFromPlaylist' | 'deleteCustom' | 'removeVideo' | null;
     title: string;
     message: string;
-  }>({ isOpen: false, action: null, title: '', message: '' });
+    onConfirm: () => void;
+  }>({ isOpen: false, title: '', message: '', onConfirm: () => { } });
 
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+
+  const handleMenuOpen = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenuAnchor(e.currentTarget as HTMLElement);
+    setIsMenuOpen(true);
+    onMenuOpenChange?.(true);
+  };
+
+  const handleMenuClose = () => {
+    setIsMenuOpen(false);
+    setMenuAnchor(null);
+    onMenuOpenChange?.(false);
+  };
+
+  const handleSync = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isSyncing) return;
+
+    setIsSyncing(true);
+    await syncSingleVideo(video.id);
+    setIsSyncing(false);
+    // We keep the menu open so the user sees the result (spinner stops)
+    // Optionally we could close it: handleMenuClose();
+  };
 
   const handleVideoClick = () => {
     if (playlistId) {
@@ -40,69 +73,52 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     }
   };
 
-  const handleMenuClick = (e: React.MouseEvent) => {
+  const handleAddToPlaylist = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const newState = !showMenu;
-    setShowMenu(newState);
-    onMenuOpenChange?.(newState);
-  };
-
-  const handleCloseMenu = () => {
-    setShowMenu(false);
-    onMenuOpenChange?.(false);
+    handleMenuClose();
+    setShowPlaylistModal(true);
   };
 
   const handleRemove = (e: React.MouseEvent) => {
     e.stopPropagation();
-    handleCloseMenu();
+    handleMenuClose();
 
     if (playlistId) {
       setConfirmation({
         isOpen: true,
-        action: 'removeFromPlaylist',
-        title: 'Remove from Playlist',
-        message: 'Are you sure you want to remove this video from the playlist?'
-      });
-    } else if (video.isCustom) {
-      setConfirmation({
-        isOpen: true,
-        action: 'deleteCustom',
-        title: 'Delete Custom Video',
-        message: 'Are you sure you want to delete this custom video? This action cannot be undone.'
+        title: 'Remove from playlist?',
+        message: `Are you sure you want to remove "${video.title}" from this playlist?`,
+        onConfirm: () => {
+          removeVideoFromPlaylist(playlistId, video.id);
+          setConfirmation(prev => ({ ...prev, isOpen: false }));
+        }
       });
     } else {
       setConfirmation({
         isOpen: true,
-        action: 'removeVideo',
-        title: 'Remove Video',
-        message: 'Are you sure you want to remove this video?'
+        title: 'Delete video?',
+        message: `Are you sure you want to delete "${video.title}"? This cannot be undone.`,
+        onConfirm: () => {
+          onRemove(video.id);
+          setConfirmation(prev => ({ ...prev, isOpen: false }));
+        }
       });
     }
   };
 
-  const handleConfirm = () => {
-    if (confirmation.action === 'removeFromPlaylist' && playlistId) {
-      removeVideoFromPlaylist(playlistId, video.id);
-    } else if (confirmation.action === 'deleteCustom' || confirmation.action === 'removeVideo') {
-      removeVideo(video.id);
-    }
-    setConfirmation({ ...confirmation, isOpen: false });
-  };
-
-  const handleAddToPlaylist = (e: React.MouseEvent) => {
+  const handleUpdate = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setShowPlaylistModal(true);
-    handleCloseMenu();
-  };
-
-  const handleUpdate = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    handleCloseMenu();
+    handleMenuClose();
     if (video.isCustom) {
       setShowEditModal(true);
     } else {
-      await updateVideo(video.id);
+      onEdit?.(video);
     }
+  };
+
+  const handleSaveCustomVideo = async (updatedVideo: any) => {
+    await updateVideo(video.id, updatedVideo);
+    setShowEditModal(false);
   };
 
   return (
@@ -112,45 +128,46 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         onClick={handleVideoClick}
       >
         {/* Hover Substrate */}
-        <div className="absolute inset-0 bg-bg-secondary rounded-xl opacity-0 scale-90 transition-all duration-200 ease-out group-hover:opacity-100 group-hover:scale-100 -z-10 pointer-events-none" />
+        <div className={`absolute inset-0 bg-bg-secondary rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none ${isMenuOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'}`} />
+
         {/* Thumbnail Container */}
-        <div className="relative w-full aspect-video bg-bg-secondary rounded-xl overflow-hidden">
+        <div className="relative aspect-video rounded-xl overflow-hidden bg-bg-secondary">
           <img
             src={video.isCustom ? (video.customImage || video.thumbnail) : video.thumbnail}
             alt={video.title}
-            className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+            className={`w-full h-full object-cover transition-transform duration-200 ${isMenuOpen ? 'scale-105' : 'group-hover:scale-105'}`}
+            loading="lazy"
           />
-          <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1 py-0.5 rounded font-medium">
-            {formatDuration(video.duration)}
-          </div>
+
+          {/* Duration Badge */}
+          {video.duration && (
+            <div className="absolute bottom-1.5 right-1.5 bg-black/80 px-1.5 py-0.5 rounded text-xs font-medium text-white">
+              {formatDuration(video.duration)}
+            </div>
+          )}
         </div>
 
-        {/* Info Container */}
+        {/* Info */}
         <div className="flex gap-3 items-start pr-6 relative">
-          {/* Avatar */}
-          <div className="flex-shrink-0">
-            {(video.isCustom && currentChannel?.avatar) ? (
-              <div className="w-9 h-9 rounded-full overflow-hidden bg-bg-secondary">
-                <img src={currentChannel.avatar} alt="" className="w-full h-full object-cover" />
-              </div>
-            ) : video.channelAvatar ? (
-              <div className="w-9 h-9 rounded-full overflow-hidden bg-bg-secondary">
-                <img src={video.channelAvatar} alt="" className="w-full h-full object-cover" />
-              </div>
-            ) : (
-              <div className="w-9 h-9 rounded-full bg-bg-secondary"></div>
-            )}
-          </div>
+          {/* Channel Avatar */}
+          {!playlistId && (
+            <div className="flex-shrink-0">
+              {video.channelAvatar ? (
+                <img src={video.channelAvatar} alt={video.channelTitle} className="w-9 h-9 rounded-full object-cover" />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-bg-secondary" />
+              )}
+            </div>
+          )}
 
-          {/* Text Info */}
-          <div className="flex flex-col gap-1 min-w-0 flex-1">
-            <h3 className="m-0 text-base font-bold text-text-primary line-clamp-2 leading-snug">
+          <div className="flex flex-col flex-1 min-w-0">
+            <h3 className="text-base font-bold text-text-primary line-clamp-2 leading-tight mb-1">
               {video.title}
             </h3>
             <div className="text-sm text-text-secondary flex flex-col">
               <div className="hover:text-text-primary transition-colors">
-                {(video.isCustom && currentChannel) ? (
-                  currentChannel.name
+                {(video.isCustom) ? (
+                  video.channelTitle
                 ) : video.channelId ? (
                   <a
                     href={`https://www.youtube.com/channel/${video.channelId}`}
@@ -166,7 +183,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                 )}
               </div>
               <div>
-                {video.viewCount ? `${formatViewCount(video.viewCount)} views` : ''} • {new Date(video.publishedAt).toLocaleDateString()}
+                {video.viewCount ? `${video.viewCount} views` : ''} • {new Date(video.publishedAt).toLocaleDateString()}
               </div>
             </div>
           </div>
@@ -175,40 +192,41 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
           <div className="absolute top-0 right-0">
             <button
               ref={menuButtonRef}
-              className="bg-transparent border-none p-2 rounded-full cursor-pointer text-text-primary opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-hover-bg"
-              onClick={handleMenuClick}
+              onClick={handleMenuOpen}
+              className={`p-2 rounded-full hover:bg-hover-bg text-text-primary transition-opacity ${isMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
             >
               <MoreVertical size={20} />
             </button>
 
             <VideoCardMenu
-              isOpen={showMenu}
-              onClose={handleCloseMenu}
-              anchorEl={menuButtonRef.current}
+              isOpen={isMenuOpen}
+              onClose={handleMenuClose}
+              anchorEl={menuAnchor}
               playlistId={playlistId}
               isCustom={video.isCustom}
               onAddToPlaylist={handleAddToPlaylist}
               onEdit={handleUpdate}
               onRemove={handleRemove}
+              onSync={!video.isCustom ? handleSync : undefined}
+              isSyncing={isSyncing}
             />
           </div>
         </div>
       </div>
 
-      {showEditModal && video.isCustom && (
+      {/* Custom Video Edit Modal */}
+      {showEditModal && (
         <CustomVideoModal
           isOpen={showEditModal}
           onClose={() => setShowEditModal(false)}
-          onSave={(updatedVideo) => {
-            updateVideo(video.id, updatedVideo);
-            setShowEditModal(false);
-          }}
+          onSave={handleSaveCustomVideo}
           initialData={video}
         />
       )}
 
+      {/* Playlist Selection Modal */}
       {showPlaylistModal && (
-        <AddToPlaylistModal
+        <PlaylistSelectionModal
           onClose={() => setShowPlaylistModal(false)}
           videoId={video.id}
         />
@@ -217,11 +235,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
       {/* Confirmation Modal */}
       <ConfirmationModal
         isOpen={confirmation.isOpen}
-        onClose={() => setConfirmation({ ...confirmation, isOpen: false })}
-        onConfirm={handleConfirm}
         title={confirmation.title}
         message={confirmation.message}
-        confirmLabel={confirmation.action === 'removeFromPlaylist' ? 'Remove' : 'Delete'}
+        onConfirm={confirmation.onConfirm}
+        onClose={() => setConfirmation(prev => ({ ...prev, isOpen: false }))}
+        confirmLabel="Confirm"
       />
     </>
   );
