@@ -1,8 +1,9 @@
+
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MoreVertical } from 'lucide-react';
+import { MoreVertical, Play, Clock, Info } from 'lucide-react';
 import type { VideoDetails } from '../../utils/youtubeApi';
-import { formatDuration } from '../../utils/formatUtils';
+import { formatDuration, formatViewCount } from '../../utils/formatUtils';
 import { useVideo } from '../../context/VideoContext';
 import { VideoCardMenu } from './VideoCardMenu';
 import { CustomVideoModal } from './CustomVideoModal';
@@ -53,11 +54,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
       const h = Math.floor(seconds / 3600);
       const m = Math.floor((seconds % 3600) / 60);
       const s = seconds % 60;
-      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')} `;
     }
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
+    return `${m}:${s.toString().padStart(2, '0')} `;
   };
 
   const [confirmation, setConfirmation] = useState<{
@@ -96,9 +97,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
 
   const handleVideoClick = () => {
     if (playlistId) {
-      navigate(`/watch/${video.id}?list=${playlistId}`);
+      navigate(`/ watch / ${video.id}?list = ${playlistId} `);
     } else {
-      navigate(`/watch/${video.id}`);
+      navigate(`/ watch / ${video.id} `);
     }
   };
 
@@ -116,7 +117,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
       setConfirmation({
         isOpen: true,
         title: 'Remove from playlist?',
-        message: `Are you sure you want to remove "${video.title}" from this playlist?`,
+        message: `Are you sure you want to remove "${video.title}" from this playlist ? `,
         onConfirm: () => {
           removeVideoFromPlaylist(playlistId, video.id);
           setConfirmation(prev => ({ ...prev, isOpen: false }));
@@ -126,7 +127,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
       setConfirmation({
         isOpen: true,
         title: 'Delete video?',
-        message: `Are you sure you want to delete "${video.title}"? This cannot be undone.`,
+        message: `Are you sure you want to delete "${video.title}" ? This cannot be undone.`,
         onConfirm: () => {
           onRemove(video.id);
           setConfirmation(prev => ({ ...prev, isOpen: false }));
@@ -164,14 +165,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         onClick={handleVideoClick}
       >
         {/* Hover Substrate */}
-        <div className={`absolute inset-0 rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none ${isMenuOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : 'bg-bg-secondary'}`} />
+        <div className={`absolute inset - 0 rounded - xl transition - all duration - 200 ease - out - z - 10 pointer - events - none ${isMenuOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : 'bg-bg-secondary'} `} />
 
         {/* Thumbnail Container */}
         <div className="relative aspect-video rounded-xl overflow-hidden bg-bg-secondary">
           <img
             src={video.isCustom ? (video.customImage || video.thumbnail) : video.thumbnail}
             alt={video.title}
-            className={`w-full h-full object-cover transition-transform duration-200 ${isMenuOpen ? 'scale-105' : 'group-hover:scale-105'}`}
+            className={`w - full h - full object - cover transition - transform duration - 200 ${isMenuOpen ? 'scale-105' : 'group-hover:scale-105'} `}
             loading="lazy"
           />
 
@@ -200,6 +201,21 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                 <span className="text-[10px] font-bold text-white drop-shadow-md">
                   {formatTimeLeft(timeLeft)}
                 </span>
+              </div>
+            </div>
+          )}
+
+          {/* Cloned Info Icon (Top Right) */}
+          {video.isCloned && (
+            <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <div className="relative group/info">
+                <div className="w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-sm border-none cursor-help">
+                  <Info size={14} />
+                </div>
+                {/* Tooltip */}
+                <div className="absolute right-0 top-full mt-1 bg-black/90 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg border border-white/10 z-20">
+                  {video.customImageName || 'Unknown Filename'}
+                </div>
               </div>
             </div>
           )}
@@ -242,19 +258,19 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                     className="text-inherit no-underline hover:text-text-primary"
                   >
                     {video.channelTitle}
-                  </a>
+                  </a >
                 ) : (
                   video.channelTitle
                 )}
-              </div>
+              </div >
               <div>
-                {video.viewCount ? `${video.viewCount} views` : ''} • {new Date(video.publishedAt).toLocaleDateString()}
+                {video.viewCount ? `${formatViewCount(video.viewCount)} views` : ''} • {new Date(video.publishedAt).toLocaleDateString()}
               </div>
-            </div>
-          </div>
+            </div >
+          </div >
 
           {/* Menu Button */}
-          <div className="absolute top-0 right-0">
+          < div className="absolute top-0 right-0" >
             <button
               ref={menuButtonRef}
               onClick={handleMenuOpen}
@@ -275,28 +291,32 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
               onSync={!video.isCustom ? handleSync : undefined}
               isSyncing={isSyncing}
             />
-          </div>
-        </div>
-      </div>
+          </div >
+        </div >
+      </div >
 
       {/* Custom Video Edit Modal */}
-      {showEditModal && (
-        <CustomVideoModal
-          isOpen={showEditModal}
-          onClose={() => setShowEditModal(false)}
-          onSave={handleSaveCustomVideo}
-          onClone={handleCloneVideo}
-          initialData={video}
-        />
-      )}
+      {
+        showEditModal && (
+          <CustomVideoModal
+            isOpen={showEditModal}
+            onClose={() => setShowEditModal(false)}
+            onSave={handleSaveCustomVideo}
+            onClone={handleCloneVideo}
+            initialData={video}
+          />
+        )
+      }
 
       {/* Playlist Selection Modal */}
-      {showPlaylistModal && (
-        <PlaylistSelectionModal
-          onClose={() => setShowPlaylistModal(false)}
-          videoId={video.id}
-        />
-      )}
+      {
+        showPlaylistModal && (
+          <PlaylistSelectionModal
+            onClose={() => setShowPlaylistModal(false)}
+            videoId={video.id}
+          />
+        )
+      }
 
       {/* Confirmation Modal */}
       <ConfirmationModal

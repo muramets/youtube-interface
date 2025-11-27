@@ -61,6 +61,8 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
                 <ChevronRight size={20} />
             </div>
 
+
+
             <div
                 className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-hover-bg text-sm"
                 onClick={() => {
@@ -80,7 +82,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
     const renderAppearanceView = () => (
         <>
             <div
-                className="flex items-center gap-3 px-4 py-2 border-b border-border mb-2 cursor-pointer hover:bg-hover-bg"
+                className="flex items-center gap-3 px-4 py-2 border-b border-border mb-2 cursor-pointer"
                 onClick={() => setMenuView('main')}
             >
                 <ArrowLeft size={20} />
@@ -116,7 +118,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
     const renderSyncView = () => (
         <>
             <div
-                className="flex items-center gap-3 px-4 py-2 border-b border-border mb-2 cursor-pointer hover:bg-hover-bg"
+                className="flex items-center gap-3 px-4 py-2 border-b border-border mb-2 cursor-pointer"
                 onClick={() => setMenuView('main')}
             >
                 <ArrowLeft size={20} />
@@ -273,7 +275,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
     const renderApiKeyView = () => (
         <>
             <div
-                className="flex items-center gap-3 px-4 py-2 border-b border-border mb-2 cursor-pointer hover:bg-hover-bg"
+                className="flex items-center gap-3 px-4 py-2 border-b border-border mb-2 cursor-pointer"
                 onClick={() => setMenuView('main')}
             >
                 <ArrowLeft size={20} />
@@ -304,7 +306,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
     const renderCloneView = () => (
         <>
             <div
-                className="flex items-center gap-3 px-4 py-2 border-b border-border mb-2 cursor-pointer hover:bg-hover-bg"
+                className="flex items-center gap-3 px-4 py-2 border-b border-border mb-2 cursor-pointer"
                 onClick={() => setMenuView('main')}
             >
                 <ArrowLeft size={20} />
@@ -432,6 +434,8 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
             </div>
         </>
     );
+
+
 
     return (
         <Dropdown

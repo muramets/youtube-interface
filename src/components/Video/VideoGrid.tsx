@@ -25,7 +25,13 @@ interface SortableVideoCardProps {
 }
 
 // Helper component for sortable item
-const SortableVideoCard = ({ video }: SortableVideoCardProps) => {
+interface SortableVideoCardProps {
+  video: any;
+  onRemove: (id: string) => void;
+}
+
+// Helper component for sortable item
+const SortableVideoCard = ({ video, onRemove }: SortableVideoCardProps) => {
   const {
     attributes,
     listeners,
@@ -44,7 +50,7 @@ const SortableVideoCard = ({ video }: SortableVideoCardProps) => {
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <VideoCard video={video} />
+      <VideoCard video={video} onRemove={onRemove} />
     </div>
   );
 };
@@ -60,7 +66,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
   onVideoMove,
   disableChannelFilter = false
 }) => {
-  const { videos: contextVideos, cardsPerRow, selectedChannel, playlists, hiddenPlaylistIds, moveVideo, searchQuery, homeSortBy } = useVideo();
+  const { videos: contextVideos, cardsPerRow, selectedChannel, playlists, hiddenPlaylistIds, moveVideo, searchQuery, homeSortBy, removeVideo } = useVideo();
   const { currentChannel } = useChannel();
 
   const sensors = useSensors(
@@ -194,14 +200,14 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
           >
             {filteredVideos.map((video) => (
               <div key={video.id} className="min-w-0">
-                <SortableVideoCard video={video} />
+                <SortableVideoCard video={video} onRemove={removeVideo} />
               </div>
             ))}
           </SortableContext>
         ) : (
           filteredVideos.map((video) => (
             <div key={video.id} className="min-w-0">
-              <VideoCard video={video} />
+              <VideoCard video={video} onRemove={removeVideo} />
             </div>
           ))
         )}

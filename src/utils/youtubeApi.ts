@@ -25,6 +25,8 @@ export interface VideoDetails {
     isCloned?: boolean;
     expiresAt?: number;
     clonedFromId?: string;
+    fileVersionMap?: Record<string, number>;
+    historyCount?: number;
 }
 
 export interface VideoNote {

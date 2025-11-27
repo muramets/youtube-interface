@@ -38,7 +38,7 @@ export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, pla
 
     return (
         <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-            <VideoCard video={video} playlistId={playlistId} onMenuOpenChange={onMenuOpenChange} />
+            <VideoCard video={video} playlistId={playlistId} onMenuOpenChange={onMenuOpenChange} onRemove={() => { }} />
         </div>
     );
 };

@@ -1,5 +1,6 @@
+
 import React, { useState, useRef } from 'react';
-import { MoreVertical } from 'lucide-react';
+import { MoreVertical, Play, Clock, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useVideo } from '../../context/VideoContext';
 import type { VideoDetails } from '../../utils/youtubeApi';
@@ -49,20 +50,20 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
             const h = Math.floor(seconds / 3600);
             const m = Math.floor((seconds % 3600) / 60);
             const s = seconds % 60;
-            return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')} `;
         }
         const m = Math.floor(seconds / 60);
         const s = seconds % 60;
-        return `${m}:${s.toString().padStart(2, '0')}`;
+        return `${m}:${s.toString().padStart(2, '0')} `;
     };
 
     const menuButtonRef = useRef<HTMLButtonElement>(null);
 
     const handleVideoClick = () => {
         if (playlistId) {
-            navigate(`/watch/${video.id}?list=${playlistId}`);
+            navigate(`/ watch / ${video.id}?list = ${playlistId} `);
         } else {
-            navigate(`/watch/${video.id}`);
+            navigate(`/ watch / ${video.id} `);
         }
     };
 
@@ -138,7 +139,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                 onClick={handleVideoClick}
             >
                 {/* Hover Substrate */}
-                <div className={`absolute inset-0 rounded-lg transition-opacity duration-200 pointer-events-none opacity-0 group-hover:opacity-100 ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : 'bg-hover-bg'}`} />
+                <div className={`absolute inset - 0 rounded - lg transition - opacity duration - 200 pointer - events - none opacity - 0 group - hover: opacity - 100 ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : 'bg-hover-bg'} `} />
                 {/* Thumbnail Container */}
                 <div className="relative w-[168px] h-[94px] flex-shrink-0 bg-bg-secondary rounded-lg overflow-hidden">
                     <img
@@ -172,6 +173,21 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                                 <span className="text-[8px] font-bold text-white drop-shadow-md">
                                     {formatTimeLeft(timeLeft)}
                                 </span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Cloned Info Icon (Top Right) */}
+                    {video.isCloned && (
+                        <div className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <div className="relative group/info">
+                                <div className="w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-sm border-none cursor-help">
+                                    <Info size={12} />
+                                </div>
+                                {/* Tooltip */}
+                                <div className="absolute right-0 top-full mt-1 bg-black/90 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg border border-white/10 z-20">
+                                    {video.customImageName || 'Unknown Filename'}
+                                </div>
                             </div>
                         </div>
                     )}
@@ -221,8 +237,8 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                 <CustomVideoModal
                     isOpen={showEditModal}
                     onClose={() => setShowEditModal(false)}
-                    onSave={(updatedVideo) => {
-                        updateVideo(video.id, updatedVideo);
+                    onSave={async (updatedVideo) => {
+                        await updateVideo(video.id, updatedVideo);
                         setShowEditModal(false);
                     }}
                     initialData={video}

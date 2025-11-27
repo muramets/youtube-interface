@@ -3,12 +3,13 @@ import { createPortal } from 'react-dom';
 import { X, Image as ImageIcon, Trash2, Info, ArrowUp, ChevronLeft, ChevronRight, Copy } from 'lucide-react';
 import type { VideoDetails } from '../../utils/youtubeApi';
 import { useChannel } from '../../context/ChannelContext';
+import { useVideo } from '../../context/VideoContext';
 import { resizeImage } from '../../utils/imageUtils';
 
 interface CustomVideoModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (video: Omit<VideoDetails, 'id'>) => void;
+    onSave: (video: Omit<VideoDetails, 'id'>) => Promise<string | void>;
     onClone?: (video: VideoDetails, version: CoverVersion) => void;
     initialData?: VideoDetails;
 }
@@ -26,6 +27,9 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
     const [duration, setDuration] = useState('');
     const [coverImage, setCoverImage] = useState<string | null>(null);
     const [coverHistory, setCoverHistory] = useState<CoverVersion[]>([]);
+    const [deletedHistoryIds, setDeletedHistoryIds] = useState<Set<number>>(new Set());
+    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const modalRef = useRef<HTMLDivElement>(null);
@@ -34,6 +38,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
     const [currentOriginalName, setCurrentOriginalName] = useState<string>('Original Cover');
     const [currentVersion, setCurrentVersion] = useState<number>(1);
     const [highestVersion, setHighestVersion] = useState<number>(1);
+    const [fileVersionMap, setFileVersionMap] = useState<Record<string, number>>({});
 
     // Scrolling Refs & State
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -71,33 +76,79 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                 setViewCount(initialData.viewCount || '');
                 setDuration(initialData.duration || '');
                 setCoverImage(initialData.customImage || initialData.thumbnail);
-                setCoverHistory(initialData.coverHistory || []);
                 setCurrentOriginalName(initialData.customImageName || 'Original Cover');
+                setCoverHistory([]); // Clear previous history immediately
 
                 // Initialize versioning
                 const savedCurrentVersion = initialData.customImageVersion || 1;
-                // Calculate highest version seen so far to ensure we never reuse numbers
-                // It should be at least the current version, or the max of history, or 1.
-                const historyMax = initialData.coverHistory && initialData.coverHistory.length > 0
-                    ? Math.max(...initialData.coverHistory.map(v => v.version))
-                    : 0;
-
-                const savedHighestVersion = initialData.highestVersion || Math.max(savedCurrentVersion, historyMax);
+                // If we have a custom image, highest is at least 1. If not, it's 0.
+                const hasCustomImage = !!initialData.customImage;
+                const savedHighestVersion = initialData.highestVersion || (hasCustomImage ? 1 : 0);
+                const savedFileVersionMap = initialData.fileVersionMap || {};
 
                 setCurrentVersion(savedCurrentVersion);
                 setHighestVersion(savedHighestVersion);
+                setFileVersionMap(savedFileVersionMap);
+
+                // Load History
+                const loadHistory = async () => {
+                    if (initialData.id && !initialData.id.startsWith('custom-')) {
+                        // For real videos, we might store history differently or not at all yet.
+                        // But if it's a custom video (or we treat all edited videos as custom-ish), we fetch.
+                        // Actually, our data model says 'isCustom' for manually added ones.
+                        // But we also edit real videos.
+                        // Let's try to fetch history for any video ID.
+                        setIsLoadingHistory(true);
+                        try {
+                            const history = await fetchVideoHistory(initialData.id);
+                            setCoverHistory(history);
+                        } catch (error) {
+                            console.error("Failed to load history:", error);
+                        } finally {
+                            setIsLoadingHistory(false);
+                        }
+                    } else if (initialData.id) {
+                        // It is a custom video
+                        // Only show loader if we expect history.
+                        // Prefer historyCount if available, otherwise fallback to highestVersion heuristic.
+                        const hasHistoryCount = typeof initialData.historyCount === 'number';
+                        const shouldShowLoader = hasHistoryCount
+                            ? (initialData.historyCount! > 0)
+                            : (initialData.highestVersion || 1) > 1;
+
+                        if (shouldShowLoader) {
+                            setIsLoadingHistory(true);
+                        }
+
+                        try {
+                            const history = await fetchVideoHistory(initialData.id);
+                            setCoverHistory(history);
+                        } catch (error) {
+                            console.error("Failed to load history:", error);
+                        } finally {
+                            if (shouldShowLoader) {
+                                setIsLoadingHistory(false);
+                            }
+                        }
+                    }
+                };
+                loadHistory();
+
             } else {
                 setTitle('');
                 setViewCount('');
                 setDuration('');
                 setCoverImage(null);
                 setCoverHistory([]);
+                setDeletedHistoryIds(new Set());
                 setCurrentOriginalName('Original Cover');
                 setCurrentVersion(1);
-                setHighestVersion(1);
+                setHighestVersion(0);
+                setFileVersionMap({});
             }
         }
-    }, [isOpen, initialData]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen]);
 
     useEffect(() => {
         if (isOpen) {
@@ -118,7 +169,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                 const resizedImage = await resizeImage(file, 800, 0.8);
 
                 if (coverImage) {
-                    // Move current to history
+                    // Move current to history (Optimistic update)
                     const historyVersion: CoverVersion = {
                         url: coverImage,
                         version: currentVersion,
@@ -126,18 +177,35 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                         originalName: currentOriginalName
                     };
                     setCoverHistory(prev => [historyVersion, ...prev]);
+
+                    // We don't save to DB here immediately, we wait for "Save" button.
+                    // BUT, if we want robust history, maybe we should?
+                    // The user expectation is "Save" commits changes.
+                    // So we keep it in local state until Save is clicked.
+                    // However, for the subcollection refactor, we need to know WHICH items are new to save them.
+                    // Or we just save the 'previous' current image to history when Save is clicked.
                 }
 
                 // Set new image as current
                 setCoverImage(resizedImage);
                 setCurrentOriginalName(file.name);
 
-                // Increment version ONLY if we are replacing an existing image
-                if (coverImage) {
-                    const newVersion = highestVersion + 1;
-                    setCurrentVersion(newVersion);
+                // Determine Version
+                const fileKey = `${file.name}-${file.size}`;
+                let newVersion: number;
+
+                if (fileVersionMap[fileKey]) {
+                    // File seen before (same name and size), restore its version
+                    newVersion = fileVersionMap[fileKey];
+                } else {
+                    // New file, assign next available version
+                    newVersion = highestVersion + 1;
+                    // Update map
+                    setFileVersionMap(prev => ({ ...prev, [fileKey]: newVersion }));
+                    // Update highest version
                     setHighestVersion(newVersion);
                 }
+                setCurrentVersion(newVersion);
 
             } catch (error) {
                 console.error('Error resizing image:', error);
@@ -175,6 +243,9 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
             };
             // Add current to history, remove the one being restored from history
             setCoverHistory(prev => [historyVersion, ...prev.filter(v => v.timestamp !== versionToRestore.timestamp)]);
+
+            // Mark the restored version as "deleted" from history (since it's now main)
+            setDeletedHistoryIds(prev => new Set(prev).add(versionToRestore.timestamp));
         }
 
         // Set restored as current
@@ -184,18 +255,24 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
         // Do NOT increment highestVersion
     };
 
-    const handleDeleteVersion = (e: React.MouseEvent, timestamp: number) => {
+    const handleDeleteVersion = async (e: React.MouseEvent, timestamp: number) => {
         e.stopPropagation();
+        // Optimistic update
         setCoverHistory(prev => prev.filter(v => v.timestamp !== timestamp));
+        // Mark for deletion
+        setDeletedHistoryIds(prev => new Set(prev).add(timestamp));
     };
 
     const { currentChannel } = useChannel();
+    const { fetchVideoHistory, saveVideoHistory, deleteVideoHistoryItem } = useVideo();
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!coverImage) {
             alert('Please provide a cover image.');
             return;
         }
+
+        setIsSaving(true);
 
         const videoData: Omit<VideoDetails, 'id'> = {
             title: title || 'Very good playlist for you',
@@ -209,14 +286,38 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
             isCustom: true,
             customImage: coverImage,
             createdAt: initialData?.createdAt,
-            coverHistory: coverHistory,
+            // coverHistory: coverHistory, // No longer saving history in main doc
             customImageName: currentOriginalName,
             customImageVersion: currentVersion,
-            highestVersion: highestVersion
+            highestVersion: highestVersion,
+            fileVersionMap: fileVersionMap,
+            historyCount: coverHistory.length
         };
 
-        onSave(videoData);
-        onClose();
+        try {
+            // 1. Save the main video data
+            const newId = await onSave(videoData);
+            const targetId = initialData?.id || (typeof newId === 'string' ? newId : undefined);
+
+            if (targetId) {
+                // 2. Process Deletions
+                const deletePromises = Array.from(deletedHistoryIds).map(timestamp =>
+                    deleteVideoHistoryItem(targetId, timestamp.toString())
+                );
+                await Promise.all(deletePromises);
+
+                // 3. Save History Items
+                const savePromises = coverHistory.map(item => saveVideoHistory(targetId, item));
+                await Promise.all(savePromises);
+            }
+
+            onClose();
+        } catch (error) {
+            console.error("Failed to save video:", error);
+            alert("Failed to save video. The images might be too large. Try deleting some history versions.");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleBackdropClick = (e: React.MouseEvent) => {
@@ -290,101 +391,113 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                     </div>
 
                     {/* Cover History */}
-                    {coverHistory.length > 0 && (
+                    {(coverHistory.length > 0 || isLoadingHistory) && (
                         <div className="flex flex-col gap-2">
                             <label className="text-xs text-text-secondary uppercase tracking-wider font-bold">Version History</label>
 
-                            <div className="relative w-full group/history">
-                                {showLeftArrow && (
-                                    <div className="absolute left-0 top-0 z-10 flex items-center bg-gradient-to-r from-bg-secondary via-bg-secondary to-transparent pr-8 pl-0 h-full">
-                                        <button
-                                            className="w-8 h-8 rounded-full bg-bg-primary hover:bg-hover-bg flex items-center justify-center border border-border cursor-pointer text-text-primary shadow-sm transition-colors"
-                                            onClick={() => scroll('left')}
-                                        >
-                                            <ChevronLeft size={20} />
-                                        </button>
+                            <div className="relative w-full group/history min-h-[100px]">
+                                {isLoadingHistory ? (
+                                    <div className="flex gap-3 overflow-hidden">
+                                        {[1, 2, 3].map((i) => (
+                                            <div key={i} className="flex-shrink-0 w-36 aspect-video rounded-md bg-bg-secondary border border-border relative overflow-hidden">
+                                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" style={{ backgroundSize: '200% 100%' }}></div>
+                                            </div>
+                                        ))}
                                     </div>
-                                )}
+                                ) : (
+                                    <>
+                                        {showLeftArrow && (
+                                            <div className="absolute left-0 top-0 z-10 flex items-center bg-gradient-to-r from-bg-secondary via-bg-secondary to-transparent pr-8 pl-0 h-full">
+                                                <button
+                                                    className="w-8 h-8 rounded-full bg-bg-primary hover:bg-hover-bg flex items-center justify-center border border-border cursor-pointer text-text-primary shadow-sm transition-colors"
+                                                    onClick={() => scroll('left')}
+                                                >
+                                                    <ChevronLeft size={20} />
+                                                </button>
+                                            </div>
+                                        )}
 
-                                <div
-                                    ref={scrollContainerRef}
-                                    className="flex gap-3 overflow-x-auto scrollbar-hide"
-                                    onWheel={handleWheel}
-                                >
-                                    {coverHistory.map((version) => (
                                         <div
-                                            key={version.timestamp}
-                                            className="flex-shrink-0 w-36 group relative"
+                                            ref={scrollContainerRef}
+                                            className="flex gap-3 overflow-x-auto scrollbar-hide"
+                                            onWheel={handleWheel}
                                         >
-                                            {/* Removed overflow-hidden from parent to allow tooltip to pop out */}
-                                            <div className="aspect-video border border-border relative rounded-md">
-                                                <img src={version.url} alt={`v.${version.version}`} className="w-full h-full object-cover opacity-70 group-hover:opacity-40 transition-all duration-300 rounded-md" />
+                                            {coverHistory.map((version) => (
+                                                <div
+                                                    key={version.timestamp}
+                                                    className="flex-shrink-0 w-36 group relative"
+                                                >
+                                                    {/* Removed overflow-hidden from parent to allow tooltip to pop out */}
+                                                    <div className="aspect-video border border-border relative rounded-md">
+                                                        <img src={version.url} alt={`v.${version.version}`} className="w-full h-full object-cover opacity-70 group-hover:opacity-40 transition-all duration-300 rounded-md" />
 
-                                                {/* Overlay Buttons */}
-                                                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-between p-2 rounded-md">
-                                                    <div className="flex justify-between w-full">
-                                                        {/* Info Button (Top Left) */}
-                                                        <div className="relative group/info">
-                                                            <button className="w-6 h-6 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-sm transition-colors border-none cursor-pointer">
-                                                                <Info size={12} />
-                                                            </button>
-                                                            {/* Tooltip */}
-                                                            <div className="absolute left-0 top-full mt-1 bg-black/90 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 whitespace-normal min-w-[120px] max-w-[200px] break-words shadow-lg border border-white/10">
-                                                                {version.originalName || 'Unknown Filename'}
+                                                        {/* Overlay Buttons */}
+                                                        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-between p-2 rounded-md">
+                                                            <div className="flex justify-between w-full">
+                                                                {/* Info Button (Top Left) */}
+                                                                <div className="relative group/info">
+                                                                    <button className="w-6 h-6 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-sm transition-colors border-none cursor-pointer">
+                                                                        <Info size={12} />
+                                                                    </button>
+                                                                    {/* Tooltip */}
+                                                                    <div className="absolute left-0 top-full mt-1 bg-black/90 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover/info:opacity-100 transition-opacity pointer-events-none z-50 whitespace-normal min-w-[120px] max-w-[200px] break-words shadow-lg border border-white/10">
+                                                                        {version.originalName || 'Unknown Filename'}
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Delete Button (Top Right) */}
+                                                                <button
+                                                                    onClick={(e) => handleDeleteVersion(e, version.timestamp)}
+                                                                    className="w-6 h-6 rounded-full bg-red-500/80 hover:bg-red-600 text-white flex items-center justify-center backdrop-blur-sm transition-colors border-none cursor-pointer"
+                                                                    title="Delete Version"
+                                                                >
+                                                                    <Trash2 size={12} />
+                                                                </button>
+                                                            </div>
+
+                                                            {/* Make Main Button (Center) */}
+                                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none gap-2">
+                                                                <button
+                                                                    onClick={() => handleRestoreVersion(version)}
+                                                                    className="w-8 h-8 rounded-full bg-[#3ea6ff]/90 hover:bg-[#3ea6ff] text-black flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border-none cursor-pointer pointer-events-auto"
+                                                                    title="Set as Main Cover"
+                                                                >
+                                                                    <ArrowUp size={18} strokeWidth={3} />
+                                                                </button>
+                                                                {onClone && initialData && (
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            onClone(initialData, version);
+                                                                        }}
+                                                                        className="w-8 h-8 rounded-full bg-green-500/90 hover:bg-green-600 text-white flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border-none cursor-pointer pointer-events-auto"
+                                                                        title="Clone as a New Temporary Video"
+                                                                    >
+                                                                        <Copy size={16} strokeWidth={2.5} />
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         </div>
-
-                                                        {/* Delete Button (Top Right) */}
-                                                        <button
-                                                            onClick={(e) => handleDeleteVersion(e, version.timestamp)}
-                                                            className="w-6 h-6 rounded-full bg-red-500/80 hover:bg-red-600 text-white flex items-center justify-center backdrop-blur-sm transition-colors border-none cursor-pointer"
-                                                            title="Delete Version"
-                                                        >
-                                                            <Trash2 size={12} />
-                                                        </button>
                                                     </div>
-
-                                                    {/* Make Main Button (Center) */}
-                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none gap-2">
-                                                        <button
-                                                            onClick={() => handleRestoreVersion(version)}
-                                                            className="w-8 h-8 rounded-full bg-[#3ea6ff]/90 hover:bg-[#3ea6ff] text-black flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border-none cursor-pointer pointer-events-auto"
-                                                            title="Set as Main Cover"
-                                                        >
-                                                            <ArrowUp size={18} strokeWidth={3} />
-                                                        </button>
-                                                        {onClone && initialData && (
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    onClone(initialData, version);
-                                                                }}
-                                                                className="w-8 h-8 rounded-full bg-green-500/90 hover:bg-green-600 text-white flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border-none cursor-pointer pointer-events-auto"
-                                                                title="Clone as a New Temporary Video"
-                                                            >
-                                                                <Copy size={16} strokeWidth={2.5} />
-                                                            </button>
-                                                        )}
+                                                    <div className="flex justify-between items-center mt-1 px-1">
+                                                        <span className="text-xs text-text-secondary font-medium">v.{version.version}</span>
+                                                        <span className="text-[10px] text-text-secondary">{new Date(version.timestamp).toLocaleDateString()}</span>
                                                     </div>
                                                 </div>
-                                            </div>
-                                            <div className="flex justify-between items-center mt-1 px-1">
-                                                <span className="text-xs text-text-secondary font-medium">v.{version.version}</span>
-                                                <span className="text-[10px] text-text-secondary">{new Date(version.timestamp).toLocaleDateString()}</span>
-                                            </div>
+                                            ))}
                                         </div>
-                                    ))}
-                                </div>
 
-                                {showRightArrow && (
-                                    <div className="absolute right-0 top-0 z-10 flex items-center bg-gradient-to-l from-bg-secondary via-bg-secondary to-transparent pl-8 pr-0 h-full">
-                                        <button
-                                            className="w-8 h-8 rounded-full bg-bg-primary hover:bg-hover-bg flex items-center justify-center border border-border cursor-pointer text-text-primary shadow-sm transition-colors"
-                                            onClick={() => scroll('right')}
-                                        >
-                                            <ChevronRight size={20} />
-                                        </button>
-                                    </div>
+                                        {showRightArrow && (
+                                            <div className="absolute right-0 top-0 z-10 flex items-center bg-gradient-to-l from-bg-secondary via-bg-secondary to-transparent pl-8 pr-0 h-full">
+                                                <button
+                                                    className="w-8 h-8 rounded-full bg-bg-primary hover:bg-hover-bg flex items-center justify-center border border-border cursor-pointer text-text-primary shadow-sm transition-colors"
+                                                    onClick={() => scroll('right')}
+                                                >
+                                                    <ChevronRight size={20} />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         </div>
@@ -438,9 +551,13 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                         </button>
                         <button
                             onClick={handleSave}
-                            className="px-4 py-2 rounded-full border-none bg-[#3ea6ff] text-black cursor-pointer font-bold hover:bg-[#3ea6ff]/90 transition-colors"
+                            disabled={isSaving}
+                            className={`px-4 py-2 rounded-full border-none text-black cursor-pointer font-bold transition-all relative overflow-hidden ${isSaving ? 'bg-[#3ea6ff]/70 cursor-wait' : 'bg-[#3ea6ff] hover:bg-[#3ea6ff]/90'}`}
                         >
-                            Save
+                            {isSaving && (
+                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" style={{ backgroundSize: '200% 100%' }}></div>
+                            )}
+                            <span className="relative z-10">Save</span>
                         </button>
                     </div>
                 </div>

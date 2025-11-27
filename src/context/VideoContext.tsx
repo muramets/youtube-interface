@@ -37,7 +37,7 @@ interface VideoContextType {
     selectedChannel: string;
     setSelectedChannel: (channel: string) => void;
     uniqueChannels: string[];
-    addCustomVideo: (video: Omit<VideoDetails, 'id'>) => void;
+    addCustomVideo: (video: Omit<VideoDetails, 'id'>) => Promise<string | undefined>;
     recommendationOrders: Record<string, string[]>;
     updateRecommendationOrder: (videoId: string, newOrder: string[]) => void;
     playlists: Playlist[];
@@ -63,6 +63,9 @@ interface VideoContextType {
     cloneSettings: { cloneDurationSeconds: number };
     updateCloneSettings: (settings: { cloneDurationSeconds: number }) => void;
     cloneVideo: (originalVideo: VideoDetails, coverVersion: any) => Promise<void>;
+    fetchVideoHistory: (videoId: string) => Promise<any[]>;
+    saveVideoHistory: (videoId: string, historyItem: any) => Promise<void>;
+    deleteVideoHistoryItem: (videoId: string, historyId: string) => Promise<void>;
 }
 
 const VideoContext = createContext<VideoContextType | undefined>(undefined);
@@ -331,7 +334,13 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const removeVideo = async (id: string) => {
         if (!user || !currentChannel) return;
 
-        // Delete from videos collection
+        // 1. Delete History Subcollection
+        const historyRef = collection(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${id}/history`);
+        const historySnapshot = await import('firebase/firestore').then(mod => mod.getDocs(historyRef));
+        const deleteHistoryPromises = historySnapshot.docs.map(doc => deleteDoc(doc.ref));
+        await Promise.all(deleteHistoryPromises);
+
+        // 2. Delete from videos collection
         await deleteDoc(doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${id}`));
 
         // Update Order
@@ -369,6 +378,8 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const orderRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/videoOrder`);
         const newOrder = [id, ...videoOrder];
         await setDoc(orderRef, { order: newOrder }, { merge: true });
+
+        return id;
     };
 
     const updateVideo = async (id: string, customUpdates?: Partial<VideoDetails>): Promise<boolean> => {
@@ -582,6 +593,30 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const orderRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/videoOrder`);
         const newOrder = [id, ...videoOrder];
         await setDoc(orderRef, { order: newOrder }, { merge: true });
+        await setDoc(orderRef, { order: newOrder }, { merge: true });
+    };
+
+    // History Subcollection Logic
+    const fetchVideoHistory = async (videoId: string) => {
+        if (!user || !currentChannel) return [];
+        const historyRef = collection(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${videoId}/history`);
+        const q = query(historyRef, orderBy('timestamp', 'desc'));
+        const snapshot = await import('firebase/firestore').then(mod => mod.getDocs(q));
+        return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+    };
+
+    const saveVideoHistory = async (videoId: string, historyItem: any) => {
+        if (!user || !currentChannel) return;
+        // Use timestamp as ID for easy sorting/deduping, or auto-id
+        const historyId = historyItem.timestamp.toString();
+        const historyRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${videoId}/history/${historyId}`);
+        await setDoc(historyRef, historyItem);
+    };
+
+    const deleteVideoHistoryItem = async (videoId: string, historyId: string) => {
+        if (!user || !currentChannel) return;
+        const historyDocRef = doc(db, `users / ${user.uid} /channels/${currentChannel.id} /videos/${videoId} /history/${historyId} `);
+        await deleteDoc(historyDocRef);
     };
 
     // Auto-delete expired clones
@@ -627,7 +662,7 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                         ...details, // Overwrite with fresh API data
                         lastUpdated: now
                     };
-                    const videoRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${video.id}`);
+                    const videoRef = doc(db, `users / ${user.uid} /channels/${currentChannel.id} /videos/${video.id} `);
                     await updateDoc(videoRef, updatedVideo as any);
                 }
                 // Add a small delay to avoid hitting rate limits too hard if many videos
@@ -652,7 +687,7 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     ...details, // Overwrite with fresh API data
                     lastUpdated: Date.now()
                 };
-                const videoRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${videoId}`);
+                const videoRef = doc(db, `users / ${user.uid} /channels/${currentChannel.id} /videos/${videoId} `);
                 await updateDoc(videoRef, updatedVideo as any);
             }
         } catch (error) {
@@ -719,7 +754,10 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             syncSingleVideo,
             cloneSettings,
             updateCloneSettings,
-            cloneVideo
+            cloneVideo,
+            fetchVideoHistory,
+            saveVideoHistory,
+            deleteVideoHistoryItem
         }}>
             {children}
         </VideoContext.Provider>
