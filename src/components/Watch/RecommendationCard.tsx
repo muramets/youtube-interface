@@ -27,6 +27,34 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
         title: string;
         message: string;
     }>({ isOpen: false, action: null, title: '', message: '' });
+    const [timeLeft, setTimeLeft] = useState<number>(0);
+
+    // Timer for cloned videos
+    React.useEffect(() => {
+        if (video.isCloned && video.expiresAt) {
+            const updateTimer = () => {
+                const now = Date.now();
+                const remaining = Math.max(0, Math.ceil((video.expiresAt! - now) / 1000));
+                setTimeLeft(remaining);
+            };
+
+            updateTimer();
+            const interval = setInterval(updateTimer, 1000);
+            return () => clearInterval(interval);
+        }
+    }, [video.isCloned, video.expiresAt]);
+
+    const formatTimeLeft = (seconds: number) => {
+        if (seconds >= 3600) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = seconds % 60;
+            return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${m}:${s.toString().padStart(2, '0')}`;
+    };
 
     const menuButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -106,9 +134,11 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
     return (
         <>
             <div
-                className="flex gap-2 cursor-pointer group p-2 rounded-lg hover:bg-hover-bg relative"
+                className="flex gap-2 cursor-pointer group p-2 rounded-lg relative"
                 onClick={handleVideoClick}
             >
+                {/* Hover Substrate */}
+                <div className={`absolute inset-0 rounded-lg transition-opacity duration-200 pointer-events-none opacity-0 group-hover:opacity-100 ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : 'bg-hover-bg'}`} />
                 {/* Thumbnail Container */}
                 <div className="relative w-[168px] h-[94px] flex-shrink-0 bg-bg-secondary rounded-lg overflow-hidden">
                     <img
@@ -116,6 +146,36 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                         alt={video.title}
                         className="w-full h-full object-cover"
                     />
+
+                    {/* Cloned Timer Overlay */}
+                    {video.isCloned && (
+                        <div className="absolute top-1 left-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <div className="relative w-8 h-8 flex items-center justify-center">
+                                {/* SVG Circle for Timer */}
+                                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 36 36">
+                                    <path
+                                        className="text-black/50"
+                                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="4"
+                                    />
+                                    <path
+                                        className="text-white drop-shadow-md transition-all duration-1000 ease-linear"
+                                        strokeDasharray={`${(timeLeft / (video.expiresAt ? (video.expiresAt - video.createdAt!) / 1000 : 60)) * 100}, 100`}
+                                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="4"
+                                    />
+                                </svg>
+                                <span className="text-[8px] font-bold text-white drop-shadow-md">
+                                    {formatTimeLeft(timeLeft)}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1 py-0.5 rounded font-medium">
                         {formatDuration(video.duration)}
                     </div>

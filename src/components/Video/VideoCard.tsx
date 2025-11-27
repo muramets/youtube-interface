@@ -22,7 +22,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const {
     removeVideoFromPlaylist,
     syncSingleVideo,
-    updateVideo
+    updateVideo,
+    cloneVideo
   } = useVideo();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -30,6 +31,34 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<number>(0);
+
+  // Timer for cloned videos
+  React.useEffect(() => {
+    if (video.isCloned && video.expiresAt) {
+      const updateTimer = () => {
+        const now = Date.now();
+        const remaining = Math.max(0, Math.ceil((video.expiresAt! - now) / 1000));
+        setTimeLeft(remaining);
+      };
+
+      updateTimer();
+      const interval = setInterval(updateTimer, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [video.isCloned, video.expiresAt]);
+
+  const formatTimeLeft = (seconds: number) => {
+    if (seconds >= 3600) {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
 
   const [confirmation, setConfirmation] = useState<{
     isOpen: boolean;
@@ -121,6 +150,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     setShowEditModal(false);
   };
 
+  const handleCloneVideo = async (originalVideo: VideoDetails, version: any) => {
+    await cloneVideo(originalVideo, version);
+    // Don't close modal, maybe show toast? For now just let it happen.
+    // Or maybe close it? User might want to clone multiple versions.
+    // Let's keep it open.
+  };
+
   return (
     <>
       <div
@@ -128,7 +164,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         onClick={handleVideoClick}
       >
         {/* Hover Substrate */}
-        <div className={`absolute inset-0 bg-bg-secondary rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none ${isMenuOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'}`} />
+        <div className={`absolute inset-0 rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none ${isMenuOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : 'bg-bg-secondary'}`} />
 
         {/* Thumbnail Container */}
         <div className="relative aspect-video rounded-xl overflow-hidden bg-bg-secondary">
@@ -138,6 +174,35 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
             className={`w-full h-full object-cover transition-transform duration-200 ${isMenuOpen ? 'scale-105' : 'group-hover:scale-105'}`}
             loading="lazy"
           />
+
+          {/* Cloned Timer Overlay */}
+          {video.isCloned && (
+            <div className="absolute top-2 left-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <div className="relative w-10 h-10 flex items-center justify-center">
+                {/* SVG Circle for Timer */}
+                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 36 36">
+                  <path
+                    className="text-black/50"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="text-white drop-shadow-md transition-all duration-1000 ease-linear"
+                    strokeDasharray={`${(timeLeft / (video.expiresAt ? (video.expiresAt - video.createdAt!) / 1000 : 60)) * 100}, 100`}
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                </svg>
+                <span className="text-[10px] font-bold text-white drop-shadow-md">
+                  {formatTimeLeft(timeLeft)}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Duration Badge */}
           {video.duration && (
@@ -220,6 +285,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
           isOpen={showEditModal}
           onClose={() => setShowEditModal(false)}
           onSave={handleSaveCustomVideo}
+          onClone={handleCloneVideo}
           initialData={video}
         />
       )}

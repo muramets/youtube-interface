@@ -60,6 +60,9 @@ interface VideoContextType {
     isSyncing: boolean;
     manualSync: () => Promise<void>;
     syncSingleVideo: (videoId: string) => Promise<void>;
+    cloneSettings: { cloneDurationSeconds: number };
+    updateCloneSettings: (settings: { cloneDurationSeconds: number }) => void;
+    cloneVideo: (originalVideo: VideoDetails, coverVersion: any) => Promise<void>;
 }
 
 const VideoContext = createContext<VideoContextType | undefined>(undefined);
@@ -518,6 +521,87 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     };
 
+    // Clone Settings
+    const [cloneSettings, setCloneSettings] = useState<{ cloneDurationSeconds: number }>({
+        cloneDurationSeconds: 60
+    });
+
+    // Load Clone Settings
+    useEffect(() => {
+        if (!user || !currentChannel) return;
+        const settingsRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/clone`);
+        const unsubscribe = onSnapshot(settingsRef, (doc) => {
+            if (doc.exists()) {
+                setCloneSettings(doc.data() as any);
+            } else {
+                setCloneSettings({ cloneDurationSeconds: 60 });
+            }
+        });
+        return () => unsubscribe();
+    }, [user, currentChannel]);
+
+    const updateCloneSettings = async (settings: { cloneDurationSeconds: number }) => {
+        setCloneSettings(settings); // Optimistic
+        if (user && currentChannel) {
+            const settingsRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/clone`);
+            await setDoc(settingsRef, settings, { merge: true });
+        }
+    };
+
+    const cloneVideo = async (originalVideo: VideoDetails, coverVersion: any) => {
+        if (!user || !currentChannel) return;
+        const now = Date.now();
+        const id = `clone-${now}-${Math.random().toString(36).substr(2, 9)}`;
+        const expiresAt = now + (cloneSettings.cloneDurationSeconds * 1000);
+
+        const newVideo: VideoDetails = {
+            ...originalVideo,
+            id,
+            isCustom: true,
+            isCloned: true,
+            clonedFromId: originalVideo.id,
+            createdAt: now,
+            expiresAt,
+            customImage: coverVersion.url,
+            customImageName: coverVersion.originalName,
+            customImageVersion: coverVersion.version,
+            // Reset history for the clone? Or keep it? Let's keep it empty or copy it. 
+            // The user wants a "duplicate version", implying it's a snapshot.
+            // Let's keep the history so they can see it's based on something, but maybe it's not needed.
+            // For now, let's just copy it.
+            coverHistory: originalVideo.coverHistory
+        };
+
+        // 1. Save Video
+        const videoRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${id}`);
+        await setDoc(videoRef, newVideo);
+
+        // 2. Update Order (Insert next to original or at top? User didn't specify, but "cloned version" usually implies proximity.
+        // However, our sort logic puts new videos at top or based on order list.
+        // Let's put it at the top for visibility.
+        const orderRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/videoOrder`);
+        const newOrder = [id, ...videoOrder];
+        await setDoc(orderRef, { order: newOrder }, { merge: true });
+    };
+
+    // Auto-delete expired clones
+    useEffect(() => {
+        const checkExpiration = async () => {
+            const now = Date.now();
+            const expiredVideos = videos.filter(v => v.isCloned && v.expiresAt && v.expiresAt <= now);
+
+            if (expiredVideos.length > 0) {
+                console.log(`Deleting ${expiredVideos.length} expired clones...`);
+                for (const video of expiredVideos) {
+                    await removeVideo(video.id);
+                }
+            }
+        };
+
+        const intervalId = setInterval(checkExpiration, 1000); // Check every second
+        return () => clearInterval(intervalId);
+    }, [videos, removeVideo]);
+
     const syncVideoData = async (force: boolean = false) => {
         if (!user || !currentChannel || !apiKey || isSyncing) return;
 
@@ -525,7 +609,7 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         try {
             const now = Date.now();
             const videosToUpdate = videos.filter(v => {
-                if (v.isCustom) return false; // Don't sync custom videos
+                if (v.isCustom || v.isCloned) return false; // Don't sync custom or cloned videos
                 if (force) return true;
 
                 const lastUpdated = v.lastUpdated || 0;
@@ -632,7 +716,10 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             updateSyncSettings,
             isSyncing,
             manualSync,
-            syncSingleVideo
+            syncSingleVideo,
+            cloneSettings,
+            updateCloneSettings,
+            cloneVideo
         }}>
             {children}
         </VideoContext.Provider>

@@ -100,7 +100,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
     return createPortal(
         <div
             ref={dropdownRef}
-            className={`fixed z-50 bg-bg-secondary rounded-xl border border-border shadow-2xl overflow-hidden animate-scale-in ${className}`}
+            className={`fixed z-50 bg-bg-secondary rounded-xl border border-border shadow-2xl animate-scale-in ${className}`}
             style={{
                 top: position.top,
                 left: position.left,

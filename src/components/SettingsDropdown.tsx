@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronRight, Moon, Sun, Check, ArrowLeft, Key, RefreshCw } from 'lucide-react';
+import { ChevronRight, Moon, Sun, Check, ArrowLeft, Key, RefreshCw, Copy } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useVideo } from '../context/VideoContext';
 import { Dropdown } from './Shared/Dropdown';
@@ -9,13 +9,14 @@ interface SettingsDropdownProps {
     anchorEl: HTMLElement | null;
 }
 
-type MenuView = 'main' | 'appearance' | 'apiKey' | 'sync';
+type MenuView = 'main' | 'appearance' | 'apiKey' | 'sync' | 'clone';
 
 export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anchorEl }) => {
     const { theme, setTheme } = useTheme();
-    const { apiKey, setApiKey, syncSettings, updateSyncSettings, manualSync, isSyncing } = useVideo();
+    const { apiKey, setApiKey, syncSettings, updateSyncSettings, manualSync, isSyncing, cloneSettings, updateCloneSettings } = useVideo();
     const [menuView, setMenuView] = useState<MenuView>('main');
     const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
+    const [isCloneUnitDropdownOpen, setIsCloneUnitDropdownOpen] = useState(false);
     const [tempApiKey, setTempApiKey] = useState(apiKey);
 
     const handleSaveApiKey = () => {
@@ -45,6 +46,17 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
                 <div className="flex items-center gap-3">
                     <RefreshCw size={20} />
                     <span>Sync Settings</span>
+                </div>
+                <ChevronRight size={20} />
+            </div>
+
+            <div
+                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-hover-bg text-sm"
+                onClick={() => setMenuView('clone')}
+            >
+                <div className="flex items-center gap-3">
+                    <Copy size={20} />
+                    <span>Clone Settings</span>
                 </div>
                 <ChevronRight size={20} />
             </div>
@@ -289,6 +301,138 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
         </>
     );
 
+    const renderCloneView = () => (
+        <>
+            <div
+                className="flex items-center gap-3 px-4 py-2 border-b border-border mb-2 cursor-pointer hover:bg-hover-bg"
+                onClick={() => setMenuView('main')}
+            >
+                <ArrowLeft size={20} />
+                <span className="text-sm">Clone Settings</span>
+            </div>
+
+            <div className="p-4 flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                    <span className="text-xs text-text-secondary">Clone Duration</span>
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center bg-bg-primary border border-border rounded-lg p-1 w-24">
+                            <input
+                                type="text"
+                                value={
+                                    cloneSettings.cloneDurationSeconds % 3600 === 0 ? cloneSettings.cloneDurationSeconds / 3600 :
+                                        cloneSettings.cloneDurationSeconds % 60 === 0 ? cloneSettings.cloneDurationSeconds / 60 :
+                                            cloneSettings.cloneDurationSeconds
+                                }
+                                onChange={(e) => {
+                                    const val = parseInt(e.target.value) || 0;
+                                    const unit =
+                                        cloneSettings.cloneDurationSeconds % 3600 === 0 ? 'hours' :
+                                            cloneSettings.cloneDurationSeconds % 60 === 0 ? 'minutes' : 'seconds';
+
+                                    let newSeconds = val;
+                                    if (unit === 'hours') newSeconds = val * 3600;
+                                    else if (unit === 'minutes') newSeconds = val * 60;
+
+                                    updateCloneSettings({ cloneDurationSeconds: Math.max(10, newSeconds) });
+                                }}
+                                className="bg-transparent border-none text-text-primary w-full text-center focus:outline-none font-medium"
+                            />
+                            <div className="flex flex-col border-l border-border pl-1 gap-0.5">
+                                <button
+                                    className="text-text-secondary hover:text-text-primary flex items-center justify-center h-3 w-4 cursor-pointer bg-transparent border-none p-0"
+                                    onClick={() => {
+                                        const currentVal =
+                                            cloneSettings.cloneDurationSeconds % 3600 === 0 ? cloneSettings.cloneDurationSeconds / 3600 :
+                                                cloneSettings.cloneDurationSeconds % 60 === 0 ? cloneSettings.cloneDurationSeconds / 60 :
+                                                    cloneSettings.cloneDurationSeconds;
+                                        const unit =
+                                            cloneSettings.cloneDurationSeconds % 3600 === 0 ? 'hours' :
+                                                cloneSettings.cloneDurationSeconds % 60 === 0 ? 'minutes' : 'seconds';
+
+                                        let newSeconds = 0;
+                                        if (unit === 'hours') newSeconds = (currentVal + 1) * 3600;
+                                        else if (unit === 'minutes') newSeconds = (currentVal + 1) * 60;
+                                        else newSeconds = currentVal + 1;
+
+                                        updateCloneSettings({ cloneDurationSeconds: newSeconds });
+                                    }}
+                                >
+                                    <ChevronRight size={12} className="-rotate-90" />
+                                </button>
+                                <button
+                                    className="text-text-secondary hover:text-text-primary flex items-center justify-center h-3 w-4 cursor-pointer bg-transparent border-none p-0"
+                                    onClick={() => {
+                                        const currentVal =
+                                            cloneSettings.cloneDurationSeconds % 3600 === 0 ? cloneSettings.cloneDurationSeconds / 3600 :
+                                                cloneSettings.cloneDurationSeconds % 60 === 0 ? cloneSettings.cloneDurationSeconds / 60 :
+                                                    cloneSettings.cloneDurationSeconds;
+                                        if (currentVal <= 1) return;
+
+                                        const unit =
+                                            cloneSettings.cloneDurationSeconds % 3600 === 0 ? 'hours' :
+                                                cloneSettings.cloneDurationSeconds % 60 === 0 ? 'minutes' : 'seconds';
+
+                                        let newSeconds = 0;
+                                        if (unit === 'hours') newSeconds = (currentVal - 1) * 3600;
+                                        else if (unit === 'minutes') newSeconds = (currentVal - 1) * 60;
+                                        else newSeconds = currentVal - 1;
+
+                                        updateCloneSettings({ cloneDurationSeconds: Math.max(10, newSeconds) });
+                                    }}
+                                >
+                                    <ChevronRight size={12} className="rotate-90" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="relative">
+                            <button
+                                className="bg-bg-primary text-text-primary border border-border rounded-lg p-2 text-sm flex items-center justify-between gap-2 min-w-[100px] cursor-pointer hover:bg-hover-bg"
+                                onClick={() => setIsCloneUnitDropdownOpen(!isCloneUnitDropdownOpen)}
+                            >
+                                <span className="capitalize">
+                                    {cloneSettings.cloneDurationSeconds % 3600 === 0 ? 'Hours' :
+                                        cloneSettings.cloneDurationSeconds % 60 === 0 ? 'Minutes' : 'Seconds'}
+                                </span>
+                                <ChevronRight size={14} className={`transition-transform ${isCloneUnitDropdownOpen ? '-rotate-90' : 'rotate-90'}`} />
+                            </button>
+
+                            {isCloneUnitDropdownOpen && (
+                                <div className="absolute top-full right-0 mt-1 w-full bg-bg-secondary border border-border rounded-lg shadow-xl overflow-hidden z-10 animate-scale-in">
+                                    {['Seconds', 'Minutes', 'Hours'].map((unit) => (
+                                        <div
+                                            key={unit}
+                                            className="px-3 py-2 text-sm cursor-pointer hover:bg-hover-bg text-text-primary"
+                                            onClick={() => {
+                                                const currentVal =
+                                                    cloneSettings.cloneDurationSeconds % 3600 === 0 ? cloneSettings.cloneDurationSeconds / 3600 :
+                                                        cloneSettings.cloneDurationSeconds % 60 === 0 ? cloneSettings.cloneDurationSeconds / 60 :
+                                                            cloneSettings.cloneDurationSeconds;
+
+                                                let newSeconds = currentVal;
+                                                if (unit === 'Hours') newSeconds = currentVal * 3600;
+                                                else if (unit === 'Minutes') newSeconds = currentVal * 60;
+                                                else newSeconds = currentVal; // Seconds
+
+                                                updateCloneSettings({ cloneDurationSeconds: Math.max(10, newSeconds) });
+                                                setIsCloneUnitDropdownOpen(false);
+                                            }}
+                                        >
+                                            {unit}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <p className="text-xs text-text-secondary mt-1">
+                        How long cloned cards stay visible before auto-deletion.
+                    </p>
+                </div>
+            </div>
+        </>
+    );
+
     return (
         <Dropdown
             isOpen={Boolean(anchorEl)}
@@ -301,6 +445,7 @@ export const SettingsDropdown: React.FC<SettingsDropdownProps> = ({ onClose, anc
 
             {menuView === 'sync' && renderSyncView()}
             {menuView === 'apiKey' && renderApiKeyView()}
+            {menuView === 'clone' && renderCloneView()}
         </Dropdown>
     );
 };

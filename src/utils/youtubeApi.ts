@@ -22,6 +22,9 @@ export interface VideoDetails {
     customImageVersion?: number;
     highestVersion?: number;
     notes?: VideoNote[];
+    isCloned?: boolean;
+    expiresAt?: number;
+    clonedFromId?: string;
 }
 
 export interface VideoNote {

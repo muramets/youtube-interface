@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Image as ImageIcon, Trash2, Info, ArrowUp, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Image as ImageIcon, Trash2, Info, ArrowUp, ChevronLeft, ChevronRight, Copy } from 'lucide-react';
 import type { VideoDetails } from '../../utils/youtubeApi';
 import { useChannel } from '../../context/ChannelContext';
 import { resizeImage } from '../../utils/imageUtils';
@@ -9,6 +9,7 @@ interface CustomVideoModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSave: (video: Omit<VideoDetails, 'id'>) => void;
+    onClone?: (video: VideoDetails, version: CoverVersion) => void;
     initialData?: VideoDetails;
 }
 
@@ -19,7 +20,7 @@ interface CoverVersion {
     originalName?: string;
 }
 
-export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onClose, onSave, initialData }) => {
+export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onClose, onSave, onClone, initialData }) => {
     const [title, setTitle] = useState('');
     const [viewCount, setViewCount] = useState('');
     const [duration, setDuration] = useState('');
@@ -344,7 +345,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                                                     </div>
 
                                                     {/* Make Main Button (Center) */}
-                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none gap-2">
                                                         <button
                                                             onClick={() => handleRestoreVersion(version)}
                                                             className="w-8 h-8 rounded-full bg-[#3ea6ff]/90 hover:bg-[#3ea6ff] text-black flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border-none cursor-pointer pointer-events-auto"
@@ -352,6 +353,18 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                                                         >
                                                             <ArrowUp size={18} strokeWidth={3} />
                                                         </button>
+                                                        {onClone && initialData && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    onClone(initialData, version);
+                                                                }}
+                                                                className="w-8 h-8 rounded-full bg-green-500/90 hover:bg-green-600 text-white flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border-none cursor-pointer pointer-events-auto"
+                                                                title="Clone as a New Temporary Video"
+                                                            >
+                                                                <Copy size={16} strokeWidth={2.5} />
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
