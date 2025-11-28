@@ -29,7 +29,7 @@ export const Header: React.FC = () => {
 
       <div className="hidden sm:flex items-center flex-1 max-w-[720px] mx-4">
         <div className="flex flex-1 items-center">
-          <div className="flex flex-1 items-center bg-[#121212] dark:bg-[#121212] bg-opacity-5 rounded-l-full border border-border border-r-0 px-4 py-0.5 h-10 shadow-inner focus-within:border-blue-500 focus-within:border-r ml-8 group">
+          <div className="flex flex-1 items-center bg-bg-secondary rounded-l-full border border-border border-r-0 px-4 py-0.5 h-10 shadow-inner focus-within:border-blue-500 focus-within:border-r ml-8 group">
             <div className="flex-1 flex items-center">
               <input
                 type="text"
