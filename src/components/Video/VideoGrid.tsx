@@ -23,12 +23,12 @@ import { CSS } from '@dnd-kit/utilities';
 import { useChannel } from '../../context/ChannelContext';
 
 interface SortableVideoCardProps {
-  video: any;
+  video: VideoDetails;
 }
 
 // Helper component for sortable item
 interface SortableVideoCardProps {
-  video: any;
+  video: VideoDetails;
   onRemove: (id: string) => void;
   playlistId?: string;
 }

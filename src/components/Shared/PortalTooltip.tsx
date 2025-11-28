@@ -32,9 +32,9 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({ content, children,
     }, [align]);
 
     const handleMouseEnter = () => {
-        console.log('Tooltip: Mouse Enter');
+
         if (timeoutRef.current) {
-            console.log('Tooltip: Clearing timeout');
+
             clearTimeout(timeoutRef.current);
             timeoutRef.current = null;
         }
@@ -44,9 +44,9 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({ content, children,
     };
 
     const handleMouseLeave = () => {
-        console.log('Tooltip: Mouse Leave - starting timeout');
+
         timeoutRef.current = setTimeout(() => {
-            console.log('Tooltip: Hiding');
+
             setIsVisible(false);
             onOpenChange?.(false);
         }, 300); // Increased delay to allow moving to tooltip

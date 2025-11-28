@@ -1,8 +1,7 @@
-
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MoreVertical, Info, Trash2 } from 'lucide-react';
-import type { VideoDetails } from '../../utils/youtubeApi';
+import { type VideoDetails, type CoverVersion } from '../../utils/youtubeApi';
 import { formatDuration, formatViewCount } from '../../utils/formatUtils';
 import { useVideos } from '../../context/VideosContext';
 import { usePlaylists } from '../../context/PlaylistsContext';
@@ -58,11 +57,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
       const h = Math.floor(seconds / 3600);
       const m = Math.floor((seconds % 3600) / 60);
       const s = seconds % 60;
-      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')} `;
+      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     }
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, '0')} `;
+    return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
   const [confirmation, setConfirmation] = useState<{
@@ -95,8 +94,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     setIsSyncing(true);
     await syncVideo(video.id);
     setIsSyncing(false);
-    // We keep the menu open so the user sees the result (spinner stops)
-    // Optionally we could close it: handleMenuClose();
   };
 
   const handleVideoClick = () => {
@@ -150,12 +147,12 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     }
   };
 
-  const handleSaveCustomVideo = async (updatedVideo: any, shouldClose = true) => {
+  const handleSaveCustomVideo = async (updatedVideo: Omit<VideoDetails, 'id'>, shouldClose = true) => {
     await updateVideo(video.id, updatedVideo);
     if (shouldClose) setShowEditModal(false);
   };
 
-  const handleCloneVideo = async (originalVideo: VideoDetails, version: any) => {
+  const handleCloneVideo = async (originalVideo: VideoDetails, version: CoverVersion) => {
     setShowEditModal(false);
     await cloneVideo(originalVideo, version);
   };
@@ -167,14 +164,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         onClick={handleVideoClick}
       >
         {/* Hover Substrate */}
-        <div className={`absolute inset-0 rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none ${isMenuOpen || isTooltipOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : (video.isCustom ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-2 border-emerald-500/30' : 'bg-hover-bg')} `} />
+        <div className={`absolute inset-0 rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none ${isMenuOpen || isTooltipOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : (video.isCustom ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-2 border-emerald-500/30' : 'bg-hover-bg')}`} />
 
         {/* Thumbnail Container */}
         <div className="relative aspect-video rounded-xl overflow-hidden bg-bg-secondary">
           <img
             src={video.isCustom ? (video.customImage || video.thumbnail) : video.thumbnail}
             alt={video.title}
-            className={`w-full h-full object-cover transition-transform duration-200 ${isMenuOpen || isTooltipOpen ? 'scale-105' : 'group-hover:scale-105'} `}
+            className={`w-full h-full object-cover transition-transform duration-200 ${isMenuOpen || isTooltipOpen ? 'scale-105' : 'group-hover:scale-105'}`}
             loading="lazy"
           />
 
@@ -265,57 +262,59 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                     className="text-inherit no-underline hover:text-text-primary"
                   >
                     {video.channelTitle}
-                  </a >
+                  </a>
                 ) : (
                   video.channelTitle
                 )}
-              </div >
+              </div>
               <div>
                 {video.viewCount ? `${formatViewCount(video.viewCount)} views` : ''} • {new Date(video.publishedAt).toLocaleDateString()}
               </div>
-            </div >
-          </div >
+            </div>
+          </div>
 
           {/* Menu Button or Remove Action for Clones */}
           <div className="absolute top-0 right-0">
-            {video.isCloned ? (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemove(video.id);
-                }}
-                className="p-2 rounded-full hover:bg-red-500/10 text-text-primary hover:text-red-500 transition-all duration-75 ease-out opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100"
-                title="Remove temporary video"
-              >
-                <Trash2 size={20} />
-              </button>
-            ) : (
-              <>
+            {
+              video.isCloned ? (
                 <button
-                  ref={menuButtonRef}
-                  onClick={handleMenuOpen}
-                  className={`p-2 rounded-full hover:bg-hover-bg text-text-primary transition-opacity ${isMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove(video.id);
+                  }}
+                  className="p-2 rounded-full hover:bg-red-500/10 text-text-primary hover:text-red-500 transition-all duration-75 ease-out opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100"
+                  title="Remove temporary video"
                 >
-                  <MoreVertical size={20} />
+                  <Trash2 size={20} />
                 </button>
+              ) : (
+                <>
+                  <button
+                    ref={menuButtonRef}
+                    onClick={handleMenuOpen}
+                    className={`p-2 rounded-full hover:bg-hover-bg text-text-primary transition-opacity ${isMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                  >
+                    <MoreVertical size={20} />
+                  </button>
 
-                <VideoCardMenu
-                  isOpen={isMenuOpen}
-                  onClose={handleMenuClose}
-                  anchorEl={menuAnchor}
-                  playlistId={playlistId}
-                  isCustom={video.isCustom}
-                  onAddToPlaylist={handleAddToPlaylist}
-                  onEdit={handleUpdate}
-                  onRemove={handleRemove}
-                  onSync={!video.isCustom ? handleSync : undefined}
-                  isSyncing={isSyncing}
-                />
-              </>
-            )}
+                  <VideoCardMenu
+                    isOpen={isMenuOpen}
+                    onClose={handleMenuClose}
+                    anchorEl={menuAnchor}
+                    playlistId={playlistId}
+                    isCustom={video.isCustom}
+                    onAddToPlaylist={handleAddToPlaylist}
+                    onEdit={handleUpdate}
+                    onRemove={handleRemove}
+                    onSync={!video.isCustom ? handleSync : undefined}
+                    isSyncing={isSyncing}
+                  />
+                </>
+              )
+            }
           </div>
-        </div >
-      </div >
+        </div>
+      </div>
 
       {/* Custom Video Edit Modal */}
       {

@@ -3,7 +3,7 @@ import { useAuth } from './AuthContext';
 import { useChannel } from './ChannelContext';
 import { useSettings } from './SettingsContext';
 import { VideoService } from '../services/videoService';
-import { type VideoDetails, fetchVideoDetails, extractVideoId } from '../utils/youtubeApi';
+import { type VideoDetails, fetchVideoDetails, extractVideoId, type HistoryItem, type CoverVersion } from '../utils/youtubeApi';
 
 interface VideosContextType {
     videos: VideoDetails[];
@@ -13,10 +13,10 @@ interface VideosContextType {
     updateVideo: (id: string, updates?: Partial<VideoDetails>) => Promise<boolean>;
     removeVideo: (id: string) => Promise<void>;
     moveVideo: (dragIndex: number, hoverIndex: number) => Promise<void>;
-    fetchVideoHistory: (videoId: string) => Promise<any[]>;
-    saveVideoHistory: (videoId: string, historyItem: any) => Promise<void>;
+    fetchVideoHistory: (videoId: string) => Promise<CoverVersion[]>;
+    saveVideoHistory: (videoId: string, historyItem: HistoryItem) => Promise<void>;
     deleteVideoHistoryItem: (videoId: string, historyId: string) => Promise<void>;
-    cloneVideo: (originalVideo: VideoDetails, coverVersion: any) => Promise<void>;
+    cloneVideo: (originalVideo: VideoDetails, coverVersion: CoverVersion) => Promise<void>;
     isSyncing: boolean;
     manualSync: () => Promise<void>;
     syncVideo: (videoId: string) => Promise<void>;
@@ -209,7 +209,7 @@ export const VideosProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         await updateVideoOrder(newOrder);
     };
 
-    const cloneVideo = async (originalVideo: VideoDetails, coverVersion: any) => {
+    const cloneVideo = async (originalVideo: VideoDetails, coverVersion: CoverVersion) => {
         if (!user || !currentChannel) return;
         try {
             const now = Date.now();
@@ -247,7 +247,7 @@ export const VideosProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return VideoService.fetchVideoHistory(user.uid, currentChannel.id, videoId);
     };
 
-    const saveVideoHistory = (videoId: string, historyItem: any) => {
+    const saveVideoHistory = (videoId: string, historyItem: HistoryItem) => {
         if (!user || !currentChannel) return Promise.resolve();
         return VideoService.saveVideoHistory(user.uid, currentChannel.id, videoId, historyItem);
     };

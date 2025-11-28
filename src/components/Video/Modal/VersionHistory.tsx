@@ -2,15 +2,8 @@ import React, { useRef, useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Info, Trash2, ArrowUp, Copy, Loader2 } from 'lucide-react';
 import { PortalTooltip } from '../../Shared/PortalTooltip';
 import { ClonedVideoTooltipContent } from '../ClonedVideoTooltipContent';
-import { type VideoDetails } from '../../../utils/youtubeApi';
+import { type VideoDetails, type CoverVersion } from '../../../utils/youtubeApi';
 import { useVideos } from '../../../context/VideosContext';
-
-export interface CoverVersion {
-    url: string;
-    version: number;
-    timestamp: number;
-    originalName?: string;
-}
 
 interface VersionHistoryProps {
     history: CoverVersion[];

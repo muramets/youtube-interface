@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import { type VideoDetails } from '../utils/youtubeApi';
+import { type VideoDetails, type CoverVersion } from '../utils/youtubeApi';
 import { useVideos } from '../context/VideosContext';
-import { type CoverVersion } from '../components/Video/Modal/VersionHistory';
 
 export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
     const { fetchVideoHistory } = useVideos();

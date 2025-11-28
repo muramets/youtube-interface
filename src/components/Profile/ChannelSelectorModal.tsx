@@ -59,8 +59,7 @@ export const ChannelSelectorModal: React.FC<ChannelSelectorModalProps> = ({ isOp
         fetchYouTubeChannels();
     }, [isOpen, user]);
 
-    console.log('App Channels:', channels);
-    console.log('YouTube Channels:', youtubeChannels);
+
 
     if (!isOpen) return null;
 

@@ -1,20 +1,21 @@
+
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
-import type { VideoDetails } from '../../utils/youtubeApi';
+import { type VideoDetails, type CoverVersion } from '../../utils/youtubeApi';
 import { useVideos } from '../../context/VideosContext';
 import { useChannel } from '../../context/ChannelContext';
 import { Toast } from '../Shared/Toast';
 import { CoverImageUploader } from './Modal/CoverImageUploader';
-import { VersionHistory, type CoverVersion } from './Modal/VersionHistory';
+import { VersionHistory } from './Modal/VersionHistory';
 import { VideoForm } from './Modal/VideoForm';
 import { useVideoForm } from '../../hooks/useVideoForm';
 
 interface CustomVideoModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (videoData: any, shouldClose?: boolean) => Promise<string | void>;
-    onClone?: (originalVideo: VideoDetails, version: any) => Promise<void>;
+    onSave: (videoData: Omit<VideoDetails, 'id'>, shouldClose?: boolean) => Promise<string | void>;
+    onClone?: (originalVideo: VideoDetails, version: CoverVersion) => Promise<void>;
     initialData?: VideoDetails;
 }
 
@@ -65,7 +66,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     if (!isOpen) return null;
 
     const handleImageUpload = (file: File, resizedImage: string) => {
-        const fileKey = `${file.name.replace(/\./g, '_')}-${file.size}`;
+        const fileKey = `${file.name.replace(/\./g, '_')} -${file.size} `;
         let newVersion: number;
 
         if (fileVersionMap[fileKey]) {
@@ -177,7 +178,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         }
     };
 
-    const handleCloneWithSave = async (version: any) => {
+    const handleCloneWithSave = async (version: CoverVersion) => {
         if (!onClone || !initialData) return;
         setCloningVersion(version.version);
         try {
@@ -246,7 +247,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                             <button
                                 onClick={() => handleSave()}
                                 disabled={isSaving}
-                                className={`px-4 py-2 rounded-full border-none text-black cursor-pointer font-bold transition-all relative overflow-hidden ${isSaving ? 'bg-[#3ea6ff]/70 cursor-wait' : 'bg-[#3ea6ff] hover:bg-[#3ea6ff]/90'}`}
+                                className={`px-4 py-2 rounded-full border-none text-black cursor-pointer font-bold transition-all relative overflow-hidden ${isSaving ? 'bg-[#3ea6ff]/70 cursor-wait' : 'bg-[#3ea6ff] hover:bg-[#3ea6ff]/90'} `}
                             >
                                 {isSaving && (
                                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer bg-[length:200%_100%]"></div>

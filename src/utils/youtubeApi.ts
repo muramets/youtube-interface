@@ -17,7 +17,7 @@ export interface VideoDetails {
     embedUrl?: string;
     tags?: string[];
     lastUpdated?: number;
-    coverHistory?: { url: string; version: number; timestamp: number; originalName?: string }[];
+    coverHistory?: CoverVersion[];
     customImageName?: string;
     customImageVersion?: number;
     highestVersion?: number;
@@ -34,6 +34,18 @@ export interface VideoNote {
     text: string;
     timestamp: number;
     userId?: string;
+}
+
+export interface CoverVersion {
+    url: string;
+    version: number;
+    timestamp: number;
+    originalName?: string;
+}
+
+export interface HistoryItem {
+    timestamp: number;
+    [key: string]: any; // Allow flexibility for history items
 }
 
 export const extractVideoId = (url: string): string | null => {

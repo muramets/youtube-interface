@@ -5,7 +5,7 @@ import {
     subscribeToCollection,
     fetchCollection
 } from './firestore';
-import type { VideoDetails } from '../utils/youtubeApi';
+import type { VideoDetails, HistoryItem, CoverVersion } from '../utils/youtubeApi';
 import { orderBy, getDocs, deleteDoc } from 'firebase/firestore';
 
 const getVideosPath = (userId: string, channelId: string) =>
@@ -75,14 +75,14 @@ export const VideoService = {
         videoId: string
     ) => {
         const historyPath = `${getVideosPath(userId, channelId)}/${videoId}/history`;
-        return fetchCollection<any>(historyPath, [orderBy('timestamp', 'desc')]);
+        return fetchCollection<CoverVersion>(historyPath, [orderBy('timestamp', 'desc')]);
     },
 
     saveVideoHistory: async (
         userId: string,
         channelId: string,
         videoId: string,
-        historyItem: any
+        historyItem: HistoryItem
     ) => {
         const historyPath = `${getVideosPath(userId, channelId)}/${videoId}/history`;
         const historyId = historyItem.timestamp.toString();

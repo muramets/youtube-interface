@@ -20,15 +20,10 @@ import { LoginPage } from './pages/LoginPage';
 import { CategoryBar } from './components/Video/CategoryBar';
 import { ZoomControls } from './components/Video/ZoomControls';
 
-// import { useAuth } from './context/AuthContext';
-// import { useChannel } from './context/ChannelContext';
+
 
 function AppContent() {
-  // const { user } = useAuth();
-  // const { currentChannel, loading } = useChannel();
 
-  // Modal removed as per user request
-  // const showSelector = !!user && !loading && !currentChannel;
 
   return (
     <div className="h-screen flex flex-col bg-bg-primary text-text-primary overflow-hidden">
