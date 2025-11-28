@@ -54,44 +54,25 @@ export const PlaylistDetailPage: React.FC = () => {
 
     return (
         <div className="animate-fade-in flex flex-col h-full relative">
-            {/* Header - Fixed at top of main content area? Or just scroll with content? 
-                 Home page has CategoryBar sticky. 
-                 Let's make the header scrollable for now, but the ZoomControls will be fixed.
-             */}
-            <div style={{ padding: '24px 24px 0 24px', display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '0' }}>
+            {/* Header */}
+            <div className="pt-6 px-6 flex items-center gap-4 mb-0">
                 <button
                     onClick={() => navigate('/playlists')}
-                    style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: 'var(--text-primary)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center'
-                    }}
+                    className="bg-transparent border-none text-text-primary cursor-pointer flex items-center hover:text-text-secondary transition-colors"
                 >
                     <ArrowLeft size={24} />
                 </button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <div style={{
-                        width: '80px',
-                        height: '45px',
-                        backgroundColor: 'var(--bg-secondary)',
-                        borderRadius: '8px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        overflow: 'hidden'
-                    }}>
+                <div className="flex items-center gap-4">
+                    <div className="w-20 h-[45px] bg-bg-secondary rounded-lg flex items-center justify-center overflow-hidden">
                         {playlist.coverImage ? (
-                            <img src={playlist.coverImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <img src={playlist.coverImage} alt="" className="w-full h-full object-cover" />
                         ) : (
-                            <PlaySquare size={24} color="var(--text-secondary)" />
+                            <PlaySquare size={24} className="text-text-secondary" />
                         )}
                     </div>
                     <div>
-                        <h1 style={{ margin: 0, fontSize: '24px' }}>{playlist.name}</h1>
-                        <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
+                        <h1 className="m-0 text-2xl font-bold text-text-primary">{playlist.name}</h1>
+                        <span className="text-text-secondary text-sm">
                             {playlistVideos.length} videos
                             {playlist.updatedAt && playlist.updatedAt > playlist.createdAt && (
                                 <> • Updated {new Date(playlist.updatedAt).toLocaleDateString()}</>
@@ -114,19 +95,11 @@ export const PlaylistDetailPage: React.FC = () => {
             <ZoomControls />
 
             {playlistVideos.length === 0 && (
-                <div style={{ textAlign: 'center', color: 'var(--text-secondary)', marginTop: '48px' }}>
+                <div className="text-center text-text-secondary mt-12">
                     <p>No videos in this playlist yet.</p>
                     <button
                         onClick={() => navigate('/')}
-                        style={{
-                            marginTop: '12px',
-                            padding: '8px 16px',
-                            borderRadius: '18px',
-                            border: 'none',
-                            backgroundColor: 'var(--bg-secondary)',
-                            color: 'var(--text-primary)',
-                            cursor: 'pointer'
-                        }}
+                        className="mt-3 px-4 py-2 rounded-full border-none bg-bg-secondary text-text-primary cursor-pointer hover:bg-hover-bg transition-colors"
                     >
                         Go to Home to add videos
                     </button>

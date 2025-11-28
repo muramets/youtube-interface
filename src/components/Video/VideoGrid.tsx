@@ -22,9 +22,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useChannel } from '../../context/ChannelContext';
 
-interface SortableVideoCardProps {
-  video: VideoDetails;
-}
+
 
 // Helper component for sortable item
 interface SortableVideoCardProps {
