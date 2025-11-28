@@ -63,7 +63,7 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
                         <button
                             ref={el => { menuButtonRefs.current[playlist.id] = el; }}
                             onClick={(e) => handleMenuClick(e, playlist.id)}
-                            className="bg-transparent border-none p-2 rounded-full cursor-pointer text-text-primary opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-text-primary/10"
+                            className="bg-transparent border-none p-2 rounded-full cursor-pointer text-text-primary opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-black/10 dark:hover:bg-white/10"
                             onPointerDown={(e) => e.stopPropagation()} // Prevent drag start on menu click
                         >
                             <MoreVertical size={20} />
