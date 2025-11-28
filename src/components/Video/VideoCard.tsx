@@ -292,7 +292,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                   <button
                     ref={menuButtonRef}
                     onClick={handleMenuOpen}
-                    className={`p-2 rounded-full hover:bg-black/40 dark:hover:bg-white/20 text-text-primary transition-opacity ${isMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                    className={`p-2 rounded-full hover:bg-white hover:shadow-sm dark:hover:bg-white/20 dark:hover:shadow-none text-text-primary transition-all ${isMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
                   >
                     <MoreVertical size={20} />
                   </button>
