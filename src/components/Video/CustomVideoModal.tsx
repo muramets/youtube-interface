@@ -364,7 +364,12 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
 
     const handleWheel = (e: React.WheelEvent) => {
         if (scrollContainerRef.current) {
-            // Map vertical scroll to horizontal
+            // If significant horizontal scroll (trackpad), let native behavior handle it
+            if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+                return;
+            }
+
+            // Map vertical scroll to horizontal (mouse wheel)
             scrollContainerRef.current.scrollLeft += e.deltaY;
         }
     };
