@@ -34,6 +34,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number>(0);
 
   // Timer for cloned videos
@@ -165,14 +166,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         onClick={handleVideoClick}
       >
         {/* Hover Substrate */}
-        <div className={`absolute inset-0 rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none ${isMenuOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : 'bg-bg-secondary'} `} />
+        <div className={`absolute inset-0 rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none ${isMenuOpen || isTooltipOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : (video.isCustom ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-2 border-emerald-500/30' : 'bg-bg-secondary')} `} />
 
         {/* Thumbnail Container */}
         <div className="relative aspect-video rounded-xl overflow-hidden bg-bg-secondary">
           <img
             src={video.isCustom ? (video.customImage || video.thumbnail) : video.thumbnail}
             alt={video.title}
-            className={`w-full h-full object-cover transition-transform duration-200 ${isMenuOpen ? 'scale-105' : 'group-hover:scale-105'} `}
+            className={`w-full h-full object-cover transition-transform duration-200 ${isMenuOpen || isTooltipOpen ? 'scale-105' : 'group-hover:scale-105'} `}
             loading="lazy"
           />
 
@@ -205,9 +206,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
             </div>
           )}
 
-          {/* Cloned Info Icon (Top Right) */}
-          {video.isCloned && (
-            <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          {/* Cloned/Custom Info Icon (Top Right) */}
+          {(video.isCloned || (video.isCustom && video.customImageVersion && ((video.historyCount && video.historyCount > 1) || (video.coverHistory && video.coverHistory.length > 1)))) && (
+            <div className={`absolute top-2 right-2 z-10 transition-opacity duration-200 ${isTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
               <PortalTooltip
                 content={
                   <ClonedVideoTooltipContent
@@ -216,6 +217,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                   />
                 }
                 align="right"
+                onOpenChange={setIsTooltipOpen}
               >
                 <div className="w-10 h-10 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-sm border-none cursor-help">
                   <Info size={20} />

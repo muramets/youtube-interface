@@ -311,7 +311,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
             isCustom: true,
             customImage: coverImage,
             createdAt: initialData?.createdAt,
-            // coverHistory: coverHistory, // No longer saving history in main doc
+            coverHistory: coverHistory,
             customImageName: currentOriginalName,
             customImageVersion: currentVersion,
             highestVersion: highestVersion,

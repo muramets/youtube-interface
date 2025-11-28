@@ -5,9 +5,10 @@ interface PortalTooltipProps {
     content: React.ReactNode;
     children: React.ReactElement;
     align?: 'left' | 'center' | 'right';
+    onOpenChange?: (isOpen: boolean) => void;
 }
 
-export const PortalTooltip: React.FC<PortalTooltipProps> = ({ content, children, align = 'right' }) => {
+export const PortalTooltip: React.FC<PortalTooltipProps> = ({ content, children, align = 'right', onOpenChange }) => {
     const [isVisible, setIsVisible] = useState(false);
     const [position, setPosition] = useState({ top: 0, left: 0 });
     const triggerRef = useRef<HTMLDivElement>(null);
@@ -37,11 +38,13 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({ content, children,
         }
         updatePosition();
         setIsVisible(true);
+        onOpenChange?.(true);
     };
 
     const handleMouseLeave = () => {
         timeoutRef.current = setTimeout(() => {
             setIsVisible(false);
+            onOpenChange?.(false);
         }, 100); // Small delay to allow moving to tooltip
     };
 

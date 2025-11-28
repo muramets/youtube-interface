@@ -31,6 +31,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
         message: string;
     }>({ isOpen: false, action: null, title: '', message: '' });
     const [timeLeft, setTimeLeft] = useState<number>(0);
+    const [isTooltipOpen, setIsTooltipOpen] = useState(false);
 
     // Timer for cloned videos
     React.useEffect(() => {
@@ -153,7 +154,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                 onClick={handleVideoClick}
             >
                 {/* Hover Substrate */}
-                <div className={`absolute inset-0 rounded-lg transition-opacity duration-200 pointer-events-none opacity-0 group-hover:opacity-100 ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : 'bg-bg-secondary'} `} />
+                <div className={`absolute inset-0 rounded-lg transition-opacity duration-200 pointer-events-none ${isTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : (video.isCustom ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-2 border-emerald-500/30' : 'bg-bg-secondary')} `} />
                 {/* Thumbnail Container */}
                 <div className="relative w-[168px] h-[94px] flex-shrink-0 bg-bg-secondary rounded-lg overflow-hidden">
                     <img
@@ -191,9 +192,9 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                         </div>
                     )}
 
-                    {/* Cloned Info Icon (Top Right) */}
-                    {video.isCloned && (
-                        <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    {/* Cloned/Custom Info Icon (Top Right) */}
+                    {(video.isCloned || (video.isCustom && video.customImageVersion && ((video.historyCount && video.historyCount > 1) || (video.coverHistory && video.coverHistory.length > 1)))) && (
+                        <div className={`absolute top-2 right-2 z-10 transition-opacity duration-200 ${isTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                             <PortalTooltip
                                 content={
                                     <ClonedVideoTooltipContent
@@ -202,6 +203,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                                     />
                                 }
                                 align="right"
+                                onOpenChange={setIsTooltipOpen}
                             >
                                 <div className="w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-sm border-none cursor-help">
                                     <Info size={16} />
