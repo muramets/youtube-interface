@@ -24,7 +24,7 @@ interface CoverVersion {
 }
 
 export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onClose, onSave, onClone, initialData }) => {
-    const { fetchVideoHistory, saveVideoHistory, deleteVideoHistoryItem, currentChannel } = useVideo();
+    const { fetchVideoHistory, saveVideoHistory, deleteVideoHistoryItem, currentChannel, videos } = useVideo();
     const [title, setTitle] = useState('');
     const [viewCount, setViewCount] = useState('');
     const [duration, setDuration] = useState('');
@@ -492,16 +492,31 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                                                                         <ArrowUp size={18} strokeWidth={3} />
                                                                     </button>
                                                                     {onClone && initialData && (
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                onClone(initialData, version);
-                                                                            }}
-                                                                            className="w-8 h-8 rounded-full bg-green-500/90 hover:bg-green-600 text-white flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border-none cursor-pointer pointer-events-auto"
-                                                                            title="Clone as a New Temporary Video"
-                                                                        >
-                                                                            <Copy size={16} strokeWidth={2.5} />
-                                                                        </button>
+                                                                        (() => {
+                                                                            const isCloned = videos.some(v =>
+                                                                                v.isCloned &&
+                                                                                v.clonedFromId === initialData.id &&
+                                                                                v.customImageVersion === version.version
+                                                                            );
+
+                                                                            return (
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        if (isCloned) return;
+                                                                                        e.stopPropagation();
+                                                                                        onClone(initialData, version);
+                                                                                    }}
+                                                                                    disabled={isCloned}
+                                                                                    className={`w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border-none cursor-pointer pointer-events-auto ${isCloned
+                                                                                        ? 'bg-gray-500/50 text-gray-300 cursor-not-allowed hover:scale-90'
+                                                                                        : 'bg-green-500/90 hover:bg-green-600 text-white'
+                                                                                        }`}
+                                                                                    title={isCloned ? "Active clone already exists" : "Clone as a New Temporary Video"}
+                                                                                >
+                                                                                    <Copy size={16} strokeWidth={2.5} />
+                                                                                </button>
+                                                                            );
+                                                                        })()
                                                                     )}
                                                                 </div>
                                                             </div>
