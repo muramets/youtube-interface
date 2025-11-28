@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Image as ImageIcon, Trash2, Info, ArrowUp, ChevronLeft, ChevronRight, Copy } from 'lucide-react';
+import { X, Image as ImageIcon, Trash2, Info, ArrowUp, ChevronLeft, ChevronRight, Copy, Loader2 } from 'lucide-react';
 import type { VideoDetails } from '../../utils/youtubeApi';
 import { useVideo } from '../../context/VideoContext';
 import { resizeImage } from '../../utils/imageUtils';
@@ -11,8 +11,8 @@ import { ClonedVideoTooltipContent } from './ClonedVideoTooltipContent';
 interface CustomVideoModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (video: Omit<VideoDetails, 'id'>) => Promise<string | void>;
-    onClone?: (video: VideoDetails, version: CoverVersion) => void;
+    onSave: (videoData: any, shouldClose?: boolean) => Promise<string | void>;
+    onClone?: (originalVideo: VideoDetails, version: any) => Promise<void>;
     initialData?: VideoDetails;
 }
 
@@ -31,6 +31,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
     const [coverImage, setCoverImage] = useState<string | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [cloningVersion, setCloningVersion] = useState<number | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const modalRef = useRef<HTMLDivElement>(null);
 
@@ -291,9 +292,9 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
 
 
 
-    const handleSave = async () => {
+    const handleSave = async (shouldClose = true) => {
         if (!coverImage) {
-            alert('Please provide a cover image.');
+            alert("Please upload a cover image");
             return;
         }
 
@@ -321,7 +322,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
 
         try {
             // 1. Save the main video data
-            const newId = await onSave(videoData);
+            const newId = await onSave(videoData, shouldClose);
             const targetId = initialData?.id || (typeof newId === 'string' ? newId : undefined);
 
             if (targetId) {
@@ -336,12 +337,29 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                 await Promise.all(savePromises);
             }
 
-            onClose();
+            if (shouldClose) {
+                onClose();
+            }
         } catch (error) {
             console.error("Failed to save video:", error);
             alert("Failed to save video. The images might be too large. Try deleting some history versions.");
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleCloneWithSave = async (version: any) => {
+        if (!onClone || !initialData) return;
+
+        setCloningVersion(version.version);
+        try {
+            // Save changes first (without closing modal)
+            await handleSave(false);
+
+            // Then proceed with clone (which will close modal)
+            await onClone(initialData, version);
+        } finally {
+            setCloningVersion(null);
         }
     };
 
@@ -509,18 +527,22 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                                                                             return (
                                                                                 <button
                                                                                     onClick={(e) => {
-                                                                                        if (isCloned) return;
+                                                                                        if (isCloned || cloningVersion !== null) return;
                                                                                         e.stopPropagation();
-                                                                                        onClone(initialData, version);
+                                                                                        handleCloneWithSave(version);
                                                                                     }}
-                                                                                    disabled={isCloned}
+                                                                                    disabled={isCloned || cloningVersion !== null}
                                                                                     className={`w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border-none cursor-pointer pointer-events-auto ${isCloned
                                                                                         ? 'bg-gray-500/50 text-gray-300 cursor-not-allowed hover:scale-90'
                                                                                         : 'bg-green-500/90 hover:bg-green-600 text-white'
                                                                                         }`}
                                                                                     title={isCloned ? "Active clone already exists" : "Clone as a New Temporary Video"}
                                                                                 >
-                                                                                    <Copy size={16} strokeWidth={2.5} />
+                                                                                    {cloningVersion === version.version ? (
+                                                                                        <Loader2 size={16} className="animate-spin" />
+                                                                                    ) : (
+                                                                                        <Copy size={16} strokeWidth={2.5} />
+                                                                                    )}
                                                                                 </button>
                                                                             );
                                                                         })()
@@ -599,7 +621,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                                 Cancel
                             </button>
                             <button
-                                onClick={handleSave}
+                                onClick={() => handleSave()}
                                 disabled={isSaving}
                                 className={`px-4 py-2 rounded-full border-none text-black cursor-pointer font-bold transition-all relative overflow-hidden ${isSaving ? 'bg-[#3ea6ff]/70 cursor-wait' : 'bg-[#3ea6ff] hover:bg-[#3ea6ff]/90'}`}
                             >

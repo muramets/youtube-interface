@@ -149,9 +149,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     }
   };
 
-  const handleSaveCustomVideo = async (updatedVideo: any) => {
+  const handleSaveCustomVideo = async (updatedVideo: any, shouldClose = true) => {
     await updateVideo(video.id, updatedVideo);
-    setShowEditModal(false);
+    if (shouldClose) setShowEditModal(false);
   };
 
   const handleCloneVideo = async (originalVideo: VideoDetails, version: any) => {
@@ -207,7 +207,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
           )}
 
           {/* Cloned/Custom Info Icon (Top Right) */}
-          {(video.isCloned || (video.isCustom && video.customImageVersion && ((video.historyCount && video.historyCount > 1) || (video.coverHistory && video.coverHistory.length > 1)))) && (
+          {(video.isCloned || (video.isCustom && video.customImageVersion && ((video.historyCount && video.historyCount > 0) || (video.coverHistory && video.coverHistory.length > 0)))) && (
             <div className={`absolute top-2 right-2 z-10 transition-opacity duration-200 ${isTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
               <PortalTooltip
                 content={
