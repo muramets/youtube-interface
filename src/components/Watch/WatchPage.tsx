@@ -483,7 +483,7 @@ export const WatchPage: React.FC = () => {
                                     <SortableRecommendationCard
                                         key={video.id}
                                         video={video}
-                                        playlistId={playlistId || undefined}
+                                        playlistId={playlistId || (selectedFilter === 'playlists' && selectedPlaylistIds.length === 1 ? selectedPlaylistIds[0] : undefined)}
                                     />
                                 ))}
                             </SortableContext>
@@ -493,7 +493,7 @@ export const WatchPage: React.FC = () => {
                             <SortableRecommendationCard
                                 key={video.id}
                                 video={video}
-                                playlistId={playlistId || undefined}
+                                playlistId={playlistId || (selectedFilter === 'playlists' && selectedPlaylistIds.length === 1 ? selectedPlaylistIds[0] : undefined)}
                             />
                         ))
                     )}

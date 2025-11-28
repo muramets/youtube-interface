@@ -9,7 +9,7 @@ interface AddToPlaylistModalProps {
 }
 
 export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoId, onClose }) => {
-    const { playlists, createPlaylist, addVideoToPlaylist } = useVideo();
+    const { playlists, createPlaylist, addVideoToPlaylist, removeVideoFromPlaylist } = useVideo();
     const [isCreating, setIsCreating] = React.useState(false);
     const [newPlaylistName, setNewPlaylistName] = React.useState('');
 
@@ -26,12 +26,7 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoId,
         if (!isInPlaylist) {
             addVideoToPlaylist(playlistId, videoId);
         } else {
-            // Optional: Remove from playlist if already there?
-            // The prompt says "video separately removed from watch page and from playlist".
-            // Usually "Add to Playlist" toggles. I'll make it toggle for better UX.
-            // But I need `removeVideoFromPlaylist` here.
-            // For now, let's just support ADDING as per the name.
-            // Actually, standard YouTube behavior is a checkbox list.
+            removeVideoFromPlaylist(playlistId, videoId);
         }
     };
 

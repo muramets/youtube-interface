@@ -537,10 +537,37 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (!playlist) return;
 
         const playlistRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/playlists/${playlistId}`);
-        await updateDoc(playlistRef, {
-            videoIds: playlist.videoIds.filter(id => id !== videoId),
+        const newVideoIds = playlist.videoIds.filter(id => id !== videoId);
+        const updates: Partial<Playlist> = {
+            videoIds: newVideoIds,
             updatedAt: Date.now()
-        });
+        };
+
+        if (newVideoIds.length === 0) {
+            updates.coverImage = undefined; // Or null, depending on type. Interface says string | undefined.
+            // Firestore deleteField() might be better if we want to remove the field entirely, but undefined usually works with ignoreUndefinedProperties or just setting to null if allowed.
+            // Let's check the interface. It says `coverImage?: string`.
+            // To remove a field in Firestore update, we use deleteField().
+            // But here we might just want to set it to empty string or null if our UI handles it.
+            // The UI checks `if (playlist.coverImage)`.
+            // Let's set it to null or empty string.
+            // Actually, let's look at how it's defined.
+            // `coverImage?: string;`
+            // Let's try setting it to null (which is valid JSON/Firestore usually) or use deleteField.
+            // Since I don't have deleteField imported, I'll import it or just set to null if the type allows.
+            // The type is `coverImage?: string`.
+            // I'll set it to null and cast if needed, or just import deleteField.
+            // Let's just set it to null for now, as that's often easier.
+            // Wait, if I set it to null, the type might complain.
+            // Let's import deleteField.
+        }
+
+        // Actually, let's just keep it simple. If I set it to '', the UI check `if (playlist.coverImage)` will be false.
+        if (newVideoIds.length === 0) {
+            updates.coverImage = '';
+        }
+
+        await updateDoc(playlistRef, updates);
     };
 
     const updatePlaylist = async (id: string, updates: Partial<Playlist>) => {

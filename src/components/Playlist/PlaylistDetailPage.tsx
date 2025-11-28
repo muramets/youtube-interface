@@ -105,6 +105,7 @@ export const PlaylistDetailPage: React.FC = () => {
                 videos={playlistVideos}
                 onVideoMove={handlePlaylistReorder}
                 disableChannelFilter={true}
+                playlistId={playlist.id}
             />
 
             {/* Floating Zoom Controls */}

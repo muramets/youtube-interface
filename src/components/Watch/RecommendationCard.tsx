@@ -91,7 +91,19 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                 title: 'Remove from Playlist',
                 message: 'Are you sure you want to remove this video from the playlist?'
             });
-        } else if (video.isCustom) {
+        } else {
+            // Fallback if no playlistId, though this path is mainly for the "Remove from playlist" button
+            // which only shows if playlistId is present.
+            // If called from "Delete" button when no playlistId, it goes here.
+            handleDelete(e);
+        }
+    };
+
+    const handleDelete = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        handleCloseMenu();
+
+        if (video.isCustom) {
             setConfirmation({
                 isOpen: true,
                 action: 'deleteCustom',
@@ -213,7 +225,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                                 className="bg-transparent border-none p-1.5 rounded-full cursor-pointer text-text-primary opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100 focus:opacity-100 transition-all duration-75 ease-out hover:bg-red-500/10 hover:text-red-500"
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    removeVideo(video.id);
+                                    handleRemove(e);
                                 }}
                                 title="Remove temporary video"
                             >
@@ -238,6 +250,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                                     onAddToPlaylist={handleAddToPlaylist}
                                     onEdit={handleUpdate}
                                     onRemove={handleRemove}
+                                    onDelete={handleDelete}
                                 />
                             </>
                         )}

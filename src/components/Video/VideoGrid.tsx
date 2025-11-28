@@ -28,10 +28,11 @@ interface SortableVideoCardProps {
 interface SortableVideoCardProps {
   video: any;
   onRemove: (id: string) => void;
+  playlistId?: string;
 }
 
 // Helper component for sortable item
-const SortableVideoCard = ({ video, onRemove }: SortableVideoCardProps) => {
+const SortableVideoCard = ({ video, onRemove, playlistId }: SortableVideoCardProps) => {
   const {
     attributes,
     listeners,
@@ -50,7 +51,7 @@ const SortableVideoCard = ({ video, onRemove }: SortableVideoCardProps) => {
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <VideoCard video={video} onRemove={onRemove} />
+      <VideoCard video={video} onRemove={onRemove} playlistId={playlistId} />
     </div>
   );
 };
@@ -59,12 +60,14 @@ interface VideoGridProps {
   videos?: VideoDetails[];
   onVideoMove?: (oldIndex: number, newIndex: number) => void;
   disableChannelFilter?: boolean;
+  playlistId?: string;
 }
 
 export const VideoGrid: React.FC<VideoGridProps> = ({
   videos: propVideos,
   onVideoMove,
-  disableChannelFilter = false
+  disableChannelFilter = false,
+  playlistId
 }) => {
   const { videos: contextVideos, cardsPerRow, selectedChannel, playlists, hiddenPlaylistIds, moveVideo, searchQuery, homeSortBy, removeVideo } = useVideo();
   const { currentChannel } = useChannel();
@@ -200,14 +203,14 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
           >
             {filteredVideos.map((video) => (
               <div key={video.id} className="min-w-0">
-                <SortableVideoCard video={video} onRemove={removeVideo} />
+                <SortableVideoCard video={video} onRemove={removeVideo} playlistId={playlistId} />
               </div>
             ))}
           </SortableContext>
         ) : (
           filteredVideos.map((video) => (
             <div key={video.id} className="min-w-0">
-              <VideoCard video={video} onRemove={removeVideo} />
+              <VideoCard video={video} onRemove={removeVideo} playlistId={playlistId} />
             </div>
           ))
         )}

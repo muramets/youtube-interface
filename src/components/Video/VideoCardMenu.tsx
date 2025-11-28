@@ -1,5 +1,5 @@
 import React from 'react';
-import { ListPlus, Edit2, Trash2, RefreshCw } from 'lucide-react';
+import { ListPlus, Edit2, Trash2, RefreshCw, MinusCircle } from 'lucide-react';
 import { Dropdown } from '../Shared/Dropdown';
 
 interface VideoCardMenuProps {
@@ -11,6 +11,7 @@ interface VideoCardMenuProps {
     onAddToPlaylist: (e: React.MouseEvent) => void;
     onEdit: (e: React.MouseEvent) => void;
     onRemove: (e: React.MouseEvent) => void;
+    onDelete?: (e: React.MouseEvent) => void;
     onSync?: (e: React.MouseEvent) => void;
     isSyncing?: boolean;
 }
@@ -24,6 +25,7 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
     onAddToPlaylist,
     onEdit,
     onRemove,
+    onDelete,
     onSync,
     isSyncing
 }) => {
@@ -80,13 +82,24 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
             )}
 
             {showDelete && (
-                <div
-                    className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"
-                    onClick={onRemove}
-                >
-                    <Trash2 size={20} />
-                    <span>{playlistId ? 'Remove from playlist' : 'Delete'}</span>
-                </div>
+                <>
+                    {playlistId && (
+                        <div
+                            className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"
+                            onClick={onRemove}
+                        >
+                            <MinusCircle size={20} />
+                            <span>Remove from playlist</span>
+                        </div>
+                    )}
+                    <div
+                        className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"
+                        onClick={playlistId ? onDelete : onRemove}
+                    >
+                        <Trash2 size={20} />
+                        <span>Delete</span>
+                    </div>
+                </>
             )}
         </Dropdown>
     );
