@@ -235,7 +235,7 @@ export const WatchPage: React.FC = () => {
     const description = video.description || '';
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 p-6 w-full max-w-[1800px] mx-auto min-h-screen box-border items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 py-6 pr-6 pl-0 w-full max-w-[1800px] mx-auto min-h-screen box-border items-start">
             {/* ... (Main Content) ... */}
             <div className="min-w-0">
                 {/* ... (Video Player, Title, Actions, Description, Notes) ... */}

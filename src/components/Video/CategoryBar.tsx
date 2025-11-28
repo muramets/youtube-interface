@@ -14,7 +14,7 @@ export const CategoryBar: React.FC = () => {
     ];
 
     return (
-        <div className="flex gap-3 px-6 py-3 overflow-x-auto sticky top-0 bg-bg-primary z-10 flex-shrink-0 scrollbar-hide items-center">
+        <div className="flex gap-3 pl-0 pr-6 py-3 overflow-x-auto sticky top-0 bg-bg-primary z-10 flex-shrink-0 scrollbar-hide items-center">
             {categories.map((category, index) => (
                 <button
                     key={index}

@@ -115,7 +115,7 @@ export const PlaylistsPage: React.FC = () => {
     ];
 
     return (
-        <div className="animate-fade-in" style={{ padding: '24px' }}>
+        <div className="animate-fade-in" style={{ padding: '24px 24px 24px 0px' }}>
             <div className="flex items-center justify-between mb-6">
                 <h1 style={{ fontSize: '24px', margin: 0 }}>Your Playlists</h1>
                 <div className="flex items-center gap-1">

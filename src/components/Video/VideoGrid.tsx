@@ -191,7 +191,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
       onDragEnd={handleDragEnd}
     >
       <div
-        className="grid gap-4 p-6 w-full"
+        className="grid gap-4 py-6 pr-6 pl-0 w-full"
         style={{
           gridTemplateColumns: `repeat(${cardsPerRow}, 1fr)`
         }}
