@@ -12,16 +12,22 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({ content, children,
     const [position, setPosition] = useState({ top: 0, left: 0 });
     const triggerRef = useRef<HTMLDivElement>(null);
 
-    const updatePosition = () => {
-        if (triggerRef.current) {
-            const rect = triggerRef.current.getBoundingClientRect();
+    const positionRaf = useRef<number | null>(null);
 
-            setPosition({
-                top: Math.round(rect.bottom + 8), // 8px gap
-                left: Math.round(align === 'left' ? rect.left : rect.right),
-            });
-        }
-    };
+    const updatePosition = React.useCallback(() => {
+        if (positionRaf.current) return;
+
+        positionRaf.current = requestAnimationFrame(() => {
+            if (triggerRef.current) {
+                const rect = triggerRef.current.getBoundingClientRect();
+                setPosition({
+                    top: Math.round(rect.bottom + 8),
+                    left: Math.round(align === 'left' ? rect.left : rect.right),
+                });
+            }
+            positionRaf.current = null;
+        });
+    }, [align]);
 
     const handleMouseEnter = () => {
         updatePosition();
@@ -35,14 +41,19 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({ content, children,
     // Update position on scroll or resize while visible
     useEffect(() => {
         if (isVisible) {
+            updatePosition();
             window.addEventListener('scroll', updatePosition, true);
             window.addEventListener('resize', updatePosition);
             return () => {
                 window.removeEventListener('scroll', updatePosition, true);
                 window.removeEventListener('resize', updatePosition);
+                if (positionRaf.current) {
+                    cancelAnimationFrame(positionRaf.current);
+                    positionRaf.current = null;
+                }
             };
         }
-    }, [isVisible]);
+    }, [isVisible, updatePosition]);
 
     return (
         <div

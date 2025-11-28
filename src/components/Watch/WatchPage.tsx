@@ -27,7 +27,7 @@ export const WatchPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const [searchParams] = useSearchParams();
     const playlistId = searchParams.get('list');
-    const { videos, playlists, moveVideo, searchQuery, hiddenPlaylistIds } = useVideo();
+    const { videos, playlists, searchQuery, hiddenPlaylistIds, recommendationOrders, updateRecommendationOrder, revertRecommendationOrder } = useVideo();
     const { currentChannel } = useChannel();
     const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
     const [toastMessage, setToastMessage] = useState('');
@@ -42,6 +42,8 @@ export const WatchPage: React.FC = () => {
 
     const video = videos.find(v => v.id === id);
 
+    // ... (notes logic) ...
+
     const handleAddNote = async () => {
         if (!video || !noteText.trim()) return;
 
@@ -53,9 +55,6 @@ export const WatchPage: React.FC = () => {
         };
 
         const updatedNotes = [...(video.notes || []), newNote];
-
-        // Optimistic update handled by Context if we update the video object directly?
-        // Actually updateVideo updates Firestore/State.
         await updateVideo(video.id, { notes: updatedNotes });
         setNoteText('');
     };
@@ -67,14 +66,12 @@ export const WatchPage: React.FC = () => {
     };
 
     useEffect(() => {
-        // Scroll the main container to top, not window
         const mainContainer = document.querySelector('main');
         if (mainContainer) {
             mainContainer.scrollTo(0, 0);
         }
     }, [id]);
 
-    // Initialize filter when playlistId is present
     useEffect(() => {
         if (playlistId) {
             setSelectedFilter('playlists');
@@ -93,6 +90,20 @@ export const WatchPage: React.FC = () => {
     const containingPlaylists = useMemo(() => playlists.filter(playlist =>
         playlist.videoIds.includes(video.id)
     ), [playlists, video.id]);
+
+    const filterKey = useMemo(() => {
+        if (selectedFilter === 'all') return 'all';
+        if (selectedFilter === 'channel') return 'channel';
+        if (selectedFilter === 'playlists') {
+            return `playlist_${[...selectedPlaylistIds].sort().join('_')}`;
+        }
+        return 'all';
+    }, [selectedFilter, selectedPlaylistIds]);
+
+    const hasCustomOrder = useMemo(() => {
+        const key = `${video.id}_${filterKey}`;
+        return !!recommendationOrders[key];
+    }, [recommendationOrders, video.id, filterKey]);
 
     // Calculate recommended videos
     const recommendedVideos = useMemo(() => {
@@ -128,28 +139,43 @@ export const WatchPage: React.FC = () => {
             recs = recs.filter(v => v.title.toLowerCase().includes(searchQuery.toLowerCase()));
         }
 
-        // Sorting
-        if (sortBy === 'views') {
+        // Apply Custom Order or Sort
+        const customOrder = recommendationOrders[`${video.id}_${filterKey}`];
+
+        if (customOrder && customOrder.length > 0) {
+            const orderMap = new Map(customOrder.map((id, index) => [id, index]));
             recs = [...recs].sort((a, b) => {
-                const viewsA = parseInt(a.viewCount?.replace(/[^0-9]/g, '') || '0', 10);
-                const viewsB = parseInt(b.viewCount?.replace(/[^0-9]/g, '') || '0', 10);
-                return viewsB - viewsA;
+                const indexA = orderMap.get(a.id);
+                const indexB = orderMap.get(b.id);
+
+                if (indexA !== undefined && indexB !== undefined) return indexA - indexB;
+                if (indexA !== undefined) return -1;
+                if (indexB !== undefined) return 1;
+                return 0;
             });
-        } else if (sortBy === 'date') {
-            recs = [...recs].sort((a, b) => {
-                const dateA = new Date(a.publishedAt).getTime();
-                const dateB = new Date(b.publishedAt).getTime();
-                return dateB - dateA;
-            });
+        } else {
+            // Standard Sorting
+            if (sortBy === 'views') {
+                recs = [...recs].sort((a, b) => {
+                    const viewsA = parseInt(a.viewCount?.replace(/[^0-9]/g, '') || '0', 10);
+                    const viewsB = parseInt(b.viewCount?.replace(/[^0-9]/g, '') || '0', 10);
+                    return viewsB - viewsA;
+                });
+            } else if (sortBy === 'date') {
+                recs = [...recs].sort((a, b) => {
+                    const dateA = new Date(a.publishedAt).getTime();
+                    const dateB = new Date(b.publishedAt).getTime();
+                    return dateB - dateA;
+                });
+            }
         }
 
         return recs;
-    }, [videos, video.id, video.channelTitle, selectedFilter, selectedPlaylistIds, playlists, searchQuery, sortBy, hiddenPlaylistIds]);
+    }, [videos, video.id, video.channelTitle, selectedFilter, selectedPlaylistIds, playlists, searchQuery, sortBy, hiddenPlaylistIds, recommendationOrders, filterKey]);
 
 
     const handleFilterChange = (filter: 'all' | 'channel') => {
         setSelectedFilter(filter);
-        // If switching away from playlists, clear selected playlists
         if (filter !== 'playlists' as any) {
             setSelectedPlaylistIds([]);
         }
@@ -164,7 +190,7 @@ export const WatchPage: React.FC = () => {
                 if (prev.includes(pId)) {
                     const next = prev.filter(id => id !== pId);
                     if (next.length === 0) {
-                        setSelectedFilter('all'); // Revert to all if no playlists selected
+                        setSelectedFilter('all');
                         return [];
                     }
                     return next;
@@ -191,22 +217,28 @@ export const WatchPage: React.FC = () => {
         const { active, over } = event;
 
         if (over && active.id !== over.id) {
-            const oldIndex = videos.findIndex((v) => v.id === active.id);
-            const newIndex = videos.findIndex((v) => v.id === over.id);
+            const oldIndex = recommendedVideos.findIndex((v) => v.id === active.id);
+            const newIndex = recommendedVideos.findIndex((v) => v.id === over.id);
 
             if (oldIndex !== -1 && newIndex !== -1) {
-                moveVideo(oldIndex, newIndex);
+                // We need arrayMove here. It's usually exported from @dnd-kit/sortable
+                const newOrderIds = [...recommendedVideos.map(v => v.id)];
+                const [movedItem] = newOrderIds.splice(oldIndex, 1);
+                newOrderIds.splice(newIndex, 0, movedItem);
+
+                updateRecommendationOrder(video.id, filterKey, newOrderIds);
             }
         }
     };
 
-    const isDraggable = selectedFilter === 'all';
+    const isDraggable = true; // Always draggable now that we have custom order
     const description = video.description || '';
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 p-6 w-full max-w-[1800px] mx-auto min-h-screen box-border items-start">
-            {/* Main Content (Video Player + Info) */}
+            {/* ... (Main Content) ... */}
             <div className="min-w-0">
+                {/* ... (Video Player, Title, Actions, Description, Notes) ... */}
                 {/* Video Player Container */}
                 <div className="w-full aspect-video bg-black rounded-xl overflow-hidden shadow-lg mb-4 relative group">
                     {video.isCustom ? (
@@ -216,7 +248,6 @@ export const WatchPage: React.FC = () => {
                                 alt={video.title}
                                 className="w-full h-full object-cover"
                             />
-                            {/* Hover Overlay */}
                             <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
                         </div>
                     ) : (
@@ -233,15 +264,12 @@ export const WatchPage: React.FC = () => {
                     )}
                 </div>
 
-                {/* Video Title */}
                 <h1 className="text-xl font-bold text-text-primary mb-3 line-clamp-2">
                     {video.title}
                 </h1>
 
-                {/* Video Actions & Channel Info */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                     <div className="flex items-center gap-3">
-                        {/* Channel Avatar */}
                         <div className="w-10 h-10 rounded-full overflow-hidden bg-bg-secondary flex-shrink-0">
                             {(video.isCustom && currentChannel?.avatar) ? (
                                 <img src={currentChannel.avatar} alt={video.channelTitle} className="w-full h-full object-cover" />
@@ -299,7 +327,6 @@ export const WatchPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Description Box */}
                 <div
                     className="bg-bg-secondary rounded-xl p-3 text-sm text-text-primary cursor-pointer hover:bg-hover-bg transition-colors mb-2"
                     onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
@@ -317,7 +344,6 @@ export const WatchPage: React.FC = () => {
                     </button>
                 </div>
 
-                {/* Tags */}
                 {video.tags && video.tags.length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-6 px-1">
                         {video.tags.map((tag, index) => (
@@ -338,7 +364,6 @@ export const WatchPage: React.FC = () => {
                     </div>
                 )}
 
-                {/* Personal Notes Section */}
                 <div className="mt-6">
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="text-xl font-bold text-text-primary m-0">My Notes</h3>
@@ -347,7 +372,6 @@ export const WatchPage: React.FC = () => {
                         </span>
                     </div>
 
-                    {/* Add Note Input */}
                     <div className="flex gap-4 mb-8">
                         <div className="w-10 h-10 rounded-full bg-bg-secondary flex-shrink-0 overflow-hidden">
                             {currentChannel?.avatar ? (
@@ -384,7 +408,6 @@ export const WatchPage: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Notes List */}
                     <div className="flex flex-col gap-6">
                         {(!video.notes || video.notes.length === 0) ? (
                             <div className="text-center text-text-secondary py-8 italic text-sm">
@@ -440,6 +463,9 @@ export const WatchPage: React.FC = () => {
                     onPlaylistToggle={handlePlaylistToggle}
                     sortBy={sortBy}
                     onSortChange={(val) => setSortBy(val)}
+                    hasCustomOrder={hasCustomOrder}
+                    onRevert={() => revertRecommendationOrder(video.id, filterKey)}
+                    revertTooltip={selectedFilter === 'playlists' ? "Restore order from playlist" : "Restore order from current home page"}
                 />
 
                 <div className="flex flex-col gap-2">

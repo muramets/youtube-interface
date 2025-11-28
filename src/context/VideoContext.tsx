@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { fetchVideoDetails, extractVideoId } from '../utils/youtubeApi';
 import type { VideoDetails } from '../utils/youtubeApi';
 import { useAuth } from './AuthContext';
@@ -39,7 +39,8 @@ interface VideoContextType {
     uniqueChannels: string[];
     addCustomVideo: (video: Omit<VideoDetails, 'id'>) => Promise<string | undefined>;
     recommendationOrders: Record<string, string[]>;
-    updateRecommendationOrder: (videoId: string, newOrder: string[]) => void;
+    updateRecommendationOrder: (videoId: string, filterKey: string, newOrder: string[]) => void;
+    revertRecommendationOrder: (videoId: string, filterKey: string) => void;
     playlists: Playlist[];
     createPlaylist: (name: string) => void;
     deletePlaylist: (id: string) => void;
@@ -258,26 +259,63 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return Array.from(channels).sort();
     }, [videos, currentChannel]);
 
-    // Recommendation Orders (Local Storage - Per Channel Key)
+    // Recommendation Orders (Firestore)
     const [recommendationOrders, setRecommendationOrders] = useState<Record<string, string[]>>({});
+    const lastOrdersStr = useRef<string>('{}');
 
+    // Load Recommendation Orders
     useEffect(() => {
-        if (currentChannel) {
-            const saved = localStorage.getItem(`youtube_recommendation_orders_${currentChannel.id}`);
-            setRecommendationOrders(saved ? JSON.parse(saved) : {});
-        } else {
-            setRecommendationOrders({});
-        }
-    }, [currentChannel]);
-
-    const updateRecommendationOrder = (videoId: string, newOrder: string[]) => {
-        setRecommendationOrders(prev => {
-            const next = { ...prev, [videoId]: newOrder };
-            if (currentChannel) {
-                localStorage.setItem(`youtube_recommendation_orders_${currentChannel.id}`, JSON.stringify(next));
+        if (!user || !currentChannel) return;
+        const ordersRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/recommendationOrders`);
+        const unsubscribe = onSnapshot(ordersRef, (doc) => {
+            if (doc.exists()) {
+                const data = doc.data() as Record<string, string[]>;
+                const str = JSON.stringify(data);
+                if (str !== lastOrdersStr.current) {
+                    lastOrdersStr.current = str;
+                    setRecommendationOrders(data);
+                }
+            } else {
+                if (lastOrdersStr.current !== '{}') {
+                    lastOrdersStr.current = '{}';
+                    setRecommendationOrders({});
+                }
             }
-            return next;
         });
+        return () => unsubscribe();
+    }, [user, currentChannel]);
+
+    const updateRecommendationOrder = async (videoId: string, filterKey: string, newOrder: string[]) => {
+        // Optimistic update
+        const key = `${videoId}_${filterKey}`;
+        const updatedOrders = { ...recommendationOrders, [key]: newOrder };
+
+        const str = JSON.stringify(updatedOrders);
+        if (str !== lastOrdersStr.current) {
+            lastOrdersStr.current = str;
+            setRecommendationOrders(updatedOrders);
+        }
+
+        if (user && currentChannel) {
+            const ordersRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/recommendationOrders`);
+            await setDoc(ordersRef, updatedOrders, { merge: true });
+        }
+    };
+
+    const revertRecommendationOrder = async (videoId: string, filterKey: string) => {
+        const key = `${videoId}_${filterKey}`;
+        const { [key]: _, ...remainingOrders } = recommendationOrders;
+
+        const str = JSON.stringify(remainingOrders);
+        if (str !== lastOrdersStr.current) {
+            lastOrdersStr.current = str;
+            setRecommendationOrders(remainingOrders);
+        }
+
+        if (user && currentChannel) {
+            const ordersRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/recommendationOrders`);
+            await setDoc(ordersRef, remainingOrders);
+        }
     };
 
     // Actions
@@ -345,14 +383,12 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         // 2. Delete from videos collection
         await deleteDoc(doc(db, `users/${user.uid}/channels/${currentChannel.id}/videos/${id}`));
 
-        // Update Order
+        // 3. Update Order
         const orderRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/videoOrder`);
         const newOrder = videoOrder.filter(videoId => videoId !== id);
         await setDoc(orderRef, { order: newOrder }, { merge: true });
 
-        // Remove from all playlists
-        // We need to iterate playlists and update them.
-        // This is a bit heavy, but fine for now.
+        // 4. Remove from all playlists
         playlists.forEach(async (playlist) => {
             if (playlist.videoIds.includes(id)) {
                 const newVideoIds = playlist.videoIds.filter(vid => vid !== id);
@@ -360,6 +396,31 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 await updateDoc(playlistRef, { videoIds: newVideoIds, updatedAt: Date.now() });
             }
         });
+
+        // 5. Cleanup Recommendation Orders (for this video)
+        const ordersToKeep: Record<string, string[]> = {};
+        let hasChanges = false;
+
+        Object.entries(recommendationOrders).forEach(([key, order]) => {
+            // Remove if this is the video context (key starts with id_)
+            if (key.startsWith(`${id}_`)) {
+                hasChanges = true;
+                return;
+            }
+            // Also remove video ID from other lists
+            if (order.includes(id)) {
+                ordersToKeep[key] = order.filter(vidId => vidId !== id);
+                hasChanges = true;
+            } else {
+                ordersToKeep[key] = order;
+            }
+        });
+
+        if (hasChanges) {
+            setRecommendationOrders(ordersToKeep);
+            const ordersRef = doc(db, `users/${user.uid}/channels/${currentChannel.id}/settings/recommendationOrders`);
+            await setDoc(ordersRef, ordersToKeep);
+        }
     };
 
     const addCustomVideo = async (video: Omit<VideoDetails, 'id'>) => {
@@ -735,6 +796,7 @@ export const VideoProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             addCustomVideo,
             recommendationOrders,
             updateRecommendationOrder,
+            revertRecommendationOrder,
             playlists,
             createPlaylist,
             deletePlaylist,
