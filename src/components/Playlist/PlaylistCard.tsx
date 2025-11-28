@@ -63,7 +63,8 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
                         <button
                             ref={el => { menuButtonRefs.current[playlist.id] = el; }}
                             onClick={(e) => handleMenuClick(e, playlist.id)}
-                            className="bg-transparent border-none p-2 rounded-full cursor-pointer text-text-primary opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all hover:bg-black/20 dark:hover:bg-white/20"
+                            onMouseEnter={() => console.log('Hovering PlaylistCard more button')}
+                            className="bg-transparent border-2 border-red-500 p-2 rounded-full cursor-pointer text-text-primary opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all hover:bg-black/20 dark:hover:bg-white/20"
                             onPointerDown={(e) => e.stopPropagation()} // Prevent drag start on menu click
                         >
                             <MoreVertical size={20} />
