@@ -364,13 +364,15 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
 
     const handleWheel = (e: React.WheelEvent) => {
         if (scrollContainerRef.current) {
-            // If significant horizontal scroll (trackpad), let native behavior handle it
-            if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-                return;
+            // Smart detection for "Vertical Intent" vs "Horizontal/Diagonal Intent"
+            // We only map vertical scroll to horizontal if the user is clearly scrolling vertically.
+            // We use a 1.5x threshold to allow for some trackpad drift (small deltaX) while
+            // preventing jitter during intentional horizontal or diagonal scrolling.
+            if (Math.abs(e.deltaY) > Math.abs(e.deltaX) * 1.5) {
+                scrollContainerRef.current.scrollLeft += e.deltaY;
             }
-
-            // Map vertical scroll to horizontal (mouse wheel)
-            scrollContainerRef.current.scrollLeft += e.deltaY;
+            // Otherwise (Horizontal, Diagonal, or sloppy Vertical), we let the native
+            // horizontal scroll (deltaX) handle it naturally.
         }
     };
 
