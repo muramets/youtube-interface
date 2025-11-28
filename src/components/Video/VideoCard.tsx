@@ -10,6 +10,7 @@ import { VideoCardMenu } from './VideoCardMenu';
 import { CustomVideoModal } from './CustomVideoModal';
 import { AddToPlaylistModal as PlaylistSelectionModal } from '../Playlist/AddToPlaylistModal';
 import { ConfirmationModal } from '../Shared/ConfirmationModal';
+import { ClonedVideoTooltipContent } from './ClonedVideoTooltipContent';
 
 interface VideoCardProps {
   video: VideoDetails;
@@ -207,7 +208,15 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
           {/* Cloned Info Icon (Top Right) */}
           {video.isCloned && (
             <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-              <PortalTooltip content={video.customImageName || 'Unknown Filename'} align="right">
+              <PortalTooltip
+                content={
+                  <ClonedVideoTooltipContent
+                    version={video.customImageVersion || 1}
+                    filename={video.customImageName || 'Unknown Filename'}
+                  />
+                }
+                align="right"
+              >
                 <div className="w-10 h-10 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-sm border-none cursor-help">
                   <Info size={20} />
                 </div>

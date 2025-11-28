@@ -2,15 +2,16 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 interface PortalTooltipProps {
-    content: string;
-    children: React.ReactNode;
-    align?: 'left' | 'right';
+    content: React.ReactNode;
+    children: React.ReactElement;
+    align?: 'left' | 'center' | 'right';
 }
 
 export const PortalTooltip: React.FC<PortalTooltipProps> = ({ content, children, align = 'right' }) => {
     const [isVisible, setIsVisible] = useState(false);
     const [position, setPosition] = useState({ top: 0, left: 0 });
     const triggerRef = useRef<HTMLDivElement>(null);
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const positionRaf = useRef<number | null>(null);
 
@@ -21,7 +22,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({ content, children,
             if (triggerRef.current) {
                 const rect = triggerRef.current.getBoundingClientRect();
                 setPosition({
-                    top: Math.round(rect.bottom + 8),
+                    top: Math.round(rect.bottom + 4), // Reduced offset from 8 to 4
                     left: Math.round(align === 'left' ? rect.left : rect.right),
                 });
             }
@@ -30,12 +31,18 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({ content, children,
     }, [align]);
 
     const handleMouseEnter = () => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+        }
         updatePosition();
         setIsVisible(true);
     };
 
     const handleMouseLeave = () => {
-        setIsVisible(false);
+        timeoutRef.current = setTimeout(() => {
+            setIsVisible(false);
+        }, 100); // Small delay to allow moving to tooltip
     };
 
     // Update position on scroll or resize while visible
@@ -65,12 +72,14 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({ content, children,
             {children}
             {isVisible && createPortal(
                 <div
-                    className="fixed z-[9999] pointer-events-none will-change-transform"
+                    className="fixed z-[9999] pointer-events-auto will-change-transform" // Changed to pointer-events-auto
                     style={{
                         top: Math.round(position.top),
                         left: Math.round(position.left),
                         transform: align === 'left' ? 'none' : 'translateX(-100%)',
                     }}
+                    onMouseEnter={handleMouseEnter} // Keep open when hovering tooltip
+                    onMouseLeave={handleMouseLeave}
                 >
                     <div className="bg-black/95 text-white text-[11px] leading-relaxed px-3 py-2 rounded-lg whitespace-normal break-words w-max max-w-[250px] shadow-xl text-left backdrop-blur-md animate-fade-in-down will-change-transform">
                         {content}

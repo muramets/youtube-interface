@@ -6,6 +6,7 @@ import { useVideo } from '../../context/VideoContext';
 import { resizeImage } from '../../utils/imageUtils';
 import { Toast } from '../Shared/Toast';
 import { PortalTooltip } from '../Shared/PortalTooltip';
+import { ClonedVideoTooltipContent } from './ClonedVideoTooltipContent';
 
 interface CustomVideoModalProps {
     isOpen: boolean;
@@ -457,7 +458,15 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                                                             <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-between p-2 rounded-md">
                                                                 <div className="flex justify-between w-full">
                                                                     {/* Info Button (Top Left) */}
-                                                                    <PortalTooltip content={version.originalName || 'Unknown Filename'} align="left">
+                                                                    <PortalTooltip
+                                                                        content={
+                                                                            <ClonedVideoTooltipContent
+                                                                                version={version.version}
+                                                                                filename={version.originalName || 'Unknown Filename'}
+                                                                            />
+                                                                        }
+                                                                        align="left"
+                                                                    >
                                                                         <button className="w-6 h-6 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-sm transition-colors border-none cursor-pointer">
                                                                             <Info size={12} />
                                                                         </button>

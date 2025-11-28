@@ -10,6 +10,7 @@ import { AddToPlaylistModal } from '../Playlist/AddToPlaylistModal';
 import { ConfirmationModal } from '../Shared/ConfirmationModal';
 import { CustomVideoModal } from '../Video/CustomVideoModal';
 import { PortalTooltip } from '../Shared/PortalTooltip';
+import { ClonedVideoTooltipContent } from '../Video/ClonedVideoTooltipContent';
 
 interface RecommendationCardProps {
     video: VideoDetails;
@@ -192,8 +193,16 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
 
                     {/* Cloned Info Icon (Top Right) */}
                     {video.isCloned && (
-                        <div className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                            <PortalTooltip content={video.customImageName || 'Unknown Filename'} align="left">
+                        <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <PortalTooltip
+                                content={
+                                    <ClonedVideoTooltipContent
+                                        version={video.customImageVersion || 1}
+                                        filename={video.customImageName || 'Unknown Filename'}
+                                    />
+                                }
+                                align="right"
+                            >
                                 <div className="w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-sm border-none cursor-help">
                                     <Info size={16} />
                                 </div>
