@@ -401,6 +401,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                     ref={modalRef}
                     className="bg-bg-secondary rounded-xl p-6 w-[500px] max-w-[90%] border border-border text-text-primary animate-scale-in-center shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"
                     onMouseDown={e => e.stopPropagation()}
+                    onPointerDown={e => e.stopPropagation()}
                 >
                     <div className="flex justify-between items-center mb-6">
                         <h2 className="m-0 text-xl font-bold">{initialData ? 'Edit Video' : 'Create My Video'}</h2>
