@@ -96,14 +96,11 @@ export const WatchPage: React.FC = () => {
         }
     }, [playlistId]);
 
-    if (!video) {
-        return <div className="p-8 text-text-primary">Video not found</div>;
-    }
-
     // --- Filtering Logic ---
-    const containingPlaylists = useMemo(() => playlists.filter(playlist =>
-        playlist.videoIds.includes(video.id)
-    ), [playlists, video.id]);
+    const containingPlaylists = useMemo(() => {
+        if (!video) return [];
+        return playlists.filter(playlist => playlist.videoIds.includes(video.id));
+    }, [playlists, video]);
 
     const filterKey = useMemo(() => {
         if (selectedFilter === 'all') return 'all';
@@ -115,12 +112,15 @@ export const WatchPage: React.FC = () => {
     }, [selectedFilter, selectedPlaylistIds]);
 
     const hasCustomOrder = useMemo(() => {
+        if (!video) return false;
         const key = `${video.id}_${filterKey}`;
         return !!recommendationOrders[key];
-    }, [recommendationOrders, video.id, filterKey]);
+    }, [recommendationOrders, video, filterKey]);
 
     // Calculate recommended videos
     const recommendedVideos = useMemo(() => {
+        if (!video) return [];
+
         let recs = videos.filter(v => v.id !== video.id);
 
         // Filter out hidden playlists
@@ -185,7 +185,7 @@ export const WatchPage: React.FC = () => {
         }
 
         return recs;
-    }, [videos, video.id, video.channelTitle, selectedFilter, selectedPlaylistIds, playlists, searchQuery, sortBy, hiddenPlaylistIds, recommendationOrders, filterKey]);
+    }, [videos, video, selectedFilter, selectedPlaylistIds, playlists, searchQuery, sortBy, hiddenPlaylistIds, recommendationOrders, filterKey]);
 
 
     const handleFilterChange = (filter: 'all' | 'channel') => {
@@ -228,6 +228,7 @@ export const WatchPage: React.FC = () => {
     );
 
     const handleDragEnd = (event: DragEndEvent) => {
+        if (!video) return;
         const { active, over } = event;
 
         if (over && active.id !== over.id) {
@@ -248,7 +249,11 @@ export const WatchPage: React.FC = () => {
     };
 
     const isDraggable = true; // Always draggable now that we have custom order
-    const description = video.description || '';
+    const description = video?.description || '';
+
+    if (!video) {
+        return <div className="p-8 text-text-primary">Video not found</div>;
+    }
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 py-6 pr-6 pl-0 w-full max-w-[1800px] mx-auto min-h-screen box-border items-start">
