@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { MoreVertical, Info, Trash2 } from 'lucide-react';
 import type { VideoDetails } from '../../utils/youtubeApi';
 import { formatDuration, formatViewCount } from '../../utils/formatUtils';
-import { useVideo } from '../../context/VideoContext';
+import { useVideos } from '../../context/VideosContext';
+import { usePlaylists } from '../../context/PlaylistsContext';
 import { PortalTooltip } from '../Shared/PortalTooltip';
 import { VideoCardMenu } from './VideoCardMenu';
 import { CustomVideoModal } from './CustomVideoModal';
@@ -23,11 +24,11 @@ interface VideoCardProps {
 export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange, onRemove, onEdit }) => {
   const navigate = useNavigate();
   const {
-    removeVideoFromPlaylist,
-    syncSingleVideo,
+    syncVideo,
     updateVideo,
     cloneVideo
-  } = useVideo();
+  } = useVideos();
+  const { removeVideoFromPlaylist } = usePlaylists();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
@@ -92,7 +93,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     if (isSyncing) return;
 
     setIsSyncing(true);
-    await syncSingleVideo(video.id);
+    await syncVideo(video.id);
     setIsSyncing(false);
     // We keep the menu open so the user sees the result (spinner stops)
     // Optionally we could close it: handleMenuClose();
@@ -162,11 +163,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   return (
     <>
       <div
-        className="flex flex-col gap-3 cursor-pointer group relative p-2 rounded-xl"
+        className="flex flex-col gap-3 cursor-pointer group relative p-2 rounded-xl z-0"
         onClick={handleVideoClick}
       >
         {/* Hover Substrate */}
-        <div className={`absolute inset-0 rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none ${isMenuOpen || isTooltipOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : (video.isCustom ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-2 border-emerald-500/30' : 'bg-bg-secondary')} `} />
+        <div className={`absolute inset-0 rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none ${isMenuOpen || isTooltipOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : (video.isCustom ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-2 border-emerald-500/30' : 'bg-hover-bg')} `} />
 
         {/* Thumbnail Container */}
         <div className="relative aspect-video rounded-xl overflow-hidden bg-bg-secondary">
@@ -252,7 +253,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
               {video.title}
             </h3>
             <div className="text-sm text-text-secondary flex flex-col">
-              <div className="hover:text-text-primary transition-colors">
+              <div className="hover:text-text-primary transition-colors w-fit">
                 {(video.isCustom) ? (
                   video.channelTitle
                 ) : video.channelId ? (

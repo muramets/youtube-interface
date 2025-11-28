@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { useVideo } from '../../context/VideoContext';
+import { useVideos } from '../../context/VideosContext';
+import { usePlaylists } from '../../context/PlaylistsContext';
+import { useSettings } from '../../context/SettingsContext';
 import { useChannel } from '../../context/ChannelContext';
 import { ThumbsUp, ThumbsDown, Share2, MoreHorizontal, User, Trash2, Send } from 'lucide-react';
 import { formatViewCount } from '../../utils/formatUtils';
@@ -27,7 +29,19 @@ export const WatchPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const [searchParams] = useSearchParams();
     const playlistId = searchParams.get('list');
-    const { videos, playlists, searchQuery, hiddenPlaylistIds, recommendationOrders, updateRecommendationOrder, revertRecommendationOrder } = useVideo();
+    const {
+        videos,
+        updateVideo,
+        searchQuery
+    } = useVideos();
+    const { playlists } = usePlaylists();
+    const {
+        generalSettings,
+        recommendationOrders,
+        updateRecommendationOrders
+    } = useSettings();
+
+    const hiddenPlaylistIds = generalSettings.hiddenPlaylistIds || [];
     const { currentChannel } = useChannel();
     const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
     const [toastMessage, setToastMessage] = useState('');
@@ -38,7 +52,7 @@ export const WatchPage: React.FC = () => {
     const [selectedPlaylistIds, setSelectedPlaylistIds] = useState<string[]>([]);
     const [sortBy, setSortBy] = useState<'default' | 'views' | 'date'>('default');
     const [noteText, setNoteText] = useState('');
-    const { updateVideo } = useVideo();
+
 
     const video = videos.find(v => v.id === id);
 
@@ -226,7 +240,9 @@ export const WatchPage: React.FC = () => {
                 const [movedItem] = newOrderIds.splice(oldIndex, 1);
                 newOrderIds.splice(newIndex, 0, movedItem);
 
-                updateRecommendationOrder(video.id, filterKey, newOrderIds);
+                const newOrders = { ...recommendationOrders };
+                newOrders[`${video.id}_${filterKey}`] = newOrderIds;
+                updateRecommendationOrders(newOrders);
             }
         }
     };
@@ -464,7 +480,11 @@ export const WatchPage: React.FC = () => {
                     sortBy={sortBy}
                     onSortChange={(val) => setSortBy(val)}
                     hasCustomOrder={hasCustomOrder}
-                    onRevert={() => revertRecommendationOrder(video.id, filterKey)}
+                    onRevert={() => {
+                        const newOrders = { ...recommendationOrders };
+                        delete newOrders[`${video.id}_${filterKey}`];
+                        updateRecommendationOrders(newOrders);
+                    }}
                     revertTooltip={selectedFilter === 'playlists' ? "Restore order from playlist" : "Restore order from current home page"}
                 />
 

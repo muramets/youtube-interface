@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, ListPlus } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { useVideo } from '../../context/VideoContext';
+import { usePlaylists } from '../../context/PlaylistsContext';
 
 interface CreatePlaylistModalProps {
     isOpen: boolean;
@@ -9,7 +9,7 @@ interface CreatePlaylistModalProps {
 }
 
 export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({ isOpen, onClose }) => {
-    const { createPlaylist } = useVideo();
+    const { createPlaylist } = usePlaylists();
     const [name, setName] = useState('');
 
     if (!isOpen) return null;

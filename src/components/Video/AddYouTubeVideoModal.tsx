@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Youtube } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { useVideo } from '../../context/VideoContext';
+import { useVideos } from '../../context/VideosContext';
 
 interface AddYouTubeVideoModalProps {
     isOpen: boolean;
@@ -9,7 +9,7 @@ interface AddYouTubeVideoModalProps {
 }
 
 export const AddYouTubeVideoModal: React.FC<AddYouTubeVideoModalProps> = ({ isOpen, onClose }) => {
-    const { addVideo } = useVideo();
+    const { addVideo } = useVideos();
     const [url, setUrl] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 

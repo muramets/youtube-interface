@@ -1,10 +1,22 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { Filter, Check } from 'lucide-react';
-import { useVideo } from '../../context/VideoContext';
+import { usePlaylists } from '../../context/PlaylistsContext';
+import { useSettings } from '../../context/SettingsContext';
 import { createPortal } from 'react-dom';
 
 export const FilterDropdown: React.FC = () => {
-    const { playlists, hiddenPlaylistIds, togglePlaylistVisibility } = useVideo();
+    const { playlists } = usePlaylists();
+    const { generalSettings, updateGeneralSettings } = useSettings();
+    const hiddenPlaylistIds = generalSettings.hiddenPlaylistIds || [];
+
+    const togglePlaylistVisibility = (id: string) => {
+        const currentHidden = generalSettings.hiddenPlaylistIds || [];
+        if (currentHidden.includes(id)) {
+            updateGeneralSettings({ hiddenPlaylistIds: currentHidden.filter(hid => hid !== id) });
+        } else {
+            updateGeneralSettings({ hiddenPlaylistIds: [...currentHidden, id] });
+        }
+    };
     const [isOpen, setIsOpen] = useState(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -53,31 +65,13 @@ export const FilterDropdown: React.FC = () => {
         <>
             <button
                 ref={buttonRef}
-                className={`category-pill ${isOpen ? 'active' : ''}`}
+                className={`category-pill ${isOpen ? 'active' : ''} flex items-center gap-1.5 px-3 py-1.5`}
                 onClick={() => setIsOpen(!isOpen)}
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '6px 12px',
-                    /* marginLeft removed to flow naturally */
-                }}
             >
                 <Filter size={16} />
                 <span>Filter</span>
                 {activeFilterCount > 0 && (
-                    <span style={{
-                        backgroundColor: 'var(--text-primary)',
-                        color: 'var(--bg-primary)',
-                        borderRadius: '50%',
-                        width: '16px',
-                        height: '16px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '10px',
-                        fontWeight: 'bold'
-                    }}>
+                    <span className="bg-text-primary text-bg-primary rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold">
                         {activeFilterCount}
                     </span>
                 )}
@@ -86,34 +80,17 @@ export const FilterDropdown: React.FC = () => {
             {isOpen && position && createPortal(
                 <div
                     ref={dropdownRef}
-                    className="animate-scale-in"
+                    className="animate-scale-in fixed bg-bg-secondary border border-border rounded-xl py-2 shadow-2xl z-[1000] min-w-[200px] max-h-[300px] overflow-y-auto"
                     style={{
-                        position: 'fixed',
                         top: position.top,
                         right: position.right,
-                        backgroundColor: 'var(--bg-secondary)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '12px',
-                        padding: '8px 0',
-                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
-                        zIndex: 1000,
-                        minWidth: '200px',
-                        maxHeight: '300px',
-                        overflowY: 'auto'
                     }}
                 >
-                    <div style={{
-                        padding: '8px 16px',
-                        fontSize: '14px',
-                        fontWeight: '600',
-                        color: 'var(--text-primary)',
-                        borderBottom: '1px solid var(--border)',
-                        marginBottom: '4px'
-                    }}>
+                    <div className="px-4 py-2 text-sm font-semibold text-text-primary border-b border-border mb-1">
                         Hide Content From:
                     </div>
                     {playlists.length === 0 ? (
-                        <div style={{ padding: '8px 16px', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                        <div className="px-4 py-2 text-text-secondary text-[13px]">
                             No playlists found
                         </div>
                     ) : (
@@ -123,33 +100,12 @@ export const FilterDropdown: React.FC = () => {
                                 <div
                                     key={playlist.id}
                                     onClick={() => togglePlaylistVisibility(playlist.id)}
-                                    style={{
-                                        padding: '8px 16px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '12px',
-                                        cursor: 'pointer',
-                                        transition: 'background-color 0.2s',
-                                        color: 'var(--text-primary)',
-                                        fontSize: '14px'
-                                    }}
-                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--hover-bg)'}
-                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                    className="px-4 py-2 flex items-center gap-3 cursor-pointer transition-colors text-text-primary text-sm hover:bg-hover-bg"
                                 >
-                                    <div style={{
-                                        width: '18px',
-                                        height: '18px',
-                                        borderRadius: '4px',
-                                        border: '2px solid var(--text-secondary)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        backgroundColor: isHidden ? 'var(--text-primary)' : 'transparent',
-                                        borderColor: isHidden ? 'var(--text-primary)' : 'var(--text-secondary)'
-                                    }}>
+                                    <div className={`w-[18px] h-[18px] rounded border-2 flex items-center justify-center ${isHidden ? 'bg-text-primary border-text-primary' : 'bg-transparent border-text-secondary'}`}>
                                         {isHidden && <Check size={12} color="var(--bg-primary)" strokeWidth={3} />}
                                     </div>
-                                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
                                         {playlist.name}
                                     </span>
                                 </div>

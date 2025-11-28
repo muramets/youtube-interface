@@ -1,12 +1,14 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Image as ImageIcon, Trash2, Info, ArrowUp, ChevronLeft, ChevronRight, Copy, Loader2 } from 'lucide-react';
+import { X } from 'lucide-react';
 import type { VideoDetails } from '../../utils/youtubeApi';
-import { useVideo } from '../../context/VideoContext';
-import { resizeImage } from '../../utils/imageUtils';
+import { useVideos } from '../../context/VideosContext';
+import { useChannel } from '../../context/ChannelContext';
 import { Toast } from '../Shared/Toast';
-import { PortalTooltip } from '../Shared/PortalTooltip';
-import { ClonedVideoTooltipContent } from './ClonedVideoTooltipContent';
+import { CoverImageUploader } from './Modal/CoverImageUploader';
+import { VersionHistory, type CoverVersion } from './Modal/VersionHistory';
+import { VideoForm } from './Modal/VideoForm';
+import { useVideoForm } from '../../hooks/useVideoForm';
 
 interface CustomVideoModalProps {
     isOpen: boolean;
@@ -16,154 +18,38 @@ interface CustomVideoModalProps {
     initialData?: VideoDetails;
 }
 
-interface CoverVersion {
-    url: string;
-    version: number;
-    timestamp: number;
-    originalName?: string;
-}
-
-export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onClose, onSave, onClone, initialData }) => {
-    const { fetchVideoHistory, saveVideoHistory, deleteVideoHistoryItem, currentChannel, videos } = useVideo();
-    const [title, setTitle] = useState('');
-    const [viewCount, setViewCount] = useState('');
-    const [duration, setDuration] = useState('');
-    const [coverImage, setCoverImage] = useState<string | null>(null);
-    const [isDragging, setIsDragging] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
-    const [cloningVersion, setCloningVersion] = useState<number | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
+export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
+    isOpen,
+    onClose,
+    onSave,
+    onClone,
+    initialData
+}) => {
+    const { saveVideoHistory, deleteVideoHistoryItem } = useVideos();
+    const { currentChannel } = useChannel();
     const modalRef = useRef<HTMLDivElement>(null);
 
-    // History State
-    const [coverHistory, setCoverHistory] = useState<CoverVersion[]>([]);
-    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-    const [deletedHistoryIds, setDeletedHistoryIds] = useState<Set<number | string>>(new Set());
-
-    // Versioning State
-    const [currentVersion, setCurrentVersion] = useState(1);
-    const [highestVersion, setHighestVersion] = useState(0);
-    const [currentOriginalName, setCurrentOriginalName] = useState('Original Cover');
-    const [fileVersionMap, setFileVersionMap] = useState<Record<string, number>>({});
+    const [isSaving, setIsSaving] = useState(false);
+    const [cloningVersion, setCloningVersion] = useState<number | null>(null);
 
     // Toast State
     const [toastMessage, setToastMessage] = useState('');
     const [showToast, setShowToast] = useState(false);
     const [toastType, setToastType] = useState<'success' | 'error'>('success');
-    const [toastPosition, setToastPosition] = useState<'top' | 'bottom'>('bottom');
 
-    // Scrolling Refs & State
-    const scrollContainerRef = useRef<HTMLDivElement>(null);
-    const [showLeftArrow, setShowLeftArrow] = useState(false);
-    const [showRightArrow, setShowRightArrow] = useState(false);
-
-    const checkScroll = () => {
-        if (scrollContainerRef.current) {
-            const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
-            setShowLeftArrow(scrollLeft > 0);
-            setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 1);
-        }
-    };
-
-    useEffect(() => {
-        const container = scrollContainerRef.current;
-        if (container) {
-            container.addEventListener('scroll', checkScroll);
-            window.addEventListener('resize', checkScroll);
-            checkScroll();
-            // Check again after render to ensure layout is stable
-            setTimeout(checkScroll, 100);
-
-            return () => {
-                container.removeEventListener('scroll', checkScroll);
-                window.removeEventListener('resize', checkScroll);
-            };
-        }
-    }, [coverHistory, isOpen]); // Re-check when history changes or modal opens
-
-    useEffect(() => {
-        if (isOpen) {
-            if (initialData) {
-                setTitle(initialData.title);
-                setViewCount(initialData.viewCount || '');
-                setDuration(initialData.duration || '');
-                setCoverImage(initialData.customImage || initialData.thumbnail);
-                setCurrentOriginalName(initialData.customImageName || 'Original Cover');
-                setCoverHistory([]); // Clear previous history immediately
-
-                // Initialize versioning
-                const savedCurrentVersion = initialData.customImageVersion || 1;
-                // If we have a custom image, highest is at least 1. If not, it's 0.
-                const hasCustomImage = !!initialData.customImage;
-                const savedHighestVersion = initialData.highestVersion || (hasCustomImage ? 1 : 0);
-                const savedFileVersionMap = initialData.fileVersionMap || {};
-
-                setCurrentVersion(savedCurrentVersion);
-                setHighestVersion(savedHighestVersion);
-                setFileVersionMap(savedFileVersionMap);
-
-                // Load History
-                const loadHistory = async () => {
-                    if (initialData.id && !initialData.id.startsWith('custom-')) {
-                        // For real videos, we might store history differently or not at all yet.
-                        // But if it's a custom video (or we treat all edited videos as custom-ish), we fetch.
-                        // Actually, our data model says 'isCustom' for manually added ones.
-                        // But we also edit real videos.
-                        // Let's try to fetch history for any video ID.
-                        setIsLoadingHistory(true);
-                        try {
-                            const history = await fetchVideoHistory(initialData.id);
-                            setCoverHistory(history);
-                        } catch (error) {
-                            console.error("Failed to load history:", error);
-                        } finally {
-                            setIsLoadingHistory(false);
-                        }
-                    } else if (initialData.id) {
-                        // It is a custom video
-                        // Only show loader if we expect history.
-                        // Prefer historyCount if available, otherwise fallback to highestVersion heuristic.
-                        const hasHistoryCount = typeof initialData.historyCount === 'number';
-                        const shouldShowLoader = hasHistoryCount
-                            ? (initialData.historyCount! > 0)
-                            : (initialData.highestVersion || 1) > 1;
-
-                        if (shouldShowLoader) {
-                            setIsLoadingHistory(true);
-                        }
-
-                        try {
-                            const history = await fetchVideoHistory(initialData.id);
-                            // Filter out current cover from history to avoid duplicates
-                            const currentUrl = initialData.customImage || initialData.thumbnail;
-                            const filteredHistory = history.filter(h => h.url !== currentUrl);
-                            setCoverHistory(filteredHistory);
-                        } catch (error) {
-                            console.error("Failed to load history:", error);
-                        } finally {
-                            if (shouldShowLoader) {
-                                setIsLoadingHistory(false);
-                            }
-                        }
-                    }
-                };
-                loadHistory();
-
-            } else {
-                setTitle('');
-                setViewCount('');
-                setDuration('');
-                setCoverImage(null);
-                setCoverHistory([]);
-                setDeletedHistoryIds(new Set());
-                setCurrentOriginalName('Original Cover');
-                setCurrentVersion(1);
-                setHighestVersion(0);
-                setFileVersionMap({});
-            }
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen]);
+    const {
+        title, setTitle,
+        viewCount, setViewCount,
+        duration, setDuration,
+        coverImage, setCoverImage,
+        currentVersion, setCurrentVersion,
+        highestVersion, setHighestVersion,
+        currentOriginalName, setCurrentOriginalName,
+        fileVersionMap, setFileVersionMap,
+        coverHistory, setCoverHistory,
+        isLoadingHistory,
+        deletedHistoryIds, setDeletedHistoryIds
+    } = useVideoForm(initialData, isOpen);
 
     useEffect(() => {
         if (isOpen) {
@@ -178,119 +64,65 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
 
     if (!isOpen) return null;
 
-    const handleFileWithMeta = async (file: File) => {
-        if (file && file.type.startsWith('image/')) {
-            try {
-                const resizedImage = await resizeImage(file, 800, 0.8);
+    const handleImageUpload = (file: File, resizedImage: string) => {
+        const fileKey = `${file.name.replace(/\./g, '_')}-${file.size}`;
+        let newVersion: number;
 
+        if (fileVersionMap[fileKey]) {
+            const existingVersion = fileVersionMap[fileKey];
+            const isCurrent = currentVersion === existingVersion;
+            const isInHistory = coverHistory.some(h => h.version === existingVersion);
 
-
-                // Determine Version
-                // Sanitize key for Firestore (no dots allowed in map keys)
-                const fileKey = `${file.name.replace(/\./g, '_')}-${file.size}`;
-                let newVersion: number;
-
-                if (fileVersionMap[fileKey]) {
-                    // File seen before (same name and size)
-                    const existingVersion = fileVersionMap[fileKey];
-
-                    // Check if this version is currently active or in history (and not deleted)
-                    const isCurrent = currentVersion === existingVersion;
-                    const isInHistory = coverHistory.some(h => h.version === existingVersion);
-
-                    if (isCurrent || isInHistory) {
-                        setToastMessage('This cover image already exists!');
-                        setToastType('error');
-                        setToastPosition('top');
-                        setShowToast(true);
-                        return;
-                    }
-
-                    // If it was seen before but not currently active/history (e.g. was deleted), restore its version
-                    newVersion = existingVersion;
-                } else {
-                    // New file, assign next available version
-                    newVersion = highestVersion + 1;
-                    // Update map
-                    setFileVersionMap(prev => ({ ...prev, [fileKey]: newVersion }));
-                    // Update highest version
-                    setHighestVersion(newVersion);
-                }
-
-                // If we are here, it's NOT a duplicate. Safe to update history and current image.
-                if (coverImage) {
-                    // Move current to history (Optimistic update)
-                    const historyVersion: CoverVersion = {
-                        url: coverImage,
-                        version: currentVersion,
-                        timestamp: Date.now(),
-                        originalName: currentOriginalName
-                    };
-                    setCoverHistory(prev => [historyVersion, ...prev]);
-                }
-
-                // Set new image as current
-                setCoverImage(resizedImage);
-                setCurrentOriginalName(file.name);
-                setCurrentVersion(newVersion);
-
-            } catch (error) {
-                console.error('Error resizing image:', error);
-                alert('Failed to process image. Please try another one.');
+            if (isCurrent || isInHistory) {
+                setToastMessage('This cover image already exists!');
+                setToastType('error');
+                setShowToast(true);
+                return;
             }
+            newVersion = existingVersion;
+        } else {
+            newVersion = highestVersion + 1;
+            setFileVersionMap(prev => ({ ...prev, [fileKey]: newVersion }));
+            setHighestVersion(newVersion);
         }
-    };
 
-    const handleDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(false);
-        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            handleFileWithMeta(e.dataTransfer.files[0]);
-        }
-    };
-
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(true);
-    };
-
-    const handleDragLeave = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragging(false);
-    };
-
-    const handleRestoreVersion = (versionToRestore: CoverVersion) => {
         if (coverImage) {
-            // Move current to history
             const historyVersion: CoverVersion = {
                 url: coverImage,
                 version: currentVersion,
                 timestamp: Date.now(),
                 originalName: currentOriginalName
             };
-            // Add current to history, remove the one being restored from history
-            setCoverHistory(prev => [historyVersion, ...prev.filter(v => v.timestamp !== versionToRestore.timestamp)]);
+            setCoverHistory(prev => [historyVersion, ...prev]);
+        }
 
-            // Mark the restored version as "deleted" from history (since it's now main)
+        setCoverImage(resizedImage);
+        setCurrentOriginalName(file.name);
+        setCurrentVersion(newVersion);
+    };
+
+    const handleRestoreVersion = (versionToRestore: CoverVersion) => {
+        if (coverImage) {
+            const historyVersion: CoverVersion = {
+                url: coverImage,
+                version: currentVersion,
+                timestamp: Date.now(),
+                originalName: currentOriginalName
+            };
+            setCoverHistory(prev => [historyVersion, ...prev.filter(v => v.timestamp !== versionToRestore.timestamp)]);
             setDeletedHistoryIds(prev => new Set(prev).add(versionToRestore.timestamp));
         }
 
-        // Set restored as current
         setCoverImage(versionToRestore.url);
         setCurrentOriginalName(versionToRestore.originalName || 'Restored Version');
         setCurrentVersion(versionToRestore.version);
-        // Do NOT increment highestVersion
     };
 
-    const handleDeleteVersion = async (e: React.MouseEvent, timestamp: number) => {
+    const handleDeleteVersion = (e: React.MouseEvent, timestamp: number) => {
         e.stopPropagation();
-        // Optimistic update
         setCoverHistory(prev => prev.filter(v => v.timestamp !== timestamp));
-        // Mark for deletion
         setDeletedHistoryIds(prev => new Set(prev).add(timestamp));
     };
-
-
 
     const handleSave = async (shouldClose = true) => {
         if (!coverImage) {
@@ -321,18 +153,15 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
         };
 
         try {
-            // 1. Save the main video data
             const newId = await onSave(videoData, shouldClose);
             const targetId = initialData?.id || (typeof newId === 'string' ? newId : undefined);
 
             if (targetId) {
-                // 2. Process Deletions
                 const deletePromises = Array.from(deletedHistoryIds).map(timestamp =>
                     deleteVideoHistoryItem(targetId, timestamp.toString())
                 );
                 await Promise.all(deletePromises);
 
-                // 3. Save History Items
                 const savePromises = coverHistory.map(item => saveVideoHistory(targetId, item));
                 await Promise.all(savePromises);
             }
@@ -342,7 +171,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
             }
         } catch (error) {
             console.error("Failed to save video:", error);
-            alert("Failed to save video. The images might be too large. Try deleting some history versions.");
+            alert("Failed to save video.");
         } finally {
             setIsSaving(false);
         }
@@ -350,13 +179,9 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
 
     const handleCloneWithSave = async (version: any) => {
         if (!onClone || !initialData) return;
-
         setCloningVersion(version.version);
         try {
-            // Save changes first (without closing modal)
             await handleSave(false);
-
-            // Then proceed with clone (which will close modal)
             await onClone(initialData, version);
         } finally {
             setCloningVersion(null);
@@ -366,31 +191,6 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
     const handleBackdropClick = (e: React.MouseEvent) => {
         if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
             onClose();
-        }
-    };
-
-    // Scrolling Logic
-    const scroll = (direction: 'left' | 'right') => {
-        if (scrollContainerRef.current) {
-            const scrollAmount = 200;
-            scrollContainerRef.current.scrollBy({
-                left: direction === 'left' ? -scrollAmount : scrollAmount,
-                behavior: 'smooth'
-            });
-        }
-    };
-
-    const handleWheel = (e: React.WheelEvent) => {
-        if (scrollContainerRef.current) {
-            // Smart detection for "Vertical Intent" vs "Horizontal/Diagonal Intent"
-            // We only map vertical scroll to horizontal if the user is clearly scrolling vertically.
-            // We use a 1.5x threshold to allow for some trackpad drift (small deltaX) while
-            // preventing jitter during intentional horizontal or diagonal scrolling.
-            if (Math.abs(e.deltaY) > Math.abs(e.deltaX) * 1.5) {
-                scrollContainerRef.current.scrollLeft += e.deltaY;
-            }
-            // Otherwise (Horizontal, Diagonal, or sloppy Vertical), we let the native
-            // horizontal scroll (deltaX) handle it naturally.
         }
     };
 
@@ -411,208 +211,30 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                     </div>
 
                     <div className="flex flex-col gap-5">
-                        {/* Cover Image Upload */}
-                        <div className="flex flex-col gap-2">
-                            <label className="text-sm text-text-secondary font-medium">Cover Image (v.{currentVersion})</label>
-                            <div
-                                onClick={() => fileInputRef.current?.click()}
-                                onDrop={handleDrop}
-                                onDragOver={handleDragOver}
-                                onDragLeave={handleDragLeave}
-                                className={`w-full aspect-video rounded-lg bg-bg-primary border-2 border-dashed flex items-center justify-center cursor-pointer relative overflow-hidden transition-colors ${isDragging ? 'border-blue-500 bg-blue-500/10' : 'border-border hover:border-text-secondary'}`}
-                            >
-                                {coverImage ? (
-                                    <img src={coverImage} alt="Cover Preview" className="w-full h-full object-cover" />
-                                ) : (
-                                    <div className="flex flex-col items-center gap-2 text-text-secondary">
-                                        <ImageIcon size={40} />
-                                        <span className="text-sm">Click or drag to upload cover</span>
-                                    </div>
-                                )}
-                            </div>
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                onChange={(e) => e.target.files && handleFileWithMeta(e.target.files[0])}
-                                accept="image/*"
-                                className="hidden"
-                            />
-                        </div>
+                        <CoverImageUploader
+                            currentVersion={currentVersion}
+                            coverImage={coverImage}
+                            onImageUpload={handleImageUpload}
+                        />
 
-                        {/* Cover History */}
-                        {(coverHistory.length > 0 || isLoadingHistory) && (
-                            <div className="flex flex-col gap-2">
-                                <label className="text-xs text-text-secondary uppercase tracking-wider font-bold">Version History</label>
+                        <VersionHistory
+                            history={coverHistory}
+                            isLoading={isLoadingHistory}
+                            onRestore={handleRestoreVersion}
+                            onDelete={handleDeleteVersion}
+                            onClone={onClone ? handleCloneWithSave : undefined}
+                            initialData={initialData}
+                            cloningVersion={cloningVersion}
+                        />
 
-                                <div className="relative w-full group/history min-h-[100px]">
-                                    {isLoadingHistory ? (
-                                        <div className="flex gap-3 overflow-hidden">
-                                            {[1, 2, 3].map((i) => (
-                                                <div key={i} className="flex-shrink-0 w-36 aspect-video rounded-md bg-bg-secondary border border-border relative overflow-hidden">
-                                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" style={{ backgroundSize: '200% 100%' }}></div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <>
-                                            {showLeftArrow && (
-                                                <div className="absolute left-0 top-0 z-10 flex items-center bg-gradient-to-r from-bg-secondary via-bg-secondary to-transparent pr-8 pl-0 h-full">
-                                                    <button
-                                                        className="w-8 h-8 rounded-full bg-bg-primary hover:bg-hover-bg flex items-center justify-center border border-border cursor-pointer text-text-primary shadow-sm transition-colors"
-                                                        onClick={() => scroll('left')}
-                                                    >
-                                                        <ChevronLeft size={20} />
-                                                    </button>
-                                                </div>
-                                            )}
-
-                                            <div
-                                                ref={scrollContainerRef}
-                                                className="flex gap-3 overflow-x-auto overflow-y-hidden scrollbar-hide"
-                                                onWheel={handleWheel}
-                                            >
-                                                {coverHistory.map((version) => (
-                                                    <div
-                                                        key={version.timestamp}
-                                                        className="flex-shrink-0 w-36 group relative"
-                                                    >
-                                                        {/* Removed overflow-hidden from parent to allow tooltip to pop out */}
-                                                        <div className="aspect-video border border-border relative rounded-md">
-                                                            <img src={version.url} alt={`v.${version.version}`} className="w-full h-full object-cover opacity-70 group-hover:opacity-40 transition-all duration-300 rounded-md" />
-
-                                                            {/* Overlay Buttons */}
-                                                            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-between p-2 rounded-md">
-                                                                <div className="flex justify-between w-full">
-                                                                    {/* Info Button (Top Left) */}
-                                                                    <PortalTooltip
-                                                                        content={
-                                                                            <ClonedVideoTooltipContent
-                                                                                version={version.version}
-                                                                                filename={version.originalName || 'Unknown Filename'}
-                                                                            />
-                                                                        }
-                                                                        align="left"
-                                                                    >
-                                                                        <button className="w-6 h-6 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-sm transition-colors border-none cursor-pointer">
-                                                                            <Info size={12} />
-                                                                        </button>
-                                                                    </PortalTooltip>
-
-                                                                    {/* Delete Button (Top Right) */}
-                                                                    <button
-                                                                        onClick={(e) => handleDeleteVersion(e, version.timestamp)}
-                                                                        className="w-6 h-6 rounded-full bg-red-500/80 hover:bg-red-600 text-white flex items-center justify-center backdrop-blur-sm transition-colors border-none cursor-pointer"
-                                                                        title="Delete Version"
-                                                                    >
-                                                                        <Trash2 size={12} />
-                                                                    </button>
-                                                                </div>
-
-                                                                {/* Make Main Button (Center) */}
-                                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none gap-2">
-                                                                    <button
-                                                                        onClick={() => handleRestoreVersion(version)}
-                                                                        className="w-8 h-8 rounded-full bg-[#3ea6ff]/90 hover:bg-[#3ea6ff] text-black flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border-none cursor-pointer pointer-events-auto"
-                                                                        title="Set as Main Cover"
-                                                                    >
-                                                                        <ArrowUp size={18} strokeWidth={3} />
-                                                                    </button>
-                                                                    {onClone && initialData && (
-                                                                        (() => {
-                                                                            const isCloned = videos.some(v =>
-                                                                                v.isCloned &&
-                                                                                v.clonedFromId === initialData.id &&
-                                                                                v.customImageVersion === version.version
-                                                                            );
-
-                                                                            return (
-                                                                                <button
-                                                                                    onClick={(e) => {
-                                                                                        if (isCloned || cloningVersion !== null) return;
-                                                                                        e.stopPropagation();
-                                                                                        handleCloneWithSave(version);
-                                                                                    }}
-                                                                                    disabled={isCloned || cloningVersion !== null}
-                                                                                    className={`w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border-none cursor-pointer pointer-events-auto ${isCloned
-                                                                                        ? 'bg-gray-500/50 text-gray-300 cursor-not-allowed hover:scale-90'
-                                                                                        : 'bg-green-500/90 hover:bg-green-600 text-white'
-                                                                                        }`}
-                                                                                    title={isCloned ? "Active clone already exists" : "Clone as a New Temporary Video"}
-                                                                                >
-                                                                                    {cloningVersion === version.version ? (
-                                                                                        <Loader2 size={16} className="animate-spin" />
-                                                                                    ) : (
-                                                                                        <Copy size={16} strokeWidth={2.5} />
-                                                                                    )}
-                                                                                </button>
-                                                                            );
-                                                                        })()
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex justify-between items-center mt-1 px-1">
-                                                            <span className="text-xs text-text-secondary font-medium">v.{version.version}</span>
-                                                            <span className="text-[10px] text-text-secondary">{new Date(version.timestamp).toLocaleDateString()}</span>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-
-                                            {showRightArrow && (
-                                                <div className="absolute right-0 top-0 z-10 flex items-center bg-gradient-to-l from-bg-secondary via-bg-secondary to-transparent pl-8 pr-0 h-full">
-                                                    <button
-                                                        className="w-8 h-8 rounded-full bg-bg-primary hover:bg-hover-bg flex items-center justify-center border border-border cursor-pointer text-text-primary shadow-sm transition-colors"
-                                                        onClick={() => scroll('right')}
-                                                    >
-                                                        <ChevronRight size={20} />
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Title Input */}
-                        <div className="flex flex-col gap-2">
-                            <label className="text-sm text-text-secondary font-medium">Video Title</label>
-                            <input
-                                type="text"
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                placeholder="Very good playlist for you"
-                                onKeyDown={(e) => e.stopPropagation()}
-                                className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary text-base focus:outline-none focus:border-blue-500 transition-colors placeholder:text-text-secondary/50"
-                            />
-                        </div>
-
-                        {/* View Count Input */}
-                        <div className="flex flex-col gap-2">
-                            <label className="text-sm text-text-secondary font-medium">View Count</label>
-                            <input
-                                type="text"
-                                value={viewCount}
-                                onChange={(e) => setViewCount(e.target.value)}
-                                placeholder="1M"
-                                onKeyDown={(e) => e.stopPropagation()}
-                                className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary text-base focus:outline-none focus:border-blue-500 transition-colors placeholder:text-text-secondary/50"
-                            />
-                        </div>
-
-                        {/* Duration Input */}
-                        <div className="flex flex-col gap-2">
-                            <label className="text-sm text-text-secondary font-medium">Duration</label>
-                            <input
-                                type="text"
-                                value={duration}
-                                onChange={(e) => setDuration(e.target.value)}
-                                placeholder="1:02:11"
-                                onKeyDown={(e) => e.stopPropagation()}
-                                className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary text-base focus:outline-none focus:border-blue-500 transition-colors placeholder:text-text-secondary/50"
-                            />
-                        </div>
+                        <VideoForm
+                            title={title}
+                            setTitle={setTitle}
+                            viewCount={viewCount}
+                            setViewCount={setViewCount}
+                            duration={duration}
+                            setDuration={setDuration}
+                        />
 
                         <div className="flex justify-end gap-3 mt-4">
                             <button
@@ -627,7 +249,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                                 className={`px-4 py-2 rounded-full border-none text-black cursor-pointer font-bold transition-all relative overflow-hidden ${isSaving ? 'bg-[#3ea6ff]/70 cursor-wait' : 'bg-[#3ea6ff] hover:bg-[#3ea6ff]/90'}`}
                             >
                                 {isSaving && (
-                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" style={{ backgroundSize: '200% 100%' }}></div>
+                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer bg-[length:200%_100%]"></div>
                                 )}
                                 <span className="relative z-10">Save</span>
                             </button>
@@ -641,7 +263,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({ isOpen, onCl
                 duration={4000}
                 onClose={() => setShowToast(false)}
                 type={toastType}
-                position={toastPosition}
+                position="bottom"
             />
         </>,
         document.body

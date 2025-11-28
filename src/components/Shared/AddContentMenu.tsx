@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { AddYouTubeVideoModal } from '../Video/AddYouTubeVideoModal';
 import { CustomVideoModal } from '../Video/CustomVideoModal';
 import { CreatePlaylistModal } from '../Playlist/CreatePlaylistModal';
-import { useVideo } from '../../context/VideoContext';
+import { useVideos } from '../../context/VideosContext';
 
 interface AddContentMenuProps {
     showVideo?: boolean;
@@ -17,7 +17,7 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
     showPlaylist = true,
     directPlaylist = false
 }) => {
-    const { addCustomVideo } = useVideo();
+    const { addCustomVideo } = useVideos();
     const [isOpen, setIsOpen] = useState(false);
     const [activeModal, setActiveModal] = useState<'youtube' | 'custom' | 'playlist' | null>(null);
 

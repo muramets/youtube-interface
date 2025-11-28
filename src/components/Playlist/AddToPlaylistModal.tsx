@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { useVideo } from '../../context/VideoContext';
+import { usePlaylists } from '../../context/PlaylistsContext';
 import { X, Plus, Check } from 'lucide-react';
 
 interface AddToPlaylistModalProps {
@@ -9,7 +9,7 @@ interface AddToPlaylistModalProps {
 }
 
 export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoId, onClose }) => {
-    const { playlists, createPlaylist, addVideoToPlaylist, removeVideoFromPlaylist } = useVideo();
+    const { playlists, createPlaylist, addVideoToPlaylist, removeVideoFromPlaylist } = usePlaylists();
     const [isCreating, setIsCreating] = React.useState(false);
     const [newPlaylistName, setNewPlaylistName] = React.useState('');
 

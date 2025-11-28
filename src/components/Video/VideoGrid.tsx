@@ -1,6 +1,8 @@
 import React from 'react';
 import { VideoCard } from './VideoCard';
-import { useVideo } from '../../context/VideoContext';
+import { useVideos } from '../../context/VideosContext';
+import { usePlaylists } from '../../context/PlaylistsContext';
+import { useSettings } from '../../context/SettingsContext';
 import type { VideoDetails } from '../../utils/youtubeApi';
 import {
   DndContext,
@@ -63,13 +65,38 @@ interface VideoGridProps {
   playlistId?: string;
 }
 
+const gridColsClasses: Record<number, string> = {
+  1: 'grid-cols-1',
+  2: 'grid-cols-2',
+  3: 'grid-cols-3',
+  4: 'grid-cols-4',
+  5: 'grid-cols-5',
+  6: 'grid-cols-6',
+  7: 'grid-cols-7',
+  8: 'grid-cols-8',
+  9: 'grid-cols-9',
+  10: 'grid-cols-10',
+  11: 'grid-cols-11',
+  12: 'grid-cols-12',
+};
+
 export const VideoGrid: React.FC<VideoGridProps> = ({
   videos: propVideos,
   onVideoMove,
   disableChannelFilter = false,
   playlistId
 }) => {
-  const { videos: contextVideos, cardsPerRow, selectedChannel, playlists, hiddenPlaylistIds, moveVideo, searchQuery, homeSortBy, removeVideo } = useVideo();
+  const {
+    videos: contextVideos,
+    moveVideo,
+    searchQuery,
+    selectedChannel,
+    homeSortBy,
+    removeVideo
+  } = useVideos();
+  const { playlists } = usePlaylists();
+  const { generalSettings } = useSettings();
+  const hiddenPlaylistIds = generalSettings.hiddenPlaylistIds || [];
   const { currentChannel } = useChannel();
 
   const sensors = useSensors(
@@ -191,10 +218,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
       onDragEnd={handleDragEnd}
     >
       <div
-        className="grid gap-4 py-6 pr-6 pl-0 w-full"
-        style={{
-          gridTemplateColumns: `repeat(${cardsPerRow}, 1fr)`
-        }}
+        className={`grid gap-4 py-6 pr-6 pl-0 w-full ${gridColsClasses[generalSettings.cardsPerRow] || 'grid-cols-4'}`}
       >
         {isDraggable ? (
           <SortableContext

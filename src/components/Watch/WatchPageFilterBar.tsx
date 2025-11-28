@@ -3,7 +3,7 @@ import { FilterSortDropdown } from '../Shared/FilterSortDropdown';
 import { ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 import { PortalTooltip } from '../Shared/PortalTooltip';
 
-import { type Playlist } from '../../context/VideoContext';
+import { type Playlist } from '../../services/playlistService';
 
 interface WatchPageFilterBarProps {
     channelName: string;

@@ -1,6 +1,8 @@
 import { Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
-import { VideoProvider } from './context/VideoContext';
+import { SettingsProvider } from './context/SettingsContext';
+import { VideosProvider } from './context/VideosContext';
+import { PlaylistsProvider } from './context/PlaylistsContext';
 import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
 import { VideoGrid } from './components/Video/VideoGrid';
@@ -67,9 +69,13 @@ function App() {
       <ChannelProvider>
         <ThemeProvider>
           <UserProfileProvider>
-            <VideoProvider>
-              <AppContent />
-            </VideoProvider>
+            <SettingsProvider>
+              <VideosProvider>
+                <PlaylistsProvider>
+                  <AppContent />
+                </PlaylistsProvider>
+              </VideosProvider>
+            </SettingsProvider>
           </UserProfileProvider>
         </ThemeProvider>
       </ChannelProvider>

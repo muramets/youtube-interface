@@ -37,6 +37,22 @@ export default {
                     '0%': { opacity: '0', transform: 'scale(0.95)' },
                     '100%': { opacity: '1', transform: 'scale(1)' },
                 },
+                fadeIn: {
+                    'from': { opacity: '0' },
+                    'to': { opacity: '1' },
+                },
+                scaleIn: {
+                    'from': { opacity: '0', transform: 'scale(0.95)' },
+                    'to': { opacity: '1', transform: 'scale(1)' },
+                },
+                slideUpFade: {
+                    'from': { opacity: '0', transform: 'translateY(10px)' },
+                    'to': { opacity: '1', transform: 'translateY(0)' },
+                },
+                shimmer: {
+                    '0%': { backgroundPosition: '200% 0' },
+                    '100%': { backgroundPosition: '-200% 0' },
+                }
             },
             animation: {
                 'fade-in-up': 'fade-in-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
@@ -44,6 +60,10 @@ export default {
                 'fade-in-down': 'fade-in-down 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
                 'fade-out-up': 'fade-out-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
                 'scale-in': 'scale-in 0.2s ease-out forwards',
+                'fade-in': 'fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                'scale-in-center': 'scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                'slide-up': 'slideUpFade 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                'shimmer': 'shimmer 2s linear infinite',
             }
         },
     },

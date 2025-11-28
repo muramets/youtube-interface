@@ -5,7 +5,9 @@ import {
     collection,
     doc,
     setDoc,
-    onSnapshot
+    onSnapshot,
+    deleteDoc,
+    getDocs
 } from 'firebase/firestore';
 
 export interface Channel {
@@ -158,7 +160,7 @@ export const ChannelProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const deleteChannel = async (channelId: string) => {
         if (!user) return;
 
-        const { deleteDoc, getDocs } = await import('firebase/firestore');
+
 
         // 1. Delete Subcollections (Videos, Playlists, Settings)
         // Note: Firestore does not support recursive delete on client SDK easily.

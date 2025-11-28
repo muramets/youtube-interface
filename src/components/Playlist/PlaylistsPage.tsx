@@ -1,5 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { useVideo, type Playlist } from '../../context/VideoContext';
+import { useVideos } from '../../context/VideosContext';
+import { usePlaylists } from '../../context/PlaylistsContext';
+import { type Playlist } from '../../services/playlistService';
 import { useNavigate } from 'react-router-dom';
 import { PlaylistEditModal } from './PlaylistEditModal';
 import { ConfirmationModal } from '../Shared/ConfirmationModal';
@@ -21,12 +23,13 @@ import {
     rectSortingStrategy,
 } from '@dnd-kit/sortable';
 
-import './PlaylistsPage.css';
+
 
 import { SortablePlaylistCard } from './PlaylistCard';
 
 export const PlaylistsPage: React.FC = () => {
-    const { playlists, deletePlaylist, updatePlaylist, reorderPlaylists, searchQuery, videos } = useVideo();
+    const { playlists, deletePlaylist, updatePlaylist, reorderPlaylists } = usePlaylists();
+    const { searchQuery, videos } = useVideos();
     const navigate = useNavigate();
     const [editingPlaylist, setEditingPlaylist] = useState<Playlist | null>(null);
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -115,9 +118,9 @@ export const PlaylistsPage: React.FC = () => {
     ];
 
     return (
-        <div className="animate-fade-in" style={{ padding: '24px 24px 24px 0px' }}>
+        <div className="animate-fade-in p-6 pl-0">
             <div className="flex items-center justify-between mb-6">
-                <h1 style={{ fontSize: '24px', margin: 0 }}>Your Playlists</h1>
+                <h1 className="text-2xl m-0">Your Playlists</h1>
                 <div className="flex items-center gap-1">
                     <AddContentMenu directPlaylist={true} />
                     <FilterSortDropdown
@@ -134,11 +137,7 @@ export const PlaylistsPage: React.FC = () => {
                 collisionDetection={closestCenter}
                 onDragEnd={handleDragEnd}
             >
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-                    gap: '24px'
-                }}>
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-6">
                     <SortableContext
                         items={filteredPlaylists.map(p => p.id)}
                         strategy={rectSortingStrategy}

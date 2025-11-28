@@ -1,9 +1,11 @@
 import React from 'react';
 import { Plus, Minus } from 'lucide-react';
-import { useVideo } from '../../context/VideoContext';
+import { useSettings } from '../../context/SettingsContext';
 
 export const ZoomControls: React.FC = () => {
-    const { cardsPerRow, updateCardsPerRow } = useVideo();
+    const { generalSettings, updateGeneralSettings } = useSettings();
+    const cardsPerRow = generalSettings.cardsPerRow;
+    const updateCardsPerRow = (count: number) => updateGeneralSettings({ cardsPerRow: count });
 
     return (
         <div className="fixed bottom-8 right-8 flex flex-row gap-2 z-50">

@@ -1,13 +1,15 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useVideo } from '../../context/VideoContext';
+import { useVideos } from '../../context/VideosContext';
+import { usePlaylists } from '../../context/PlaylistsContext';
 import { ArrowLeft, PlaySquare } from 'lucide-react';
 import { VideoGrid } from '../Video/VideoGrid';
 import { ZoomControls } from '../Video/ZoomControls';
 
 export const PlaylistDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const { playlists, videos, reorderPlaylistVideos } = useVideo();
+    const { playlists, reorderPlaylistVideos } = usePlaylists();
+    const { videos } = useVideos();
     const navigate = useNavigate();
 
     const playlist = playlists.find(p => p.id === id);

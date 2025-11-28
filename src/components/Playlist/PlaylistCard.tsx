@@ -2,7 +2,7 @@ import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { PlaySquare, MoreVertical } from 'lucide-react';
-import type { Playlist } from '../../context/VideoContext';
+import type { Playlist } from '../../services/playlistService';
 import { PlaylistMenu } from './PlaylistMenu';
 
 
@@ -29,11 +29,11 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
 }) => {
     return (
         <div
-            className="group relative p-2 rounded-xl cursor-pointer flex flex-col h-full"
+            className="group relative p-2 rounded-xl cursor-pointer flex flex-col h-full z-0"
             onClick={() => navigate(`/playlists/${playlist.id}`)}
         >
             {/* Hover Substrate */}
-            <div className="absolute inset-0 bg-bg-secondary rounded-xl opacity-0 scale-90 transition-all duration-200 ease-out group-hover:opacity-100 group-hover:scale-100 -z-10 pointer-events-none" />
+            <div className="absolute inset-0 bg-hover-bg rounded-xl opacity-0 scale-90 transition-all duration-200 ease-out group-hover:opacity-100 group-hover:scale-100 -z-10 pointer-events-none" />
 
             <div className="flex flex-col relative h-full rounded-xl">
                 {/* Cover Image Area */}

@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { X, Upload, Trash2 } from 'lucide-react';
-import { useVideo, type Playlist } from '../../context/VideoContext';
+import { useVideos } from '../../context/VideosContext';
+import { type Playlist } from '../../services/playlistService';
 
 interface PlaylistEditModalProps {
     isOpen: boolean;
@@ -10,7 +11,7 @@ interface PlaylistEditModalProps {
 }
 
 export const PlaylistEditModal: React.FC<PlaylistEditModalProps> = ({ isOpen, onClose, onSave, playlist }) => {
-    const { videos } = useVideo();
+    const { videos } = useVideos();
     const [name, setName] = useState(playlist.name);
     const [coverImage, setCoverImage] = useState(playlist.coverImage || '');
     const [isDragging, setIsDragging] = useState(false);
