@@ -9,9 +9,11 @@ interface SortableVideoCardProps {
     playlistId?: string;
     scale?: number;
     onMenuOpenChange?: (isOpen: boolean) => void;
+    onRemove?: (id: string) => void;
 }
 
-export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, playlistId, scale = 1, onMenuOpenChange }) => {
+export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, playlistId, scale = 1, onMenuOpenChange, onRemove }) => {
+    console.log('SortableVideoCard render', video.id);
     const {
         attributes,
         listeners,
@@ -38,7 +40,7 @@ export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, pla
 
     return (
         <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-            <VideoCard video={video} playlistId={playlistId} onMenuOpenChange={onMenuOpenChange} onRemove={() => { }} />
+            <VideoCard video={video} playlistId={playlistId} onMenuOpenChange={onMenuOpenChange} onRemove={onRemove || (() => { })} />
         </div>
     );
 };

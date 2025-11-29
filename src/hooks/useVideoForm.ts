@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { type VideoDetails, type CoverVersion } from '../utils/youtubeApi';
-import { useVideos } from '../context/VideosContext';
+import { useVideoActions } from '../context/VideoActionsContext';
 
 export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
-    const { fetchVideoHistory } = useVideos();
+    const { fetchVideoHistory } = useVideoActions();
 
     // Form State
     const [title, setTitle] = useState('');

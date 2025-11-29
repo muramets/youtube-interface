@@ -8,7 +8,7 @@ export const ZoomControls: React.FC = () => {
     const updateCardsPerRow = (count: number) => updateGeneralSettings({ cardsPerRow: count });
 
     return (
-        <div className="fixed bottom-8 right-8 flex flex-row gap-2 z-50">
+        <div className="absolute bottom-8 right-8 flex flex-row gap-2 z-50">
             <button
                 className="w-12 h-12 rounded-full bg-bg-secondary hover:bg-hover-bg text-text-primary shadow-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={() => updateCardsPerRow(cardsPerRow + 1)}

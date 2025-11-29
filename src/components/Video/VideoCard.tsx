@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { MoreVertical, Info, Trash2 } from 'lucide-react';
 import { type VideoDetails, type CoverVersion } from '../../utils/youtubeApi';
 import { formatDuration, formatViewCount } from '../../utils/formatUtils';
-import { useVideos } from '../../context/VideosContext';
+import { useVideoActions } from '../../context/VideoActionsContext';
 import { usePlaylists } from '../../context/PlaylistsContext';
 import { PortalTooltip } from '../Shared/PortalTooltip';
 import { VideoCardMenu } from './VideoCardMenu';
@@ -26,7 +26,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     syncVideo,
     updateVideo,
     cloneVideo
-  } = useVideos();
+  } = useVideoActions();
   const { removeVideoFromPlaylist } = usePlaylists();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);

@@ -8,11 +8,26 @@ import { ZoomControls } from '../Video/ZoomControls';
 
 export const PlaylistDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const { playlists, reorderPlaylistVideos } = usePlaylists();
-    const { videos } = useVideos();
+    const { playlists, reorderPlaylistVideos, isLoading: isPlaylistsLoading } = usePlaylists();
+    const { videos, isLoading: isVideosLoading } = useVideos();
     const navigate = useNavigate();
 
     const playlist = playlists.find(p => p.id === id);
+
+    if (isPlaylistsLoading) {
+        return (
+            <div className="animate-fade-in flex flex-col h-full relative">
+                <div className="pt-6 px-6 flex items-center gap-4 mb-0">
+                    <div className="w-20 h-[45px] bg-bg-secondary rounded-lg animate-pulse" />
+                    <div className="flex flex-col gap-2">
+                        <div className="h-6 w-48 bg-bg-secondary rounded animate-pulse" />
+                        <div className="h-4 w-32 bg-bg-secondary rounded animate-pulse" />
+                    </div>
+                </div>
+                <VideoGrid isLoading={true} />
+            </div>
+        );
+    }
 
     if (!playlist) {
         return (
@@ -89,6 +104,7 @@ export const PlaylistDetailPage: React.FC = () => {
                 onVideoMove={handlePlaylistReorder}
                 disableChannelFilter={true}
                 playlistId={playlist.id}
+                isLoading={isVideosLoading}
             />
 
             {/* Floating Zoom Controls */}

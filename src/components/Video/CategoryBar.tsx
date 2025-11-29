@@ -1,10 +1,12 @@
 import React from 'react';
 import { useVideos } from '../../context/VideosContext';
+import { useVideoFiltering } from '../../context/VideoFilterContext';
 import { FilterSortDropdown } from '../Shared/FilterSortDropdown';
 import { AddContentMenu } from '../Shared/AddContentMenu';
 
 export const CategoryBar: React.FC = () => {
-    const { uniqueChannels, selectedChannel, setSelectedChannel, homeSortBy, setHomeSortBy } = useVideos();
+    const { uniqueChannels } = useVideos();
+    const { selectedChannel, setSelectedChannel, homeSortBy, setHomeSortBy } = useVideoFiltering();
     const categories = ['All', ...uniqueChannels];
 
     const sortOptions = [

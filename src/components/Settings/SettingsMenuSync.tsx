@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { useSettings } from '../../context/SettingsContext';
-import { useVideos } from '../../context/VideosContext';
+import { useVideoActions } from '../../context/VideoActionsContext';
 
 interface SettingsMenuSyncProps {
     onBack: () => void;
@@ -9,7 +9,7 @@ interface SettingsMenuSyncProps {
 
 export const SettingsMenuSync: React.FC<SettingsMenuSyncProps> = ({ onBack }) => {
     const { syncSettings, updateSyncSettings } = useSettings();
-    const { manualSync, isSyncing } = useVideos();
+    const { manualSync, isSyncing } = useVideoActions();
     const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
 
     const getUnit = (hours: number) => {

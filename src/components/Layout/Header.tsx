@@ -3,13 +3,13 @@ import { Menu, Search, Settings, Video, Bell, User } from 'lucide-react';
 import { SettingsDropdown } from '../SettingsDropdown';
 import { useUserProfile } from '../../context/UserProfileContext';
 import { ChannelDropdown } from '../ChannelDropdown';
-import { useVideos } from '../../context/VideosContext';
+import { useVideoFiltering } from '../../context/VideoFilterContext';
 
 export const Header: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
   const [isChannelDropdownOpen, setIsChannelDropdownOpen] = React.useState(false);
   const { avatarDataUrl } = useUserProfile();
-  const { searchQuery, setSearchQuery } = useVideos();
+  const { searchQuery, setSearchQuery } = useVideoFiltering();
   const settingsButtonRef = React.useRef<HTMLButtonElement>(null);
   const avatarButtonRef = React.useRef<HTMLDivElement>(null);
 

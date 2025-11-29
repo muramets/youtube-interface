@@ -7,6 +7,7 @@ import { PlaylistService, type Playlist } from '../services/playlistService';
 
 interface PlaylistsContextType {
     playlists: Playlist[];
+    isLoading: boolean;
     createPlaylist: (name: string) => Promise<void>;
     deletePlaylist: (id: string) => Promise<void>;
     updatePlaylist: (id: string, updates: Partial<Playlist>) => Promise<void>;
@@ -34,6 +35,7 @@ export const PlaylistsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     const [rawPlaylists, setRawPlaylists] = useState<Playlist[]>([]);
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         if (rawPlaylists.length === 0) {
@@ -60,13 +62,17 @@ export const PlaylistsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     useEffect(() => {
         if (!user || !currentChannel) {
             setPlaylists([]);
+            setIsLoading(false);
             return;
         }
 
         const unsubscribe = PlaylistService.subscribeToPlaylists(
             user.uid,
             currentChannel.id,
-            (data) => setRawPlaylists(data)
+            (data) => {
+                setRawPlaylists(data);
+                setIsLoading(false);
+            }
         );
 
         return () => unsubscribe();
@@ -149,6 +155,7 @@ export const PlaylistsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return (
         <PlaylistsContext.Provider value={{
             playlists,
+            isLoading,
             createPlaylist,
             deletePlaylist,
             updatePlaylist,

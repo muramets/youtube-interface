@@ -2,7 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { MoreVertical, Info, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useVideos } from '../../context/VideosContext';
+import { useVideoActions } from '../../context/VideoActionsContext';
 import { usePlaylists } from '../../context/PlaylistsContext';
 import type { VideoDetails } from '../../utils/youtubeApi';
 import { formatViewCount, formatDuration } from '../../utils/formatUtils';
@@ -21,7 +21,7 @@ interface RecommendationCardProps {
 
 export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, playlistId, onMenuOpenChange }) => {
     const navigate = useNavigate();
-    const { removeVideo, updateVideo } = useVideos();
+    const { removeVideo, updateVideo } = useVideoActions();
     const { removeVideoFromPlaylist } = usePlaylists();
     const [showMenu, setShowMenu] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);

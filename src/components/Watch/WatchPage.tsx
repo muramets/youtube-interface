@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useVideos } from '../../context/VideosContext';
+import { useVideoFiltering } from '../../context/VideoFilterContext';
+import { useVideoActions } from '../../context/VideoActionsContext';
 import { usePlaylists } from '../../context/PlaylistsContext';
 import { useSettings } from '../../context/SettingsContext';
 import { useChannel } from '../../context/ChannelContext';
@@ -24,16 +26,15 @@ import {
 import { SortableRecommendationCard } from './SortableRecommendationCard';
 import { WatchPageFilterBar } from './WatchPageFilterBar';
 import { Toast } from '../Shared/Toast';
+import { WatchPageSkeleton } from './WatchPageSkeleton';
 
 export const WatchPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const [searchParams] = useSearchParams();
     const playlistId = searchParams.get('list');
-    const {
-        videos,
-        updateVideo,
-        searchQuery
-    } = useVideos();
+    const { videos, isLoading } = useVideos();
+    const { updateVideo } = useVideoActions();
+    const { searchQuery } = useVideoFiltering();
     const { playlists } = usePlaylists();
     const {
         generalSettings,
@@ -250,6 +251,10 @@ export const WatchPage: React.FC = () => {
 
     const isDraggable = true; // Always draggable now that we have custom order
     const description = video?.description || '';
+
+    if (isLoading) {
+        return <WatchPageSkeleton />;
+    }
 
     if (!video) {
         return <div className="p-8 text-text-primary">Video not found</div>;

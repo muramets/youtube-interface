@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useVideos } from '../../context/VideosContext';
+import { useVideoFiltering } from '../../context/VideoFilterContext';
 import { usePlaylists } from '../../context/PlaylistsContext';
 import { type Playlist } from '../../services/playlistService';
 import { useNavigate } from 'react-router-dom';
@@ -29,7 +30,8 @@ import { SortablePlaylistCard } from './PlaylistCard';
 
 export const PlaylistsPage: React.FC = () => {
     const { playlists, deletePlaylist, updatePlaylist, reorderPlaylists } = usePlaylists();
-    const { searchQuery, videos } = useVideos();
+    const { videos } = useVideos();
+    const { searchQuery } = useVideoFiltering();
     const navigate = useNavigate();
     const [editingPlaylist, setEditingPlaylist] = useState<Playlist | null>(null);
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);

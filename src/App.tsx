@@ -1,7 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { SettingsProvider } from './context/SettingsContext';
-import { VideosProvider } from './context/VideosContext';
+import { VideosProvider, useVideos } from './context/VideosContext';
 import { PlaylistsProvider } from './context/PlaylistsContext';
 import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
@@ -9,21 +9,17 @@ import { VideoGrid } from './components/Video/VideoGrid';
 import { WatchPage } from './components/Watch/WatchPage';
 import { PlaylistsPage } from './components/Playlist/PlaylistsPage';
 import { PlaylistDetailPage } from './components/Playlist/PlaylistDetailPage';
-
-
 import { UserProfileProvider } from './context/UserProfileContext';
 import { AuthProvider } from './context/AuthContext';
 import { ChannelProvider } from './context/ChannelContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
-
 import { CategoryBar } from './components/Video/CategoryBar';
-import { ZoomControls } from './components/Video/ZoomControls';
-
-
+import { VideoFilterProvider } from './context/VideoFilterContext';
+import { VideoActionsProvider } from './context/VideoActionsContext';
 
 function AppContent() {
-
+  const { isLoading } = useVideos();
 
   return (
     <div className="h-screen flex flex-col bg-bg-primary text-text-primary overflow-hidden">
@@ -38,10 +34,11 @@ function AppContent() {
                 <main className="flex-1 flex flex-col overflow-y-auto relative">
                   <Routes>
                     <Route path="/" element={
-                      <div className="animate-fade-in">
+                      <div className="h-full flex flex-col">
                         <CategoryBar />
-                        <VideoGrid />
-                        <ZoomControls />
+                        <div className="flex-1 min-h-0 relative">
+                          <VideoGrid isLoading={isLoading} />
+                        </div>
                       </div>
                     } />
                     <Route path="/watch/:id" element={<WatchPage />} />
@@ -66,9 +63,13 @@ function App() {
           <UserProfileProvider>
             <SettingsProvider>
               <VideosProvider>
-                <PlaylistsProvider>
-                  <AppContent />
-                </PlaylistsProvider>
+                <VideoFilterProvider>
+                  <VideoActionsProvider>
+                    <PlaylistsProvider>
+                      <AppContent />
+                    </PlaylistsProvider>
+                  </VideoActionsProvider>
+                </VideoFilterProvider>
               </VideosProvider>
             </SettingsProvider>
           </UserProfileProvider>

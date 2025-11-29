@@ -1,204 +1,93 @@
 import React from 'react';
-import { VideoCard } from './VideoCard';
+
+import type { VideoDetails } from '../../utils/youtubeApi';
 import { useVideos } from '../../context/VideosContext';
+import { useVideoFiltering } from '../../context/VideoFilterContext';
+import { useVideoActions } from '../../context/VideoActionsContext';
 import { usePlaylists } from '../../context/PlaylistsContext';
 import { useSettings } from '../../context/SettingsContext';
-import type { VideoDetails } from '../../utils/youtubeApi';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  rectSortingStrategy,
-  useSortable
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { useChannel } from '../../context/ChannelContext';
-
-
-
-// Helper component for sortable item
-interface SortableVideoCardProps {
-  video: VideoDetails;
-  onRemove: (id: string) => void;
-  playlistId?: string;
-}
-
-// Helper component for sortable item
-const SortableVideoCard = ({ video, onRemove, playlistId }: SortableVideoCardProps) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging
-  } = useSortable({ id: video.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 1000 : 'auto',
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <VideoCard video={video} onRemove={onRemove} playlistId={playlistId} />
-    </div>
-  );
-};
+import { VideoCardSkeleton } from '../Shared/VideoCardSkeleton';
+import { VirtualVideoGrid } from './VirtualVideoGrid';
+import { VideoGridContainer } from './VideoGridContainer';
+import { GRID_LAYOUT } from '../../config/layout';
 
 interface VideoGridProps {
   videos?: VideoDetails[];
   onVideoMove?: (oldIndex: number, newIndex: number) => void;
   disableChannelFilter?: boolean;
   playlistId?: string;
+  isLoading?: boolean;
 }
-
-const gridColsClasses: Record<number, string> = {
-  1: 'grid-cols-1',
-  2: 'grid-cols-2',
-  3: 'grid-cols-3',
-  4: 'grid-cols-4',
-  5: 'grid-cols-5',
-  6: 'grid-cols-6',
-  7: 'grid-cols-7',
-  8: 'grid-cols-8',
-  9: 'grid-cols-9',
-  10: 'grid-cols-10',
-  11: 'grid-cols-11',
-  12: 'grid-cols-12',
-};
 
 export const VideoGrid: React.FC<VideoGridProps> = ({
   videos: propVideos,
-  onVideoMove,
   disableChannelFilter = false,
-  playlistId
+  playlistId,
+  isLoading: propIsLoading = false
 }) => {
-  const {
-    videos: contextVideos,
-    moveVideo,
-    searchQuery,
-    selectedChannel,
-    homeSortBy,
-    removeVideo
-  } = useVideos();
+  const { videos: contextVideos, isLoading: contextIsLoading } = useVideos();
+  const { selectedChannel, searchQuery } = useVideoFiltering();
+  const { removeVideo } = useVideoActions();
   const { playlists } = usePlaylists();
   const { generalSettings } = useSettings();
   const hiddenPlaylistIds = generalSettings.hiddenPlaylistIds || [];
-  const { currentChannel } = useChannel();
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
+  const isLoading = propIsLoading || (propVideos ? false : contextIsLoading);
+  const sourceVideos = propVideos || contextVideos;
 
   const filteredVideos = React.useMemo(() => {
-    // Use provided videos or fallback to context videos
-    const sourceVideos = propVideos || contextVideos;
+    if (propVideos) return propVideos;
 
     // Get Set of hidden video IDs
     const hiddenVideoIds = new Set<string>();
-    if (!propVideos) { // Only apply playlist filtering if using global context videos
-      playlists.forEach(playlist => {
-        if (hiddenPlaylistIds.includes(playlist.id)) {
-          playlist.videoIds.forEach(id => hiddenVideoIds.add(id));
-        }
-      });
-    }
+    // Only apply playlist filtering if using global context videos
+    playlists.forEach(playlist => {
+      if (hiddenPlaylistIds.includes(playlist.id)) {
+        playlist.videoIds.forEach(id => hiddenVideoIds.add(id));
+      }
+    });
 
     let result = sourceVideos;
 
-    // Apply channel filter only if not disabled and not using propVideos (unless we want to filter propVideos too, but usually not for playlists)
-    if (!disableChannelFilter && !propVideos) {
-      result = selectedChannel === 'All'
-        ? result
-        : result.filter(video => {
-          const effectiveChannelTitle = (video.isCustom && currentChannel) ? currentChannel.name : video.channelTitle;
-          return effectiveChannelTitle === selectedChannel;
-        });
-    }
-
-    // Apply hidden playlist filter
-    if (!propVideos) {
+    // Filter out hidden videos
+    if (hiddenVideoIds.size > 0) {
       result = result.filter(video => !hiddenVideoIds.has(video.id));
     }
 
-    // Apply search filter
-    result = result.filter(video => {
-      if (!searchQuery) return true;
-      return video.title.toLowerCase().includes(searchQuery.toLowerCase());
+    return result.filter(video => {
+      const matchesChannel = disableChannelFilter || selectedChannel === 'All' || video.channelTitle === selectedChannel;
+      const matchesSearch = video.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        video.channelTitle.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesChannel && matchesSearch;
     });
+  }, [sourceVideos, selectedChannel, searchQuery, disableChannelFilter, propVideos, playlists, hiddenPlaylistIds]);
 
-    // Sorting (only apply if not using propVideos, or if we want to allow sorting in playlists too? 
-    // Usually playlists have their own order, but search/sort might be useful. 
-    // For now, let's apply sort if it's the main grid, but maybe respect playlist order otherwise?
-    // Actually, if onVideoMove is provided, we probably want to respect the order passed in, unless sorting is active.)
 
-    // If we are in a playlist (propVideos exists), we might want to skip global sorting to preserve playlist order
-    // UNLESS the user explicitly selected a sort option. But homeSortBy is global.
-    // Let's assume for now we only sort the main grid.
-    if (!propVideos) {
-      if (homeSortBy === 'views') {
-        result = [...result].sort((a, b) => {
-          const viewsA = parseInt(a.viewCount?.replace(/[^0-9]/g, '') || '0', 10);
-          const viewsB = parseInt(b.viewCount?.replace(/[^0-9]/g, '') || '0', 10);
-          return viewsB - viewsA;
-        });
-      } else if (homeSortBy === 'date') {
-        result = [...result].sort((a, b) => {
-          const dateA = new Date(a.publishedAt).getTime();
-          const dateB = new Date(b.publishedAt).getTime();
-          return dateB - dateA;
-        });
-      }
-    }
 
-    return result;
-  }, [contextVideos, propVideos, selectedChannel, playlists, hiddenPlaylistIds, searchQuery, homeSortBy, currentChannel, disableChannelFilter]);
+  console.log('VideoGrid render', { isLoading, videoCount: filteredVideos.length });
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-
-    if (over && active.id !== over.id) {
-      // Use propVideos if available, otherwise contextVideos
-      const sourceVideos = propVideos || contextVideos;
-
-      const oldIndex = sourceVideos.findIndex((v) => v.id === active.id);
-      const newIndex = sourceVideos.findIndex((v) => v.id === over.id);
-
-      if (oldIndex !== -1 && newIndex !== -1) {
-        if (onVideoMove) {
-          onVideoMove(oldIndex, newIndex);
-        } else if (selectedChannel === 'All' && !searchQuery && homeSortBy === 'default') {
-          // Only allow global reordering if we are viewing 'All' videos and no filters/sorts are active
-          moveVideo(oldIndex, newIndex);
-        }
-      }
-    }
-  };
-
-  // Draggable condition:
-  // If propVideos is provided (playlist), it's draggable if onVideoMove is provided (and maybe no search?)
-  // If contextVideos (home), it's draggable if All channel, no search, default sort.
-  const isDraggable = propVideos
-    ? (!!onVideoMove && !searchQuery)
-    : (selectedChannel === 'All' && !searchQuery && homeSortBy === 'default');
+  if (isLoading) {
+    return (
+      <VideoGridContainer>
+        <div
+          className={`grid w-full h-full overflow-y-auto overflow-x-hidden`}
+          style={{
+            gap: GRID_LAYOUT.GAP,
+            paddingRight: GRID_LAYOUT.PADDING.RIGHT,
+            paddingBottom: GRID_LAYOUT.PADDING.BOTTOM,
+            paddingLeft: GRID_LAYOUT.PADDING.LEFT,
+            gridTemplateColumns: `repeat(${generalSettings.cardsPerRow}, minmax(0, 1fr))`
+          }}
+        >
+          {Array.from({ length: generalSettings.cardsPerRow * 3 }).map((_, i) => (
+            <div key={i} className="min-w-0">
+              <VideoCardSkeleton />
+            </div>
+          ))}
+        </div>
+      </VideoGridContainer >
+    );
+  }
 
   if (filteredVideos.length === 0) {
     return (
@@ -210,33 +99,12 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
   }
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-    >
-      <div
-        className={`grid gap-4 py-6 pr-6 pl-0 w-full ${gridColsClasses[generalSettings.cardsPerRow] || 'grid-cols-4'}`}
-      >
-        {isDraggable ? (
-          <SortableContext
-            items={filteredVideos.map(v => v.id)}
-            strategy={rectSortingStrategy}
-          >
-            {filteredVideos.map((video) => (
-              <div key={video.id} className="min-w-0">
-                <SortableVideoCard video={video} onRemove={removeVideo} playlistId={playlistId} />
-              </div>
-            ))}
-          </SortableContext>
-        ) : (
-          filteredVideos.map((video) => (
-            <div key={video.id} className="min-w-0">
-              <VideoCard video={video} onRemove={removeVideo} playlistId={playlistId} />
-            </div>
-          ))
-        )}
-      </div>
-    </DndContext>
+    <VideoGridContainer>
+      <VirtualVideoGrid
+        videos={filteredVideos}
+        playlistId={playlistId}
+        onRemove={removeVideo}
+      />
+    </VideoGridContainer>
   );
 };

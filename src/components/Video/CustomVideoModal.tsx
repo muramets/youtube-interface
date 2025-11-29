@@ -3,7 +3,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { type VideoDetails, type CoverVersion } from '../../utils/youtubeApi';
-import { useVideos } from '../../context/VideosContext';
+import { useVideoActions } from '../../context/VideoActionsContext';
 import { useChannel } from '../../context/ChannelContext';
 import { Toast } from '../Shared/Toast';
 import { CoverImageUploader } from './Modal/CoverImageUploader';
@@ -26,7 +26,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     onClone,
     initialData
 }) => {
-    const { saveVideoHistory, deleteVideoHistoryItem } = useVideos();
+    const { saveVideoHistory, deleteVideoHistoryItem } = useVideoActions();
     const { currentChannel } = useChannel();
     const modalRef = useRef<HTMLDivElement>(null);
 
