@@ -1,12 +1,17 @@
-import React from 'react';
-import { useVideos } from '../../context/VideosContext';
-import { useVideoFiltering } from '../../context/VideoFilterContext';
+import React, { useMemo } from 'react';
+import { useVideosStore } from '../../stores/videosStore';
+import { useFilterStore } from '../../stores/filterStore';
 import { FilterSortDropdown } from '../Shared/FilterSortDropdown';
-import { AddContentMenu } from '../Shared/AddContentMenu';
 
 export const CategoryBar: React.FC = () => {
-    const { uniqueChannels } = useVideos();
-    const { selectedChannel, setSelectedChannel, homeSortBy, setHomeSortBy } = useVideoFiltering();
+    const { videos } = useVideosStore();
+    const { selectedChannel, setSelectedChannel, homeSortBy, setHomeSortBy } = useFilterStore();
+
+    const uniqueChannels = useMemo(() => {
+        const channels = new Set(videos.map(v => v.channelTitle));
+        return Array.from(channels).sort();
+    }, [videos]);
+
     const categories = ['All', ...uniqueChannels];
 
     const sortOptions = [
@@ -30,11 +35,10 @@ export const CategoryBar: React.FC = () => {
                 </button>
             ))}
             <div className="ml-auto flex items-center pl-2 sticky right-0 bg-gradient-to-l from-bg-primary via-bg-primary to-transparent gap-1">
-                <AddContentMenu showPlaylist={false} />
                 <FilterSortDropdown
                     sortOptions={sortOptions}
                     activeSort={homeSortBy}
-                    onSortChange={(val) => setHomeSortBy(val as any)}
+                    onSortChange={(val) => setHomeSortBy(val as 'default' | 'views' | 'date')}
                     showPlaylistFilter={true}
                 />
             </div>

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-interface DropdownProps {
+interface DropdownProps extends React.HTMLAttributes<HTMLDivElement> {
     isOpen: boolean;
     onClose: () => void;
     anchorEl: HTMLElement | null;
@@ -18,7 +18,8 @@ export const Dropdown: React.FC<DropdownProps> = ({
     children,
     className = '',
     width = 300,
-    align = 'right'
+    align = 'right',
+    ...props
 }) => {
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [position, setPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
@@ -64,7 +65,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
             updatePosition();
             // We might need to update on resize too, but the effect below handles generic resize
         }
-    }, [isOpen, anchorEl, width]);
+    }, [isOpen, anchorEl, width, align]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -84,14 +85,25 @@ export const Dropdown: React.FC<DropdownProps> = ({
             onClose();
         };
 
+        const handleScroll = (event: Event) => {
+            // If scroll happens inside the dropdown, don't close
+            if (
+                dropdownRef.current &&
+                dropdownRef.current.contains(event.target as Node)
+            ) {
+                return;
+            }
+            onClose();
+        };
+
         document.addEventListener('mousedown', handleClickOutside);
         window.addEventListener('resize', handleResize);
-        window.addEventListener('scroll', onClose, true); // Capture scroll events
+        window.addEventListener('scroll', handleScroll, true); // Capture scroll events
 
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
             window.removeEventListener('resize', handleResize);
-            window.removeEventListener('scroll', onClose, true);
+            window.removeEventListener('scroll', handleScroll, true);
         };
     }, [isOpen, onClose, anchorEl]);
 
@@ -100,13 +112,14 @@ export const Dropdown: React.FC<DropdownProps> = ({
     return createPortal(
         <div
             ref={dropdownRef}
-            className={`fixed z-50 bg-bg-secondary rounded-xl border border-border shadow-2xl animate-scale-in overflow-hidden ${className}`}
+            className={`fixed z-[10000] bg-bg-secondary rounded-xl border border-border shadow-2xl animate-scale-in overflow-hidden ${className}`}
             style={{
                 top: position.top,
                 left: position.left,
                 width: `${width}px`,
             }}
             onClick={(e) => e.stopPropagation()}
+            {...props}
         >
             {children}
         </div>,

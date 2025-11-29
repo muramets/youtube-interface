@@ -1,13 +1,24 @@
 import React from 'react';
 import { ArrowLeft, Check } from 'lucide-react';
-import { useTheme } from '../../context/ThemeContext';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { useAuthStore } from '../../stores/authStore';
+import { useChannelStore } from '../../stores/channelStore';
 
 interface SettingsMenuAppearanceProps {
     onBack: () => void;
 }
 
 export const SettingsMenuAppearance: React.FC<SettingsMenuAppearanceProps> = ({ onBack }) => {
-    const { theme, setTheme } = useTheme();
+    const { generalSettings, updateGeneralSettings } = useSettingsStore();
+    const { user } = useAuthStore();
+    const { currentChannel } = useChannelStore();
+    const theme = generalSettings.theme;
+
+    const handleSetTheme = (newTheme: 'light' | 'dark') => {
+        if (user && currentChannel) {
+            updateGeneralSettings(user.uid, currentChannel.id, { theme: newTheme });
+        }
+    };
 
     return (
         <>
@@ -23,7 +34,7 @@ export const SettingsMenuAppearance: React.FC<SettingsMenuAppearanceProps> = ({ 
                 <div className="px-4 py-2 text-xs text-text-secondary">Setting</div>
                 <div
                     className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"
-                    onClick={() => setTheme('dark')}
+                    onClick={() => handleSetTheme('dark')}
                 >
                     <div className="w-5 flex justify-center">
                         {theme === 'dark' && <Check size={18} />}
@@ -32,7 +43,7 @@ export const SettingsMenuAppearance: React.FC<SettingsMenuAppearanceProps> = ({ 
                 </div>
                 <div
                     className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"
-                    onClick={() => setTheme('light')}
+                    onClick={() => handleSetTheme('light')}
                 >
                     <div className="w-5 flex justify-center">
                         {theme === 'light' && <Check size={18} />}

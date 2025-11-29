@@ -9,6 +9,7 @@ interface ToastProps {
     onClose: () => void;
     type?: 'success' | 'error';
     position?: 'top' | 'bottom';
+    onClick?: () => void;
 }
 
 export const Toast: React.FC<ToastProps> = ({
@@ -17,22 +18,25 @@ export const Toast: React.FC<ToastProps> = ({
     duration = 3000,
     onClose,
     type = 'success',
-    position = 'bottom'
+    position = 'bottom',
+    onClick
 }) => {
     const [shouldRender, setShouldRender] = useState(false);
     const [animationClass, setAnimationClass] = useState('');
 
     useEffect(() => {
         if (isVisible) {
-            setShouldRender(true);
-            setAnimationClass(position === 'top' ? 'animate-fade-in-down' : 'animate-fade-in-up');
+            setTimeout(() => {
+                setShouldRender(true);
+                setAnimationClass(position === 'top' ? 'animate-fade-in-down' : 'animate-fade-in-up');
+            }, 0);
 
             const timer = setTimeout(() => {
                 onClose();
             }, duration);
             return () => clearTimeout(timer);
         } else if (shouldRender) {
-            setAnimationClass(position === 'top' ? 'animate-fade-out-up' : 'animate-fade-out-down');
+            setTimeout(() => setAnimationClass(position === 'top' ? 'animate-fade-out-up' : 'animate-fade-out-down'), 0);
             const timer = setTimeout(() => {
                 setShouldRender(false);
             }, 300); // Match animation duration
@@ -48,7 +52,10 @@ export const Toast: React.FC<ToastProps> = ({
 
     return createPortal(
         <div className={`fixed ${positionClass} left-1/2 -translate-x-1/2 z-[2000]`} onClick={(e) => e.stopPropagation()}>
-            <div className={`${bgColor} text-white pl-4 pr-3 py-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px] ${animationClass}`}>
+            <div
+                className={`${bgColor} text-white pl-4 pr-3 py-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px] ${animationClass} ${onClick ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
+                onClick={onClick}
+            >
                 <Icon size={20} className="text-white flex-shrink-0" />
                 <span className="text-sm font-medium flex-grow">{message}</span>
                 <button

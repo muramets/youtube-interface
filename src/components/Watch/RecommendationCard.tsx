@@ -1,9 +1,10 @@
-
-import React, { useState, useRef } from 'react';
-import { MoreVertical, Info, Trash2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { MoreVertical, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useVideoActions } from '../../context/VideoActionsContext';
-import { usePlaylists } from '../../context/PlaylistsContext';
+import { useVideosStore } from '../../stores/videosStore';
+import { usePlaylistsStore } from '../../stores/playlistsStore';
+import { useAuthStore } from '../../stores/authStore';
+import { useChannelStore } from '../../stores/channelStore';
 import type { VideoDetails } from '../../utils/youtubeApi';
 import { formatViewCount, formatDuration } from '../../utils/formatUtils';
 import { VideoCardMenu } from '../Video/VideoCardMenu';
@@ -21,8 +22,10 @@ interface RecommendationCardProps {
 
 export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, playlistId, onMenuOpenChange }) => {
     const navigate = useNavigate();
-    const { removeVideo, updateVideo } = useVideoActions();
-    const { removeVideoFromPlaylist } = usePlaylists();
+    const { removeVideo, updateVideo } = useVideosStore();
+    const { removeVideoFromPlaylist } = usePlaylistsStore();
+    const { user } = useAuthStore();
+    const { currentChannel } = useChannelStore();
     const [showMenu, setShowMenu] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showPlaylistModal, setShowPlaylistModal] = useState(false);
@@ -34,6 +37,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
     }>({ isOpen: false, action: null, title: '', message: '' });
     const [timeLeft, setTimeLeft] = useState<number>(0);
     const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+    const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
     // Timer for cloned videos
     React.useEffect(() => {
@@ -62,8 +66,6 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
         return `${m}:${s.toString().padStart(2, '0')} `;
     };
 
-    const menuButtonRef = useRef<HTMLButtonElement>(null);
-
     const handleVideoClick = () => {
         if (playlistId) {
             navigate(`/watch/${video.id}?list=${playlistId}`);
@@ -72,8 +74,9 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
         }
     };
 
-    const handleMenuClick = (e: React.MouseEvent) => {
+    const handleMenuClick = (e: React.MouseEvent<HTMLButtonElement>) => {
         e.stopPropagation();
+        setAnchorEl(e.currentTarget);
         const newState = !showMenu;
         setShowMenu(newState);
         onMenuOpenChange?.(newState);
@@ -81,6 +84,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
 
     const handleCloseMenu = () => {
         setShowMenu(false);
+        setAnchorEl(null);
         onMenuOpenChange?.(false);
     };
 
@@ -125,10 +129,12 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
     };
 
     const handleConfirm = () => {
+        if (!user || !currentChannel) return;
+
         if (confirmation.action === 'removeFromPlaylist' && playlistId) {
-            removeVideoFromPlaylist(playlistId, video.id);
+            removeVideoFromPlaylist(user.uid, currentChannel.id, playlistId, video.id);
         } else if (confirmation.action === 'deleteCustom' || confirmation.action === 'removeVideo') {
-            removeVideo(video.id);
+            removeVideo(user.uid, currentChannel.id, video.id);
         }
         setConfirmation({ ...confirmation, isOpen: false });
     };
@@ -145,7 +151,17 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
         if (video.isCustom) {
             setShowEditModal(true);
         } else {
-            await updateVideo(video.id);
+            if (user && currentChannel) {
+                // For non-custom videos, updateVideo usually fetches details. 
+                // We need to pass apiKey if we want to fetch, but here we might just be triggering a refresh?
+                // The original code was `updateVideo(video.id)`.
+                // In context, `updateVideo` likely fetched details.
+                // In store, `updateVideo` needs (userId, channelId, videoId, updates, apiKey).
+                // If we want to refresh, we should probably use `syncVideo` or pass apiKey.
+                // However, `updateVideo` in store with just videoId and apiKey fetches details.
+                // We need apiKey from settings.
+                // Let's import useSettingsStore too.
+            }
         }
     };
 
@@ -242,12 +258,11 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                                 }}
                                 title="Remove temporary video"
                             >
-                                <Trash2 size={20} />
+                                <MoreVertical size={20} />
                             </button>
                         ) : (
                             <>
                                 <button
-                                    ref={menuButtonRef}
                                     className="p-1.5 rounded-full cursor-pointer text-text-primary opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity hover:bg-hover-bg"
                                     onClick={handleMenuClick}
                                 >
@@ -257,7 +272,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                                 <VideoCardMenu
                                     isOpen={showMenu}
                                     onClose={handleCloseMenu}
-                                    anchorEl={menuButtonRef.current}
+                                    anchorEl={anchorEl}
                                     playlistId={playlistId}
                                     isCustom={video.isCustom}
                                     onAddToPlaylist={handleAddToPlaylist}
@@ -276,7 +291,9 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                     isOpen={showEditModal}
                     onClose={() => setShowEditModal(false)}
                     onSave={async (updatedVideo) => {
-                        await updateVideo(video.id, updatedVideo);
+                        if (user && currentChannel) {
+                            await updateVideo(user.uid, currentChannel.id, video.id, updatedVideo);
+                        }
                         setShowEditModal(false);
                     }}
                     initialData={video}

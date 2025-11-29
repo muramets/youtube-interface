@@ -45,7 +45,7 @@ export interface CoverVersion {
 
 export interface HistoryItem {
     timestamp: number;
-    [key: string]: any; // Allow flexibility for history items
+    [key: string]: unknown; // Allow flexibility for history items
 }
 
 export const extractVideoId = (url: string): string | null => {
@@ -98,5 +98,106 @@ export const fetchVideoDetails = async (videoId: string, apiKey: string): Promis
     } catch (error) {
         console.error('Error fetching video details:', error);
         return null;
+    }
+};
+
+interface YouTubeVideoItem {
+    id: string;
+    snippet: {
+        title: string;
+        channelId: string;
+        channelTitle: string;
+        publishedAt: string;
+        description: string;
+        thumbnails: {
+            maxres?: { url: string };
+            high?: { url: string };
+            medium?: { url: string };
+            default?: { url: string };
+        };
+        tags?: string[];
+    };
+    contentDetails: {
+        duration: string;
+    };
+    statistics: {
+        viewCount: string;
+        likeCount: string;
+    };
+}
+
+interface YouTubeChannelItem {
+    id: string;
+    snippet: {
+        thumbnails: {
+            default: { url: string };
+        };
+    };
+    statistics: {
+        subscriberCount: string;
+    };
+}
+
+export const fetchVideosBatch = async (videoIds: string[], apiKey: string): Promise<VideoDetails[]> => {
+    if (videoIds.length === 0) return [];
+
+    try {
+        // 1. Batch fetch videos (up to 50)
+        const idsParam = videoIds.join(',');
+        const videoResponse = await fetch(
+            `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&id=${idsParam}&key=${apiKey}`
+        );
+        const videoData = await videoResponse.json();
+
+        if (!videoData.items || videoData.items.length === 0) return [];
+
+        const videos = videoData.items as YouTubeVideoItem[];
+
+        // 2. Collect unique channel IDs
+        const channelIds = new Set<string>();
+        videos.forEach((v) => {
+            if (v.snippet?.channelId) channelIds.add(v.snippet.channelId);
+        });
+
+        // 3. Batch fetch channels
+        const channelMap = new Map<string, YouTubeChannelItem>();
+        if (channelIds.size > 0) {
+            const channelIdsParam = Array.from(channelIds).join(',');
+            const channelResponse = await fetch(
+                `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelIdsParam}&key=${apiKey}`
+            );
+            const channelData = await channelResponse.json();
+            channelData.items?.forEach((c: YouTubeChannelItem) => {
+                channelMap.set(c.id, c);
+            });
+        }
+
+        // 4. Merge data
+        return videos.map((videoItem) => {
+            const snippet = videoItem.snippet;
+            const contentDetails = videoItem.contentDetails;
+            const statistics = videoItem.statistics;
+            const channelItem = channelMap.get(snippet.channelId);
+
+            return {
+                id: videoItem.id,
+                title: snippet.title,
+                thumbnail: snippet.thumbnails.maxres?.url || snippet.thumbnails.high?.url || snippet.thumbnails.medium?.url || '',
+                channelId: snippet.channelId,
+                channelTitle: snippet.channelTitle,
+                channelAvatar: channelItem?.snippet?.thumbnails?.default?.url || '',
+                publishedAt: snippet.publishedAt,
+                viewCount: statistics.viewCount,
+                duration: contentDetails.duration,
+                description: snippet.description,
+                likeCount: statistics.likeCount,
+                subscriberCount: channelItem?.statistics?.subscriberCount,
+                tags: snippet.tags || [],
+            };
+        });
+
+    } catch (error) {
+        console.error('Error fetching videos batch:', error);
+        throw error; // Re-throw to handle in store (e.g. quota error)
     }
 };

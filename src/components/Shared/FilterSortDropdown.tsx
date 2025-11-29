@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { Filter, Check, ArrowDownUp, SlidersHorizontal, RotateCcw } from 'lucide-react';
-import { usePlaylists } from '../../context/PlaylistsContext';
-import { useSettings } from '../../context/SettingsContext';
+import { usePlaylistsStore } from '../../stores/playlistsStore';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { useAuthStore } from '../../stores/authStore';
+import { useChannelStore } from '../../stores/channelStore';
 import { createPortal } from 'react-dom';
 
 export interface SortOption {
@@ -22,20 +24,27 @@ export const FilterSortDropdown: React.FC<FilterSortDropdownProps> = ({
     onSortChange,
     showPlaylistFilter = false
 }) => {
-    const { playlists } = usePlaylists();
-    const { generalSettings, updateGeneralSettings } = useSettings();
+    const { playlists } = usePlaylistsStore();
+    const { generalSettings, updateGeneralSettings } = useSettingsStore();
+    const { user } = useAuthStore();
+    const { currentChannel } = useChannelStore();
     const hiddenPlaylistIds = generalSettings.hiddenPlaylistIds || [];
 
     const togglePlaylistVisibility = (id: string) => {
+        if (!user || !currentChannel) return;
         const currentHidden = generalSettings.hiddenPlaylistIds || [];
         if (currentHidden.includes(id)) {
-            updateGeneralSettings({ hiddenPlaylistIds: currentHidden.filter(hid => hid !== id) });
+            updateGeneralSettings(user.uid, currentChannel.id, { hiddenPlaylistIds: currentHidden.filter(hid => hid !== id) });
         } else {
-            updateGeneralSettings({ hiddenPlaylistIds: [...currentHidden, id] });
+            updateGeneralSettings(user.uid, currentChannel.id, { hiddenPlaylistIds: [...currentHidden, id] });
         }
     };
 
-    const clearHiddenPlaylists = () => updateGeneralSettings({ hiddenPlaylistIds: [] });
+    const clearHiddenPlaylists = () => {
+        if (user && currentChannel) {
+            updateGeneralSettings(user.uid, currentChannel.id, { hiddenPlaylistIds: [] });
+        }
+    };
     const [isOpen, setIsOpen] = useState(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);

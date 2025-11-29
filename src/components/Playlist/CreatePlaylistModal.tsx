@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { X, ListPlus } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { usePlaylists } from '../../context/PlaylistsContext';
+import { usePlaylistsStore } from '../../stores/playlistsStore';
+import { useAuthStore } from '../../stores/authStore';
+import { useChannelStore } from '../../stores/channelStore';
 
 interface CreatePlaylistModalProps {
     isOpen: boolean;
@@ -9,22 +11,24 @@ interface CreatePlaylistModalProps {
 }
 
 export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({ isOpen, onClose }) => {
-    const { createPlaylist } = usePlaylists();
+    const { createPlaylist } = usePlaylistsStore();
+    const { user } = useAuthStore();
+    const { currentChannel } = useChannelStore();
     const [name, setName] = useState('');
 
     if (!isOpen) return null;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!name.trim()) return;
+        if (!name.trim() || !user || !currentChannel) return;
 
-        createPlaylist(name.trim());
+        createPlaylist(user.uid, currentChannel.id, name.trim());
         setName('');
         onClose();
     };
 
     return createPortal(
-        <div className="fixed inset-0 z-[1001] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-[1001] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
             <div className="bg-bg-secondary border border-border rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-in">
                 <div className="flex items-center justify-between p-4 border-b border-border">
                     <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
@@ -49,7 +53,7 @@ export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({ isOpen
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             placeholder="My Awesome Playlist"
-                            className="w-full bg-bg-primary border border-border rounded-lg px-4 py-2.5 text-text-primary focus:border-blue-500 outline-none transition-colors"
+                            className="w-full bg-bg-primary border border-border rounded-lg px-4 py-2.5 text-text-primary focus:border-text-primary outline-none transition-colors"
                             autoFocus
                         />
                     </div>

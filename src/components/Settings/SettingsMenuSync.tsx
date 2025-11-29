@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
 import { ArrowLeft, ChevronRight, RefreshCw } from 'lucide-react';
-import { useSettings } from '../../context/SettingsContext';
-import { useVideoActions } from '../../context/VideoActionsContext';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { useVideosStore } from '../../stores/videosStore';
+import { useAuthStore } from '../../stores/authStore';
+import { useChannelStore } from '../../stores/channelStore';
 
 interface SettingsMenuSyncProps {
     onBack: () => void;
 }
 
 export const SettingsMenuSync: React.FC<SettingsMenuSyncProps> = ({ onBack }) => {
-    const { syncSettings, updateSyncSettings } = useSettings();
-    const { manualSync, isSyncing } = useVideoActions();
+    const { syncSettings, updateSyncSettings } = useSettingsStore();
+    const { manualSync, isSyncing } = useVideosStore();
+    const { user } = useAuthStore();
+    const { currentChannel } = useChannelStore();
+    const { generalSettings } = useSettingsStore();
     const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
 
     const getUnit = (hours: number) => {
@@ -25,10 +30,11 @@ export const SettingsMenuSync: React.FC<SettingsMenuSyncProps> = ({ onBack }) =>
     };
 
     const updateFrequency = (val: number, unit: string) => {
+        if (!user || !currentChannel) return;
         let newHours = val;
         if (unit === 'Weeks') newHours = val * 168;
         else if (unit === 'Days') newHours = val * 24;
-        updateSyncSettings({ ...syncSettings, frequencyHours: Math.max(1, newHours) });
+        updateSyncSettings(user.uid, currentChannel.id, { ...syncSettings, frequencyHours: Math.max(1, newHours) });
     };
 
     const currentUnit = getUnit(syncSettings.frequencyHours);
@@ -52,7 +58,11 @@ export const SettingsMenuSync: React.FC<SettingsMenuSyncProps> = ({ onBack }) =>
                             type="checkbox"
                             className="sr-only peer"
                             checked={syncSettings.autoSync}
-                            onChange={(e) => updateSyncSettings({ ...syncSettings, autoSync: e.target.checked })}
+                            onChange={(e) => {
+                                if (user && currentChannel) {
+                                    updateSyncSettings(user.uid, currentChannel.id, { ...syncSettings, autoSync: e.target.checked });
+                                }
+                            }}
                         />
                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                     </label>
@@ -123,7 +133,13 @@ export const SettingsMenuSync: React.FC<SettingsMenuSyncProps> = ({ onBack }) =>
 
                 <div className="border-t border-border pt-4">
                     <button
-                        onClick={manualSync}
+                        onClick={() => {
+                            if (user && currentChannel && generalSettings.apiKey) {
+                                manualSync(user.uid, currentChannel.id, generalSettings.apiKey, syncSettings.frequencyHours);
+                            } else if (!generalSettings.apiKey) {
+                                alert("Please set API Key first");
+                            }
+                        }}
                         disabled={isSyncing}
                         className={`w-full py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors ${isSyncing ? 'bg-bg-secondary text-text-secondary cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'}`}
                     >

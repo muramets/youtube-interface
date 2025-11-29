@@ -1,15 +1,19 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useVideos } from '../../context/VideosContext';
-import { usePlaylists } from '../../context/PlaylistsContext';
+import { useVideosStore } from '../../stores/videosStore';
+import { usePlaylistsStore } from '../../stores/playlistsStore';
+import { useAuthStore } from '../../stores/authStore';
+import { useChannelStore } from '../../stores/channelStore';
 import { ArrowLeft, PlaySquare } from 'lucide-react';
 import { VideoGrid } from '../Video/VideoGrid';
 import { ZoomControls } from '../Video/ZoomControls';
 
 export const PlaylistDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const { playlists, reorderPlaylistVideos, isLoading: isPlaylistsLoading } = usePlaylists();
-    const { videos, isLoading: isVideosLoading } = useVideos();
+    const { playlists, reorderPlaylistVideos, isLoading: isPlaylistsLoading } = usePlaylistsStore();
+    const { videos, isLoading: isVideosLoading } = useVideosStore();
+    const { user } = useAuthStore();
+    const { currentChannel } = useChannelStore();
     const navigate = useNavigate();
 
     const playlist = playlists.find(p => p.id === id);
@@ -44,33 +48,23 @@ export const PlaylistDetailPage: React.FC = () => {
         .map(videoId => videos.find(v => v.id === videoId))
         .filter((v): v is NonNullable<typeof v> => v !== undefined);
 
-    const handlePlaylistReorder = (oldIndex: number, newIndex: number) => {
-        if (oldIndex !== -1 && newIndex !== -1) {
-            // We need to be careful here: playlistVideos might be shorter than playlist.videoIds if some videos were deleted but not removed from playlist.
-            // But reorderPlaylistVideos expects a list of IDs.
-            // The indices passed from VideoGrid correspond to the `playlistVideos` array.
+    const handlePlaylistReorder = (movedVideoId: string, targetVideoId: string) => {
+        // Find these IDs in the original playlist.videoIds list to handle the move safely
+        const originalOldIndex = playlist.videoIds.indexOf(movedVideoId);
+        const originalNewIndex = playlist.videoIds.indexOf(targetVideoId);
 
-            // Let's map the indices back to the video IDs.
-            const movedVideoId = playlistVideos[oldIndex].id;
-            const targetVideoId = playlistVideos[newIndex].id;
-
-            // Now find these IDs in the original playlist.videoIds list to handle the move safely
-            const originalOldIndex = playlist.videoIds.indexOf(movedVideoId);
-            const originalNewIndex = playlist.videoIds.indexOf(targetVideoId);
-
-            if (originalOldIndex !== -1 && originalNewIndex !== -1) {
-                const fullOrder = [...playlist.videoIds];
-                const [movedItem] = fullOrder.splice(originalOldIndex, 1);
-                fullOrder.splice(originalNewIndex, 0, movedItem);
-                reorderPlaylistVideos(playlist.id, fullOrder);
-            }
+        if (originalOldIndex !== -1 && originalNewIndex !== -1 && user && currentChannel) {
+            const fullOrder = [...playlist.videoIds];
+            const [movedItem] = fullOrder.splice(originalOldIndex, 1);
+            fullOrder.splice(originalNewIndex, 0, movedItem);
+            reorderPlaylistVideos(user.uid, currentChannel.id, playlist.id, fullOrder);
         }
     };
 
     return (
         <div className="animate-fade-in flex flex-col h-full relative">
             {/* Header */}
-            <div className="pt-6 px-6 flex items-center gap-4 mb-0">
+            <div className="pt-6 px-6 flex items-center gap-4 mb-3">
                 <button
                     onClick={() => navigate('/playlists')}
                     className="bg-transparent border-none text-text-primary cursor-pointer flex items-center hover:text-text-secondary transition-colors"

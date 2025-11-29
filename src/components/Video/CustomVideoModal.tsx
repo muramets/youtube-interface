@@ -2,9 +2,10 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
-import { type VideoDetails, type CoverVersion } from '../../utils/youtubeApi';
-import { useVideoActions } from '../../context/VideoActionsContext';
-import { useChannel } from '../../context/ChannelContext';
+import { type VideoDetails, type CoverVersion, type HistoryItem } from '../../utils/youtubeApi';
+import { useVideosStore } from '../../stores/videosStore';
+import { useChannelStore } from '../../stores/channelStore';
+import { useAuthStore } from '../../stores/authStore';
 import { Toast } from '../Shared/Toast';
 import { CoverImageUploader } from './Modal/CoverImageUploader';
 import { VersionHistory } from './Modal/VersionHistory';
@@ -26,8 +27,9 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     onClone,
     initialData
 }) => {
-    const { saveVideoHistory, deleteVideoHistoryItem } = useVideoActions();
-    const { currentChannel } = useChannel();
+    const { saveVideoHistory, deleteVideoHistoryItem } = useVideosStore();
+    const { currentChannel } = useChannelStore();
+    const { user } = useAuthStore();
     const modalRef = useRef<HTMLDivElement>(null);
 
     const [isSaving, setIsSaving] = useState(false);
@@ -49,7 +51,8 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         fileVersionMap, setFileVersionMap,
         coverHistory, setCoverHistory,
         isLoadingHistory,
-        deletedHistoryIds, setDeletedHistoryIds
+        deletedHistoryIds, setDeletedHistoryIds,
+        isDirty
     } = useVideoForm(initialData, isOpen);
 
     useEffect(() => {
@@ -157,13 +160,13 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
             const newId = await onSave(videoData, shouldClose);
             const targetId = initialData?.id || (typeof newId === 'string' ? newId : undefined);
 
-            if (targetId) {
+            if (targetId && user && currentChannel) {
                 const deletePromises = Array.from(deletedHistoryIds).map(timestamp =>
-                    deleteVideoHistoryItem(targetId, timestamp.toString())
+                    deleteVideoHistoryItem(user.uid, currentChannel.id, targetId, timestamp.toString())
                 );
                 await Promise.all(deletePromises);
 
-                const savePromises = coverHistory.map(item => saveVideoHistory(targetId, item));
+                const savePromises = coverHistory.map(item => saveVideoHistory(user.uid, currentChannel.id, targetId, item as unknown as HistoryItem));
                 await Promise.all(savePromises);
             }
 
@@ -197,7 +200,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 
     return createPortal(
         <>
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={handleBackdropClick}>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={handleBackdropClick}>
                 <div
                     ref={modalRef}
                     className="bg-bg-secondary rounded-xl p-6 w-[500px] max-w-[90%] border border-border text-text-primary animate-scale-in-center shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"
@@ -218,15 +221,17 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                             onImageUpload={handleImageUpload}
                         />
 
-                        <VersionHistory
-                            history={coverHistory}
-                            isLoading={isLoadingHistory}
-                            onRestore={handleRestoreVersion}
-                            onDelete={handleDeleteVersion}
-                            onClone={onClone ? handleCloneWithSave : undefined}
-                            initialData={initialData}
-                            cloningVersion={cloningVersion}
-                        />
+                        {((isLoadingHistory && (initialData?.historyCount ?? 0) > 0) || coverHistory.length > 0) && (
+                            <VersionHistory
+                                history={coverHistory}
+                                isLoading={isLoadingHistory}
+                                onRestore={handleRestoreVersion}
+                                onDelete={handleDeleteVersion}
+                                onClone={onClone ? handleCloneWithSave : undefined}
+                                initialData={initialData}
+                                cloningVersion={cloningVersion}
+                            />
+                        )}
 
                         <VideoForm
                             title={title}
@@ -246,11 +251,17 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                             </button>
                             <button
                                 onClick={() => handleSave()}
-                                disabled={isSaving}
-                                className={`px-4 py-2 rounded-full border-none text-black cursor-pointer font-bold transition-all relative overflow-hidden ${isSaving ? 'bg-[#3ea6ff]/70 cursor-wait' : 'bg-[#3ea6ff] hover:bg-[#3ea6ff]/90'} `}
+                                disabled={isSaving || !isDirty}
+                                className={`px-4 py-2 rounded-full border-none font-bold transition-all relative overflow-hidden
+                                    ${(isSaving || !isDirty)
+                                        ? 'bg-bg-primary text-text-secondary cursor-default opacity-50'
+                                        : 'bg-text-primary text-bg-primary cursor-pointer hover:opacity-90'
+                                    }
+                                    ${isSaving ? 'cursor-wait' : ''}
+                                `}
                             >
                                 {isSaving && (
-                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer bg-[length:200%_100%]"></div>
+                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-black/10 to-transparent animate-shimmer bg-[length:200%_100%]"></div>
                                 )}
                                 <span className="relative z-10">Save</span>
                             </button>

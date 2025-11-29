@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { X, Youtube } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { useVideoActions } from '../../context/VideoActionsContext';
+import { useVideosStore } from '../../stores/videosStore';
+import { useAuthStore } from '../../stores/authStore';
+import { useChannelStore } from '../../stores/channelStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 
 interface AddYouTubeVideoModalProps {
     isOpen: boolean;
@@ -9,7 +12,10 @@ interface AddYouTubeVideoModalProps {
 }
 
 export const AddYouTubeVideoModal: React.FC<AddYouTubeVideoModalProps> = ({ isOpen, onClose }) => {
-    const { addVideo } = useVideoActions();
+    const { addVideo } = useVideosStore();
+    const { user } = useAuthStore();
+    const { currentChannel } = useChannelStore();
+    const { generalSettings } = useSettingsStore();
     const [url, setUrl] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
@@ -17,10 +23,13 @@ export const AddYouTubeVideoModal: React.FC<AddYouTubeVideoModalProps> = ({ isOp
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!url.trim()) return;
+        if (!url.trim() || !user || !currentChannel || !generalSettings.apiKey) {
+            if (!generalSettings.apiKey) alert("Please set your YouTube API Key in settings first.");
+            return;
+        }
 
         setIsLoading(true);
-        const success = await addVideo(url);
+        const success = await addVideo(user.uid, currentChannel.id, url, generalSettings.apiKey);
         setIsLoading(false);
 
         if (success) {
@@ -30,7 +39,7 @@ export const AddYouTubeVideoModal: React.FC<AddYouTubeVideoModalProps> = ({ isOp
     };
 
     return createPortal(
-        <div className="fixed inset-0 z-[1001] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-[1001] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
             <div className="bg-bg-secondary border border-border rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-in">
                 <div className="flex items-center justify-between p-4 border-b border-border">
                     <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
@@ -55,7 +64,7 @@ export const AddYouTubeVideoModal: React.FC<AddYouTubeVideoModalProps> = ({ isOp
                             value={url}
                             onChange={(e) => setUrl(e.target.value)}
                             placeholder="https://www.youtube.com/watch?v=..."
-                            className="w-full bg-bg-primary border border-border rounded-lg px-4 py-2.5 text-text-primary focus:border-blue-500 outline-none transition-colors"
+                            className="w-full bg-bg-primary border border-border rounded-lg px-4 py-2.5 text-text-primary focus:border-text-primary outline-none transition-colors"
                             autoFocus
                         />
                     </div>

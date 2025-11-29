@@ -1,11 +1,19 @@
 import React from 'react';
 import { Plus, Minus } from 'lucide-react';
-import { useSettings } from '../../context/SettingsContext';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { useAuthStore } from '../../stores/authStore';
+import { useChannelStore } from '../../stores/channelStore';
 
 export const ZoomControls: React.FC = () => {
-    const { generalSettings, updateGeneralSettings } = useSettings();
+    const { generalSettings, updateGeneralSettings } = useSettingsStore();
+    const { user } = useAuthStore();
+    const { currentChannel } = useChannelStore();
     const cardsPerRow = generalSettings.cardsPerRow;
-    const updateCardsPerRow = (count: number) => updateGeneralSettings({ cardsPerRow: count });
+    const updateCardsPerRow = (count: number) => {
+        if (user && currentChannel) {
+            updateGeneralSettings(user.uid, currentChannel.id, { cardsPerRow: count });
+        }
+    };
 
     return (
         <div className="absolute bottom-8 right-8 flex flex-row gap-2 z-50">

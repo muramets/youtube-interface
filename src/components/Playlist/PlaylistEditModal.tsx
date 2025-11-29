@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { X, Upload, Trash2 } from 'lucide-react';
-import { useVideos } from '../../context/VideosContext';
+import { useVideosStore } from '../../stores/videosStore';
 import { type Playlist } from '../../services/playlistService';
 
 interface PlaylistEditModalProps {
@@ -11,7 +11,7 @@ interface PlaylistEditModalProps {
 }
 
 export const PlaylistEditModal: React.FC<PlaylistEditModalProps> = ({ isOpen, onClose, onSave, playlist }) => {
-    const { videos } = useVideos();
+    const { videos } = useVideosStore();
     const [name, setName] = useState(playlist.name);
     const [coverImage, setCoverImage] = useState(playlist.coverImage || '');
     const [isDragging, setIsDragging] = useState(false);
@@ -77,154 +77,74 @@ export const PlaylistEditModal: React.FC<PlaylistEditModalProps> = ({ isOpen, on
 
     return (
         <div
-            className="animate-fade-in"
-            style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgba(0,0,0,0.7)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 2000
-            }}
+            className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
             onClick={onClose}
         >
             <div
-                className="animate-scale-in-center"
-                style={{
-                    backgroundColor: 'var(--bg-secondary)',
-                    borderRadius: '12px',
-                    width: '500px',
-                    maxWidth: '90vw',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden'
-                }}
+                className="bg-bg-secondary rounded-xl w-[500px] max-w-[90vw] flex flex-col overflow-hidden animate-scale-in border border-border shadow-2xl"
                 onClick={e => e.stopPropagation()}
             >
-                <div style={{
-                    padding: '16px 24px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    borderBottom: '1px solid var(--border)'
-                }}>
-                    <h2 style={{ margin: 0, fontSize: '20px' }}>Edit Playlist</h2>
-                    <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                <div className="px-6 py-4 flex items-center justify-between border-b border-border">
+                    <h2 className="text-xl font-bold text-text-primary m-0">Edit Playlist</h2>
+                    <button
+                        onClick={onClose}
+                        className="bg-transparent border-none text-text-primary cursor-pointer hover:opacity-70 transition-opacity"
+                    >
                         <X size={24} />
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-6">
                     {/* Name Input */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <label style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Name</label>
+                    <div className="flex flex-col gap-2">
+                        <label className="text-sm text-text-secondary">Name</label>
                         <input
                             type="text"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            style={{
-                                padding: '10px',
-                                borderRadius: '4px',
-                                border: '1px solid var(--border)',
-                                backgroundColor: 'var(--bg-primary)',
-                                color: 'var(--text-primary)',
-                                fontSize: '16px'
-                            }}
+                            className="p-2.5 rounded border border-border bg-bg-primary text-text-primary text-base outline-none focus:border-text-primary transition-colors"
                             required
                         />
                     </div>
 
                     {/* Cover Image Upload */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <label style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Cover Image</label>
+                    <div className="flex flex-col gap-2">
+                        <label className="text-sm text-text-secondary">Cover Image</label>
                         <div
                             onDragOver={handleDragOver}
                             onDragLeave={handleDragLeave}
                             onDrop={handleDrop}
                             onClick={() => fileInputRef.current?.click()}
-                            style={{
-                                border: `2px dashed ${isDragging ? '#3ea6ff' : 'var(--border)'}`,
-                                borderRadius: '8px',
-                                padding: '24px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '12px',
-                                cursor: 'pointer',
-                                backgroundColor: isDragging ? 'rgba(62, 166, 255, 0.1)' : 'transparent',
-                                transition: 'all 0.2s',
-                                minHeight: '150px'
-                            }}
+                            className={`
+                                border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all min-h-[150px]
+                                ${isDragging ? 'border-[#3ea6ff] bg-[#3ea6ff]/10' : 'border-border bg-transparent'}
+                            `}
                         >
                             {coverImage ? (
-                                <div style={{ position: 'relative', width: '100%', height: '200px' }}>
-                                    <img src={coverImage} alt="Cover" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '4px' }} />
+                                <div className="relative w-full h-[200px] group">
+                                    <img src={coverImage} alt="Cover" className="w-full h-full object-cover rounded" />
 
                                     {/* Delete Button */}
                                     <button
                                         type="button"
                                         onClick={handleDeleteCover}
-                                        className="delete-btn"
-                                        style={{
-                                            position: 'absolute',
-                                            top: '8px',
-                                            right: '8px',
-                                            backgroundColor: 'rgba(0,0,0,0.6)',
-                                            border: 'none',
-                                            borderRadius: '4px',
-                                            padding: '6px',
-                                            cursor: 'pointer',
-                                            color: 'white',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            zIndex: 10
-                                        }}
+                                        className="absolute top-2 right-2 bg-black/60 border-none rounded p-1.5 cursor-pointer text-white flex items-center justify-center z-10 hover:bg-red-600 transition-colors"
                                     >
                                         <Trash2 size={18} />
                                     </button>
-                                    <style>{`
-                                        .delete-btn:hover {
-                                            background-color: #ff4d4d !important;
-                                        }
-                                    `}</style>
 
-                                    <div style={{
-                                        position: 'absolute',
-                                        inset: 0,
-                                        backgroundColor: 'rgba(0,0,0,0.5)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        opacity: 0,
-                                        transition: 'opacity 0.2s',
-                                        borderRadius: '4px'
-                                    }} className="hover-overlay">
-                                        <span style={{ color: 'white', fontWeight: 'bold' }}>Change Image</span>
+                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded">
+                                        <span className="text-white font-bold">Change Image</span>
                                     </div>
-                                    <style>{`.hover-overlay:hover { opacity: 1; }`}</style>
                                 </div>
                             ) : (
                                 <>
-                                    <div style={{
-                                        width: '64px',
-                                        height: '64px',
-                                        borderRadius: '50%',
-                                        backgroundColor: 'var(--bg-primary)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                    }}>
-                                        <Upload size={32} color="var(--text-secondary)" />
+                                    <div className="w-16 h-16 rounded-full bg-bg-primary flex items-center justify-center">
+                                        <Upload size={32} className="text-text-secondary" />
                                     </div>
-                                    <div style={{ textAlign: 'center' }}>
-                                        <p style={{ margin: '0 0 4px 0', fontWeight: '500' }}>Click or drag and drop</p>
-                                        <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)' }}>JPG, PNG or GIF</p>
+                                    <div className="text-center">
+                                        <p className="m-0 mb-1 font-medium text-text-primary">Click or drag and drop</p>
+                                        <p className="m-0 text-xs text-text-secondary">JPG, PNG or GIF</p>
                                     </div>
                                 </>
                             )}
@@ -232,39 +152,23 @@ export const PlaylistEditModal: React.FC<PlaylistEditModalProps> = ({ isOpen, on
                                 ref={fileInputRef}
                                 type="file"
                                 accept="image/*"
-                                style={{ display: 'none' }}
+                                className="hidden"
                                 onChange={handleFileSelect}
                             />
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+                    <div className="flex justify-end gap-3 mt-2">
                         <button
                             type="button"
                             onClick={onClose}
-                            style={{
-                                padding: '10px 24px',
-                                borderRadius: '18px',
-                                border: 'none',
-                                backgroundColor: 'transparent',
-                                color: 'var(--text-primary)',
-                                cursor: 'pointer',
-                                fontWeight: '500'
-                            }}
+                            className="px-6 py-2.5 rounded-full border-none bg-transparent text-text-primary cursor-pointer font-medium hover:bg-hover-bg transition-colors"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
-                            style={{
-                                padding: '10px 24px',
-                                borderRadius: '18px',
-                                border: 'none',
-                                backgroundColor: '#3ea6ff',
-                                color: 'black',
-                                cursor: 'pointer',
-                                fontWeight: 'bold'
-                            }}
+                            className="px-6 py-2.5 rounded-full border-none bg-[#3ea6ff] text-black cursor-pointer font-bold hover:bg-[#3ea6ff]/90 transition-colors"
                         >
                             Save
                         </button>

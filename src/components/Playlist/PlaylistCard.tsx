@@ -10,7 +10,6 @@ interface PlaylistCardProps {
     playlist: Playlist;
     navigate: (path: string) => void;
     handleMenuClick: (e: React.MouseEvent, id: string) => void;
-    menuButtonRefs: React.MutableRefObject<{ [key: string]: HTMLButtonElement | null }>;
     openMenuId: string | null;
     setOpenMenuId: (id: string | null) => void;
     handleEdit: (e: React.MouseEvent, playlist: Playlist) => void;
@@ -21,12 +20,13 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
     playlist,
     navigate,
     handleMenuClick,
-    menuButtonRefs,
     openMenuId,
     setOpenMenuId,
     handleEdit,
     handleDeleteClick
 }) => {
+    const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
+
     return (
         <div
             className="group relative p-2 rounded-xl cursor-pointer flex flex-col h-full z-0"
@@ -61,8 +61,10 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
                     </div>
                     <div className="absolute top-3 right-0">
                         <button
-                            ref={el => { menuButtonRefs.current[playlist.id] = el; }}
-                            onClick={(e) => handleMenuClick(e, playlist.id)}
+                            onClick={(e) => {
+                                setAnchorEl(e.currentTarget);
+                                handleMenuClick(e, playlist.id);
+                            }}
                             className="border-none p-2 rounded-full cursor-pointer text-text-primary opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all hover:bg-black/20 dark:hover:bg-white/20"
                             onPointerDown={(e) => e.stopPropagation()} // Prevent drag start on menu click
                         >
@@ -70,8 +72,11 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
                         </button>
                         <PlaylistMenu
                             isOpen={openMenuId === playlist.id}
-                            onClose={() => setOpenMenuId(null)}
-                            anchorEl={menuButtonRefs.current[playlist.id]}
+                            onClose={() => {
+                                setOpenMenuId(null);
+                                setAnchorEl(null);
+                            }}
+                            anchorEl={anchorEl}
                             onEdit={(e) => handleEdit(e, playlist)}
                             onDelete={(e) => handleDeleteClick(e, playlist.id)}
                         />
@@ -82,11 +87,7 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
     );
 };
 
-interface SortablePlaylistCardProps extends PlaylistCardProps {
-    // No extra props needed currently
-}
-
-export const SortablePlaylistCard: React.FC<SortablePlaylistCardProps> = (props) => {
+export const SortablePlaylistCard: React.FC<PlaylistCardProps> = (props) => {
     const {
         attributes,
         listeners,

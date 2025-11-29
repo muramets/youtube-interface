@@ -28,7 +28,7 @@ export const VideoForm: React.FC<VideoFormProps> = ({
                     onChange={(e) => setTitle(e.target.value)}
                     placeholder="Very good playlist for you"
                     onKeyDown={(e) => e.stopPropagation()}
-                    className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary text-base focus:outline-none focus:border-blue-500 transition-colors placeholder:text-text-secondary/50"
+                    className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary text-base focus:outline-none focus:border-text-primary transition-colors placeholder:text-text-secondary/50"
                 />
             </div>
 
@@ -41,7 +41,7 @@ export const VideoForm: React.FC<VideoFormProps> = ({
                     onChange={(e) => setViewCount(e.target.value)}
                     placeholder="1M"
                     onKeyDown={(e) => e.stopPropagation()}
-                    className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary text-base focus:outline-none focus:border-blue-500 transition-colors placeholder:text-text-secondary/50"
+                    className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary text-base focus:outline-none focus:border-text-primary transition-colors placeholder:text-text-secondary/50"
                 />
             </div>
 
@@ -54,7 +54,7 @@ export const VideoForm: React.FC<VideoFormProps> = ({
                     onChange={(e) => setDuration(e.target.value)}
                     placeholder="1:02:11"
                     onKeyDown={(e) => e.stopPropagation()}
-                    className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary text-base focus:outline-none focus:border-blue-500 transition-colors placeholder:text-text-secondary/50"
+                    className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary text-base focus:outline-none focus:border-text-primary transition-colors placeholder:text-text-secondary/50"
                 />
             </div>
         </div>

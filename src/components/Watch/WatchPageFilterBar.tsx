@@ -2,18 +2,19 @@ import React, { useRef, useState, useEffect } from 'react';
 import { FilterSortDropdown } from '../Shared/FilterSortDropdown';
 import { ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 import { PortalTooltip } from '../Shared/PortalTooltip';
+import { FilterType, SortOption } from '../../constants/enums';
 
 import { type Playlist } from '../../services/playlistService';
 
 interface WatchPageFilterBarProps {
     channelName: string;
-    selectedFilter: 'all' | 'channel' | 'playlists';
+    selectedFilter: FilterType;
     selectedPlaylistIds: string[];
     containingPlaylists: Playlist[];
-    onFilterChange: (filter: 'all' | 'channel') => void;
+    onFilterChange: (filter: FilterType) => void;
     onPlaylistToggle: (playlistId: string) => void;
-    sortBy: 'default' | 'views' | 'date';
-    onSortChange: (sort: 'default' | 'views' | 'date') => void;
+    sortBy: SortOption;
+    onSortChange: (sort: SortOption) => void;
     hasCustomOrder?: boolean;
     onRevert?: () => void;
     revertTooltip?: string;
@@ -104,9 +105,9 @@ export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
 
 
     const sortOptions = [
-        { label: 'Default', value: 'default' },
-        { label: 'Most Viewed', value: 'views' },
-        { label: 'Newest First', value: 'date' },
+        { label: 'Default', value: SortOption.DEFAULT },
+        { label: 'Most Viewed', value: SortOption.VIEWS },
+        { label: 'Newest First', value: SortOption.DATE },
     ];
 
     return (
@@ -123,19 +124,19 @@ export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
             )}
 
             <div
-                className="flex gap-3 overflow-x-auto scrollbar-hide px-3 pr-12 w-full items-center"
+                className="flex gap-3 overflow-x-auto scrollbar-hide px-3 pr-6 w-full items-center"
                 ref={scrollContainerRef}
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
                 <button
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap cursor-pointer transition-colors border-none ${selectedFilter === 'all' ? 'bg-text-primary text-bg-primary' : 'bg-bg-secondary text-text-primary hover:bg-hover-bg'}`}
-                    onClick={() => onFilterChange('all')}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap cursor-pointer transition-colors border-none ${selectedFilter === FilterType.ALL ? 'bg-text-primary text-bg-primary' : 'bg-bg-secondary text-text-primary hover:bg-hover-bg'}`}
+                    onClick={() => onFilterChange(FilterType.ALL)}
                 >
                     All
                 </button>
                 <button
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap cursor-pointer transition-colors border-none ${selectedFilter === 'channel' ? 'bg-text-primary text-bg-primary' : 'bg-bg-secondary text-text-primary hover:bg-hover-bg'}`}
-                    onClick={() => onFilterChange('channel')}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap cursor-pointer transition-colors border-none ${selectedFilter === FilterType.CHANNEL ? 'bg-text-primary text-bg-primary' : 'bg-bg-secondary text-text-primary hover:bg-hover-bg'}`}
+                    onClick={() => onFilterChange(FilterType.CHANNEL)}
                 >
                     From {channelName}
                 </button>
@@ -143,32 +144,34 @@ export const WatchPageFilterBar: React.FC<WatchPageFilterBarProps> = ({
                 {containingPlaylists.map(playlist => (
                     <button
                         key={playlist.id}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap cursor-pointer transition-colors border-none ${selectedFilter === 'playlists' && selectedPlaylistIds.includes(playlist.id) ? 'bg-text-primary text-bg-primary' : 'bg-bg-secondary text-text-primary hover:bg-hover-bg'}`}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap cursor-pointer transition-colors border-none ${selectedFilter === FilterType.PLAYLISTS && selectedPlaylistIds.includes(playlist.id) ? 'bg-text-primary text-bg-primary' : 'bg-bg-secondary text-text-primary hover:bg-hover-bg'}`}
                         onClick={() => onPlaylistToggle(playlist.id)}
                     >
                         From {playlist.name}
                     </button>
                 ))}
 
-                <FilterSortDropdown
-                    sortOptions={sortOptions}
-                    activeSort={sortBy}
-                    onSortChange={(val) => onSortChange(val as any)}
-                    showPlaylistFilter={true}
-                />
+                <div className="ml-auto flex items-center pl-2 sticky right-0 bg-gradient-to-l from-bg-primary via-bg-primary to-transparent gap-1">
+                    <FilterSortDropdown
+                        sortOptions={sortOptions}
+                        activeSort={sortBy}
+                        onSortChange={(val) => onSortChange(val as SortOption)}
+                        showPlaylistFilter={true}
+                    />
 
-                {hasCustomOrder && (
-                    <div className="relative group flex items-center h-[34px]">
-                        <PortalTooltip content={revertTooltip || "Revert order"} align="right">
-                            <button
-                                className="w-[34px] h-[34px] rounded-full bg-transparent hover:bg-bg-secondary flex items-center justify-center border-none cursor-pointer text-text-primary transition-colors"
-                                onClick={onRevert}
-                            >
-                                <RotateCcw size={18} />
-                            </button>
-                        </PortalTooltip>
-                    </div>
-                )}
+                    {hasCustomOrder && (
+                        <div className="relative group flex items-center h-[34px]">
+                            <PortalTooltip content={revertTooltip || "Revert order"} align="right">
+                                <button
+                                    className="w-[34px] h-[34px] rounded-full bg-transparent hover:bg-bg-secondary flex items-center justify-center border-none cursor-pointer text-text-primary transition-colors"
+                                    onClick={onRevert}
+                                >
+                                    <RotateCcw size={18} />
+                                </button>
+                            </PortalTooltip>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {showRightArrow && (

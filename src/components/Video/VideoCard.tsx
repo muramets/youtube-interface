@@ -3,14 +3,20 @@ import { useNavigate } from 'react-router-dom';
 import { MoreVertical, Info, Trash2 } from 'lucide-react';
 import { type VideoDetails, type CoverVersion } from '../../utils/youtubeApi';
 import { formatDuration, formatViewCount } from '../../utils/formatUtils';
-import { useVideoActions } from '../../context/VideoActionsContext';
-import { usePlaylists } from '../../context/PlaylistsContext';
+import { useVideosStore } from '../../stores/videosStore';
+import { usePlaylistsStore } from '../../stores/playlistsStore';
+
 import { PortalTooltip } from '../Shared/PortalTooltip';
 import { VideoCardMenu } from './VideoCardMenu';
 import { CustomVideoModal } from './CustomVideoModal';
 import { AddToPlaylistModal as PlaylistSelectionModal } from '../Playlist/AddToPlaylistModal';
 import { ConfirmationModal } from '../Shared/ConfirmationModal';
 import { ClonedVideoTooltipContent } from './ClonedVideoTooltipContent';
+import { useAuthStore } from '../../stores/authStore';
+import { useChannelStore } from '../../stores/channelStore';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { useUIStore } from '../../stores/uiStore';
+import { Toast } from '../Shared/Toast';
 
 interface VideoCardProps {
   video: VideoDetails;
@@ -22,12 +28,15 @@ interface VideoCardProps {
 
 export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange, onRemove, onEdit }) => {
   const navigate = useNavigate();
-  const {
-    syncVideo,
-    updateVideo,
-    cloneVideo
-  } = useVideoActions();
-  const { removeVideoFromPlaylist } = usePlaylists();
+  const syncVideo = useVideosStore(state => state.syncVideo);
+  const updateVideo = useVideosStore(state => state.updateVideo);
+  const cloneVideo = useVideosStore(state => state.cloneVideo);
+  const removeVideoFromPlaylist = usePlaylistsStore(state => state.removeVideoFromPlaylist);
+  const user = useAuthStore(state => state.user);
+  const currentChannel = useChannelStore(state => state.currentChannel);
+  const apiKey = useSettingsStore(state => state.generalSettings.apiKey);
+  const { cloneSettings } = useSettingsStore();
+  const { setSettingsOpen } = useUIStore();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
@@ -36,21 +45,33 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const [isSyncing, setIsSyncing] = useState(false);
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number>(0);
+  const [showToast, setShowToast] = useState(false);
 
   // Timer for cloned videos
   React.useEffect(() => {
     if (video.isCloned && video.expiresAt) {
-      const updateTimer = () => {
-        const now = Date.now();
-        const remaining = Math.max(0, Math.ceil((video.expiresAt! - now) / 1000));
+      const interval = setInterval(() => {
+        const remaining = Math.max(0, Math.ceil((video.expiresAt! - Date.now()) / 1000));
         setTimeLeft(remaining);
-      };
 
-      updateTimer();
-      const interval = setInterval(updateTimer, 1000);
+        if (remaining <= 0) {
+          clearInterval(interval);
+          if (user && currentChannel) {
+            onRemove(video.id);
+          }
+        }
+      }, 1000);
+
       return () => clearInterval(interval);
     }
-  }, [video.isCloned, video.expiresAt]);
+  }, [video.isCloned, video.expiresAt, user, currentChannel, onRemove, video.id]);
+
+  const handleCloneVideo = async (originalVideo: VideoDetails, version: CoverVersion) => {
+    setShowEditModal(false);
+    if (user && currentChannel) {
+      await cloneVideo(user.uid, currentChannel.id, originalVideo, version, cloneSettings.cloneDurationSeconds);
+    }
+  };
 
   const formatTimeLeft = (seconds: number) => {
     if (seconds >= 3600) {
@@ -89,10 +110,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
 
   const handleSync = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isSyncing) return;
+    if (isSyncing || !user || !currentChannel) return;
 
+    if (!apiKey) {
+      setShowToast(true);
+      return;
+    }
     setIsSyncing(true);
-    await syncVideo(video.id);
+    await syncVideo(user.uid, currentChannel.id, video.id, apiKey);
     setIsSyncing(false);
   };
 
@@ -120,7 +145,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         title: 'Remove from playlist?',
         message: `Are you sure you want to remove "${video.title}" from this playlist?`,
         onConfirm: () => {
-          removeVideoFromPlaylist(playlistId, video.id);
+          if (user && currentChannel) {
+            removeVideoFromPlaylist(user.uid, currentChannel.id, playlistId, video.id);
+          }
           setConfirmation(prev => ({ ...prev, isOpen: false }));
         }
       });
@@ -148,20 +175,25 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   };
 
   const handleSaveCustomVideo = async (updatedVideo: Omit<VideoDetails, 'id'>, shouldClose = true) => {
-    await updateVideo(video.id, updatedVideo);
+    if (user && currentChannel) {
+      await updateVideo(user.uid, currentChannel.id, video.id, updatedVideo);
+    }
     if (shouldClose) setShowEditModal(false);
-  };
-
-  const handleCloneVideo = async (originalVideo: VideoDetails, version: CoverVersion) => {
-    setShowEditModal(false);
-    await cloneVideo(originalVideo, version);
   };
 
   return (
     <>
       <div
-        className="flex flex-col gap-3 cursor-pointer group relative p-2 rounded-xl z-0"
+        className="flex flex-col gap-3 cursor-pointer group relative p-2 rounded-xl z-0 focus:outline-none"
         onClick={handleVideoClick}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleVideoClick();
+          }
+        }}
       >
         {/* Hover Substrate */}
         <div className={`absolute inset-0 rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none ${isMenuOpen || isTooltipOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : (video.isCustom ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-2 border-emerald-500/30' : 'bg-hover-bg')}`} />
@@ -347,6 +379,18 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         onConfirm={confirmation.onConfirm}
         onClose={() => setConfirmation(prev => ({ ...prev, isOpen: false }))}
         confirmLabel="Confirm"
+      />
+
+      {/* API Key Missing Toast */}
+      <Toast
+        message="API Key is missing. Click to configure."
+        isVisible={showToast}
+        onClose={() => setShowToast(false)}
+        type="error"
+        onClick={() => {
+          setSettingsOpen(true);
+          setShowToast(false);
+        }}
       />
     </>
   );

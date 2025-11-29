@@ -1,6 +1,8 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { usePlaylists } from '../../context/PlaylistsContext';
+import { usePlaylistsStore } from '../../stores/playlistsStore';
+import { useAuthStore } from '../../stores/authStore';
+import { useChannelStore } from '../../stores/channelStore';
 import { X, Plus, Check } from 'lucide-react';
 
 interface AddToPlaylistModalProps {
@@ -9,154 +11,93 @@ interface AddToPlaylistModalProps {
 }
 
 export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoId, onClose }) => {
-    const { playlists, createPlaylist, addVideoToPlaylist, removeVideoFromPlaylist } = usePlaylists();
+    const { playlists, createPlaylist, addVideoToPlaylist, removeVideoFromPlaylist } = usePlaylistsStore();
+    const { user } = useAuthStore();
+    const { currentChannel } = useChannelStore();
     const [isCreating, setIsCreating] = React.useState(false);
     const [newPlaylistName, setNewPlaylistName] = React.useState('');
 
     const handleCreate = (e: React.FormEvent) => {
         e.preventDefault();
-        if (newPlaylistName.trim()) {
-            createPlaylist(newPlaylistName.trim());
+        if (newPlaylistName.trim() && user && currentChannel) {
+            createPlaylist(user.uid, currentChannel.id, newPlaylistName.trim());
             setNewPlaylistName('');
             setIsCreating(false);
         }
     };
 
     const togglePlaylist = (playlistId: string, isInPlaylist: boolean) => {
+        if (!user || !currentChannel) return;
         if (!isInPlaylist) {
-            addVideoToPlaylist(playlistId, videoId);
+            addVideoToPlaylist(user.uid, currentChannel.id, playlistId, videoId);
         } else {
-            removeVideoFromPlaylist(playlistId, videoId);
+            removeVideoFromPlaylist(user.uid, currentChannel.id, playlistId, videoId);
         }
     };
 
     return createPortal(
+
         <div
-            className="animate-fade-in"
-            style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgba(0,0,0,0.5)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 2000
-            }}
+            className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
             onClick={onClose}
         >
             <div
-                className="animate-scale-in-center"
-                style={{
-                    backgroundColor: 'var(--bg-secondary)',
-                    borderRadius: '12px',
-                    width: '300px',
-                    maxHeight: '80vh',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden'
-                }}
+                className="bg-bg-secondary rounded-xl w-[300px] max-h-[80vh] flex flex-col overflow-hidden animate-scale-in border border-border shadow-2xl"
                 onClick={e => e.stopPropagation()}
-                onPointerDown={e => e.stopPropagation()}
-                onMouseDown={e => e.stopPropagation()}
             >
-                <div style={{
-                    padding: '16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    borderBottom: '1px solid var(--border)'
-                }}>
-                    <h3 style={{ margin: 0, fontSize: '16px' }}>Save to playlist</h3>
-                    <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                <div className="px-4 py-4 flex items-center justify-between border-b border-border">
+                    <h3 className="m-0 text-base font-bold text-text-primary">Save to playlist</h3>
+                    <button
+                        onClick={onClose}
+                        className="bg-transparent border-none text-text-primary cursor-pointer hover:opacity-70 transition-opacity"
+                    >
                         <X size={24} />
                     </button>
                 </div>
 
-                <div style={{ padding: '8px 0', overflowY: 'auto' }}>
+                <div className="py-2 overflow-y-auto custom-scrollbar">
                     {playlists.map(playlist => {
                         const isInPlaylist = playlist.videoIds.includes(videoId);
                         return (
                             <div
                                 key={playlist.id}
-                                className="hover-bg"
-                                style={{
-                                    padding: '8px 16px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '12px',
-                                    cursor: 'pointer'
-                                }}
+                                className="px-4 py-2 flex items-center gap-3 cursor-pointer hover:bg-hover-bg transition-colors"
                                 onClick={() => togglePlaylist(playlist.id, isInPlaylist)}
                             >
-                                <div style={{
-                                    width: '20px',
-                                    height: '20px',
-                                    border: '1px solid var(--text-secondary)',
-                                    borderRadius: '4px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    backgroundColor: isInPlaylist ? 'var(--text-primary)' : 'transparent'
-                                }}>
-                                    {isInPlaylist && <Check size={14} color="var(--bg-primary)" />}
+                                <div className={`w-5 h-5 border border-text-secondary rounded flex items-center justify-center ${isInPlaylist ? 'bg-text-primary border-text-primary' : 'bg-transparent'}`}>
+                                    {isInPlaylist && <Check size={14} className="text-bg-primary" />}
                                 </div>
-                                <span>{playlist.name}</span>
+                                <span className="text-text-primary">{playlist.name}</span>
                             </div>
                         );
                     })}
                 </div>
 
-                <div style={{ padding: '16px', borderTop: '1px solid var(--border)' }}>
+                <div className="p-4 border-t border-border">
                     {!isCreating ? (
                         <button
                             onClick={() => setIsCreating(true)}
-                            style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: 'var(--text-primary)',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                fontSize: '14px',
-                                fontWeight: '500'
-                            }}
+                            className="bg-transparent border-none text-text-primary cursor-pointer flex items-center gap-2 text-sm font-medium hover:opacity-80 transition-opacity"
                         >
                             <Plus size={20} />
                             Create new playlist
                         </button>
                     ) : (
-                        <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <form onSubmit={handleCreate} className="flex flex-col gap-3">
                             <input
                                 autoFocus
                                 type="text"
                                 placeholder="Name"
                                 value={newPlaylistName}
                                 onChange={e => setNewPlaylistName(e.target.value)}
-                                style={{
-                                    padding: '8px',
-                                    borderRadius: '4px',
-                                    border: '1px solid var(--border)',
-                                    backgroundColor: 'var(--bg-primary)',
-                                    color: 'var(--text-primary)'
-                                }}
+                                className="p-2 rounded border border-border bg-bg-primary text-text-primary outline-none focus:border-text-primary transition-colors"
                                 onKeyDown={(e) => e.stopPropagation()}
                             />
-                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <div className="flex justify-end">
                                 <button
                                     type="submit"
                                     disabled={!newPlaylistName.trim()}
-                                    style={{
-                                        background: 'transparent',
-                                        border: 'none',
-                                        color: '#3ea6ff',
-                                        fontWeight: 'bold',
-                                        cursor: newPlaylistName.trim() ? 'pointer' : 'not-allowed',
-                                        opacity: newPlaylistName.trim() ? 1 : 0.5
-                                    }}
+                                    className={`bg-transparent border-none font-bold cursor-pointer transition-opacity ${!newPlaylistName.trim() ? 'text-gray-500 cursor-not-allowed' : 'text-[#3ea6ff] hover:opacity-80'}`}
                                 >
                                     Create
                                 </button>

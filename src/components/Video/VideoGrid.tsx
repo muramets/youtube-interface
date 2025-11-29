@@ -1,19 +1,20 @@
 import React from 'react';
 
 import type { VideoDetails } from '../../utils/youtubeApi';
-import { useVideos } from '../../context/VideosContext';
-import { useVideoFiltering } from '../../context/VideoFilterContext';
-import { useVideoActions } from '../../context/VideoActionsContext';
-import { usePlaylists } from '../../context/PlaylistsContext';
-import { useSettings } from '../../context/SettingsContext';
+import { useVideosStore } from '../../stores/videosStore';
+import { useFilterStore } from '../../stores/filterStore';
+import { usePlaylistsStore } from '../../stores/playlistsStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { VideoCardSkeleton } from '../Shared/VideoCardSkeleton';
 import { VirtualVideoGrid } from './VirtualVideoGrid';
 import { VideoGridContainer } from './VideoGridContainer';
 import { GRID_LAYOUT } from '../../config/layout';
+import { useAuthStore } from '../../stores/authStore';
+import { useChannelStore } from '../../stores/channelStore';
 
 interface VideoGridProps {
   videos?: VideoDetails[];
-  onVideoMove?: (oldIndex: number, newIndex: number) => void;
+  onVideoMove?: (movedVideoId: string, targetVideoId: string) => void;
   disableChannelFilter?: boolean;
   playlistId?: string;
   isLoading?: boolean;
@@ -26,15 +27,38 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
   playlistId,
   isLoading: propIsLoading = false
 }) => {
-  const { videos: contextVideos, isLoading: contextIsLoading } = useVideos();
-  const { selectedChannel, searchQuery } = useVideoFiltering();
-  const { removeVideo } = useVideoActions();
-  const { playlists } = usePlaylists();
-  const { generalSettings } = useSettings();
-  const hiddenPlaylistIds = generalSettings.hiddenPlaylistIds || [];
+  const contextVideos = useVideosStore(state => state.videos);
+  const contextIsLoading = useVideosStore(state => state.isLoading);
+  const removeVideo = useVideosStore(state => state.removeVideo);
+
+  const selectedChannel = useFilterStore(state => state.selectedChannel);
+  const searchQuery = useFilterStore(state => state.searchQuery);
+
+  const playlists = usePlaylistsStore(state => state.playlists);
+
+  const cardsPerRow = useSettingsStore(state => state.generalSettings.cardsPerRow);
+  const hiddenPlaylistIds = useSettingsStore(state => state.generalSettings.hiddenPlaylistIds || []);
+
+  const user = useAuthStore(state => state.user);
+  const currentChannel = useChannelStore(state => state.currentChannel);
+
+  const videoOrder = useSettingsStore(state => state.videoOrder);
 
   const isLoading = propIsLoading || (propVideos ? false : contextIsLoading);
-  const sourceVideos = propVideos || contextVideos;
+
+  const sourceVideos = React.useMemo(() => {
+    if (propVideos) return propVideos;
+    if (!videoOrder || videoOrder.length === 0) return contextVideos;
+
+    const videoMap = new Map(contextVideos.map(v => [v.id, v]));
+    const sorted = videoOrder.map(id => videoMap.get(id)).filter((v): v is VideoDetails => !!v);
+
+    // Append any new videos that are not in videoOrder yet
+    const orderedSet = new Set(videoOrder);
+    const remaining = contextVideos.filter(v => !orderedSet.has(v.id));
+
+    return [...sorted, ...remaining];
+  }, [propVideos, contextVideos, videoOrder]);
 
   const filteredVideos = React.useMemo(() => {
     if (propVideos) return propVideos;
@@ -56,7 +80,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
     }
 
     return result.filter(video => {
-      const matchesChannel = disableChannelFilter || selectedChannel === 'All' || video.channelTitle === selectedChannel;
+      const matchesChannel = disableChannelFilter || !selectedChannel || selectedChannel === 'All' || video.channelTitle === selectedChannel;
       const matchesSearch = video.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         video.channelTitle.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesChannel && matchesSearch;
@@ -65,7 +89,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
 
 
 
-  console.log('VideoGrid render', { isLoading, videoCount: filteredVideos.length });
+
 
   if (isLoading) {
     return (
@@ -77,10 +101,10 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
             paddingRight: GRID_LAYOUT.PADDING.RIGHT,
             paddingBottom: GRID_LAYOUT.PADDING.BOTTOM,
             paddingLeft: GRID_LAYOUT.PADDING.LEFT,
-            gridTemplateColumns: `repeat(${generalSettings.cardsPerRow}, minmax(0, 1fr))`
+            gridTemplateColumns: `repeat(${cardsPerRow}, minmax(0, 1fr))`
           }}
         >
-          {Array.from({ length: generalSettings.cardsPerRow * 3 }).map((_, i) => (
+          {Array.from({ length: cardsPerRow * 3 }).map((_, i) => (
             <div key={i} className="min-w-0">
               <VideoCardSkeleton />
             </div>
@@ -104,7 +128,11 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
       <VirtualVideoGrid
         videos={filteredVideos}
         playlistId={playlistId}
-        onRemove={removeVideo}
+        onRemove={(videoId) => {
+          if (user && currentChannel) {
+            removeVideo(user.uid, currentChannel.id, videoId);
+          }
+        }}
         onVideoMove={onVideoMove}
       />
     </VideoGridContainer>

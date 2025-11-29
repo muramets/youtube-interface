@@ -1,13 +1,14 @@
 import React from 'react';
 import { ChevronRight, Moon, Sun, RefreshCw, Copy, Key } from 'lucide-react';
-import { useTheme } from '../../context/ThemeContext';
+import { useSettingsStore } from '../../stores/settingsStore';
 
 interface SettingsMenuMainProps {
     onNavigate: (view: 'appearance' | 'sync' | 'clone' | 'apiKey') => void;
 }
 
 export const SettingsMenuMain: React.FC<SettingsMenuMainProps> = ({ onNavigate }) => {
-    const { theme } = useTheme();
+    const { generalSettings } = useSettingsStore();
+    const theme = generalSettings.theme;
 
     return (
         <>

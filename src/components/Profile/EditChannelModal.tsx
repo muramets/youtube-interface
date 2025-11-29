@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, User, Camera } from 'lucide-react';
-import { useChannel, type Channel } from '../../context/ChannelContext';
+import { useChannelStore } from '../../stores/channelStore';
+import { useAuthStore } from '../../stores/authStore';
+import { type Channel } from '../../services/channelService';
 import { resizeImage } from '../../utils/imageUtils';
 
 interface EditChannelModalProps {
@@ -14,7 +16,8 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({ isOpen, onCl
     const [avatarUrl, setAvatarUrl] = useState(channel.avatar || '');
     const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const { updateChannel, deleteChannel } = useChannel();
+    const { updateChannel, removeChannel } = useChannelStore();
+    const { user } = useAuthStore();
     const [loading, setLoading] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -60,11 +63,11 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({ isOpen, onCl
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!name.trim()) return;
+        if (!name.trim() || !user) return;
 
         setLoading(true);
         try {
-            await updateChannel(channel.id, { name, avatar: avatarUrl });
+            await updateChannel(user.uid, channel.id, { name, avatar: avatarUrl });
             onClose();
         } catch (error) {
             console.error(error);
@@ -74,9 +77,10 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({ isOpen, onCl
     };
 
     const handleDelete = async () => {
+        if (!user) return;
         setLoading(true);
         try {
-            await deleteChannel(channel.id);
+            await removeChannel(user.uid, channel.id);
             onClose();
         } catch (error) {
             console.error('Error deleting channel:', error);
@@ -88,23 +92,23 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({ isOpen, onCl
 
     if (showDeleteConfirm) {
         return (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 animate-fade-in">
-                <div className="bg-[#1f1f1f] rounded-xl w-full max-w-sm p-6 relative shadow-2xl animate-scale-in border border-red-900/50">
-                    <h3 className="text-xl font-bold text-white mb-2">Delete Channel?</h3>
-                    <p className="text-gray-400 mb-6 text-sm">
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+                <div className="bg-bg-secondary rounded-xl w-full max-w-sm p-6 relative shadow-2xl animate-scale-in border border-border">
+                    <h3 className="text-xl font-bold text-text-primary mb-2">Delete Channel?</h3>
+                    <p className="text-text-secondary mb-6 text-sm">
                         Are you sure you want to delete <strong>{channel.name}</strong>? This action cannot be undone and all videos, playlists, and settings associated with this channel will be permanently lost.
                     </p>
                     <div className="flex justify-end gap-3">
                         <button
                             onClick={() => setShowDeleteConfirm(false)}
-                            className="px-4 py-2 text-gray-300 hover:text-white font-medium"
+                            className="px-4 py-2 text-text-secondary hover:text-text-primary font-medium transition-colors"
                         >
                             Cancel
                         </button>
                         <button
                             onClick={handleDelete}
                             disabled={loading}
-                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium"
+                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
                         >
                             {loading ? 'Deleting...' : 'Delete Forever'}
                         </button>
@@ -114,18 +118,20 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({ isOpen, onCl
         );
     }
 
+    const isDirty = name !== channel.name || avatarUrl !== (channel.avatar || '');
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in">
-            <div className="bg-[#1f1f1f] rounded-xl w-full max-w-md p-6 relative shadow-2xl animate-scale-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-bg-secondary rounded-xl w-full max-w-md p-6 relative shadow-2xl animate-scale-in">
                 {/* ... (existing modal content) */}
                 <button
                     onClick={onClose}
-                    className="absolute top-4 right-4 text-gray-400 hover:text-white"
+                    className="absolute top-4 right-4 text-text-secondary hover:text-text-primary transition-colors"
                 >
                     <X size={24} />
                 </button>
 
-                <h2 className="text-xl font-bold text-white mb-6">Edit Channel</h2>
+                <h2 className="text-xl font-bold text-text-primary mb-6">Edit Channel</h2>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                     {/* Avatar Upload */}
@@ -135,12 +141,12 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({ isOpen, onCl
                             onDrop={handleDrop}
                             onDragOver={handleDragOver}
                             onDragLeave={handleDragLeave}
-                            className={`w-24 h-24 rounded-full bg-[#2a2a2a] flex items-center justify-center cursor-pointer relative overflow-hidden border-2 ${isDragging ? 'border-blue-500' : 'border-dashed border-gray-600'}`}
+                            className={`w-24 h-24 rounded-full bg-bg-primary flex items-center justify-center cursor-pointer relative overflow-hidden border-2 ${isDragging ? 'border-text-primary' : 'border-dashed border-border'}`}
                         >
                             {avatarUrl ? (
                                 <img src={avatarUrl} alt="Avatar Preview" className="w-full h-full object-cover" />
                             ) : (
-                                <User size={40} className="text-gray-500" />
+                                <User size={40} className="text-text-secondary" />
                             )}
                             <div className="absolute bottom-0 left-0 right-0 bg-black/60 h-8 flex items-center justify-center">
                                 <Camera size={16} className="text-white" />
@@ -153,20 +159,20 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({ isOpen, onCl
                             accept="image/*"
                             className="hidden"
                         />
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-text-secondary">
                             Click or drag to upload
                         </span>
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-400 mb-1">
+                        <label className="block text-sm font-medium text-text-secondary mb-1">
                             Channel Name
                         </label>
                         <input
                             type="text"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            className="w-full bg-[#2a2a2a] border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500"
+                            className="w-full bg-bg-primary border border-border rounded-lg px-4 py-2 text-text-primary focus:outline-none focus:border-text-primary transition-colors"
                             placeholder="Enter channel name"
                             autoFocus
                         />
@@ -176,7 +182,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({ isOpen, onCl
                         <button
                             type="button"
                             onClick={() => setShowDeleteConfirm(true)}
-                            className="text-red-500 hover:text-red-400 text-sm font-medium px-2 py-1 rounded hover:bg-red-500/10 transition-colors"
+                            className="text-red-500 hover:text-red-400 text-sm font-medium px-4 py-2 rounded hover:bg-red-500/10 transition-colors"
                         >
                             Delete Channel
                         </button>
@@ -184,16 +190,25 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({ isOpen, onCl
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="px-4 py-2 text-gray-300 hover:text-white font-medium"
+                                className="px-4 py-2 text-text-secondary hover:text-text-primary font-medium transition-colors"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
-                                disabled={loading || !name.trim()}
-                                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                disabled={loading || !isDirty || !name.trim()}
+                                className={`px-6 py-2 rounded-lg font-medium transition-all relative overflow-hidden
+                                    ${(loading || !isDirty || !name.trim())
+                                        ? 'bg-bg-primary text-text-secondary cursor-default opacity-50'
+                                        : 'bg-text-primary text-bg-primary cursor-pointer hover:opacity-90'
+                                    }
+                                    ${loading ? 'cursor-wait' : ''}
+                                `}
                             >
-                                {loading ? 'Saving...' : 'Save Changes'}
+                                {loading && (
+                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-black/10 to-transparent animate-shimmer bg-[length:200%_100%]"></div>
+                                )}
+                                <span className="relative z-10">Save</span>
                             </button>
                         </div>
                     </div>

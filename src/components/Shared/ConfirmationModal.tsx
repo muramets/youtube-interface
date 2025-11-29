@@ -25,65 +25,31 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 
     return createPortal(
         <div
-            className="animate-fade-in"
-            style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgba(0,0,0,0.7)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 2000
-            }}
+            className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
             onClick={onClose}
         >
             <div
-                className="animate-scale-in-center"
-                style={{
-                    backgroundColor: 'var(--bg-secondary)',
-                    borderRadius: '12px',
-                    width: '400px',
-                    maxWidth: '90vw',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden'
-                }}
+                className="bg-bg-secondary rounded-xl w-[400px] max-w-[90vw] flex flex-col overflow-hidden animate-scale-in border border-border shadow-2xl"
                 onClick={e => e.stopPropagation()}
-                onPointerDown={e => e.stopPropagation()}
-                onMouseDown={e => e.stopPropagation()}
             >
-                <div style={{
-                    padding: '16px 24px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    borderBottom: '1px solid var(--border)'
-                }}>
-                    <h2 style={{ margin: 0, fontSize: '20px' }}>{title}</h2>
-                    <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                <div className="px-6 py-4 flex items-center justify-between border-b border-border">
+                    <h2 className="text-xl font-bold text-text-primary m-0">{title}</h2>
+                    <button
+                        onClick={onClose}
+                        className="bg-transparent border-none text-text-primary cursor-pointer hover:opacity-70 transition-opacity"
+                    >
                         <X size={24} />
                     </button>
                 </div>
 
-                <div style={{ padding: '24px', color: 'var(--text-secondary)', fontSize: '16px' }}>
+                <div className="p-6 text-text-secondary text-base">
                     {message}
                 </div>
 
-                <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--border)' }}>
+                <div className="px-6 py-4 flex justify-end gap-3 border-t border-border bg-bg-secondary/30">
                     <button
                         onClick={onClose}
-                        style={{
-                            padding: '8px 16px',
-                            borderRadius: '18px',
-                            border: 'none',
-                            backgroundColor: 'transparent',
-                            color: 'var(--text-primary)',
-                            cursor: 'pointer',
-                            fontWeight: '500'
-                        }}
+                        className="px-4 py-2 rounded-lg font-medium text-text-secondary hover:text-text-primary transition-colors bg-transparent border-none cursor-pointer"
                     >
                         {cancelLabel}
                     </button>
@@ -92,15 +58,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                             onConfirm();
                             onClose();
                         }}
-                        style={{
-                            padding: '8px 16px',
-                            borderRadius: '18px',
-                            border: 'none',
-                            backgroundColor: '#ff4d4d', // Red for destructive action
-                            color: 'white',
-                            cursor: 'pointer',
-                            fontWeight: 'bold'
-                        }}
+                        className="px-4 py-2 rounded-lg font-bold text-white bg-red-600 hover:bg-red-700 transition-colors border-none cursor-pointer"
                     >
                         {confirmLabel}
                     </button>

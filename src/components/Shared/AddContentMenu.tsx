@@ -4,21 +4,42 @@ import { createPortal } from 'react-dom';
 import { AddYouTubeVideoModal } from '../Video/AddYouTubeVideoModal';
 import { CustomVideoModal } from '../Video/CustomVideoModal';
 import { CreatePlaylistModal } from '../Playlist/CreatePlaylistModal';
-import { useVideoActions } from '../../context/VideoActionsContext';
+import { useVideosStore } from '../../stores/videosStore';
+import { useAuthStore } from '../../stores/authStore';
+import { useChannelStore } from '../../stores/channelStore';
 
 interface AddContentMenuProps {
     showVideo?: boolean;
     showPlaylist?: boolean;
     directPlaylist?: boolean;
+    icon?: React.ReactNode;
+    isOpen?: boolean;
+    onOpenChange?: (isOpen: boolean) => void;
 }
 
 export const AddContentMenu: React.FC<AddContentMenuProps> = ({
     showVideo = true,
     showPlaylist = true,
-    directPlaylist = false
+    directPlaylist = false,
+    icon,
+    isOpen: controlledIsOpen,
+    onOpenChange
 }) => {
-    const { addCustomVideo } = useVideoActions();
-    const [isOpen, setIsOpen] = useState(false);
+    const { addCustomVideo } = useVideosStore();
+    const { user } = useAuthStore();
+    const { currentChannel } = useChannelStore();
+    const [internalIsOpen, setInternalIsOpen] = useState(false);
+
+    const isControlled = controlledIsOpen !== undefined;
+    const isOpen = isControlled ? controlledIsOpen : internalIsOpen;
+    const setIsOpen = (value: boolean) => {
+        if (onOpenChange) {
+            onOpenChange(value);
+        }
+        if (!isControlled) {
+            setInternalIsOpen(value);
+        }
+    };
     const [activeModal, setActiveModal] = useState<'youtube' | 'custom' | 'playlist' | null>(null);
 
     const buttonRef = useRef<HTMLButtonElement>(null);
@@ -79,11 +100,11 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
         <>
             <button
                 ref={buttonRef}
-                className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors border-none cursor-pointer relative flex-shrink-0 ${isOpen ? 'bg-text-primary text-bg-primary' : 'bg-transparent text-text-primary hover:bg-hover-bg'}`}
+                className="w-10 h-10 rounded-full flex items-center justify-center transition-colors border-none cursor-pointer relative flex-shrink-0 bg-transparent text-text-primary hover:bg-hover-bg"
                 onClick={handleButtonClick}
                 title={directPlaylist ? "Create Playlist" : "Add Content"}
             >
-                {directPlaylist ? <ListPlus size={24} /> : <Plus size={24} />}
+                {icon ? icon : (directPlaylist ? <ListPlus size={24} /> : <Plus size={24} />)}
             </button>
 
             {isOpen && position && !directPlaylist && createPortal(
@@ -96,10 +117,10 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
                         right: position.right,
                     }}
                 >
+                    <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-bg-secondary/95 backdrop-blur sticky top-0 z-10 flex-shrink-0">
+                        <h3 className="font-medium text-text-primary m-0 text-base">Create</h3>
+                    </div>
                     <div className="p-2">
-                        <div className="px-3 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">
-                            Create
-                        </div>
 
                         {showVideo && (
                             <>
@@ -143,7 +164,11 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
             <CustomVideoModal
                 isOpen={activeModal === 'custom'}
                 onClose={() => setActiveModal(null)}
-                onSave={addCustomVideo}
+                onSave={async (videoData) => {
+                    if (user && currentChannel) {
+                        await addCustomVideo(user.uid, currentChannel.id, videoData);
+                    }
+                }}
             />
 
             <CreatePlaylistModal

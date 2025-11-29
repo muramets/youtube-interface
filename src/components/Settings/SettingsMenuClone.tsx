@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import { ArrowLeft, ChevronRight } from 'lucide-react';
-import { useSettings } from '../../context/SettingsContext';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { useAuthStore } from '../../stores/authStore';
+import { useChannelStore } from '../../stores/channelStore';
 
 interface SettingsMenuCloneProps {
     onBack: () => void;
 }
 
 export const SettingsMenuClone: React.FC<SettingsMenuCloneProps> = ({ onBack }) => {
-    const { cloneSettings, updateCloneSettings } = useSettings();
+    const { cloneSettings, updateCloneSettings } = useSettingsStore();
+    const { user } = useAuthStore();
+    const { currentChannel } = useChannelStore();
     const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
 
     const getUnit = (seconds: number) => {
@@ -23,10 +27,11 @@ export const SettingsMenuClone: React.FC<SettingsMenuCloneProps> = ({ onBack }) 
     };
 
     const updateDuration = (val: number, unit: string) => {
+        if (!user || !currentChannel) return;
         let newSeconds = val;
         if (unit === 'Hours') newSeconds = val * 3600;
         else if (unit === 'Minutes') newSeconds = val * 60;
-        updateCloneSettings({ cloneDurationSeconds: Math.max(10, newSeconds) });
+        updateCloneSettings(user.uid, currentChannel.id, { cloneDurationSeconds: Math.max(10, newSeconds) });
     };
 
     const currentUnit = getUnit(cloneSettings.cloneDurationSeconds);
@@ -85,19 +90,29 @@ export const SettingsMenuClone: React.FC<SettingsMenuCloneProps> = ({ onBack }) 
                             </button>
 
                             {isUnitDropdownOpen && (
-                                <div className="absolute top-full right-0 mt-1 w-full bg-bg-secondary border border-border rounded-lg shadow-xl overflow-hidden z-10 animate-scale-in">
-                                    {['Seconds', 'Minutes', 'Hours'].map((unit) => (
-                                        <div
-                                            key={unit}
-                                            className="px-3 py-2 text-sm cursor-pointer hover:bg-hover-bg text-text-primary"
-                                            onClick={() => {
-                                                updateDuration(getValue(cloneSettings.cloneDurationSeconds, unit), unit);
-                                                setIsUnitDropdownOpen(false);
-                                            }}
-                                        >
-                                            {unit}
-                                        </div>
-                                    ))}
+                                <div className="fixed inset-0 z-[100]" onClick={() => setIsUnitDropdownOpen(false)}>
+                                    <div
+                                        className="absolute bg-bg-secondary border border-border rounded-lg shadow-xl overflow-hidden animate-scale-in"
+                                        style={{
+                                            top: (document.activeElement as HTMLElement)?.getBoundingClientRect().bottom + 8,
+                                            left: (document.activeElement as HTMLElement)?.getBoundingClientRect().left,
+                                            minWidth: '100px'
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        {['Seconds', 'Minutes', 'Hours'].map((unit) => (
+                                            <div
+                                                key={unit}
+                                                className="px-3 py-2 text-sm cursor-pointer hover:bg-hover-bg text-text-primary"
+                                                onClick={() => {
+                                                    updateDuration(getValue(cloneSettings.cloneDurationSeconds, unit), unit);
+                                                    setIsUnitDropdownOpen(false);
+                                                }}
+                                            >
+                                                {unit}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </div>

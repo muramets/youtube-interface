@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, User, Camera } from 'lucide-react';
-import { useUserProfile } from '../../context/UserProfileContext';
+import { useChannelStore } from '../../stores/channelStore';
+import { useAuthStore } from '../../stores/authStore';
 import { resizeImage } from '../../utils/imageUtils';
 
 interface ProfileModalProps {
@@ -9,22 +10,23 @@ interface ProfileModalProps {
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
-    const { channelName, avatarDataUrl, updateProfile } = useUserProfile();
-    const [name, setName] = useState(channelName);
-    const [previewUrl, setPreviewUrl] = useState<string | null>(avatarDataUrl);
+    const { currentChannel, updateChannel } = useChannelStore();
+    const { user } = useAuthStore();
+    const [name, setName] = useState(currentChannel?.name || '');
+    const [previewUrl, setPreviewUrl] = useState<string | null>(currentChannel?.avatar || null);
     const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        if (isOpen) {
-            setName(channelName);
-            setPreviewUrl(avatarDataUrl);
+        if (isOpen && currentChannel) {
+            setTimeout(() => {
+                setName(currentChannel.name);
+                setPreviewUrl(currentChannel.avatar || null);
+            }, 0);
         }
-    }, [isOpen, channelName, avatarDataUrl]);
+    }, [isOpen, currentChannel]);
 
     if (!isOpen) return null;
-
-
 
     // ...
 
@@ -58,87 +60,49 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
         setIsDragging(false);
     };
 
-    const handleSave = () => {
-        updateProfile(name, previewUrl);
+    const handleSave = async () => {
+        if (user && currentChannel) {
+            await updateChannel(user.uid, currentChannel.id, { name, avatar: previewUrl || undefined });
+        }
         onClose();
     };
 
     return (
         <div
-            className="animate-fade-in"
-            style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 1000
-            }}
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
             onClick={onClose}
         >
             <div
-                className="animate-scale-in-center"
-                style={{
-                    backgroundColor: 'var(--bg-secondary)',
-                    borderRadius: '12px',
-                    padding: '24px',
-                    width: '400px',
-                    maxWidth: '90%',
-                    border: '1px solid var(--border)',
-                    color: 'var(--text-primary)'
-                }}
+                className="bg-bg-secondary rounded-xl p-6 w-[400px] max-w-[90%] border border-border text-text-primary animate-scale-in-center shadow-2xl"
                 onClick={e => e.stopPropagation()}
             >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                    <h2 style={{ margin: 0, fontSize: '20px' }}>Edit Profile</h2>
-                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="m-0 text-xl font-bold">Edit Profile</h2>
+                    <button onClick={onClose} className="bg-transparent border-none text-text-primary cursor-pointer hover:opacity-70 transition-opacity">
                         <X size={24} />
                     </button>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div className="flex flex-col gap-5">
                     {/* Avatar Upload */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                    <div className="flex flex-col items-center gap-3">
                         <div
                             onClick={() => fileInputRef.current?.click()}
                             onDrop={handleDrop}
                             onDragOver={handleDragOver}
                             onDragLeave={handleDragLeave}
-                            style={{
-                                width: '100px',
-                                height: '100px',
-                                borderRadius: '50%',
-                                backgroundColor: 'var(--bg-primary)',
-                                border: `2px dashed ${isDragging ? '#3ea6ff' : 'var(--border)'}`,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'pointer',
-                                position: 'relative',
-                                overflow: 'hidden'
-                            }}
+                            className={`
+                                w-[100px] h-[100px] rounded-full bg-bg-primary flex items-center justify-center cursor-pointer relative overflow-hidden
+                                border-2 ${isDragging ? 'border-[#3ea6ff]' : 'border-border'}
+                            `}
                         >
                             {previewUrl ? (
-                                <img src={previewUrl} alt="Avatar Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                <img src={previewUrl} alt="Avatar Preview" className="w-full h-full object-cover" />
                             ) : (
-                                <User size={40} color="var(--text-secondary)" />
+                                <User size={40} className="text-text-secondary" />
                             )}
-                            <div style={{
-                                position: 'absolute',
-                                bottom: 0,
-                                left: 0,
-                                right: 0,
-                                backgroundColor: 'rgba(0,0,0,0.6)',
-                                height: '30px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                            }}>
-                                <Camera size={16} color="white" />
+                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 h-[30px] flex items-center justify-center">
+                                <Camera size={16} className="text-white" />
                             </div>
                         </div>
                         <input
@@ -146,57 +110,34 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                             ref={fileInputRef}
                             onChange={(e) => e.target.files && handleFile(e.target.files[0])}
                             accept="image/*"
-                            style={{ display: 'none' }}
+                            className="hidden"
                         />
-                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        <span className="text-xs text-text-secondary">
                             Click or drag to upload
                         </span>
                     </div>
 
                     {/* Name Input */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <label style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Channel Name</label>
+                    <div className="flex flex-col gap-2">
+                        <label className="text-sm text-text-secondary">Channel Name</label>
                         <input
                             type="text"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            style={{
-                                padding: '10px',
-                                borderRadius: '4px',
-                                border: '1px solid var(--border)',
-                                backgroundColor: 'var(--bg-primary)',
-                                color: 'var(--text-primary)',
-                                fontSize: '16px'
-                            }}
+                            className="p-2.5 rounded border border-border bg-bg-primary text-text-primary text-base outline-none focus:border-text-primary transition-colors"
                         />
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
+                    <div className="flex justify-end gap-3 mt-3">
                         <button
                             onClick={onClose}
-                            style={{
-                                padding: '8px 16px',
-                                borderRadius: '18px',
-                                border: 'none',
-                                backgroundColor: 'transparent',
-                                color: 'var(--text-primary)',
-                                cursor: 'pointer',
-                                fontWeight: '500'
-                            }}
+                            className="px-4 py-2 rounded-full border-none bg-transparent text-text-primary cursor-pointer font-medium hover:bg-hover-bg transition-colors"
                         >
                             Cancel
                         </button>
                         <button
                             onClick={handleSave}
-                            style={{
-                                padding: '8px 16px',
-                                borderRadius: '18px',
-                                border: 'none',
-                                backgroundColor: '#3ea6ff',
-                                color: 'black',
-                                cursor: 'pointer',
-                                fontWeight: 'bold'
-                            }}
+                            className="px-4 py-2 rounded-full border-none bg-[#3ea6ff] text-black cursor-pointer font-bold hover:bg-[#3ea6ff]/90 transition-colors"
                         >
                             Save
                         </button>

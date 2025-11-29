@@ -11,9 +11,16 @@
   --border: #e5e5e5;
   --hover: #f2f2f2;
   --hover-bg: #f2f2f2;
+
+  /* Settings Modal Colors (Light Mode Defaults) */
+  --settings-menu-active: #e5e5e5;
+  --settings-menu-hover: #f2f2f2;
+  --settings-input-bg: #ffffff;
+  --settings-dropdown-bg: #ffffff;
+  --settings-dropdown-hover: #f2f2f2;
 }
 
-[data-theme='dark'] {
+.dark {
   --bg-primary: #0f0f0f;
   --bg-secondary: #272727;
   --text-primary: #ffffff;
@@ -22,6 +29,13 @@
   --border: #3f3f3f;
   --hover: #3f3f3f;
   --hover-bg: #3f3f3f;
+
+  /* Settings Modal Colors */
+  --settings-menu-active: #1F1F1F;
+  --settings-menu-hover: #161616;
+  --settings-input-bg: #282828;
+  --settings-dropdown-bg: #1F1F1F;
+  --settings-dropdown-hover: #161616;
 }
 
 body {
@@ -63,4 +77,25 @@ body {
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Hide number input arrows */
+.no-spinner::-webkit-inner-spin-button,
+.no-spinner::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.no-spinner {
+  -moz-appearance: textfield;
+}
+
+/* Autofill override */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px var(--bg-primary) inset !important;
+  -webkit-text-fill-color: var(--text-primary) !important;
+  transition: background-color 5000s ease-in-out 0s;
 }

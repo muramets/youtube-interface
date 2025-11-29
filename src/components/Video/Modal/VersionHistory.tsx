@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, Info, Trash2, ArrowUp, Copy, Loader2 } from 
 import { PortalTooltip } from '../../Shared/PortalTooltip';
 import { ClonedVideoTooltipContent } from '../ClonedVideoTooltipContent';
 import { type VideoDetails, type CoverVersion } from '../../../utils/youtubeApi';
-import { useVideos } from '../../../context/VideosContext';
+import { useVideosStore } from '../../../stores/videosStore';
 
 interface VersionHistoryProps {
     history: CoverVersion[];
@@ -24,7 +24,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
     initialData,
     cloningVersion
 }) => {
-    const { videos } = useVideos();
+    const { videos } = useVideosStore();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [showLeftArrow, setShowLeftArrow] = useState(false);
     const [showRightArrow, setShowRightArrow] = useState(false);
@@ -143,7 +143,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
 
                                                 {onClone && initialData && (
                                                     (() => {
-                                                        const isCloned = videos.some(v =>
+                                                        const isCloned = videos.some((v: VideoDetails) =>
                                                             v.isCloned &&
                                                             v.clonedFromId === initialData.id &&
                                                             v.customImageVersion === version.version

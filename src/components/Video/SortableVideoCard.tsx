@@ -13,7 +13,6 @@ interface SortableVideoCardProps {
 }
 
 export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, playlistId, scale = 1, onMenuOpenChange, onRemove }) => {
-    console.log('SortableVideoCard render', video.id);
     const {
         attributes,
         listeners,

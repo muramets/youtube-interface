@@ -6,7 +6,8 @@ import {
     fetchCollection
 } from './firestore';
 import type { VideoDetails, HistoryItem, CoverVersion } from '../utils/youtubeApi';
-import { orderBy, getDocs, deleteDoc } from 'firebase/firestore';
+import { orderBy, getDocs, deleteDoc, writeBatch, doc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 const getVideosPath = (userId: string, channelId: string) =>
     `users/${userId}/channels/${channelId}/videos`;
@@ -33,6 +34,20 @@ export const VideoService = {
             video.id,
             video
         );
+    },
+
+
+    batchUpdateVideos: async (
+        userId: string,
+        channelId: string,
+        updates: { videoId: string; data: Partial<VideoDetails> }[]
+    ) => {
+        const batch = writeBatch(db);
+        updates.forEach(({ videoId, data }) => {
+            const docRef = doc(db, getVideosPath(userId, channelId), videoId);
+            batch.set(docRef, data, { merge: true });
+        });
+        await batch.commit();
     },
 
     updateVideo: async (

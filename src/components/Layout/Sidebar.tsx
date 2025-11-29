@@ -1,6 +1,7 @@
 import React from 'react';
-import { Home, List } from 'lucide-react';
+import { Home, List, Settings } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { SettingsModal } from '../Settings/SettingsModal';
 
 const SidebarItem: React.FC<{ icon: React.ReactNode; label: string; active?: boolean }> = ({ icon, label, active }) => (
   <div className={`flex flex-col items-center justify-center py-4 px-1 cursor-pointer rounded-lg hover:bg-hover-bg ${active ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}>
@@ -9,18 +10,29 @@ const SidebarItem: React.FC<{ icon: React.ReactNode; label: string; active?: boo
   </div>
 );
 
+import { useUIStore } from '../../stores/uiStore';
+
 export const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isSettingsOpen, setSettingsOpen } = useUIStore();
 
   return (
-    <aside className="w-[72px] h-[calc(100vh-56px)] sticky top-14 bg-bg-primary flex flex-col px-1 py-1 overflow-y-auto hidden sm:flex">
-      <div onClick={() => navigate('/')}>
-        <SidebarItem icon={<Home size={24} />} label="Home" active={location.pathname === '/'} />
-      </div>
-      <div onClick={() => navigate('/playlists')}>
-        <SidebarItem icon={<List size={24} />} label="Playlists" active={location.pathname.startsWith('/playlists')} />
-      </div>
-    </aside>
+    <>
+      <aside className="w-[72px] h-[calc(100vh-56px)] sticky top-14 bg-bg-primary flex flex-col px-1 py-1 overflow-y-auto hidden sm:flex">
+        <div onClick={() => navigate('/')}>
+          <SidebarItem icon={<Home size={24} />} label="Home" active={location.pathname === '/'} />
+        </div>
+        <div onClick={() => navigate('/playlists')}>
+          <SidebarItem icon={<List size={24} />} label="Playlists" active={location.pathname.startsWith('/playlists')} />
+        </div>
+
+        <div className="mt-auto" onClick={() => setSettingsOpen(true)}>
+          <SidebarItem icon={<Settings size={24} />} label="Settings" active={isSettingsOpen} />
+        </div>
+      </aside>
+
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
+    </>
   );
 };

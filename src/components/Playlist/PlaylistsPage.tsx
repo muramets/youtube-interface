@@ -1,7 +1,9 @@
-import React, { useState, useRef } from 'react';
-import { useVideos } from '../../context/VideosContext';
-import { useVideoFiltering } from '../../context/VideoFilterContext';
-import { usePlaylists } from '../../context/PlaylistsContext';
+import React, { useState } from 'react';
+import { useVideosStore } from '../../stores/videosStore';
+import { useFilterStore } from '../../stores/filterStore';
+import { usePlaylistsStore } from '../../stores/playlistsStore';
+import { useAuthStore } from '../../stores/authStore';
+import { useChannelStore } from '../../stores/channelStore';
 import { type Playlist } from '../../services/playlistService';
 import { useNavigate } from 'react-router-dom';
 import { PlaylistEditModal } from './PlaylistEditModal';
@@ -23,25 +25,20 @@ import {
     sortableKeyboardCoordinates,
     rectSortingStrategy,
 } from '@dnd-kit/sortable';
-
-
-
 import { SortablePlaylistCard } from './PlaylistCard';
-
 import { PlaylistsPageSkeleton } from './PlaylistsPageSkeleton';
 
 export const PlaylistsPage: React.FC = () => {
-    const { playlists, deletePlaylist, updatePlaylist, reorderPlaylists, isLoading } = usePlaylists();
-    const { videos } = useVideos();
-    const { searchQuery } = useVideoFiltering();
+    const { playlists, deletePlaylist, updatePlaylist, reorderPlaylists, isLoading } = usePlaylistsStore();
+    const { videos } = useVideosStore();
+    const { user } = useAuthStore();
+    const { currentChannel } = useChannelStore();
+    const { searchQuery } = useFilterStore();
     const navigate = useNavigate();
     const [editingPlaylist, setEditingPlaylist] = useState<Playlist | null>(null);
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean, playlistId: string | null }>({ isOpen: false, playlistId: null });
     const [sortBy, setSortBy] = useState<'default' | 'views' | 'updated' | 'created'>('default');
-
-    // Store refs for each playlist menu button
-    const menuButtonRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -66,8 +63,8 @@ export const PlaylistsPage: React.FC = () => {
     };
 
     const confirmDelete = () => {
-        if (deleteConfirmation.playlistId) {
-            deletePlaylist(deleteConfirmation.playlistId);
+        if (deleteConfirmation.playlistId && user && currentChannel) {
+            deletePlaylist(user.uid, currentChannel.id, deleteConfirmation.playlistId);
         }
         setDeleteConfirmation({ isOpen: false, playlistId: null });
     };
@@ -79,14 +76,19 @@ export const PlaylistsPage: React.FC = () => {
     };
 
     const handleDragEnd = (event: DragEndEvent) => {
-        if (searchQuery || sortBy !== 'default') return;
+        if (searchQuery || sortBy !== 'default' || !user || !currentChannel) return;
 
         const { active, over } = event;
 
         if (over && active.id !== over.id) {
             const oldIndex = playlists.findIndex((p) => p.id === active.id);
             const newIndex = playlists.findIndex((p) => p.id === over.id);
-            reorderPlaylists(arrayMove(playlists, oldIndex, newIndex));
+            const newOrder = arrayMove(playlists, oldIndex, newIndex).map(p => p.id);
+            // Optimistic update handled by store if we implemented it, or we just call reorder
+            // Wait, reorderPlaylists in store takes newOrder string[]?
+            // Let's check store signature.
+            // reorderPlaylists: (userId, channelId, newOrder) => Promise<void>
+            reorderPlaylists(user.uid, currentChannel.id, newOrder);
         }
     };
 
@@ -126,64 +128,71 @@ export const PlaylistsPage: React.FC = () => {
     }
 
     return (
-        <div className="animate-fade-in p-6 pl-0">
-            <div className="flex items-center justify-between mb-6">
-                <h1 className="text-2xl m-0">Your Playlists</h1>
+        <div className="animate-fade-in">
+            <div className="flex items-center justify-between pl-0 pr-6 py-3 sticky top-0 bg-bg-primary z-10">
+                <h1 className="text-xl font-medium m-0">Your Playlists</h1>
                 <div className="flex items-center gap-1">
                     <AddContentMenu directPlaylist={true} />
                     <FilterSortDropdown
                         sortOptions={sortOptions}
                         activeSort={sortBy}
-                        onSortChange={(val) => setSortBy(val as any)}
+                        onSortChange={(val) => setSortBy(val as 'default' | 'views' | 'updated' | 'created')}
                         showPlaylistFilter={false}
                     />
                 </div>
             </div>
 
-            <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-            >
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-6">
-                    <SortableContext
-                        items={filteredPlaylists.map(p => p.id)}
-                        strategy={rectSortingStrategy}
-                    >
-                        {filteredPlaylists.map(playlist => (
-                            <SortablePlaylistCard
-                                key={playlist.id}
-                                playlist={playlist}
-                                navigate={navigate}
-                                handleMenuClick={handleMenuClick}
-                                menuButtonRefs={menuButtonRefs}
-                                openMenuId={openMenuId}
-                                setOpenMenuId={setOpenMenuId}
-                                handleEdit={handleEdit}
-                                handleDeleteClick={handleDeleteClick}
-                            />
-                        ))}
-                    </SortableContext>
-                </div>
-            </DndContext>
+            <div className="p-6 pl-0 pt-2">
 
-            {editingPlaylist && (
-                <PlaylistEditModal
-                    isOpen={!!editingPlaylist}
-                    onClose={() => setEditingPlaylist(null)}
-                    onSave={updatePlaylist}
-                    playlist={editingPlaylist}
+                <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                >
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-6">
+                        <SortableContext
+                            items={filteredPlaylists.map(p => p.id)}
+                            strategy={rectSortingStrategy}
+                        >
+                            {filteredPlaylists.map(playlist => (
+                                <SortablePlaylistCard
+                                    key={playlist.id}
+                                    playlist={playlist}
+                                    navigate={navigate}
+                                    handleMenuClick={handleMenuClick}
+                                    openMenuId={openMenuId}
+                                    setOpenMenuId={setOpenMenuId}
+                                    handleEdit={handleEdit}
+                                    handleDeleteClick={handleDeleteClick}
+                                />
+                            ))}
+                        </SortableContext>
+                    </div>
+                </DndContext>
+
+                {editingPlaylist && (
+                    <PlaylistEditModal
+                        isOpen={!!editingPlaylist}
+                        onClose={() => setEditingPlaylist(null)}
+                        onSave={(id, updates) => {
+                            if (user && currentChannel) {
+                                updatePlaylist(user.uid, currentChannel.id, id, updates);
+                            }
+                            return Promise.resolve();
+                        }}
+                        playlist={editingPlaylist}
+                    />
+                )}
+
+                <ConfirmationModal
+                    isOpen={deleteConfirmation.isOpen}
+                    onClose={() => setDeleteConfirmation({ isOpen: false, playlistId: null })}
+                    onConfirm={confirmDelete}
+                    title="Delete Playlist"
+                    message="Are you sure you want to delete this playlist? This action cannot be undone."
+                    confirmLabel="Delete"
                 />
-            )}
-
-            <ConfirmationModal
-                isOpen={deleteConfirmation.isOpen}
-                onClose={() => setDeleteConfirmation({ isOpen: false, playlistId: null })}
-                onConfirm={confirmDelete}
-                title="Delete Playlist"
-                message="Are you sure you want to delete this playlist? This action cannot be undone."
-                confirmLabel="Delete"
-            />
+            </div>
         </div>
     );
 };

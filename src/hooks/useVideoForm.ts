@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
 import { type VideoDetails, type CoverVersion } from '../utils/youtubeApi';
-import { useVideoActions } from '../context/VideoActionsContext';
+import { useVideosStore } from '../stores/videosStore';
+import { useAuthStore } from '../stores/authStore';
+import { useChannelStore } from '../stores/channelStore';
 
 export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
-    const { fetchVideoHistory } = useVideoActions();
+    const { fetchVideoHistory } = useVideosStore();
+    const { user } = useAuthStore();
+    const { currentChannel } = useChannelStore();
 
     // Form State
     const [title, setTitle] = useState('');
@@ -45,11 +49,13 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
                 const loadHistory = async () => {
                     setIsLoadingHistory(true);
                     try {
-                        const history = await fetchVideoHistory(initialData.id);
-                        // Filter out current cover from history
-                        const currentUrl = initialData.customImage || initialData.thumbnail;
-                        const filteredHistory = history.filter(h => h.url !== currentUrl);
-                        setCoverHistory(filteredHistory);
+                        if (user && currentChannel) {
+                            const history = await fetchVideoHistory(user.uid, currentChannel.id, initialData.id);
+                            // Filter out current cover from history
+                            const currentUrl = initialData.customImage || initialData.thumbnail;
+                            const filteredHistory = history.filter(h => h.url !== currentUrl);
+                            setCoverHistory(filteredHistory);
+                        }
                     } catch (error) {
                         console.error("Failed to load history:", error);
                     } finally {
@@ -74,7 +80,24 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
                 setFileVersionMap({});
             }
         }
-    }, [isOpen, initialData]); // fetchVideoHistory is stable
+    }, [isOpen, initialData, fetchVideoHistory, user, currentChannel]);
+
+    const isDirty = (() => {
+        if (!initialData) return true; // Always dirty if creating new
+
+        const currentCustomImage = coverImage;
+        const initialCustomImage = initialData.customImage || initialData.thumbnail;
+
+        // Check if image changed
+        if (currentCustomImage !== initialCustomImage) return true;
+
+        // Check if text fields changed
+        if (title !== initialData.title) return true;
+        if (viewCount !== (initialData.viewCount || '')) return true;
+        if (duration !== (initialData.duration || '')) return true;
+
+        return false;
+    })();
 
     return {
         title, setTitle,
@@ -87,6 +110,7 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         fileVersionMap, setFileVersionMap,
         coverHistory, setCoverHistory,
         isLoadingHistory,
-        deletedHistoryIds, setDeletedHistoryIds
+        deletedHistoryIds, setDeletedHistoryIds,
+        isDirty
     };
 };

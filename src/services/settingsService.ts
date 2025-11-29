@@ -6,6 +6,10 @@ import {
 export interface SyncSettings {
     autoSync: boolean;
     frequencyHours: number;
+    syncTheme?: boolean;
+    syncCardsPerRow?: boolean;
+    syncCloneSettings?: boolean;
+    lastGlobalSync?: number;
 }
 
 export interface CloneSettings {
@@ -15,7 +19,7 @@ export interface CloneSettings {
 export interface GeneralSettings {
     cardsPerRow: number;
     hiddenPlaylistIds: string[];
-    theme: 'light' | 'dark';
+    theme: 'light' | 'dark' | 'device';
     apiKey?: string; // Now stored in Firestore
 }
 

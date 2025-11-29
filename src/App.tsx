@@ -1,32 +1,52 @@
 import { Routes, Route } from 'react-router-dom';
-import { ThemeProvider } from './context/ThemeContext';
-import { SettingsProvider } from './context/SettingsContext';
-import { VideosProvider, useVideos } from './context/VideosContext';
-import { PlaylistsProvider } from './context/PlaylistsContext';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { LoginPage } from './pages/LoginPage';
 import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
 import { VideoGrid } from './components/Video/VideoGrid';
 import { WatchPage } from './components/Watch/WatchPage';
 import { PlaylistsPage } from './components/Playlist/PlaylistsPage';
 import { PlaylistDetailPage } from './components/Playlist/PlaylistDetailPage';
-import { UserProfileProvider } from './context/UserProfileContext';
-import { AuthProvider } from './context/AuthContext';
-import { ChannelProvider } from './context/ChannelContext';
-import { ProtectedRoute } from './components/ProtectedRoute';
-import { LoginPage } from './pages/LoginPage';
 import { CategoryBar } from './components/Video/CategoryBar';
-import { VideoFilterProvider } from './context/VideoFilterContext';
-import { VideoActionsProvider } from './context/VideoActionsContext';
+import { useStoreInitialization } from './hooks/useStoreInitialization';
+import { useVideosStore } from './stores/videosStore';
+import { useSettingsStore } from './stores/settingsStore';
+import { useAuthStore } from './stores/authStore';
+import { useChannelStore } from './stores/channelStore';
 
 function AppContent() {
-  const { isLoading, videos, reorderVideos } = useVideos();
+  const { isLoading, videos } = useVideosStore();
+  const { updateVideoOrder, videoOrder } = useSettingsStore();
+  const { user } = useAuthStore();
+  const { currentChannel } = useChannelStore();
 
-  const handleVideoMove = (oldIndex: number, newIndex: number) => {
-    const newVideos = [...videos];
-    const [movedVideo] = newVideos.splice(oldIndex, 1);
-    newVideos.splice(newIndex, 0, movedVideo);
-    const newOrder = newVideos.map(v => v.id);
-    reorderVideos(newOrder);
+  const handleVideoMove = (movedVideoId: string, targetVideoId: string) => {
+    if (!user || !currentChannel) return;
+
+    // If we have a saved order, use it. Otherwise, initialize it from current videos.
+    let currentOrder = [...(videoOrder || [])];
+    if (currentOrder.length === 0 && videos.length > 0) {
+      currentOrder = videos.map(v => v.id);
+    }
+
+    // Ensure all current videos are in the order list
+    const orderSet = new Set(currentOrder);
+    videos.forEach(v => {
+      if (!orderSet.has(v.id)) {
+        currentOrder.push(v.id);
+      }
+    });
+
+    const oldIndex = currentOrder.indexOf(movedVideoId);
+    const newIndex = currentOrder.indexOf(targetVideoId);
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const newOrder = [...currentOrder];
+      const [movedId] = newOrder.splice(oldIndex, 1);
+      newOrder.splice(newIndex, 0, movedId);
+
+      updateVideoOrder(user.uid, currentChannel.id, newOrder);
+    }
   };
 
   return (
@@ -64,26 +84,10 @@ function AppContent() {
 }
 
 function App() {
+  useStoreInitialization();
+
   return (
-    <AuthProvider>
-      <ChannelProvider>
-        <ThemeProvider>
-          <UserProfileProvider>
-            <SettingsProvider>
-              <VideosProvider>
-                <VideoFilterProvider>
-                  <VideoActionsProvider>
-                    <PlaylistsProvider>
-                      <AppContent />
-                    </PlaylistsProvider>
-                  </VideoActionsProvider>
-                </VideoFilterProvider>
-              </VideosProvider>
-            </SettingsProvider>
-          </UserProfileProvider>
-        </ThemeProvider>
-      </ChannelProvider>
-    </AuthProvider>
+    <AppContent />
   );
 }
 

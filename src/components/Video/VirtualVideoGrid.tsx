@@ -4,7 +4,7 @@ import AutoSizer from 'react-virtualized-auto-sizer';
 import { VideoCard } from './VideoCard';
 import { SortableVideoCard } from './SortableVideoCard';
 import type { VideoDetails } from '../../utils/youtubeApi';
-import { useSettings } from '../../context/SettingsContext';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { GRID_LAYOUT } from '../../config/layout';
 import {
     DndContext,
@@ -25,7 +25,7 @@ interface VirtualVideoGridProps {
     videos: VideoDetails[];
     playlistId?: string;
     onRemove?: (id: string) => void;
-    onVideoMove?: (oldIndex: number, newIndex: number) => void;
+    onVideoMove?: (movedVideoId: string, targetVideoId: string) => void;
 }
 
 interface RowData {
@@ -75,7 +75,7 @@ const Row = ({ index, style, data }: { index: number; style: React.CSSProperties
 };
 
 export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = ({ videos, playlistId, onRemove, onVideoMove }) => {
-    const { generalSettings } = useSettings();
+    const cardsPerRow = useSettingsStore(state => state.generalSettings.cardsPerRow);
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -92,12 +92,7 @@ export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = ({ videos, play
         const { active, over } = event;
 
         if (over && active.id !== over.id && onVideoMove) {
-            const oldIndex = videos.findIndex((v) => v.id === active.id);
-            const newIndex = videos.findIndex((v) => v.id === over.id);
-
-            if (oldIndex !== -1 && newIndex !== -1) {
-                onVideoMove(oldIndex, newIndex);
-            }
+            onVideoMove(active.id as string, over.id as string);
         }
     };
 
@@ -109,7 +104,7 @@ export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = ({ videos, play
                 {({ height, width }) => {
                     if (height === 0 || width === 0) return null;
 
-                    const columnCount = generalSettings.cardsPerRow;
+                    const columnCount = cardsPerRow;
                     const availableWidth = width - GRID_LAYOUT.PADDING.LEFT - GRID_LAYOUT.PADDING.RIGHT - (GRID_LAYOUT.GAP * (columnCount - 1)) - GRID_LAYOUT.SCROLLBAR_WIDTH;
                     const cardWidth = Math.floor(availableWidth / columnCount);
 

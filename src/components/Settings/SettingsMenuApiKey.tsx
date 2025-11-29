@@ -1,21 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { useSettings } from '../../context/SettingsContext';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { useAuthStore } from '../../stores/authStore';
+import { useChannelStore } from '../../stores/channelStore';
 
 interface SettingsMenuApiKeyProps {
     onBack: () => void;
 }
 
 export const SettingsMenuApiKey: React.FC<SettingsMenuApiKeyProps> = ({ onBack }) => {
-    const { generalSettings, updateGeneralSettings } = useSettings();
+    const { generalSettings, updateGeneralSettings } = useSettingsStore();
+    const { user } = useAuthStore();
+    const { currentChannel } = useChannelStore();
     const [tempApiKey, setTempApiKey] = useState('');
 
     useEffect(() => {
-        setTempApiKey(generalSettings.apiKey || '');
+        setTimeout(() => setTempApiKey(generalSettings.apiKey || ''), 0);
     }, [generalSettings.apiKey]);
 
     const handleSaveApiKey = async () => {
-        await updateGeneralSettings({ apiKey: tempApiKey });
+        if (user && currentChannel) {
+            await updateGeneralSettings(user.uid, currentChannel.id, { apiKey: tempApiKey });
+        }
         onBack();
     };
 
@@ -35,7 +41,7 @@ export const SettingsMenuApiKey: React.FC<SettingsMenuApiKeyProps> = ({ onBack }
                 </div>
                 <input
                     type="text"
-                    className="p-2 rounded border border-border bg-bg-primary text-text-primary w-full box-border focus:outline-none focus:border-blue-500"
+                    className="p-2 rounded border border-border bg-bg-primary text-text-primary w-full box-border focus:outline-none focus:border-text-primary"
                     value={tempApiKey}
                     onChange={(e) => setTempApiKey(e.target.value)}
                     placeholder="AIzaSy..."

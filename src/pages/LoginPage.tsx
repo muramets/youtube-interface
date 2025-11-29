@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuthStore } from '../stores/authStore';
 
 export const LoginPage: React.FC = () => {
-    const { user, loginWithGoogle, loading } = useAuth();
+    const { user, loginWithGoogle, loading } = useAuthStore();
     const navigate = useNavigate();
 
     useEffect(() => {
