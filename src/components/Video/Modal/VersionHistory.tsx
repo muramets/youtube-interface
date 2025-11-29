@@ -79,7 +79,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
                 {isLoading ? (
                     <div className="flex gap-3 overflow-hidden">
                         {[1, 2, 3].map((i) => (
-                            <div key={i} className="flex-shrink-0 w-36 aspect-video rounded-md bg-bg-secondary border border-border relative overflow-hidden">
+                            <div key={i} className="flex-shrink-0 w-36 aspect-video rounded-md bg-bg-primary border border-border relative overflow-hidden">
                                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" style={{ backgroundSize: '200% 100%' }}></div>
                             </div>
                         ))}

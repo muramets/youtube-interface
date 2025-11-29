@@ -28,8 +28,10 @@ import {
 
 import { SortablePlaylistCard } from './PlaylistCard';
 
+import { PlaylistsPageSkeleton } from './PlaylistsPageSkeleton';
+
 export const PlaylistsPage: React.FC = () => {
-    const { playlists, deletePlaylist, updatePlaylist, reorderPlaylists } = usePlaylists();
+    const { playlists, deletePlaylist, updatePlaylist, reorderPlaylists, isLoading } = usePlaylists();
     const { videos } = useVideos();
     const { searchQuery } = useVideoFiltering();
     const navigate = useNavigate();
@@ -118,6 +120,10 @@ export const PlaylistsPage: React.FC = () => {
         { label: 'Date Updated', value: 'updated' },
         { label: 'Date Created', value: 'created' },
     ];
+
+    if (isLoading) {
+        return <PlaylistsPageSkeleton />;
+    }
 
     return (
         <div className="animate-fade-in p-6 pl-0">

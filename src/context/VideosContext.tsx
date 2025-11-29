@@ -9,6 +9,7 @@ interface VideosContextType {
     videos: VideoDetails[];
     isLoading: boolean;
     uniqueChannels: string[];
+    reorderVideos: (newOrder: string[]) => Promise<void>;
 }
 
 const VideosContext = createContext<VideosContextType | undefined>(undefined);
@@ -24,7 +25,7 @@ export const useVideos = () => {
 export const VideosProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannel();
-    const { videoOrder } = useSettings();
+    const { videoOrder, updateVideoOrder } = useSettings();
 
     const [rawVideos, setRawVideos] = useState<VideoDetails[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -87,11 +88,16 @@ export const VideosProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return Array.from(channels).sort();
     }, [videos]);
 
+    const reorderVideos = async (newOrder: string[]) => {
+        await updateVideoOrder(newOrder);
+    };
+
     return (
         <VideosContext.Provider value={{
             videos,
             isLoading,
-            uniqueChannels
+            uniqueChannels,
+            reorderVideos
         }}>
             {children}
         </VideosContext.Provider>

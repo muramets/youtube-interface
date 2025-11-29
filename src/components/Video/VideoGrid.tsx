@@ -21,6 +21,7 @@ interface VideoGridProps {
 
 export const VideoGrid: React.FC<VideoGridProps> = ({
   videos: propVideos,
+  onVideoMove,
   disableChannelFilter = false,
   playlistId,
   isLoading: propIsLoading = false
@@ -104,6 +105,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
         videos={filteredVideos}
         playlistId={playlistId}
         onRemove={removeVideo}
+        onVideoMove={onVideoMove}
       />
     </VideoGridContainer>
   );

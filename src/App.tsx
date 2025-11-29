@@ -19,7 +19,15 @@ import { VideoFilterProvider } from './context/VideoFilterContext';
 import { VideoActionsProvider } from './context/VideoActionsContext';
 
 function AppContent() {
-  const { isLoading } = useVideos();
+  const { isLoading, videos, reorderVideos } = useVideos();
+
+  const handleVideoMove = (oldIndex: number, newIndex: number) => {
+    const newVideos = [...videos];
+    const [movedVideo] = newVideos.splice(oldIndex, 1);
+    newVideos.splice(newIndex, 0, movedVideo);
+    const newOrder = newVideos.map(v => v.id);
+    reorderVideos(newOrder);
+  };
 
   return (
     <div className="h-screen flex flex-col bg-bg-primary text-text-primary overflow-hidden">
@@ -37,7 +45,7 @@ function AppContent() {
                       <div className="h-full flex flex-col">
                         <CategoryBar />
                         <div className="flex-1 min-h-0 relative">
-                          <VideoGrid isLoading={isLoading} />
+                          <VideoGrid isLoading={isLoading} onVideoMove={handleVideoMove} />
                         </div>
                       </div>
                     } />

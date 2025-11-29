@@ -29,7 +29,7 @@ export const usePlaylists = () => {
 
 export const PlaylistsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user } = useAuth();
-    const { currentChannel } = useChannel();
+    const { currentChannel, loading: channelLoading } = useChannel();
     const { videos } = useVideos();
     const { playlistOrder, updatePlaylistOrder } = useSettings();
 
@@ -60,11 +60,15 @@ export const PlaylistsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }, [rawPlaylists, playlistOrder]);
 
     useEffect(() => {
+        if (channelLoading) return;
+
         if (!user || !currentChannel) {
             setPlaylists([]);
             setIsLoading(false);
             return;
         }
+
+        setIsLoading(true);
 
         const unsubscribe = PlaylistService.subscribeToPlaylists(
             user.uid,
@@ -76,7 +80,7 @@ export const PlaylistsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         );
 
         return () => unsubscribe();
-    }, [user, currentChannel]);
+    }, [user, currentChannel, channelLoading]);
 
     const createPlaylist = async (name: string) => {
         if (!user || !currentChannel) return;
