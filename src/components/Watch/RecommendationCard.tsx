@@ -13,6 +13,9 @@ import { ConfirmationModal } from '../Shared/ConfirmationModal';
 import { CustomVideoModal } from '../Video/CustomVideoModal';
 import { PortalTooltip } from '../Shared/PortalTooltip';
 import { ClonedVideoTooltipContent } from '../Video/ClonedVideoTooltipContent';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { useUIStore } from '../../stores/uiStore';
+import { Toast } from '../Shared/Toast';
 
 interface RecommendationCardProps {
     video: VideoDetails;
@@ -26,6 +29,10 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
     const { removeVideoFromPlaylist } = usePlaylistsStore();
     const { user } = useAuthStore();
     const { currentChannel } = useChannelStore();
+    const apiKey = useSettingsStore(state => state.generalSettings.apiKey);
+    const { setSettingsOpen } = useUIStore();
+    const syncVideo = useVideosStore(state => state.syncVideo);
+
     const [showMenu, setShowMenu] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showPlaylistModal, setShowPlaylistModal] = useState(false);
@@ -38,6 +45,14 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
     const [timeLeft, setTimeLeft] = useState<number>(0);
     const [isTooltipOpen, setIsTooltipOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [showToast, setShowToast] = useState(false);
+    const [viewMode, setViewMode] = useState<'custom' | 'youtube'>('custom');
+    const [isFlipping, setIsFlipping] = useState(false);
+
+    // Determine which video data to display
+    const displayVideo = viewMode === 'youtube' && video.mergedVideoData ? video.mergedVideoData : video;
 
     // Timer for cloned videos
     React.useEffect(() => {
@@ -53,6 +68,32 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
             return () => clearInterval(interval);
         }
     }, [video.isCloned, video.expiresAt]);
+
+    const handleSync = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (isSyncing || !user || !currentChannel) return;
+
+        if (!apiKey) {
+            setShowToast(true);
+            return;
+        }
+        setIsSyncing(true);
+        await syncVideo(user.uid, currentChannel.id, video.id, apiKey);
+        setIsSyncing(false);
+    };
+
+    const handleSwitchView = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        handleCloseMenu();
+
+        if (!video.mergedVideoData && !video.publishedVideoId) return;
+
+        setIsFlipping(true);
+        setTimeout(() => {
+            setViewMode(prev => prev === 'custom' ? 'youtube' : 'custom');
+            setIsFlipping(false);
+        }, 150); // Wait for half animation
+    };
 
     const formatTimeLeft = (seconds: number) => {
         if (seconds >= 3600) {
@@ -168,16 +209,20 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
     return (
         <>
             <div
-                className="flex gap-2 cursor-pointer group p-2 rounded-lg relative"
+                className={`flex gap-2 cursor-pointer group p-2 rounded-lg relative transition-all duration-150 ease-in-out`}
+                style={{
+                    transform: isFlipping ? 'rotateY(90deg)' : 'rotateY(0deg)',
+                    transformStyle: 'preserve-3d'
+                }}
                 onClick={handleVideoClick}
             >
                 {/* Hover Substrate */}
-                <div className={`absolute inset-0 rounded-lg transition-opacity duration-200 pointer-events-none ${isTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : (video.isCustom ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-2 border-emerald-500/30' : 'bg-bg-secondary')} `} />
+                <div className={`absolute inset-0 rounded-lg transition-opacity duration-200 pointer-events-none ${isTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} ${viewMode === 'youtube' ? 'bg-[#FF0033]/10 dark:bg-[#FF0033]/20 border-2 border-[#FF0033]/30' : (video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : (video.isCustom ? (video.publishedVideoId ? 'bg-green-500/10 dark:bg-green-500/20 border-2 border-green-500/30' : 'bg-orange-500/10 dark:bg-orange-500/20 border-2 border-orange-500/30') : 'bg-bg-secondary'))} `} />
                 {/* Thumbnail Container */}
                 <div className="relative w-[168px] h-[94px] flex-shrink-0 bg-bg-secondary rounded-lg overflow-hidden">
                     <img
-                        src={video.isCustom ? (video.customImage || video.thumbnail) : video.thumbnail}
-                        alt={video.title}
+                        src={displayVideo.isCustom ? (displayVideo.customImage || displayVideo.thumbnail) : displayVideo.thumbnail}
+                        alt={displayVideo.title}
                         className="w-full h-full object-cover"
                     />
 
@@ -231,19 +276,19 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                     )}
 
                     <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1 py-0.5 rounded font-medium">
-                        {formatDuration(video.duration)}
+                        {formatDuration(displayVideo.duration)}
                     </div>
                 </div>
 
                 {/* Info Container */}
                 <div className="flex flex-col gap-1 min-w-0 flex-1 pr-6 relative">
                     <h3 className="m-0 text-sm font-semibold text-text-primary line-clamp-2 leading-snug">
-                        {video.title}
+                        {displayVideo.title}
                     </h3>
                     <div className="text-xs text-text-secondary flex flex-col">
-                        <div className="hover:text-text-primary transition-colors">{video.channelTitle}</div>
+                        <div className="hover:text-text-primary transition-colors">{displayVideo.channelTitle}</div>
                         <div>
-                            {video.viewCount ? `${formatViewCount(video.viewCount)} views` : ''} • {new Date(video.publishedAt).toLocaleDateString()}
+                            {displayVideo.viewCount ? `${formatViewCount(displayVideo.viewCount)} views` : ''} • {new Date(displayVideo.publishedAt).toLocaleDateString()}
                         </div>
                     </div>
 
@@ -279,6 +324,9 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                                     onEdit={handleUpdate}
                                     onRemove={handleRemove}
                                     onDelete={handleDelete}
+                                    onSync={(!video.isCustom || video.publishedVideoId) ? handleSync : undefined}
+                                    isSyncing={isSyncing}
+                                    onSwitchView={video.publishedVideoId ? handleSwitchView : undefined}
                                 />
                             </>
                         )}
@@ -314,6 +362,16 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                 title={confirmation.title}
                 message={confirmation.message}
                 confirmLabel={confirmation.action === 'removeFromPlaylist' ? 'Remove' : 'Delete'}
+            />
+            <Toast
+                message="API Key is missing. Click to configure."
+                isVisible={showToast}
+                onClose={() => setShowToast(false)}
+                type="error"
+                onClick={() => {
+                    setSettingsOpen(true);
+                    setShowToast(false);
+                }}
             />
         </>
     );

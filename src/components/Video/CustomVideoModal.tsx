@@ -2,7 +2,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
-import { type VideoDetails, type CoverVersion, type HistoryItem } from '../../utils/youtubeApi';
+import { type VideoDetails, type CoverVersion, type HistoryItem, extractVideoId } from '../../utils/youtubeApi';
 import { useVideosStore } from '../../stores/videosStore';
 import { useChannelStore } from '../../stores/channelStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -52,7 +52,10 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         coverHistory, setCoverHistory,
         isLoadingHistory,
         deletedHistoryIds, setDeletedHistoryIds,
-        isDirty
+        isDirty,
+        isPublished, setIsPublished,
+        publishedUrl, setPublishedUrl,
+        isValid
     } = useVideoForm(initialData, isOpen);
 
     useEffect(() => {
@@ -153,7 +156,8 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
             customImageVersion: currentVersion,
             highestVersion: highestVersion,
             fileVersionMap: fileVersionMap,
-            historyCount: coverHistory.length
+            historyCount: coverHistory.length,
+            publishedVideoId: isPublished ? (extractVideoId(publishedUrl) || undefined) : ''
         };
 
         try {
@@ -240,6 +244,10 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                             setViewCount={setViewCount}
                             duration={duration}
                             setDuration={setDuration}
+                            isPublished={isPublished}
+                            setIsPublished={setIsPublished}
+                            publishedUrl={publishedUrl}
+                            setPublishedUrl={setPublishedUrl}
                         />
 
                         <div className="flex justify-end gap-3 mt-4">
@@ -251,9 +259,9 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                             </button>
                             <button
                                 onClick={() => handleSave()}
-                                disabled={isSaving || !isDirty}
+                                disabled={isSaving || !isDirty || !isValid}
                                 className={`px-4 py-2 rounded-full border-none font-bold transition-all relative overflow-hidden
-                                    ${(isSaving || !isDirty)
+                                    ${(isSaving || !isDirty || !isValid)
                                         ? 'bg-bg-primary text-text-secondary cursor-default opacity-50'
                                         : 'bg-text-primary text-bg-primary cursor-pointer hover:opacity-90'
                                     }

@@ -112,7 +112,32 @@ export const useVideosStore = create<VideosState>((set, get) => ({
         }
 
         if (updates) {
-            await VideoService.updateVideo(userId, channelId, videoId, updates);
+            let finalUpdates = { ...updates };
+
+            // If a publishedVideoId is provided (or changed), fetch its details
+            if (updates.publishedVideoId && apiKey) {
+                try {
+                    const mergedDetails = await fetchVideoDetails(updates.publishedVideoId, apiKey);
+                    if (mergedDetails) {
+                        finalUpdates.mergedVideoData = mergedDetails;
+                    }
+                } catch (error) {
+                    console.error("Failed to fetch merged video details:", error);
+                    // We continue even if fetch fails, but maybe we should alert?
+                    // For now, we'll just save the ID.
+                }
+            } else if (updates.publishedVideoId === '') {
+                // If explicitly cleared, remove the merged data
+                finalUpdates.mergedVideoData = undefined; // or null, depending on backend. Firestore handles undefined as ignore, so maybe null?
+                // Actually, deleteField() is needed for Firestore, but let's assume VideoService handles partials.
+                // If we pass undefined to object spread, it stays undefined.
+                // We might need to explicitly set it to null if we want to clear it.
+                // Let's assume the service handles it or we just overwrite with empty.
+                // For now, let's just clear it from the object if it's empty string.
+                delete finalUpdates.mergedVideoData;
+            }
+
+            await VideoService.updateVideo(userId, channelId, videoId, finalUpdates);
             return true;
         }
         return false;
@@ -155,12 +180,31 @@ export const useVideosStore = create<VideosState>((set, get) => ({
     },
 
     syncVideo: async (userId, channelId, videoId, apiKey) => {
-        const details = await fetchVideoDetails(videoId, apiKey);
+        const video = get().videos.find(v => v.id === videoId);
+        if (!video) return;
+
+        // Determine which ID to fetch: the video's own ID or the publishedVideoId
+        const targetId = video.publishedVideoId || videoId;
+
+        // Don't sync if it's a custom video without a published ID
+        if (video.isCustom && !video.publishedVideoId) return;
+
+        const details = await fetchVideoDetails(targetId, apiKey);
+
         if (details) {
-            await VideoService.updateVideo(userId, channelId, videoId, {
-                ...details,
-                lastUpdated: Date.now()
-            });
+            if (video.publishedVideoId) {
+                // Update merged data for custom video
+                await VideoService.updateVideo(userId, channelId, videoId, {
+                    mergedVideoData: details,
+                    lastUpdated: Date.now()
+                });
+            } else {
+                // Standard update
+                await VideoService.updateVideo(userId, channelId, videoId, {
+                    ...details,
+                    lastUpdated: Date.now()
+                });
+            }
 
             // Show success toast with quota usage
             useUIStore.getState().showToast('Video synced successfully (quota used: 1 unit)', 'success');

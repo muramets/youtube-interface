@@ -10,21 +10,24 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
     const { currentChannel } = useChannelStore();
 
     // Form State
-    const [title, setTitle] = useState('');
-    const [viewCount, setViewCount] = useState('');
-    const [duration, setDuration] = useState('');
-    const [coverImage, setCoverImage] = useState<string | null>(null);
+    const [title, setTitle] = useState(initialData?.title || '');
+    const [viewCount, setViewCount] = useState(initialData?.viewCount || '');
+    const [duration, setDuration] = useState(initialData?.duration || '');
+    const [coverImage, setCoverImage] = useState<string | null>(initialData?.customImage || initialData?.thumbnail || null);
 
     // Versioning State
-    const [currentVersion, setCurrentVersion] = useState(1);
-    const [highestVersion, setHighestVersion] = useState(0);
-    const [currentOriginalName, setCurrentOriginalName] = useState('Original Cover');
-    const [fileVersionMap, setFileVersionMap] = useState<Record<string, number>>({});
+    const [currentVersion, setCurrentVersion] = useState(initialData?.customImageVersion || 1);
+    const [highestVersion, setHighestVersion] = useState(initialData?.highestVersion || (initialData?.customImage ? 1 : 0));
+    const [currentOriginalName, setCurrentOriginalName] = useState(initialData?.customImageName || 'Original Cover');
+    const [fileVersionMap, setFileVersionMap] = useState<Record<string, number>>(initialData?.fileVersionMap || {});
 
     // History State
     const [coverHistory, setCoverHistory] = useState<CoverVersion[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [deletedHistoryIds, setDeletedHistoryIds] = useState<Set<number | string>>(new Set());
+
+    const [isPublished, setIsPublished] = useState(!!initialData?.publishedVideoId);
+    const [publishedUrl, setPublishedUrl] = useState(initialData?.publishedVideoId ? `https://www.youtube.com/watch?v=${initialData.publishedVideoId}` : '');
 
     useEffect(() => {
         if (isOpen) {
@@ -35,6 +38,14 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
                 setCoverImage(initialData.customImage || initialData.thumbnail);
                 setCurrentOriginalName(initialData.customImageName || 'Original Cover');
                 setCoverHistory([]);
+
+                if (initialData.publishedVideoId) {
+                    setIsPublished(true);
+                    setPublishedUrl(`https://www.youtube.com/watch?v=${initialData.publishedVideoId}`);
+                } else {
+                    setIsPublished(false);
+                    setPublishedUrl('');
+                }
 
                 const savedCurrentVersion = initialData.customImageVersion || 1;
                 const hasCustomImage = !!initialData.customImage;
@@ -78,6 +89,8 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
                 setCurrentVersion(1);
                 setHighestVersion(0);
                 setFileVersionMap({});
+                setIsPublished(false);
+                setPublishedUrl('');
             }
         }
     }, [isOpen, initialData, fetchVideoHistory, user, currentChannel]);
@@ -96,7 +109,20 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         if (viewCount !== (initialData.viewCount || '')) return true;
         if (duration !== (initialData.duration || '')) return true;
 
+        // Check if published state changed
+        // Note: This is a rough check. Ideally we extract ID properly.
+        // But for dirty check, maybe just check if url changed if published is true.
+        // Or simpler:
+        if (!!initialData.publishedVideoId !== isPublished) return true;
+        if (isPublished && initialData.publishedVideoId && !publishedUrl.includes(initialData.publishedVideoId)) return true;
+        if (isPublished && !initialData.publishedVideoId && publishedUrl) return true;
+
         return false;
+    })();
+
+    const isValid = (() => {
+        if (isPublished && !publishedUrl.trim()) return false;
+        return true;
     })();
 
     return {
@@ -111,6 +137,9 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         coverHistory, setCoverHistory,
         isLoadingHistory,
         deletedHistoryIds, setDeletedHistoryIds,
-        isDirty
+        isDirty,
+        isPublished, setIsPublished,
+        publishedUrl, setPublishedUrl,
+        isValid
     };
 };

@@ -47,6 +47,34 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [showToast, setShowToast] = useState(false);
 
+  const [viewMode, setViewMode] = useState<'custom' | 'youtube'>('custom');
+  const [isFlipping, setIsFlipping] = useState(false);
+
+  // Determine which video data to display
+  const displayVideo = viewMode === 'youtube' && video.mergedVideoData ? video.mergedVideoData : video;
+
+  // Hover color logic
+  const hoverBorderColor = viewMode === 'youtube'
+    ? 'border-[#FF0033]/30'
+    : (video.publishedVideoId ? 'border-green-500/30' : (video.isCloned ? 'border-indigo-500/30' : (video.isCustom ? 'border-orange-500/30' : 'border-transparent')));
+
+  const hoverBgColor = viewMode === 'youtube'
+    ? 'bg-[#FF0033]/10 dark:bg-[#FF0033]/20'
+    : (video.publishedVideoId ? 'bg-green-500/10 dark:bg-green-500/20' : (video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20' : (video.isCustom ? 'bg-orange-500/10 dark:bg-orange-500/20' : 'bg-hover-bg')));
+
+  const handleSwitchView = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    handleMenuClose();
+
+    if (!video.mergedVideoData && !video.publishedVideoId) return;
+
+    setIsFlipping(true);
+    setTimeout(() => {
+      setViewMode(prev => prev === 'custom' ? 'youtube' : 'custom');
+      setIsFlipping(false);
+    }, 150); // Wait for half animation
+  };
+
   // Timer for cloned videos
   React.useEffect(() => {
     if (video.isCloned && video.expiresAt) {
@@ -176,7 +204,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
 
   const handleSaveCustomVideo = async (updatedVideo: Omit<VideoDetails, 'id'>, shouldClose = true) => {
     if (user && currentChannel) {
-      await updateVideo(user.uid, currentChannel.id, video.id, updatedVideo);
+      await updateVideo(user.uid, currentChannel.id, video.id, updatedVideo, apiKey);
     }
     if (shouldClose) setShowEditModal(false);
   };
@@ -184,7 +212,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   return (
     <>
       <div
-        className="flex flex-col gap-3 cursor-pointer group relative p-2 rounded-xl z-0 focus:outline-none"
+        className={`flex flex-col gap-3 cursor-pointer group relative p-2 rounded-xl z-0 focus:outline-none transition-all duration-150 ease-in-out`}
+        style={{
+          transform: isFlipping ? 'rotateY(90deg)' : 'rotateY(0deg)',
+          transformStyle: 'preserve-3d'
+        }}
         onClick={handleVideoClick}
         role="button"
         tabIndex={0}
@@ -196,13 +228,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         }}
       >
         {/* Hover Substrate */}
-        <div className={`absolute inset-0 rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none ${isMenuOpen || isTooltipOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} ${video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : (video.isCustom ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-2 border-emerald-500/30' : 'bg-hover-bg')}`} />
+        <div className={`absolute inset-0 rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none ${isMenuOpen || isTooltipOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} ${hoverBgColor} border-2 ${hoverBorderColor}`} />
 
         {/* Thumbnail Container */}
         <div className="relative aspect-video rounded-xl overflow-hidden bg-bg-secondary">
           <img
-            src={video.isCustom ? (video.customImage || video.thumbnail) : video.thumbnail}
-            alt={video.title}
+            src={displayVideo.isCustom ? (displayVideo.customImage || displayVideo.thumbnail) : displayVideo.thumbnail}
+            alt={displayVideo.title}
             className={`w-full h-full object-cover transition-transform duration-200 ${isMenuOpen || isTooltipOpen ? 'scale-105' : 'group-hover:scale-105'}`}
             loading="lazy"
           />
@@ -257,9 +289,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
           )}
 
           {/* Duration Badge */}
-          {video.duration && (
+          {displayVideo.duration && (
             <div className="absolute bottom-1.5 right-1.5 bg-black/80 px-1.5 py-0.5 rounded text-xs font-medium text-white">
-              {formatDuration(video.duration)}
+              {formatDuration(displayVideo.duration)}
             </div>
           )}
         </div>
@@ -269,8 +301,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
           {/* Channel Avatar */}
           {!playlistId && (
             <div className="flex-shrink-0">
-              {video.channelAvatar ? (
-                <img src={video.channelAvatar} alt={video.channelTitle} className="w-9 h-9 rounded-full object-cover" />
+              {displayVideo.channelAvatar ? (
+                <img src={displayVideo.channelAvatar} alt={displayVideo.channelTitle} className="w-9 h-9 rounded-full object-cover" />
               ) : (
                 <div className="w-9 h-9 rounded-full bg-bg-secondary" />
               )}
@@ -279,28 +311,28 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
 
           <div className="flex flex-col flex-1 min-w-0">
             <h3 className="text-base font-bold text-text-primary line-clamp-2 leading-tight mb-1">
-              {video.title}
+              {displayVideo.title}
             </h3>
             <div className="text-sm text-text-secondary flex flex-col">
               <div className="hover:text-text-primary transition-colors w-fit">
-                {(video.isCustom) ? (
-                  video.channelTitle
-                ) : video.channelId ? (
+                {(displayVideo.isCustom) ? (
+                  displayVideo.channelTitle
+                ) : displayVideo.channelId ? (
                   <a
-                    href={`https://www.youtube.com/channel/${video.channelId}`}
+                    href={`https://www.youtube.com/channel/${displayVideo.channelId}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
                     className="text-inherit no-underline hover:text-text-primary"
                   >
-                    {video.channelTitle}
+                    {displayVideo.channelTitle}
                   </a>
                 ) : (
-                  video.channelTitle
+                  displayVideo.channelTitle
                 )}
               </div>
               <div>
-                {video.viewCount ? `${formatViewCount(video.viewCount)} views` : ''} • {new Date(video.publishedAt).toLocaleDateString()}
+                {displayVideo.viewCount ? `${formatViewCount(displayVideo.viewCount)} views` : ''} • {new Date(displayVideo.publishedAt).toLocaleDateString()}
               </div>
             </div>
           </div>
@@ -338,8 +370,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                     onAddToPlaylist={handleAddToPlaylist}
                     onEdit={handleUpdate}
                     onRemove={handleRemove}
-                    onSync={!video.isCustom ? handleSync : undefined}
+                    onSync={(!video.isCustom || video.publishedVideoId) ? handleSync : undefined}
                     isSyncing={isSyncing}
+                    onSwitchView={video.publishedVideoId ? handleSwitchView : undefined}
                   />
                 </>
               )

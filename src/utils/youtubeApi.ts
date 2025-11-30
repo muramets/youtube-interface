@@ -27,6 +27,8 @@ export interface VideoDetails {
     clonedFromId?: string;
     fileVersionMap?: Record<string, number>;
     historyCount?: number;
+    publishedVideoId?: string;
+    mergedVideoData?: VideoDetails;
 }
 
 export interface VideoNote {
