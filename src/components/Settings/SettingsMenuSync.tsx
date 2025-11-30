@@ -11,7 +11,7 @@ interface SettingsMenuSyncProps {
 
 export const SettingsMenuSync: React.FC<SettingsMenuSyncProps> = ({ onBack }) => {
     const { syncSettings, updateSyncSettings } = useSettingsStore();
-    const { manualSync, isSyncing } = useVideosStore();
+    const { isSyncing } = useVideosStore();
     const { user } = useAuthStore();
     const { currentChannel } = useChannelStore();
     const { generalSettings } = useSettingsStore();
@@ -135,7 +135,8 @@ export const SettingsMenuSync: React.FC<SettingsMenuSyncProps> = ({ onBack }) =>
                     <button
                         onClick={() => {
                             if (user && currentChannel && generalSettings.apiKey) {
-                                manualSync(user.uid, currentChannel.id, generalSettings.apiKey, syncSettings.frequencyHours);
+                                // Use syncAllVideos instead of manualSync
+                                useVideosStore.getState().syncAllVideos(user.uid, currentChannel.id, generalSettings.apiKey);
                             } else if (!generalSettings.apiKey) {
                                 alert("Please set API Key first");
                             }

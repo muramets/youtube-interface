@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { VideoService } from '../services/videoService';
-import { type VideoDetails, type HistoryItem, type CoverVersion, fetchVideoDetails, extractVideoId } from '../utils/youtubeApi';
+import { type VideoDetails, type HistoryItem, type CoverVersion, fetchVideoDetails, extractVideoId, fetchVideosBatch } from '../utils/youtubeApi';
+import { useUIStore } from './uiStore';
+import { useNotificationStore } from './notificationStore';
 
 interface VideosState {
     videos: VideoDetails[];
@@ -159,6 +161,9 @@ export const useVideosStore = create<VideosState>((set, get) => ({
                 ...details,
                 lastUpdated: Date.now()
             });
+
+            // Show success toast with quota usage
+            useUIStore.getState().showToast('Video synced successfully (quota used: 1 unit)', 'success');
         }
     },
 
@@ -182,7 +187,7 @@ export const useVideosStore = create<VideosState>((set, get) => ({
 
                 try {
                     // Use optimized batch fetch
-                    const updatedDetails = await import('../utils/youtubeApi').then(m => m.fetchVideosBatch(videoIds, apiKey));
+                    const updatedDetails = await fetchVideosBatch(videoIds, apiKey);
 
                     const updates = updatedDetails.map(details => ({
                         videoId: details.id,
@@ -200,20 +205,39 @@ export const useVideosStore = create<VideosState>((set, get) => ({
 
                     // Handle Quota Error
                     const errorMessage = error instanceof Error ? error.message : String(error);
+
                     if (errorMessage.includes('403') || errorMessage.includes('quota')) {
-                        import('./notificationStore').then(({ useNotificationStore }) => {
-                            useNotificationStore.getState().addNotification({
-                                title: 'Auto-Sync Failed',
-                                message: 'YouTube API quota exceeded. Please try again later.',
-                                type: 'error'
-                            });
+                        useNotificationStore.getState().addNotification({
+                            title: 'Auto-Sync Failed',
+                            message: 'YouTube API quota exceeded. Please try again later.',
+                            type: 'error'
                         });
                         break; // Stop syncing if quota exceeded
                     }
                 }
             }
+
+
+            // Calculate total quota used (1 unit per video details fetch)
+            // Note: fetchVideosBatch uses 1 unit per call if we consider it as one "list" call, 
+            // but actually 'videos' endpoint costs 1 unit per call regardless of IDs count (up to 50).
+            // So each chunk (up to 50 videos) costs 1 unit.
+            const totalQuota = Math.ceil(syncableVideos.length / 50);
+
+            useNotificationStore.getState().addNotification({
+                title: 'Sync Completed',
+                message: `Successfully synced ${syncableVideos.length} videos.`,
+                type: 'success',
+                meta: `Quota used: ${totalQuota} units`
+            });
+
         } catch (error) {
             console.error("Global sync failed:", error);
+            useNotificationStore.getState().addNotification({
+                title: 'Sync Failed',
+                message: 'An error occurred during synchronization.',
+                type: 'error'
+            });
         } finally {
             set({ isSyncing: false });
         }

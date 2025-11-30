@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { PlaylistService, type Playlist } from '../services/playlistService';
+import { SettingsService } from '../services/settingsService';
 
 interface PlaylistsState {
     playlists: Playlist[];
@@ -61,7 +62,6 @@ export const usePlaylistsStore = create<PlaylistsState>((set) => ({
 
     reorderPlaylists: async (userId, channelId, newOrder) => {
         // This updates the order in settings
-        const { SettingsService } = await import('../services/settingsService');
         await SettingsService.updatePlaylistOrder(userId, channelId, newOrder);
     },
 

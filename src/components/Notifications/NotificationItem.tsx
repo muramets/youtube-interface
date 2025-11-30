@@ -48,6 +48,11 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
                 <p className="text-xs text-text-secondary">
                     {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
                 </p>
+                {notification.meta && (
+                    <p className="text-xs text-text-secondary mt-1 font-mono opacity-80">
+                        {notification.meta}
+                    </p>
+                )}
             </div>
 
             <div className="flex-shrink-0 mt-1">

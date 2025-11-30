@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Eye, EyeOff } from 'lucide-react';
+import { ChevronDown, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useChannelStore } from '../../stores/channelStore';
+import { useVideosStore } from '../../stores/videosStore';
 import { Dropdown } from '../Shared/Dropdown';
 import type { GeneralSettings, SyncSettings, CloneSettings } from '../../services/settingsService';
 
@@ -378,7 +379,49 @@ const ApiAndSyncSettingsView: React.FC<{
                     </div>
                 </div>
             </section>
+
+            <div className={`border-t ${theme.borderColor}`} />
+
+            {/* Manual Sync Section */}
+            <section className="space-y-4">
+                <div className="space-y-1">
+                    <h3 className="text-base font-medium">Manual Sync</h3>
+                    <p className={`text-sm ${theme.textSecondary}`}>
+                        Updates video stats (views, likes) from YouTube.
+                    </p>
+                </div>
+                <SyncButton
+                    user={useAuthStore().user}
+                    currentChannel={useChannelStore().currentChannel}
+                    apiKey={generalSettings.apiKey}
+                />
+            </section>
         </div>
+    );
+};
+
+const SyncButton: React.FC<{
+    user: any;
+    currentChannel: any;
+    apiKey: string | undefined;
+}> = ({ user, currentChannel, apiKey }) => {
+    const { isSyncing, syncAllVideos } = useVideosStore();
+
+    return (
+        <button
+            onClick={() => {
+                if (user && currentChannel && apiKey) {
+                    syncAllVideos(user.uid, currentChannel.id, apiKey);
+                } else if (!apiKey) {
+                    alert("Please set API Key first");
+                }
+            }}
+            disabled={isSyncing}
+            className={`w-full py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors ${isSyncing ? 'bg-bg-secondary text-text-secondary cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'}`}
+        >
+            <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
+            {isSyncing ? 'Syncing...' : 'Sync Now'}
+        </button>
     );
 };
 

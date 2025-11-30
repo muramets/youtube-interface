@@ -11,6 +11,7 @@ export interface Notification {
     timestamp: number;
     isRead: boolean;
     link?: string;
+    meta?: string;
 }
 
 interface NotificationState {

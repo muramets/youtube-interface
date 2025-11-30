@@ -13,6 +13,8 @@ import { useVideosStore } from './stores/videosStore';
 import { useSettingsStore } from './stores/settingsStore';
 import { useAuthStore } from './stores/authStore';
 import { useChannelStore } from './stores/channelStore';
+import { useUIStore } from './stores/uiStore';
+import { Toast } from './components/Shared/Toast';
 
 function AppContent() {
   const { isLoading, videos } = useVideosStore();
@@ -87,7 +89,22 @@ function App() {
   useStoreInitialization();
 
   return (
-    <AppContent />
+    <>
+      <AppContent />
+      <ToastWrapper />
+    </>
+  );
+}
+
+function ToastWrapper() {
+  const { toast, hideToast } = useUIStore();
+  return (
+    <Toast
+      message={toast.message}
+      type={toast.type}
+      isVisible={toast.isVisible}
+      onClose={hideToast}
+    />
   );
 }
 
