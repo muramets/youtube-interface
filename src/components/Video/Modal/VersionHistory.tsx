@@ -89,7 +89,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
                 container.removeEventListener('wheel', handleWheel);
             };
         }
-    }, []);
+    }, [history, isLoading]);
 
     return (
         <div className="flex flex-col gap-2">
@@ -111,7 +111,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
                 ) : (
                     <>
                         {showLeftArrow && (
-                            <div className="absolute left-0 top-0 z-10 flex items-center bg-gradient-to-r from-[#1F1F1F] via-[#1F1F1F] to-transparent pr-8 pl-0 h-full">
+                            <div className="absolute left-0 top-0 z-10 flex items-center bg-gradient-to-r from-modal-surface via-modal-surface to-transparent pr-8 pl-0 h-full">
                                 <button
                                     className="w-8 h-8 rounded-full bg-bg-primary hover:bg-hover-bg flex items-center justify-center border border-border cursor-pointer text-text-primary shadow-sm transition-colors"
                                     onClick={() => scroll('left')}
@@ -208,7 +208,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
                         </div>
 
                         {showRightArrow && (
-                            <div className="absolute right-0 top-0 z-10 flex items-center bg-gradient-to-l from-[#1F1F1F] via-[#1F1F1F] to-transparent pl-8 pr-0 h-full">
+                            <div className="absolute right-0 top-0 z-10 flex items-center bg-gradient-to-l from-modal-surface via-modal-surface to-transparent pl-8 pr-0 h-full">
                                 <button
                                     className="w-8 h-8 rounded-full bg-bg-primary hover:bg-hover-bg flex items-center justify-center border border-border cursor-pointer text-text-primary shadow-sm transition-colors"
                                     onClick={() => scroll('right')}

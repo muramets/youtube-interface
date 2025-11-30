@@ -18,6 +18,12 @@
   --settings-input-bg: #ffffff;
   --settings-dropdown-bg: #ffffff;
   --settings-dropdown-hover: #f2f2f2;
+
+  /* Modal Specific Colors (Always Dark) */
+  --modal-surface: #1F1F1F;
+  --modal-button-bg: #3F3F3F;
+  --modal-button-hover: #4F4F4F;
+  --modal-placeholder: #717171;
 }
 
 .dark {

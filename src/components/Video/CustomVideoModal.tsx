@@ -304,7 +304,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                                 type="text"
                                                 value={title}
                                                 onChange={(e) => setTitle(e.target.value)}
-                                                className="w-full bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-[#717171]"
+                                                className="w-full bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
                                                 placeholder="Add a title that describes your video"
                                             />
                                         </div>
@@ -315,7 +315,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                             <textarea
                                                 value={description}
                                                 onChange={(e) => setDescription(e.target.value)}
-                                                className="w-full h-32 bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none resize-none transition-colors hover:border-text-primary placeholder-[#717171]"
+                                                className="w-full h-32 bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none resize-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
                                                 placeholder="Tell viewers about your video"
                                             />
                                         </div>
@@ -341,7 +341,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                                         type="text"
                                                         value={publishedUrl}
                                                         onChange={(e) => setPublishedUrl(e.target.value)}
-                                                        className="w-full bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-[#717171]"
+                                                        className="w-full bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
                                                         placeholder="https://www.youtube.com/watch?v=..."
                                                     />
                                                 </div>
@@ -352,7 +352,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                         <div className="border-t border-border pt-4">
                                             <button
                                                 onClick={() => setIsStatsExpanded(!isStatsExpanded)}
-                                                className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#3F3F3F] text-white text-sm font-medium hover:bg-[#4F4F4F] transition-colors mb-4"
+                                                className="flex items-center gap-2 px-4 py-2 rounded-full bg-modal-button-bg text-white text-sm font-medium hover:bg-modal-button-hover transition-colors mb-4"
                                             >
                                                 {isStatsExpanded ? 'Show less' : 'Show more'}
                                                 {isStatsExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -366,7 +366,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                                             type="text"
                                                             value={videoRender}
                                                             onChange={(e) => setVideoRender(e.target.value)}
-                                                            className="bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-[#717171]"
+                                                            className="bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
                                                             placeholder="e.g. #1.1"
                                                         />
                                                     </div>
@@ -376,7 +376,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                                             type="text"
                                                             value={audioRender}
                                                             onChange={(e) => setAudioRender(e.target.value)}
-                                                            className="bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-[#717171]"
+                                                            className="bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
                                                             placeholder="e.g. #1"
                                                         />
                                                     </div>
@@ -386,7 +386,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                                             type="text"
                                                             value={viewCount}
                                                             onChange={(e) => setViewCount(e.target.value)}
-                                                            className="bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-[#717171]"
+                                                            className="bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
                                                             placeholder="e.g. 1.2M"
                                                         />
                                                     </div>
@@ -396,7 +396,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                                             type="text"
                                                             value={duration}
                                                             onChange={(e) => setDuration(e.target.value)}
-                                                            className="bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-[#717171]"
+                                                            className="bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
                                                             placeholder="e.g. 10:05"
                                                         />
                                                     </div>
@@ -407,7 +407,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 
                                     {/* Right Column: Packaging Preview */}
                                     <div className="w-[352px] mt-[4px]">
-                                        <div className="bg-[#1F1F1F] rounded-xl shadow-lg overflow-hidden">
+                                        <div className="bg-modal-surface rounded-xl shadow-lg overflow-hidden">
                                             {/* Current Cover */}
                                             <div
                                                 className="relative h-[198px] bg-black group cursor-pointer"
@@ -456,7 +456,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 
                                             {/* Version History */}
                                             {/* Version History */}
-                                            <div className="bg-[#1F1F1F] p-4 rounded-lg">
+                                            <div className="bg-modal-surface p-4 rounded-lg">
                                                 <VersionHistory
                                                     history={coverHistory}
                                                     isLoading={isLoadingHistory}
