@@ -99,7 +99,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
       try {
         await cloneVideo(user.uid, currentChannel.id, originalVideo, version, cloneSettings.cloneDurationSeconds);
         setShowEditModal(false);
-      } catch (error) {
+      } catch {
         // Error is handled in store (alert), keep modal open
       }
     }
@@ -183,6 +183,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
           setConfirmation(prev => ({ ...prev, isOpen: false }));
         }
       });
+    } else if (video.isCloned) {
+      // Cloned videos are temporary, remove immediately without confirmation
+      onRemove(video.id);
     } else {
       setConfirmation({
         isOpen: true,
@@ -346,10 +349,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
             {
               video.isCloned ? (
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRemove(video.id);
-                  }}
+                  onClick={handleRemove}
                   className="p-2 rounded-full hover:bg-red-500/10 text-text-primary hover:text-red-500 transition-all duration-75 ease-out opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100"
                   title="Remove temporary video"
                 >

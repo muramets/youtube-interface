@@ -1,6 +1,7 @@
 import React from 'react';
 
 import type { VideoDetails } from '../../utils/youtubeApi';
+import { sortVideosByOrder } from '../../utils/videoUtils';
 import { useVideosStore } from '../../stores/videosStore';
 import { useFilterStore } from '../../stores/filterStore';
 import { usePlaylistsStore } from '../../stores/playlistsStore';
@@ -48,16 +49,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
 
   const sourceVideos = React.useMemo(() => {
     if (propVideos) return propVideos;
-    if (!videoOrder || videoOrder.length === 0) return contextVideos;
-
-    const videoMap = new Map(contextVideos.map(v => [v.id, v]));
-    const sorted = videoOrder.map(id => videoMap.get(id)).filter((v): v is VideoDetails => !!v);
-
-    // Append any new videos that are not in videoOrder yet
-    const orderedSet = new Set(videoOrder);
-    const remaining = contextVideos.filter(v => !orderedSet.has(v.id));
-
-    return [...remaining, ...sorted];
+    return sortVideosByOrder(contextVideos, videoOrder);
   }, [propVideos, contextVideos, videoOrder]);
 
   const filteredVideos = React.useMemo(() => {

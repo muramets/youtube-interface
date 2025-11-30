@@ -113,7 +113,7 @@ export const useVideosStore = create<VideosState>((set, get) => ({
         }
 
         if (updates) {
-            let finalUpdates = { ...updates };
+            const finalUpdates = { ...updates };
 
             // If a publishedVideoId is provided (or changed), fetch its details
             if (updates.publishedVideoId && apiKey) {

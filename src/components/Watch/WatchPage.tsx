@@ -7,6 +7,7 @@ import { useSettingsStore } from '../../stores/settingsStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useChannelStore } from '../../stores/channelStore';
 import { FilterType, SortOption } from '../../constants/enums';
+import { sortVideosByOrder } from '../../utils/videoUtils';
 import {
     DndContext,
     closestCenter,
@@ -140,8 +141,9 @@ export const WatchPage: React.FC = () => {
                 const indexB = orderMap.get(b.id);
 
                 if (indexA !== undefined && indexB !== undefined) return indexA - indexB;
-                if (indexA !== undefined) return -1;
-                if (indexB !== undefined) return 1;
+                // New videos (not in custom order) should come FIRST
+                if (indexA === undefined) return -1;
+                if (indexB === undefined) return 1;
                 return 0;
             });
         } else {
@@ -159,19 +161,8 @@ export const WatchPage: React.FC = () => {
                     return dateB - dateA;
                 });
             } else {
-                // Default: Use Home Page Order
-                if (videoOrder && videoOrder.length > 0) {
-                    const orderMap = new Map(videoOrder.map((id, index) => [id, index]));
-                    recs = [...recs].sort((a, b) => {
-                        const indexA = orderMap.get(a.id);
-                        const indexB = orderMap.get(b.id);
-
-                        if (indexA !== undefined && indexB !== undefined) return indexA - indexB;
-                        if (indexA !== undefined) return -1;
-                        if (indexB !== undefined) return 1;
-                        return 0;
-                    });
-                }
+                // Default: Use Home Page Order (Standardized)
+                recs = sortVideosByOrder(recs, videoOrder);
             }
         }
 

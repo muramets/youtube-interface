@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MoreVertical, Info } from 'lucide-react';
+import { MoreVertical, Info, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useVideosStore } from '../../stores/videosStore';
 import { usePlaylistsStore } from '../../stores/playlistsStore';
@@ -140,6 +140,11 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                 title: 'Remove from Playlist',
                 message: 'Are you sure you want to remove this video from the playlist?'
             });
+        } else if (video.isCloned) {
+            // Cloned videos are temporary, remove immediately without confirmation
+            if (user && currentChannel) {
+                removeVideo(user.uid, currentChannel.id, video.id);
+            }
         } else {
             // Fallback if no playlistId, though this path is mainly for the "Remove from playlist" button
             // which only shows if playlistId is present.
@@ -217,7 +222,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                 onClick={handleVideoClick}
             >
                 {/* Hover Substrate */}
-                <div className={`absolute inset-0 rounded-lg transition-opacity duration-200 pointer-events-none ${isTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} ${viewMode === 'youtube' ? 'bg-[#FF0033]/10 dark:bg-[#FF0033]/20 border-2 border-[#FF0033]/30' : (video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20 border-2 border-indigo-500/30' : (video.isCustom ? (video.publishedVideoId ? 'bg-green-500/10 dark:bg-green-500/20 border-2 border-green-500/30' : 'bg-orange-500/10 dark:bg-orange-500/20 border-2 border-orange-500/30') : 'bg-bg-secondary'))} `} />
+                <div className={`absolute inset-0 rounded-lg transition-opacity duration-200 pointer-events-none ${isTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} ${viewMode === 'youtube' ? 'bg-[#FF0033]/10 dark:bg-[#FF0033]/20 border-2 border-[#FF0033]/30' : (video.isCloned ? 'bg-purple-500/10 dark:bg-purple-500/20 border-2 border-purple-500/30' : (video.isCustom ? (video.publishedVideoId ? 'bg-green-500/10 dark:bg-green-500/20 border-2 border-green-500/30' : 'bg-orange-500/10 dark:bg-orange-500/20 border-2 border-orange-500/30') : 'bg-bg-secondary'))} `} />
                 {/* Thumbnail Container */}
                 <div className="relative w-[168px] h-[94px] flex-shrink-0 bg-bg-secondary rounded-lg overflow-hidden">
                     <img
@@ -303,7 +308,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                                 }}
                                 title="Remove temporary video"
                             >
-                                <MoreVertical size={20} />
+                                <Trash2 size={20} />
                             </button>
                         ) : (
                             <>

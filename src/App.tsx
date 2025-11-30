@@ -35,7 +35,9 @@ function AppContent() {
     const orderSet = new Set(currentOrder);
     videos.forEach(v => {
       if (!orderSet.has(v.id)) {
-        currentOrder.push(v.id);
+        // New videos are displayed at the top, so we must prepend them to the order list
+        // to match the visual state before calculating the move.
+        currentOrder.unshift(v.id);
       }
     });
 
