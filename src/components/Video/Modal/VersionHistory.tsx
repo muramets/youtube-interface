@@ -63,13 +63,33 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
         }
     };
 
-    const handleWheel = (e: React.WheelEvent) => {
-        if (scrollContainerRef.current) {
-            if (Math.abs(e.deltaY) > Math.abs(e.deltaX) * 1.5) {
-                scrollContainerRef.current.scrollLeft += e.deltaY;
-            }
+    useEffect(() => {
+        const container = scrollContainerRef.current;
+        if (container) {
+            const handleWheel = (e: WheelEvent) => {
+                // Aggressively prevent parent scrolling
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+
+                // Map both vertical and horizontal scroll energy to horizontal scrolling
+                // This ensures any movement scrolls the history, and NEVER the parent
+                const delta = e.deltaY + e.deltaX;
+
+                container.scrollBy({
+                    left: delta * 1.5,
+                    behavior: 'auto'
+                });
+            };
+
+            // We must use { passive: false } to be able to preventDefault
+            container.addEventListener('wheel', handleWheel, { passive: false });
+
+            return () => {
+                container.removeEventListener('wheel', handleWheel);
+            };
         }
-    };
+    }, []);
 
     return (
         <div className="flex flex-col gap-2">
@@ -104,7 +124,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
                         <div
                             ref={scrollContainerRef}
                             className="flex gap-3 overflow-x-auto overflow-y-hidden scrollbar-hide"
-                            onWheel={handleWheel}
+                            style={{ overscrollBehavior: 'contain' }}
                         >
                             {history.map((version) => (
                                 <div key={version.timestamp} className="flex-shrink-0 w-36 group relative">

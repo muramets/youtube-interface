@@ -56,11 +56,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   // Hover color logic
   const hoverBorderColor = viewMode === 'youtube'
     ? 'border-[#FF0033]/30'
-    : (video.publishedVideoId ? 'border-green-500/30' : (video.isCloned ? 'border-indigo-500/30' : (video.isCustom ? 'border-orange-500/30' : 'border-transparent')));
+    : (video.isCloned ? 'border-purple-500/30' : (video.publishedVideoId ? 'border-green-500/30' : (video.isCustom ? 'border-orange-500/30' : 'border-transparent')));
 
   const hoverBgColor = viewMode === 'youtube'
     ? 'bg-[#FF0033]/10 dark:bg-[#FF0033]/20'
-    : (video.publishedVideoId ? 'bg-green-500/10 dark:bg-green-500/20' : (video.isCloned ? 'bg-indigo-500/10 dark:bg-indigo-500/20' : (video.isCustom ? 'bg-orange-500/10 dark:bg-orange-500/20' : 'bg-hover-bg')));
+    : (video.isCloned ? 'bg-purple-500/10 dark:bg-purple-500/20' : (video.publishedVideoId ? 'bg-green-500/10 dark:bg-green-500/20' : (video.isCustom ? 'bg-orange-500/10 dark:bg-orange-500/20' : 'bg-hover-bg')));
 
   const handleSwitchView = (e: React.MouseEvent) => {
     e.stopPropagation();
