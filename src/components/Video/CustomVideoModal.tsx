@@ -235,11 +235,13 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 
     return createPortal(
         <>
-            <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in" onClick={handleBackdropClick}>
+            <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in" onMouseDown={handleBackdropClick}>
                 <div
                     ref={modalRef}
                     className="bg-bg-secondary w-full max-w-[960px] h-[718px] rounded-xl shadow-2xl flex flex-col overflow-hidden animate-scale-in"
                     onMouseDown={e => e.stopPropagation()}
+                    onPointerDown={e => e.stopPropagation()}
+                    onKeyDown={e => e.stopPropagation()}
                 >
                     {/* Header */}
                     <div className="flex justify-between items-center px-6 py-4 border-b border-border bg-bg-secondary">
