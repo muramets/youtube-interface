@@ -11,8 +11,12 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
 
     // Form State
     const [title, setTitle] = useState(initialData?.title || '');
+    const [description, setDescription] = useState(initialData?.description || '');
+    const [tags, setTags] = useState<string[]>(initialData?.tags || []);
     const [viewCount, setViewCount] = useState(initialData?.viewCount || '');
     const [duration, setDuration] = useState(initialData?.duration || '');
+    const [videoRender, setVideoRender] = useState('');
+    const [audioRender, setAudioRender] = useState('');
     const [coverImage, setCoverImage] = useState<string | null>(initialData?.customImage || initialData?.thumbnail || null);
 
     // Versioning State
@@ -33,6 +37,8 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         if (isOpen) {
             if (initialData) {
                 setTitle(initialData.title);
+                setDescription(initialData.description || '');
+                setTags(initialData.tags || []);
                 setViewCount(initialData.viewCount || '');
                 setDuration(initialData.duration || '');
                 setCoverImage(initialData.customImage || initialData.thumbnail);
@@ -80,6 +86,8 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
 
             } else {
                 setTitle('');
+                setDescription('');
+                setTags([]);
                 setViewCount('');
                 setDuration('');
                 setCoverImage(null);
@@ -106,6 +114,9 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
 
         // Check if text fields changed
         if (title !== initialData.title) return true;
+        if (description !== (initialData.description || '')) return true;
+        // Simple array comparison for tags
+        if (JSON.stringify(tags) !== JSON.stringify(initialData.tags || [])) return true;
         if (viewCount !== (initialData.viewCount || '')) return true;
         if (duration !== (initialData.duration || '')) return true;
 
@@ -127,8 +138,12 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
 
     return {
         title, setTitle,
+        description, setDescription,
+        tags, setTags,
         viewCount, setViewCount,
         duration, setDuration,
+        videoRender, setVideoRender,
+        audioRender, setAudioRender,
         coverImage, setCoverImage,
         currentVersion, setCurrentVersion,
         highestVersion, setHighestVersion,

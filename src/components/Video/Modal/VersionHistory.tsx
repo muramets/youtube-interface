@@ -13,6 +13,7 @@ interface VersionHistoryProps {
     onClone?: (version: CoverVersion) => void;
     initialData?: VideoDetails;
     cloningVersion: number | null;
+    currentVersion: number;
 }
 
 export const VersionHistory: React.FC<VersionHistoryProps> = ({
@@ -22,7 +23,8 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
     onDelete,
     onClone,
     initialData,
-    cloningVersion
+    cloningVersion,
+    currentVersion
 }) => {
     const { videos } = useVideosStore();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -69,8 +71,6 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
         }
     };
 
-    if (history.length === 0 && !isLoading) return null;
-
     return (
         <div className="flex flex-col gap-2">
             <label className="text-xs text-text-secondary uppercase tracking-wider font-bold">Version History</label>
@@ -84,10 +84,14 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
                             </div>
                         ))}
                     </div>
+                ) : history.length === 0 ? (
+                    <div className="absolute inset-0 flex items-center justify-center text-text-secondary text-sm italic">
+                        {currentVersion > 1 ? 'Previous versions were deleted' : 'No history yet'}
+                    </div>
                 ) : (
                     <>
                         {showLeftArrow && (
-                            <div className="absolute left-0 top-0 z-10 flex items-center bg-gradient-to-r from-bg-secondary via-bg-secondary to-transparent pr-8 pl-0 h-full">
+                            <div className="absolute left-0 top-0 z-10 flex items-center bg-gradient-to-r from-[#1F1F1F] via-[#1F1F1F] to-transparent pr-8 pl-0 h-full">
                                 <button
                                     className="w-8 h-8 rounded-full bg-bg-primary hover:bg-hover-bg flex items-center justify-center border border-border cursor-pointer text-text-primary shadow-sm transition-colors"
                                     onClick={() => scroll('left')}
@@ -184,7 +188,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
                         </div>
 
                         {showRightArrow && (
-                            <div className="absolute right-0 top-0 z-10 flex items-center bg-gradient-to-l from-bg-secondary via-bg-secondary to-transparent pl-8 pr-0 h-full">
+                            <div className="absolute right-0 top-0 z-10 flex items-center bg-gradient-to-l from-[#1F1F1F] via-[#1F1F1F] to-transparent pl-8 pr-0 h-full">
                                 <button
                                     className="w-8 h-8 rounded-full bg-bg-primary hover:bg-hover-bg flex items-center justify-center border border-border cursor-pointer text-text-primary shadow-sm transition-colors"
                                     onClick={() => scroll('right')}
