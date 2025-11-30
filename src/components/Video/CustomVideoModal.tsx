@@ -184,7 +184,9 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
             highestVersion: highestVersion,
             fileVersionMap: fileVersionMap,
             historyCount: coverHistory.length,
-            publishedVideoId: isPublished ? (extractVideoId(publishedUrl) || undefined) : ''
+            publishedVideoId: isPublished ? (extractVideoId(publishedUrl) || undefined) : '',
+            videoRender: videoRender,
+            audioRender: audioRender
         };
 
         try {

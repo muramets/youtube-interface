@@ -95,9 +95,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   }, [video.isCloned, video.expiresAt, user, currentChannel, onRemove, video.id]);
 
   const handleCloneVideo = async (originalVideo: VideoDetails, version: CoverVersion) => {
-    setShowEditModal(false);
     if (user && currentChannel) {
-      await cloneVideo(user.uid, currentChannel.id, originalVideo, version, cloneSettings.cloneDurationSeconds);
+      try {
+        await cloneVideo(user.uid, currentChannel.id, originalVideo, version, cloneSettings.cloneDurationSeconds);
+        setShowEditModal(false);
+      } catch (error) {
+        // Error is handled in store (alert), keep modal open
+      }
     }
   };
 

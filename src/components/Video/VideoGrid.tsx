@@ -57,7 +57,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
     const orderedSet = new Set(videoOrder);
     const remaining = contextVideos.filter(v => !orderedSet.has(v.id));
 
-    return [...sorted, ...remaining];
+    return [...remaining, ...sorted];
   }, [propVideos, contextVideos, videoOrder]);
 
   const filteredVideos = React.useMemo(() => {

@@ -15,8 +15,8 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
     const [tags, setTags] = useState<string[]>(initialData?.tags || []);
     const [viewCount, setViewCount] = useState(initialData?.viewCount || '');
     const [duration, setDuration] = useState(initialData?.duration || '');
-    const [videoRender, setVideoRender] = useState('');
-    const [audioRender, setAudioRender] = useState('');
+    const [videoRender, setVideoRender] = useState(initialData?.videoRender || '');
+    const [audioRender, setAudioRender] = useState(initialData?.audioRender || '');
     const [coverImage, setCoverImage] = useState<string | null>(initialData?.customImage || initialData?.thumbnail || null);
 
     // Versioning State
@@ -33,17 +33,30 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
     const [isPublished, setIsPublished] = useState(!!initialData?.publishedVideoId);
     const [publishedUrl, setPublishedUrl] = useState(initialData?.publishedVideoId ? `https://www.youtube.com/watch?v=${initialData.publishedVideoId}` : '');
 
+    // Track previous ID to prevent unnecessary resets
+    const [prevId, setPrevId] = useState<string | undefined>(initialData?.id);
+
     useEffect(() => {
         if (isOpen) {
             if (initialData) {
+                // If ID changed, full reset. If not, only update fields that might have changed from outside (unlikely in this modal flow, but safe)
+                // Actually, for the "save" flash issue, we want to avoid clearing history if ID is same.
+                const isSameVideo = prevId === initialData.id;
+                setPrevId(initialData.id);
+
                 setTitle(initialData.title);
                 setDescription(initialData.description || '');
                 setTags(initialData.tags || []);
                 setViewCount(initialData.viewCount || '');
                 setDuration(initialData.duration || '');
+                setVideoRender(initialData.videoRender || '');
+                setAudioRender(initialData.audioRender || '');
                 setCoverImage(initialData.customImage || initialData.thumbnail);
                 setCurrentOriginalName(initialData.customImageName || 'Original Cover');
-                setCoverHistory([]);
+
+                if (!isSameVideo) {
+                    setCoverHistory([]);
+                }
 
                 if (initialData.publishedVideoId) {
                     setIsPublished(true);
@@ -64,7 +77,11 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
 
                 // Load History
                 const loadHistory = async () => {
-                    setIsLoadingHistory(true);
+                    // Only show loading if we don't have history or if it's a new video
+                    if (!isSameVideo) {
+                        setIsLoadingHistory(true);
+                    }
+
                     try {
                         if (user && currentChannel) {
                             const history = await fetchVideoHistory(user.uid, currentChannel.id, initialData.id);
@@ -90,6 +107,8 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
                 setTags([]);
                 setViewCount('');
                 setDuration('');
+                setVideoRender('');
+                setAudioRender('');
                 setCoverImage(null);
                 setCoverHistory([]);
                 setDeletedHistoryIds(new Set());
@@ -99,6 +118,7 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
                 setFileVersionMap({});
                 setIsPublished(false);
                 setPublishedUrl('');
+                setPrevId(undefined);
             }
         }
     }, [isOpen, initialData, fetchVideoHistory, user, currentChannel]);
@@ -119,11 +139,10 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         if (JSON.stringify(tags) !== JSON.stringify(initialData.tags || [])) return true;
         if (viewCount !== (initialData.viewCount || '')) return true;
         if (duration !== (initialData.duration || '')) return true;
+        if (videoRender !== (initialData.videoRender || '')) return true;
+        if (audioRender !== (initialData.audioRender || '')) return true;
 
         // Check if published state changed
-        // Note: This is a rough check. Ideally we extract ID properly.
-        // But for dirty check, maybe just check if url changed if published is true.
-        // Or simpler:
         if (!!initialData.publishedVideoId !== isPublished) return true;
         if (isPublished && initialData.publishedVideoId && !publishedUrl.includes(initialData.publishedVideoId)) return true;
         if (isPublished && !initialData.publishedVideoId && publishedUrl) return true;

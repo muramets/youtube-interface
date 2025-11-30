@@ -44,7 +44,8 @@ export const useVideosStore = create<VideosState>((set, get) => ({
     subscribeToVideos: (userId, channelId) => {
         set({ isLoading: true });
         return VideoService.subscribeToVideos(userId, channelId, (data) => {
-            set({ videos: data, isLoading: false });
+            const sortedData = [...data].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            set({ videos: sortedData, isLoading: false });
         });
     },
 
@@ -169,13 +170,19 @@ export const useVideosStore = create<VideosState>((set, get) => ({
                 customImage: coverVersion?.url || originalVideo.customImage,
                 customImageName: coverVersion?.originalName || originalVideo.customImageName,
                 customImageVersion: coverVersion?.version || originalVideo.customImageVersion,
-                coverHistory: originalVideo.coverHistory || []
+                coverHistory: originalVideo.coverHistory || [],
+                description: originalVideo.description || '',
+                tags: originalVideo.tags || [],
+                videoRender: originalVideo.videoRender || '',
+                audioRender: originalVideo.audioRender || '',
+                publishedVideoId: ''
             };
 
             await VideoService.addVideo(userId, channelId, newVideo);
         } catch (error) {
             console.error("Error cloning video:", error);
-            alert("Failed to clone video.");
+            useUIStore.getState().showToast("Failed to clone video", "error");
+            throw error;
         }
     },
 

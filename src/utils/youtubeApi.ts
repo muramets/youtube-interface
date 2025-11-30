@@ -29,6 +29,8 @@ export interface VideoDetails {
     historyCount?: number;
     publishedVideoId?: string;
     mergedVideoData?: VideoDetails;
+    videoRender?: string;
+    audioRender?: string;
 }
 
 export interface VideoNote {
