@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Check, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { X, Check, ChevronDown, ChevronUp, Info, Trash2 } from 'lucide-react';
 import { type VideoDetails, type CoverVersion, type HistoryItem, extractVideoId } from '../../utils/youtubeApi';
 import { useVideosStore } from '../../stores/videosStore';
 import { useChannelStore } from '../../stores/channelStore';
@@ -162,6 +162,28 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         e.stopPropagation();
         setCoverHistory(prev => prev.filter(v => v.timestamp !== timestamp));
         setDeletedHistoryIds(prev => new Set(prev).add(timestamp));
+    };
+
+    const handleDeleteCurrentVersion = (e: React.MouseEvent) => {
+        e.stopPropagation();
+
+        if (coverHistory.length > 0) {
+            // Promote the most recent history item to current
+            const [nextCover, ...remainingHistory] = coverHistory;
+            setCoverImage(nextCover.url);
+            setCurrentVersion(nextCover.version);
+            setCurrentOriginalName(nextCover.originalName || 'Restored Version');
+            setCoverHistory(remainingHistory);
+
+            // Mark the promoted item as "deleted" from history (since it's now current)
+            // This ensures it doesn't get duplicated if we save
+            setDeletedHistoryIds(prev => new Set(prev).add(nextCover.timestamp));
+        } else {
+            // No history, just clear the current cover
+            setCoverImage('');
+            setCurrentVersion(0);
+            setCurrentOriginalName('');
+        }
     };
 
     const handleSave = async (shouldClose = true) => {
@@ -489,6 +511,18 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                                         </div>
                                                     </PortalTooltip>
                                                 </div>
+
+                                                {/* Delete Button (Bottom Right) */}
+                                                {coverImage && (
+                                                    <div className={`absolute bottom-2 right-2 transition-opacity duration-200 ${isTooltipOpen ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
+                                                        <button
+                                                            onClick={handleDeleteCurrentVersion}
+                                                            className="w-8 h-8 rounded-full bg-black/60 text-white hover:bg-red-500 hover:text-white flex items-center justify-center backdrop-blur-sm transition-colors"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </div>
+                                                )}
 
                                                 <input
                                                     id="cover-upload"
