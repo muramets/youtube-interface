@@ -31,6 +31,7 @@ export interface VideoDetails {
     mergedVideoData?: VideoDetails;
     videoRender?: string;
     audioRender?: string;
+    isDraft?: boolean;
     localizations?: Record<string, VideoLocalization>;
     abTestVariants?: string[]; // Array of cover URLs or version IDs
     packagingHistory?: PackagingVersion[];

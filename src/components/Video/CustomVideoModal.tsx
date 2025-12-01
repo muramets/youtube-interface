@@ -149,6 +149,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 
     const confirmSaveVersion = async () => {
         // Mockup logic: Save current version with metrics, then increment version
+        // IMPORTANT: Snapshot should be of the PREVIOUS version (initialData), not the current new draft
         const newHistoryItem: PackagingVersion = {
             versionNumber: currentPackagingVersion,
             startDate: Date.now(), // Mock date
@@ -158,15 +159,16 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                 metrics: metricsData
             }],
             configurationSnapshot: {
-                title,
-                coverImage,
-                abTestVariants: abTestVariants || []
+                title: initialData?.title || title,
+                coverImage: initialData?.customImage || initialData?.thumbnail || coverImage || '',
+                abTestVariants: initialData?.abTestVariants || abTestVariants || []
             }
         };
 
         setPackagingHistory(prev => [...prev, newHistoryItem]);
         setCurrentPackagingVersion(prev => prev + 1);
         setShowMetricsModal(false);
+        setIsDraft(false); // Version finalized, no longer a draft
 
         // Proceed with normal save
         await handleSave(true);
@@ -196,6 +198,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         deletedHistoryIds, setDeletedHistoryIds,
         isMetadataDirty,
         isPackagingDirty,
+        isDraft, setIsDraft,
         isPublished, setIsPublished,
         publishedUrl, setPublishedUrl,
         // Localization
@@ -358,7 +361,8 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
             historyCount: coverHistory.length,
             publishedVideoId: finalData.publishedVideoId,
             videoRender: finalData.videoRender,
-            audioRender: finalData.audioRender
+            audioRender: finalData.audioRender,
+            isDraft: shouldClose ? isDraft : true // Auto-save preserves state, Manual save sets to Draft
         };
 
         try {
@@ -377,6 +381,9 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 
             if (shouldClose) {
                 onClose();
+            } else {
+                // If manual save (not close), mark as draft
+                setIsDraft(true);
             }
         } catch (error) {
             console.error("Failed to save video:", error);
@@ -566,14 +573,14 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                                 : 'bg-white text-black hover:bg-gray-200 cursor-pointer'
                                                 }`}
                                         >
-                                            {isSaving ? 'Saving...' : 'Save as Draft'}
+                                            {isSaving ? 'Saving...' : (!isPackagingDirty ? 'Saved as Draft' : 'Save as Draft')}
                                         </button>
 
                                         <div className="relative">
                                             <button
                                                 onClick={() => setIsSaveMenuOpen(!isSaveMenuOpen)}
-                                                disabled={!coverImage || isSaving}
-                                                className={`px-2 h-8 transition-all flex items-center justify-center rounded-r-full ${!coverImage || isSaving
+                                                disabled={!coverImage || isSaving || (!isPackagingDirty && !isDraft)}
+                                                className={`px-2 h-8 transition-all flex items-center justify-center rounded-r-full ${!coverImage || isSaving || (!isPackagingDirty && !isDraft)
                                                     ? 'bg-[#424242] text-[#717171] cursor-default'
                                                     : 'bg-white text-black hover:bg-gray-200 cursor-pointer'
                                                     }`}

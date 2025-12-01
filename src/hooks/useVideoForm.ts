@@ -40,6 +40,9 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
     // Track previous ID to prevent unnecessary resets
     const [prevId, setPrevId] = useState<string | undefined>(undefined);
 
+    // Draft State
+    const [isDraft, setIsDraft] = useState(initialData?.isDraft ?? (!initialData?.packagingHistory || initialData.packagingHistory.length === 0));
+
     useEffect(() => {
         if (isOpen) {
             if (initialData) {
@@ -320,6 +323,7 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         isDirty,
         isMetadataDirty,
         isPackagingDirty,
+        isDraft, setIsDraft,
         isPublished, setIsPublished,
         publishedUrl, setPublishedUrl,
         isValid,
