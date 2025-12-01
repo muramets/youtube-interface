@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { type VideoDetails, type CoverVersion } from '../utils/youtubeApi';
+import { type VideoDetails, type CoverVersion, type PackagingVersion } from '../utils/youtubeApi';
 import { useVideosStore } from '../stores/videosStore';
 import { useAuthStore } from '../stores/authStore';
 import { useChannelStore } from '../stores/channelStore';
@@ -24,6 +24,10 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
     const [highestVersion, setHighestVersion] = useState(initialData?.highestVersion || (initialData?.customImage ? 1 : 0));
     const [currentOriginalName, setCurrentOriginalName] = useState(initialData?.customImageName || 'Original Cover');
     const [fileVersionMap, setFileVersionMap] = useState<Record<string, number>>(initialData?.fileVersionMap || {});
+
+    // Packaging Performance State
+    const [currentPackagingVersion, setCurrentPackagingVersion] = useState(initialData?.currentPackagingVersion || 1);
+    const [packagingHistory, setPackagingHistory] = useState<PackagingVersion[]>(initialData?.packagingHistory || []);
 
     // History State
     const [coverHistory, setCoverHistory] = useState<CoverVersion[]>([]);
@@ -323,7 +327,12 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         removeLanguage,
         switchLanguage,
         // A/B Testing State
-        abTestVariants, setAbTestVariants,
+        abTestVariants,
+        setAbTestVariants,
+        currentPackagingVersion,
+        setCurrentPackagingVersion,
+        packagingHistory,
+        setPackagingHistory,
 
         // We need to expose a way to get the FINAL object for saving
         getFinalVideoData: () => {
