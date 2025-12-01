@@ -384,7 +384,15 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                         </div>
 
                                         {/* Tags */}
-                                        <TagsInput tags={tags} onChange={setTags} />
+                                        <TagsInput
+                                            tags={tags}
+                                            onChange={setTags}
+                                            onShowToast={(message, type) => {
+                                                setToastMessage(message);
+                                                setToastType(type);
+                                                setShowToast(true);
+                                            }}
+                                        />
 
                                         {/* Published Status - Only for default language */}
                                         {activeLanguage === 'default' && (

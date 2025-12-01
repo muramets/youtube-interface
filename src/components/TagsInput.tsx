@@ -5,9 +5,10 @@ import { PortalTooltip } from './Shared/PortalTooltip';
 interface TagsInputProps {
     tags: string[];
     onChange: (tags: string[]) => void;
+    onShowToast?: (message: string, type: 'success' | 'error') => void;
 }
 
-export const TagsInput: React.FC<TagsInputProps> = ({ tags, onChange }) => {
+export const TagsInput: React.FC<TagsInputProps> = ({ tags, onChange, onShowToast }) => {
     const [input, setInput] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -35,6 +36,9 @@ export const TagsInput: React.FC<TagsInputProps> = ({ tags, onChange }) => {
     const handleCopyAll = () => {
         const cleanTags = tags.map(tag => tag.replace(/^#/, ''));
         navigator.clipboard.writeText(cleanTags.join(', '));
+        if (onShowToast) {
+            onShowToast('Tags copied to clipboard', 'success');
+        }
     };
 
     const handleDeleteAll = () => {
