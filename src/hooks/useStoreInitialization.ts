@@ -66,7 +66,7 @@ export const useStoreInitialization = () => {
         }
     }, [
         user,
-        currentChannel,
+        currentChannel?.id,
         subscribeToGeneralSettings,
         subscribeToSyncSettings,
         subscribeToCloneSettings,

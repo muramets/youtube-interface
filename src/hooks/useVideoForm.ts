@@ -123,26 +123,143 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         }
     }, [isOpen, initialData, fetchVideoHistory, user, currentChannel]);
 
+    // Localization State
+    const [localizations, setLocalizations] = useState<Record<string, { languageCode: string; title: string; description: string; tags: string[] }>>(
+        initialData?.localizations || {}
+    );
+    const [activeLanguage, setActiveLanguage] = useState<string>('default');
+
+    const [defaultData, setDefaultData] = useState({
+        title: initialData?.title || '',
+        description: initialData?.description || '',
+        tags: initialData?.tags || []
+    });
+
+    const switchLanguage = (newLang: string) => {
+        if (newLang === activeLanguage) return;
+
+        // Save current values
+        if (activeLanguage === 'default') {
+            setDefaultData({ title, description, tags });
+        } else {
+            setLocalizations(prev => ({
+                ...prev,
+                [activeLanguage]: { languageCode: activeLanguage, title, description, tags }
+            }));
+        }
+
+        // Load new values
+        if (newLang === 'default') {
+            setTitle(defaultData.title);
+            setDescription(defaultData.description);
+            setTags(defaultData.tags);
+        } else {
+            const loc = localizations[newLang];
+            if (loc) {
+                setTitle(loc.title);
+                setDescription(loc.description);
+                setTags(loc.tags);
+            } else {
+                // New language: Copy from default (as per plan)
+                // But wait, if we are switching from 'ru' to 'es', we should copy from default or current?
+                // Plan said "Copy Primary".
+                // So we need the up-to-date default data.
+                // If we were on default, `title` is up-to-date.
+                // If we were on 'ru', `defaultData` is up-to-date.
+                const source = activeLanguage === 'default' ? { title, description, tags } : defaultData;
+                setTitle(source.title);
+                setDescription(source.description);
+                setTags(source.tags);
+            }
+        }
+        setActiveLanguage(newLang);
+    };
+
+    const addLanguage = (code: string, customName?: string, customFlag?: string) => {
+        if (localizations[code]) return;
+
+        // Copy content from currently active language (or default)
+        const sourceTitle = title;
+        const sourceDescription = description;
+        const sourceTags = tags;
+
+        setLocalizations(prev => ({
+            ...prev,
+            [code]: {
+                languageCode: code,
+                displayName: customName,
+                flag: customFlag,
+                title: sourceTitle,
+                description: sourceDescription,
+                tags: sourceTags
+            }
+        }));
+
+        // Switch to the new language immediately
+        switchLanguage(code);
+    };
+
+    const removeLanguage = (code: string) => {
+        if (activeLanguage === code) {
+            // Switch to default without saving current (deleted) language
+            setTitle(defaultData.title);
+            setDescription(defaultData.description);
+            setTags(defaultData.tags);
+            setActiveLanguage('default');
+        }
+
+        setLocalizations(prev => {
+            const newLocs = { ...prev };
+            delete newLocs[code];
+            return newLocs;
+        });
+    };
+
+    // Update isDirty to check localizations
     const isDirty = (() => {
-        if (!initialData) return true; // Always dirty if creating new
+        if (!initialData) return true;
 
         const currentCustomImage = coverImage;
         const initialCustomImage = initialData.customImage || initialData.thumbnail;
 
-        // Check if image changed
         if (currentCustomImage !== initialCustomImage) return true;
 
-        // Check if text fields changed
-        if (title !== initialData.title) return true;
-        if (description !== (initialData.description || '')) return true;
-        // Simple array comparison for tags
-        if (JSON.stringify(tags) !== JSON.stringify(initialData.tags || [])) return true;
+        // Check current active fields against their source
+        // If active is default, check against initialData
+        // If active is 'ru', check against initialData.localizations['ru']
+
+        // Actually, simpler: Check if `defaultData` (updated with current if active) differs from initial.
+        // And check if `localizations` (updated with current if active) differs from initial.
+
+        const effectiveDefault = activeLanguage === 'default' ? { title, description, tags } : defaultData;
+
+        if (effectiveDefault.title !== initialData.title) return true;
+        if (effectiveDefault.description !== (initialData.description || '')) return true;
+        if (JSON.stringify(effectiveDefault.tags) !== JSON.stringify(initialData.tags || [])) return true;
+
+        // Check localizations
+        const effectiveLocalizations = { ...localizations };
+        if (activeLanguage !== 'default') {
+            effectiveLocalizations[activeLanguage] = { languageCode: activeLanguage, title, description, tags };
+        }
+
+        const initialLocs = initialData.localizations || {};
+        const allKeys = new Set([...Object.keys(effectiveLocalizations), ...Object.keys(initialLocs)]);
+
+        for (const key of allKeys) {
+            const a = effectiveLocalizations[key];
+            const b = initialLocs[key];
+            if (!a || !b) return true; // Added or removed
+            if (a.title !== b.title) return true;
+            if (a.description !== b.description) return true;
+            if (JSON.stringify(a.tags) !== JSON.stringify(b.tags)) return true;
+        }
+
         if (viewCount !== (initialData.viewCount || '')) return true;
         if (duration !== (initialData.duration || '')) return true;
         if (videoRender !== (initialData.videoRender || '')) return true;
         if (audioRender !== (initialData.audioRender || '')) return true;
 
-        // Check if published state changed
         if (!!initialData.publishedVideoId !== isPublished) return true;
         if (isPublished && initialData.publishedVideoId && !publishedUrl.includes(initialData.publishedVideoId)) return true;
         if (isPublished && !initialData.publishedVideoId && publishedUrl) return true;
@@ -154,6 +271,20 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         if (isPublished && !publishedUrl.trim()) return false;
         return true;
     })();
+
+    // Need to sync defaultData when initialData changes (e.g. reset)
+    useEffect(() => {
+        if (isOpen && initialData) {
+            setLocalizations(initialData.localizations || {});
+            setDefaultData({
+                title: initialData.title,
+                description: initialData.description || '',
+                tags: initialData.tags || []
+            });
+            setActiveLanguage('default');
+        }
+    }, [isOpen, initialData]);
+
 
     return {
         title, setTitle,
@@ -174,6 +305,25 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         isDirty,
         isPublished, setIsPublished,
         publishedUrl, setPublishedUrl,
-        isValid
+        isValid,
+        // Localization exports
+        activeLanguage,
+        localizations,
+        addLanguage,
+        removeLanguage,
+        switchLanguage,
+        // We need to expose a way to get the FINAL object for saving
+        getFinalVideoData: () => {
+            const effectiveDefault = activeLanguage === 'default' ? { title, description, tags } : defaultData;
+            const effectiveLocalizations = { ...localizations };
+            if (activeLanguage !== 'default') {
+                effectiveLocalizations[activeLanguage] = { languageCode: activeLanguage, title, description, tags };
+            }
+
+            return {
+                ...effectiveDefault,
+                localizations: effectiveLocalizations
+            };
+        }
     };
 };

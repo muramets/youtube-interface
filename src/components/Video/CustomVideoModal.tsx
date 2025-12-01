@@ -12,6 +12,7 @@ import { resizeImage } from '../../utils/imageUtils';
 import { PortalTooltip } from '../Shared/PortalTooltip';
 import { ClonedVideoTooltipContent } from './ClonedVideoTooltipContent';
 import { VersionHistory } from './Modal/VersionHistory';
+import { LanguageTabs } from './LanguageTabs';
 
 interface CustomVideoModalProps {
     isOpen: boolean;
@@ -29,7 +30,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     initialData
 }) => {
     const { saveVideoHistory, deleteVideoHistoryItem } = useVideosStore();
-    const { currentChannel } = useChannelStore();
+    const { currentChannel, updateChannel } = useChannelStore();
     const { user } = useAuthStore();
     const modalRef = useRef<HTMLDivElement>(null);
 
@@ -63,7 +64,14 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         isDirty,
         isPublished, setIsPublished,
         publishedUrl, setPublishedUrl,
-        isValid
+        isValid,
+        // Localization
+        activeLanguage,
+        localizations,
+        addLanguage,
+        removeLanguage,
+        switchLanguage,
+        getFinalVideoData
     } = useVideoForm(initialData, isOpen);
 
     useEffect(() => {
@@ -164,10 +172,10 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 
         setIsSaving(true);
 
+        const finalData = getFinalVideoData();
+
         const videoData: Omit<VideoDetails, 'id'> = {
-            title: title || 'Very good playlist for you',
-            description: description,
-            tags: tags,
+            ...finalData,
             thumbnail: coverImage,
             channelId: currentChannel?.id || '',
             channelTitle: currentChannel?.name || 'My Channel',
@@ -297,6 +305,39 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                 <div className="grid grid-cols-[1fr_352px] gap-8 items-start">
                                     {/* Left Column: Inputs */}
                                     <div className="flex flex-col gap-5">
+
+                                        <LanguageTabs
+                                            activeLanguage={activeLanguage}
+                                            localizations={localizations}
+                                            onSwitchLanguage={switchLanguage}
+                                            onAddLanguage={async (code, customName, customFlag) => {
+                                                addLanguage(code, customName, customFlag);
+
+                                                if (customName && customFlag && currentChannel && user) {
+                                                    const existingLanguages = currentChannel.customLanguages || [];
+                                                    const exists = existingLanguages.some(l => l.code === code);
+
+                                                    if (!exists) {
+                                                        const newLang = { code, name: customName, flag: customFlag };
+                                                        await updateChannel(user.uid, currentChannel.id, {
+                                                            customLanguages: [...existingLanguages, newLang]
+                                                        });
+                                                    }
+                                                }
+                                            }}
+                                            onRemoveLanguage={removeLanguage}
+                                            savedCustomLanguages={currentChannel?.customLanguages}
+                                            onDeleteCustomLanguage={async (code) => {
+                                                if (currentChannel && user) {
+                                                    const existingLanguages = currentChannel.customLanguages || [];
+                                                    const updatedLanguages = existingLanguages.filter(l => l.code !== code);
+                                                    await updateChannel(user.uid, currentChannel.id, {
+                                                        customLanguages: updatedLanguages
+                                                    });
+                                                }
+                                            }}
+                                        />
+
                                         {/* Title */}
                                         <div className="flex flex-col gap-2">
                                             <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Title</label>
@@ -323,86 +364,90 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                         {/* Tags */}
                                         <TagsInput tags={tags} onChange={setTags} />
 
-                                        {/* Published Status */}
-                                        <div className="flex flex-col gap-3">
-                                            <div className="flex items-center gap-3">
-                                                <div
-                                                    onClick={() => setIsPublished(!isPublished)}
-                                                    className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors ${isPublished ? 'bg-text-primary border-text-primary' : 'border-text-secondary hover:border-text-primary'}`}
-                                                >
-                                                    {isPublished && <Check size={14} className="text-bg-primary" />}
+                                        {/* Published Status - Only for default language */}
+                                        {activeLanguage === 'default' && (
+                                            <div className="flex flex-col gap-3">
+                                                <div className="flex items-center gap-3">
+                                                    <div
+                                                        onClick={() => setIsPublished(!isPublished)}
+                                                        className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors ${isPublished ? 'bg-text-primary border-text-primary' : 'border-text-secondary hover:border-text-primary'}`}
+                                                    >
+                                                        {isPublished && <Check size={14} className="text-bg-primary" />}
+                                                    </div>
+                                                    <span className="text-sm text-text-primary font-medium cursor-pointer" onClick={() => setIsPublished(!isPublished)}>Video Published</span>
                                                 </div>
-                                                <span className="text-sm text-text-primary font-medium cursor-pointer" onClick={() => setIsPublished(!isPublished)}>Video Published</span>
+
+                                                {isPublished && (
+                                                    <div className="animate-scale-in origin-top">
+                                                        <input
+                                                            type="text"
+                                                            value={publishedUrl}
+                                                            onChange={(e) => setPublishedUrl(e.target.value)}
+                                                            className="w-full bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
+                                                            placeholder="https://www.youtube.com/watch?v=..."
+                                                        />
+                                                    </div>
+                                                )}
                                             </div>
+                                        )}
 
-                                            {isPublished && (
-                                                <div className="animate-scale-in origin-top">
-                                                    <input
-                                                        type="text"
-                                                        value={publishedUrl}
-                                                        onChange={(e) => setPublishedUrl(e.target.value)}
-                                                        className="w-full bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
-                                                        placeholder="https://www.youtube.com/watch?v=..."
-                                                    />
-                                                </div>
-                                            )}
-                                        </div>
+                                        {/* Stats Section - Only for default language */}
+                                        {activeLanguage === 'default' && (
+                                            <div className="border-t border-border pt-4">
+                                                <button
+                                                    onClick={() => setIsStatsExpanded(!isStatsExpanded)}
+                                                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-modal-button-bg text-white text-sm font-medium hover:bg-modal-button-hover transition-colors mb-4"
+                                                >
+                                                    {isStatsExpanded ? 'Show less' : 'Show more'}
+                                                    {isStatsExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                                </button>
 
-                                        {/* Stats Section */}
-                                        <div className="border-t border-border pt-4">
-                                            <button
-                                                onClick={() => setIsStatsExpanded(!isStatsExpanded)}
-                                                className="flex items-center gap-2 px-4 py-2 rounded-full bg-modal-button-bg text-white text-sm font-medium hover:bg-modal-button-hover transition-colors mb-4"
-                                            >
-                                                {isStatsExpanded ? 'Show less' : 'Show more'}
-                                                {isStatsExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                            </button>
-
-                                            {isStatsExpanded && (
-                                                <div className="grid grid-cols-2 gap-4 animate-fade-in pb-2">
-                                                    <div className="flex flex-col gap-2">
-                                                        <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Video Render #</label>
-                                                        <input
-                                                            type="text"
-                                                            value={videoRender}
-                                                            onChange={(e) => setVideoRender(e.target.value)}
-                                                            className="bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
-                                                            placeholder="e.g. #1.1"
-                                                        />
+                                                {isStatsExpanded && (
+                                                    <div className="grid grid-cols-2 gap-4 animate-fade-in pb-2">
+                                                        <div className="flex flex-col gap-2">
+                                                            <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Video Render #</label>
+                                                            <input
+                                                                type="text"
+                                                                value={videoRender}
+                                                                onChange={(e) => setVideoRender(e.target.value)}
+                                                                className="modal-input"
+                                                                placeholder="e.g. #1.1"
+                                                            />
+                                                        </div>
+                                                        <div className="flex flex-col gap-2">
+                                                            <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Audio #</label>
+                                                            <input
+                                                                type="text"
+                                                                value={audioRender}
+                                                                onChange={(e) => setAudioRender(e.target.value)}
+                                                                className="modal-input"
+                                                                placeholder="e.g. #1"
+                                                            />
+                                                        </div>
+                                                        <div className="flex flex-col gap-2">
+                                                            <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">View Count</label>
+                                                            <input
+                                                                type="text"
+                                                                value={viewCount}
+                                                                onChange={(e) => setViewCount(e.target.value)}
+                                                                className="modal-input"
+                                                                placeholder="e.g. 1.2M"
+                                                            />
+                                                        </div>
+                                                        <div className="flex flex-col gap-2">
+                                                            <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Duration</label>
+                                                            <input
+                                                                type="text"
+                                                                value={duration}
+                                                                onChange={(e) => setDuration(e.target.value)}
+                                                                className="modal-input"
+                                                                placeholder="e.g. 10:05"
+                                                            />
+                                                        </div>
                                                     </div>
-                                                    <div className="flex flex-col gap-2">
-                                                        <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Audio #</label>
-                                                        <input
-                                                            type="text"
-                                                            value={audioRender}
-                                                            onChange={(e) => setAudioRender(e.target.value)}
-                                                            className="bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
-                                                            placeholder="e.g. #1"
-                                                        />
-                                                    </div>
-                                                    <div className="flex flex-col gap-2">
-                                                        <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">View Count</label>
-                                                        <input
-                                                            type="text"
-                                                            value={viewCount}
-                                                            onChange={(e) => setViewCount(e.target.value)}
-                                                            className="bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
-                                                            placeholder="e.g. 1.2M"
-                                                        />
-                                                    </div>
-                                                    <div className="flex flex-col gap-2">
-                                                        <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Duration</label>
-                                                        <input
-                                                            type="text"
-                                                            value={duration}
-                                                            onChange={(e) => setDuration(e.target.value)}
-                                                            className="bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
-                                                            placeholder="e.g. 10:05"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Right Column: Packaging Preview */}
@@ -454,7 +499,6 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                                 />
                                             </div>
 
-                                            {/* Version History */}
                                             {/* Version History */}
                                             <div className="bg-modal-surface p-4 rounded-lg">
                                                 <VersionHistory

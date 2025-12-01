@@ -31,6 +31,16 @@ export interface VideoDetails {
     mergedVideoData?: VideoDetails;
     videoRender?: string;
     audioRender?: string;
+    localizations?: Record<string, VideoLocalization>;
+}
+
+export interface VideoLocalization {
+    languageCode: string;
+    displayName?: string;
+    flag?: string;
+    title: string;
+    description: string;
+    tags: string[];
 }
 
 export interface VideoNote {

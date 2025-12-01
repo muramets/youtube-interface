@@ -33,7 +33,8 @@ export const TagsInput: React.FC<TagsInputProps> = ({ tags, onChange }) => {
     };
 
     const handleCopyAll = () => {
-        navigator.clipboard.writeText(tags.join(', '));
+        const cleanTags = tags.map(tag => tag.replace(/^#/, ''));
+        navigator.clipboard.writeText(cleanTags.join(', '));
     };
 
     const handleDeleteAll = () => {
@@ -93,7 +94,6 @@ export const TagsInput: React.FC<TagsInputProps> = ({ tags, onChange }) => {
                     placeholder={tags.length === 0 ? "Add tags..." : ""}
                 />
             </div>
-            <span className="text-xs text-text-secondary">Enter a comma after each tag</span>
         </div>
     );
 };
