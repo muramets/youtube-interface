@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Info, Trash2, ArrowUp, Copy, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Info, Trash2, ArrowUp, Copy, Loader2, FlaskConical } from 'lucide-react';
 import { PortalTooltip } from '../../Shared/PortalTooltip';
 import { ClonedVideoTooltipContent } from '../ClonedVideoTooltipContent';
 import { type VideoDetails, type CoverVersion } from '../../../utils/youtubeApi';
@@ -14,6 +14,8 @@ interface VersionHistoryProps {
     initialData?: VideoDetails;
     cloningVersion: number | null;
     currentVersion: number;
+    abTestVariants?: string[];
+    onAddToAbTest?: (url: string) => void;
 }
 
 export const VersionHistory: React.FC<VersionHistoryProps> = ({
@@ -24,7 +26,9 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
     onClone,
     initialData,
     cloningVersion,
-    currentVersion
+    currentVersion,
+    abTestVariants,
+    onAddToAbTest
 }) => {
     const { videos } = useVideosStore();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -149,22 +153,14 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
 
                                                 <button
                                                     onClick={(e) => onDelete(e, version.timestamp)}
-                                                    className="w-6 h-6 rounded-full bg-red-500/80 hover:bg-red-600 text-white flex items-center justify-center backdrop-blur-sm transition-colors border-none cursor-pointer"
+                                                    className="w-6 h-6 rounded-full bg-black/40 hover:bg-red-500 text-white/90 hover:text-white flex items-center justify-center backdrop-blur-sm transition-all border border-white/10 hover:border-transparent"
                                                     title="Delete Version"
                                                 >
                                                     <Trash2 size={12} />
                                                 </button>
                                             </div>
 
-                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none gap-2">
-                                                <button
-                                                    onClick={() => onRestore(version)}
-                                                    className="w-8 h-8 rounded-full bg-[#3ea6ff]/90 hover:bg-[#3ea6ff] text-black flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border-none cursor-pointer pointer-events-auto"
-                                                    title="Set as Main Cover"
-                                                >
-                                                    <ArrowUp size={18} strokeWidth={3} />
-                                                </button>
-
+                                            <div className="absolute inset-0 flex items-end justify-center pointer-events-none gap-2 pb-3">
                                                 {onClone && initialData && (
                                                     (() => {
                                                         const isCloned = videos.some((v: VideoDetails) =>
@@ -181,20 +177,44 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
                                                                     onClone(version);
                                                                 }}
                                                                 disabled={isCloned || cloningVersion !== null}
-                                                                className={`w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border-none cursor-pointer pointer-events-auto ${isCloned
-                                                                    ? 'bg-gray-500/50 text-gray-300 cursor-not-allowed hover:scale-90'
-                                                                    : 'bg-green-500/90 hover:bg-green-600 text-white'
+                                                                className={`w-7 h-7 rounded-full flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border cursor-pointer pointer-events-auto ${isCloned
+                                                                    ? 'bg-gray-500/50 text-gray-300 cursor-not-allowed hover:scale-90 border-transparent'
+                                                                    : 'bg-black/40 text-white/90 hover:bg-green-500 hover:text-white border-white/10 hover:border-transparent'
                                                                     }`}
-                                                                title={isCloned ? "Active clone already exists" : "Clone as a New Temporary Video"}
+                                                                title={isCloned ? "Active clone already exists" : "Clone Video"}
                                                             >
                                                                 {cloningVersion === version.version ? (
-                                                                    <Loader2 size={16} className="animate-spin" />
+                                                                    <Loader2 size={14} className="animate-spin" />
                                                                 ) : (
-                                                                    <Copy size={16} strokeWidth={2.5} />
+                                                                    <Copy size={14} strokeWidth={2.5} />
                                                                 )}
                                                             </button>
                                                         );
                                                     })()
+                                                )}
+
+                                                <button
+                                                    onClick={() => onRestore(version)}
+                                                    className="w-7 h-7 rounded-full bg-black/40 hover:bg-[#3ea6ff] text-white/90 hover:text-black flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border border-white/10 hover:border-transparent cursor-pointer pointer-events-auto"
+                                                    title="Make Current"
+                                                >
+                                                    <ArrowUp size={16} strokeWidth={2.5} />
+                                                </button>
+
+                                                {onAddToAbTest && abTestVariants && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onAddToAbTest(version.url);
+                                                        }}
+                                                        className={`w-7 h-7 rounded-full flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border cursor-pointer pointer-events-auto ${abTestVariants.includes(version.url)
+                                                                ? 'bg-purple-500 text-white border-transparent'
+                                                                : 'bg-black/40 text-white/90 hover:bg-purple-500 hover:text-white border-white/10 hover:border-transparent'
+                                                            }`}
+                                                        title={abTestVariants.includes(version.url) ? "Remove from A/B Test" : "A/B Test"}
+                                                    >
+                                                        <FlaskConical size={14} strokeWidth={abTestVariants.includes(version.url) ? 3 : 2} className={abTestVariants.includes(version.url) ? "fill-current" : ""} />
+                                                    </button>
                                                 )}
                                             </div>
                                         </div>

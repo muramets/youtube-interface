@@ -32,6 +32,7 @@ export interface VideoDetails {
     videoRender?: string;
     audioRender?: string;
     localizations?: Record<string, VideoLocalization>;
+    abTestVariants?: string[]; // Array of cover URLs or version IDs
 }
 
 export interface VideoLocalization {

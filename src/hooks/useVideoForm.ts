@@ -34,7 +34,7 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
     const [publishedUrl, setPublishedUrl] = useState(initialData?.publishedVideoId ? `https://www.youtube.com/watch?v=${initialData.publishedVideoId}` : '');
 
     // Track previous ID to prevent unnecessary resets
-    const [prevId, setPrevId] = useState<string | undefined>(initialData?.id);
+    const [prevId, setPrevId] = useState<string | undefined>(undefined);
 
     useEffect(() => {
         if (isOpen) {
@@ -97,7 +97,7 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
                     }
                 };
 
-                if (initialData.id) {
+                if (initialData.id && !isSameVideo) {
                     loadHistory();
                 }
 
@@ -128,6 +128,9 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         initialData?.localizations || {}
     );
     const [activeLanguage, setActiveLanguage] = useState<string>('default');
+
+    // A/B Testing State
+    const [abTestVariants, setAbTestVariants] = useState<string[]>(initialData?.abTestVariants || []);
 
     const [defaultData, setDefaultData] = useState({
         title: initialData?.title || '',
@@ -264,6 +267,13 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         if (isPublished && initialData.publishedVideoId && !publishedUrl.includes(initialData.publishedVideoId)) return true;
         if (isPublished && !initialData.publishedVideoId && publishedUrl) return true;
 
+        // Check A/B Test Variants
+        const initialVariants = initialData.abTestVariants || [];
+        if (abTestVariants.length !== initialVariants.length) return true;
+        const sortedCurrent = [...abTestVariants].sort();
+        const sortedInitial = [...initialVariants].sort();
+        if (JSON.stringify(sortedCurrent) !== JSON.stringify(sortedInitial)) return true;
+
         return false;
     })();
 
@@ -312,6 +322,9 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         addLanguage,
         removeLanguage,
         switchLanguage,
+        // A/B Testing State
+        abTestVariants, setAbTestVariants,
+
         // We need to expose a way to get the FINAL object for saving
         getFinalVideoData: () => {
             const effectiveDefault = activeLanguage === 'default' ? { title, description, tags } : defaultData;
@@ -322,7 +335,8 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
 
             return {
                 ...effectiveDefault,
-                localizations: effectiveLocalizations
+                localizations: effectiveLocalizations,
+                abTestVariants
             };
         }
     };

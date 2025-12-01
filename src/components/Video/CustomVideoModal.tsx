@@ -1,6 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Check, ChevronDown, ChevronUp, Info, Trash2 } from 'lucide-react';
+import { X, Check, ChevronDown, ChevronUp, Info, Trash2, GripVertical } from 'lucide-react';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { type VideoDetails, type CoverVersion, type HistoryItem, extractVideoId } from '../../utils/youtubeApi';
 import { useVideosStore } from '../../stores/videosStore';
 import { useChannelStore } from '../../stores/channelStore';
@@ -21,6 +24,63 @@ interface CustomVideoModalProps {
     onClone?: (originalVideo: VideoDetails, version: CoverVersion) => Promise<void>;
     initialData?: VideoDetails;
 }
+
+interface SortableVariantProps {
+    id: string;
+    url: string;
+    index: number;
+    onRemove: () => void;
+}
+
+const SortableVariant = ({ id, url, index, onRemove }: SortableVariantProps) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 10 : 1,
+        opacity: isDragging ? 0.5 : 1
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className="aspect-video rounded-md overflow-hidden border border-border relative group touch-none"
+        >
+            <img src={url} alt={`Variant ${index + 1}`} className="w-full h-full object-cover" />
+
+            {/* Drag Handle */}
+            <div
+                {...attributes}
+                {...listeners}
+                className="absolute top-1 left-1 p-1 rounded bg-black/40 text-white opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing hover:bg-black/60 transition-opacity"
+            >
+                <GripVertical size={12} />
+            </div>
+
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove();
+                }}
+                className="absolute top-1 right-1 p-1 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+            >
+                <X size={10} />
+            </button>
+            <div className="absolute bottom-1 left-1 px-1 py-0.5 bg-black/60 rounded text-[9px] font-medium text-white backdrop-blur-sm">
+                {String.fromCharCode(65 + index)}
+            </div>
+        </div>
+    );
+};
 
 export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     isOpen,
@@ -71,7 +131,10 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         addLanguage,
         removeLanguage,
         switchLanguage,
-        getFinalVideoData
+        getFinalVideoData,
+        // A/B Testing
+        abTestVariants,
+        setAbTestVariants
     } = useVideoForm(initialData, isOpen);
 
     useEffect(() => {
@@ -263,12 +326,31 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         }
     };
 
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (over && active.id !== over.id) {
+            setAbTestVariants((items) => {
+                const oldIndex = items.indexOf(active.id as string);
+                const newIndex = items.indexOf(over.id as string);
+                return arrayMove(items, oldIndex, newIndex);
+            });
+        }
+    };
+
     return createPortal(
         <>
             <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in" onMouseDown={handleBackdropClick}>
                 <div
                     ref={modalRef}
-                    className="bg-bg-secondary w-full max-w-[960px] h-[718px] rounded-xl shadow-2xl flex flex-col overflow-hidden animate-scale-in"
+                    className="bg-bg-secondary w-full max-w-[960px] h-[740px] rounded-xl shadow-2xl flex flex-col overflow-hidden animate-scale-in"
                     onMouseDown={e => e.stopPropagation()}
                     onPointerDown={e => e.stopPropagation()}
                     onKeyDown={e => e.stopPropagation()}
@@ -503,15 +585,11 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                                     <span className="text-white font-medium">Change Cover</span>
                                                 </div>
 
-                                                {/* Badges */}
-                                                <div className={`absolute top-2 left-2 bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded transition-opacity duration-200 ${isTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                                                    Current Version
-                                                </div>
-
-                                                <div className={`absolute top-2 right-2 transition-opacity duration-200 ${isTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                                                {/* Info Icon (Top Left) */}
+                                                <div className={`absolute top-2 left-2 transition-opacity duration-200 ${isTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                                                     <PortalTooltip
                                                         content={<ClonedVideoTooltipContent version={currentVersion} filename={currentOriginalName} />}
-                                                        align="right"
+                                                        align="left"
                                                         onOpenChange={setIsTooltipOpen}
                                                     >
                                                         <div className="w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-sm">
@@ -520,9 +598,9 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                                     </PortalTooltip>
                                                 </div>
 
-                                                {/* Delete Button (Bottom Right) */}
+                                                {/* Delete Button (Top Right) */}
                                                 {coverImage && (
-                                                    <div className={`absolute bottom-2 right-2 transition-opacity duration-200 ${isTooltipOpen ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
+                                                    <div className={`absolute top-2 right-2 transition-opacity duration-200 ${isTooltipOpen ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
                                                         <button
                                                             onClick={handleDeleteCurrentVersion}
                                                             className="w-8 h-8 rounded-full bg-black/60 text-white hover:bg-red-500 hover:text-white flex items-center justify-center backdrop-blur-sm transition-colors"
@@ -531,6 +609,8 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                                         </button>
                                                     </div>
                                                 )}
+
+
 
                                                 <input
                                                     id="cover-upload"
@@ -552,8 +632,52 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                                     initialData={initialData}
                                                     cloningVersion={cloningVersion}
                                                     currentVersion={currentVersion}
+                                                    abTestVariants={abTestVariants}
+                                                    onAddToAbTest={(url) => {
+                                                        if (abTestVariants.includes(url)) {
+                                                            setAbTestVariants(prev => prev.filter(v => v !== url));
+                                                        } else if (abTestVariants.length < 3) {
+                                                            setAbTestVariants(prev => [...prev, url]);
+                                                        } else {
+                                                            setToastMessage('A/B test limit reached (max 3)');
+                                                            setToastType('error');
+                                                            setShowToast(true);
+                                                        }
+                                                    }}
                                                 />
                                             </div>
+
+                                            {/* A/B Test Variants */}
+                                            {abTestVariants.length > 0 && (
+                                                <div className="bg-modal-surface p-3 rounded-lg mt-2">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <h3 className="text-xs font-medium text-text-primary uppercase tracking-wider">A/B Test Variants</h3>
+                                                        <span className="text-[10px] text-text-secondary">{abTestVariants.length}/3</span>
+                                                    </div>
+                                                    <DndContext
+                                                        sensors={sensors}
+                                                        collisionDetection={closestCenter}
+                                                        onDragEnd={handleDragEnd}
+                                                    >
+                                                        <SortableContext
+                                                            items={abTestVariants}
+                                                            strategy={horizontalListSortingStrategy}
+                                                        >
+                                                            <div className="grid grid-cols-3 gap-2">
+                                                                {abTestVariants.map((variantUrl, index) => (
+                                                                    <SortableVariant
+                                                                        key={variantUrl}
+                                                                        id={variantUrl}
+                                                                        url={variantUrl}
+                                                                        index={index}
+                                                                        onRemove={() => setAbTestVariants(prev => prev.filter((_, i) => i !== index))}
+                                                                    />
+                                                                ))}
+                                                            </div>
+                                                        </SortableContext>
+                                                    </DndContext>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
