@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { type VideoDetails, type CoverVersion, type PackagingVersion } from '../utils/youtubeApi';
+import { type VideoDetails, type CoverVersion, type PackagingVersion, extractVideoId } from '../utils/youtubeApi';
 import { useVideosStore } from '../stores/videosStore';
 import { useAuthStore } from '../stores/authStore';
 import { useChannelStore } from '../stores/channelStore';
@@ -222,21 +222,29 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         });
     };
 
-    // Update isDirty to check localizations
-    const isDirty = (() => {
+    // Split isDirty into Metadata and Packaging
+    const isMetadataDirty = (() => {
+        if (!initialData) return true;
+
+        if (viewCount !== (initialData.viewCount || '')) return true;
+        if (duration !== (initialData.duration || '')) return true;
+        if (videoRender !== (initialData.videoRender || '')) return true;
+        if (audioRender !== (initialData.audioRender || '')) return true;
+
+        if (!!initialData.publishedVideoId !== isPublished) return true;
+        if (isPublished && initialData.publishedVideoId && !publishedUrl.includes(initialData.publishedVideoId)) return true;
+        if (isPublished && !initialData.publishedVideoId && publishedUrl) return true;
+
+        return false;
+    })();
+
+    const isPackagingDirty = (() => {
         if (!initialData) return true;
 
         const currentCustomImage = coverImage;
         const initialCustomImage = initialData.customImage || initialData.thumbnail;
 
         if (currentCustomImage !== initialCustomImage) return true;
-
-        // Check current active fields against their source
-        // If active is default, check against initialData
-        // If active is 'ru', check against initialData.localizations['ru']
-
-        // Actually, simpler: Check if `defaultData` (updated with current if active) differs from initial.
-        // And check if `localizations` (updated with current if active) differs from initial.
 
         const effectiveDefault = activeLanguage === 'default' ? { title, description, tags } : defaultData;
 
@@ -262,15 +270,6 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
             if (JSON.stringify(a.tags) !== JSON.stringify(b.tags)) return true;
         }
 
-        if (viewCount !== (initialData.viewCount || '')) return true;
-        if (duration !== (initialData.duration || '')) return true;
-        if (videoRender !== (initialData.videoRender || '')) return true;
-        if (audioRender !== (initialData.audioRender || '')) return true;
-
-        if (!!initialData.publishedVideoId !== isPublished) return true;
-        if (isPublished && initialData.publishedVideoId && !publishedUrl.includes(initialData.publishedVideoId)) return true;
-        if (isPublished && !initialData.publishedVideoId && publishedUrl) return true;
-
         // Check A/B Test Variants
         const initialVariants = initialData.abTestVariants || [];
         if (abTestVariants.length !== initialVariants.length) return true;
@@ -280,6 +279,8 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
 
         return false;
     })();
+
+    const isDirty = isMetadataDirty || isPackagingDirty;
 
     const isValid = (() => {
         if (isPublished && !publishedUrl.trim()) return false;
@@ -317,6 +318,8 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         isLoadingHistory,
         deletedHistoryIds, setDeletedHistoryIds,
         isDirty,
+        isMetadataDirty,
+        isPackagingDirty,
         isPublished, setIsPublished,
         publishedUrl, setPublishedUrl,
         isValid,
@@ -335,7 +338,7 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         setPackagingHistory,
 
         // We need to expose a way to get the FINAL object for saving
-        getFinalVideoData: () => {
+        getFullPayload: () => {
             const effectiveDefault = activeLanguage === 'default' ? { title, description, tags } : defaultData;
             const effectiveLocalizations = { ...localizations };
             if (activeLanguage !== 'default') {
@@ -345,7 +348,29 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
             return {
                 ...effectiveDefault,
                 localizations: effectiveLocalizations,
-                abTestVariants
+                abTestVariants,
+                // Metadata
+                viewCount,
+                duration,
+                videoRender,
+                audioRender,
+                publishedVideoId: isPublished ? (extractVideoId(publishedUrl) || undefined) : '',
+            };
+        },
+        getMetadataOnlyPayload: () => {
+            // Returns original packaging data + new metadata
+            return {
+                title: initialData?.title || '',
+                description: initialData?.description || '',
+                tags: initialData?.tags || [],
+                localizations: initialData?.localizations || {},
+                abTestVariants: initialData?.abTestVariants || [],
+                // New Metadata
+                viewCount,
+                duration,
+                videoRender,
+                audioRender,
+                publishedVideoId: isPublished ? (extractVideoId(publishedUrl) || undefined) : '',
             };
         }
     };

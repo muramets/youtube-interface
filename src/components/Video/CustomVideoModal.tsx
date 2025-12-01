@@ -4,7 +4,7 @@ import { X, Check, ChevronDown, ChevronUp, Info, Trash2, GripVertical } from 'lu
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { type VideoDetails, type CoverVersion, type HistoryItem, type PackagingMetrics, type PackagingVersion, extractVideoId } from '../../utils/youtubeApi';
+import { type VideoDetails, type CoverVersion, type HistoryItem, type PackagingMetrics, type PackagingVersion } from '../../utils/youtubeApi';
 import { useVideosStore } from '../../stores/videosStore';
 import { useChannelStore } from '../../stores/channelStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -194,17 +194,18 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         coverHistory, setCoverHistory,
         isLoadingHistory,
         deletedHistoryIds, setDeletedHistoryIds,
-        isDirty,
+        isMetadataDirty,
+        isPackagingDirty,
         isPublished, setIsPublished,
         publishedUrl, setPublishedUrl,
-
         // Localization
         activeLanguage,
         localizations,
         addLanguage,
         removeLanguage,
         switchLanguage,
-        getFinalVideoData,
+        getFullPayload,
+        getMetadataOnlyPayload,
         // A/B Testing
         abTestVariants,
         setAbTestVariants,
@@ -334,7 +335,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 
         setIsSaving(true);
 
-        const finalData = getFinalVideoData();
+        const finalData = getFullPayload();
 
         const videoData: Omit<VideoDetails, 'id'> = {
             ...finalData,
@@ -343,20 +344,21 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
             channelTitle: currentChannel?.name || 'My Channel',
             channelAvatar: currentChannel?.avatar || '',
             publishedAt: initialData ? initialData.publishedAt : new Date().toISOString(),
-            viewCount: viewCount || '1M',
-            duration: duration || '1:02:11',
+            // Metadata is already in finalData, but we need to ensure structure matches
+            viewCount: finalData.viewCount || '1M',
+            duration: finalData.duration || '1:02:11',
             isCustom: true,
             customImage: coverImage,
             createdAt: initialData?.createdAt,
             coverHistory: coverHistory,
-            customImageName: currentOriginalName,
+            customImageName: currentOriginalName || undefined,
             customImageVersion: currentVersion,
             highestVersion: highestVersion,
             fileVersionMap: fileVersionMap,
             historyCount: coverHistory.length,
-            publishedVideoId: isPublished ? (extractVideoId(publishedUrl) || undefined) : '',
-            videoRender: videoRender,
-            audioRender: audioRender
+            publishedVideoId: finalData.publishedVideoId,
+            videoRender: finalData.videoRender,
+            audioRender: finalData.audioRender
         };
 
         try {
@@ -386,6 +388,38 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         }
     };
 
+    const handleClose = async () => {
+        // Auto-save Metadata ONLY
+        if (isMetadataDirty) {
+            const metadataPayload = getMetadataOnlyPayload();
+            // We need to construct the full object but with original packaging data
+            const videoData: Omit<VideoDetails, 'id'> = {
+                ...metadataPayload,
+                thumbnail: initialData?.thumbnail || '',
+                channelId: currentChannel?.id || '',
+                channelTitle: currentChannel?.name || 'My Channel',
+                channelAvatar: currentChannel?.avatar || '',
+                publishedAt: initialData ? initialData.publishedAt : new Date().toISOString(),
+                isCustom: true,
+                customImage: initialData?.customImage, // Revert to initial
+                createdAt: initialData?.createdAt,
+                coverHistory: coverHistory, // History shouldn't change if we revert
+                customImageName: initialData?.customImageName,
+                customImageVersion: initialData?.customImageVersion || 1,
+                highestVersion: initialData?.highestVersion || 0,
+                fileVersionMap: initialData?.fileVersionMap || {},
+                historyCount: coverHistory.length,
+            };
+
+            try {
+                await onSave(videoData, false); // Silent save
+            } catch (error) {
+                console.error("Failed to auto-save metadata:", error);
+            }
+        }
+        onClose();
+    };
+
     const handleCloneWithSave = async (version: CoverVersion) => {
         if (!onClone || !initialData) return;
         setCloningVersion(version.version);
@@ -399,7 +433,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 
     const handleBackdropClick = (e: React.MouseEvent) => {
         if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
-            onClose();
+            handleClose();
         }
     };
 
@@ -523,48 +557,46 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                         <div className="flex items-center gap-3">
                             {activeTab === 'details' ? (
                                 <div className="flex items-center gap-2 relative" ref={saveMenuRef}>
-                                    <div className={`flex items-center rounded-full overflow-hidden transition-colors ${!isDirty || isSaving
-                                        ? 'bg-[#424242] text-[#717171]'
-                                        : 'bg-white text-black hover:bg-gray-200'
-                                        }`}>
+                                    <div className="flex items-center gap-0.5">
                                         <button
                                             onClick={() => handleSave(false)}
-                                            disabled={!isDirty || isSaving}
-                                            className={`px-3 py-1.5 text-sm font-medium transition-all flex items-center gap-2 ${!isDirty || isSaving
-                                                ? 'cursor-default'
-                                                : 'cursor-pointer'
+                                            disabled={!isPackagingDirty || isSaving}
+                                            className={`px-3 h-8 text-sm font-medium transition-all flex items-center gap-2 rounded-l-full ${!isPackagingDirty || isSaving
+                                                ? 'bg-[#424242] text-[#717171] cursor-default'
+                                                : 'bg-white text-black hover:bg-gray-200 cursor-pointer'
                                                 }`}
                                         >
                                             {isSaving ? 'Saving...' : 'Save as Draft'}
                                         </button>
-                                        {/* Separator: using --modal-button-hover (#4F4F4F) for inactive state */}
-                                        <div className={`w-[1px] h-4 ${!isDirty || isSaving ? 'bg-[#4F4F4F]' : 'bg-black/20'}`}></div>
-                                        <button
-                                            onClick={() => setIsSaveMenuOpen(!isSaveMenuOpen)}
-                                            disabled={!isDirty || isSaving}
-                                            className={`px-2 py-1.5 transition-all flex items-center justify-center ${!isDirty || isSaving
-                                                ? 'cursor-default'
-                                                : 'cursor-pointer hover:bg-black/5'
-                                                }`}
-                                        >
-                                            <ChevronDown size={16} className={`transition-transform ${isSaveMenuOpen ? 'rotate-180' : ''}`} />
-                                        </button>
-                                    </div>
 
-                                    {/* Dropdown Menu */}
-                                    {isSaveMenuOpen && isDirty && !isSaving && (
-                                        <div className="absolute top-full right-0 mt-0.5 w-max bg-[#1F1F1F]/95 backdrop-blur-xl rounded-xl shadow-2xl border border-white/5 overflow-hidden z-50 animate-scale-in origin-top-right">
+                                        <div className="relative">
                                             <button
-                                                onClick={() => {
-                                                    handleSaveAsVersion();
-                                                    setIsSaveMenuOpen(false);
-                                                }}
-                                                className="w-full px-4 py-2.5 text-left text-xs font-medium text-text-primary hover:bg-white/5 transition-colors flex items-center justify-between group whitespace-nowrap"
+                                                onClick={() => setIsSaveMenuOpen(!isSaveMenuOpen)}
+                                                disabled={!coverImage || isSaving}
+                                                className={`px-2 h-8 transition-all flex items-center justify-center rounded-r-full ${!coverImage || isSaving
+                                                    ? 'bg-[#424242] text-[#717171] cursor-default'
+                                                    : 'bg-white text-black hover:bg-gray-200 cursor-pointer'
+                                                    }`}
                                             >
-                                                <span>Save as v.{currentPackagingVersion + 1}</span>
+                                                <ChevronDown size={16} className={`transition-transform ${isSaveMenuOpen ? 'rotate-180' : ''}`} />
                                             </button>
+
+                                            {/* Dropdown Menu */}
+                                            {isSaveMenuOpen && !isSaving && (
+                                                <div className="absolute top-full right-0 mt-0.5 w-max bg-[#1F1F1F]/95 backdrop-blur-xl rounded-xl shadow-2xl border border-white/5 overflow-hidden z-50 animate-scale-in origin-top-right">
+                                                    <button
+                                                        onClick={() => {
+                                                            handleSaveAsVersion();
+                                                            setIsSaveMenuOpen(false);
+                                                        }}
+                                                        className="w-full px-4 py-2.5 text-left text-xs font-medium text-text-primary hover:bg-white/5 transition-colors flex items-center justify-between group whitespace-nowrap"
+                                                    >
+                                                        <span>Save as v.{currentPackagingVersion}</span>
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
                             ) : (
                                 <button
@@ -579,7 +611,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                 </button>
                             )}
                             <button
-                                onClick={onClose}
+                                onClick={handleClose}
                                 className="p-2 rounded-full hover:bg-white/10 text-text-primary transition-colors"
                             >
                                 <X size={24} />
