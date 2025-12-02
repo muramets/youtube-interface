@@ -16,6 +16,7 @@ import { PortalTooltip } from '../Shared/PortalTooltip';
 import { ClonedVideoTooltipContent } from './ClonedVideoTooltipContent';
 import { VersionHistory } from './Modal/VersionHistory';
 import { LanguageTabs } from './LanguageTabs';
+import { PackagingTable } from './PackagingTable';
 
 interface CustomVideoModalProps {
     isOpen: boolean;
@@ -144,6 +145,12 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     };
 
     const handleSaveAsVersion = () => {
+        // If this is the first version (no history), just save and finalize without metrics
+        if (packagingHistory.length === 0) {
+            setIsDraft(false);
+            handleSave(true, false); // Explicitly set isDraft to false
+            return;
+        }
         setShowMetricsModal(true);
     };
 
@@ -170,8 +177,8 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         setShowMetricsModal(false);
         setIsDraft(false); // Version finalized, no longer a draft
 
-        // Proceed with normal save
-        await handleSave(true);
+        // Proceed with normal save, explicitly setting isDraft to false
+        await handleSave(true, false);
     };
     const [isTooltipOpen, setIsTooltipOpen] = useState(false);
 
@@ -330,7 +337,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         }
     };
 
-    const handleSave = async (shouldClose = true) => {
+    const handleSave = async (shouldClose = true, overrideIsDraft?: boolean) => {
         if (!coverImage) {
             alert("Please upload a cover image");
             return;
@@ -362,7 +369,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
             publishedVideoId: finalData.publishedVideoId,
             videoRender: finalData.videoRender,
             audioRender: finalData.audioRender,
-            isDraft: shouldClose ? isDraft : true // Auto-save preserves state, Manual save sets to Draft
+            isDraft: overrideIsDraft !== undefined ? overrideIsDraft : (shouldClose ? isDraft : true) // Use override if provided, otherwise auto-save preserves state, Manual save sets to Draft
         };
 
         try {
@@ -469,56 +476,42 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
             {showMetricsModal && (
                 <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
                     <div className="bg-bg-secondary w-full max-w-md rounded-xl shadow-2xl p-6 flex flex-col gap-4 animate-scale-in border border-border">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold text-text-primary">Enter Metrics for v.{currentPackagingVersion}</h3>
-                            <button onClick={() => setShowMetricsModal(false)} className="text-text-secondary hover:text-text-primary">
-                                <X size={20} />
-                            </button>
+                        <div className="p-6">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-lg font-medium text-white mb-2">Enter Metrics for v.{currentPackagingVersion}</h3>
+                                <button onClick={() => setShowMetricsModal(false)} className="text-text-secondary hover:text-text-primary">
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            <p className="text-sm text-[#AAAAAA] mb-6">
+                                To track the performance impact of your new packaging, please enter the metrics for the previous version at the time of the change.
+                            </p>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="flex flex-col gap-2">
-                                <label className="text-xs text-text-secondary font-medium uppercase">Impressions</label>
-                                <input
-                                    type="number"
-                                    value={metricsData.impressions}
-                                    onChange={(e) => setMetricsData(prev => ({ ...prev, impressions: Number(e.target.value) }))}
-                                    className="modal-input"
-                                    placeholder="0"
-                                />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <label className="text-xs text-text-secondary font-medium uppercase">CTR (%)</label>
-                                <input
-                                    type="number"
-                                    value={metricsData.ctr}
-                                    onChange={(e) => setMetricsData(prev => ({ ...prev, ctr: Number(e.target.value) }))}
-                                    className="modal-input"
-                                    placeholder="5.5"
-                                />
-                            </div>
-                            <div className="flex flex-col gap-2">
-                                <label className="text-xs text-text-secondary font-medium uppercase">Views</label>
+                            <div className="space-y-1.5">
+                                <label className="text-xs text-[#AAAAAA]">Views</label>
                                 <input
                                     type="number"
                                     value={metricsData.views}
                                     onChange={(e) => setMetricsData(prev => ({ ...prev, views: Number(e.target.value) }))}
-                                    className="modal-input"
+                                    className="w-full bg-[#1F1F1F] border border-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                     placeholder="0"
                                 />
                             </div>
-                            <div className="flex flex-col gap-2">
-                                <label className="text-xs text-text-secondary font-medium uppercase">AVD (%)</label>
+                            <div className="space-y-1.5">
+                                <label className="text-xs text-[#AAAAAA]">CTR (%)</label>
                                 <input
                                     type="number"
-                                    value={metricsData.avdPercentage}
-                                    onChange={(e) => setMetricsData(prev => ({ ...prev, avdPercentage: Number(e.target.value) }))}
-                                    className="modal-input"
-                                    placeholder="45.5"
+                                    value={metricsData.ctr}
+                                    onChange={(e) => setMetricsData(prev => ({ ...prev, ctr: Number(e.target.value) }))}
+                                    className="w-full bg-[#1F1F1F] border border-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                    placeholder="0.0"
+                                    step="0.1"
                                 />
                             </div>
-                            <div className="flex flex-col gap-2 col-span-2">
-                                <label className="text-xs text-text-secondary font-medium uppercase">AVD (Time)</label>
+                            <div className="space-y-1.5">
+                                <label className="text-xs text-[#AAAAAA]">AVD (Time)</label>
                                 <input
                                     type="text"
                                     value={avdInput}
@@ -931,97 +924,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                             {activeTab === 'packaging' && (
                                 <div className="animate-fade-in px-6 pt-6">
                                     <div className="rounded-xl overflow-hidden">
-                                        <table className="w-full text-sm text-left border-separate border-spacing-y-1">
-                                            <thead className="text-text-secondary uppercase text-[10px] font-medium tracking-wider">
-                                                <tr>
-                                                    <th className="px-4 pt-0 pb-2 font-medium">Version</th>
-                                                    <th className="px-4 pt-0 pb-2 font-medium">Impressions</th>
-                                                    <th className="px-4 pt-0 pb-2 font-medium">CTR</th>
-                                                    <th className="px-4 pt-0 pb-2 font-medium">Views</th>
-                                                    <th className="px-4 pt-0 pb-2 font-medium">AVD</th>
-                                                    <th className="px-4 pt-0 pb-2 font-medium">AVD %</th>
-                                                    <th className="px-4 pt-0 pb-2 font-medium text-right">Date</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {packagingHistory.length === 0 ? (
-                                                    <tr className="bg-modal-surface">
-                                                        <td colSpan={7} className="px-4 h-[54px] text-center text-text-secondary rounded-lg">
-                                                            No performance data yet. Save a new version to start tracking.
-                                                        </td>
-                                                    </tr>
-                                                ) : (
-                                                    packagingHistory.map((version) => (
-                                                        <React.Fragment key={version.versionNumber}>
-                                                            {version.checkins.map((checkin, index) => {
-                                                                // Calculate global index for alternating colors if needed, 
-                                                                // but here we might want alternating based on rows shown.
-                                                                // Let's assume simple alternating for now.
-                                                                // Actually, user asked for "First row ... dark".
-                                                                // Let's use index to determine odd/even.
-                                                                // Since we map versions then checkins, it's a bit complex to get a flat index easily without flattening first.
-                                                                // But let's try to stick to the visual request: "First row ... dark".
-                                                                // We can use a simple counter or just style them.
-                                                                // For now, let's assume the first row (index 0 of first version) is dark.
-                                                                // Wait, "First row of table (with text 'No performance data...') is dark".
-                                                                // If there IS data, the first data row should probably follow the pattern.
-                                                                // Let's assume standard alternating: Odd = Dark, Even = Transparent.
-                                                                // Since we are mapping, we might need a flat list to do this perfectly, 
-                                                                // or just use CSS nth-child if possible, but we have fragments.
-                                                                // Let's flatten for rendering or just use a helper.
-                                                                // For simplicity in this structure, let's just apply a class that we can target or use inline logic if we had a flat index.
-                                                                // Given the structure, let's try to use `bg-modal-surface` for odd rows.
-                                                                // We can't easily get the absolute index here without flattening.
-                                                                // Let's assume for now we just style the rows we see.
-                                                                // Actually, let's just use `bg-modal-surface` for the "No data" row as requested.
-                                                                // For data rows, let's try to alternate.
-                                                                // Since we can't easily alternate across nested maps, let's just make them all dark for now or transparent?
-                                                                // User said: "Alternating colors in table".
-                                                                // I will flatten the data to get the index correct.
-                                                                return (
-                                                                    <tr key={checkin.id} className="h-[54px] hover:bg-white/5 transition-colors group odd:bg-modal-surface even:bg-transparent">
-                                                                        <td className="px-4 py-3 font-medium text-text-primary first:rounded-l-lg">
-                                                                            {index === 0 ? `v.${version.versionNumber}` : ''}
-                                                                        </td>
-                                                                        <td className="px-4 py-3 text-text-primary">
-                                                                            {checkin.metrics.impressions.toLocaleString()}
-                                                                        </td>
-                                                                        <td className="px-4 py-3 text-text-primary">
-                                                                            {checkin.metrics.ctr}%
-                                                                        </td>
-                                                                        <td className="px-4 py-3 text-text-primary">
-                                                                            {checkin.metrics.views.toLocaleString()}
-                                                                        </td>
-                                                                        <td className="px-4 py-3 text-text-primary">
-                                                                            {Math.floor(checkin.metrics.avdSeconds / 60)}:{(checkin.metrics.avdSeconds % 60).toString().padStart(2, '0')}
-                                                                        </td>
-                                                                        <td className="px-4 py-3 text-text-primary">
-                                                                            {checkin.metrics.avdPercentage}%
-                                                                        </td>
-                                                                        <td className="px-4 py-3 text-right text-text-secondary last:rounded-r-lg">
-                                                                            {new Date(checkin.date).toLocaleDateString()}
-                                                                        </td>
-                                                                    </tr>
-                                                                );
-                                                            })}
-                                                            {/* Add Check-in Row - should this alternate too? Probably. */}
-                                                            <tr className="h-[54px] hover:bg-white/5 transition-colors odd:bg-modal-surface even:bg-transparent">
-                                                                <td colSpan={7} className="px-4 py-2 rounded-lg">
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            setShowMetricsModal(true);
-                                                                        }}
-                                                                        className="w-full h-full flex items-center justify-center text-text-secondary hover:text-brand-primary hover:bg-brand-primary/10 rounded-lg transition-colors border border-dashed border-border hover:border-brand-primary/50"
-                                                                    >
-                                                                        <span className="text-lg font-medium mr-2">+</span> Add Check-in
-                                                                    </button>
-                                                                </td>
-                                                            </tr>
-                                                        </React.Fragment>
-                                                    ))
-                                                )}
-                                            </tbody>
-                                        </table>
+                                        <PackagingTable />
                                     </div>
                                 </div>
                             )}

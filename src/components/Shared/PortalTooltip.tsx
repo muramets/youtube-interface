@@ -7,6 +7,7 @@ interface PortalTooltipProps {
     align?: 'left' | 'center' | 'right';
     onOpenChange?: (isOpen: boolean) => void;
     enterDelay?: number;
+    className?: string;
 }
 
 export const PortalTooltip: React.FC<PortalTooltipProps> = ({
@@ -14,7 +15,8 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
     children,
     align = 'left',
     onOpenChange,
-    enterDelay = 0
+    enterDelay = 0,
+    className = ''
 }) => {
     const [isVisible, setIsVisible] = useState(false); // Controls visual opacity/transform
     const [shouldRender, setShouldRender] = useState(false); // Controls mounting
@@ -152,6 +154,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                             whitespace-normal break-words w-max max-w-[250px] shadow-xl text-left backdrop-blur-md 
                             transition-all duration-200 ease-out origin-top-right
                             ${isVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 scale-95'}
+                            ${className}
                         `}
                     >
                         {content}
