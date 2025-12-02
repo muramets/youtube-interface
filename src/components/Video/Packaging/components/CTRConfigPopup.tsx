@@ -192,75 +192,76 @@ export const CTRConfigPopup: React.FC<{
             </div>
 
             <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto custom-scrollbar">
-                <div className="text-center py-4 text-[#555] text-xs">
-                    No rules yet. <button onClick={addRule} className="text-[#AAAAAA] hover:text-white transition-colors">Add rule</button>
-                </div>
+                {rules.length === 0 ? (
+                    <div className="text-center py-4 text-[#555] text-xs">
+                        No rules yet. <button onClick={addRule} className="text-[#AAAAAA] hover:text-white transition-colors">Add rule</button>
+                    </div>
                 ) : (
-                <>
-                    {rules.map((rule) => (
-                        <div key={rule.id} className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-white/5">
-                            {/* Operator */}
-                            <OperatorSelect
-                                value={rule.operator}
-                                onChange={(op) => updateRule(rule.id, { operator: op })}
-                            />
+                    <>
+                        {rules.map((rule) => (
+                            <div key={rule.id} className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-white/5">
+                                {/* Operator */}
+                                <OperatorSelect
+                                    value={rule.operator}
+                                    onChange={(op) => updateRule(rule.id, { operator: op })}
+                                />
 
-                            {/* Value(s) */}
-                            <div className="flex-1 flex justify-center">
-                                {rule.operator === 'between' ? (
-                                    <div className="flex items-center gap-1">
-                                        <input
-                                            type="text"
-                                            value={rule.value}
-                                            onChange={(e) => {
-                                                const val = e.target.value.replace(/[^\d.]/g, '');
-                                                updateRule(rule.id, { value: Number(val) });
-                                            }}
-                                            className="w-9 h-7 bg-[#2A2A2A] text-white text-xs rounded px-1 focus:outline-none text-center border border-transparent focus:border-white/20"
-                                        />
-                                        <span className="text-[9px] text-[#555]">-</span>
-                                        <input
-                                            type="text"
-                                            value={rule.maxValue || ''}
-                                            onChange={(e) => {
-                                                const val = e.target.value.replace(/[^\d.]/g, '');
-                                                updateRule(rule.id, { maxValue: Number(val) });
-                                            }}
-                                            className="w-9 h-7 bg-[#2A2A2A] text-white text-xs rounded px-1 focus:outline-none text-center border border-transparent focus:border-white/20"
-                                        />
-                                    </div>
-                                ) : (
-                                    <div className="relative flex items-center">
-                                        <input
-                                            type="text"
-                                            value={rule.value}
-                                            onChange={(e) => {
-                                                const val = e.target.value.replace(/[^\d.]/g, '');
-                                                updateRule(rule.id, { value: Number(val) });
-                                            }}
-                                            className="w-12 h-7 bg-[#2A2A2A] text-white text-xs rounded px-2 focus:outline-none text-center border border-transparent focus:border-white/20"
-                                        />
-                                        <span className="absolute right-1 text-[9px] text-[#555] pointer-events-none">%</span>
-                                    </div>
-                                )}
+                                {/* Value(s) */}
+                                <div className="flex-1 flex justify-center">
+                                    {rule.operator === 'between' ? (
+                                        <div className="flex items-center gap-1">
+                                            <input
+                                                type="text"
+                                                value={rule.value}
+                                                onChange={(e) => {
+                                                    const val = e.target.value.replace(/[^\d.]/g, '');
+                                                    updateRule(rule.id, { value: Number(val) });
+                                                }}
+                                                className="w-9 h-7 bg-[#2A2A2A] text-white text-xs rounded px-1 focus:outline-none text-center border border-transparent focus:border-white/20"
+                                            />
+                                            <span className="text-[9px] text-[#555]">-</span>
+                                            <input
+                                                type="text"
+                                                value={rule.maxValue || ''}
+                                                onChange={(e) => {
+                                                    const val = e.target.value.replace(/[^\d.]/g, '');
+                                                    updateRule(rule.id, { maxValue: Number(val) });
+                                                }}
+                                                className="w-9 h-7 bg-[#2A2A2A] text-white text-xs rounded px-1 focus:outline-none text-center border border-transparent focus:border-white/20"
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="relative flex items-center">
+                                            <input
+                                                type="text"
+                                                value={rule.value}
+                                                onChange={(e) => {
+                                                    const val = e.target.value.replace(/[^\d.]/g, '');
+                                                    updateRule(rule.id, { value: Number(val) });
+                                                }}
+                                                className="w-12 h-7 bg-[#2A2A2A] text-white text-xs rounded px-2 focus:outline-none text-center border border-transparent focus:border-white/20"
+                                            />
+                                            <span className="absolute right-1 text-[9px] text-[#555] pointer-events-none">%</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Color Picker */}
+                                <ColorSelect
+                                    value={rule.color}
+                                    onChange={(color) => updateRule(rule.id, { color })}
+                                />
+
+                                {/* Delete */}
+                                <button
+                                    onClick={() => removeRule(rule.id)}
+                                    className="text-[#555] hover:text-red-500 transition-colors p-1.5 hover:bg-white/5 rounded"
+                                >
+                                    <Trash2 size={12} />
+                                </button>
                             </div>
-
-                            {/* Color Picker */}
-                            <ColorSelect
-                                value={rule.color}
-                                onChange={(color) => updateRule(rule.id, { color })}
-                            />
-
-                            {/* Delete */}
-                            <button
-                                onClick={() => removeRule(rule.id)}
-                                className="text-[#555] hover:text-red-500 transition-colors p-1.5 hover:bg-white/5 rounded"
-                            >
-                                <Trash2 size={12} />
-                            </button>
-                        </div>
-                    ))}
-                </>
+                        ))}
+                    </>
                 )}
             </div>
 
