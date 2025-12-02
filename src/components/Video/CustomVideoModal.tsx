@@ -16,7 +16,7 @@ import { PortalTooltip } from '../Shared/PortalTooltip';
 import { ClonedVideoTooltipContent } from './ClonedVideoTooltipContent';
 import { VersionHistory } from './Modal/VersionHistory';
 import { LanguageTabs } from './LanguageTabs';
-import { PackagingTable } from './PackagingTable';
+import { PackagingTable } from './Packaging';
 
 interface CustomVideoModalProps {
     isOpen: boolean;

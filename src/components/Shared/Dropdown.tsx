@@ -70,17 +70,6 @@ export const Dropdown: React.FC<DropdownProps> = ({
     useEffect(() => {
         if (!isOpen) return;
 
-        const handleClickOutside = (event: MouseEvent) => {
-            if (
-                dropdownRef.current &&
-                !dropdownRef.current.contains(event.target as Node) &&
-                anchorEl &&
-                !anchorEl.contains(event.target as Node)
-            ) {
-                onClose();
-            }
-        };
-
         const handleResize = () => {
             onClose();
         };
@@ -96,33 +85,37 @@ export const Dropdown: React.FC<DropdownProps> = ({
             onClose();
         };
 
-        document.addEventListener('mousedown', handleClickOutside);
         window.addEventListener('resize', handleResize);
-        window.addEventListener('scroll', handleScroll, true); // Capture scroll events
+        window.addEventListener('scroll', handleScroll, true);
 
         return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
             window.removeEventListener('resize', handleResize);
             window.removeEventListener('scroll', handleScroll, true);
         };
-    }, [isOpen, onClose, anchorEl]);
+    }, [isOpen, onClose]);
 
     if (!isOpen) return null;
 
     return createPortal(
-        <div
-            ref={dropdownRef}
-            className={`fixed z-[10000] bg-bg-secondary rounded-xl border border-border shadow-2xl animate-scale-in overflow-hidden ${className}`}
-            style={{
-                top: position.top,
-                left: position.left,
-                width: `${width}px`,
-            }}
-            onClick={(e) => e.stopPropagation()}
-            {...props}
-        >
-            {children}
-        </div>,
+        <>
+            <div
+                className="fixed inset-0 z-[9999] bg-transparent"
+                onClick={onClose}
+            />
+            <div
+                ref={dropdownRef}
+                className={`fixed z-[10000] bg-bg-secondary rounded-xl border border-border shadow-2xl animate-scale-in overflow-hidden ${className}`}
+                style={{
+                    top: position.top,
+                    left: position.left,
+                    width: `${width}px`,
+                }}
+                onClick={(e) => e.stopPropagation()}
+                {...props}
+            >
+                {children}
+            </div>
+        </>,
         document.body
     );
 };
