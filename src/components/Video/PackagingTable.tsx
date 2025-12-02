@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { ArrowUp, ArrowDown, Minus, Image as ImageIcon, Type, AlignLeft, Tag, Copy, Check } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { ArrowUp, ArrowDown, Minus, Image as ImageIcon, Type, AlignLeft, Tag, Copy, Check, Settings, Plus, Trash2, X, ChevronDown } from 'lucide-react';
 import { PortalTooltip } from '../Shared/PortalTooltip';
 
 interface MetricCheckin {
@@ -27,6 +28,14 @@ interface PackagingVersion {
     versionNumber: number;
     checkins: MetricCheckin[];
     snapshot?: PackagingSnapshot;
+}
+
+interface CTRRule {
+    id: string;
+    operator: '<' | '>' | '<=' | '>=' | 'between';
+    value: number;
+    maxValue?: number; // For 'between' operator
+    color: string;
 }
 
 // Mock Data
@@ -226,9 +235,209 @@ const SmartTimeInput: React.FC<{
     );
 };
 
+const CTRConfigPopup: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    initialRules: CTRRule[];
+    onSave: (rules: CTRRule[]) => void;
+    anchorRef: React.RefObject<HTMLElement | null>;
+}> = ({ isOpen, onClose, initialRules, onSave, anchorRef }) => {
+    const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+    const [localRules, setLocalRules] = useState<CTRRule[]>([]);
+    const popupRef = useRef<HTMLDivElement>(null);
+
+    // Initialize local state when opening
+    useEffect(() => {
+        if (isOpen) {
+            setLocalRules(JSON.parse(JSON.stringify(initialRules)));
+        }
+    }, [isOpen, initialRules]);
+
+    React.useLayoutEffect(() => {
+        if (isOpen && anchorRef.current) {
+            const rect = anchorRef.current.getBoundingClientRect();
+            setPosition({
+                top: rect.bottom + 8,
+                left: rect.left - 100 // Shift left to align better
+            });
+        }
+    }, [isOpen, anchorRef]);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (popupRef.current && !popupRef.current.contains(event.target as Node) &&
+                anchorRef.current && !anchorRef.current.contains(event.target as Node)) {
+                onClose(); // Close without saving
+            }
+        };
+
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isOpen, onClose, anchorRef]);
+
+    if (!isOpen || !position) return null;
+
+    const COLORS = [
+        '#EF4444', // Red
+        '#F97316', // Orange
+        '#EAB308', // Yellow
+        '#22C55E', // Green
+        '#3B82F6', // Blue
+        '#A855F7', // Purple
+    ];
+
+    const addRule = () => {
+        setLocalRules([
+            ...localRules,
+            { id: crypto.randomUUID(), operator: '<', value: 5, color: '#EF4444' }
+        ]);
+    };
+
+    const updateRule = (id: string, updates: Partial<CTRRule>) => {
+        setLocalRules(localRules.map(r => r.id === id ? { ...r, ...updates } : r));
+    };
+
+    const removeRule = (id: string) => {
+        setLocalRules(localRules.filter(r => r.id !== id));
+    };
+
+    const handleSave = () => {
+        onSave(localRules);
+        onClose();
+    };
+
+    return createPortal(
+        <div
+            ref={popupRef}
+            style={{ top: position.top, left: position.left }}
+            className="fixed z-[9999] w-[340px] bg-[#1F1F1F] border border-white/10 rounded-xl shadow-2xl p-4 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200"
+        >
+            <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                <span className="text-xs font-bold text-white uppercase tracking-wider">CTR Color Rules</span>
+                <button onClick={onClose} className="text-[#AAAAAA] hover:text-white transition-colors">
+                    <X size={14} />
+                </button>
+            </div>
+
+            <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto custom-scrollbar">
+                {localRules.length === 0 && (
+                    <div className="text-center py-4 text-[#555] text-xs italic">
+                        No rules configured.
+                    </div>
+                )}
+                {localRules.map((rule) => (
+                    <div key={rule.id} className="flex items-center gap-2 bg-black/20 p-2 rounded-lg border border-white/5">
+                        {/* Operator */}
+                        <div className="relative group shrink-0">
+                            <select
+                                value={rule.operator}
+                                onChange={(e) => updateRule(rule.id, { operator: e.target.value as CTRRule['operator'] })}
+                                className="w-16 bg-[#2A2A2A] text-white text-xs rounded px-1 py-1 appearance-none focus:outline-none cursor-pointer hover:bg-[#333] transition-colors text-center"
+                            >
+                                <option value="<">&lt;</option>
+                                <option value=">">&gt;</option>
+                                <option value="<=">&le;</option>
+                                <option value=">=">&ge;</option>
+                                <option value="between">Range</option>
+                            </select>
+                            <ChevronDown size={10} className="absolute right-1 top-1/2 -translate-y-1/2 text-[#AAAAAA] pointer-events-none" />
+                        </div>
+
+                        {/* Value(s) */}
+                        {rule.operator === 'between' ? (
+                            <div className="flex items-center gap-1">
+                                <div className="relative flex items-center">
+                                    <input
+                                        type="text"
+                                        value={rule.value}
+                                        onChange={(e) => {
+                                            const val = e.target.value.replace(/[^\d.]/g, '');
+                                            updateRule(rule.id, { value: Number(val) });
+                                        }}
+                                        className="w-10 bg-[#2A2A2A] text-white text-xs rounded px-1 py-1 focus:outline-none text-center"
+                                    />
+                                </div>
+                                <span className="text-[9px] text-[#555]">-</span>
+                                <div className="relative flex items-center">
+                                    <input
+                                        type="text"
+                                        value={rule.maxValue || ''} // Use empty string for undefined to avoid controlled component warning
+                                        onChange={(e) => {
+                                            const val = e.target.value.replace(/[^\d.]/g, '');
+                                            updateRule(rule.id, { maxValue: Number(val) });
+                                        }}
+                                        className="w-10 bg-[#2A2A2A] text-white text-xs rounded px-1 py-1 focus:outline-none text-center"
+                                    />
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="relative flex items-center">
+                                <input
+                                    type="text"
+                                    value={rule.value}
+                                    onChange={(e) => {
+                                        const val = e.target.value.replace(/[^\d.]/g, '');
+                                        updateRule(rule.id, { value: Number(val) });
+                                    }}
+                                    className="w-12 bg-[#2A2A2A] text-white text-xs rounded px-2 py-1 focus:outline-none text-center"
+                                />
+                                <span className="absolute right-1 text-[9px] text-[#555] pointer-events-none">%</span>
+                            </div>
+                        )}
+
+                        {/* Color Picker */}
+                        <div className="flex gap-1 flex-1 justify-center flex-wrap">
+                            {COLORS.map(color => (
+                                <button
+                                    key={color}
+                                    onClick={() => updateRule(rule.id, { color })}
+                                    className={`w-3.5 h-3.5 rounded-full transition-transform hover:scale-110 ${rule.color === color ? 'ring-2 ring-white scale-110' : 'opacity-40 hover:opacity-100'}`}
+                                    style={{ backgroundColor: color }}
+                                />
+                            ))}
+                        </div>
+
+                        {/* Delete */}
+                        <button
+                            onClick={() => removeRule(rule.id)}
+                            className="text-[#555] hover:text-red-500 transition-colors p-1 shrink-0"
+                        >
+                            <Trash2 size={12} />
+                        </button>
+                    </div>
+                ))}
+            </div>
+
+            <div className="flex gap-2 mt-2">
+                <button
+                    onClick={addRule}
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-white/5 hover:bg-white/10 text-[10px] text-[#AAAAAA] hover:text-white rounded transition-colors border border-dashed border-white/10 hover:border-white/20"
+                >
+                    <Plus size={10} />
+                    Add Rule
+                </button>
+                <button
+                    onClick={handleSave}
+                    className="px-4 py-1.5 bg-white text-black text-[10px] font-bold rounded hover:bg-gray-200 transition-colors"
+                >
+                    Save
+                </button>
+            </div>
+        </div>,
+        document.body
+    );
+};
+
 export const PackagingTable: React.FC = () => {
     const [history, setHistory] = useState<PackagingVersion[]>(MOCK_HISTORY);
     const [editingCell, setEditingCell] = useState<{ id: string, field: string } | null>(null);
+
+    // CTR Configuration State
+    const [ctrRules, setCtrRules] = useState<CTRRule[]>([]);
+    const [isConfigOpen, setIsConfigOpen] = useState(false);
+    const configAnchorRef = useRef<HTMLButtonElement>(null);
 
     const formatTime = (seconds?: number) => {
         if (seconds === undefined) return '-';
@@ -272,6 +481,23 @@ export const PackagingTable: React.FC = () => {
     const formatTimeStr = (timestamp: number) => {
         const date = new Date(timestamp);
         return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+    };
+
+    const getCTRColor = (value: number) => {
+        for (const rule of ctrRules) {
+            switch (rule.operator) {
+                case '<': if (value < rule.value) return rule.color; break;
+                case '>': if (value > rule.value) return rule.color; break;
+                case '<=': if (value <= rule.value) return rule.color; break;
+                case '>=': if (value >= rule.value) return rule.color; break;
+                case 'between':
+                    if (rule.maxValue !== undefined && value >= rule.value && value <= rule.maxValue) {
+                        return rule.color;
+                    }
+                    break;
+            }
+        }
+        return undefined; // Default color
     };
 
     const renderCell = (checkin: MetricCheckin, field: keyof typeof checkin.metrics, previousCheckin?: MetricCheckin) => {
@@ -356,14 +582,24 @@ export const PackagingTable: React.FC = () => {
         if (field === 'ctr' || field === 'avdPercentage') displayValue = `${value}%`;
         if (field === 'avdSeconds') displayValue = formatTime(value);
 
+        // Apply CTR Color Rules
+        let customColorStyle = {};
+        if (field === 'ctr' && typeof value === 'number') {
+            const color = getCTRColor(value);
+            if (color) {
+                customColorStyle = { color: color };
+            }
+        }
+
         return (
             <div className="flex items-center justify-center">
                 <span
                     className="relative inline-block cursor-pointer hover:bg-white/10 px-1 py-0.5 rounded transition-colors text-xs text-white font-medium group/cell"
+                    style={customColorStyle}
                     onClick={() => setEditingCell({ id: checkin.id, field })}
                 >
                     {displayValue}
-                    {previousCheckin && previousCheckin.metrics[field] !== undefined && (
+                    {previousCheckin && previousCheckin.metrics[field] !== undefined && field !== 'impressions' && field !== 'views' && (
                         <div className="absolute left-full top-1/2 -translate-y-1/2 ml-1 whitespace-nowrap">
                             {formatDiff(value, previousCheckin.metrics[field]!, field === 'avdSeconds')}
                         </div>
@@ -375,11 +611,27 @@ export const PackagingTable: React.FC = () => {
 
     return (
         <div className="w-full overflow-hidden rounded-xl bg-bg-secondary">
+            <CTRConfigPopup
+                isOpen={isConfigOpen}
+                onClose={() => setIsConfigOpen(false)}
+                initialRules={ctrRules}
+                onSave={setCtrRules}
+                anchorRef={configAnchorRef}
+            />
             {/* Header */}
             <div className="grid grid-cols-6 gap-4 px-6 py-3 bg-[#1F1F1F] border-b border-white/5">
                 <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider">Version</div>
                 <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">Impressions</div>
-                <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">CTR</div>
+                <div className="flex items-center justify-center gap-1">
+                    <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">CTR</div>
+                    <button
+                        ref={configAnchorRef}
+                        onClick={() => setIsConfigOpen(!isConfigOpen)}
+                        className={`text-[#5A5A5A] hover:text-white transition-colors ${isConfigOpen ? 'text-white' : ''}`}
+                    >
+                        <Settings size={14} />
+                    </button>
+                </div>
                 <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">Views</div>
                 <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">AVD</div>
                 <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">Date</div>
