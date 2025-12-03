@@ -12,6 +12,13 @@
   --hover: #f2f2f2;
   --hover-bg: #f2f2f2;
 
+  /* Semantic Colors */
+  --modal-overlay: rgba(0, 0, 0, 0.6);
+  --primary-button-bg: #2563eb;
+  --primary-button-hover: #1d4ed8;
+  --primary-button-text: #ffffff;
+  --danger-color: #ef4444;
+
   /* Settings Modal Colors (Light Mode Defaults) */
   --settings-menu-active: #e5e5e5;
   --settings-menu-hover: #f2f2f2;
@@ -29,6 +36,13 @@
   --border: #3f3f3f;
   --hover: #3f3f3f;
   --hover-bg: #3f3f3f;
+
+  /* Semantic Colors */
+  --modal-overlay: rgba(0, 0, 0, 0.6);
+  --primary-button-bg: #2563eb;
+  --primary-button-hover: #1d4ed8;
+  --primary-button-text: #ffffff;
+  --danger-color: #ef4444;
 
   /* Settings Modal Colors */
   --settings-menu-active: #1F1F1F;

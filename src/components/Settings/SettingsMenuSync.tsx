@@ -18,14 +18,16 @@ export const SettingsMenuSync: React.FC<SettingsMenuSyncProps> = ({ onBack }) =>
     const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
 
     const getUnit = (hours: number) => {
-        if (hours % 168 === 0) return 'Weeks';
-        if (hours % 24 === 0) return 'Days';
-        return 'Hours';
+        if (hours % 168 === 0 && hours >= 168) return 'Weeks';
+        if (hours % 24 === 0 && hours >= 24) return 'Days';
+        if (hours >= 1 && Number.isInteger(hours)) return 'Hours';
+        return 'Minutes';
     };
 
     const getValue = (hours: number, unit: string) => {
         if (unit === 'Weeks') return hours / 168;
         if (unit === 'Days') return hours / 24;
+        if (unit === 'Minutes') return Math.round(hours * 60);
         return hours;
     };
 
@@ -34,7 +36,10 @@ export const SettingsMenuSync: React.FC<SettingsMenuSyncProps> = ({ onBack }) =>
         let newHours = val;
         if (unit === 'Weeks') newHours = val * 168;
         else if (unit === 'Days') newHours = val * 24;
-        updateSyncSettings(user.uid, currentChannel.id, { ...syncSettings, frequencyHours: Math.max(1, newHours) });
+        else if (unit === 'Minutes') newHours = val / 60;
+
+        // Allow smaller minimum (e.g. 1 minute = 0.01666...)
+        updateSyncSettings(user.uid, currentChannel.id, { ...syncSettings, frequencyHours: Math.max(0.01, newHours) });
     };
 
     const currentUnit = getUnit(syncSettings.frequencyHours);
@@ -77,7 +82,7 @@ export const SettingsMenuSync: React.FC<SettingsMenuSyncProps> = ({ onBack }) =>
                                     type="text"
                                     value={currentValue}
                                     onChange={(e) => {
-                                        const val = parseInt(e.target.value) || 0;
+                                        const val = parseFloat(e.target.value) || 0;
                                         updateFrequency(val, currentUnit);
                                     }}
                                     className="bg-transparent border-none text-text-primary w-full text-center focus:outline-none font-medium"
@@ -112,7 +117,7 @@ export const SettingsMenuSync: React.FC<SettingsMenuSyncProps> = ({ onBack }) =>
 
                                 {isUnitDropdownOpen && (
                                     <div className="absolute top-full right-0 mt-1 w-full bg-bg-secondary border border-border rounded-lg shadow-xl overflow-hidden z-10 animate-scale-in">
-                                        {['Hours', 'Days', 'Weeks'].map((unit) => (
+                                        {['Minutes', 'Hours', 'Days', 'Weeks'].map((unit) => (
                                             <div
                                                 key={unit}
                                                 className="px-3 py-2 text-sm cursor-pointer hover:bg-hover-bg text-text-primary"

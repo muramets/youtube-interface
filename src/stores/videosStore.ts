@@ -4,6 +4,8 @@ import { type VideoDetails, type HistoryItem, type CoverVersion, fetchVideoDetai
 import { useUIStore } from './uiStore';
 import { useNotificationStore } from './notificationStore';
 
+import { useSettingsStore } from './settingsStore';
+
 interface VideosState {
     videos: VideoDetails[];
     isLoading: boolean;
@@ -112,7 +114,7 @@ export const useVideosStore = create<VideosState>((set, get) => ({
         }
 
         if (updates) {
-            let finalUpdates = { ...updates };
+            const finalUpdates = { ...updates };
 
             // If a publishedVideoId is provided (or changed), fetch its details
             if (updates.publishedVideoId && apiKey) {
@@ -172,10 +174,22 @@ export const useVideosStore = create<VideosState>((set, get) => ({
                 coverHistory: originalVideo.coverHistory || []
             };
 
+            // Optimistic update: Add to local state immediately
+            set(state => ({ videos: [...state.videos, newVideo] }));
+
+            // Optimistic update: Update video order immediately
+            const { videoOrder, updateVideoOrder } = useSettingsStore.getState();
+            const newOrder = [id, ...videoOrder];
+            // We await this because it updates the settings store state (which drives the UI order)
+            // The settings store update is also optimistic locally, so this is fast.
+            updateVideoOrder(userId, channelId, newOrder);
+
+            // Perform DB operation in background
             await VideoService.addVideo(userId, channelId, newVideo);
         } catch (error) {
             console.error("Error cloning video:", error);
             alert("Failed to clone video.");
+            // Rollback could be implemented here if needed, but for now we rely on next sync/refresh
         }
     },
 

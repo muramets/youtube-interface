@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useChannelStore } from '../../stores/channelStore';
-import { useVideosStore } from '../../stores/videosStore';
-import { Dropdown } from '../Shared/Dropdown';
-import type { GeneralSettings, SyncSettings, CloneSettings } from '../../services/settingsService';
+import type { GeneralSettings, SyncSettings, CloneSettings as CloneSettingsType } from '../../services/settingsService';
+
+import { SettingsSidebar } from './SettingsSidebar';
+import { ApiSyncSettings } from './ApiSyncSettings';
+import { CloneSettings } from './CloneSettings';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -31,7 +32,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     // Local state for "Save" functionality
     const [localGeneral, setLocalGeneral] = useState<GeneralSettings>(generalSettings);
     const [localSync, setLocalSync] = useState<SyncSettings>(syncSettings);
-    const [localClone, setLocalClone] = useState<CloneSettings>(cloneSettings);
+    const [localClone, setLocalClone] = useState<CloneSettingsType>(cloneSettings);
 
     // Force remount of children when modal opens to reset their internal state
     const [mountKey, setMountKey] = useState(0);
@@ -39,13 +40,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     // Reset local state when modal opens
     useEffect(() => {
         if (isOpen) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
             setLocalGeneral(generalSettings);
-            // eslint-disable-next-line react-hooks/set-state-in-effect
             setLocalSync(syncSettings);
-            // eslint-disable-next-line react-hooks/set-state-in-effect
             setLocalClone(cloneSettings);
-            // eslint-disable-next-line react-hooks/set-state-in-effect
             setMountKey(prev => prev + 1);
             document.body.style.overflow = 'hidden';
         }
@@ -108,7 +105,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     }, [localGeneral.theme]);
 
     const bgMain = 'bg-bg-secondary'; // Use theme variables
-    const bgSidebar = 'bg-bg-secondary'; // Unified background
     const textPrimary = 'text-text-primary';
     const textSecondary = 'text-text-secondary';
     const borderColor = 'border-border';
@@ -122,7 +118,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
     return createPortal(
         <div
-            className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm ${isClosing ? 'animate-fade-out' : 'animate-fade-in'}`}
+            className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm ${isClosing ? 'animate-fade-out' : 'animate-fade-in'}`}
+            style={{ backgroundColor: 'var(--modal-overlay)' }}
             onClick={handleClose}
         >
             <div
@@ -137,25 +134,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 {/* Body */}
                 <div className="flex-1 flex min-h-0 h-[488px]">
                     {/* Sidebar */}
-                    <div className={`w-[279px] border-r ${borderColor} py-2 flex flex-col pt-2 ${bgSidebar}`}>
-                        <SidebarItem
-                            label="API & Sync"
-                            isActive={activeCategory === 'api_sync'}
-                            onClick={() => setActiveCategory('api_sync')}
-                            theme={{ isDark, textSecondary, hoverBg, activeItemBg, activeItemText }}
-                        />
-                        <SidebarItem
-                            label="Clone"
-                            isActive={activeCategory === 'clone'}
-                            onClick={() => setActiveCategory('clone')}
-                            theme={{ isDark, textSecondary, hoverBg, activeItemBg, activeItemText }}
-                        />
-                    </div>
+                    <SettingsSidebar
+                        activeCategory={activeCategory}
+                        onCategoryChange={(c) => setActiveCategory(c as Category)}
+                        theme={{ isDark, textSecondary, hoverBg, activeItemBg, activeItemText, borderColor, bgMain }}
+                    />
 
                     {/* Content */}
                     <div className={`flex-1 overflow-y-auto p-6 ${textPrimary}`}>
                         {activeCategory === 'api_sync' && (
-                            <ApiAndSyncSettingsView
+                            <ApiSyncSettings
                                 key={mountKey}
                                 generalSettings={localGeneral}
                                 syncSettings={localSync}
@@ -165,7 +153,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             />
                         )}
                         {activeCategory === 'clone' && (
-                            <CloneSettingsView
+                            <CloneSettings
                                 key={mountKey}
                                 settings={localClone}
                                 onChange={setLocalClone}
@@ -188,7 +176,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         disabled={!isDirty || isSaving}
                         className={`px-6 py-2 rounded-2xl text-sm font-medium transition-all relative overflow-hidden
                             ${isDirty
-                                ? 'bg-text-primary text-bg-primary hover:opacity-90 cursor-pointer'
+                                ? 'bg-[var(--primary-button-bg)] text-[var(--primary-button-text)] hover:bg-[var(--primary-button-hover)] cursor-pointer'
                                 : 'bg-bg-primary text-text-secondary cursor-default opacity-50'
                             }
                             ${isSaving ? 'cursor-wait' : ''}`}
@@ -205,321 +193,3 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     );
 };
 
-interface ThemeProps {
-    isDark: boolean;
-    textSecondary: string;
-    hoverBg?: string;
-    activeItemBg?: string;
-    activeItemText?: string;
-    borderColor?: string;
-    bgMain?: string;
-    textPrimary?: string;
-}
-
-const SidebarItem: React.FC<{
-    label: string;
-    isActive: boolean;
-    onClick: () => void;
-    theme: ThemeProps;
-}> = ({ label, isActive, onClick, theme }) => (
-    <div className="px-2">
-        <button
-            onClick={onClick}
-            className={`w-full text-left px-4 h-[48px] flex items-center text-[15px] transition-colors rounded-lg
-                ${isActive
-                    ? `${theme.activeItemBg} ${theme.activeItemText} font-medium`
-                    : `${theme.textSecondary} ${theme.hoverBg}`
-                }`}
-        >
-            {label}
-        </button>
-    </div>
-);
-
-const ApiAndSyncSettingsView: React.FC<{
-    generalSettings: GeneralSettings;
-    syncSettings: SyncSettings;
-    onGeneralChange: (s: GeneralSettings) => void;
-    onSyncChange: (s: SyncSettings) => void;
-    theme: ThemeProps;
-}> = ({ generalSettings, syncSettings, onGeneralChange, onSyncChange, theme }) => {
-    const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
-    const [showApiKey, setShowApiKey] = useState(true); // Default to visible
-
-    const getUnit = (hours: number) => {
-        if (hours < 1) return 'Minutes';
-        if (hours >= 24) return 'Days';
-        return 'Hours';
-    };
-
-    const getValue = (hours: number, unit: string) => {
-        if (unit === 'Minutes') return Math.round(hours * 60);
-        if (unit === 'Days') return Math.round(hours / 24);
-        return hours;
-    };
-
-    // State for the currently selected unit
-    const [currentUnit, setCurrentUnit] = useState(() => getUnit(syncSettings.frequencyHours));
-
-    // Update unit when settings change externally (e.g. reset)
-    useEffect(() => {
-        // Only update if the calculated unit for the current value is different from the current state
-        // AND the current state doesn't make sense for the value (optional, but safer to just respect props on mount/reset)
-        // Actually, since we unmount on close, initial state is enough. 
-        // But let's keep it synced if the user cancels and re-opens without unmounting (if logic changes).
-        // For now, just relying on initial state is fine since it unmounts.
-    }, []);
-
-    const updateFrequency = (val: number, unit: string) => {
-        let newHours = val;
-        if (unit === 'Minutes') newHours = val / 60;
-        else if (unit === 'Days') newHours = val * 24;
-
-        onSyncChange({ ...syncSettings, frequencyHours: newHours });
-        setCurrentUnit(unit);
-    };
-
-    const currentValue = getValue(syncSettings.frequencyHours, currentUnit);
-
-    // Updated input styles to use CSS variables
-    const inputBg = 'bg-[var(--settings-input-bg)]';
-    const inputBorder = 'border-border';
-    const focusBorder = 'focus:border-text-primary';
-    // Dropdown specific styles using CSS variables
-    const dropdownBg = 'bg-[var(--settings-dropdown-bg)]';
-    const dropdownHover = 'hover:bg-[var(--settings-dropdown-hover)]';
-
-    return (
-        <div className="space-y-8 animate-fade-in max-w-[600px]">
-            {/* API Key Section */}
-            <section className="space-y-4">
-                <h3 className="text-base font-medium">API Configuration</h3>
-                <div className="space-y-2">
-                    <label className={`text-sm ${theme.textSecondary}`}>YouTube API Key</label>
-                    <div className="relative">
-                        <input
-                            type={showApiKey ? "text" : "password"}
-                            value={generalSettings.apiKey || ''}
-                            onChange={(e) => onGeneralChange({ ...generalSettings, apiKey: e.target.value })}
-                            placeholder="Enter your API key"
-                            className={`w-full ${inputBg} border ${inputBorder} rounded-md pl-3 pr-10 py-2 focus:outline-none ${focusBorder} transition-colors placeholder-text-secondary`}
-                        />
-                        <button
-                            onClick={() => setShowApiKey(!showApiKey)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary transition-colors"
-                        >
-                            {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                        </button>
-                    </div>
-                    <p className={`text-xs ${theme.textSecondary}`}>
-                        Required for fetching video details and channel information.
-                    </p>
-                </div>
-            </section>
-
-            <div className={`border-t ${theme.borderColor}`} />
-
-            {/* Sync Section */}
-            <section className="space-y-6">
-                <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                        <h3 className="text-base font-medium">Sync Configuration</h3>
-                    </div>
-                    <p className={`text-sm ${theme.textSecondary}`}>
-                        Control automatic data updates and synchronization.
-                    </p>
-                </div>
-
-                {/* Auto Sync Frequency */}
-                <div className={`border ${theme.borderColor} rounded-md p-4`}>
-                    <label className={`block text-xs ${theme.textSecondary} mb-2`}>Update Frequency</label>
-                    <div className="flex items-center gap-4">
-                        <div className="w-24 relative">
-                            <input
-                                type="number"
-                                value={currentValue}
-                                onChange={(e) => {
-                                    const val = Math.max(1, parseInt(e.target.value) || 0);
-                                    updateFrequency(val, currentUnit);
-                                }}
-                                className={`w-full ${inputBg} border ${inputBorder} rounded-md px-3 py-2 focus:outline-none ${focusBorder} transition-colors no-spinner`}
-                            />
-                        </div>
-
-                        <div className="relative w-32">
-                            <button
-                                onClick={(e) => setAnchorEl(e.currentTarget)}
-                                className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} rounded-md px-3 py-2 hover:border-gray-400 transition-colors`}
-                            >
-                                <span className="text-sm">{currentUnit}</span>
-                                <ChevronDown size={16} className={`${theme.textSecondary} transition-transform ${anchorEl ? 'rotate-180' : ''}`} />
-                            </button>
-
-                            <Dropdown
-                                isOpen={Boolean(anchorEl)}
-                                anchorEl={anchorEl}
-                                onClose={() => setAnchorEl(null)}
-                                width={128}
-                                className={`${dropdownBg} border-none z-[10000]`}
-                            >
-                                {['Minutes', 'Hours', 'Days'].map((unit) => (
-                                    <div
-                                        key={unit}
-                                        className={`px-4 py-2.5 text-sm cursor-pointer ${dropdownHover} transition-colors`}
-                                        onClick={() => {
-                                            updateFrequency(currentValue, unit);
-                                            setAnchorEl(null);
-                                        }}
-                                    >
-                                        {unit}
-                                    </div>
-                                ))}
-                            </Dropdown>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <div className={`border-t ${theme.borderColor}`} />
-
-            {/* Manual Sync Section */}
-            <section className="space-y-4">
-                <div className="space-y-1">
-                    <h3 className="text-base font-medium">Manual Sync</h3>
-                    <p className={`text-sm ${theme.textSecondary}`}>
-                        Updates video stats (views, likes) from YouTube.
-                    </p>
-                </div>
-                <SyncButton
-                    user={useAuthStore().user}
-                    currentChannel={useChannelStore().currentChannel}
-                    apiKey={generalSettings.apiKey}
-                />
-            </section>
-        </div>
-    );
-};
-
-const SyncButton: React.FC<{
-    user: any;
-    currentChannel: any;
-    apiKey: string | undefined;
-}> = ({ user, currentChannel, apiKey }) => {
-    const { isSyncing, syncAllVideos } = useVideosStore();
-
-    return (
-        <button
-            onClick={() => {
-                if (user && currentChannel && apiKey) {
-                    syncAllVideos(user.uid, currentChannel.id, apiKey);
-                } else if (!apiKey) {
-                    alert("Please set API Key first");
-                }
-            }}
-            disabled={isSyncing}
-            className={`w-full py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors ${isSyncing ? 'bg-bg-secondary text-text-secondary cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'}`}
-        >
-            <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
-            {isSyncing ? 'Syncing...' : 'Sync Now'}
-        </button>
-    );
-};
-
-const CloneSettingsView: React.FC<{
-    settings: CloneSettings;
-    onChange: (s: CloneSettings) => void;
-    theme: ThemeProps;
-}> = ({ settings, onChange, theme }) => {
-    const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
-
-    const getUnit = (seconds: number) => {
-        if (seconds % 3600 === 0) return 'Hours';
-        if (seconds % 60 === 0) return 'Minutes';
-        return 'Seconds';
-    };
-
-    const getValue = (seconds: number, unit: string) => {
-        if (unit === 'Hours') return seconds / 3600;
-        if (unit === 'Minutes') return seconds / 60;
-        return seconds;
-    };
-
-    const updateDuration = (val: number, unit: string) => {
-        let newSeconds = val;
-        if (unit === 'Hours') newSeconds = val * 3600;
-        else if (unit === 'Minutes') newSeconds = val * 60;
-        onChange({ ...settings, cloneDurationSeconds: Math.max(10, newSeconds) });
-    };
-
-    const currentUnit = getUnit(settings.cloneDurationSeconds);
-    const currentValue = getValue(settings.cloneDurationSeconds, currentUnit);
-
-    // Updated input styles to use CSS variables
-    const inputBg = 'bg-[var(--settings-input-bg)]';
-    const inputBorder = 'border-border';
-    const focusBorder = 'focus:border-text-primary';
-    // Dropdown specific styles using CSS variables
-    const dropdownBg = 'bg-[var(--settings-dropdown-bg)]';
-    const dropdownHover = 'hover:bg-[var(--settings-dropdown-hover)]';
-
-    return (
-        <div className="space-y-8 animate-fade-in max-w-[600px]">
-            <section className="space-y-1">
-                <div className="flex items-center gap-2">
-                    <h3 className="text-base font-medium">Clone Duration</h3>
-                </div>
-                <p className={`text-sm ${theme.textSecondary}`}>
-                    How long cloned video cards remain visible before auto-deletion.
-                </p>
-            </section>
-
-            <div className={`border ${theme.borderColor} rounded-md p-4`}>
-                <label className={`block text-xs ${theme.textSecondary} mb-2`}>Duration</label>
-                <div className="flex items-center gap-4">
-                    <div className="w-24 relative">
-                        <input
-                            type="number"
-                            value={currentValue}
-                            onChange={(e) => {
-                                const val = Math.max(1, parseInt(e.target.value) || 0);
-                                updateDuration(val, currentUnit);
-                            }}
-                            className={`w-full ${inputBg} border ${inputBorder} rounded-md px-3 py-2 focus:outline-none ${focusBorder} transition-colors no-spinner`}
-                        />
-                    </div>
-
-                    <div className="relative w-32">
-                        <button
-                            onClick={(e) => setAnchorEl(prev => prev ? null : e.currentTarget)}
-                            className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} rounded-md px-3 py-2 hover:border-gray-400 transition-colors`}
-                        >
-                            <span className="text-sm">{currentUnit}</span>
-                            <ChevronDown size={16} className={`${theme.textSecondary} transition-transform ${anchorEl ? 'rotate-180' : ''}`} />
-                        </button>
-
-                        <Dropdown
-                            isOpen={Boolean(anchorEl)}
-                            anchorEl={anchorEl}
-                            onClose={() => setAnchorEl(null)}
-                            width={128}
-                            className={`${dropdownBg} border-none z-[10000]`}
-                        >
-                            {['Seconds', 'Minutes', 'Hours'].map((unit) => (
-                                <div
-                                    key={unit}
-                                    className={`px-4 py-2.5 text-sm cursor-pointer ${dropdownHover} transition-colors`}
-                                    onClick={() => {
-                                        updateDuration(currentValue, unit);
-                                        setAnchorEl(null);
-                                    }}
-                                >
-                                    {unit}
-                                </div>
-                            ))}
-                        </Dropdown>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};

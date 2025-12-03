@@ -281,7 +281,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                 align="right"
                 onOpenChange={setIsTooltipOpen}
               >
-                <div className="w-10 h-10 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-sm border-none cursor-help">
+                <div className="w-10 h-10 rounded-full bg-[var(--modal-overlay)] text-white flex items-center justify-center backdrop-blur-sm border-none cursor-help">
                   <Info size={20} />
                 </div>
               </PortalTooltip>
@@ -356,7 +356,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                   <button
                     ref={menuButtonRef}
                     onClick={handleMenuOpen}
-                    className={`p-2 rounded-full border-none hover:bg-black/20 dark:hover:bg-white/20 text-text-primary transition-all ${isMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                    className={`p-2 rounded-full border-none hover:bg-[var(--hover-bg)] text-text-primary transition-all ${isMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
                   >
                     <MoreVertical size={20} />
                   </button>
