@@ -6,20 +6,22 @@ import { useAuthStore } from '../../stores/authStore';
 import { useChannelStore } from '../../stores/channelStore';
 import { useVideosStore } from '../../stores/videosStore';
 import { Dropdown } from '../Shared/Dropdown';
-import type { GeneralSettings, SyncSettings, CloneSettings } from '../../services/settingsService';
+import { PackagingSettingsView } from './PackagingSettingsView';
+import type { GeneralSettings, SyncSettings, CloneSettings, PackagingSettings } from '../../services/settingsService';
 
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
 }
 
-type Category = 'api_sync' | 'clone';
+type Category = 'api_sync' | 'clone' | 'packaging';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     const {
         generalSettings, updateGeneralSettings,
         syncSettings, updateSyncSettings,
-        cloneSettings, updateCloneSettings
+        cloneSettings, updateCloneSettings,
+        packagingSettings, updatePackagingSettings
     } = useSettingsStore();
     const { user } = useAuthStore();
     const { currentChannel } = useChannelStore();
@@ -32,6 +34,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     const [localGeneral, setLocalGeneral] = useState<GeneralSettings>(generalSettings);
     const [localSync, setLocalSync] = useState<SyncSettings>(syncSettings);
     const [localClone, setLocalClone] = useState<CloneSettings>(cloneSettings);
+    const [localPackaging, setLocalPackaging] = useState<PackagingSettings>(packagingSettings);
 
     // Force remount of children when modal opens to reset their internal state
     const [mountKey, setMountKey] = useState(0);
@@ -45,6 +48,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             setLocalSync(syncSettings);
             // eslint-disable-next-line react-hooks/set-state-in-effect
             setLocalClone(cloneSettings);
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setLocalPackaging(packagingSettings);
             // eslint-disable-next-line react-hooks/set-state-in-effect
             setMountKey(prev => prev + 1);
             document.body.style.overflow = 'hidden';
@@ -71,7 +76,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             await Promise.all([
                 updateGeneralSettings(user.uid, currentChannel.id, localGeneral),
                 updateSyncSettings(user.uid, currentChannel.id, localSync),
-                updateCloneSettings(user.uid, currentChannel.id, localClone)
+                updateCloneSettings(user.uid, currentChannel.id, localClone),
+                updatePackagingSettings(user.uid, currentChannel.id, localPackaging)
             ]);
             handleClose();
         } catch (error) {
@@ -84,7 +90,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     const isDirty =
         JSON.stringify(localGeneral) !== JSON.stringify(generalSettings) ||
         JSON.stringify(localSync) !== JSON.stringify(syncSettings) ||
-        JSON.stringify(localClone) !== JSON.stringify(cloneSettings);
+        JSON.stringify(localClone) !== JSON.stringify(cloneSettings) ||
+        JSON.stringify(localPackaging) !== JSON.stringify(packagingSettings);
 
     // Theme styles - Correctly detect dark mode including 'device' setting
     const [isDark, setIsDark] = useState(false);
@@ -150,6 +157,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                             onClick={() => setActiveCategory('clone')}
                             theme={{ isDark, textSecondary, hoverBg, activeItemBg, activeItemText }}
                         />
+                        <SidebarItem
+                            label="Packaging"
+                            isActive={activeCategory === 'packaging'}
+                            onClick={() => setActiveCategory('packaging')}
+                            theme={{ isDark, textSecondary, hoverBg, activeItemBg, activeItemText }}
+                        />
                     </div>
 
                     {/* Content */}
@@ -169,6 +182,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 key={mountKey}
                                 settings={localClone}
                                 onChange={setLocalClone}
+                                theme={{ isDark, borderColor, textSecondary, bgMain, textPrimary }}
+                            />
+                        )}
+                        {activeCategory === 'packaging' && (
+                            <PackagingSettingsView
+                                key={mountKey}
+                                settings={localPackaging}
+                                onChange={setLocalPackaging}
                                 theme={{ isDark, borderColor, textSecondary, bgMain, textPrimary }}
                             />
                         )}

@@ -23,6 +23,17 @@ export interface GeneralSettings {
     apiKey?: string; // Now stored in Firestore
 }
 
+export interface PackagingCheckinRule {
+    id: string;
+    dayOffset: number;
+    badgeText: string;
+    badgeColor: string;
+}
+
+export interface PackagingSettings {
+    rules: PackagingCheckinRule[];
+}
+
 export interface RecommendationOrder {
     [key: string]: string[];
 }
@@ -177,6 +188,31 @@ export const SettingsService = {
             getSettingsPath(userId, channelId),
             'playlistOrder',
             { order },
+            true
+        );
+    },
+
+    subscribeToPackagingSettings: (
+        userId: string,
+        channelId: string,
+        callback: (settings: PackagingSettings | null) => void
+    ) => {
+        return subscribeToDoc<PackagingSettings>(
+            getSettingsPath(userId, channelId),
+            'packaging',
+            callback
+        );
+    },
+
+    updatePackagingSettings: async (
+        userId: string,
+        channelId: string,
+        settings: PackagingSettings
+    ) => {
+        await setDocument(
+            getSettingsPath(userId, channelId),
+            'packaging',
+            settings,
             true
         );
     }

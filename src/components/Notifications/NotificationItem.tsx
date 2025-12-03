@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trash2, Info, AlertCircle, CheckCircle } from 'lucide-react';
+import { Trash2, Info, AlertCircle, CheckCircle, ClipboardCheck } from 'lucide-react';
 import { useNotificationStore, type Notification } from '../../stores/notificationStore';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -15,6 +15,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
             case 'error': return <AlertCircle size={20} className="text-red-500" />;
             case 'warning': return <AlertCircle size={20} className="text-yellow-500" />;
             case 'success': return <CheckCircle size={20} className="text-green-500" />;
+            case 'checkin': return <ClipboardCheck size={20} className="text-blue-500" />;
             default: return <Info size={20} className="text-blue-500" />;
         }
     };

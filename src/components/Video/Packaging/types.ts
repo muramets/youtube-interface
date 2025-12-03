@@ -9,6 +9,10 @@ export interface MetricCheckin {
         avdSeconds?: number;
         avdPercentage?: number;
     };
+    badge?: {
+        text: string;
+        color: string;
+    };
 }
 
 export interface PackagingSnapshot {

@@ -15,7 +15,17 @@ export const MOCK_HISTORY: PackagingVersion[] = [
                 id: 'v1-c1',
                 date: Date.now() - 86400000 * 3, // 3 days ago
                 type: 'creation',
-                metrics: { impressions: 1000, ctr: 4.5, views: 500, avdSeconds: 60, avdPercentage: 40 }
+                metrics: {
+                    impressions: 1250,
+                    ctr: 4.8,
+                    views: 60,
+                    avdSeconds: 195,
+                    avdPercentage: 38
+                },
+                badge: {
+                    text: 'First Check',
+                    color: '#3B82F6'
+                }
             },
             {
                 id: 'v1-c2',

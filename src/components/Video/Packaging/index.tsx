@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { ArrowUp, ArrowDown, Minus, Settings } from 'lucide-react';
+import { ArrowUp, ArrowDown, Minus, Settings, Plus } from 'lucide-react';
 import { PortalTooltip } from '../../Shared/PortalTooltip';
 import type { PackagingVersion, MetricCheckin, CTRRule } from './types';
 import { MOCK_HISTORY } from './data';
@@ -241,6 +241,15 @@ export const PackagingTable: React.FC = () => {
 
                                         {checkin.type === 'creation' && <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#333] text-[#888]">Start</span>}
                                         {checkin.type === 'final' && <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white">Final</span>}
+
+                                        {checkin.badge && (
+                                            <span
+                                                className="px-1.5 py-0.5 rounded text-[9px] font-medium text-white text-center leading-tight max-w-[120px]"
+                                                style={{ backgroundColor: checkin.badge.color }}
+                                            >
+                                                {checkin.badge.text}
+                                            </span>
+                                        )}
                                     </div>
 
                                     {renderCell(checkin, 'impressions', previousCheckin)}
@@ -249,7 +258,9 @@ export const PackagingTable: React.FC = () => {
                                     {renderCell(checkin, 'avdSeconds', previousCheckin)}
 
                                     <div className="flex flex-col items-end justify-center pr-2">
-                                        <span className="text-xs text-[#DDD] font-medium">{formatDate(checkin.date)}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs text-[#DDD] font-medium">{formatDate(checkin.date)}</span>
+                                        </div>
                                         <span className="text-[10px] text-[#555]">{formatTimeStr(checkin.date)}</span>
                                     </div>
                                 </div>
@@ -270,11 +281,11 @@ export const PackagingTable: React.FC = () => {
 
                         {/* Add Check-in Button (Only for the latest version) */}
                         {vIndex === history.length - 1 && (
-                            <div className="px-6 py-2">
+                            <div className="px-6 py-4 flex justify-end">
                                 <button
-                                    className="flex items-center text-xs text-[#555] hover:text-white transition-colors group ml-auto"
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-xs text-[#AAAAAA] hover:text-white rounded transition-colors border border-white/10 hover:border-white/20"
                                 >
-                                    <span className="flex items-center justify-center w-4 h-4 rounded-full border border-[#555] group-hover:border-white mr-2 text-[10px]">+</span>
+                                    <Plus size={12} />
                                     Add Check-in
                                 </button>
                             </div>

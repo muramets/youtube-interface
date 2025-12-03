@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { NotificationService } from '../services/notificationService';
 
-export type NotificationType = 'info' | 'success' | 'warning' | 'error';
+export type NotificationType = 'info' | 'success' | 'warning' | 'error' | 'checkin';
 
 export interface Notification {
     id: string;
