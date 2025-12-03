@@ -29,6 +29,58 @@ export interface VideoDetails {
     historyCount?: number;
     publishedVideoId?: string;
     mergedVideoData?: VideoDetails;
+    videoRender?: string;
+    audioRender?: string;
+    isDraft?: boolean;
+    localizations?: Record<string, VideoLocalization>;
+    abTestVariants?: string[]; // Array of cover URLs or version IDs
+    packagingHistory?: PackagingVersion[];
+    currentPackagingVersion?: number;
+}
+
+export interface PackagingMetrics {
+    impressions: number;
+    ctr: number; // Percentage
+    views: number;
+    avdSeconds: number; // Average View Duration in seconds
+    avdPercentage: number; // Average View Duration percentage
+}
+
+export interface ABVariantMetrics {
+    variantId: string; // URL or ID of the variant
+    watchTimePercentage: number;
+}
+
+export interface PackagingCheckin {
+    id: string;
+    date: number; // Timestamp
+    metrics: PackagingMetrics;
+    abMetrics?: ABVariantMetrics[];
+    diffs?: Partial<PackagingMetrics>; // Difference from previous check-in
+}
+
+export interface PackagingVersion {
+    versionNumber: number;
+    startDate: number;
+    endDate?: number;
+    checkins: PackagingCheckin[];
+    configurationSnapshot: {
+        title: string;
+        description: string;
+        tags: string[];
+        coverImage: string | null;
+        abTestVariants: string[];
+        localizations?: Record<string, VideoLocalization>;
+    };
+}
+
+export interface VideoLocalization {
+    languageCode: string;
+    displayName?: string;
+    flag?: string;
+    title: string;
+    description: string;
+    tags: string[];
 }
 
 export interface VideoNote {

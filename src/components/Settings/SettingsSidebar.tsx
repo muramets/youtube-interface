@@ -32,6 +32,12 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({ activeCategory
                 onClick={() => onCategoryChange('clone')}
                 theme={theme}
             />
+            <SidebarItem
+                label="Packaging"
+                isActive={activeCategory === 'packaging'}
+                onClick={() => onCategoryChange('packaging')}
+                theme={theme}
+            />
         </div>
     );
 };

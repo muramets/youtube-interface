@@ -27,6 +27,18 @@ export interface RecommendationOrder {
     [key: string]: string[];
 }
 
+export interface CheckinRule {
+    id: string;
+    hoursAfterPublish: number;
+    badgeText: string;
+    badgeColor: string;
+    isRequired: boolean;
+}
+
+export interface PackagingSettings {
+    checkinRules: CheckinRule[];
+}
+
 const getSettingsPath = (userId: string, channelId: string) =>
     `users/${userId}/channels/${channelId}/settings`;
 
@@ -177,6 +189,31 @@ export const SettingsService = {
             getSettingsPath(userId, channelId),
             'playlistOrder',
             { order },
+            true
+        );
+    },
+
+    subscribeToPackagingSettings: (
+        userId: string,
+        channelId: string,
+        callback: (settings: PackagingSettings | null) => void
+    ) => {
+        return subscribeToDoc<PackagingSettings>(
+            getSettingsPath(userId, channelId),
+            'packaging',
+            callback
+        );
+    },
+
+    updatePackagingSettings: async (
+        userId: string,
+        channelId: string,
+        settings: PackagingSettings
+    ) => {
+        await setDocument(
+            getSettingsPath(userId, channelId),
+            'packaging',
+            settings,
             true
         );
     }

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { SettingsService, type GeneralSettings, type SyncSettings, type CloneSettings, type RecommendationOrder } from '../services/settingsService';
+import { SettingsService, type GeneralSettings, type SyncSettings, type CloneSettings, type RecommendationOrder, type PackagingSettings } from '../services/settingsService';
 
 interface SettingsState {
     // General
@@ -33,6 +33,11 @@ interface SettingsState {
     setPlaylistOrder: (order: string[]) => void;
     updatePlaylistOrder: (userId: string, channelId: string, order: string[]) => Promise<void>;
 
+    // Packaging
+    packagingSettings: PackagingSettings;
+    setPackagingSettings: (settings: PackagingSettings) => void;
+    updatePackagingSettings: (userId: string, channelId: string, settings: PackagingSettings) => Promise<void>;
+
     // Subscriptions
     subscribeToGeneralSettings: (userId: string, channelId: string) => () => void;
     subscribeToSyncSettings: (userId: string, channelId: string) => () => void;
@@ -40,6 +45,7 @@ interface SettingsState {
     subscribeToRecommendationOrders: (userId: string, channelId: string) => () => void;
     subscribeToVideoOrder: (userId: string, channelId: string) => () => void;
     subscribeToPlaylistOrder: (userId: string, channelId: string) => () => void;
+    subscribeToPackagingSettings: (userId: string, channelId: string) => () => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -136,6 +142,21 @@ export const useSettingsStore = create<SettingsState>()(
                 return SettingsService.subscribeToPlaylistOrder(userId, channelId, (data) => {
                     set({ playlistOrder: data || [] });
                 });
+            },
+
+            // Packaging
+            packagingSettings: {
+                checkinRules: []
+            },
+            setPackagingSettings: (settings) => set({ packagingSettings: settings }),
+            updatePackagingSettings: async (userId: string, channelId: string, settings: PackagingSettings) => {
+                set({ packagingSettings: settings });
+                await SettingsService.updatePackagingSettings(userId, channelId, settings);
+            },
+            subscribeToPackagingSettings: (userId: string, channelId: string) => {
+                return SettingsService.subscribeToPackagingSettings(userId, channelId, (data) => {
+                    if (data) set({ packagingSettings: data });
+                });
             }
         }),
         {
@@ -143,7 +164,8 @@ export const useSettingsStore = create<SettingsState>()(
             partialize: (state) => ({
                 generalSettings: state.generalSettings,
                 syncSettings: state.syncSettings,
-                cloneSettings: state.cloneSettings
+                cloneSettings: state.cloneSettings,
+                packagingSettings: state.packagingSettings
                 // We don't persist orders here as they are better fetched from DB or have their own logic, 
                 // but for offline-first feel we could. Let's stick to what Context did (fetching on mount).
                 // Actually, the Context fetched on mount. Zustand persist will load from localStorage.

@@ -8,12 +8,19 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
+export interface CustomLanguage {
+    code: string;
+    name: string;
+    flag: string;
+}
+
 export interface Channel {
     id: string;
     name: string;
     handle?: string; // Added handle to interface as it was in store but not in context
     avatar?: string;
     createdAt: number;
+    customLanguages?: CustomLanguage[];
 }
 
 export const ChannelService = {

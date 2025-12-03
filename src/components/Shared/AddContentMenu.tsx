@@ -32,14 +32,14 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
 
     const isControlled = controlledIsOpen !== undefined;
     const isOpen = isControlled ? controlledIsOpen : internalIsOpen;
-    const setIsOpen = (value: boolean) => {
+    const setIsOpen = React.useCallback((value: boolean) => {
         if (onOpenChange) {
             onOpenChange(value);
         }
         if (!isControlled) {
             setInternalIsOpen(value);
         }
-    };
+    }, [onOpenChange, isControlled]);
     const [activeModal, setActiveModal] = useState<'youtube' | 'custom' | 'playlist' | null>(null);
 
     const buttonRef = useRef<HTMLButtonElement>(null);
@@ -81,7 +81,7 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
             window.removeEventListener('scroll', () => setIsOpen(false), true);
             window.removeEventListener('resize', () => setIsOpen(false));
         };
-    }, [isOpen]);
+    }, [isOpen, setIsOpen]);
 
     const handleOptionClick = (modal: 'youtube' | 'custom' | 'playlist') => {
         setActiveModal(modal);

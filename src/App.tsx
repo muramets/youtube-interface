@@ -16,7 +16,10 @@ import { useChannelStore } from './stores/channelStore';
 import { useUIStore } from './stores/uiStore';
 import { Toast } from './components/Shared/Toast';
 
+import { useCheckinScheduler } from './hooks/useCheckinScheduler';
+
 function AppContent() {
+  useCheckinScheduler();
   const { isLoading, videos } = useVideosStore();
   const { updateVideoOrder, videoOrder } = useSettingsStore();
   const { user } = useAuthStore();

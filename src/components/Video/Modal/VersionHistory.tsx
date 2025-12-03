@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Info, Trash2, ArrowUp, Copy, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Info, Trash2, ArrowUp, Copy, Loader2, FlaskConical } from 'lucide-react';
 import { PortalTooltip } from '../../Shared/PortalTooltip';
 import { ClonedVideoTooltipContent } from '../ClonedVideoTooltipContent';
 import { type VideoDetails, type CoverVersion } from '../../../utils/youtubeApi';
@@ -13,6 +13,9 @@ interface VersionHistoryProps {
     onClone?: (version: CoverVersion) => void;
     initialData?: VideoDetails;
     cloningVersion: number | null;
+    currentVersion: number;
+    abTestVariants?: string[];
+    onAddToAbTest?: (url: string) => void;
 }
 
 export const VersionHistory: React.FC<VersionHistoryProps> = ({
@@ -22,7 +25,10 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
     onDelete,
     onClone,
     initialData,
-    cloningVersion
+    cloningVersion,
+    currentVersion,
+    abTestVariants,
+    onAddToAbTest
 }) => {
     const { videos } = useVideosStore();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -61,15 +67,33 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
         }
     };
 
-    const handleWheel = (e: React.WheelEvent) => {
-        if (scrollContainerRef.current) {
-            if (Math.abs(e.deltaY) > Math.abs(e.deltaX) * 1.5) {
-                scrollContainerRef.current.scrollLeft += e.deltaY;
-            }
-        }
-    };
+    useEffect(() => {
+        const container = scrollContainerRef.current;
+        if (container) {
+            const handleWheel = (e: WheelEvent) => {
+                // Aggressively prevent parent scrolling
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
 
-    if (history.length === 0 && !isLoading) return null;
+                // Map both vertical and horizontal scroll energy to horizontal scrolling
+                // This ensures any movement scrolls the history, and NEVER the parent
+                const delta = e.deltaY + e.deltaX;
+
+                container.scrollBy({
+                    left: delta * 1.5,
+                    behavior: 'auto'
+                });
+            };
+
+            // We must use { passive: false } to be able to preventDefault
+            container.addEventListener('wheel', handleWheel, { passive: false });
+
+            return () => {
+                container.removeEventListener('wheel', handleWheel);
+            };
+        }
+    }, [history, isLoading]);
 
     return (
         <div className="flex flex-col gap-2">
@@ -84,10 +108,14 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
                             </div>
                         ))}
                     </div>
+                ) : history.length === 0 ? (
+                    <div className="absolute inset-0 flex items-center justify-center text-text-secondary text-sm italic">
+                        {currentVersion > 1 ? 'Previous versions were deleted' : 'No history yet'}
+                    </div>
                 ) : (
                     <>
                         {showLeftArrow && (
-                            <div className="absolute left-0 top-0 z-10 flex items-center bg-gradient-to-r from-bg-secondary via-bg-secondary to-transparent pr-8 pl-0 h-full">
+                            <div className="absolute left-0 top-0 z-10 flex items-center bg-gradient-to-r from-modal-surface via-modal-surface to-transparent pr-8 pl-0 h-full">
                                 <button
                                     className="w-8 h-8 rounded-full bg-bg-primary hover:bg-hover-bg flex items-center justify-center border border-border cursor-pointer text-text-primary shadow-sm transition-colors"
                                     onClick={() => scroll('left')}
@@ -100,7 +128,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
                         <div
                             ref={scrollContainerRef}
                             className="flex gap-3 overflow-x-auto overflow-y-hidden scrollbar-hide"
-                            onWheel={handleWheel}
+                            style={{ overscrollBehavior: 'contain' }}
                         >
                             {history.map((version) => (
                                 <div key={version.timestamp} className="flex-shrink-0 w-36 group relative">
@@ -125,22 +153,14 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
 
                                                 <button
                                                     onClick={(e) => onDelete(e, version.timestamp)}
-                                                    className="w-6 h-6 rounded-full bg-red-500/80 hover:bg-red-600 text-white flex items-center justify-center backdrop-blur-sm transition-colors border-none cursor-pointer"
+                                                    className="w-6 h-6 rounded-full bg-black/40 hover:bg-red-500 text-white/90 hover:text-white flex items-center justify-center backdrop-blur-sm transition-all border border-white/10 hover:border-transparent"
                                                     title="Delete Version"
                                                 >
                                                     <Trash2 size={12} />
                                                 </button>
                                             </div>
 
-                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none gap-2">
-                                                <button
-                                                    onClick={() => onRestore(version)}
-                                                    className="w-8 h-8 rounded-full bg-[#3ea6ff]/90 hover:bg-[#3ea6ff] text-black flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border-none cursor-pointer pointer-events-auto"
-                                                    title="Set as Main Cover"
-                                                >
-                                                    <ArrowUp size={18} strokeWidth={3} />
-                                                </button>
-
+                                            <div className="absolute inset-0 flex items-end justify-center pointer-events-none gap-2 pb-3">
                                                 {onClone && initialData && (
                                                     (() => {
                                                         const isCloned = videos.some((v: VideoDetails) =>
@@ -157,20 +177,44 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
                                                                     onClone(version);
                                                                 }}
                                                                 disabled={isCloned || cloningVersion !== null}
-                                                                className={`w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border-none cursor-pointer pointer-events-auto ${isCloned
-                                                                    ? 'bg-gray-500/50 text-gray-300 cursor-not-allowed hover:scale-90'
-                                                                    : 'bg-green-500/90 hover:bg-green-600 text-white'
+                                                                className={`w-7 h-7 rounded-full flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border cursor-pointer pointer-events-auto ${isCloned
+                                                                    ? 'bg-gray-500/50 text-gray-300 cursor-not-allowed hover:scale-90 border-transparent'
+                                                                    : 'bg-black/40 text-white/90 hover:bg-green-500 hover:text-white border-white/10 hover:border-transparent'
                                                                     }`}
-                                                                title={isCloned ? "Active clone already exists" : "Clone as a New Temporary Video"}
+                                                                title={isCloned ? "Active clone already exists" : "Clone Video"}
                                                             >
                                                                 {cloningVersion === version.version ? (
-                                                                    <Loader2 size={16} className="animate-spin" />
+                                                                    <Loader2 size={14} className="animate-spin" />
                                                                 ) : (
-                                                                    <Copy size={16} strokeWidth={2.5} />
+                                                                    <Copy size={14} strokeWidth={2.5} />
                                                                 )}
                                                             </button>
                                                         );
                                                     })()
+                                                )}
+
+                                                <button
+                                                    onClick={() => onRestore(version)}
+                                                    className="w-7 h-7 rounded-full bg-black/40 hover:bg-[#3ea6ff] text-white/90 hover:text-black flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border border-white/10 hover:border-transparent cursor-pointer pointer-events-auto"
+                                                    title="Make Current"
+                                                >
+                                                    <ArrowUp size={16} strokeWidth={2.5} />
+                                                </button>
+
+                                                {onAddToAbTest && abTestVariants && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onAddToAbTest(version.url);
+                                                        }}
+                                                        className={`w-7 h-7 rounded-full flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border cursor-pointer pointer-events-auto ${abTestVariants.includes(version.url)
+                                                                ? 'bg-purple-500 text-white border-transparent'
+                                                                : 'bg-black/40 text-white/90 hover:bg-purple-500 hover:text-white border-white/10 hover:border-transparent'
+                                                            }`}
+                                                        title={abTestVariants.includes(version.url) ? "Remove from A/B Test" : "A/B Test"}
+                                                    >
+                                                        <FlaskConical size={14} strokeWidth={abTestVariants.includes(version.url) ? 3 : 2} className={abTestVariants.includes(version.url) ? "fill-current" : ""} />
+                                                    </button>
                                                 )}
                                             </div>
                                         </div>
@@ -184,7 +228,7 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
                         </div>
 
                         {showRightArrow && (
-                            <div className="absolute right-0 top-0 z-10 flex items-center bg-gradient-to-l from-bg-secondary via-bg-secondary to-transparent pl-8 pr-0 h-full">
+                            <div className="absolute right-0 top-0 z-10 flex items-center bg-gradient-to-l from-modal-surface via-modal-surface to-transparent pl-8 pr-0 h-full">
                                 <button
                                     className="w-8 h-8 rounded-full bg-bg-primary hover:bg-hover-bg flex items-center justify-center border border-border cursor-pointer text-text-primary shadow-sm transition-colors"
                                     onClick={() => scroll('right')}

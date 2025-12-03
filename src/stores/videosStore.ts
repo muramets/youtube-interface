@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { VideoService } from '../services/videoService';
-import { type VideoDetails, type HistoryItem, type CoverVersion, fetchVideoDetails, extractVideoId, fetchVideosBatch } from '../utils/youtubeApi';
+import { type VideoDetails, type HistoryItem, type CoverVersion, fetchVideoDetails, extractVideoId, fetchVideosBatch, type PackagingVersion, type PackagingCheckin } from '../utils/youtubeApi';
 import { useUIStore } from './uiStore';
 import { useNotificationStore } from './notificationStore';
 
@@ -33,6 +33,11 @@ interface VideosState {
     fetchVideoHistory: (userId: string, channelId: string, videoId: string) => Promise<CoverVersion[]>;
     saveVideoHistory: (userId: string, channelId: string, videoId: string, historyItem: HistoryItem) => Promise<void>;
     deleteVideoHistoryItem: (userId: string, channelId: string, videoId: string, historyId: string) => Promise<void>;
+
+    // Packaging
+    saveDraft: (userId: string, channelId: string, videoId: string) => Promise<void>;
+    createVersion: (userId: string, channelId: string, videoId: string, snapshot: PackagingVersion['configurationSnapshot']) => Promise<void>;
+    addCheckin: (userId: string, channelId: string, videoId: string, versionNumber: number, checkin: PackagingCheckin) => Promise<void>;
 }
 
 export const useVideosStore = create<VideosState>((set, get) => ({
@@ -134,7 +139,6 @@ export const useVideosStore = create<VideosState>((set, get) => ({
                 // Actually, deleteField() is needed for Firestore, but let's assume VideoService handles partials.
                 // If we pass undefined to object spread, it stays undefined.
                 // We might need to explicitly set it to null if we want to clear it.
-                // Let's assume the service handles it or we just overwrite with empty.
                 // For now, let's just clear it from the object if it's empty string.
                 delete finalUpdates.mergedVideoData;
             }
@@ -373,5 +377,78 @@ export const useVideosStore = create<VideosState>((set, get) => ({
 
     deleteVideoHistoryItem: (userId, channelId, videoId, historyId) => {
         return VideoService.deleteVideoHistoryItem(userId, channelId, videoId, historyId);
+    },
+
+    saveDraft: async (userId, channelId, videoId) => {
+        // Just update isDraft to true
+        set(state => ({
+            videos: state.videos.map(v => v.id === videoId ? { ...v, isDraft: true } : v)
+        }));
+        await VideoService.updateVideo(userId, channelId, videoId, { isDraft: true });
+    },
+
+    createVersion: async (userId, channelId, videoId, snapshot) => {
+        const video = get().videos.find(v => v.id === videoId);
+        if (!video) return;
+
+        const currentHistory = video.packagingHistory || [];
+        const nextVersionNumber = currentHistory.length > 0
+            ? Math.max(...currentHistory.map(v => v.versionNumber)) + 1
+            : 1;
+
+        const newVersion: PackagingVersion = {
+            versionNumber: nextVersionNumber,
+            startDate: Date.now(),
+            configurationSnapshot: snapshot,
+            checkins: [{
+                id: `v${nextVersionNumber}-creation`,
+                date: Date.now(),
+                metrics: {
+                    impressions: 0,
+                    ctr: 0,
+                    views: 0,
+                    avdSeconds: 0,
+                    avdPercentage: 0
+                }
+            }]
+        };
+
+        const updatedHistory = [...currentHistory, newVersion];
+
+        // Optimistic update
+        set(state => ({
+            videos: state.videos.map(v => v.id === videoId ? {
+                ...v,
+                packagingHistory: updatedHistory,
+                isDraft: false
+            } : v)
+        }));
+
+        await VideoService.updateVideo(userId, channelId, videoId, {
+            packagingHistory: updatedHistory,
+            isDraft: false
+        });
+    },
+
+    addCheckin: async (userId, channelId, videoId, versionNumber, checkin) => {
+        const video = get().videos.find(v => v.id === videoId);
+        if (!video || !video.packagingHistory) return;
+
+        const updatedHistory = video.packagingHistory.map(version => {
+            if (version.versionNumber === versionNumber) {
+                return {
+                    ...version,
+                    checkins: [...version.checkins, checkin]
+                };
+            }
+            return version;
+        });
+
+        // Optimistic update
+        set(state => ({
+            videos: state.videos.map(v => v.id === videoId ? { ...v, packagingHistory: updatedHistory } : v)
+        }));
+
+        await VideoService.updateVideo(userId, channelId, videoId, { packagingHistory: updatedHistory });
     }
 }));
