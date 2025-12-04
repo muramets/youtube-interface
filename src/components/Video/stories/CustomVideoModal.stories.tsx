@@ -80,3 +80,30 @@ export const EditMode: Story = {
         )
     }
 };
+
+export const WithPackagingHistory: Story = {
+    args: {
+        ...CreateMode.args,
+        initialData: {
+            ...mockVideo,
+            coverHistory: [
+                {
+                    url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg',
+                    version: 2,
+                    timestamp: Date.now() - 86400000,
+                    originalName: 'v2.jpg'
+                },
+                {
+                    url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg',
+                    version: 1,
+                    timestamp: Date.now() - 172800000,
+                    originalName: 'v1.jpg'
+                }
+            ],
+            highestVersion: 2,
+            customImageVersion: 3
+        },
+    },
+    render: EditMode.render
+};
+
