@@ -11,11 +11,26 @@ const SidebarItem: React.FC<{ icon: React.ReactNode; label: string; active?: boo
 );
 
 import { useUIStore } from '../../stores/uiStore';
+import { useAuth } from '../../hooks/useAuth';
+import { useChannelStore } from '../../stores/channelStore';
+import { useChannels } from '../../hooks/useChannels';
 
 export const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isSettingsOpen, setSettingsOpen } = useUIStore();
+  const { user } = useAuth();
+  const { currentChannel, setCurrentChannel } = useChannelStore();
+
+  // Use TanStack Query hook for channels
+  const { data: channels, isLoading } = useChannels(user?.uid || '');
+
+  // Select first channel if none selected (logic moved from store to component/hook)
+  React.useEffect(() => {
+    if (!isLoading && channels && channels.length > 0 && !currentChannel) {
+      setCurrentChannel(channels[0]);
+    }
+  }, [channels, isLoading, currentChannel, setCurrentChannel]);
 
   return (
     <>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useSettingsStore } from '../../stores/settingsStore';
-import { useAuthStore } from '../../stores/authStore';
+import { useSettings } from '../../hooks/useSettings';
+import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 import type { GeneralSettings, SyncSettings, CloneSettings as CloneSettingsType, PackagingSettings } from '../../services/settingsService';
 
@@ -23,8 +23,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         syncSettings, updateSyncSettings,
         cloneSettings, updateCloneSettings,
         packagingSettings, updatePackagingSettings
-    } = useSettingsStore();
-    const { user } = useAuthStore();
+    } = useSettings();
+    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
 
     const [activeCategory, setActiveCategory] = useState<Category>('api_sync');

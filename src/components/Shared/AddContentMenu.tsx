@@ -4,8 +4,9 @@ import { createPortal } from 'react-dom';
 import { AddYouTubeVideoModal } from '../Video/AddYouTubeVideoModal';
 import { CustomVideoModal } from '../Video/CustomVideoModal';
 import { CreatePlaylistModal } from '../Playlist/CreatePlaylistModal';
-import { useVideosStore } from '../../stores/videosStore';
-import { useAuthStore } from '../../stores/authStore';
+import { useVideos } from '../../hooks/useVideos';
+
+import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 
 interface AddContentMenuProps {
@@ -25,9 +26,9 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
     isOpen: controlledIsOpen,
     onOpenChange
 }) => {
-    const { addCustomVideo } = useVideosStore();
-    const { user } = useAuthStore();
+    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
+    const { addCustomVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
     const [internalIsOpen, setInternalIsOpen] = useState(false);
 
     const isControlled = controlledIsOpen !== undefined;
@@ -166,7 +167,7 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
                 onClose={() => setActiveModal(null)}
                 onSave={async (videoData) => {
                     if (user && currentChannel) {
-                        await addCustomVideo(user.uid, currentChannel.id, videoData);
+                        await addCustomVideo(videoData);
                     }
                 }}
             />

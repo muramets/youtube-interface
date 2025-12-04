@@ -1,11 +1,16 @@
 import { useEffect } from 'react';
-import { useVideosStore } from '../stores/videosStore';
-import { useSettingsStore } from '../stores/settingsStore';
+import { useVideos } from './useVideos';
+import { useAuth } from './useAuth';
+import { useChannelStore } from '../stores/channelStore';
+
+import { useSettings } from './useSettings';
 import { useNotificationStore } from '../stores/notificationStore';
 
 export const useCheckinScheduler = () => {
-    const { videos } = useVideosStore();
-    const { packagingSettings } = useSettingsStore();
+    const { user } = useAuth();
+    const { currentChannel } = useChannelStore();
+    const { videos } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const { packagingSettings } = useSettings();
     const { notifications, addNotification } = useNotificationStore();
 
     useEffect(() => {

@@ -3,7 +3,10 @@ import { ChevronLeft, ChevronRight, Info, Trash2, ArrowUp, Copy, Loader2, FlaskC
 import { PortalTooltip } from '../../Shared/PortalTooltip';
 import { ClonedVideoTooltipContent } from '../ClonedVideoTooltipContent';
 import { type VideoDetails, type CoverVersion } from '../../../utils/youtubeApi';
-import { useVideosStore } from '../../../stores/videosStore';
+import { useVideos } from '../../../hooks/useVideos';
+
+import { useAuth } from '../../../hooks/useAuth';
+import { useChannelStore } from '../../../stores/channelStore';
 
 interface VersionHistoryProps {
     history: CoverVersion[];
@@ -30,7 +33,9 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
     abTestVariants,
     onAddToAbTest
 }) => {
-    const { videos } = useVideosStore();
+    const { user } = useAuth();
+    const { currentChannel } = useChannelStore();
+    const { videos } = useVideos(user?.uid || '', currentChannel?.id || '');
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [showLeftArrow, setShowLeftArrow] = useState(false);
     const [showRightArrow, setShowRightArrow] = useState(false);
@@ -208,8 +213,8 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
                                                             onAddToAbTest(version.url);
                                                         }}
                                                         className={`w-7 h-7 rounded-full flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border cursor-pointer pointer-events-auto ${abTestVariants.includes(version.url)
-                                                                ? 'bg-purple-500 text-white border-transparent'
-                                                                : 'bg-black/40 text-white/90 hover:bg-purple-500 hover:text-white border-white/10 hover:border-transparent'
+                                                            ? 'bg-purple-500 text-white border-transparent'
+                                                            : 'bg-black/40 text-white/90 hover:bg-purple-500 hover:text-white border-white/10 hover:border-transparent'
                                                             }`}
                                                         title={abTestVariants.includes(version.url) ? "Remove from A/B Test" : "A/B Test"}
                                                     >

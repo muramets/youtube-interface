@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { ArrowLeft, ChevronRight, RefreshCw } from 'lucide-react';
-import { useSettingsStore } from '../../stores/settingsStore';
-import { useVideosStore } from '../../stores/videosStore';
-import { useAuthStore } from '../../stores/authStore';
+import { useSettings } from '../../hooks/useSettings';
+import { useVideoSync } from '../../hooks/useVideoSync';
+
+import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 
 interface SettingsMenuSyncProps {
@@ -10,11 +11,11 @@ interface SettingsMenuSyncProps {
 }
 
 export const SettingsMenuSync: React.FC<SettingsMenuSyncProps> = ({ onBack }) => {
-    const { syncSettings, updateSyncSettings } = useSettingsStore();
-    const { isSyncing } = useVideosStore();
-    const { user } = useAuthStore();
+    const { syncSettings, updateSyncSettings } = useSettings();
+    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { generalSettings } = useSettingsStore();
+    const { syncAllVideos, isSyncing } = useVideoSync(user?.uid || '', currentChannel?.id || '');
+    const { generalSettings } = useSettings();
     const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
 
     const getUnit = (hours: number) => {
@@ -140,8 +141,7 @@ export const SettingsMenuSync: React.FC<SettingsMenuSyncProps> = ({ onBack }) =>
                     <button
                         onClick={() => {
                             if (user && currentChannel && generalSettings.apiKey) {
-                                // Use syncAllVideos instead of manualSync
-                                useVideosStore.getState().syncAllVideos(user.uid, currentChannel.id, generalSettings.apiKey);
+                                syncAllVideos(generalSettings.apiKey);
                             } else if (!generalSettings.apiKey) {
                                 alert("Please set API Key first");
                             }

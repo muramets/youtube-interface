@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { User, LogOut, Plus, Check, Settings } from 'lucide-react';
 import { useChannelStore } from '../stores/channelStore';
-import { useSettingsStore } from '../stores/settingsStore';
+import { useChannels } from '../hooks/useChannels';
+import { useSettings } from '../hooks/useSettings';
 import { type Channel } from '../services/channelService';
-import { useAuthStore } from '../stores/authStore';
+import { useAuth } from '../hooks/useAuth';
 import { CreateChannelModal } from './Profile/CreateChannelModal';
 import { EditChannelModal } from './Profile/EditChannelModal';
 import { Dropdown } from './Shared/Dropdown';
@@ -14,9 +15,12 @@ interface ChannelDropdownProps {
 }
 
 export const ChannelDropdown: React.FC<ChannelDropdownProps> = ({ onClose, anchorEl }) => {
-    const { channels, currentChannel, setCurrentChannel } = useChannelStore();
-    const { user, logout } = useAuthStore();
-    const { generalSettings, updateGeneralSettings } = useSettingsStore();
+    const { currentChannel, setCurrentChannel } = useChannelStore();
+    const { user, logout } = useAuth();
+    const { generalSettings, updateGeneralSettings } = useSettings();
+
+    // Use TanStack Query hook for channels
+    const { data: channels = [] } = useChannels(user?.uid || '');
 
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [editingChannel, setEditingChannel] = useState<Channel | null>(null);

@@ -3,7 +3,8 @@ import { User, Plus } from 'lucide-react';
 // ...
 // const [loadingYT, setLoadingYT] = useState(false);
 import { useChannelStore } from '../../stores/channelStore';
-import { useAuthStore } from '../../stores/authStore';
+import { useChannels } from '../../hooks/useChannels';
+import { useAuth } from '../../hooks/useAuth';
 import { CreateChannelModal } from './CreateChannelModal';
 
 interface ChannelSelectorModalProps {
@@ -22,8 +23,10 @@ interface YouTubeChannel {
 }
 
 export const ChannelSelectorModal: React.FC<ChannelSelectorModalProps> = ({ isOpen, onClose }) => {
-    const { channels, setCurrentChannel, addChannel } = useChannelStore();
-    const { user } = useAuthStore();
+    const { setCurrentChannel, addChannel } = useChannelStore();
+    const { user } = useAuth();
+    // Use TanStack Query hook for channels
+    const { data: channels = [] } = useChannels(user?.uid || '');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [youtubeChannels, setYoutubeChannels] = useState<YouTubeChannel[]>([]);
     // const [loadingYT, setLoadingYT] = useState(false);

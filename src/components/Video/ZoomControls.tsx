@@ -1,12 +1,12 @@
 import React from 'react';
 import { Plus, Minus } from 'lucide-react';
-import { useSettingsStore } from '../../stores/settingsStore';
-import { useAuthStore } from '../../stores/authStore';
+import { useSettings } from '../../hooks/useSettings';
+import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 
 export const ZoomControls: React.FC = () => {
-    const { generalSettings, updateGeneralSettings } = useSettingsStore();
-    const { user } = useAuthStore();
+    const { generalSettings, updateGeneralSettings } = useSettings();
+    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const cardsPerRow = generalSettings.cardsPerRow;
     const updateCardsPerRow = (count: number) => {

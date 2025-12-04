@@ -1,18 +1,18 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../stores/authStore';
+import { useAuth } from '../hooks/useAuth';
 
 export const LoginPage: React.FC = () => {
-    const { user, loginWithGoogle, loading } = useAuthStore();
+    const { user, loginWithGoogle, isLoading } = useAuth();
     const navigate = useNavigate();
 
     useEffect(() => {
-        if (user && !loading) {
+        if (user && !isLoading) {
             navigate('/');
         }
-    }, [user, loading, navigate]);
+    }, [user, isLoading, navigate]);
 
-    if (loading) {
+    if (isLoading) {
         return (
             <div className="min-h-screen bg-bg-primary flex items-center justify-center text-text-primary">
                 <div className="w-8 h-8 border-4 border-border border-t-accent rounded-full animate-spin"></div>

@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { Filter, Check, ArrowDownUp, SlidersHorizontal, RotateCcw } from 'lucide-react';
-import { usePlaylistsStore } from '../../stores/playlistsStore';
-import { useSettingsStore } from '../../stores/settingsStore';
-import { useAuthStore } from '../../stores/authStore';
+import { usePlaylists } from '../../hooks/usePlaylists';
+import { useSettings } from '../../hooks/useSettings';
+import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 import { createPortal } from 'react-dom';
 
@@ -24,10 +24,10 @@ export const FilterSortDropdown: React.FC<FilterSortDropdownProps> = ({
     onSortChange,
     showPlaylistFilter = false
 }) => {
-    const { playlists } = usePlaylistsStore();
-    const { generalSettings, updateGeneralSettings } = useSettingsStore();
-    const { user } = useAuthStore();
+    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
+    const { playlists } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+    const { generalSettings, updateGeneralSettings } = useSettings();
     const hiddenPlaylistIds = generalSettings.hiddenPlaylistIds || [];
 
     const togglePlaylistVisibility = (id: string) => {

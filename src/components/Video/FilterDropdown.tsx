@@ -1,16 +1,16 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { Filter, Check } from 'lucide-react';
-import { usePlaylistsStore } from '../../stores/playlistsStore';
-import { useSettingsStore } from '../../stores/settingsStore';
-import { useAuthStore } from '../../stores/authStore';
+import { usePlaylists } from '../../hooks/usePlaylists';
+import { useSettings } from '../../hooks/useSettings';
+import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 import { createPortal } from 'react-dom';
 
 export const FilterDropdown: React.FC = () => {
-    const { playlists } = usePlaylistsStore();
-    const { generalSettings, updateGeneralSettings } = useSettingsStore();
-    const { user } = useAuthStore();
+    const { generalSettings, updateGeneralSettings } = useSettings();
+    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
+    const { playlists } = usePlaylists(user?.uid || '', currentChannel?.id || '');
     const hiddenPlaylistIds = generalSettings.hiddenPlaylistIds || [];
 
     const togglePlaylistVisibility = (id: string) => {

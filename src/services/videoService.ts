@@ -13,6 +13,10 @@ const getVideosPath = (userId: string, channelId: string) =>
     `users/${userId}/channels/${channelId}/videos`;
 
 export const VideoService = {
+    fetchVideos: async (userId: string, channelId: string) => {
+        return fetchCollection<VideoDetails>(getVideosPath(userId, channelId));
+    },
+
     subscribeToVideos: (
         userId: string,
         channelId: string,

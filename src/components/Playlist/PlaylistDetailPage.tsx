@@ -1,8 +1,9 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useVideosStore } from '../../stores/videosStore';
-import { usePlaylistsStore } from '../../stores/playlistsStore';
-import { useAuthStore } from '../../stores/authStore';
+import { useVideos } from '../../hooks/useVideos';
+
+import { usePlaylists } from '../../hooks/usePlaylists';
+import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 import { ArrowLeft, PlaySquare } from 'lucide-react';
 import { VideoGrid } from '../Video/VideoGrid';
@@ -10,10 +11,10 @@ import { ZoomControls } from '../Video/ZoomControls';
 
 export const PlaylistDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const { playlists, reorderPlaylistVideos, isLoading: isPlaylistsLoading } = usePlaylistsStore();
-    const { videos, isLoading: isVideosLoading } = useVideosStore();
-    const { user } = useAuthStore();
+    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
+    const { playlists, reorderPlaylistVideos, isLoading: isPlaylistsLoading } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+    const { videos, isLoading: isVideosLoading } = useVideos(user?.uid || '', currentChannel?.id || '');
     const navigate = useNavigate();
 
     const playlist = playlists.find(p => p.id === id);
@@ -57,7 +58,7 @@ export const PlaylistDetailPage: React.FC = () => {
             const fullOrder = [...playlist.videoIds];
             const [movedItem] = fullOrder.splice(originalOldIndex, 1);
             fullOrder.splice(originalNewIndex, 0, movedItem);
-            reorderPlaylistVideos(user.uid, currentChannel.id, playlist.id, fullOrder);
+            reorderPlaylistVideos({ playlistId: playlist.id, newVideoIds: fullOrder });
         }
     };
 

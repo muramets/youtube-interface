@@ -1,7 +1,7 @@
 import React from 'react';
 import { ArrowLeft, Check } from 'lucide-react';
-import { useSettingsStore } from '../../stores/settingsStore';
-import { useAuthStore } from '../../stores/authStore';
+import { useSettings } from '../../hooks/useSettings';
+import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 
 interface SettingsMenuAppearanceProps {
@@ -9,8 +9,8 @@ interface SettingsMenuAppearanceProps {
 }
 
 export const SettingsMenuAppearance: React.FC<SettingsMenuAppearanceProps> = ({ onBack }) => {
-    const { generalSettings, updateGeneralSettings } = useSettingsStore();
-    const { user } = useAuthStore();
+    const { generalSettings, updateGeneralSettings } = useSettings();
+    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const theme = generalSettings.theme;
 

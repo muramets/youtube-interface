@@ -2,17 +2,18 @@ import React, { useState } from 'react';
 import { Trash2, Send } from 'lucide-react';
 import type { VideoDetails, VideoNote } from '../../utils/youtubeApi';
 import { useChannelStore } from '../../stores/channelStore';
-import { useVideosStore } from '../../stores/videosStore';
-import { useAuthStore } from '../../stores/authStore';
+import { useVideos } from '../../hooks/useVideos';
+
+import { useAuth } from '../../hooks/useAuth';
 
 interface WatchPageNotesProps {
     video: VideoDetails;
 }
 
 export const WatchPageNotes: React.FC<WatchPageNotesProps> = ({ video }) => {
+    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { updateVideo } = useVideosStore();
-    const { user } = useAuthStore();
+    const { updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
     const [noteText, setNoteText] = useState('');
 
     const handleAddNote = async () => {
@@ -26,14 +27,14 @@ export const WatchPageNotes: React.FC<WatchPageNotesProps> = ({ video }) => {
         };
 
         const updatedNotes = [...(video.notes || []), newNote];
-        await updateVideo(user.uid, currentChannel.id, video.id, { notes: updatedNotes });
+        await updateVideo({ videoId: video.id, updates: { notes: updatedNotes } });
         setNoteText('');
     };
 
     const handleDeleteNote = async (noteId: string) => {
         if (!video || !video.notes || !user || !currentChannel) return;
         const updatedNotes = video.notes.filter(n => n.id !== noteId);
-        await updateVideo(user.uid, currentChannel.id, video.id, { notes: updatedNotes });
+        await updateVideo({ videoId: video.id, updates: { notes: updatedNotes } });
     };
 
     return (

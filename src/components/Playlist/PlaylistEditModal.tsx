@@ -1,6 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { X, Upload, Trash2 } from 'lucide-react';
-import { useVideosStore } from '../../stores/videosStore';
+import { useVideos } from '../../hooks/useVideos';
+
+import { useAuth } from '../../hooks/useAuth';
+import { useChannelStore } from '../../stores/channelStore';
 import { type Playlist } from '../../services/playlistService';
 
 interface PlaylistEditModalProps {
@@ -11,7 +14,9 @@ interface PlaylistEditModalProps {
 }
 
 export const PlaylistEditModal: React.FC<PlaylistEditModalProps> = ({ isOpen, onClose, onSave, playlist }) => {
-    const { videos } = useVideosStore();
+    const { user } = useAuth();
+    const { currentChannel } = useChannelStore();
+    const { videos } = useVideos(user?.uid || '', currentChannel?.id || '');
     const [name, setName] = useState(playlist.name);
     const [coverImage, setCoverImage] = useState(playlist.coverImage || '');
     const [isDragging, setIsDragging] = useState(false);

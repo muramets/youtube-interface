@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronDown, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { Dropdown } from '../Shared/Dropdown';
-import { useAuthStore } from '../../stores/authStore';
+import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
-import { useVideosStore } from '../../stores/videosStore';
+import { useVideoSync } from '../../hooks/useVideoSync';
+
 import type { GeneralSettings, SyncSettings } from '../../services/settingsService';
 
 interface ThemeProps {
@@ -28,6 +29,8 @@ interface ApiSyncSettingsProps {
 export const ApiSyncSettings: React.FC<ApiSyncSettingsProps> = ({ generalSettings, syncSettings, onGeneralChange, onSyncChange, theme }) => {
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
     const [showApiKey, setShowApiKey] = useState(true); // Default to visible
+    const { user } = useAuth();
+    const { currentChannel } = useChannelStore();
 
     const getUnit = (hours: number) => {
         if (hours % 168 === 0 && hours >= 168) return 'Weeks';
@@ -173,8 +176,8 @@ export const ApiSyncSettings: React.FC<ApiSyncSettingsProps> = ({ generalSetting
                     </p>
                 </div>
                 <SyncButton
-                    user={useAuthStore.getState().user}
-                    currentChannel={useChannelStore.getState().currentChannel}
+                    user={user}
+                    currentChannel={currentChannel}
                     apiKey={generalSettings.apiKey}
                 />
             </section>
@@ -187,13 +190,13 @@ const SyncButton: React.FC<{
     currentChannel: { id: string } | null;
     apiKey: string | undefined;
 }> = ({ user, currentChannel, apiKey }) => {
-    const { isSyncing, syncAllVideos } = useVideosStore();
+    const { isSyncing, syncAllVideos } = useVideoSync(user?.uid || '', currentChannel?.id || '');
 
     return (
         <button
             onClick={() => {
                 if (user && currentChannel && apiKey) {
-                    syncAllVideos(user.uid, currentChannel.id, apiKey);
+                    syncAllVideos(apiKey);
                 } else if (!apiKey) {
                     alert("Please set API Key first");
                 }

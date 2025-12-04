@@ -24,6 +24,17 @@ export interface Channel {
 }
 
 export const ChannelService = {
+    getUserChannels: async (userId: string): Promise<Channel[]> => {
+        const channelsRef = collection(db, `users/${userId}/channels`);
+        const snapshot = await getDocs(channelsRef);
+        const loadedChannels: Channel[] = [];
+        snapshot.forEach((doc) => {
+            loadedChannels.push({ id: doc.id, ...doc.data() } as Channel);
+        });
+        loadedChannels.sort((a, b) => a.createdAt - b.createdAt);
+        return loadedChannels;
+    },
+
     subscribeToChannels: (userId: string, callback: (channels: Channel[]) => void) => {
         const channelsRef = collection(db, `users/${userId}/channels`);
         return onSnapshot(channelsRef, (snapshot) => {

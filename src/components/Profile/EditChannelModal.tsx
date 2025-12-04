@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, User, Camera } from 'lucide-react';
 import { useChannelStore } from '../../stores/channelStore';
-import { useAuthStore } from '../../stores/authStore';
+import { useAuth } from '../../hooks/useAuth';
 import { type Channel } from '../../services/channelService';
 import { resizeImage } from '../../utils/imageUtils';
 
@@ -17,7 +17,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({ isOpen, onCl
     const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { updateChannel, removeChannel } = useChannelStore();
-    const { user } = useAuthStore();
+    const { user } = useAuth();
     const [loading, setLoading] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 

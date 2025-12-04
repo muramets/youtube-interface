@@ -9,9 +9,10 @@ import { PlaylistsPage } from './components/Playlist/PlaylistsPage';
 import { PlaylistDetailPage } from './components/Playlist/PlaylistDetailPage';
 import { CategoryBar } from './components/Video/CategoryBar';
 import { useStoreInitialization } from './hooks/useStoreInitialization';
-import { useVideosStore } from './stores/videosStore';
-import { useSettingsStore } from './stores/settingsStore';
-import { useAuthStore } from './stores/authStore';
+import { useVideos } from './hooks/useVideos';
+
+import { useSettings } from './hooks/useSettings';
+import { useAuth } from './hooks/useAuth';
 import { useChannelStore } from './stores/channelStore';
 import { useUIStore } from './stores/uiStore';
 import { Toast } from './components/Shared/Toast';
@@ -20,10 +21,10 @@ import { useCheckinScheduler } from './hooks/useCheckinScheduler';
 
 function AppContent() {
   useCheckinScheduler();
-  const { isLoading, videos } = useVideosStore();
-  const { updateVideoOrder, videoOrder } = useSettingsStore();
-  const { user } = useAuthStore();
+  const { user } = useAuth();
   const { currentChannel } = useChannelStore();
+  const { isLoading, videos } = useVideos(user?.uid || '', currentChannel?.id || '');
+  const { updateVideoOrder, videoOrder } = useSettings();
 
   const handleVideoMove = (movedVideoId: string, targetVideoId: string) => {
     if (!user || !currentChannel) return;

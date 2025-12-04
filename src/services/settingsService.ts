@@ -1,6 +1,7 @@
 import {
     subscribeToDoc,
     setDocument,
+    fetchDoc,
 } from './firestore';
 
 export interface SyncSettings {
@@ -43,6 +44,10 @@ const getSettingsPath = (userId: string, channelId: string) =>
     `users/${userId}/channels/${channelId}/settings`;
 
 export const SettingsService = {
+    fetchGeneralSettings: async (userId: string, channelId: string) => {
+        return fetchDoc<GeneralSettings>(getSettingsPath(userId, channelId), 'general');
+    },
+
     subscribeToGeneralSettings: (
         userId: string,
         channelId: string,
@@ -66,6 +71,10 @@ export const SettingsService = {
             settings,
             true
         );
+    },
+
+    fetchSyncSettings: async (userId: string, channelId: string) => {
+        return fetchDoc<SyncSettings>(getSettingsPath(userId, channelId), 'sync');
     },
 
     subscribeToSyncSettings: (
@@ -93,6 +102,10 @@ export const SettingsService = {
         );
     },
 
+    fetchCloneSettings: async (userId: string, channelId: string) => {
+        return fetchDoc<CloneSettings>(getSettingsPath(userId, channelId), 'clone');
+    },
+
     subscribeToCloneSettings: (
         userId: string,
         channelId: string,
@@ -116,6 +129,10 @@ export const SettingsService = {
             settings,
             true
         );
+    },
+
+    fetchRecommendationOrders: async (userId: string, channelId: string) => {
+        return fetchDoc<RecommendationOrder>(getSettingsPath(userId, channelId), 'recommendationOrders');
     },
 
     subscribeToRecommendationOrders: (
@@ -143,6 +160,11 @@ export const SettingsService = {
         );
     },
 
+    fetchVideoOrder: async (userId: string, channelId: string) => {
+        const data = await fetchDoc<{ order: string[] }>(getSettingsPath(userId, channelId), 'videoOrder');
+        return data?.order || null;
+    },
+
     subscribeToVideoOrder: (
         userId: string,
         channelId: string,
@@ -168,6 +190,11 @@ export const SettingsService = {
         );
     },
 
+    fetchPlaylistOrder: async (userId: string, channelId: string) => {
+        const data = await fetchDoc<{ order: string[] }>(getSettingsPath(userId, channelId), 'playlistOrder');
+        return data?.order || null;
+    },
+
     subscribeToPlaylistOrder: (
         userId: string,
         channelId: string,
@@ -191,6 +218,10 @@ export const SettingsService = {
             { order },
             true
         );
+    },
+
+    fetchPackagingSettings: async (userId: string, channelId: string) => {
+        return fetchDoc<PackagingSettings>(getSettingsPath(userId, channelId), 'packaging');
     },
 
     subscribeToPackagingSettings: (

@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { type VideoDetails, type CoverVersion, type PackagingVersion, extractVideoId } from '../utils/youtubeApi';
-import { useVideosStore } from '../stores/videosStore';
-import { useAuthStore } from '../stores/authStore';
+import { useVideos } from './useVideos';
+
+import { useAuth } from './useAuth';
 import { useChannelStore } from '../stores/channelStore';
 
 export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
-    const { fetchVideoHistory } = useVideosStore();
-    const { user } = useAuthStore();
+    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
+    const { fetchVideoHistory } = useVideos(user?.uid || '', currentChannel?.id || '');
 
     // Form State
     const [title, setTitle] = useState(initialData?.title || '');
@@ -91,10 +92,10 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
 
                     try {
                         if (user && currentChannel) {
-                            const history = await fetchVideoHistory(user.uid, currentChannel.id, initialData.id);
+                            const history = await fetchVideoHistory(initialData.id);
                             // Filter out current cover from history
                             const currentUrl = initialData.customImage || initialData.thumbnail;
-                            const filteredHistory = history.filter(h => h.url !== currentUrl);
+                            const filteredHistory = history.filter((h: CoverVersion) => h.url !== currentUrl);
                             setCoverHistory(filteredHistory);
                         }
                     } catch (error) {

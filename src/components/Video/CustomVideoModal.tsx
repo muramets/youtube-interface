@@ -4,9 +4,10 @@ import { X } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { type VideoDetails, type CoverVersion, type PackagingMetrics, type PackagingVersion, type HistoryItem } from '../../utils/youtubeApi';
-import { useVideosStore } from '../../stores/videosStore';
+import { useVideos } from '../../hooks/useVideos';
+
 import { useChannelStore } from '../../stores/channelStore';
-import { useAuthStore } from '../../stores/authStore';
+import { useAuth } from '../../hooks/useAuth';
 import { Toast } from '../Shared/Toast';
 import { useVideoForm } from '../../hooks/useVideoForm';
 import { resizeImage } from '../../utils/imageUtils';
@@ -33,9 +34,9 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     onClone,
     initialData
 }) => {
-    const { saveVideoHistory, deleteVideoHistoryItem } = useVideosStore();
+    const { user } = useAuth();
     const { currentChannel, updateChannel } = useChannelStore();
-    const { user } = useAuthStore();
+    const { saveVideoHistory, deleteVideoHistoryItem } = useVideos(user?.uid || '', currentChannel?.id || '');
     const modalRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -325,11 +326,11 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 
             if (targetId && user && currentChannel) {
                 const deletePromises = Array.from(deletedHistoryIds).map(timestamp =>
-                    deleteVideoHistoryItem(user.uid, currentChannel.id, targetId, timestamp.toString())
+                    deleteVideoHistoryItem({ videoId: targetId, historyId: timestamp.toString() })
                 );
                 await Promise.all(deletePromises);
 
-                const savePromises = coverHistory.map(item => saveVideoHistory(user.uid, currentChannel.id, targetId, item as unknown as HistoryItem));
+                const savePromises = coverHistory.map(item => saveVideoHistory({ videoId: targetId, historyItem: item as unknown as HistoryItem }));
                 await Promise.all(savePromises);
             }
 

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, User, Camera } from 'lucide-react';
 import { useChannelStore } from '../../stores/channelStore';
-import { useAuthStore } from '../../stores/authStore';
+import { useAuth } from '../../hooks/useAuth';
 import { resizeImage } from '../../utils/imageUtils';
 
 interface ProfileModalProps {
@@ -11,7 +11,7 @@ interface ProfileModalProps {
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
     const { currentChannel, updateChannel } = useChannelStore();
-    const { user } = useAuthStore();
+    const { user } = useAuth();
     const [name, setName] = useState(currentChannel?.name || '');
     const [previewUrl, setPreviewUrl] = useState<string | null>(currentChannel?.avatar || null);
     const [isDragging, setIsDragging] = useState(false);

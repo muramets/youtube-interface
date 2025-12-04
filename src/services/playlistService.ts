@@ -2,7 +2,8 @@ import {
     setDocument,
     deleteDocument,
     subscribeToCollection,
-    updateDocument
+    updateDocument,
+    fetchCollection
 } from './firestore';
 import { orderBy, arrayUnion, arrayRemove, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -20,6 +21,10 @@ const getPlaylistsPath = (userId: string, channelId: string) =>
     `users/${userId}/channels/${channelId}/playlists`;
 
 export const PlaylistService = {
+    fetchPlaylists: async (userId: string, channelId: string) => {
+        return fetchCollection<Playlist>(getPlaylistsPath(userId, channelId), [orderBy('createdAt')]);
+    },
+
     subscribeToPlaylists: (
         userId: string,
         channelId: string,

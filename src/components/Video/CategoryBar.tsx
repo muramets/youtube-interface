@@ -1,10 +1,15 @@
 import React, { useMemo } from 'react';
-import { useVideosStore } from '../../stores/videosStore';
+import { useVideos } from '../../hooks/useVideos';
+import { useAuth } from '../../hooks/useAuth';
+import { useChannelStore } from '../../stores/channelStore';
+
 import { useFilterStore } from '../../stores/filterStore';
 import { FilterSortDropdown } from '../Shared/FilterSortDropdown';
 
 export const CategoryBar: React.FC = () => {
-    const { videos } = useVideosStore();
+    const { user } = useAuth();
+    const { currentChannel } = useChannelStore();
+    const { videos } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { selectedChannel, setSelectedChannel, homeSortBy, setHomeSortBy } = useFilterStore();
 
     const uniqueChannels = useMemo(() => {

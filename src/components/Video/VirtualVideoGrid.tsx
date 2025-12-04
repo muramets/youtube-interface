@@ -4,7 +4,7 @@ import AutoSizer from 'react-virtualized-auto-sizer';
 import { VideoCard } from './VideoCard';
 import { SortableVideoCard } from './SortableVideoCard';
 import type { VideoDetails } from '../../utils/youtubeApi';
-import { useSettingsStore } from '../../stores/settingsStore';
+import { useSettings } from '../../hooks/useSettings';
 import { GRID_LAYOUT } from '../../config/layout';
 import {
     DndContext,
@@ -75,7 +75,8 @@ const Row = ({ index, style, data }: { index: number; style: React.CSSProperties
 };
 
 export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = ({ videos, playlistId, onRemove, onVideoMove }) => {
-    const cardsPerRow = useSettingsStore(state => state.generalSettings.cardsPerRow);
+    const { generalSettings } = useSettings();
+    const cardsPerRow = generalSettings.cardsPerRow;
 
     const sensors = useSensors(
         useSensor(PointerSensor, {

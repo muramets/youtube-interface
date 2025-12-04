@@ -1,15 +1,16 @@
 import React from 'react';
 
 import type { VideoDetails } from '../../utils/youtubeApi';
-import { useVideosStore } from '../../stores/videosStore';
+import { useVideos } from '../../hooks/useVideos';
+
 import { useFilterStore } from '../../stores/filterStore';
-import { usePlaylistsStore } from '../../stores/playlistsStore';
-import { useSettingsStore } from '../../stores/settingsStore';
+import { usePlaylists } from '../../hooks/usePlaylists';
+import { useSettings } from '../../hooks/useSettings';
 import { VideoCardSkeleton } from '../Shared/VideoCardSkeleton';
 import { VirtualVideoGrid } from './VirtualVideoGrid';
 import { VideoGridContainer } from './VideoGridContainer';
 import { GRID_LAYOUT } from '../../config/layout';
-import { useAuthStore } from '../../stores/authStore';
+import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 
 interface VideoGridProps {
@@ -27,24 +28,21 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
   playlistId,
   isLoading: propIsLoading = false
 }) => {
-  const contextVideos = useVideosStore(state => state.videos);
-  const contextIsLoading = useVideosStore(state => state.isLoading);
-  const removeVideo = useVideosStore(state => state.removeVideo);
+  const { user, isLoading: authLoading } = useAuth();
+  const currentChannel = useChannelStore(state => state.currentChannel);
+
+  const { videos: contextVideos, isLoading: contextIsLoading, removeVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
 
   const selectedChannel = useFilterStore(state => state.selectedChannel);
   const searchQuery = useFilterStore(state => state.searchQuery);
 
-  const playlists = usePlaylistsStore(state => state.playlists);
+  const { playlists } = usePlaylists(user?.uid || '', currentChannel?.id || '');
 
-  const cardsPerRow = useSettingsStore(state => state.generalSettings.cardsPerRow);
-  const hiddenPlaylistIds = useSettingsStore(state => state.generalSettings.hiddenPlaylistIds || []);
+  const { generalSettings, videoOrder } = useSettings();
+  const cardsPerRow = generalSettings.cardsPerRow;
+  const hiddenPlaylistIds = generalSettings.hiddenPlaylistIds || [];
 
-  const user = useAuthStore(state => state.user);
-  const currentChannel = useChannelStore(state => state.currentChannel);
-
-  const videoOrder = useSettingsStore(state => state.videoOrder);
-
-  const isLoading = propIsLoading || (propVideos ? false : contextIsLoading);
+  const isLoading = propIsLoading || (propVideos ? false : contextIsLoading) || authLoading || (!propVideos && !currentChannel);
 
   const sourceVideos = React.useMemo(() => {
     if (propVideos) return propVideos;
@@ -130,7 +128,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
         playlistId={playlistId}
         onRemove={(videoId) => {
           if (user && currentChannel) {
-            removeVideo(user.uid, currentChannel.id, videoId);
+            removeVideo(videoId);
           }
         }}
         onVideoMove={onVideoMove}

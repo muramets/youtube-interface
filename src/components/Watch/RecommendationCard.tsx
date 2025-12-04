@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { MoreVertical, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useVideosStore } from '../../stores/videosStore';
-import { usePlaylistsStore } from '../../stores/playlistsStore';
-import { useAuthStore } from '../../stores/authStore';
+import { useVideos } from '../../hooks/useVideos';
+import { useVideoSync } from '../../hooks/useVideoSync';
+
+import { usePlaylists } from '../../hooks/usePlaylists';
+import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 import type { VideoDetails } from '../../utils/youtubeApi';
 import { formatViewCount, formatDuration } from '../../utils/formatUtils';
@@ -13,7 +15,7 @@ import { ConfirmationModal } from '../Shared/ConfirmationModal';
 import { CustomVideoModal } from '../Video/CustomVideoModal';
 import { PortalTooltip } from '../Shared/PortalTooltip';
 import { ClonedVideoTooltipContent } from '../Video/ClonedVideoTooltipContent';
-import { useSettingsStore } from '../../stores/settingsStore';
+import { useSettings } from '../../hooks/useSettings';
 import { useUIStore } from '../../stores/uiStore';
 import { Toast } from '../Shared/Toast';
 
@@ -25,13 +27,14 @@ interface RecommendationCardProps {
 
 export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, playlistId, onMenuOpenChange }) => {
     const navigate = useNavigate();
-    const { removeVideo, updateVideo } = useVideosStore();
-    const { removeVideoFromPlaylist } = usePlaylistsStore();
-    const { user } = useAuthStore();
+    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const apiKey = useSettingsStore(state => state.generalSettings.apiKey);
+    const { removeVideo, updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const { syncVideo } = useVideoSync(user?.uid || '', currentChannel?.id || '');
+    const { removeVideoFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+    const { generalSettings } = useSettings();
+    const apiKey = generalSettings.apiKey;
     const { setSettingsOpen } = useUIStore();
-    const syncVideo = useVideosStore(state => state.syncVideo);
 
     const [showMenu, setShowMenu] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
@@ -78,7 +81,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
             return;
         }
         setIsSyncing(true);
-        await syncVideo(user.uid, currentChannel.id, video.id, apiKey);
+        await syncVideo(video.id, apiKey);
         setIsSyncing(false);
     };
 
@@ -173,9 +176,9 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
         if (!user || !currentChannel) return;
 
         if (confirmation.action === 'removeFromPlaylist' && playlistId) {
-            removeVideoFromPlaylist(user.uid, currentChannel.id, playlistId, video.id);
+            removeVideoFromPlaylist({ playlistId, videoId: video.id });
         } else if (confirmation.action === 'deleteCustom' || confirmation.action === 'removeVideo') {
-            removeVideo(user.uid, currentChannel.id, video.id);
+            removeVideo(video.id);
         }
         setConfirmation({ ...confirmation, isOpen: false });
     };
@@ -340,7 +343,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                     onClose={() => setShowEditModal(false)}
                     onSave={async (updatedVideo) => {
                         if (user && currentChannel) {
-                            await updateVideo(user.uid, currentChannel.id, video.id, updatedVideo);
+                            await updateVideo({ videoId: video.id, updates: updatedVideo });
                         }
                         setShowEditModal(false);
                     }}

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { useVideosStore } from '../../stores/videosStore';
+import { useVideos } from '../../hooks/useVideos';
+
 import { useFilterStore } from '../../stores/filterStore';
-import { usePlaylistsStore } from '../../stores/playlistsStore';
-import { useAuthStore } from '../../stores/authStore';
+import { usePlaylists } from '../../hooks/usePlaylists';
+import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 import { type Playlist } from '../../services/playlistService';
 import { useNavigate } from 'react-router-dom';
@@ -29,10 +30,10 @@ import { SortablePlaylistCard } from './PlaylistCard';
 import { PlaylistsPageSkeleton } from './PlaylistsPageSkeleton';
 
 export const PlaylistsPage: React.FC = () => {
-    const { playlists, deletePlaylist, updatePlaylist, reorderPlaylists, isLoading } = usePlaylistsStore();
-    const { videos } = useVideosStore();
-    const { user } = useAuthStore();
+    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
+    const { playlists, deletePlaylist, updatePlaylist, reorderPlaylists, isLoading } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+    const { videos } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { searchQuery } = useFilterStore();
     const navigate = useNavigate();
     const [editingPlaylist, setEditingPlaylist] = useState<Playlist | null>(null);
@@ -64,7 +65,7 @@ export const PlaylistsPage: React.FC = () => {
 
     const confirmDelete = () => {
         if (deleteConfirmation.playlistId && user && currentChannel) {
-            deletePlaylist(user.uid, currentChannel.id, deleteConfirmation.playlistId);
+            deletePlaylist(deleteConfirmation.playlistId);
         }
         setDeleteConfirmation({ isOpen: false, playlistId: null });
     };
@@ -88,7 +89,7 @@ export const PlaylistsPage: React.FC = () => {
             // Wait, reorderPlaylists in store takes newOrder string[]?
             // Let's check store signature.
             // reorderPlaylists: (userId, channelId, newOrder) => Promise<void>
-            reorderPlaylists(user.uid, currentChannel.id, newOrder);
+            reorderPlaylists(newOrder);
         }
     };
 
@@ -176,7 +177,7 @@ export const PlaylistsPage: React.FC = () => {
                         onClose={() => setEditingPlaylist(null)}
                         onSave={(id, updates) => {
                             if (user && currentChannel) {
-                                updatePlaylist(user.uid, currentChannel.id, id, updates);
+                                updatePlaylist({ playlistId: id, updates });
                             }
                             return Promise.resolve();
                         }}

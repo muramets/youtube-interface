@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { MoreVertical, Info, Trash2 } from 'lucide-react';
 import { type VideoDetails, type CoverVersion } from '../../utils/youtubeApi';
 import { formatDuration, formatViewCount } from '../../utils/formatUtils';
-import { useVideosStore } from '../../stores/videosStore';
-import { usePlaylistsStore } from '../../stores/playlistsStore';
+import { useVideos } from '../../hooks/useVideos';
+import { useVideoSync } from '../../hooks/useVideoSync';
+
+import { usePlaylists } from '../../hooks/usePlaylists';
 
 import { PortalTooltip } from '../Shared/PortalTooltip';
 import { VideoCardMenu } from './VideoCardMenu';
@@ -12,9 +14,9 @@ import { CustomVideoModal } from './CustomVideoModal';
 import { AddToPlaylistModal as PlaylistSelectionModal } from '../Playlist/AddToPlaylistModal';
 import { ConfirmationModal } from '../Shared/ConfirmationModal';
 import { ClonedVideoTooltipContent } from './ClonedVideoTooltipContent';
-import { useAuthStore } from '../../stores/authStore';
+import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
-import { useSettingsStore } from '../../stores/settingsStore';
+import { useSettings } from '../../hooks/useSettings';
 import { useUIStore } from '../../stores/uiStore';
 import { Toast } from '../Shared/Toast';
 
@@ -28,14 +30,15 @@ interface VideoCardProps {
 
 export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange, onRemove, onEdit }) => {
   const navigate = useNavigate();
-  const syncVideo = useVideosStore(state => state.syncVideo);
-  const updateVideo = useVideosStore(state => state.updateVideo);
-  const cloneVideo = useVideosStore(state => state.cloneVideo);
-  const removeVideoFromPlaylist = usePlaylistsStore(state => state.removeVideoFromPlaylist);
-  const user = useAuthStore(state => state.user);
+  const { user } = useAuth();
   const currentChannel = useChannelStore(state => state.currentChannel);
-  const apiKey = useSettingsStore(state => state.generalSettings.apiKey);
-  const { cloneSettings } = useSettingsStore();
+
+  const { updateVideo, cloneVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
+  const { syncVideo } = useVideoSync(user?.uid || '', currentChannel?.id || '');
+
+  const { removeVideoFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+  const { generalSettings, cloneSettings } = useSettings();
+  const apiKey = generalSettings.apiKey;
   const { setSettingsOpen } = useUIStore();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -97,7 +100,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const handleCloneVideo = async (originalVideo: VideoDetails, version: CoverVersion) => {
     setShowEditModal(false);
     if (user && currentChannel) {
-      await cloneVideo(user.uid, currentChannel.id, originalVideo, version, cloneSettings.cloneDurationSeconds);
+      await cloneVideo({ originalVideo, coverVersion: version, cloneDurationSeconds: cloneSettings.cloneDurationSeconds });
     }
   };
 
@@ -145,7 +148,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
       return;
     }
     setIsSyncing(true);
-    await syncVideo(user.uid, currentChannel.id, video.id, apiKey);
+    await syncVideo(video.id, apiKey);
     setIsSyncing(false);
   };
 
@@ -174,7 +177,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         message: `Are you sure you want to remove "${video.title}" from this playlist?`,
         onConfirm: () => {
           if (user && currentChannel) {
-            removeVideoFromPlaylist(user.uid, currentChannel.id, playlistId, video.id);
+            removeVideoFromPlaylist({ playlistId, videoId: video.id });
           }
           setConfirmation(prev => ({ ...prev, isOpen: false }));
         }
@@ -204,7 +207,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
 
   const handleSaveCustomVideo = async (updatedVideo: Omit<VideoDetails, 'id'>, shouldClose = true) => {
     if (user && currentChannel) {
-      await updateVideo(user.uid, currentChannel.id, video.id, updatedVideo, apiKey);
+      await updateVideo({ videoId: video.id, updates: updatedVideo, apiKey });
     }
     if (shouldClose) setShowEditModal(false);
   };

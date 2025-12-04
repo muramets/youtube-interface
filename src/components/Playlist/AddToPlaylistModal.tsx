@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { usePlaylistsStore } from '../../stores/playlistsStore';
-import { useAuthStore } from '../../stores/authStore';
+import { usePlaylists } from '../../hooks/usePlaylists';
+import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 import { X, Plus, Check } from 'lucide-react';
 
@@ -11,16 +11,16 @@ interface AddToPlaylistModalProps {
 }
 
 export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoId, onClose }) => {
-    const { playlists, createPlaylist, addVideoToPlaylist, removeVideoFromPlaylist } = usePlaylistsStore();
-    const { user } = useAuthStore();
+    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
+    const { playlists, createPlaylist, addVideoToPlaylist, removeVideoFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
     const [isCreating, setIsCreating] = React.useState(false);
     const [newPlaylistName, setNewPlaylistName] = React.useState('');
 
     const handleCreate = (e: React.FormEvent) => {
         e.preventDefault();
         if (newPlaylistName.trim() && user && currentChannel) {
-            createPlaylist(user.uid, currentChannel.id, newPlaylistName.trim());
+            createPlaylist({ name: newPlaylistName.trim() });
             setNewPlaylistName('');
             setIsCreating(false);
         }
@@ -29,9 +29,9 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoId,
     const togglePlaylist = (playlistId: string, isInPlaylist: boolean) => {
         if (!user || !currentChannel) return;
         if (!isInPlaylist) {
-            addVideoToPlaylist(user.uid, currentChannel.id, playlistId, videoId);
+            addVideoToPlaylist({ playlistId, videoId });
         } else {
-            removeVideoFromPlaylist(user.uid, currentChannel.id, playlistId, videoId);
+            removeVideoFromPlaylist({ playlistId, videoId });
         }
     };
 

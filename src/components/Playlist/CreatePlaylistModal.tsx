@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { X, ListPlus } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { usePlaylistsStore } from '../../stores/playlistsStore';
-import { useAuthStore } from '../../stores/authStore';
+import { usePlaylists } from '../../hooks/usePlaylists';
+import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 
 interface CreatePlaylistModalProps {
@@ -11,9 +11,9 @@ interface CreatePlaylistModalProps {
 }
 
 export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({ isOpen, onClose }) => {
-    const { createPlaylist } = usePlaylistsStore();
-    const { user } = useAuthStore();
+    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
+    const { createPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
     const [name, setName] = useState('');
 
     if (!isOpen) return null;
@@ -22,7 +22,7 @@ export const CreatePlaylistModal: React.FC<CreatePlaylistModalProps> = ({ isOpen
         e.preventDefault();
         if (!name.trim() || !user || !currentChannel) return;
 
-        createPlaylist(user.uid, currentChannel.id, name.trim());
+        createPlaylist({ name: name.trim() });
         setName('');
         onClose();
     };

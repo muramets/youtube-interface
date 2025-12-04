@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { X, Youtube } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { useVideosStore } from '../../stores/videosStore';
-import { useAuthStore } from '../../stores/authStore';
+import { useVideos } from '../../hooks/useVideos';
+
+import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
-import { useSettingsStore } from '../../stores/settingsStore';
+import { useSettings } from '../../hooks/useSettings';
 
 interface AddYouTubeVideoModalProps {
     isOpen: boolean;
@@ -12,10 +13,10 @@ interface AddYouTubeVideoModalProps {
 }
 
 export const AddYouTubeVideoModal: React.FC<AddYouTubeVideoModalProps> = ({ isOpen, onClose }) => {
-    const { addVideo } = useVideosStore();
-    const { user } = useAuthStore();
+    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { generalSettings } = useSettingsStore();
+    const { addVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const { generalSettings } = useSettings();
     const [url, setUrl] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
@@ -29,7 +30,7 @@ export const AddYouTubeVideoModal: React.FC<AddYouTubeVideoModalProps> = ({ isOp
         }
 
         setIsLoading(true);
-        const success = await addVideo(user.uid, currentChannel.id, url, generalSettings.apiKey);
+        const success = await addVideo({ url, apiKey: generalSettings.apiKey });
         setIsLoading(false);
 
         if (success) {

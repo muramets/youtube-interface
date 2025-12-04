@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, ChevronRight } from 'lucide-react';
-import { useSettingsStore } from '../../stores/settingsStore';
-import { useAuthStore } from '../../stores/authStore';
+import { useSettings } from '../../hooks/useSettings';
+import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 
 interface SettingsMenuCloneProps {
@@ -9,8 +9,8 @@ interface SettingsMenuCloneProps {
 }
 
 export const SettingsMenuClone: React.FC<SettingsMenuCloneProps> = ({ onBack }) => {
-    const { cloneSettings, updateCloneSettings } = useSettingsStore();
-    const { user } = useAuthStore();
+    const { cloneSettings, updateCloneSettings } = useSettings();
+    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
 

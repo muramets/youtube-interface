@@ -1,15 +1,16 @@
 import { useEffect, useRef } from 'react';
-import { useSettingsStore } from '../stores/settingsStore';
-import { useVideosStore } from '../stores/videosStore';
-import { useAuthStore } from '../stores/authStore';
+import { useSettings } from './useSettings';
+import { useVideoSync } from './useVideoSync';
+
+import { useAuth } from './useAuth';
 import { useChannelStore } from '../stores/channelStore';
 import { useNotificationStore } from '../stores/notificationStore';
 
 export const useAutoSync = () => {
-    const { syncSettings, updateSyncSettings, generalSettings } = useSettingsStore();
-    const { syncAllVideos } = useVideosStore();
-    const { user } = useAuthStore();
+    const { syncSettings, updateSyncSettings, generalSettings } = useSettings();
+    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
+    const { syncAllVideos } = useVideoSync(user?.uid || '', currentChannel?.id || '');
     const { addNotification } = useNotificationStore.getState();
 
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -62,7 +63,7 @@ export const useAutoSync = () => {
                     return;
                 }
 
-                await syncAllVideos(user.uid, currentChannel.id, generalSettings.apiKey);
+                await syncAllVideos(generalSettings.apiKey);
 
                 // Update last sync time
                 updateSyncSettings(user.uid, currentChannel.id, {

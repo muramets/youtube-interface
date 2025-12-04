@@ -1,12 +1,14 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { useVideosStore } from '../../stores/videosStore';
+import { useVideos } from '../../hooks/useVideos';
+
 import { useFilterStore } from '../../stores/filterStore';
-import { usePlaylistsStore } from '../../stores/playlistsStore';
-import { useSettingsStore } from '../../stores/settingsStore';
-import { useAuthStore } from '../../stores/authStore';
+import { usePlaylists } from '../../hooks/usePlaylists';
+import { useSettings } from '../../hooks/useSettings';
+import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 import { FilterType, SortOption } from '../../constants/enums';
+import type { Playlist } from '../../services/playlistService';
 import {
     DndContext,
     closestCenter,
@@ -32,17 +34,17 @@ export const WatchPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const [searchParams] = useSearchParams();
     const playlistId = searchParams.get('list');
-    const { videos, isLoading } = useVideosStore();
+    const { user } = useAuth();
+    const { currentChannel } = useChannelStore();
+    const { videos, isLoading } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { searchQuery } = useFilterStore();
-    const { playlists } = usePlaylistsStore();
+    const { playlists } = usePlaylists(user?.uid || '', currentChannel?.id || '');
     const {
         generalSettings,
         recommendationOrders,
         updateRecommendationOrders,
         videoOrder
-    } = useSettingsStore();
-    const { user } = useAuthStore();
-    const { currentChannel } = useChannelStore();
+    } = useSettings();
 
     const hiddenPlaylistIds = useMemo(() => generalSettings.hiddenPlaylistIds || [], [generalSettings.hiddenPlaylistIds]);
 
@@ -76,7 +78,7 @@ export const WatchPage: React.FC = () => {
     // --- Filtering Logic ---
     const containingPlaylists = useMemo(() => {
         if (!video) return [];
-        return playlists.filter(playlist => playlist.videoIds.includes(video.id));
+        return playlists.filter((playlist: Playlist) => playlist.videoIds.includes(video.id));
     }, [playlists, video]);
 
     const filterKey = useMemo(() => {
@@ -103,9 +105,9 @@ export const WatchPage: React.FC = () => {
         // Filter out hidden playlists
         if (hiddenPlaylistIds.length > 0) {
             const hiddenVideoIds = new Set<string>();
-            playlists.forEach(playlist => {
+            playlists.forEach((playlist: Playlist) => {
                 if (hiddenPlaylistIds.includes(playlist.id)) {
-                    playlist.videoIds.forEach(id => hiddenVideoIds.add(id));
+                    playlist.videoIds.forEach((id: string) => hiddenVideoIds.add(id));
                 }
             });
             recs = recs.filter(v => !hiddenVideoIds.has(v.id));
@@ -116,9 +118,9 @@ export const WatchPage: React.FC = () => {
         } else if (selectedFilter === FilterType.PLAYLISTS) {
             if (selectedPlaylistIds.length > 0) {
                 const videoIdsInSelectedPlaylists = new Set<string>();
-                playlists.forEach(playlist => {
+                playlists.forEach((playlist: Playlist) => {
                     if (selectedPlaylistIds.includes(playlist.id)) {
-                        playlist.videoIds.forEach(vidId => videoIdsInSelectedPlaylists.add(vidId));
+                        playlist.videoIds.forEach((vidId: string) => videoIdsInSelectedPlaylists.add(vidId));
                     }
                 });
                 recs = recs.filter(v => videoIdsInSelectedPlaylists.has(v.id));
@@ -317,4 +319,3 @@ export const WatchPage: React.FC = () => {
 
     );
 };
-

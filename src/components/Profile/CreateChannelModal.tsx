@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { X, User, Camera } from 'lucide-react';
 import { useChannelStore } from '../../stores/channelStore';
-import { useAuthStore } from '../../stores/authStore';
+import { useAuth } from '../../hooks/useAuth';
 import { resizeImage } from '../../utils/imageUtils';
 
 interface CreateChannelModalProps {
@@ -11,7 +11,7 @@ interface CreateChannelModalProps {
 
 export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({ isOpen, onClose }) => {
     const { addChannel } = useChannelStore();
-    const { user } = useAuthStore();
+    const { user } = useAuth();
     const [name, setName] = useState('');
     const [avatarUrl, setAvatarUrl] = useState('');
     const [isDragging, setIsDragging] = useState(false);

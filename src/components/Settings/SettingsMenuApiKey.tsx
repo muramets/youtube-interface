@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { useSettingsStore } from '../../stores/settingsStore';
-import { useAuthStore } from '../../stores/authStore';
+import { useSettings } from '../../hooks/useSettings';
+import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 
 interface SettingsMenuApiKeyProps {
@@ -9,8 +9,8 @@ interface SettingsMenuApiKeyProps {
 }
 
 export const SettingsMenuApiKey: React.FC<SettingsMenuApiKeyProps> = ({ onBack }) => {
-    const { generalSettings, updateGeneralSettings } = useSettingsStore();
-    const { user } = useAuthStore();
+    const { generalSettings, updateGeneralSettings } = useSettings();
+    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const [tempApiKey, setTempApiKey] = useState('');
 
