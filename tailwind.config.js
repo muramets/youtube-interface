@@ -16,6 +16,10 @@ export default {
                 'border': 'var(--border)',
                 'hover': 'var(--hover)',
                 'hover-bg': 'var(--hover-bg)',
+                'modal-surface': 'var(--modal-surface)',
+                'modal-button-bg': 'var(--modal-button-bg)',
+                'modal-button-hover': 'var(--modal-button-hover)',
+                'modal-placeholder': 'var(--modal-placeholder)',
             },
             keyframes: {
                 'fade-in-up': {

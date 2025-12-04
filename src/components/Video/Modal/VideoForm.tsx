@@ -1,111 +1,197 @@
 import React from 'react';
-import { Check } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { TagsInput } from '../../TagsInput';
+import { LanguageTabs } from '../LanguageTabs';
+import { type VideoLocalization } from '../../../utils/youtubeApi';
+import { type CustomLanguage } from '../../../services/channelService';
 
 interface VideoFormProps {
     title: string;
-    setTitle: (value: string) => void;
-    viewCount: string;
-    setViewCount: (value: string) => void;
-    duration: string;
-    setDuration: (value: string) => void;
+    setTitle: (val: string) => void;
+    description: string;
+    setDescription: (val: string) => void;
+    tags: string[];
+    setTags: (val: string[]) => void;
+    activeLanguage: string;
+    localizations: Record<string, VideoLocalization>;
+    onSwitchLanguage: (code: string) => void;
+    onAddLanguage: (code: string, customName?: string, customFlag?: string) => void;
+    onRemoveLanguage: (code: string) => void;
+    savedCustomLanguages?: CustomLanguage[];
+    onDeleteCustomLanguage?: (code: string) => void;
     isPublished: boolean;
-    setIsPublished: (value: boolean) => void;
+    setIsPublished: (val: boolean) => void;
     publishedUrl: string;
-    setPublishedUrl: (value: string) => void;
+    setPublishedUrl: (val: string) => void;
+    isStatsExpanded: boolean;
+    setIsStatsExpanded: (val: boolean) => void;
+    viewCount: string;
+    setViewCount: (val: string) => void;
+    duration: string;
+    setDuration: (val: string) => void;
+    videoRender: string;
+    setVideoRender: (val: string) => void;
+    audioRender: string;
+    setAudioRender: (val: string) => void;
+    onShowToast: (message: string, type: 'success' | 'error') => void;
 }
 
 export const VideoForm: React.FC<VideoFormProps> = ({
     title,
     setTitle,
+    description,
+    setDescription,
+    tags,
+    setTags,
+    activeLanguage,
+    localizations,
+    onSwitchLanguage,
+    onAddLanguage,
+    onRemoveLanguage,
+    savedCustomLanguages,
+    onDeleteCustomLanguage,
+    isPublished,
+    setIsPublished,
+    publishedUrl,
+    setPublishedUrl,
+    isStatsExpanded,
+    setIsStatsExpanded,
     viewCount,
     setViewCount,
     duration,
     setDuration,
-    isPublished,
-    setIsPublished,
-    publishedUrl,
-    setPublishedUrl
+    videoRender,
+    setVideoRender,
+    audioRender,
+    setAudioRender,
+    onShowToast
 }) => {
     return (
-        <div className="flex flex-col gap-5">
-            {/* Title Input */}
+        <div className="flex-1 flex flex-col gap-5 overflow-y-auto custom-scrollbar pr-2">
+            <LanguageTabs
+                activeLanguage={activeLanguage}
+                localizations={localizations}
+                onSwitchLanguage={onSwitchLanguage}
+                onAddLanguage={onAddLanguage}
+                onRemoveLanguage={onRemoveLanguage}
+                savedCustomLanguages={savedCustomLanguages}
+                onDeleteCustomLanguage={onDeleteCustomLanguage}
+            />
+
+            {/* Title */}
             <div className="flex flex-col gap-2">
-                <label className="text-sm text-text-secondary font-medium">Video Title</label>
+                <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Title</label>
                 <input
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Very good playlist for you"
-                    onKeyDown={(e) => e.stopPropagation()}
-                    className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary text-base focus:outline-none focus:border-text-primary transition-colors placeholder:text-text-secondary/50"
+                    className="w-full bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
+                    placeholder="Add a title that describes your video"
                 />
             </div>
 
-            {/* View Count Input */}
+            {/* Description */}
             <div className="flex flex-col gap-2">
-                <label className="text-sm text-text-secondary font-medium">View Count</label>
-                <input
-                    type="text"
-                    value={viewCount}
-                    onChange={(e) => setViewCount(e.target.value)}
-                    placeholder="1M"
-                    onKeyDown={(e) => e.stopPropagation()}
-                    className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary text-base focus:outline-none focus:border-text-primary transition-colors placeholder:text-text-secondary/50"
+                <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Description</label>
+                <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="w-full h-32 bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none resize-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
+                    placeholder="Tell viewers about your video"
                 />
             </div>
 
-            {/* Duration Input */}
-            <div className="flex flex-col gap-2">
-                <label className="text-sm text-text-secondary font-medium">Duration</label>
-                <input
-                    type="text"
-                    value={duration}
-                    onChange={(e) => setDuration(e.target.value)}
-                    placeholder="1:02:11"
-                    onKeyDown={(e) => e.stopPropagation()}
-                    className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary text-base focus:outline-none focus:border-text-primary transition-colors placeholder:text-text-secondary/50"
-                />
-            </div>
+            {/* Tags */}
+            <TagsInput
+                tags={tags}
+                onChange={setTags}
+                onShowToast={onShowToast}
+            />
 
-            {/* Published Video Section */}
-            <div className="flex flex-col gap-3 pt-2 border-t border-border">
-                <label className="flex items-center gap-3 cursor-pointer w-fit group select-none">
-                    <div className="relative flex items-center justify-center w-5 h-5">
-                        <input
-                            type="checkbox"
-                            checked={isPublished}
-                            onChange={(e) => setIsPublished(e.target.checked)}
-                            className="peer appearance-none w-5 h-5 border-2 border-text-secondary/50 rounded-md checked:bg-text-primary checked:border-text-primary transition-all duration-200 cursor-pointer"
-                        />
-                        <Check
-                            size={14}
-                            className="absolute text-bg-primary opacity-0 peer-checked:opacity-100 transition-opacity duration-200 pointer-events-none"
-                            strokeWidth={3}
-                        />
+            {/* Published Status - Only for default language */}
+            {activeLanguage === 'default' && (
+                <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-3">
+                        <div
+                            onClick={() => setIsPublished(!isPublished)}
+                            className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors ${isPublished ? 'bg-text-primary border-text-primary' : 'border-text-secondary hover:border-text-primary'}`}
+                        >
+                            {isPublished && <Check size={14} className="text-bg-primary" />}
+                        </div>
+                        <span className="text-sm text-text-primary font-medium cursor-pointer" onClick={() => setIsPublished(!isPublished)}>Video Published</span>
                     </div>
-                    <span className="text-sm font-medium text-text-primary group-hover:text-text-primary/80 transition-colors">
-                        Video Published
-                    </span>
-                </label>
 
-                <div
-                    className={`grid transition-[grid-template-rows] duration-300 ease-out ${isPublished ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
-                >
-                    <div className="overflow-hidden">
-                        <div className="flex flex-col gap-2 pt-1 pb-1">
-                            <label className="text-sm text-text-secondary font-medium">YouTube URL</label>
+                    {isPublished && (
+                        <div className="animate-scale-in origin-top">
                             <input
                                 type="text"
                                 value={publishedUrl}
                                 onChange={(e) => setPublishedUrl(e.target.value)}
+                                className="w-full bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
                                 placeholder="https://www.youtube.com/watch?v=..."
-                                onKeyDown={(e) => e.stopPropagation()}
-                                className="p-2.5 rounded-lg border border-border bg-bg-primary text-text-primary text-base focus:outline-none focus:border-text-primary transition-colors placeholder:text-text-secondary/50 w-full"
                             />
                         </div>
-                    </div>
+                    )}
                 </div>
-            </div>
+            )}
+
+            {/* Stats Section - Only for default language */}
+            {activeLanguage === 'default' && (
+                <div className="border-t border-border pt-4">
+                    <button
+                        onClick={() => setIsStatsExpanded(!isStatsExpanded)}
+                        className="flex items-center gap-2 px-4 py-2 rounded-full bg-modal-button-bg text-white text-sm font-medium hover:bg-modal-button-hover transition-colors mb-4"
+                    >
+                        {isStatsExpanded ? 'Show less' : 'Show more'}
+                        {isStatsExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </button>
+
+                    {isStatsExpanded && (
+                        <div className="grid grid-cols-2 gap-4 animate-fade-in pb-2">
+                            <div className="flex flex-col gap-2">
+                                <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Video Render #</label>
+                                <input
+                                    type="text"
+                                    value={videoRender}
+                                    onChange={(e) => setVideoRender(e.target.value)}
+                                    className="modal-input"
+                                    placeholder="e.g. #1.1"
+                                />
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Audio Render #</label>
+                                <input
+                                    type="text"
+                                    value={audioRender}
+                                    onChange={(e) => setAudioRender(e.target.value)}
+                                    className="modal-input"
+                                    placeholder="e.g. #1.0"
+                                />
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">View Count</label>
+                                <input
+                                    type="text"
+                                    value={viewCount}
+                                    onChange={(e) => setViewCount(e.target.value)}
+                                    className="modal-input"
+                                    placeholder="e.g. 1.2M"
+                                />
+                            </div>
+                            <div className="flex flex-col gap-2">
+                                <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Duration</label>
+                                <input
+                                    type="text"
+                                    value={duration}
+                                    onChange={(e) => setDuration(e.target.value)}
+                                    className="modal-input"
+                                    placeholder="e.g. 10:05"
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 };

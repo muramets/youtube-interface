@@ -139,7 +139,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
             {children}
             {shouldRender && createPortal(
                 <div
-                    className="fixed z-[9999] pointer-events-auto will-change-transform"
+                    className="fixed z-[1200] pointer-events-auto will-change-transform"
                     style={{
                         top: Math.round(position.top),
                         left: Math.round(position.left),
@@ -150,12 +150,12 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                 >
                     <div
                         className={`
-bg - black / 95 text - white text - [11px] leading - relaxed px - 3 py - 2 rounded - lg
-whitespace - normal break-words w - max max - w - [250px] shadow - xl text - left backdrop - blur - md
-transition - all duration - 200 ease - out origin - top - right
+                            bg-[#1F1F1F] text-white text-[11px] leading-relaxed px-3 py-2 rounded-lg
+                            whitespace-normal break-words w-max max-w-[250px] shadow-xl text-left border border-white/10
+                            transition-all duration-200 ease-out origin-top-right
                             ${isVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 scale-95'}
                             ${className}
-`}
+                        `}
                     >
                         {content}
                     </div>

@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 :root {
+  /* Base Colors */
   --bg-primary: #ffffff;
   --bg-secondary: #f9f9f9;
   --text-primary: #0f0f0f;
@@ -14,10 +15,10 @@
 
   /* Semantic Colors */
   --modal-overlay: rgba(0, 0, 0, 0.6);
-  --primary-button-bg: #2563eb;
-  --primary-button-hover: #1d4ed8;
+  --primary-button-bg: #065fd4;
+  --primary-button-hover: #0056b3;
   --primary-button-text: #ffffff;
-  --danger-color: #ef4444;
+  --danger-color: #cc0000;
 
   /* Settings Modal Colors (Light Mode Defaults) */
   --settings-menu-active: #e5e5e5;
@@ -25,9 +26,16 @@
   --settings-input-bg: #ffffff;
   --settings-dropdown-bg: #ffffff;
   --settings-dropdown-hover: #f2f2f2;
+
+  /* Modal Specific Colors (Always Dark) */
+  --modal-surface: #1F1F1F;
+  --modal-button-bg: #3F3F3F;
+  --modal-button-hover: #4F4F4F;
+  --modal-placeholder: #717171;
 }
 
 .dark {
+  /* Base Colors - Premium Dark Theme */
   --bg-primary: #0f0f0f;
   --bg-secondary: #272727;
   --text-primary: #ffffff;
@@ -36,13 +44,6 @@
   --border: #3f3f3f;
   --hover: #3f3f3f;
   --hover-bg: #3f3f3f;
-
-  /* Semantic Colors */
-  --modal-overlay: rgba(0, 0, 0, 0.6);
-  --primary-button-bg: #2563eb;
-  --primary-button-hover: #1d4ed8;
-  --primary-button-text: #ffffff;
-  --danger-color: #ef4444;
 
   /* Settings Modal Colors */
   --settings-menu-active: #1F1F1F;
@@ -109,7 +110,33 @@ input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
 input:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 30px var(--bg-primary) inset !important;
   -webkit-text-fill-color: var(--text-primary) !important;
   transition: background-color 5000s ease-in-out 0s;
+}
+
+.modal-input {
+  width: 100%;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  color: var(--text-primary);
+  outline: none;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.modal-input:hover {
+  border-color: var(--text-primary);
+}
+
+.modal-input:focus {
+  border-color: var(--text-primary);
+}
+
+.modal-input::placeholder {
+  color: var(--modal-placeholder);
 }

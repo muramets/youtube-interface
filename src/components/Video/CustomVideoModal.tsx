@@ -1,22 +1,22 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Check, ChevronDown, ChevronUp, Info, Trash2, GripVertical } from 'lucide-react';
+import { X } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { type VideoDetails, type CoverVersion, type HistoryItem, type PackagingMetrics, type PackagingVersion } from '../../utils/youtubeApi';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy } from '@dnd-kit/sortable';
+import { type VideoDetails, type CoverVersion, type PackagingMetrics, type PackagingVersion, type HistoryItem } from '../../utils/youtubeApi';
 import { useVideosStore } from '../../stores/videosStore';
 import { useChannelStore } from '../../stores/channelStore';
 import { useAuthStore } from '../../stores/authStore';
 import { Toast } from '../Shared/Toast';
 import { useVideoForm } from '../../hooks/useVideoForm';
-import { TagsInput } from '../TagsInput';
 import { resizeImage } from '../../utils/imageUtils';
-import { PortalTooltip } from '../Shared/PortalTooltip';
-import { ClonedVideoTooltipContent } from './ClonedVideoTooltipContent';
 import { VersionHistory } from './Modal/VersionHistory';
-import { LanguageTabs } from './LanguageTabs';
+import { ImageUploader } from './Modal/ImageUploader';
+import { VideoForm } from './Modal/VideoForm';
 import { PackagingTable } from './Packaging';
+import { SortableVariant } from './Modal/SortableVariant';
+import { MetricsModal } from './Modal/MetricsModal';
+import { SaveMenu } from './Modal/SaveMenu';
 
 interface CustomVideoModalProps {
     isOpen: boolean;
@@ -25,63 +25,6 @@ interface CustomVideoModalProps {
     onClone?: (originalVideo: VideoDetails, version: CoverVersion) => Promise<void>;
     initialData?: VideoDetails;
 }
-
-interface SortableVariantProps {
-    id: string;
-    url: string;
-    index: number;
-    onRemove: () => void;
-}
-
-const SortableVariant = ({ id, url, index, onRemove }: SortableVariantProps) => {
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-        isDragging
-    } = useSortable({ id });
-
-    const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
-        zIndex: isDragging ? 10 : 1,
-        opacity: isDragging ? 0.5 : 1
-    };
-
-    return (
-        <div
-            ref={setNodeRef}
-            style={style}
-            className="aspect-video rounded-md overflow-hidden border border-border relative group touch-none"
-        >
-            <img src={url} alt={`Variant ${index + 1}`} className="w-full h-full object-cover" />
-
-            {/* Drag Handle */}
-            <div
-                {...attributes}
-                {...listeners}
-                className="absolute top-1 left-1 p-1 rounded bg-black/40 text-white opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing hover:bg-black/60 transition-opacity"
-            >
-                <GripVertical size={12} />
-            </div>
-
-            <button
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onRemove();
-                }}
-                className="absolute top-1 right-1 p-1 rounded-full bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
-            >
-                <X size={10} />
-            </button>
-            <div className="absolute bottom-1 left-1 px-1 py-0.5 bg-black/60 rounded text-[9px] font-medium text-white backdrop-blur-sm">
-                {String.fromCharCode(65 + index)}
-            </div>
-        </div>
-    );
-};
 
 export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     isOpen,
@@ -94,6 +37,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     const { currentChannel, updateChannel } = useChannelStore();
     const { user } = useAuthStore();
     const modalRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [activeTab, setActiveTab] = useState<'details' | 'packaging'>('details');
     const [isStatsExpanded, setIsStatsExpanded] = useState(false);
@@ -106,49 +50,11 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         })
     );
     const [isSaving, setIsSaving] = useState(false);
-    const [isSaveMenuOpen, setIsSaveMenuOpen] = useState(false);
-    const saveMenuRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (saveMenuRef.current && !saveMenuRef.current.contains(event.target as Node)) {
-                setIsSaveMenuOpen(false);
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside, true); // Use capture phase to handle clicks even if propagation is stopped
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside, true);
-        };
-    }, []);
 
 
 
     // Metrics Modal State
     const [showMetricsModal, setShowMetricsModal] = useState(false);
-    const [metricsData, setMetricsData] = useState<PackagingMetrics>({
-        impressions: 0,
-        ctr: 0,
-        views: 0,
-        avdSeconds: 0,
-        avdPercentage: 0
-    });
-    const [avdInput, setAvdInput] = useState(''); // Text input for AVD (e.g. "1:30")
-
-    const handleAvdChange = (value: string) => {
-        setAvdInput(value);
-        // Parse time string to seconds (e.g. "1:30" -> 90)
-        if (value.includes(':')) {
-            const parts = value.split(':').map(Number);
-            if (parts.length === 2) {
-                setMetricsData(prev => ({ ...prev, avdSeconds: parts[0] * 60 + parts[1] }));
-            } else if (parts.length === 3) {
-                setMetricsData(prev => ({ ...prev, avdSeconds: parts[0] * 3600 + parts[1] * 60 + parts[2] }));
-            }
-        } else {
-            setMetricsData(prev => ({ ...prev, avdSeconds: Number(value) || 0 }));
-        }
-    };
 
     const [checkinTargetVersion, setCheckinTargetVersion] = useState<number | null>(null);
 
@@ -163,7 +69,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         setShowMetricsModal(true);
     };
 
-    const confirmSaveVersion = async () => {
+    const confirmSaveVersion = async (metricsData: PackagingMetrics) => {
         if (checkinTargetVersion !== null) {
             // Adding a check-in to an existing version
             const newCheckin = {
@@ -220,7 +126,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         // Proceed with normal save, explicitly setting isDraft to false
         await handleSave(true, false);
     };
-    const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+
 
     // Toast State
     const [toastMessage, setToastMessage] = useState('');
@@ -233,15 +139,14 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         tags, setTags,
         viewCount, setViewCount,
         duration, setDuration,
-        videoRender, setVideoRender,
-        audioRender, setAudioRender,
         coverImage, setCoverImage,
         currentVersion, setCurrentVersion,
         highestVersion, setHighestVersion,
         currentOriginalName, setCurrentOriginalName,
         fileVersionMap, setFileVersionMap,
+        videoRender, setVideoRender,
+        audioRender, setAudioRender,
         coverHistory, setCoverHistory,
-        isLoadingHistory,
         deletedHistoryIds, setDeletedHistoryIds,
         isMetadataDirty,
         isPackagingDirty,
@@ -354,6 +259,8 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         setCoverHistory(prev => prev.filter(v => v.timestamp !== timestamp));
         setDeletedHistoryIds(prev => new Set(prev).add(timestamp));
     };
+
+
 
     const handleDeleteCurrentVersion = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -509,76 +416,16 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         <>
             {/* Metrics Input Modal */}
             {showMetricsModal && (
-                <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-bg-secondary w-full max-w-md rounded-xl shadow-2xl p-6 flex flex-col gap-4 animate-scale-in border border-border">
-                        <div className="p-6">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-medium text-white mb-2">
-                                    {checkinTargetVersion !== null ? `Add Check-in to v.${checkinTargetVersion}` : `Finalize v.${currentPackagingVersion} & Upgrade`}
-                                </h3>
-                                <button onClick={() => setShowMetricsModal(false)} className="text-text-secondary hover:text-text-primary">
-                                    <X size={20} />
-                                </button>
-                            </div>
-                            <p className="text-sm text-[#AAAAAA] mb-6">
-                                To track the performance impact of your new packaging, please enter the metrics for the previous version at the time of the change.
-                            </p>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <label className="text-xs text-[#AAAAAA]">Views</label>
-                                <input
-                                    type="number"
-                                    value={metricsData.views}
-                                    onChange={(e) => setMetricsData(prev => ({ ...prev, views: Number(e.target.value) }))}
-                                    className="w-full bg-[#1F1F1F] border border-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                    placeholder="0"
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <label className="text-xs text-[#AAAAAA]">CTR (%)</label>
-                                <input
-                                    type="number"
-                                    value={metricsData.ctr}
-                                    onChange={(e) => setMetricsData(prev => ({ ...prev, ctr: Number(e.target.value) }))}
-                                    className="w-full bg-[#1F1F1F] border border-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                    placeholder="0.0"
-                                    step="0.1"
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <label className="text-xs text-[#AAAAAA]">AVD (Time)</label>
-                                <input
-                                    type="text"
-                                    value={avdInput}
-                                    onChange={(e) => handleAvdChange(e.target.value)}
-                                    className="modal-input"
-                                    placeholder="e.g. 1:30"
-                                />
-                                <span className="text-xs text-text-secondary">Parsed: {metricsData.avdSeconds}s</span>
-                            </div>
-                        </div>
-
-                        <div className="flex justify-end gap-3 mt-4">
-                            <button
-                                onClick={() => setShowMetricsModal(false)}
-                                className="px-4 py-2 rounded-lg text-text-primary hover:bg-bg-tertiary transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={confirmSaveVersion}
-                                className="px-4 py-2 rounded-lg bg-brand-primary text-white font-medium hover:bg-brand-secondary transition-colors"
-                            >
-                                {checkinTargetVersion !== null ? 'Add Check-in' : 'Save & Upgrade Version'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <MetricsModal
+                    isOpen={showMetricsModal}
+                    onClose={() => setShowMetricsModal(false)}
+                    onConfirm={confirmSaveVersion}
+                    checkinTargetVersion={checkinTargetVersion}
+                    currentPackagingVersion={currentPackagingVersion}
+                />
             )}
 
-            <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in" onMouseDown={handleBackdropClick}>
+            <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-modal-overlay backdrop-blur-sm animate-fade-in" onMouseDown={handleBackdropClick}>
                 <div
                     ref={modalRef}
                     className="bg-bg-secondary w-full max-w-[960px] h-[740px] rounded-xl shadow-2xl flex flex-col overflow-hidden animate-scale-in"
@@ -593,48 +440,15 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                         </h2>
                         <div className="flex items-center gap-3">
                             {activeTab === 'details' ? (
-                                <div className="flex items-center gap-2 relative" ref={saveMenuRef}>
-                                    <div className="flex items-center gap-0.5">
-                                        <button
-                                            onClick={() => handleSave(false)}
-                                            disabled={!isPackagingDirty || isSaving}
-                                            className={`px-3 h-8 text-sm font-medium transition-all flex items-center gap-2 rounded-l-full ${!isPackagingDirty || isSaving
-                                                ? 'bg-[#424242] text-[#717171] cursor-default'
-                                                : 'bg-white text-black hover:bg-gray-200 cursor-pointer'
-                                                }`}
-                                        >
-                                            {isSaving ? 'Saving...' : (!isPackagingDirty ? 'Saved as Draft' : 'Save as Draft')}
-                                        </button>
-
-                                        <div className="relative">
-                                            <button
-                                                onClick={() => setIsSaveMenuOpen(!isSaveMenuOpen)}
-                                                disabled={!coverImage || isSaving || (!isPackagingDirty && !isDraft)}
-                                                className={`px-2 h-8 transition-all flex items-center justify-center rounded-r-full ${!coverImage || isSaving || (!isPackagingDirty && !isDraft)
-                                                    ? 'bg-[#424242] text-[#717171] cursor-default'
-                                                    : 'bg-white text-black hover:bg-gray-200 cursor-pointer'
-                                                    }`}
-                                            >
-                                                <ChevronDown size={16} className={`transition-transform ${isSaveMenuOpen ? 'rotate-180' : ''}`} />
-                                            </button>
-
-                                            {/* Dropdown Menu */}
-                                            {isSaveMenuOpen && !isSaving && (
-                                                <div className="absolute top-full right-0 mt-0.5 w-max bg-[#1F1F1F]/95 backdrop-blur-xl rounded-xl shadow-2xl border border-white/5 overflow-hidden z-50 animate-scale-in origin-top-right">
-                                                    <button
-                                                        onClick={() => {
-                                                            handleSaveAsVersion();
-                                                            setIsSaveMenuOpen(false);
-                                                        }}
-                                                        className="w-full px-4 py-2.5 text-left text-xs font-medium text-text-primary hover:bg-white/5 transition-colors flex items-center justify-between group whitespace-nowrap"
-                                                    >
-                                                        <span>Save as v.{currentPackagingVersion}</span>
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
+                                <SaveMenu
+                                    isSaving={isSaving}
+                                    isPackagingDirty={isPackagingDirty}
+                                    isDraft={isDraft}
+                                    hasCoverImage={!!coverImage}
+                                    currentPackagingVersion={currentPackagingVersion}
+                                    onSaveDraft={() => handleSave(false)}
+                                    onSaveVersion={handleSaveAsVersion}
+                                />
                             ) : (
                                 <button
                                     onClick={() => handleSave(true)}
@@ -646,7 +460,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                             )}
                             <button
                                 onClick={handleClose}
-                                className="p-2 rounded-full hover:bg-white/10 text-text-primary transition-colors"
+                                className="p-2 rounded-full hover:bg-hover-bg text-text-primary transition-colors"
                             >
                                 <X size={24} />
                             </button>
@@ -680,223 +494,80 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                             {activeTab === 'details' && (
                                 <div className="grid grid-cols-[1fr_352px] gap-8 items-start p-6">
                                     {/* Left Column: Inputs */}
-                                    <div className="flex flex-col gap-5">
-
-                                        <LanguageTabs
-                                            activeLanguage={activeLanguage}
-                                            localizations={localizations}
-                                            onSwitchLanguage={switchLanguage}
-                                            onAddLanguage={async (code, customName, customFlag) => {
-                                                addLanguage(code, customName, customFlag);
-
-                                                if (customName && customFlag && currentChannel && user) {
-                                                    const existingLanguages = currentChannel.customLanguages || [];
-                                                    const exists = existingLanguages.some(l => l.code === code);
-
-                                                    if (!exists) {
-                                                        const newLang = { code, name: customName, flag: customFlag };
-                                                        await updateChannel(user.uid, currentChannel.id, {
-                                                            customLanguages: [...existingLanguages, newLang]
-                                                        });
-                                                    }
-                                                }
-                                            }}
-                                            onRemoveLanguage={removeLanguage}
-                                            savedCustomLanguages={currentChannel?.customLanguages}
-                                            onDeleteCustomLanguage={async (code) => {
-                                                if (currentChannel && user) {
-                                                    const existingLanguages = currentChannel.customLanguages || [];
-                                                    const updatedLanguages = existingLanguages.filter(l => l.code !== code);
+                                    <VideoForm
+                                        title={title}
+                                        setTitle={setTitle}
+                                        description={description}
+                                        setDescription={setDescription}
+                                        tags={tags}
+                                        setTags={setTags}
+                                        activeLanguage={activeLanguage}
+                                        localizations={localizations}
+                                        onSwitchLanguage={switchLanguage}
+                                        onAddLanguage={async (code, customName, customFlag) => {
+                                            addLanguage(code, customName, customFlag);
+                                            if (customName && customFlag && currentChannel && user) {
+                                                const existingLanguages = currentChannel.customLanguages || [];
+                                                const exists = existingLanguages.some(l => l.code === code);
+                                                if (!exists) {
+                                                    const newLang = { code, name: customName, flag: customFlag };
                                                     await updateChannel(user.uid, currentChannel.id, {
-                                                        customLanguages: updatedLanguages
+                                                        customLanguages: [...existingLanguages, newLang]
                                                     });
                                                 }
-                                            }}
-                                        />
-
-                                        {/* Title */}
-                                        <div className="flex flex-col gap-2">
-                                            <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Title</label>
-                                            <input
-                                                type="text"
-                                                value={title}
-                                                onChange={(e) => setTitle(e.target.value)}
-                                                className="w-full bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
-                                                placeholder="Add a title that describes your video"
-                                            />
-                                        </div>
-
-                                        {/* Description */}
-                                        <div className="flex flex-col gap-2">
-                                            <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Description</label>
-                                            <textarea
-                                                value={description}
-                                                onChange={(e) => setDescription(e.target.value)}
-                                                className="w-full h-32 bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none resize-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
-                                                placeholder="Tell viewers about your video"
-                                            />
-                                        </div>
-
-                                        {/* Tags */}
-                                        <TagsInput
-                                            tags={tags}
-                                            onChange={setTags}
-                                            onShowToast={(message, type) => {
-                                                setToastMessage(message);
-                                                setToastType(type);
-                                                setShowToast(true);
-                                            }}
-                                        />
-
-                                        {/* Published Status - Only for default language */}
-                                        {activeLanguage === 'default' && (
-                                            <div className="flex flex-col gap-3">
-                                                <div className="flex items-center gap-3">
-                                                    <div
-                                                        onClick={() => setIsPublished(!isPublished)}
-                                                        className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors ${isPublished ? 'bg-text-primary border-text-primary' : 'border-text-secondary hover:border-text-primary'}`}
-                                                    >
-                                                        {isPublished && <Check size={14} className="text-bg-primary" />}
-                                                    </div>
-                                                    <span className="text-sm text-text-primary font-medium cursor-pointer" onClick={() => setIsPublished(!isPublished)}>Video Published</span>
-                                                </div>
-
-                                                {isPublished && (
-                                                    <div className="animate-scale-in origin-top">
-                                                        <input
-                                                            type="text"
-                                                            value={publishedUrl}
-                                                            onChange={(e) => setPublishedUrl(e.target.value)}
-                                                            className="w-full bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
-                                                            placeholder="https://www.youtube.com/watch?v=..."
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {/* Stats Section - Only for default language */}
-                                        {activeLanguage === 'default' && (
-                                            <div className="border-t border-border pt-4">
-                                                <button
-                                                    onClick={() => setIsStatsExpanded(!isStatsExpanded)}
-                                                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-modal-button-bg text-white text-sm font-medium hover:bg-modal-button-hover transition-colors mb-4"
-                                                >
-                                                    {isStatsExpanded ? 'Show less' : 'Show more'}
-                                                    {isStatsExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                                                </button>
-
-                                                {isStatsExpanded && (
-                                                    <div className="grid grid-cols-2 gap-4 animate-fade-in pb-2">
-                                                        <div className="flex flex-col gap-2">
-                                                            <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Video Render #</label>
-                                                            <input
-                                                                type="text"
-                                                                value={videoRender}
-                                                                onChange={(e) => setVideoRender(e.target.value)}
-                                                                className="modal-input"
-                                                                placeholder="e.g. #1.1"
-                                                            />
-                                                        </div>
-                                                        <div className="flex flex-col gap-2">
-                                                            <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Audio #</label>
-                                                            <input
-                                                                type="text"
-                                                                value={audioRender}
-                                                                onChange={(e) => setAudioRender(e.target.value)}
-                                                                className="modal-input"
-                                                                placeholder="e.g. #1"
-                                                            />
-                                                        </div>
-                                                        <div className="flex flex-col gap-2">
-                                                            <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">View Count</label>
-                                                            <input
-                                                                type="text"
-                                                                value={viewCount}
-                                                                onChange={(e) => setViewCount(e.target.value)}
-                                                                className="modal-input"
-                                                                placeholder="e.g. 1.2M"
-                                                            />
-                                                        </div>
-                                                        <div className="flex flex-col gap-2">
-                                                            <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Duration</label>
-                                                            <input
-                                                                type="text"
-                                                                value={duration}
-                                                                onChange={(e) => setDuration(e.target.value)}
-                                                                className="modal-input"
-                                                                placeholder="e.g. 10:05"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
+                                            }
+                                        }}
+                                        onRemoveLanguage={removeLanguage}
+                                        savedCustomLanguages={currentChannel?.customLanguages}
+                                        onDeleteCustomLanguage={async (code) => {
+                                            if (currentChannel && user) {
+                                                const existingLanguages = currentChannel.customLanguages || [];
+                                                const updatedLanguages = existingLanguages.filter(l => l.code !== code);
+                                                await updateChannel(user.uid, currentChannel.id, {
+                                                    customLanguages: updatedLanguages
+                                                });
+                                            }
+                                        }}
+                                        isPublished={isPublished}
+                                        setIsPublished={setIsPublished}
+                                        publishedUrl={publishedUrl}
+                                        setPublishedUrl={setPublishedUrl}
+                                        isStatsExpanded={isStatsExpanded}
+                                        setIsStatsExpanded={setIsStatsExpanded}
+                                        videoRender={videoRender}
+                                        setVideoRender={setVideoRender}
+                                        audioRender={audioRender}
+                                        setAudioRender={setAudioRender}
+                                        viewCount={viewCount}
+                                        setViewCount={setViewCount}
+                                        duration={duration}
+                                        setDuration={setDuration}
+                                        onShowToast={(message, type) => {
+                                            setToastMessage(message);
+                                            setToastType(type);
+                                            setShowToast(true);
+                                        }}
+                                    />
 
                                     {/* Right Column: Packaging Preview */}
                                     <div className="w-[352px] mt-[4px]">
                                         <div className="bg-modal-surface rounded-xl shadow-lg overflow-hidden">
-                                            {/* Current Cover */}
-                                            <div
-                                                className="relative h-[198px] bg-black group cursor-pointer"
-                                                onClick={() => document.getElementById('cover-upload')?.click()}
-                                                onDragOver={(e) => e.preventDefault()}
+                                            <ImageUploader
+                                                coverImage={coverImage}
+                                                onUpload={handleImageUpload}
                                                 onDrop={handleDrop}
-                                            >
-                                                {coverImage ? (
-                                                    <img src={coverImage} alt="Current Cover" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <div className="w-full h-full flex flex-col items-center justify-center text-text-secondary gap-2">
-                                                        <span className="text-sm">Click or drag to upload</span>
-                                                    </div>
-                                                )}
+                                                fileInputRef={fileInputRef}
+                                                onTriggerUpload={() => fileInputRef.current?.click()}
+                                                currentVersion={currentVersion}
+                                                currentOriginalName={currentOriginalName}
+                                                onDelete={handleDeleteCurrentVersion}
+                                            />
 
-                                                {/* Hover Overlay */}
-                                                <div className={`absolute inset-0 bg-black/40 transition-opacity duration-200 flex items-center justify-center ${isTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                                                    <span className="text-white font-medium">Change Cover</span>
-                                                </div>
-
-                                                {/* Info Icon (Top Left) */}
-                                                <div className={`absolute top-2 left-2 transition-opacity duration-200 ${isTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                                                    <PortalTooltip
-                                                        content={<ClonedVideoTooltipContent version={currentVersion} filename={currentOriginalName} />}
-                                                        align="left"
-                                                        onOpenChange={setIsTooltipOpen}
-                                                    >
-                                                        <div className="w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-sm">
-                                                            <Info size={14} />
-                                                        </div>
-                                                    </PortalTooltip>
-                                                </div>
-
-                                                {/* Delete Button (Top Right) */}
-                                                {coverImage && (
-                                                    <div className={`absolute top-2 right-2 transition-opacity duration-200 ${isTooltipOpen ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
-                                                        <button
-                                                            onClick={handleDeleteCurrentVersion}
-                                                            className="w-8 h-8 rounded-full bg-black/60 text-white hover:bg-red-500 hover:text-white flex items-center justify-center backdrop-blur-sm transition-colors"
-                                                        >
-                                                            <Trash2 size={16} />
-                                                        </button>
-                                                    </div>
-                                                )}
-
-
-
-                                                <input
-                                                    id="cover-upload"
-                                                    type="file"
-                                                    accept="image/*"
-                                                    className="hidden"
-                                                    onChange={(e) => e.target.files && handleImageUpload(e.target.files[0])}
-                                                />
-                                            </div>
                                             {/* Version History */}
                                             <div className="bg-modal-surface p-4 rounded-lg">
                                                 <VersionHistory
                                                     history={coverHistory}
-                                                    isLoading={isLoadingHistory}
+                                                    isLoading={false}
                                                     onRestore={handleRestoreVersion}
                                                     onDelete={handleDeleteVersion}
                                                     onClone={onClone ? handleCloneWithSave : undefined}
@@ -952,9 +623,8 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                         )}
                                     </div>
                                 </div>
-
                             )}
-                            {/* Packaging Tab Content */}
+
                             {activeTab === 'packaging' && (
                                 <div className="animate-fade-in px-6 pt-6">
                                     <div className="rounded-xl overflow-hidden">
@@ -963,11 +633,6 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                                 history={packagingHistory}
                                                 onUpdateHistory={setPackagingHistory}
                                                 onAddCheckin={(versionNumber) => {
-                                                    // Open metrics modal for adding a check-in to an existing version
-                                                    // We need to know which version we are adding to
-                                                    // We can reuse the existing metrics modal state, but we need a way to distinguish
-                                                    // between "saving as new version" and "adding check-in".
-                                                    // Let's add a state for 'checkinTargetVersion'
                                                     setCheckinTargetVersion(versionNumber);
                                                     setShowMetricsModal(true);
                                                 }}
@@ -978,10 +643,9 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                             )}
                         </div>
                     </div>
-
-
                 </div>
-            </div >
+            </div>
+
             <Toast
                 message={toastMessage}
                 isVisible={showToast}

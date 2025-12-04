@@ -4,6 +4,4 @@ export interface Language {
     flag: string;
 }
 
-export const SUPPORTED_LANGUAGES: Language[] = [
-    { code: 'ko', name: 'Korean', flag: '🇰🇷' },
-];
+export const SUPPORTED_LANGUAGES: Language[] = [];

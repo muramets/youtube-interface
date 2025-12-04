@@ -124,8 +124,10 @@ export const LanguageTabs: React.FC<LanguageTabsProps> = ({
 
                         {/* Remove Button (only visible on hover or active) */}
                         <button
+                            type="button"
                             className={`p-0.5 rounded-full hover:bg-white/20 hover:text-red-500 ${activeLanguage === code ? 'text-bg-primary' : 'text-text-secondary'
                                 } opacity-0 group-hover:opacity-100 transition-all mr-1`}
+                            onMouseDown={(e) => e.stopPropagation()}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onRemoveLanguage(code);
@@ -156,7 +158,7 @@ export const LanguageTabs: React.FC<LanguageTabsProps> = ({
                             onClick={() => setIsAddOpen(false)}
                         />
                         <div
-                            className="fixed z-[9999] bg-bg-secondary border border-border rounded-lg shadow-xl w-max min-w-[160px] animate-scale-in origin-top-left overflow-hidden"
+                            className="fixed z-[1050] bg-bg-secondary border border-border rounded-lg shadow-xl w-max min-w-[160px] animate-scale-in origin-top-left overflow-hidden"
                             style={{
                                 top: dropdownPosition.top,
                                 left: dropdownPosition.left

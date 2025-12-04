@@ -222,7 +222,7 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
             {/* Body */}
             <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
                 {history.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-10 text-[#555]">
+                    <div className="py-4 text-[#555] text-center">
                         <span className="text-xs">No packaging history yet.</span>
                     </div>
                 ) : (
