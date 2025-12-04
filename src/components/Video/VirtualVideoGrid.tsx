@@ -13,7 +13,9 @@ import {
     PointerSensor,
     useSensor,
     useSensors,
-    type DragEndEvent
+    DragOverlay,
+    type DragEndEvent,
+    type DragStartEvent,
 } from '@dnd-kit/core';
 import {
     SortableContext,
@@ -89,12 +91,25 @@ export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = ({ videos, play
         })
     );
 
+    const [activeVideo, setActiveVideo] = React.useState<VideoDetails | null>(null);
+
+    const handleDragStart = (event: DragStartEvent) => {
+        const video = videos.find(v => v.id === event.active.id);
+        setActiveVideo(video || null);
+    };
+
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
 
         if (over && active.id !== over.id && onVideoMove) {
             onVideoMove(active.id as string, over.id as string);
         }
+        
+        setActiveVideo(null);
+    };
+
+    const handleDragCancel = () => {
+        setActiveVideo(null);
     };
 
     const isDraggable = !!onVideoMove;
@@ -130,7 +145,7 @@ export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = ({ videos, play
                                 onRemove,
                                 paddingLeft: GRID_LAYOUT.PADDING.LEFT,
                                 paddingRight: GRID_LAYOUT.PADDING.RIGHT,
-                                isDraggable
+                                isDraggable,
                             }}
                             style={{
                                 overflowY: 'auto',
@@ -149,7 +164,9 @@ export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = ({ videos, play
                             <DndContext
                                 sensors={sensors}
                                 collisionDetection={closestCenter}
+                                onDragStart={handleDragStart}
                                 onDragEnd={handleDragEnd}
+                                onDragCancel={handleDragCancel}
                             >
                                 <SortableContext
                                     items={videos.map(v => v.id)}
@@ -157,6 +174,18 @@ export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = ({ videos, play
                                 >
                                     {gridContent}
                                 </SortableContext>
+                                <DragOverlay dropAnimation={null}>
+                                    {activeVideo ? (
+                                        <div style={{ width: cardWidth, cursor: 'grabbing' }}>
+                                            <VideoCard
+                                                video={activeVideo}
+                                                playlistId={playlistId}
+                                                onRemove={onRemove || (() => { })}
+                                                isOverlay
+                                            />
+                                        </div>
+                                    ) : null}
+                                </DragOverlay>
                             </DndContext>
                         );
                     }

@@ -188,7 +188,15 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         if (!file.type.startsWith('image/')) return;
 
         try {
-            const resizedImage = await resizeImage(file, 800, 0.8);
+            const resizedImage = await resizeImage(file, 640, 0.7);
+
+            if (resizedImage.length > 950000) {
+                setToastMessage('Image is too large even after compression. Please use a simpler image.');
+                setToastType('error');
+                setShowToast(true);
+                return;
+            }
+
             const fileKey = `${file.name.replace(/\./g, '_')} -${file.size} `;
             let newVersion: number;
 
@@ -295,8 +303,12 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 
         const finalData = getFullPayload();
 
+        // Default title if empty
+        const finalTitle = finalData.title.trim() || "Your Next Viral Music Playlist";
+
         const videoData: Omit<VideoDetails, 'id'> = {
             ...finalData,
+            title: finalTitle,
             thumbnail: coverImage,
             channelId: currentChannel?.id || '',
             channelTitle: currentChannel?.name || 'My Channel',
@@ -340,9 +352,15 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                 // If manual save (not close), mark as draft
                 setIsDraft(true);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to save video:", error);
-            setToastMessage("Failed to save video.");
+
+            if (error.message && error.message.includes('exceeds the maximum allowed size')) {
+                setToastMessage("File too large! The cover image is too big for the database. Please try a smaller image.");
+            } else {
+                setToastMessage("Failed to save video.");
+            }
+
             setToastType('error');
             setShowToast(true);
         } finally {
@@ -351,25 +369,25 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     };
 
     const handleClose = async () => {
-        // Auto-save Metadata ONLY
-        if (isMetadataDirty) {
+        // Auto-save Metadata ONLY if it's an existing video
+        if (isMetadataDirty && initialData) {
             const metadataPayload = getMetadataOnlyPayload();
             // We need to construct the full object but with original packaging data
             const videoData: Omit<VideoDetails, 'id'> = {
                 ...metadataPayload,
-                thumbnail: initialData?.thumbnail || '',
+                thumbnail: initialData.thumbnail || '',
                 channelId: currentChannel?.id || '',
                 channelTitle: currentChannel?.name || 'My Channel',
                 channelAvatar: currentChannel?.avatar || '',
-                publishedAt: initialData ? initialData.publishedAt : new Date().toISOString(),
+                publishedAt: initialData.publishedAt,
                 isCustom: true,
-                customImage: initialData?.customImage, // Revert to initial
-                createdAt: initialData?.createdAt,
+                customImage: initialData.customImage || '', // Ensure not undefined
+                createdAt: initialData.createdAt,
                 coverHistory: coverHistory, // History shouldn't change if we revert
-                customImageName: initialData?.customImageName,
-                customImageVersion: initialData?.customImageVersion || 1,
-                highestVersion: initialData?.highestVersion || 0,
-                fileVersionMap: initialData?.fileVersionMap || {},
+                customImageName: initialData.customImageName,
+                customImageVersion: initialData.customImageVersion || 1,
+                highestVersion: initialData.highestVersion || 0,
+                fileVersionMap: initialData.fileVersionMap || {},
                 historyCount: coverHistory.length,
             };
 
@@ -447,7 +465,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                     isDraft={isDraft}
                                     hasCoverImage={!!coverImage}
                                     currentPackagingVersion={currentPackagingVersion}
-                                    onSaveDraft={() => handleSave(false)}
+                                    onSaveDraft={() => handleSave(true, true)}
                                     onSaveVersion={handleSaveAsVersion}
                                 />
                             ) : (

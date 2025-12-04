@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { VideoCardSkeleton } from './VideoCardSkeleton';
+import { VideoCardSkeleton } from '../VideoCardSkeleton';
 
 const meta = {
     title: 'Shared/VideoCardSkeleton',

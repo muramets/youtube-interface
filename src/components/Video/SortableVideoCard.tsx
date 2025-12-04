@@ -19,27 +19,30 @@ export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, pla
         setNodeRef,
         transform,
         transition,
-        isDragging
+        isDragging,
     } = useSortable({ id: video.id });
 
-    const style = {
+    const style: React.CSSProperties = {
         transform: CSS.Transform.toString(transform),
         transition,
-        opacity: isDragging ? 0.5 : 1,
+        opacity: isDragging ? 0 : 1,
         cursor: 'grab',
         touchAction: 'none',
-        position: 'relative' as const,
-        zIndex: isDragging ? 999 : 'auto',
         // Apply scaling if provided (for WatchPage sidebar)
         ...(scale !== 1 ? {
             width: `${scale * 100}%`,
             fontSize: `${scale}rem`,
-        } : {})
+        } : {}),
     };
 
     return (
         <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-            <VideoCard video={video} playlistId={playlistId} onMenuOpenChange={onMenuOpenChange} onRemove={onRemove || (() => { })} />
+            <VideoCard 
+                video={video} 
+                playlistId={playlistId} 
+                onMenuOpenChange={onMenuOpenChange} 
+                onRemove={onRemove || (() => { })} 
+            />
         </div>
     );
 };

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { type VideoDetails, type CoverVersion, type PackagingVersion, extractVideoId } from '../utils/youtubeApi';
 import { useVideos } from './useVideos';
 
@@ -44,11 +44,10 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
     // Draft State
     const [isDraft, setIsDraft] = useState(initialData?.isDraft ?? (!initialData?.packagingHistory || initialData.packagingHistory.length === 0));
 
+    // Effect 1: Sync Form State
     useEffect(() => {
         if (isOpen) {
             if (initialData) {
-                // If ID changed, full reset. If not, only update fields that might have changed from outside (unlikely in this modal flow, but safe)
-                // Actually, for the "save" flash issue, we want to avoid clearing history if ID is same.
                 const isSameVideo = prevId === initialData.id;
                 setPrevId(initialData.id);
 
@@ -83,32 +82,6 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
                 setHighestVersion(savedHighestVersion);
                 setFileVersionMap(savedFileVersionMap);
 
-                // Load History
-                const loadHistory = async () => {
-                    // Only show loading if we don't have history or if it's a new video
-                    if (!isSameVideo) {
-                        setIsLoadingHistory(true);
-                    }
-
-                    try {
-                        if (user && currentChannel) {
-                            const history = await fetchVideoHistory(initialData.id);
-                            // Filter out current cover from history
-                            const currentUrl = initialData.customImage || initialData.thumbnail;
-                            const filteredHistory = history.filter((h: CoverVersion) => h.url !== currentUrl);
-                            setCoverHistory(filteredHistory);
-                        }
-                    } catch (error) {
-                        console.error("Failed to load history:", error);
-                    } finally {
-                        setIsLoadingHistory(false);
-                    }
-                };
-
-                if (initialData.id && !isSameVideo) {
-                    loadHistory();
-                }
-
             } else {
                 setTitle('');
                 setDescription('');
@@ -129,7 +102,43 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
                 setPrevId(undefined);
             }
         }
-    }, [isOpen, initialData, fetchVideoHistory, user, currentChannel, prevId]);
+    }, [isOpen, initialData, prevId]);
+
+    // Effect 2: Load History
+    const lastLoadedIdRef = useRef<string | undefined>(undefined);
+
+    useEffect(() => {
+        if (isOpen && initialData && initialData.id) {
+            const loadHistory = async () => {
+                // Only show loading if we haven't loaded this ID yet
+                if (lastLoadedIdRef.current !== initialData.id) {
+                    setIsLoadingHistory(true);
+                }
+
+                try {
+                    if (user && currentChannel) {
+                        const history = await fetchVideoHistory(initialData.id);
+                        // Filter out current cover from history
+                        const currentUrl = initialData.customImage || initialData.thumbnail;
+                        const filteredHistory = history.filter((h: CoverVersion) => h.url !== currentUrl);
+                        setCoverHistory(filteredHistory);
+                        lastLoadedIdRef.current = initialData.id;
+                    }
+                } catch (error) {
+                    console.error("Failed to load history:", error);
+                } finally {
+                    setIsLoadingHistory(false);
+                }
+            };
+
+            // Only load if ID changed or we haven't loaded yet
+            if (lastLoadedIdRef.current !== initialData.id) {
+                loadHistory();
+            }
+        } else if (!isOpen) {
+            lastLoadedIdRef.current = undefined;
+        }
+    }, [isOpen, initialData, fetchVideoHistory, user, currentChannel]);
 
     // Localization State
     const [localizations, setLocalizations] = useState<Record<string, { languageCode: string; title: string; description: string; tags: string[] }>>(

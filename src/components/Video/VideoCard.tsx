@@ -26,9 +26,10 @@ interface VideoCardProps {
   onMenuOpenChange?: (isOpen: boolean) => void;
   onRemove: (videoId: string) => void;
   onEdit?: (video: VideoDetails) => void;
+  isOverlay?: boolean;
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange, onRemove, onEdit }) => {
+export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange, onRemove, onEdit, isOverlay }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const currentChannel = useChannelStore(state => state.currentChannel);
@@ -215,10 +216,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   return (
     <>
       <div
-        className={`flex flex-col gap-3 cursor-pointer group relative p-2 rounded-xl z-0 focus:outline-none transition-all duration-150 ease-in-out`}
+        className={`flex flex-col gap-3 cursor-pointer group relative p-2 rounded-xl z-0 focus:outline-none transition-all duration-150 ease-in-out ${isOverlay ? 'shadow-2xl bg-bg-secondary' : ''}`}
         style={{
           transform: isFlipping ? 'rotateY(90deg)' : 'rotateY(0deg)',
-          transformStyle: 'preserve-3d'
+          transformStyle: 'preserve-3d',
+          cursor: isOverlay ? 'grabbing' : 'pointer'
         }}
         onClick={handleVideoClick}
         role="button"
@@ -231,14 +233,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         }}
       >
         {/* Hover Substrate */}
-        <div className={`absolute inset-0 rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none ${isMenuOpen || isTooltipOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} ${hoverBgColor} border-2 ${hoverBorderColor}`} />
+        <div className={`absolute inset-0 rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none ${isOverlay || isMenuOpen || isTooltipOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} ${hoverBgColor} border-2 ${hoverBorderColor}`} />
 
         {/* Thumbnail Container */}
         <div className="relative aspect-video rounded-xl overflow-hidden bg-bg-secondary">
           <img
             src={displayVideo.isCustom ? (displayVideo.customImage || displayVideo.thumbnail) : displayVideo.thumbnail}
             alt={displayVideo.title}
-            className={`w-full h-full object-cover transition-transform duration-200 ${isMenuOpen || isTooltipOpen ? 'scale-105' : 'group-hover:scale-105'}`}
+            className={`w-full h-full object-cover transition-transform duration-200 ${isOverlay || isMenuOpen || isTooltipOpen ? 'scale-105' : 'group-hover:scale-105'}`}
             loading="lazy"
           />
 

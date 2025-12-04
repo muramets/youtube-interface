@@ -42,21 +42,65 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
   const cardsPerRow = generalSettings.cardsPerRow;
   const hiddenPlaylistIds = generalSettings.hiddenPlaylistIds || [];
 
+  // Local state for immediate optimistic updates
+  const [localVideoOrder, setLocalVideoOrder] = React.useState<string[]>([]);
+
+  React.useEffect(() => {
+    if (videoOrder) {
+      setLocalVideoOrder(prev => {
+        if (JSON.stringify(prev) !== JSON.stringify(videoOrder)) {
+          return videoOrder;
+        }
+        return prev;
+      });
+    }
+  }, [videoOrder]);
+
   const isLoading = propIsLoading || (propVideos ? false : contextIsLoading) || authLoading || (!propVideos && !currentChannel);
 
   const sourceVideos = React.useMemo(() => {
     if (propVideos) return propVideos;
-    if (!videoOrder || videoOrder.length === 0) return contextVideos;
+    // Use localVideoOrder instead of videoOrder for immediate feedback
+    if (!localVideoOrder || localVideoOrder.length === 0) return contextVideos;
 
     const videoMap = new Map(contextVideos.map(v => [v.id, v]));
-    const sorted = videoOrder.map(id => videoMap.get(id)).filter((v): v is VideoDetails => !!v);
+    const sorted = localVideoOrder.map(id => videoMap.get(id)).filter((v): v is VideoDetails => !!v);
 
-    // Append any new videos that are not in videoOrder yet
-    const orderedSet = new Set(videoOrder);
+    // Append any new videos that are not in localVideoOrder yet
+    const orderedSet = new Set(localVideoOrder);
     const remaining = contextVideos.filter(v => !orderedSet.has(v.id));
 
     return [...sorted, ...remaining];
-  }, [propVideos, contextVideos, videoOrder]);
+  }, [propVideos, contextVideos, localVideoOrder]);
+
+  const handleLocalVideoMove = (movedVideoId: string, targetVideoId: string) => {
+    // 1. Update local state immediately
+    const currentOrder = [...(localVideoOrder.length > 0 ? localVideoOrder : contextVideos.map(v => v.id))];
+
+    // Ensure all current videos are in the order list (same logic as App.tsx)
+    const orderSet = new Set(currentOrder);
+    contextVideos.forEach(v => {
+      if (!orderSet.has(v.id)) {
+        currentOrder.push(v.id);
+      }
+    });
+
+    const oldIndex = currentOrder.indexOf(movedVideoId);
+    const newIndex = currentOrder.indexOf(targetVideoId);
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const newOrder = [...currentOrder];
+      const [movedId] = newOrder.splice(oldIndex, 1);
+      newOrder.splice(newIndex, 0, movedId);
+
+      setLocalVideoOrder(newOrder);
+
+      // 2. Propagate to parent for server update
+      if (onVideoMove) {
+        onVideoMove(movedVideoId, targetVideoId);
+      }
+    }
+  };
 
   const filteredVideos = React.useMemo(() => {
     if (propVideos) return propVideos;
@@ -131,7 +175,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
             removeVideo(videoId);
           }
         }}
-        onVideoMove={onVideoMove}
+        onVideoMove={handleLocalVideoMove}
       />
     </VideoGridContainer>
   );

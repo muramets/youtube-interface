@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useCallback } from 'react';
 import { VideoService } from '../services/videoService';
 import { fetchVideoDetails, extractVideoId, type VideoDetails, type PackagingVersion, type PackagingCheckin, type HistoryItem, type CoverVersion } from '../utils/youtubeApi';
 import { SettingsService } from '../services/settingsService';
@@ -62,6 +62,15 @@ export const useVideos = (userId: string, channelId: string) => {
                 isCustom: true,
                 createdAt: Date.now()
             };
+
+            // Optimistic Order Update
+            const videoOrder = queryClient.getQueryData<string[]>(['settings', 'videoOrder', userId, channelId]) || [];
+            const newOrder = [id, ...videoOrder];
+
+            // Update cache and firestore
+            queryClient.setQueryData(['settings', 'videoOrder', userId, channelId], newOrder);
+            await SettingsService.updateVideoOrder(userId, channelId, newOrder);
+
             await VideoService.addVideo(userId, channelId, newVideo);
             return id;
         }
@@ -231,6 +240,6 @@ export const useVideos = (userId: string, channelId: string) => {
         addCheckin: addCheckinMutation.mutateAsync,
         saveVideoHistory: saveVideoHistoryMutation.mutateAsync,
         deleteVideoHistoryItem: deleteVideoHistoryItemMutation.mutateAsync,
-        fetchVideoHistory: (videoId: string) => VideoService.fetchVideoHistory(userId, channelId, videoId)
+        fetchVideoHistory: useCallback((videoId: string) => VideoService.fetchVideoHistory(userId, channelId, videoId), [userId, channelId])
     };
 };

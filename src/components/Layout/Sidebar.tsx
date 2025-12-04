@@ -25,12 +25,30 @@ export const Sidebar: React.FC = () => {
   // Use TanStack Query hook for channels
   const { data: channels, isLoading } = useChannels(user?.uid || '');
 
-  // Select first channel if none selected (logic moved from store to component/hook)
+  // Select channel logic with persistence
   React.useEffect(() => {
-    if (!isLoading && channels && channels.length > 0 && !currentChannel) {
-      setCurrentChannel(channels[0]);
+    if (isLoading || !channels || channels.length === 0) return;
+
+    if (!currentChannel) {
+      // Try to restore from localStorage
+      const savedChannelId = localStorage.getItem(`lastSelectedChannelId_${user?.uid}`);
+      const savedChannel = savedChannelId ? channels.find(c => c.id === savedChannelId) : null;
+
+      if (savedChannel) {
+        setCurrentChannel(savedChannel);
+      } else {
+        // Fallback to first channel
+        setCurrentChannel(channels[0]);
+      }
     }
-  }, [channels, isLoading, currentChannel, setCurrentChannel]);
+  }, [channels, isLoading, currentChannel, setCurrentChannel, user?.uid]);
+
+  // Save selection to localStorage
+  React.useEffect(() => {
+    if (user?.uid && currentChannel) {
+      localStorage.setItem(`lastSelectedChannelId_${user.uid}`, currentChannel.id);
+    }
+  }, [currentChannel, user?.uid]);
 
   return (
     <>

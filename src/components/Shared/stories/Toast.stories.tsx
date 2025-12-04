@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { Toast } from './Toast';
+import { Toast } from '../Toast';
 import { useState } from 'react';
 
 const meta = {
