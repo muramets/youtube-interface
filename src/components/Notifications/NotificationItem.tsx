@@ -5,9 +5,10 @@ import { formatDistanceToNow } from 'date-fns';
 
 interface NotificationItemProps {
     notification: Notification;
+    onAction?: (notification: Notification) => void;
 }
 
-export const NotificationItem: React.FC<NotificationItemProps> = ({ notification }) => {
+export const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onAction }) => {
     const { markAsRead, removeNotification } = useNotificationStore();
 
     const getIcon = () => {
@@ -15,13 +16,20 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
             case 'error': return <AlertCircle size={20} className="text-red-500" />;
             case 'warning': return <AlertCircle size={20} className="text-yellow-500" />;
             case 'success': return <CheckCircle size={20} className="text-green-500" />;
-            default: return <Info size={20} className="text-blue-500" />;
+            default: return <Info size={20} className={notification.customColor ? '' : "text-blue-500"} style={{ color: notification.customColor }} />;
         }
+    };
+
+    const handleClick = () => {
+        if (!notification.isRead) {
+            markAsRead(notification.id);
+        }
+        onAction?.(notification);
     };
 
     return (
         <div
-            onClick={() => !notification.isRead && markAsRead(notification.id)}
+            onClick={handleClick}
             className={`p-4 transition-colors flex gap-3 group relative cursor-pointer 
                 ${!notification.isRead ? 'bg-blue-50/5 dark:bg-blue-900/10' : ''}
                 hover:bg-hover-bg
@@ -33,7 +41,13 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
             )}
 
             <div className="flex-shrink-0 mt-1">
-                <div className="w-10 h-10 rounded-full bg-bg-secondary flex items-center justify-center border border-border">
+                <div
+                    className="w-10 h-10 rounded-full bg-bg-secondary flex items-center justify-center border border-border"
+                    style={notification.customColor ? {
+                        backgroundColor: `${notification.customColor}15`,
+                        borderColor: `${notification.customColor}30`
+                    } : undefined}
+                >
                     {getIcon()}
                 </div>
             </div>
@@ -49,7 +63,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
                     {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
                 </p>
                 {notification.meta && (
-                    <p className="text-xs text-text-secondary mt-1 font-mono opacity-80">
+                    <p className="text-xs text-text-secondary mt-1 font-mono bg-bg-secondary inline-block px-1 rounded border border-border">
                         {notification.meta}
                     </p>
                 )}

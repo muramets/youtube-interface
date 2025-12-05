@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { type VideoDetails, type CoverVersion, type PackagingVersion, extractVideoId } from '../utils/youtubeApi';
+import { type VideoDetails, type CoverVersion, type PackagingVersion, type CTRRule, extractVideoId } from '../utils/youtubeApi';
 import { useVideos } from './useVideos';
 
 import { useAuth } from './useAuth';
@@ -8,75 +8,89 @@ import { useChannelStore } from '../stores/channelStore';
 export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { fetchVideoHistory } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const { fetchVideoHistory, videos } = useVideos(user?.uid || '', currentChannel?.id || '');
+
+    // Find the latest version of the video from the store to ensure we have up-to-date data
+    // This fixes issues where initialData might be stale after a save operation
+    const latestVideoData = initialData?.id ? videos.find(v => v.id === initialData.id) : undefined;
+    const effectiveData = latestVideoData || initialData;
 
     // Form State
-    const [title, setTitle] = useState(initialData?.title || '');
-    const [description, setDescription] = useState(initialData?.description || '');
-    const [tags, setTags] = useState<string[]>(initialData?.tags || []);
-    const [viewCount, setViewCount] = useState(initialData?.viewCount || '');
-    const [duration, setDuration] = useState(initialData?.duration || '');
-    const [videoRender, setVideoRender] = useState(initialData?.videoRender || '');
-    const [audioRender, setAudioRender] = useState(initialData?.audioRender || '');
-    const [coverImage, setCoverImage] = useState<string | null>(initialData?.customImage || initialData?.thumbnail || null);
+    const [title, setTitle] = useState(effectiveData?.title || '');
+    const [description, setDescription] = useState(effectiveData?.description || '');
+    const [tags, setTags] = useState<string[]>(effectiveData?.tags || []);
+    const [viewCount, setViewCount] = useState(effectiveData?.viewCount || '');
+    const [duration, setDuration] = useState(effectiveData?.duration || '');
+    const [videoRender, setVideoRender] = useState(effectiveData?.videoRender || '');
+    const [audioRender, setAudioRender] = useState(effectiveData?.audioRender || '');
+    const [coverImage, setCoverImage] = useState<string | null>(effectiveData?.customImage || effectiveData?.thumbnail || null);
 
     // Versioning State
-    const [currentVersion, setCurrentVersion] = useState(initialData?.customImageVersion || 1);
-    const [highestVersion, setHighestVersion] = useState(initialData?.highestVersion || (initialData?.customImage ? 1 : 0));
-    const [currentOriginalName, setCurrentOriginalName] = useState(initialData?.customImageName || 'Original Cover');
-    const [fileVersionMap, setFileVersionMap] = useState<Record<string, number>>(initialData?.fileVersionMap || {});
+    const [currentVersion, setCurrentVersion] = useState(effectiveData?.customImageVersion || 1);
+    const [highestVersion, setHighestVersion] = useState(effectiveData?.highestVersion || (effectiveData?.customImage ? 1 : 0));
+    const [currentOriginalName, setCurrentOriginalName] = useState(effectiveData?.customImageName || 'Original Cover');
+    const [fileVersionMap, setFileVersionMap] = useState<Record<string, number>>(effectiveData?.fileVersionMap || {});
 
     // Packaging Performance State
-    const [currentPackagingVersion, setCurrentPackagingVersion] = useState(initialData?.currentPackagingVersion || 1);
-    const [packagingHistory, setPackagingHistory] = useState<PackagingVersion[]>(initialData?.packagingHistory || []);
+    const [currentPackagingVersion, setCurrentPackagingVersion] = useState(effectiveData?.currentPackagingVersion || 1);
+    const [packagingHistory, setPackagingHistory] = useState<PackagingVersion[]>(effectiveData?.packagingHistory || []);
 
     // History State
     const [coverHistory, setCoverHistory] = useState<CoverVersion[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [deletedHistoryIds, setDeletedHistoryIds] = useState<Set<number | string>>(new Set());
 
-    const [isPublished, setIsPublished] = useState(!!initialData?.publishedVideoId);
-    const [publishedUrl, setPublishedUrl] = useState(initialData?.publishedVideoId ? `https://www.youtube.com/watch?v=${initialData.publishedVideoId}` : '');
+    const [isPublished, setIsPublished] = useState(!!effectiveData?.publishedVideoId);
+    const [publishedUrl, setPublishedUrl] = useState(effectiveData?.publishedVideoId ? `https://www.youtube.com/watch?v=${effectiveData.publishedVideoId}` : '');
 
     // Track previous ID to prevent unnecessary resets
     const [prevId, setPrevId] = useState<string | undefined>(undefined);
 
     // Draft State
-    const [isDraft, setIsDraft] = useState(initialData?.isDraft ?? (!initialData?.packagingHistory || initialData.packagingHistory.length === 0));
+    const [isDraft, setIsDraft] = useState(effectiveData?.isDraft ?? (!effectiveData?.packagingHistory || effectiveData.packagingHistory.length === 0));
+
+    // CTR Rules State
+    const [ctrRules, setCtrRules] = useState<CTRRule[]>(effectiveData?.ctrRules || []);
 
     // Effect 1: Sync Form State
     useEffect(() => {
         if (isOpen) {
-            if (initialData) {
-                const isSameVideo = prevId === initialData.id;
-                setPrevId(initialData.id);
+            if (effectiveData) {
+                const isSameVideo = prevId === effectiveData.id;
+                setPrevId(effectiveData.id);
 
-                setTitle(initialData.title);
-                setDescription(initialData.description || '');
-                setTags(initialData.tags || []);
-                setViewCount(initialData.viewCount || '');
-                setDuration(initialData.duration || '');
-                setVideoRender(initialData.videoRender || '');
-                setAudioRender(initialData.audioRender || '');
-                setCoverImage(initialData.customImage || initialData.thumbnail);
-                setCurrentOriginalName(initialData.customImageName || 'Original Cover');
+                setTitle(effectiveData.title);
+                setDescription(effectiveData.description || '');
+                setTags(effectiveData.tags || []);
+                setViewCount(effectiveData.viewCount || '');
+                setDuration(effectiveData.duration || '');
+                setVideoRender(effectiveData.videoRender || '');
+                setAudioRender(effectiveData.audioRender || '');
+                setCoverImage(effectiveData.customImage || effectiveData.thumbnail);
+                setCurrentOriginalName(effectiveData.customImageName || 'Original Cover');
+                setCtrRules(effectiveData.ctrRules || []);
+
+                // Sync packaging version and history from fresh data
+                setCurrentPackagingVersion(effectiveData.currentPackagingVersion || 1);
+                setPackagingHistory(effectiveData.packagingHistory || []);
+                setIsDraft(effectiveData.isDraft ?? (!effectiveData.packagingHistory || effectiveData.packagingHistory.length === 0));
 
                 if (!isSameVideo) {
                     setCoverHistory([]);
                 }
 
-                if (initialData.publishedVideoId) {
+                if (effectiveData.publishedVideoId) {
                     setIsPublished(true);
-                    setPublishedUrl(`https://www.youtube.com/watch?v=${initialData.publishedVideoId}`);
+                    setPublishedUrl(`https://www.youtube.com/watch?v=${effectiveData.publishedVideoId}`);
                 } else {
                     setIsPublished(false);
                     setPublishedUrl('');
                 }
 
-                const savedCurrentVersion = initialData.customImageVersion || 1;
-                const hasCustomImage = !!initialData.customImage;
-                const savedHighestVersion = initialData.highestVersion || (hasCustomImage ? 1 : 0);
-                const savedFileVersionMap = initialData.fileVersionMap || {};
+                const savedCurrentVersion = effectiveData.customImageVersion || 1;
+                const hasCustomImage = !!effectiveData.customImage;
+                const savedHighestVersion = effectiveData.highestVersion || (hasCustomImage ? 1 : 0);
+                const savedFileVersionMap = effectiveData.fileVersionMap || {};
 
                 setCurrentVersion(savedCurrentVersion);
                 setHighestVersion(savedHighestVersion);
@@ -100,9 +114,13 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
                 setIsPublished(false);
                 setPublishedUrl('');
                 setPrevId(undefined);
+                setCtrRules([]);
+                setCurrentPackagingVersion(1);
+                setPackagingHistory([]);
+                setIsDraft(true);
             }
         }
-    }, [isOpen, initialData, prevId]);
+    }, [isOpen, effectiveData, prevId]);
 
     // Effect 2: Load History
     const lastLoadedIdRef = useRef<string | undefined>(undefined);
@@ -235,6 +253,8 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         });
     };
 
+
+
     // Split isDirty into Metadata and Packaging
     const isMetadataDirty = (() => {
         if (!initialData) return true;
@@ -247,6 +267,11 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         if (!!initialData.publishedVideoId !== isPublished) return true;
         if (isPublished && initialData.publishedVideoId && !publishedUrl.includes(initialData.publishedVideoId)) return true;
         if (isPublished && !initialData.publishedVideoId && publishedUrl) return true;
+
+        // Check CTR Rules
+        const initialRules = initialData.ctrRules || [];
+        if (ctrRules.length !== initialRules.length) return true;
+        if (JSON.stringify(ctrRules) !== JSON.stringify(initialRules)) return true;
 
         return false;
     })();
@@ -350,6 +375,9 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         setCurrentPackagingVersion,
         packagingHistory,
         setPackagingHistory,
+        // CTR Rules
+        ctrRules,
+        setCtrRules,
 
         // We need to expose a way to get the FINAL object for saving
         getFullPayload: () => {
@@ -363,6 +391,7 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
                 ...effectiveDefault,
                 localizations: effectiveLocalizations,
                 abTestVariants,
+                ctrRules,
                 // Metadata
                 viewCount,
                 duration,
@@ -379,6 +408,7 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
                 tags: initialData?.tags || [],
                 localizations: initialData?.localizations || {},
                 abTestVariants: initialData?.abTestVariants || [],
+                ctrRules,
                 // New Metadata
                 viewCount,
                 duration,

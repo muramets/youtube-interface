@@ -40,7 +40,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const { removeVideoFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
   const { generalSettings, cloneSettings } = useSettings();
   const apiKey = generalSettings.apiKey;
-  const { setSettingsOpen } = useUIStore();
+
+  const { setSettingsOpen, activeVideoId, activeTab, closeVideoModal } = useUIStore();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
@@ -50,6 +51,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [showToast, setShowToast] = useState(false);
+
+  // Global Modal Control
+  React.useEffect(() => {
+    if (activeVideoId === video.id) {
+      setShowEditModal(true);
+    }
+  }, [activeVideoId, video.id]);
 
   const [viewMode, setViewMode] = useState<'custom' | 'youtube'>('custom');
   const [isFlipping, setIsFlipping] = useState(false);
@@ -391,10 +399,16 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         showEditModal && (
           <CustomVideoModal
             isOpen={showEditModal}
-            onClose={() => setShowEditModal(false)}
+            onClose={() => {
+              setShowEditModal(false);
+              if (activeVideoId === video.id) {
+                closeVideoModal();
+              }
+            }}
             onSave={handleSaveCustomVideo}
             onClone={handleCloneVideo}
             initialData={video}
+            initialTab={activeVideoId === video.id ? activeTab : undefined}
           />
         )
       }

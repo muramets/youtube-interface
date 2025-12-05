@@ -154,7 +154,7 @@ export const LanguageTabs: React.FC<LanguageTabsProps> = ({
                 {isAddOpen && createPortal(
                     <>
                         <div
-                            className="fixed inset-0 z-[9998]"
+                            className="fixed inset-0 z-[1049]"
                             onClick={() => setIsAddOpen(false)}
                         />
                         <div

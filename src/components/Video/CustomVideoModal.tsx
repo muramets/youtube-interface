@@ -3,14 +3,17 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy } from '@dnd-kit/sortable';
-import { type VideoDetails, type CoverVersion, type PackagingMetrics, type PackagingVersion, type HistoryItem } from '../../utils/youtubeApi';
+import { type VideoDetails, type CoverVersion, type PackagingMetrics, type PackagingVersion, type HistoryItem, type PackagingCheckin } from '../../utils/youtubeApi';
+
 import { useVideos } from '../../hooks/useVideos';
 
 import { useChannelStore } from '../../stores/channelStore';
 import { useAuth } from '../../hooks/useAuth';
+import { useSettings } from '../../hooks/useSettings';
+import { useNotificationStore } from '../../stores/notificationStore';
 import { Toast } from '../Shared/Toast';
 import { useVideoForm } from '../../hooks/useVideoForm';
-import { resizeImage } from '../../utils/imageUtils';
+
 import { VersionHistory } from './Modal/VersionHistory';
 import { ImageUploader } from './Modal/ImageUploader';
 import { VideoForm } from './Modal/VideoForm';
@@ -19,12 +22,20 @@ import { SortableVariant } from './Modal/SortableVariant';
 import { MetricsModal } from './Modal/MetricsModal';
 import { SaveMenu } from './Modal/SaveMenu';
 
+import { SuggestedTrafficTab } from './Modal/SuggestedTraffic/SuggestedTrafficTab';
+import { uploadImageToStorage, uploadBase64ToStorage } from '../../services/storageService';
+import { resizeImageToBlob } from '../../utils/imageUtils';
+import { ConfirmationModal } from '../Shared/ConfirmationModal';
+import { SubTabs } from '../Shared/SubTabs';
+
 interface CustomVideoModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSave: (videoData: Omit<VideoDetails, 'id'>, shouldClose?: boolean) => Promise<string | void>;
     onClone?: (originalVideo: VideoDetails, version: CoverVersion) => Promise<void>;
+
     initialData?: VideoDetails;
+    initialTab?: 'details' | 'packaging' | 'traffic';
 }
 
 export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
@@ -32,15 +43,36 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     onClose,
     onSave,
     onClone,
-    initialData
+
+    initialData,
+    initialTab = 'details'
 }) => {
     const { user } = useAuth();
     const { currentChannel, updateChannel } = useChannelStore();
+    const { packagingSettings } = useSettings();
+    const { addNotification } = useNotificationStore();
+
     const { saveVideoHistory, deleteVideoHistoryItem } = useVideos(user?.uid || '', currentChannel?.id || '');
     const modalRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const [activeTab, setActiveTab] = useState<'details' | 'packaging'>('details');
+
+    const [draftId] = useState(() => initialData?.id || `custom-${Date.now()}`);
+
+    const [activeTab, setActiveTab] = useState<'details' | 'packaging' | 'traffic'>(initialTab);
+
+    useEffect(() => {
+        if (initialTab) {
+            setActiveTab(initialTab);
+        }
+    }, [initialTab]);
+
+    // Initialize activeVersionTab based on draft status
+    // Initialize activeVersionTab based on draft status
+    const [activeVersionTab, setActiveVersionTab] = useState<string>('current');
+
+
+
     const [isStatsExpanded, setIsStatsExpanded] = useState(false);
     const [cloningVersion, setCloningVersion] = useState<number | null>(null);
 
@@ -59,11 +91,24 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 
     const [checkinTargetVersion, setCheckinTargetVersion] = useState<number | null>(null);
 
+    // Delete Confirmation State
+    const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; versionNumber: number | null }>({
+        isOpen: false,
+        versionNumber: null
+    });
+    const [deleteCheckinConfirmation, setDeleteCheckinConfirmation] = useState<{ isOpen: boolean; versionNumber: number | null; checkinId: string | null }>({ isOpen: false, versionNumber: null, checkinId: null });
+
     const handleSaveAsVersion = () => {
-        // If this is the first version (no history), just save and finalize without metrics
+        // If this is the first version (no history), automatically finalize it with null metrics
         if (packagingHistory.length === 0) {
-            setIsDraft(false);
-            handleSave(true, false); // Explicitly set isDraft to false
+            const nullMetrics: PackagingMetrics = {
+                impressions: null,
+                ctr: null,
+                views: null,
+                avdSeconds: null,
+                avdPercentage: null
+            };
+            confirmSaveVersion(nullMetrics);
             return;
         }
         setCheckinTargetVersion(null); // Reset target version (null means creating NEW version)
@@ -95,20 +140,11 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         }
 
         // Creating a NEW version
-        // IMPORTANT: Snapshot should be of the PREVIOUS version (initialData), not the current new draft
-        // But wait, if we are saving as a NEW version, we are snapshotting the CURRENT state as the start of this new version?
-        // No, typically "Save as Version 2" means "Finalize Version 1 and start Version 2".
-        // So the snapshot should be of the state being finalized.
-        // Let's assume the current form state is what we want to snapshot as the "configuration" for this version.
 
         const newHistoryItem: PackagingVersion = {
             versionNumber: currentPackagingVersion,
             startDate: Date.now(),
-            checkins: [{
-                id: crypto.randomUUID(),
-                date: Date.now(),
-                metrics: metricsData
-            }],
+            checkins: [],
             configurationSnapshot: {
                 title: title,
                 description: description,
@@ -119,20 +155,37 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
             }
         };
 
-        setPackagingHistory(prev => [...prev, newHistoryItem]);
-        setCurrentPackagingVersion(prev => prev + 1);
+        // Update state locally first
+        const newHistory = [...packagingHistory, newHistoryItem];
+        const newVersion = currentPackagingVersion + 1;
+
+        setPackagingHistory(newHistory);
+        setCurrentPackagingVersion(newVersion);
         setShowMetricsModal(false);
         setIsDraft(false); // Version finalized, no longer a draft
 
         // Proceed with normal save, explicitly setting isDraft to false
-        await handleSave(true, false);
+        // IMPORTANT: We must pass the NEW values explicitly because state updates are async
+        // and handleSave reads from state which might be stale in this closure?
+        // Actually handleSave reads from state variables which are closed over.
+        // But `confirmSaveVersion` is a closure.
+        // If we call `handleSave` immediately, it will see the OLD state values because re-render hasn't happened yet.
+        // THIS IS THE BUG!
+
+        await handleSave(true, false, {
+            overridePackagingVersion: newVersion,
+            overridePackagingHistory: newHistory
+        });
     };
 
 
     // Toast State
     const [toastMessage, setToastMessage] = useState('');
     const [showToast, setShowToast] = useState(false);
+    const lastUploadTimeRef = useRef<number>(0);
+    const activeUploadPromiseRef = useRef<Promise<string | void> | null>(null);
     const [toastType, setToastType] = useState<'success' | 'error'>('success');
+    const [toastPosition, setToastPosition] = useState<'top' | 'bottom'>('bottom');
 
     const {
         title, setTitle,
@@ -168,8 +221,95 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         currentPackagingVersion,
         setCurrentPackagingVersion,
         packagingHistory,
-        setPackagingHistory
+        setPackagingHistory,
+        ctrRules,
+        setCtrRules
     } = useVideoForm(initialData, isOpen);
+
+    // Auto-Checkin Logic
+    // Helper to calculate checkin count for dependency stability
+    const checkinCount = packagingHistory.reduce((acc, v) => acc + v?.checkins?.length || 0, 0);
+    const hasRules = packagingSettings?.checkinRules?.length > 0;
+
+    // Auto-Checkin Logic
+    useEffect(() => {
+        if (!isOpen || !initialData?.publishedAt || !hasRules || !isPublished) return;
+
+        // Use a flag to prevent multiple checks per render cycle (though useEffect handles this, strict mode might double invoke)
+        // Also we want to avoid checking if we just updated history.
+
+        const publishTime = new Date(initialData.publishedAt).getTime();
+        const now = Date.now();
+        let hasUpdates = false;
+
+        // Perform check
+        // Find the active version (or latest)
+        // We use packagingHistory from PROPS/STATE.
+        if (packagingHistory.length === 0) return;
+
+        // Deep clone history to avoid direct mutation
+        // We only modify if we find something to add.
+        const historyCopy = JSON.parse(JSON.stringify(packagingHistory)) as PackagingVersion[];
+
+        // Sort to find latest
+        historyCopy.sort((a, b) => b.versionNumber - a.versionNumber);
+        const latestVersion = historyCopy[0];
+
+        // Check rules against latest version
+        packagingSettings.checkinRules.forEach(rule => {
+            const targetTime = publishTime + (rule.hoursAfterPublish * 60 * 60 * 1000);
+
+            if (now >= targetTime) {
+                const existingCheckin = latestVersion.checkins.find(c => c.ruleId === rule.id);
+                if (!existingCheckin) {
+                    // Add checkin
+                    const newCheckin: PackagingCheckin = {
+                        id: crypto.randomUUID(),
+                        date: targetTime,
+                        metrics: {
+                            impressions: null,
+                            ctr: null,
+                            views: null,
+                            avdSeconds: null,
+                            avdPercentage: null
+                        },
+                        ruleId: rule.id
+                    };
+                    latestVersion.checkins.push(newCheckin);
+                    hasUpdates = true;
+                    // Notification removed: The global scheduler handles reminders. 
+                    // When the modal is open, we just show the new checkin in the UI.
+                }
+            }
+        });
+
+        if (hasUpdates) {
+            // Sort checkins
+            latestVersion.checkins.sort((a, b) => a.date - b.date);
+
+            // Update state
+            // Re-construct history array with updated latest version
+            const newHistory = packagingHistory.map(v => v.versionNumber === latestVersion.versionNumber ? latestVersion : v);
+
+            // Only update if actually different to prevent loops?
+            // React state update is already optimized, but if objects are new references it will trigger re-render.
+            // We rely on the fact that if we add a checkin, next time `!existingCheckin` will be false.
+            setPackagingHistory(newHistory);
+        }
+    }, [isOpen, initialData?.publishedAt, hasRules, isPublished, packagingHistory.length, checkinCount]); // Minimized dependencies
+
+    // Update activeVersionTab when modal opens or data changes
+    useEffect(() => {
+        if (isOpen) {
+            if (initialData?.isDraft === false && packagingHistory.length > 0) {
+                // If not a draft, default to the latest version
+                const maxVersion = Math.max(...packagingHistory.map(v => v.versionNumber));
+                setActiveVersionTab(maxVersion.toString());
+            } else {
+                setActiveVersionTab('current');
+            }
+        }
+    }, [isOpen, initialData, packagingHistory]);
 
     useEffect(() => {
         if (isOpen) {
@@ -187,56 +327,94 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     const handleImageUpload = async (file: File) => {
         if (!file.type.startsWith('image/')) return;
 
-        try {
-            const resizedImage = await resizeImage(file, 640, 0.7);
+        const currentUploadTime = Date.now();
+        lastUploadTimeRef.current = currentUploadTime;
 
-            if (resizedImage.length > 950000) {
-                setToastMessage('Image is too large even after compression. Please use a simpler image.');
+        const performUpload = async () => {
+            try {
+                // Optimistic UI: Show preview immediately
+                const objectUrl = URL.createObjectURL(file);
+
+                // Push current cover to history before updating (if exists)
+                if (coverImage) {
+                    const historyVersion: CoverVersion = {
+                        url: coverImage,
+                        version: currentVersion,
+                        timestamp: Date.now(),
+                        originalName: currentOriginalName
+                    };
+                    setCoverHistory(prev => [historyVersion, ...prev]);
+                }
+
+                // Set new cover immediately (optimistic)
+                setCoverImage(objectUrl);
+                setCurrentOriginalName(file.name);
+
+                // Calculate new version
+                const fileKey = `${file.name.replace(/\./g, '_')} -${file.size} `;
+                let newVersion: number;
+                if (fileVersionMap[fileKey]) {
+                    newVersion = fileVersionMap[fileKey];
+                } else {
+                    newVersion = highestVersion + 1;
+                    setFileVersionMap(prev => ({ ...prev, [fileKey]: newVersion }));
+                    setHighestVersion(newVersion);
+                }
+                setCurrentVersion(newVersion);
+
+                setToastMessage('Uploading image...');
+                setToastType('success');
+                setShowToast(true);
+
+                // Compress and resize image directly to Blob
+                const blob = await resizeImageToBlob(file, 1280, 0.7);
+
+                // Upload to Firebase Storage
+                const timestamp = Date.now();
+                // users/{userId}/channels/{channelId}/videos/{videoId}/{timestamp}_{filename}
+                const path = `users/${user?.uid}/channels/${currentChannel?.id}/videos/${draftId}/${timestamp}_${file.name}`;
+                const downloadURL = await uploadImageToStorage(blob, path);
+
+                // Update history items that might have the blob URL
+                setCoverHistory(prev => prev.map(item => {
+                    if (item.url === objectUrl) {
+                        return { ...item, url: downloadURL };
+                    }
+                    return item;
+                }));
+
+                // Only update current cover image if this is still the latest upload
+                if (lastUploadTimeRef.current === currentUploadTime) {
+                    setCoverImage(downloadURL);
+                    setToastType('success'); // Ensure toast is green
+                    setToastMessage('Image uploaded successfully!');
+                    setTimeout(() => setShowToast(false), 2000);
+                }
+
+                // Revoke object URL to free memory
+                URL.revokeObjectURL(objectUrl);
+
+                return downloadURL;
+
+            } catch (error) {
+                console.error('Error uploading image:', error);
+                setToastMessage('Failed to upload image');
                 setToastType('error');
                 setShowToast(true);
-                return;
-            }
-
-            const fileKey = `${file.name.replace(/\./g, '_')} -${file.size} `;
-            let newVersion: number;
-
-            if (fileVersionMap[fileKey]) {
-                const existingVersion = fileVersionMap[fileKey];
-                const isCurrent = currentVersion === existingVersion;
-                const isInHistory = coverHistory.some(h => h.version === existingVersion);
-
-                if (isCurrent || isInHistory) {
-                    setToastMessage('This cover image already exists!');
-                    setToastType('error');
-                    setShowToast(true);
-                    return;
+                // Revert on failure? For now, keep it simple.
+                throw error; // Re-throw to fail the promise
+            } finally {
+                // We can't easily check against the promise itself here because of scoping,
+                // but we can check if the time matches.
+                if (lastUploadTimeRef.current === currentUploadTime) {
+                    activeUploadPromiseRef.current = null;
                 }
-                newVersion = existingVersion;
-            } else {
-                newVersion = highestVersion + 1;
-                setFileVersionMap(prev => ({ ...prev, [fileKey]: newVersion }));
-                setHighestVersion(newVersion);
             }
+        };
 
-            if (coverImage) {
-                const historyVersion: CoverVersion = {
-                    url: coverImage,
-                    version: currentVersion,
-                    timestamp: Date.now(),
-                    originalName: currentOriginalName
-                };
-                setCoverHistory(prev => [historyVersion, ...prev]);
-            }
-
-            setCoverImage(resizedImage);
-            setCurrentOriginalName(file.name);
-            setCurrentVersion(newVersion);
-        } catch (error) {
-            console.error('Error resizing image:', error);
-            setToastMessage('Failed to process image');
-            setToastType('error');
-            setShowToast(true);
-        }
+        const uploadPromise = performUpload();
+        activeUploadPromiseRef.current = uploadPromise;
+        await uploadPromise;
     };
 
     const handleDrop = (e: React.DragEvent) => {
@@ -293,46 +471,190 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         }
     };
 
-    const handleSave = async (shouldClose = true, overrideIsDraft?: boolean) => {
+
+
+    const handleDeleteHistoryItem = async (e: React.MouseEvent, timestamp: number, immediate: boolean = false) => {
+        e.stopPropagation();
+
+        if (immediate) {
+            // Immediate delete for broken files (no confirmation, auto-save)
+            setCoverHistory(prev => prev.filter(h => h.timestamp !== timestamp));
+
+            // Perform actual backend deletion immediately
+            if (initialData?.id) {
+                try {
+                    await deleteVideoHistoryItem({ videoId: initialData.id, historyId: timestamp.toString() });
+                    setToastMessage('Broken version deleted');
+                    setToastType('success');
+                    setShowToast(true);
+                } catch (error) {
+                    console.error("Failed to delete history item:", error);
+                    setToastMessage('Failed to delete version');
+                    setToastType('error');
+                    setShowToast(true);
+                }
+            }
+            return;
+        }
+
+        if (window.confirm('Are you sure you want to delete this version?')) {
+            setCoverHistory(prev => prev.filter(h => h.timestamp !== timestamp));
+            setDeletedHistoryIds(prev => new Set(prev).add(timestamp));
+        }
+    };
+
+    const handleDeleteCheckin = (versionNumber: number, checkinId: string) => {
+        setDeleteCheckinConfirmation({
+            isOpen: true,
+            versionNumber,
+            checkinId
+        });
+    };
+
+    const confirmDeleteCheckin = async () => {
+        const { versionNumber, checkinId } = deleteCheckinConfirmation;
+        if (versionNumber !== null && checkinId !== null) {
+            const newHistory = packagingHistory.map(v => {
+                if (v.versionNumber === versionNumber) {
+                    return {
+                        ...v,
+                        checkins: v.checkins.filter(c => c.id !== checkinId)
+                    };
+                }
+                return v;
+            });
+
+            setPackagingHistory(newHistory);
+
+            // Persist changes
+            await handleSave(false, undefined, {
+                overridePackagingHistory: newHistory
+            });
+
+            setToastMessage('Check-in deleted');
+            setToastType('success');
+            setShowToast(true);
+        }
+        setDeleteCheckinConfirmation({ isOpen: false, versionNumber: null, checkinId: null });
+    };
+
+    const handleSave = async (shouldClose = true, overrideIsDraft?: boolean, overrides?: { overridePackagingVersion?: number, overridePackagingHistory?: PackagingVersion[] }) => {
         if (!coverImage) {
             alert("Please upload a cover image");
             return;
         }
 
+        let effectiveCoverImage = coverImage;
+
+        if (activeUploadPromiseRef.current) {
+            setIsSaving(true); // Show loading spinner
+            try {
+                const uploadedUrl = await activeUploadPromiseRef.current;
+                if (uploadedUrl && typeof uploadedUrl === 'string') {
+                    effectiveCoverImage = uploadedUrl;
+                }
+            } catch (e) {
+                setIsSaving(false);
+                return; // Stop save if upload failed
+            }
+        } else if (coverImage.startsWith('blob:')) {
+            // Fallback for edge case where promise is gone but blob remains (shouldn't happen with new logic)
+            setToastMessage("Please wait for image upload to complete");
+            setToastType('error');
+            setShowToast(true);
+            return;
+        }
+
         setIsSaving(true);
 
-        const finalData = getFullPayload();
-
-        // Default title if empty
-        const finalTitle = finalData.title.trim() || "Your Next Viral Music Playlist";
-
-        const videoData: Omit<VideoDetails, 'id'> = {
-            ...finalData,
-            title: finalTitle,
-            thumbnail: coverImage,
-            channelId: currentChannel?.id || '',
-            channelTitle: currentChannel?.name || 'My Channel',
-            channelAvatar: currentChannel?.avatar || '',
-            publishedAt: initialData ? initialData.publishedAt : new Date().toISOString(),
-            // Metadata is already in finalData, but we need to ensure structure matches
-            viewCount: finalData.viewCount || '1M',
-            duration: finalData.duration || '1:02:11',
-            isCustom: true,
-            customImage: coverImage,
-            createdAt: initialData?.createdAt,
-            coverHistory: coverHistory,
-            customImageName: currentOriginalName || undefined,
-            customImageVersion: currentVersion,
-            highestVersion: highestVersion,
-            fileVersionMap: fileVersionMap,
-            historyCount: coverHistory.length,
-            publishedVideoId: finalData.publishedVideoId,
-            videoRender: finalData.videoRender,
-            audioRender: finalData.audioRender,
-            isDraft: overrideIsDraft !== undefined ? overrideIsDraft : (shouldClose ? isDraft : true) // Use override if provided, otherwise auto-save preserves state, Manual save sets to Draft
-        };
-
         try {
+            // 1. Migrate Legacy Base64 Images in History
+            // This prevents "Document too large" errors by moving old base64 images to Storage
+            let updatedCoverHistory = [...coverHistory];
+            let hasHistoryUpdates = false;
+
+            const coverHistoryPromises = updatedCoverHistory.map(async (item, index) => {
+                if (item.url.startsWith('data:image')) {
+                    const newUrl = await uploadBase64ToStorage(item.url, user?.uid || 'anonymous');
+                    updatedCoverHistory[index] = { ...item, url: newUrl };
+                    hasHistoryUpdates = true;
+                }
+            });
+            await Promise.all(coverHistoryPromises);
+
+            if (hasHistoryUpdates) {
+                setCoverHistory(updatedCoverHistory);
+            }
+
+            // 2. Migrate Legacy Base64 Images in Packaging History
+            let effectivePackagingHistory = overrides?.overridePackagingHistory ?? packagingHistory;
+            let hasPackagingUpdates = false;
+
+            // Deep copy to avoid mutating state directly if it came from state
+            effectivePackagingHistory = JSON.parse(JSON.stringify(effectivePackagingHistory));
+
+            const packagingPromises = effectivePackagingHistory.map(async (version, index) => {
+                if (version.configurationSnapshot.coverImage?.startsWith('data:image')) {
+                    const newUrl = await uploadBase64ToStorage(version.configurationSnapshot.coverImage, user?.uid || 'anonymous');
+                    effectivePackagingHistory[index].configurationSnapshot.coverImage = newUrl;
+                    hasPackagingUpdates = true;
+                }
+            });
+            await Promise.all(packagingPromises);
+
+            if (hasPackagingUpdates && !overrides?.overridePackagingHistory) {
+                // Only update state if we are NOT using overrides (because overrides are already "future" state)
+                // But wait, if overrides had base64, we want to update them too.
+                // If we are using overrides, we don't update state immediately because overrides might be from `confirmSaveVersion` which calls `setPackagingHistory` itself.
+                // Actually, `confirmSaveVersion` sets state, then calls `handleSave`.
+                // So `packagingHistory` state might already be the new one? No, state update is async.
+                // That's why we have overrides.
+                // If we fix overrides, we should probably just use the fixed version for saving.
+                // We can optionally update state if it matches.
+                if (!overrides) {
+                    setPackagingHistory(effectivePackagingHistory);
+                }
+            }
+
+            const finalData = getFullPayload();
+
+            // Default title if empty
+            const finalTitle = finalData.title.trim() || "Your Next Viral Music Playlist";
+
+            // Use overrides if provided (to handle async state updates during version finalization)
+            const effectivePackagingVersion = overrides?.overridePackagingVersion ?? currentPackagingVersion;
+
+            const videoData: Omit<VideoDetails, 'id'> & { id?: string } = {
+                ...finalData,
+                id: draftId,
+                title: finalTitle,
+                thumbnail: effectiveCoverImage,
+                channelId: currentChannel?.id || '',
+                channelTitle: currentChannel?.name || 'My Channel',
+                channelAvatar: currentChannel?.avatar || '',
+                publishedAt: (initialData && initialData.publishedAt) ? initialData.publishedAt : new Date().toISOString(),
+                // Metadata is already in finalData, but we need to ensure structure matches
+                viewCount: finalData.viewCount || '1M',
+                duration: finalData.duration || '1:02:11',
+                isCustom: true,
+                customImage: effectiveCoverImage,
+                createdAt: initialData?.createdAt,
+                coverHistory: updatedCoverHistory,
+                customImageName: currentOriginalName || undefined,
+                customImageVersion: currentVersion,
+                highestVersion: highestVersion,
+                fileVersionMap: fileVersionMap,
+                historyCount: updatedCoverHistory.length,
+                publishedVideoId: finalData.publishedVideoId,
+                videoRender: finalData.videoRender,
+                audioRender: finalData.audioRender,
+                isDraft: overrideIsDraft !== undefined ? overrideIsDraft : (shouldClose ? isDraft : true), // Use override if provided, otherwise auto-save preserves state, Manual save sets to Draft
+
+                // Packaging Data
+                currentPackagingVersion: effectivePackagingVersion,
+                packagingHistory: effectivePackagingHistory
+            };
+
             const newId = await onSave(videoData, shouldClose);
             const targetId = initialData?.id || (typeof newId === 'string' ? newId : undefined);
 
@@ -342,7 +664,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                 );
                 await Promise.all(deletePromises);
 
-                const savePromises = coverHistory.map(item => saveVideoHistory({ videoId: targetId, historyItem: item as unknown as HistoryItem }));
+                const savePromises = updatedCoverHistory.map(item => saveVideoHistory({ videoId: targetId, historyItem: item as unknown as HistoryItem }));
                 await Promise.all(savePromises);
             }
 
@@ -431,6 +753,109 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         }
     };
 
+    const handleAddToAbTest = (url: string) => {
+        if (abTestVariants.includes(url)) {
+            setAbTestVariants(prev => prev.filter(v => v !== url));
+        } else if (abTestVariants.length < 3) {
+            setAbTestVariants(prev => [...prev, url]);
+        } else {
+            setToastMessage('A/B test limit reached (max 3)');
+            setToastType('error');
+            setShowToast(true);
+        }
+    };
+
+    const handleDeletePackagingVersion = (versionNumber: number) => {
+        setDeleteConfirmation({
+            isOpen: true,
+            versionNumber
+        });
+    };
+
+    const confirmDeleteVersion = async () => {
+        if (deleteConfirmation.versionNumber !== null) {
+            const versionToDelete = deleteConfirmation.versionNumber;
+            const newHistory = packagingHistory.filter(v => v.versionNumber !== versionToDelete);
+
+            if (newHistory.length === 0) {
+                // Case 1: No other versions. Data becomes draft.
+                setPackagingHistory([]);
+                // Reset version counter to 1 so next save is v.1
+                setCurrentPackagingVersion(1);
+                setIsDraft(true);
+                setActiveVersionTab('current');
+
+                await handleSave(false, true, {
+                    overridePackagingHistory: [],
+                    overridePackagingVersion: 1
+                });
+                setToastMessage(`Version ${versionToDelete} deleted. Content saved as Draft.`);
+            } else {
+                // Case 2: Other versions exist.
+                setPackagingHistory(newHistory);
+
+                // Recalculate next version number
+                const maxVersion = Math.max(...newHistory.map(v => v.versionNumber));
+                const newCurrentVersion = maxVersion + 1;
+                setCurrentPackagingVersion(newCurrentVersion);
+
+                // Check if we need to switch tabs
+                if (activeVersionTab === versionToDelete.toString()) {
+                    // If we deleted the active version, switch to the new latest
+                    setActiveVersionTab(maxVersion.toString());
+
+                    // Also load the data of the new active version?
+                    // If we switch tabs, the form updates automatically based on activeVersionTab in render.
+                    // BUT, the form state (title, description etc) is controlled.
+                    // We need to update the form state to match the new active version.
+                    const newActiveVersion = newHistory.find(v => v.versionNumber === maxVersion);
+                    if (newActiveVersion) {
+                        const snapshot = newActiveVersion.configurationSnapshot;
+                        setTitle(snapshot.title);
+                        setDescription(snapshot.description);
+                        setTags(snapshot.tags);
+                        setCoverImage(snapshot.coverImage || '');
+                        if (snapshot.abTestVariants) setAbTestVariants(snapshot.abTestVariants);
+                    }
+                }
+
+                await handleSave(false, undefined, {
+                    overridePackagingHistory: newHistory,
+                    overridePackagingVersion: newCurrentVersion
+                });
+                setToastMessage(`Version ${versionToDelete} deleted`);
+            }
+
+            setToastType('error');
+            setToastPosition('top');
+            setShowToast(true);
+        }
+        setDeleteConfirmation({ isOpen: false, versionNumber: null });
+    };
+
+    const restorePackagingVersion = (versionNumber: string) => {
+        const version = packagingHistory.find(v => v.versionNumber.toString() === versionNumber);
+        if (!version) return;
+
+        // Use custom confirmation modal or native confirm for now
+        if (confirm(`Are you sure you want to restore version ${versionNumber}? Current changes will be overwritten.`)) {
+            const snapshot = version.configurationSnapshot;
+            setTitle(snapshot.title);
+            setDescription(snapshot.description);
+            setTags(snapshot.tags);
+            setCoverImage(snapshot.coverImage || '');
+            // Restore A/B tests if present in snapshot (need to check type definition, assuming it might be there or default to empty)
+            if (snapshot.abTestVariants) {
+                setAbTestVariants(snapshot.abTestVariants);
+            }
+
+            setActiveVersionTab('current');
+            setToastMessage(`Restored version ${versionNumber}`);
+            setToastType('success');
+            setShowToast(true);
+        }
+    };
+
     return createPortal(
         <>
             {/* Metrics Input Modal */}
@@ -443,6 +868,27 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                     currentPackagingVersion={currentPackagingVersion}
                 />
             )}
+
+            {/* Delete Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={deleteConfirmation.isOpen}
+                onClose={() => setDeleteConfirmation({ isOpen: false, versionNumber: null })}
+                onConfirm={confirmDeleteVersion}
+                title="Delete Version"
+                message={`Are you sure you want to delete version ${deleteConfirmation.versionNumber}? This action cannot be undone.`}
+                confirmLabel="Delete"
+                cancelLabel="Cancel"
+            />
+
+            <ConfirmationModal
+                isOpen={deleteCheckinConfirmation.isOpen}
+                onClose={() => setDeleteCheckinConfirmation({ isOpen: false, versionNumber: null, checkinId: null })}
+                onConfirm={confirmDeleteCheckin}
+                title="Delete Check-in"
+                message="Are you sure you want to delete this check-in? This action cannot be undone."
+                confirmLabel="Delete"
+                cancelLabel="Cancel"
+            />
 
             <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-modal-overlay backdrop-blur-sm animate-fade-in" onMouseDown={handleBackdropClick}>
                 <div
@@ -477,6 +923,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                     Save
                                 </button>
                             )}
+
                             <button
                                 onClick={handleClose}
                                 className="p-2 rounded-full hover:bg-hover-bg text-text-primary transition-colors"
@@ -502,77 +949,157 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                             Packaging
                             {activeTab === 'packaging' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-text-primary rounded-t-full" />}
                         </button>
+                        {initialData?.id && (
+                            <button
+                                onClick={() => setActiveTab('traffic')}
+                                className={`pb-3 text-sm font-medium transition-all relative ${activeTab === 'traffic' ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
+                            >
+                                Suggested Traffic
+                                {activeTab === 'traffic' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-text-primary rounded-t-full" />}
+                            </button>
+                        )}
                     </div>
+
+                    {/* Version Sub-tabs (Only visible in Details tab) */}
+                    {activeTab === 'details' && (
+                        <div className="bg-bg-secondary pl-6 pr-6 flex-shrink-0 border-b border-white/5">
+                            <SubTabs
+                                activeTabId={activeVersionTab}
+                                onTabChange={setActiveVersionTab}
+                                tabs={[
+                                    ...(isDraft ? [{ id: 'current', label: 'Current Draft' }] : []),
+                                    ...packagingHistory.map(v => ({
+                                        id: v.versionNumber.toString(),
+                                        label: `v.${v.versionNumber}`,
+                                        onDelete: () => handleDeletePackagingVersion(v.versionNumber)
+                                    }))
+                                ]}
+                            />
+                        </div>
+                    )}
 
                     {/* Content */}
                     <div
-                        className="flex-1 overflow-y-auto custom-scrollbar"
+                        className={`flex-1 custom-scrollbar ${activeTab === 'traffic' ? 'overflow-hidden' : 'overflow-y-auto'}`}
                         style={{ scrollbarGutter: 'stable' }}
                     >
                         <div key={activeTab} className="h-full animate-fade-in">
                             {activeTab === 'details' && (
                                 <div className="grid grid-cols-[1fr_352px] gap-8 items-start p-6">
                                     {/* Left Column: Inputs */}
-                                    <VideoForm
-                                        title={title}
-                                        setTitle={setTitle}
-                                        description={description}
-                                        setDescription={setDescription}
-                                        tags={tags}
-                                        setTags={setTags}
-                                        activeLanguage={activeLanguage}
-                                        localizations={localizations}
-                                        onSwitchLanguage={switchLanguage}
-                                        onAddLanguage={async (code, customName, customFlag) => {
-                                            addLanguage(code, customName, customFlag);
-                                            if (customName && customFlag && currentChannel && user) {
-                                                const existingLanguages = currentChannel.customLanguages || [];
-                                                const exists = existingLanguages.some(l => l.code === code);
-                                                if (!exists) {
-                                                    const newLang = { code, name: customName, flag: customFlag };
-                                                    await updateChannel(user.uid, currentChannel.id, {
-                                                        customLanguages: [...existingLanguages, newLang]
-                                                    });
+                                    <div className="flex flex-col gap-6">
+                                        {/* Banner for Past Versions (Read Only) */}
+                                        {activeVersionTab !== 'current' &&
+                                            !(packagingHistory.length > 0 && activeVersionTab === Math.max(...packagingHistory.map(v => v.versionNumber)).toString() && !isDraft) && (
+                                                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-sm">
+                                                            v.{activeVersionTab}
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className="text-sm font-medium text-blue-400">Viewing Past Version</span>
+                                                            <span className="text-xs text-text-secondary">This version is read-only. Restore it to make changes.</span>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => restorePackagingVersion(activeVersionTab)}
+                                                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer border-none"
+                                                    >
+                                                        Restore Version
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                        <VideoForm
+                                            title={
+                                                (activeVersionTab === 'current' || (packagingHistory.length > 0 && activeVersionTab === Math.max(...packagingHistory.map(v => v.versionNumber)).toString() && !isDraft))
+                                                    ? title
+                                                    : (packagingHistory.find(v => v.versionNumber.toString() === activeVersionTab)?.configurationSnapshot.title || '')
+                                            }
+                                            setTitle={setTitle}
+                                            description={
+                                                (activeVersionTab === 'current' || (packagingHistory.length > 0 && activeVersionTab === Math.max(...packagingHistory.map(v => v.versionNumber)).toString() && !isDraft))
+                                                    ? description
+                                                    : (packagingHistory.find(v => v.versionNumber.toString() === activeVersionTab)?.configurationSnapshot.description || '')
+                                            }
+                                            setDescription={setDescription}
+                                            tags={
+                                                (activeVersionTab === 'current' || (packagingHistory.length > 0 && activeVersionTab === Math.max(...packagingHistory.map(v => v.versionNumber)).toString() && !isDraft))
+                                                    ? tags
+                                                    : (packagingHistory.find(v => v.versionNumber.toString() === activeVersionTab)?.configurationSnapshot.tags || [])
+                                            }
+                                            setTags={setTags}
+                                            activeLanguage={activeLanguage}
+                                            localizations={localizations}
+                                            onSwitchLanguage={switchLanguage}
+                                            onAddLanguage={async (code, customName, customFlag) => {
+                                                addLanguage(code, customName, customFlag);
+                                                if (customName && customFlag && currentChannel && user) {
+                                                    const existingLanguages = currentChannel.customLanguages || [];
+                                                    const exists = existingLanguages.some(l => l.code === code);
+                                                    if (!exists) {
+                                                        const newLang = { code, name: customName, flag: customFlag };
+                                                        try {
+                                                            await updateChannel(user.uid, currentChannel.id, {
+                                                                customLanguages: [...existingLanguages, newLang]
+                                                            });
+                                                        } catch (error) {
+                                                            console.error('Failed to save custom language to channel:', error);
+                                                            // Optional: Show toast
+                                                        }
+                                                    }
                                                 }
+                                            }}
+                                            onRemoveLanguage={removeLanguage}
+                                            savedCustomLanguages={currentChannel?.customLanguages}
+                                            onDeleteCustomLanguage={async (code) => {
+                                                if (currentChannel && user) {
+                                                    const existingLanguages = currentChannel.customLanguages || [];
+                                                    const updatedLanguages = existingLanguages.filter(l => l.code !== code);
+                                                    try {
+                                                        await updateChannel(user.uid, currentChannel.id, {
+                                                            customLanguages: updatedLanguages
+                                                        });
+                                                    } catch (error) {
+                                                        console.error('Failed to remove custom language from channel:', error);
+                                                    }
+                                                }
+                                            }}
+                                            isPublished={isPublished}
+                                            setIsPublished={setIsPublished}
+                                            publishedUrl={publishedUrl}
+                                            setPublishedUrl={setPublishedUrl}
+                                            isStatsExpanded={isStatsExpanded}
+                                            setIsStatsExpanded={setIsStatsExpanded}
+                                            viewCount={viewCount}
+                                            setViewCount={setViewCount}
+                                            duration={duration}
+                                            setDuration={setDuration}
+                                            videoRender={videoRender}
+                                            setVideoRender={setVideoRender}
+                                            audioRender={audioRender}
+                                            setAudioRender={setAudioRender}
+                                            onShowToast={(msg, type) => {
+                                                setToastMessage(msg);
+                                                setToastType(type);
+                                                setShowToast(true);
+                                            }}
+                                            readOnly={
+                                                activeVersionTab !== 'current' &&
+                                                !(packagingHistory.length > 0 && activeVersionTab === Math.max(...packagingHistory.map(v => v.versionNumber)).toString() && !isDraft)
                                             }
-                                        }}
-                                        onRemoveLanguage={removeLanguage}
-                                        savedCustomLanguages={currentChannel?.customLanguages}
-                                        onDeleteCustomLanguage={async (code) => {
-                                            if (currentChannel && user) {
-                                                const existingLanguages = currentChannel.customLanguages || [];
-                                                const updatedLanguages = existingLanguages.filter(l => l.code !== code);
-                                                await updateChannel(user.uid, currentChannel.id, {
-                                                    customLanguages: updatedLanguages
-                                                });
-                                            }
-                                        }}
-                                        isPublished={isPublished}
-                                        setIsPublished={setIsPublished}
-                                        publishedUrl={publishedUrl}
-                                        setPublishedUrl={setPublishedUrl}
-                                        isStatsExpanded={isStatsExpanded}
-                                        setIsStatsExpanded={setIsStatsExpanded}
-                                        videoRender={videoRender}
-                                        setVideoRender={setVideoRender}
-                                        audioRender={audioRender}
-                                        setAudioRender={setAudioRender}
-                                        viewCount={viewCount}
-                                        setViewCount={setViewCount}
-                                        duration={duration}
-                                        setDuration={setDuration}
-                                        onShowToast={(message, type) => {
-                                            setToastMessage(message);
-                                            setToastType(type);
-                                            setShowToast(true);
-                                        }}
-                                    />
+                                        />
+                                    </div>
 
                                     {/* Right Column: Packaging Preview */}
                                     <div className="w-[352px] mt-[4px]">
                                         <div className="bg-modal-surface rounded-xl shadow-lg overflow-hidden">
                                             <ImageUploader
-                                                coverImage={coverImage}
+                                                coverImage={
+                                                    (activeVersionTab === 'current' || (packagingHistory.length > 0 && activeVersionTab === Math.max(...packagingHistory.map(v => v.versionNumber)).toString() && !isDraft))
+                                                        ? coverImage
+                                                        : (packagingHistory.find(v => v.versionNumber.toString() === activeVersionTab)?.configurationSnapshot.coverImage || '')
+                                                }
                                                 onUpload={handleImageUpload}
                                                 onDrop={handleDrop}
                                                 fileInputRef={fileInputRef}
@@ -580,33 +1107,13 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                                 currentVersion={currentVersion}
                                                 currentOriginalName={currentOriginalName}
                                                 onDelete={handleDeleteCurrentVersion}
+                                                abTestVariants={abTestVariants}
+                                                onAddToAbTest={handleAddToAbTest}
+                                                readOnly={
+                                                    activeVersionTab !== 'current' &&
+                                                    !(packagingHistory.length > 0 && activeVersionTab === Math.max(...packagingHistory.map(v => v.versionNumber)).toString() && !isDraft)
+                                                }
                                             />
-
-                                            {/* Version History */}
-                                            <div className="bg-modal-surface p-4 rounded-lg">
-                                                <VersionHistory
-                                                    history={coverHistory}
-                                                    isLoading={false}
-                                                    onRestore={handleRestoreVersion}
-                                                    onDelete={handleDeleteVersion}
-                                                    onClone={onClone ? handleCloneWithSave : undefined}
-                                                    initialData={initialData}
-                                                    cloningVersion={cloningVersion}
-                                                    currentVersion={currentVersion}
-                                                    abTestVariants={abTestVariants}
-                                                    onAddToAbTest={(url) => {
-                                                        if (abTestVariants.includes(url)) {
-                                                            setAbTestVariants(prev => prev.filter(v => v !== url));
-                                                        } else if (abTestVariants.length < 3) {
-                                                            setAbTestVariants(prev => [...prev, url]);
-                                                        } else {
-                                                            setToastMessage('A/B test limit reached (max 3)');
-                                                            setToastType('error');
-                                                            setShowToast(true);
-                                                        }
-                                                    }}
-                                                />
-                                            </div>
                                         </div>
 
                                         {/* A/B Test Variants */}
@@ -640,6 +1147,48 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                                 </DndContext>
                                             </div>
                                         )}
+
+                                        {/* Version History */}
+                                        {coverHistory.length > 0 && (
+                                            <div className="bg-modal-surface p-3 rounded-lg mt-2">
+                                                <VersionHistory
+                                                    history={coverHistory}
+                                                    isLoading={false}
+                                                    onRestore={(versionToRestore) => {
+                                                        // 1. Capture current state as a history item
+                                                        if (coverImage) {
+                                                            const currentAsHistory: CoverVersion = {
+                                                                url: coverImage,
+                                                                version: currentVersion,
+                                                                timestamp: Date.now(),
+                                                                originalName: currentOriginalName
+                                                            };
+
+                                                            // 2. Remove restored version from history AND add current version to history
+                                                            setCoverHistory(prev => {
+                                                                const filtered = prev.filter(h => h.timestamp !== versionToRestore.timestamp);
+                                                                return [currentAsHistory, ...filtered];
+                                                            });
+                                                        } else {
+                                                            // If no current image (rare), just remove from history
+                                                            setCoverHistory(prev => prev.filter(h => h.timestamp !== versionToRestore.timestamp));
+                                                        }
+
+                                                        // 3. Set restored version as current
+                                                        setCoverImage(versionToRestore.url);
+                                                        setCurrentVersion(versionToRestore.version);
+                                                        setCurrentOriginalName(versionToRestore.originalName || '');
+                                                    }}
+                                                    onDelete={handleDeleteHistoryItem}
+                                                    onClone={handleCloneWithSave}
+                                                    initialData={initialData}
+                                                    cloningVersion={cloningVersion}
+                                                    currentVersion={currentVersion}
+                                                    abTestVariants={abTestVariants}
+                                                    onAddToAbTest={handleAddToAbTest}
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -655,9 +1204,24 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                                     setCheckinTargetVersion(versionNumber);
                                                     setShowMetricsModal(true);
                                                 }}
+                                                ctrRules={ctrRules}
+                                                onUpdateCtrRules={setCtrRules}
+                                                onDeleteVersion={handleDeletePackagingVersion}
+                                                isPublished={isPublished}
+                                                checkinRules={packagingSettings.checkinRules}
+                                                onDeleteCheckin={handleDeleteCheckin}
                                             />
                                         </div>
                                     </div>
+                                </div>
+                            )}
+
+                            {activeTab === 'traffic' && initialData?.id && (
+                                <div className="animate-fade-in h-full">
+                                    <SuggestedTrafficTab
+                                        customVideoId={initialData.id}
+                                        packagingCtrRules={ctrRules}
+                                    />
                                 </div>
                             )}
                         </div>
@@ -671,7 +1235,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                 duration={4000}
                 onClose={() => setShowToast(false)}
                 type={toastType}
-                position="bottom"
+                position={toastPosition}
             />
         </>,
         document.body

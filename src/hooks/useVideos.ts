@@ -54,8 +54,8 @@ export const useVideos = (userId: string, channelId: string) => {
 
     // Add Custom Video
     const addCustomVideoMutation = useMutation({
-        mutationFn: async (video: Omit<VideoDetails, 'id'>) => {
-            const id = `custom-${Date.now()}`;
+        mutationFn: async (video: Omit<VideoDetails, 'id'> & { id?: string }) => {
+            const id = video.id || `custom-${Date.now()}`;
             const newVideo: VideoDetails = {
                 ...video,
                 id,

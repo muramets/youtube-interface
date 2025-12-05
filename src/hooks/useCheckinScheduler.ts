@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useVideos } from './useVideos';
 import { useAuth } from './useAuth';
 import { useChannelStore } from '../stores/channelStore';
@@ -11,7 +11,9 @@ export const useCheckinScheduler = () => {
     const { currentChannel } = useChannelStore();
     const { videos } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { packagingSettings } = useSettings();
-    const { notifications, addNotification } = useNotificationStore();
+    const { notifications, addNotification, removeNotification } = useNotificationStore();
+
+    const processedIdsRef = useRef(new Set<string>());
 
     useEffect(() => {
         const checkDueCheckins = async () => {
@@ -25,32 +27,59 @@ export const useCheckinScheduler = () => {
                 for (const rule of packagingSettings.checkinRules) {
                     const dueTime = publishTime + (rule.hoursAfterPublish * 60 * 60 * 1000);
 
+                    // Logic: Level-Triggered Notification
+                    // If Check-in is DONE -> Ensure Notification is GONE
+                    // If Check-in is DUE && NOT DONE -> Ensure Notification is PRESENT
+
+                    const notificationId = `checkin-due-${video.id}-${rule.id}`;
+
+                    // Check if this check-in has already been done
+                    const hasCheckin = video.packagingHistory?.some(version =>
+                        version.checkins.some(checkin => checkin.ruleId === rule.id)
+                    );
+
+                    if (hasCheckin) {
+                        // If job is done, remove the notification if it exists
+                        const existingNotification = notifications.find(n => n.internalId === notificationId);
+                        if (existingNotification) {
+                            await removeNotification(existingNotification.id);
+                        }
+                        // Also clear from local ref so we can notify again if it somehow gets undone?
+                        // Unlikely, but good for cleanup.
+                        processedIdsRef.current.delete(notificationId);
+                        continue;
+                    }
+
                     // If it's not due yet, skip
                     if (now < dueTime) continue;
 
-                    // Check if this check-in has already been done
-                    // We look for a check-in in the history that matches the rule's badge text
-                    // This is a heuristic; ideally we'd link check-ins to rules explicitly
-                    // const hasCheckin = video.packagingHistory?.some(version => 
-                    //     version.checkins.some(checkin => checkin.badge?.text === rule.badgeText)
-                    // );
+                    // It IS due and NOT done.
 
-                    // if (hasCheckin) continue;
+                    // Check if we already notified about this (Store OR Local Ref)
+                    const alreadyNotified = notifications.some(n => n.internalId === notificationId);
+                    const isProcessing = processedIdsRef.current.has(notificationId);
 
-                    // Check if we already notified about this
-                    const notificationId = `checkin-due-${video.id}-${rule.id}`;
-                    const alreadyNotified = notifications.some(n => n.meta === notificationId);
+                    if (alreadyNotified || isProcessing) continue;
 
-                    if (alreadyNotified) continue;
+                    // Mark as processing IMMEDIATELY to stop race conditions
+                    processedIdsRef.current.add(notificationId);
 
-                    // Trigger notification
-                    await addNotification({
-                        title: 'Packaging Check-in Due',
-                        message: `Time to check in on "${video.title}" (${rule.badgeText})`,
-                        type: 'info',
-                        link: `/video/${video.id}`, // Or open modal directly if possible
-                        meta: notificationId
-                    });
+                    try {
+                        // Trigger notification
+                        await addNotification({
+                            title: 'Packaging Check-in Due',
+                            message: `Time to check in on "${video.title}" (${rule.badgeText})`,
+                            type: 'info',
+                            link: `/video/${video.id}`, // Or open modal directly if possible
+                            internalId: notificationId,
+                            customColor: rule.badgeColor
+                        });
+                    } catch (e) {
+                        // If failed, remove from processing so we can retry ?
+                        // Or just let it fail. Better to retry next loop.
+                        processedIdsRef.current.delete(notificationId);
+                        console.error("Failed to add notification", e);
+                    }
                 }
             }
         };
@@ -60,5 +89,5 @@ export const useCheckinScheduler = () => {
         const interval = setInterval(checkDueCheckins, 60000);
 
         return () => clearInterval(interval);
-    }, [videos, packagingSettings, notifications, addNotification]);
+    }, [videos, packagingSettings, notifications, addNotification, removeNotification]);
 };

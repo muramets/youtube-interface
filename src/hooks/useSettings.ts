@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useAuth } from './useAuth';
 import { useChannelStore } from '../stores/channelStore';
-import { SettingsService, type GeneralSettings, type SyncSettings, type CloneSettings, type RecommendationOrder, type PackagingSettings } from '../services/settingsService';
+import { SettingsService, type GeneralSettings, type SyncSettings, type CloneSettings, type RecommendationOrder, type PackagingSettings, type UploadDefaults } from '../services/settingsService';
 
 const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
     cardsPerRow: 3,
@@ -27,6 +27,12 @@ const DEFAULT_PACKAGING_SETTINGS: PackagingSettings = {
     checkinRules: []
 };
 
+const DEFAULT_UPLOAD_DEFAULTS: UploadDefaults = {
+    title: '',
+    description: '',
+    tags: []
+};
+
 export const useSettings = () => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
@@ -37,7 +43,7 @@ export const useSettings = () => {
 
     // --- Queries ---
 
-    const { data: generalSettings = DEFAULT_GENERAL_SETTINGS } = useQuery({
+    const generalQuery = useQuery({
         queryKey: ['settings', 'general', userId, channelId],
         queryFn: async () => {
             const data = await SettingsService.fetchGeneralSettings(userId, channelId);
@@ -46,8 +52,9 @@ export const useSettings = () => {
         enabled,
         staleTime: Infinity
     });
+    const generalSettings = generalQuery.data || DEFAULT_GENERAL_SETTINGS;
 
-    const { data: syncSettings = DEFAULT_SYNC_SETTINGS } = useQuery({
+    const syncQuery = useQuery({
         queryKey: ['settings', 'sync', userId, channelId],
         queryFn: async () => {
             const data = await SettingsService.fetchSyncSettings(userId, channelId);
@@ -56,6 +63,7 @@ export const useSettings = () => {
         enabled,
         staleTime: Infinity
     });
+    const syncSettings = syncQuery.data || DEFAULT_SYNC_SETTINGS;
 
     const { data: cloneSettings = DEFAULT_CLONE_SETTINGS } = useQuery({
         queryKey: ['settings', 'clone', userId, channelId],
@@ -107,6 +115,16 @@ export const useSettings = () => {
         staleTime: Infinity
     });
 
+    const { data: uploadDefaults = DEFAULT_UPLOAD_DEFAULTS } = useQuery({
+        queryKey: ['settings', 'uploadDefaults', userId, channelId],
+        queryFn: async () => {
+            const data = await SettingsService.fetchUploadDefaults(userId, channelId);
+            return data || DEFAULT_UPLOAD_DEFAULTS;
+        },
+        enabled,
+        staleTime: Infinity
+    });
+
     // --- Subscriptions ---
 
     useEffect(() => {
@@ -140,6 +158,10 @@ export const useSettings = () => {
             if (data) queryClient.setQueryData(['settings', 'packaging', userId, channelId], data);
         });
 
+        const unsubUploadDefaults = SettingsService.subscribeToUploadDefaults(userId, channelId, (data) => {
+            if (data) queryClient.setQueryData(['settings', 'uploadDefaults', userId, channelId], data);
+        });
+
         return () => {
             unsubGeneral();
             unsubSync();
@@ -148,6 +170,7 @@ export const useSettings = () => {
             unsubVideoOrder();
             unsubPlaylistOrder();
             unsubPackaging();
+            unsubUploadDefaults();
         };
     }, [userId, channelId, enabled, queryClient]);
 
@@ -258,6 +281,21 @@ export const useSettings = () => {
         }
     });
 
+    const updateUploadDefaultsMutation = useMutation({
+        mutationFn: async (settings: UploadDefaults) => {
+            await SettingsService.updateUploadDefaults(userId, channelId, settings);
+        },
+        onMutate: async (newSettings) => {
+            await queryClient.cancelQueries({ queryKey: ['settings', 'uploadDefaults', userId, channelId] });
+            const previousSettings = queryClient.getQueryData(['settings', 'uploadDefaults', userId, channelId]);
+            queryClient.setQueryData(['settings', 'uploadDefaults', userId, channelId], newSettings);
+            return { previousSettings };
+        },
+        onError: (_err, _newSettings, context) => {
+            queryClient.setQueryData(['settings', 'uploadDefaults', userId, channelId], context?.previousSettings);
+        }
+    });
+
     // Wrapper functions to match store signature
     // Note: The store had (userId, channelId, settings) signature.
     // The hook already knows userId and channelId, but for compatibility we might need to ignore them or check them.
@@ -273,6 +311,7 @@ export const useSettings = () => {
         videoOrder,
         playlistOrder,
         packagingSettings,
+        uploadDefaults,
 
         updateGeneralSettings: (_uid: string, _cid: string, settings: Partial<GeneralSettings>) => updateGeneralSettingsMutation.mutateAsync(settings),
         updateSyncSettings: (_uid: string, _cid: string, settings: SyncSettings) => updateSyncSettingsMutation.mutateAsync(settings),
@@ -281,5 +320,7 @@ export const useSettings = () => {
         updateVideoOrder: (_uid: string, _cid: string, order: string[]) => updateVideoOrderMutation.mutateAsync(order),
         updatePlaylistOrder: (_uid: string, _cid: string, order: string[]) => updatePlaylistOrderMutation.mutateAsync(order),
         updatePackagingSettings: (_uid: string, _cid: string, settings: PackagingSettings) => updatePackagingSettingsMutation.mutateAsync(settings),
+        updateUploadDefaults: (_uid: string, _cid: string, settings: UploadDefaults) => updateUploadDefaultsMutation.mutateAsync(settings),
+        isLoading: generalQuery.isLoading || syncQuery.isLoading
     };
 };

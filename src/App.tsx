@@ -1,4 +1,5 @@
 import { Routes, Route } from 'react-router-dom';
+import { useEffect } from 'react';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
 import { Header } from './components/Layout/Header';
@@ -14,7 +15,9 @@ import { useVideos } from './hooks/useVideos';
 import { useSettings } from './hooks/useSettings';
 import { useAuth } from './hooks/useAuth';
 import { useChannelStore } from './stores/channelStore';
+
 import { useUIStore } from './stores/uiStore';
+import { useNotificationStore } from './stores/notificationStore';
 import { Toast } from './components/Shared/Toast';
 
 import { useCheckinScheduler } from './hooks/useCheckinScheduler';
@@ -24,7 +27,16 @@ function AppContent() {
   const { user } = useAuth();
   const { currentChannel } = useChannelStore();
   const { isLoading, videos } = useVideos(user?.uid || '', currentChannel?.id || '');
+
   const { updateVideoOrder, videoOrder } = useSettings();
+  const { subscribeToNotifications } = useNotificationStore();
+
+  useEffect(() => {
+    if (user?.uid && currentChannel?.id) {
+      const unsubscribe = subscribeToNotifications(user.uid, currentChannel.id);
+      return () => unsubscribe();
+    }
+  }, [user, currentChannel, subscribeToNotifications]);
 
   const handleVideoMove = (movedVideoId: string, targetVideoId: string) => {
     if (!user || !currentChannel) return;

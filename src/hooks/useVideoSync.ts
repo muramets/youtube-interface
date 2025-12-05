@@ -82,7 +82,7 @@ export const useVideoSync = (userId: string, channelId: string) => {
                 }
             }
 
-            const totalQuota = Math.ceil(syncableVideos.length / 50);
+            const totalQuota = Math.ceil(syncableVideos.length / 50) * 2;
             useNotificationStore.getState().addNotification({
                 title: 'Sync Completed',
                 message: `Successfully synced ${syncableVideos.length} videos.`,

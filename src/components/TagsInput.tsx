@@ -6,9 +6,10 @@ interface TagsInputProps {
     tags: string[];
     onChange: (tags: string[]) => void;
     onShowToast?: (message: string, type: 'success' | 'error') => void;
+    readOnly?: boolean;
 }
 
-export const TagsInput: React.FC<TagsInputProps> = ({ tags, onChange, onShowToast }) => {
+export const TagsInput: React.FC<TagsInputProps> = ({ tags, onChange, onShowToast, readOnly = false }) => {
     const [input, setInput] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -45,11 +46,31 @@ export const TagsInput: React.FC<TagsInputProps> = ({ tags, onChange, onShowToas
         onChange([]);
     };
 
+    const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+        e.preventDefault();
+        const pastedData = e.clipboardData.getData('text');
+        if (!pastedData) return;
+
+        const newTags = pastedData
+            .split(',')
+            .map(tag => tag.trim())
+            .filter(tag => tag.length > 0);
+
+        if (newTags.length > 0) {
+            // Filter out duplicates that already exist or are in the pasted list multiple times
+            const uniqueNewTags = [...new Set(newTags)].filter(tag => !tags.includes(tag));
+
+            if (uniqueNewTags.length > 0) {
+                onChange([...tags, ...uniqueNewTags]);
+            }
+        }
+    };
+
     return (
         <div className="flex flex-col gap-2">
             <div className="flex justify-between items-center h-5">
                 <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Tags</label>
-                <div className={`flex gap-2 transition-opacity duration-200 ${tags.length > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                <div className={`flex gap-2 transition-opacity duration-200 ${tags.length > 0 && !readOnly ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                     <PortalTooltip content="Copy all tags" align="center" enterDelay={500}>
                         <button
                             onClick={handleCopyAll}
@@ -70,33 +91,38 @@ export const TagsInput: React.FC<TagsInputProps> = ({ tags, onChange, onShowToas
             </div>
 
             <div
-                className="bg-bg-secondary border border-border rounded-lg p-2 min-h-[46px] flex flex-wrap content-start gap-2 cursor-text hover:border-text-primary transition-colors focus-within:border-text-primary"
-                onClick={() => inputRef.current?.focus()}
+                className={`bg-bg-secondary border border-border rounded-lg p-2 min-h-[46px] flex flex-wrap content-start gap-2 transition-colors ${readOnly ? 'opacity-60 cursor-default' : 'cursor-text hover:border-text-primary focus-within:border-text-primary'}`}
+                onClick={() => !readOnly && inputRef.current?.focus()}
             >
                 {tags.map((tag, index) => (
                     <div key={index} className="bg-[#3F3F3F] text-white text-sm px-3 py-1.5 rounded-full flex items-center gap-1.5 animate-scale-in">
                         <span>{tag}</span>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                removeTag(index);
-                            }}
-                            className="hover:text-red-400 transition-colors flex items-center justify-center"
-                        >
-                            <X size={14} />
-                        </button>
+                        {!readOnly && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeTag(index);
+                                }}
+                                className="hover:text-red-400 transition-colors flex items-center justify-center"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
                     </div>
                 ))}
-                <input
-                    ref={inputRef}
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onBlur={addTag}
-                    className="bg-transparent border-none outline-none text-text-primary flex-1 min-w-[120px] h-[32px] placeholder-[#717171]"
-                    placeholder={tags.length === 0 ? "Add tags..." : ""}
-                />
+                {!readOnly && (
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        onPaste={handlePaste}
+                        onBlur={addTag}
+                        className="bg-transparent border-none outline-none text-text-primary flex-1 min-w-[120px] h-[32px] placeholder-[#717171]"
+                        placeholder={tags.length === 0 ? "Add tags..." : ""}
+                    />
+                )}
             </div>
         </div>
     );

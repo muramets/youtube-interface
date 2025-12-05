@@ -34,10 +34,17 @@ export interface CheckinRule {
     badgeText: string;
     badgeColor: string;
     isRequired: boolean;
+    displayUnit?: 'hours' | 'days' | 'weeks';
 }
 
 export interface PackagingSettings {
     checkinRules: CheckinRule[];
+}
+
+export interface UploadDefaults {
+    title?: string;
+    description?: string;
+    tags?: string[];
 }
 
 const getSettingsPath = (userId: string, channelId: string) =>
@@ -244,6 +251,35 @@ export const SettingsService = {
         await setDocument(
             getSettingsPath(userId, channelId),
             'packaging',
+            settings,
+            true
+        );
+    },
+
+    fetchUploadDefaults: async (userId: string, channelId: string) => {
+        return fetchDoc<UploadDefaults>(getSettingsPath(userId, channelId), 'uploadDefaults');
+    },
+
+    subscribeToUploadDefaults: (
+        userId: string,
+        channelId: string,
+        callback: (settings: UploadDefaults | null) => void
+    ) => {
+        return subscribeToDoc<UploadDefaults>(
+            getSettingsPath(userId, channelId),
+            'uploadDefaults',
+            callback
+        );
+    },
+
+    updateUploadDefaults: async (
+        userId: string,
+        channelId: string,
+        settings: UploadDefaults
+    ) => {
+        await setDocument(
+            getSettingsPath(userId, channelId),
+            'uploadDefaults',
             settings,
             true
         );

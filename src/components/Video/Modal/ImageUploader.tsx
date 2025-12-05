@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Info, Trash2 } from 'lucide-react';
+import { Info, Trash2, FlaskConical } from 'lucide-react';
 import { PortalTooltip } from '../../Shared/PortalTooltip';
 import { ClonedVideoTooltipContent } from '../ClonedVideoTooltipContent';
 
@@ -12,6 +12,9 @@ interface ImageUploaderProps {
     currentVersion: number;
     currentOriginalName?: string;
     onDelete: (e: React.MouseEvent) => void;
+    abTestVariants: string[];
+    onAddToAbTest: (url: string) => void;
+    readOnly?: boolean;
 }
 
 export const ImageUploader: React.FC<ImageUploaderProps> = ({
@@ -22,16 +25,19 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
     onTriggerUpload,
     currentVersion,
     currentOriginalName,
-    onDelete
+    onDelete,
+    abTestVariants,
+    onAddToAbTest,
+    readOnly = false
 }) => {
     const [isTooltipOpen, setIsTooltipOpen] = useState(false);
 
     return (
         <div
-            className="relative h-[198px] bg-black group cursor-pointer"
-            onClick={onTriggerUpload}
+            className={`relative h-[198px] bg-black group ${readOnly ? 'cursor-default' : 'cursor-pointer'}`}
+            onClick={!readOnly ? onTriggerUpload : undefined}
             onDragOver={(e) => e.preventDefault()}
-            onDrop={onDrop}
+            onDrop={!readOnly ? onDrop : undefined}
         >
             {coverImage ? (
                 <img src={coverImage} alt="Current Cover" className="w-full h-full object-cover" />
@@ -42,9 +48,11 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
             )}
 
             {/* Hover Overlay */}
-            <div className={`absolute inset-0 bg-black/40 transition-opacity duration-200 flex items-center justify-center ${isTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                <span className="text-white font-medium">Change Cover</span>
-            </div>
+            {!readOnly && (
+                <div className={`absolute inset-0 bg-black/40 transition-opacity duration-200 flex items-center justify-center ${isTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                    <span className="text-white font-medium">Change Cover</span>
+                </div>
+            )}
 
             {/* Info Icon (Top Left) */}
             <div className={`absolute top-2 left-2 transition-opacity duration-200 ${isTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
@@ -53,15 +61,27 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                     align="left"
                     onOpenChange={setIsTooltipOpen}
                 >
-                    <div className="w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-sm" onClick={(e) => e.stopPropagation()}>
-                        <Info size={14} />
+                    <div className="w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur-sm" onClick={(e) => e.stopPropagation()}>
+                        <Info size={16} />
                     </div>
                 </PortalTooltip>
             </div>
 
-            {/* Delete Button (Top Right) */}
-            {coverImage && (
-                <div className={`absolute top-2 right-2 transition-opacity duration-200 ${isTooltipOpen ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
+            {/* Top Right Actions */}
+            {coverImage && !readOnly && (
+                <div className={`absolute top-2 right-2 flex gap-2 transition-opacity duration-200 ${isTooltipOpen ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onAddToAbTest(coverImage);
+                        }}
+                        className={`w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-sm transition-colors ${abTestVariants.includes(coverImage)
+                            ? 'bg-purple-500 text-white'
+                            : 'bg-black/60 text-white hover:bg-purple-500 hover:text-white'
+                            }`}
+                    >
+                        <FlaskConical size={16} className={abTestVariants.includes(coverImage) ? "fill-current" : ""} />
+                    </button>
                     <button
                         onClick={onDelete}
                         className="w-8 h-8 rounded-full bg-black/60 text-white hover:bg-red-500 hover:text-white flex items-center justify-center backdrop-blur-sm transition-colors"

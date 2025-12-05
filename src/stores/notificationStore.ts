@@ -12,6 +12,8 @@ export interface Notification {
     isRead: boolean;
     link?: string;
     meta?: string;
+    internalId?: string;
+    customColor?: string;
 }
 
 interface NotificationState {

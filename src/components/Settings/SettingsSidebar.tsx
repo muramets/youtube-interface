@@ -36,6 +36,13 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({ activeCategory
                 label="Packaging"
                 isActive={activeCategory === 'packaging'}
                 onClick={() => onCategoryChange('packaging')}
+                onClick={() => onCategoryChange('packaging')}
+                theme={theme}
+            />
+            <SidebarItem
+                label="Upload Defaults"
+                isActive={activeCategory === 'upload_defaults'}
+                onClick={() => onCategoryChange('upload_defaults')}
                 theme={theme}
             />
         </div>

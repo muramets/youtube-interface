@@ -96,7 +96,7 @@ export const Header: React.FC = () => {
             width={400}
             className="p-0 border-none bg-transparent shadow-none"
           >
-            <NotificationDropdown />
+            <NotificationDropdown onClose={() => setNotificationAnchor(null)} />
           </Dropdown>
         </div>
 

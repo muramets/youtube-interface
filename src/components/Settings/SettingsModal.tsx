@@ -3,26 +3,28 @@ import { createPortal } from 'react-dom';
 import { useSettings } from '../../hooks/useSettings';
 import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
-import type { GeneralSettings, SyncSettings, CloneSettings as CloneSettingsType, PackagingSettings } from '../../services/settingsService';
+import type { GeneralSettings, SyncSettings, CloneSettings as CloneSettingsType, PackagingSettings, UploadDefaults } from '../../services/settingsService';
 
 import { SettingsSidebar } from './SettingsSidebar';
 import { ApiSyncSettings } from './ApiSyncSettings';
 import { CloneSettings } from './CloneSettings';
 import { PackagingSettingsView } from './PackagingSettingsView';
+import { UploadDefaultsSettings } from './UploadDefaultsSettings';
 
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
 }
 
-type Category = 'api_sync' | 'clone' | 'packaging';
+type Category = 'api_sync' | 'clone' | 'packaging' | 'upload_defaults';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     const {
         generalSettings, updateGeneralSettings,
         syncSettings, updateSyncSettings,
         cloneSettings, updateCloneSettings,
-        packagingSettings, updatePackagingSettings
+        packagingSettings, updatePackagingSettings,
+        uploadDefaults, updateUploadDefaults
     } = useSettings();
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
@@ -36,6 +38,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     const [localSync, setLocalSync] = useState<SyncSettings>(syncSettings);
     const [localClone, setLocalClone] = useState<CloneSettingsType>(cloneSettings);
     const [localPackaging, setLocalPackaging] = useState<PackagingSettings>(packagingSettings);
+    const [localUploadDefaults, setLocalUploadDefaults] = useState<UploadDefaults>(uploadDefaults);
 
     // Force remount of children when modal opens to reset their internal state
     const [mountKey, setMountKey] = useState(0);
@@ -47,6 +50,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             setLocalSync(syncSettings);
             setLocalClone(cloneSettings);
             setLocalPackaging(packagingSettings);
+            setLocalUploadDefaults(uploadDefaults);
             setMountKey(prev => prev + 1);
             document.body.style.overflow = 'hidden';
         }
@@ -73,7 +77,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 updateGeneralSettings(user.uid, currentChannel.id, localGeneral),
                 updateSyncSettings(user.uid, currentChannel.id, localSync),
                 updateCloneSettings(user.uid, currentChannel.id, localClone),
-                updatePackagingSettings(user.uid, currentChannel.id, localPackaging)
+                updatePackagingSettings(user.uid, currentChannel.id, localPackaging),
+                updateUploadDefaults(user.uid, currentChannel.id, localUploadDefaults)
             ]);
             handleClose();
         } catch (error) {
@@ -87,7 +92,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         JSON.stringify(localGeneral) !== JSON.stringify(generalSettings) ||
         JSON.stringify(localSync) !== JSON.stringify(syncSettings) ||
         JSON.stringify(localClone) !== JSON.stringify(cloneSettings) ||
-        JSON.stringify(localPackaging) !== JSON.stringify(packagingSettings);
+        JSON.stringify(localClone) !== JSON.stringify(cloneSettings) ||
+        JSON.stringify(localPackaging) !== JSON.stringify(packagingSettings) ||
+        JSON.stringify(localUploadDefaults) !== JSON.stringify(uploadDefaults);
 
     // Theme styles - Correctly detect dark mode including 'device' setting
     const [isDark, setIsDark] = useState(false);
@@ -171,6 +178,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 key={mountKey}
                                 settings={localPackaging}
                                 onChange={setLocalPackaging}
+                            />
+                        )}
+                        {activeCategory === 'upload_defaults' && (
+                            <UploadDefaultsSettings
+                                key={mountKey}
+                                settings={localUploadDefaults}
+                                onChange={setLocalUploadDefaults}
                             />
                         )}
                     </div>

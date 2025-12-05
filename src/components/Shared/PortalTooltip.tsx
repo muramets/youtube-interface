@@ -7,6 +7,7 @@ interface PortalTooltipProps {
     align?: 'left' | 'center' | 'right';
     onOpenChange?: (isOpen: boolean) => void;
     className?: string;
+    triggerClassName?: string;
     enterDelay?: number;
 }
 
@@ -16,6 +17,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
     align = 'left',
     onOpenChange,
     className = '',
+    triggerClassName = '',
     enterDelay = 0
 }) => {
     const [isVisible, setIsVisible] = useState(false); // Controls visual opacity/transform
@@ -134,7 +136,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
             ref={triggerRef}
             onPointerEnter={handleMouseEnter}
             onPointerLeave={handleMouseLeave}
-            className="relative inline-flex items-center justify-center"
+            className={`relative inline-flex items-center justify-center ${triggerClassName}`}
         >
             {children}
             {shouldRender && createPortal(

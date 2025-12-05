@@ -147,9 +147,21 @@ export const CTRConfigPopup: React.FC<{
     if (!isOpen || !position) return null;
 
     const addRule = () => {
+        const lastRule = rules[rules.length - 1];
+        let nextValue = 5;
+        let nextColor = PRESET_COLORS[0];
+
+        if (lastRule) {
+            nextValue = lastRule.value + 1;
+            const colorIndex = PRESET_COLORS.indexOf(lastRule.color);
+            if (colorIndex !== -1) {
+                nextColor = PRESET_COLORS[(colorIndex + 1) % PRESET_COLORS.length];
+            }
+        }
+
         onSave([
             ...rules,
-            { id: crypto.randomUUID(), operator: '<', value: 5, color: '#EF4444' }
+            { id: crypto.randomUUID(), operator: '<', value: nextValue, color: nextColor }
         ]);
     };
 

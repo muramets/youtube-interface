@@ -34,6 +34,7 @@ interface VideoFormProps {
     audioRender: string;
     setAudioRender: (val: string) => void;
     onShowToast: (message: string, type: 'success' | 'error') => void;
+    readOnly?: boolean;
 }
 
 export const VideoForm: React.FC<VideoFormProps> = ({
@@ -64,7 +65,8 @@ export const VideoForm: React.FC<VideoFormProps> = ({
     setVideoRender,
     audioRender,
     setAudioRender,
-    onShowToast
+    onShowToast,
+    readOnly = false
 }) => {
     return (
         <div className="flex-1 flex flex-col gap-5 overflow-y-auto custom-scrollbar pr-2">
@@ -80,13 +82,18 @@ export const VideoForm: React.FC<VideoFormProps> = ({
 
             {/* Title */}
             <div className="flex flex-col gap-2">
-                <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Title</label>
+                <div className="flex justify-between items-center">
+                    <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Title</label>
+                    <span className="text-xs text-text-secondary">{title.length}/100</span>
+                </div>
                 <input
                     type="text"
+                    maxLength={100}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     className="w-full bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
                     placeholder="Add a title that describes your video"
+                    disabled={readOnly}
                 />
             </div>
 
@@ -98,6 +105,7 @@ export const VideoForm: React.FC<VideoFormProps> = ({
                     onChange={(e) => setDescription(e.target.value)}
                     className="w-full h-32 bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none resize-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
                     placeholder="Tell viewers about your video"
+                    disabled={readOnly}
                 />
             </div>
 
@@ -106,19 +114,22 @@ export const VideoForm: React.FC<VideoFormProps> = ({
                 tags={tags}
                 onChange={setTags}
                 onShowToast={onShowToast}
+                readOnly={readOnly}
             />
 
             {/* Published Status - Only for default language */}
             {activeLanguage === 'default' && (
                 <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-3">
+                    <div
+                        className="flex items-center gap-3 cursor-pointer group"
+                        onClick={() => setIsPublished(!isPublished)}
+                    >
                         <div
-                            onClick={() => setIsPublished(!isPublished)}
-                            className={`w-5 h-5 rounded border flex items-center justify-center cursor-pointer transition-colors ${isPublished ? 'bg-text-primary border-text-primary' : 'border-text-secondary hover:border-text-primary'}`}
+                            className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isPublished ? 'bg-text-primary border-text-primary' : 'border-text-secondary group-hover:border-text-primary'}`}
                         >
                             {isPublished && <Check size={14} className="text-bg-primary" />}
                         </div>
-                        <span className="text-sm text-text-primary font-medium cursor-pointer" onClick={() => setIsPublished(!isPublished)}>Video Published</span>
+                        <span className="text-sm text-text-primary font-medium">Video Published</span>
                     </div>
 
                     {isPublished && (

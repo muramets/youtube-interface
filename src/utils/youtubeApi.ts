@@ -36,14 +36,23 @@ export interface VideoDetails {
     abTestVariants?: string[]; // Array of cover URLs or version IDs
     packagingHistory?: PackagingVersion[];
     currentPackagingVersion?: number;
+    ctrRules?: CTRRule[];
+}
+
+export interface CTRRule {
+    id: string;
+    operator: '<' | '>' | '<=' | '>=' | 'between';
+    value: number;
+    maxValue?: number; // For 'between' operator
+    color: string;
 }
 
 export interface PackagingMetrics {
-    impressions: number;
-    ctr: number; // Percentage
-    views: number;
-    avdSeconds: number; // Average View Duration in seconds
-    avdPercentage: number; // Average View Duration percentage
+    impressions: number | null;
+    ctr: number | null; // Percentage
+    views: number | null;
+    avdSeconds: number | null; // Average View Duration in seconds
+    avdPercentage: number | null; // Average View Duration percentage
 }
 
 export interface ABVariantMetrics {
@@ -57,6 +66,7 @@ export interface PackagingCheckin {
     metrics: PackagingMetrics;
     abMetrics?: ABVariantMetrics[];
     diffs?: Partial<PackagingMetrics>; // Difference from previous check-in
+    ruleId?: string;
 }
 
 export interface PackagingVersion {

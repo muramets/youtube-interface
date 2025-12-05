@@ -1,10 +1,18 @@
 import React from 'react';
-import { useNotificationStore } from '../../stores/notificationStore';
+import { useNotificationStore, type Notification } from '../../stores/notificationStore';
+import { useUIStore } from '../../stores/uiStore';
 import { NotificationItem } from './NotificationItem';
 import { CheckCheck, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
-export const NotificationDropdown: React.FC = () => {
+interface NotificationDropdownProps {
+    onClose?: () => void;
+}
+
+export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onClose }) => {
     const { notifications, markAllAsRead } = useNotificationStore();
+    const { openVideoModal, setSettingsOpen } = useUIStore();
+    const navigate = useNavigate();
 
     const [activeFilter, setActiveFilter] = React.useState<'All' | 'Sync'>('All');
 
@@ -21,6 +29,24 @@ export const NotificationDropdown: React.FC = () => {
     const handleRemoveAll = () => {
         const idsToRemove = filteredNotifications.map(n => n.id);
         useNotificationStore.getState().removeNotifications(idsToRemove);
+    };
+
+    const handleNotificationAction = (notification: Notification) => {
+        if (!notification.link) return;
+
+        if (notification.link === 'settings') {
+            setSettingsOpen(true);
+        } else if (notification.link.startsWith('/video/')) {
+            const videoId = notification.link.split('/video/')[1];
+            if (videoId) {
+                // If it's a check-in notification, open packaging tab
+                const isCheckin = notification.title.includes('Check-in');
+                openVideoModal(videoId, isCheckin ? 'packaging' : 'details');
+            }
+        } else {
+            navigate(notification.link);
+        }
+        onClose?.();
     };
 
     return (
@@ -75,19 +101,20 @@ export const NotificationDropdown: React.FC = () => {
             )}
 
             {/* List */}
-            <div className="overflow-y-auto flex-1">
+            <div className="overflow-y-auto flex-1 min-h-0">
                 {filteredNotifications.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 text-text-secondary text-center">
-                        <div className="w-16 h-16 rounded-full bg-hover-bg flex items-center justify-center mb-4">
-                            <CheckCheck size={32} className="opacity-50" />
-                        </div>
-                        <p className="font-medium mb-1">No notifications</p>
-                        <p className="text-sm">You're all caught up!</p>
+                    <div className="flex flex-col items-center justify-center py-12 text-text-secondary">
+                        <CheckCheck size={48} className="mb-2 opacity-20" />
+                        <p>No notifications</p>
                     </div>
                 ) : (
                     <div className="divide-y divide-border">
-                        {filteredNotifications.map((notification) => (
-                            <NotificationItem key={notification.id} notification={notification} />
+                        {filteredNotifications.map(notification => (
+                            <NotificationItem
+                                key={notification.id}
+                                notification={notification}
+                                onAction={handleNotificationAction}
+                            />
                         ))}
                     </div>
                 )}

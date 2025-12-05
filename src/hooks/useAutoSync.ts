@@ -7,7 +7,7 @@ import { useChannelStore } from '../stores/channelStore';
 import { useNotificationStore } from '../stores/notificationStore';
 
 export const useAutoSync = () => {
-    const { syncSettings, updateSyncSettings, generalSettings } = useSettings();
+    const { syncSettings, updateSyncSettings, generalSettings, isLoading } = useSettings();
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { syncAllVideos } = useVideoSync(user?.uid || '', currentChannel?.id || '');
@@ -18,7 +18,7 @@ export const useAutoSync = () => {
 
     useEffect(() => {
         const checkAndSync = async () => {
-            if (!user || !currentChannel || !syncSettings.autoSync) return;
+            if (!user || !currentChannel || !syncSettings.autoSync || isLoading) return;
 
             const now = Date.now();
             const lastSync = syncSettings.lastGlobalSync || 0;
@@ -26,6 +26,12 @@ export const useAutoSync = () => {
             const nextSyncTime = lastSync + frequencyMs;
 
             if (now >= nextSyncTime) {
+                console.log('[AutoSync] Checking API Key:', {
+                    apiKey: generalSettings.apiKey,
+                    hasKey: !!generalSettings.apiKey,
+                    settings: generalSettings
+                });
+
                 // Time to sync!
                 if (!generalSettings.apiKey) {
                     // Check if we already have a recent "Missing API Key" notification (e.g., last 24h)
@@ -100,6 +106,7 @@ export const useAutoSync = () => {
         generalSettings.apiKey,
         syncAllVideos,
         updateSyncSettings,
-        addNotification
+        addNotification,
+        isLoading
     ]);
 };

@@ -38,6 +38,15 @@ export const fetchDoc = async <T>(path: string, id: string): Promise<T | null> =
 };
 
 /**
+ * Fetch a single document by full path
+ */
+export const getDocument = async <T>(path: string): Promise<T | null> => {
+    const docRef = doc(db, path);
+    const snapshot = await getDoc(docRef);
+    return snapshot.exists() ? (snapshot.data() as T) : null;
+};
+
+/**
  * Fetch all documents from a collection
  */
 export const fetchCollection = async <T>(

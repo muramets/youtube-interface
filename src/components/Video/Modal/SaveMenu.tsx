@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Loader2 } from 'lucide-react';
 
 interface SaveMenuProps {
     isSaving: boolean;
@@ -50,7 +50,14 @@ export const SaveMenu: React.FC<SaveMenuProps> = ({
                         : 'bg-white text-black hover:bg-gray-200 cursor-pointer'
                         }`}
                 >
-                    {isSaving ? 'Saving...' : (!isPackagingDirty ? 'Saved as Draft' : 'Save as Draft')}
+                    {isSaving ? (
+                        <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Saving...</span>
+                        </>
+                    ) : (
+                        !isPackagingDirty ? 'Saved as Draft' : 'Save as Draft'
+                    )}
                 </button>
 
                 <div className="relative">

@@ -5,6 +5,8 @@ import { AddYouTubeVideoModal } from '../Video/AddYouTubeVideoModal';
 import { CustomVideoModal } from '../Video/CustomVideoModal';
 import { CreatePlaylistModal } from '../Playlist/CreatePlaylistModal';
 import { useVideos } from '../../hooks/useVideos';
+import { useSettings } from '../../hooks/useSettings';
+import type { VideoDetails } from '../../utils/youtubeApi';
 
 import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
@@ -29,6 +31,7 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { addCustomVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const { uploadDefaults } = useSettings();
     const [internalIsOpen, setInternalIsOpen] = useState(false);
 
     const isControlled = controlledIsOpen !== undefined;
@@ -40,8 +43,10 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
         if (!isControlled) {
             setInternalIsOpen(value);
         }
+
     }, [onOpenChange, isControlled]);
     const [activeModal, setActiveModal] = useState<'youtube' | 'custom' | 'playlist' | null>(null);
+    const [customVideoInitialData, setCustomVideoInitialData] = useState<VideoDetails | undefined>(undefined);
 
     const buttonRef = useRef<HTMLButtonElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -85,6 +90,23 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
     }, [isOpen, setIsOpen]);
 
     const handleOptionClick = (modal: 'youtube' | 'custom' | 'playlist') => {
+        if (modal === 'custom') {
+            // Apply upload defaults
+            const defaults: Partial<VideoDetails> = {
+                title: uploadDefaults.title || '',
+                description: uploadDefaults.description || '',
+                tags: uploadDefaults.tags || []
+            };
+            // We need to cast this to VideoDetails because CustomVideoModal expects a full object
+            // but useVideoForm handles partial data gracefully if we pass it as initialData
+            // However, useVideoForm expects initialData to have an ID if it's an edit.
+            // For creation, we can pass these defaults.
+            // But CustomVideoModal props say initialData?: VideoDetails.
+            // Let's cast it for now, as useVideoForm uses it as effectiveData.
+            setCustomVideoInitialData(defaults as VideoDetails);
+        } else {
+            setCustomVideoInitialData(undefined);
+        }
         setActiveModal(modal);
         setIsOpen(false);
     };
@@ -170,6 +192,7 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
                         await addCustomVideo(videoData);
                     }
                 }}
+                initialData={customVideoInitialData}
             />
 
             <CreatePlaylistModal

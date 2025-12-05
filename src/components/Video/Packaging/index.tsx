@@ -2,7 +2,9 @@ import React, { useState, useRef } from 'react';
 import { ArrowUp, ArrowDown, Minus, Settings, Plus } from 'lucide-react';
 import { PortalTooltip } from '../../Shared/PortalTooltip';
 import type { PackagingVersion, PackagingCheckin, PackagingMetrics } from '../../../utils/youtubeApi';
+import type { CheckinRule } from '../../../services/settingsService';
 import type { CTRRule } from './types';
+import { Trash2 } from 'lucide-react';
 import { CTRConfigPopup } from './components/CTRConfigPopup';
 import { SmartTimeInput } from './components/SmartTimeInput';
 import { VersionDetailsTooltipContent } from './components/VersionDetailsTooltip';
@@ -11,13 +13,18 @@ interface PackagingTableProps {
     history: PackagingVersion[];
     onUpdateHistory: (newHistory: PackagingVersion[]) => void;
     onAddCheckin: (versionNumber: number) => void;
+    ctrRules: CTRRule[];
+    onUpdateCtrRules: (rules: CTRRule[]) => void;
+    onDeleteVersion: (versionNumber: number) => void;
+    isPublished?: boolean;
+    checkinRules?: CheckinRule[];
+    onDeleteCheckin?: (versionNumber: number, checkinId: string) => void;
 }
 
-export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdateHistory, onAddCheckin }) => {
+export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdateHistory, onAddCheckin, ctrRules, onUpdateCtrRules, onDeleteVersion, isPublished, checkinRules, onDeleteCheckin }) => {
     const [editingCell, setEditingCell] = useState<{ id: string, field: string } | null>(null);
 
     // CTR Configuration State
-    const [ctrRules, setCtrRules] = useState<CTRRule[]>([]);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
     const configAnchorRef = useRef<HTMLButtonElement>(null);
 
@@ -33,7 +40,8 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
         return `${m}:${s.toString().padStart(2, '0')}`;
     };
 
-    const formatDiff = (current: number, previous: number, isTime = false) => {
+    const formatDiff = (current: number | null, previous: number | null, isTime = false) => {
+        if (current === null || previous === null) return null;
         const diff = current - previous;
         if (diff === 0) return null;
         const isPositive = diff > 0;
@@ -65,7 +73,8 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
         return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
     };
 
-    const getCTRColor = (value: number) => {
+    const getCTRColor = (value: number | null) => {
+        if (value === null) return undefined;
         for (const rule of ctrRules) {
             switch (rule.operator) {
                 case '<': if (value < rule.value) return rule.color; break;
@@ -93,7 +102,7 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
                 <div className="flex justify-center">
                     {isAvd ? (
                         <SmartTimeInput
-                            value={value}
+                            value={value ?? 0}
                             onSave={(newValue) => {
                                 const newHistory = [...history];
                                 const version = newHistory.find(v => v.checkins.some(c => c.id === checkin.id));
@@ -111,7 +120,7 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
                             autoFocus
                             type="number"
                             className="w-16 bg-[#1F1F1F] text-white text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none rounded text-xs"
-                            defaultValue={value}
+                            defaultValue={value ?? ''}
                             onBlur={(e) => {
                                 const newValue = Number(e.target.value);
                                 const newHistory = [...history];
@@ -144,7 +153,7 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
             );
         }
 
-        if (value === undefined) {
+        if (value === undefined || value === null) {
             return (
                 <div className="flex justify-center">
                     <button
@@ -197,12 +206,12 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
                 isOpen={isConfigOpen}
                 onClose={() => setIsConfigOpen(false)}
                 rules={ctrRules}
-                onSave={setCtrRules}
+                onSave={onUpdateCtrRules}
                 anchorRef={configAnchorRef as React.RefObject<HTMLElement>}
             />
             {/* Header */}
             <div className="grid grid-cols-6 gap-4 px-6 py-3 bg-[#1F1F1F] border-b border-white/5">
-                <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider">Version</div>
+                <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider">Date</div>
                 <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">Impressions</div>
                 <div className="flex items-center justify-center gap-1">
                     <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">CTR</div>
@@ -216,14 +225,24 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
                 </div>
                 <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">Views</div>
                 <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">AVD</div>
-                <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">Date</div>
+                <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-right">Version</div>
             </div>
 
             {/* Body */}
             <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
                 {history.length === 0 ? (
-                    <div className="py-4 text-[#555] text-center">
-                        <span className="text-xs">No packaging history yet.</span>
+                    <div className="py-4 text-[#555] text-center flex flex-col items-center gap-2">
+                        {!isPublished ? (
+                            <span className="text-xs">Save your packaging and add a publication link to start tracking performance.</span>
+                        ) : (
+                            <span className="text-xs">Save your packaging to start tracking its performance.</span>
+                        )}
+                    </div>
+                ) : history.every(v => v.checkins.length === 0) ? (
+                    <div className="py-4 text-[#555] text-center flex flex-col items-center gap-2">
+                        <span className="text-xs">
+                            No check-ins yet. <button onClick={() => onAddCheckin(history[history.length - 1].versionNumber)} className="text-[#AAAAAA] hover:text-white transition-colors hover:underline">Add one</button>
+                        </span>
                     </div>
                 ) : (
                     history.map((version, vIndex) => (
@@ -233,8 +252,36 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
                                 const previousCheckin = cIndex > 0 ? version.checkins[cIndex - 1] : undefined;
 
                                 return (
-                                    <div key={checkin.id} className="grid grid-cols-6 gap-4 px-6 py-2 items-center odd:bg-white/[0.02] even:bg-transparent hover:bg-white/[0.04] transition-colors">
-                                        <div className="flex items-center gap-2">
+                                    <div key={checkin.id} className="grid grid-cols-6 gap-4 px-6 py-2 items-center odd:bg-white/[0.02] even:bg-transparent hover:bg-white/[0.04] transition-colors group/row">
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex flex-col items-start">
+                                                <span className="text-xs text-[#DDD] font-medium whitespace-nowrap">{formatDate(checkin.date)}</span>
+                                                <span className="text-[10px] text-[#555]">{formatTimeStr(checkin.date)}</span>
+                                            </div>
+                                            {checkin.ruleId && checkinRules && (
+                                                (() => {
+                                                    const rule = checkinRules.find(r => r.id === checkin.ruleId);
+                                                    if (rule) {
+                                                        return (
+                                                            <span
+                                                                className="text-[9px] px-1.5 py-0.5 rounded font-medium text-white text-center leading-tight whitespace-nowrap"
+                                                                style={{ backgroundColor: rule.badgeColor }}
+                                                            >
+                                                                {rule.badgeText}
+                                                            </span>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()
+                                            )}
+                                        </div>
+
+                                        {renderCell(checkin, 'impressions', previousCheckin)}
+                                        {renderCell(checkin, 'ctr', previousCheckin)}
+                                        {renderCell(checkin, 'views', previousCheckin)}
+                                        {renderCell(checkin, 'avdSeconds', previousCheckin)}
+
+                                        <div className="flex items-center justify-end gap-2 relative">
                                             {version.configurationSnapshot ? (
                                                 <PortalTooltip
                                                     content={<VersionDetailsTooltipContent snapshot={version.configurationSnapshot} />}
@@ -248,18 +295,19 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
                                             ) : (
                                                 <span className="text-xs font-medium text-white">v.{version.versionNumber}</span>
                                             )}
-                                        </div>
 
-                                        {renderCell(checkin, 'impressions', previousCheckin)}
-                                        {renderCell(checkin, 'ctr', previousCheckin)}
-                                        {renderCell(checkin, 'views', previousCheckin)}
-                                        {renderCell(checkin, 'avdSeconds', previousCheckin)}
-
-                                        <div className="flex flex-col items-end justify-center pr-2">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-xs text-[#DDD] font-medium">{formatDate(checkin.date)}</span>
-                                            </div>
-                                            <span className="text-[10px] text-[#555]">{formatTimeStr(checkin.date)}</span>
+                                            {onDeleteCheckin && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onDeleteCheckin(version.versionNumber, checkin.id);
+                                                    }}
+                                                    className="opacity-0 group-hover/row:opacity-100 text-[#555] hover:text-red-400 transition-all p-1"
+                                                    title="Delete check-in"
+                                                >
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                 );

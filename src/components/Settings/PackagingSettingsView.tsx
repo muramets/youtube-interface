@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, ChevronDown } from 'lucide-react';
 import { Dropdown } from '../Shared/Dropdown';
 import { type PackagingSettings, type CheckinRule } from '../../services/settingsService';
 
@@ -63,6 +63,119 @@ const ColorSelect: React.FC<{ value: string; onChange: (color: string) => void }
     );
 };
 
+const RuleItem: React.FC<{
+    rule: CheckinRule;
+    onUpdate: (id: string, updates: Partial<CheckinRule>) => void;
+    onDelete: (id: string) => void;
+}> = ({ rule, onUpdate, onDelete }) => {
+    const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+
+    // Default to 'days' if not set
+    const currentUnit = rule.displayUnit || 'days';
+    // Calculate display value based on unit
+    const currentValue = currentUnit === 'weeks'
+        ? Number((rule.hoursAfterPublish / 168).toFixed(2))
+        : Number((rule.hoursAfterPublish / 24).toFixed(2));
+
+    const handleTimeChange = (val: number, unit: 'days' | 'weeks') => {
+        // Convert back to hours
+        const hours = unit === 'weeks' ? val * 168 : val * 24;
+        onUpdate(rule.id, { hoursAfterPublish: hours, displayUnit: unit });
+    };
+
+    return (
+        <div className="bg-[#1F1F1F] p-3 rounded-xl border border-white/5 flex items-start gap-3">
+            <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-[#AAAAAA] uppercase tracking-wider font-medium">Time after publication</label>
+                <div className="flex gap-2">
+                    <div className="w-16">
+                        <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={currentValue}
+                            onChange={(e) => handleTimeChange(parseFloat(e.target.value) || 0, currentUnit as 'days' | 'weeks')}
+                            className="w-full bg-[#2A2A2A] border border-transparent focus:border-white/20 rounded px-2 py-1.5 text-sm text-white focus:outline-none transition-colors no-spinner"
+                        />
+                    </div>
+                    <div className="relative w-24">
+                        <button
+                            onClick={(e) => setAnchorEl(e.currentTarget)}
+                            className="w-full flex items-center justify-between bg-[#2A2A2A] border border-transparent hover:border-white/20 rounded px-2 py-1.5 transition-colors"
+                        >
+                            <span className="text-sm text-white capitalize">{currentUnit}</span>
+                            <ChevronDown size={14} className="text-[#AAAAAA]" />
+                        </button>
+                        <Dropdown
+                            isOpen={Boolean(anchorEl)}
+                            anchorEl={anchorEl}
+                            onClose={() => setAnchorEl(null)}
+                            width={96}
+                            className="bg-[#2A2A2A] border border-white/10"
+                        >
+                            {['days', 'weeks'].map((unit) => (
+                                <div
+                                    key={unit}
+                                    className="px-3 py-2 text-sm text-white hover:bg-white/10 cursor-pointer capitalize"
+                                    onClick={() => {
+                                        handleTimeChange(currentValue, unit as 'days' | 'weeks');
+                                        setAnchorEl(null);
+                                    }}
+                                >
+                                    {unit}
+                                </div>
+                            ))}
+                        </Dropdown>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex flex-col gap-1 flex-1">
+                <label className="text-[10px] text-[#AAAAAA] uppercase tracking-wider font-medium">Badge Text</label>
+                <input
+                    type="text"
+                    value={rule.badgeText}
+                    onChange={(e) => onUpdate(rule.id, { badgeText: e.target.value })}
+                    className="w-full bg-[#2A2A2A] border border-transparent focus:border-white/20 rounded px-2 py-1.5 text-sm text-white focus:outline-none transition-colors"
+                    placeholder="e.g. First Check"
+                />
+            </div>
+
+            <div className="flex flex-col gap-1">
+                <label className="text-[10px] text-[#AAAAAA] uppercase tracking-wider font-medium">Color</label>
+                <div className="h-[34px] flex items-center">
+                    <ColorSelect
+                        value={rule.badgeColor}
+                        onChange={(color) => onUpdate(rule.id, { badgeColor: color })}
+                    />
+                </div>
+            </div>
+
+            <div className="flex flex-col gap-1 min-w-[60px]">
+                <label className="text-[10px] text-[#AAAAAA] uppercase tracking-wider font-medium">Preview</label>
+                <div className="min-h-[34px] flex items-center">
+                    <span
+                        className="px-1.5 py-0.5 rounded text-[9px] font-medium text-white text-center leading-tight max-w-[120px]"
+                        style={{ backgroundColor: rule.badgeColor }}
+                    >
+                        {rule.badgeText || 'Badge'}
+                    </span>
+                </div>
+            </div>
+
+            <div className="flex flex-col gap-1 pt-5">
+                <button
+                    onClick={() => onDelete(rule.id)}
+                    className="p-1.5 text-[#555] hover:text-red-500 transition-colors rounded hover:bg-white/5"
+                    title="Delete rule"
+                >
+                    <Trash2 size={16} />
+                </button>
+            </div>
+        </div>
+    );
+};
+
 export const PackagingSettingsView: React.FC<PackagingSettingsViewProps> = ({ settings, onChange }) => {
     const addRule = () => {
         // Find the first color that isn't used
@@ -80,7 +193,8 @@ export const PackagingSettingsView: React.FC<PackagingSettingsViewProps> = ({ se
             hoursAfterPublish: 24, // Default to 1 day
             badgeText: 'New Check',
             badgeColor: nextColor,
-            isRequired: true
+            isRequired: true,
+            displayUnit: 'days'
         };
         onChange({
             ...settings,
@@ -117,61 +231,12 @@ export const PackagingSettingsView: React.FC<PackagingSettingsViewProps> = ({ se
                 ) : (
                     <div className="space-y-3">
                         {settings.checkinRules.map((rule) => (
-                            <div key={rule.id} className="bg-[#1F1F1F] p-3 rounded-xl border border-white/5 flex items-start gap-3">
-                                <div className="flex flex-col gap-1">
-                                    <label className="text-[10px] text-[#AAAAAA] uppercase tracking-wider font-medium">Hours After Publish</label>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        value={rule.hoursAfterPublish}
-                                        onChange={(e) => updateRule(rule.id, { hoursAfterPublish: parseInt(e.target.value) || 0 })}
-                                        className="w-20 bg-[#2A2A2A] border border-transparent focus:border-white/20 rounded px-2 py-1.5 text-sm text-white focus:outline-none transition-colors"
-                                    />
-                                </div>
-
-                                <div className="flex flex-col gap-1 flex-1">
-                                    <label className="text-[10px] text-[#AAAAAA] uppercase tracking-wider font-medium">Badge Text</label>
-                                    <input
-                                        type="text"
-                                        value={rule.badgeText}
-                                        onChange={(e) => updateRule(rule.id, { badgeText: e.target.value })}
-                                        className="w-full bg-[#2A2A2A] border border-transparent focus:border-white/20 rounded px-2 py-1.5 text-sm text-white focus:outline-none transition-colors"
-                                        placeholder="e.g. First Check"
-                                    />
-                                </div>
-
-                                <div className="flex flex-col gap-1">
-                                    <label className="text-[10px] text-[#AAAAAA] uppercase tracking-wider font-medium">Color</label>
-                                    <div className="h-[34px] flex items-center">
-                                        <ColorSelect
-                                            value={rule.badgeColor}
-                                            onChange={(color) => updateRule(rule.id, { badgeColor: color })}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="flex flex-col gap-1 min-w-[60px]">
-                                    <label className="text-[10px] text-[#AAAAAA] uppercase tracking-wider font-medium">Preview</label>
-                                    <div className="min-h-[34px] flex items-center">
-                                        <span
-                                            className="px-1.5 py-0.5 rounded text-[9px] font-medium text-white text-center leading-tight max-w-[120px]"
-                                            style={{ backgroundColor: rule.badgeColor }}
-                                        >
-                                            {rule.badgeText || 'Badge'}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div className="flex flex-col gap-1 pt-5">
-                                    <button
-                                        onClick={() => deleteRule(rule.id)}
-                                        className="p-1.5 text-[#555] hover:text-red-500 transition-colors rounded hover:bg-white/5"
-                                        title="Delete rule"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
-                            </div>
+                            <RuleItem
+                                key={rule.id}
+                                rule={rule}
+                                onUpdate={updateRule}
+                                onDelete={deleteRule}
+                            />
                         ))}
                         <div className="flex justify-end pt-1">
                             <button
