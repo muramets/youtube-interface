@@ -33,7 +33,9 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
 
     // Packaging Performance State
     const [currentPackagingVersion, setCurrentPackagingVersion] = useState(effectiveData?.currentPackagingVersion || 1);
-    const [packagingHistory, setPackagingHistory] = useState<PackagingVersion[]>(effectiveData?.packagingHistory || []);
+    const [packagingHistory, setPackagingHistory] = useState<PackagingVersion[]>(
+        effectiveData?.packagingHistory ? JSON.parse(JSON.stringify(effectiveData.packagingHistory)) : []
+    );
 
     // History State
     const [coverHistory, setCoverHistory] = useState<CoverVersion[]>([]);
@@ -72,7 +74,7 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
 
                 // Sync packaging version and history from fresh data
                 setCurrentPackagingVersion(effectiveData.currentPackagingVersion || 1);
-                setPackagingHistory(effectiveData.packagingHistory || []);
+                setPackagingHistory(effectiveData.packagingHistory ? JSON.parse(JSON.stringify(effectiveData.packagingHistory)) : []);
                 setIsDraft(effectiveData.isDraft ?? (!effectiveData.packagingHistory || effectiveData.packagingHistory.length === 0));
 
                 if (!isSameVideo) {
@@ -315,6 +317,10 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         const sortedInitial = [...initialVariants].sort();
         if (JSON.stringify(sortedCurrent) !== JSON.stringify(sortedInitial)) return true;
 
+        // Check Packaging History
+        const initialHistory = initialData?.packagingHistory || [];
+        if (JSON.stringify(packagingHistory) !== JSON.stringify(initialHistory)) return true;
+
         return false;
     })();
 
@@ -398,6 +404,8 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
                 videoRender,
                 audioRender,
                 publishedVideoId: isPublished ? (extractVideoId(publishedUrl) || undefined) : '',
+                // Explicitly clear publishedAt if we are unpublishing or if publishedVideoId is empty
+                publishedAt: (isPublished && extractVideoId(publishedUrl)) ? undefined : '', // If valid, let it be (undefined, meaning don't overwrite). If invalid, clear it.
             };
         },
         getMetadataOnlyPayload: () => {

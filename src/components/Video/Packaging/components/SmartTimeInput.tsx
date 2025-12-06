@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 
 export const SmartTimeInput: React.FC<{
     value: number | undefined;
-    onSave: (newValue: number) => void;
+    onSave: (newValue: number | null) => void;
     onCancel: () => void;
 }> = ({ value, onSave, onCancel }) => {
     const formatInitialValue = (seconds?: number) => {
-        if (seconds === undefined) return '';
+        if (seconds === undefined || seconds === null) return '';
         const m = Math.floor(seconds / 60);
         const s = seconds % 60;
         // If hours exist, we might want to support that, but for now let's stick to the requested format
@@ -48,6 +48,11 @@ export const SmartTimeInput: React.FC<{
     };
 
     const save = () => {
+        if (!inputValue) {
+            onSave(null);
+            return;
+        }
+
         // Parse the formatted string back to seconds
         const parts = inputValue.split(':').map(Number);
         let seconds = 0;

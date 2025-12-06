@@ -44,11 +44,43 @@ export const NotificationService = {
         notification: Omit<Notification, 'id' | 'timestamp' | 'isRead'>
     ) => {
         const ref = collection(db, 'users', userId, 'channels', channelId, 'notifications');
-        await addDoc(ref, {
-            ...notification,
-            isRead: false,
-            timestamp: serverTimestamp()
-        });
+
+        if (notification.internalId) {
+            // Idempotent write: Use internalId as the document ID
+            // This prevents duplicates if the client retries or race conditions occur
+            const docRef = doc(ref, notification.internalId);
+
+            // Use setDoc with merge: true to avoid overwriting existing fields like 'isRead' if we don't want to?
+            // Actually, if we are re-notifying, maybe we WANT to un-read it? 
+            // The scheduler logic says: "If check-in is due, notify." 
+            // If it's already there and read, should we make it unread?
+            // Usually, yes, a new reminder should be seen.
+            // BUT, the scheduler checks `alreadyNotified` which checks existence.
+            // If it exists (even if read), we skip.
+            // So we only hit this if `alreadyNotified` was false (e.g. race condition).
+            // In that case, we probably want to ensure it exists.
+
+            // However, if we overwrite, we might reset `isRead` to false. 
+            // If the user *just* read it, and we overwrite, it becomes unread.
+            // Given the race condition (seconds), unread is fine.
+
+            // Using setDoc with explicit ID
+            await import('firebase/firestore').then(({ setDoc }) =>
+                setDoc(docRef, {
+                    ...notification,
+                    id: notification.internalId, // Ensure ID matches
+                    isRead: false,
+                    timestamp: serverTimestamp()
+                })
+            );
+        } else {
+            // Fallback for standard notifications
+            await addDoc(ref, {
+                ...notification,
+                isRead: false,
+                timestamp: serverTimestamp()
+            });
+        }
     },
 
     markAsRead: async (userId: string, channelId: string, notificationId: string) => {

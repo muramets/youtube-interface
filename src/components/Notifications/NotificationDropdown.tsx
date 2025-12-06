@@ -27,8 +27,14 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onCl
     });
 
     const handleRemoveAll = () => {
-        const idsToRemove = filteredNotifications.map(n => n.id);
-        useNotificationStore.getState().removeNotifications(idsToRemove);
+        // Only remove non-persistent notifications
+        const idsToRemove = filteredNotifications
+            .filter(n => !n.isPersistent)
+            .map(n => n.id);
+
+        if (idsToRemove.length > 0) {
+            useNotificationStore.getState().removeNotifications(idsToRemove);
+        }
     };
 
     const handleNotificationAction = (notification: Notification) => {

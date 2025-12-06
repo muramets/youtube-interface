@@ -233,7 +233,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 
     // Auto-Checkin Logic
     useEffect(() => {
-        if (!isOpen || !initialData?.publishedAt || !hasRules || !isPublished) return;
+        if (!isOpen || !initialData?.publishedAt || !hasRules || !isPublished || !initialData?.publishedVideoId) return;
 
         // Use a flag to prevent multiple checks per render cycle (though useEffect handles this, strict mode might double invoke)
         // Also we want to avoid checking if we just updated history.
@@ -917,8 +917,11 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                             ) : (
                                 <button
                                     onClick={() => handleSave(true)}
-                                    disabled={true} // TODO: Enable when adding check-in
-                                    className="px-3 py-1.5 rounded-full text-sm font-medium transition-all bg-[#424242] text-[#717171] cursor-default"
+                                    disabled={(!isPackagingDirty && !isMetadataDirty) || isSaving}
+                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${(isPackagingDirty || isMetadataDirty) && !isSaving
+                                            ? 'bg-white text-black hover:bg-gray-200 cursor-pointer shadow-[0_0_10px_rgba(255,255,255,0.3)]'
+                                            : 'bg-[#424242] text-[#717171] cursor-default'
+                                        }`}
                                 >
                                     Save
                                 </button>

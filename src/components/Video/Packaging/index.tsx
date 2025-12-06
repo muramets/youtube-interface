@@ -102,7 +102,7 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
                 <div className="flex justify-center">
                     {isAvd ? (
                         <SmartTimeInput
-                            value={value ?? 0}
+                            value={value ?? undefined}
                             onSave={(newValue) => {
                                 const newHistory = [...history];
                                 const version = newHistory.find(v => v.checkins.some(c => c.id === checkin.id));
@@ -119,10 +119,13 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
                         <input
                             autoFocus
                             type="number"
+                            step="any"
                             className="w-16 bg-[#1F1F1F] text-white text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none rounded text-xs"
                             defaultValue={value ?? ''}
                             onBlur={(e) => {
-                                const newValue = Number(e.target.value);
+                                const valStr = e.target.value;
+                                const newValue = valStr === '' ? null : Number(valStr);
+
                                 const newHistory = [...history];
                                 const version = newHistory.find(v => v.checkins.some(c => c.id === checkin.id));
                                 const targetCheckin = version?.checkins.find(c => c.id === checkin.id);
@@ -135,7 +138,8 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter') {
                                     const target = e.currentTarget;
-                                    const newValue = Number(target.value);
+                                    const valStr = target.value;
+                                    const newValue = valStr === '' ? null : Number(valStr);
 
                                     const newHistory = [...history];
                                     const version = newHistory.find(v => v.checkins.some(c => c.id === checkin.id));
@@ -296,7 +300,7 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
                                                 <span className="text-xs font-medium text-white">v.{version.versionNumber}</span>
                                             )}
 
-                                            {onDeleteCheckin && (
+                                            {onDeleteCheckin && !checkin.ruleId && (
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();

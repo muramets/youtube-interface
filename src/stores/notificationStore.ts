@@ -12,6 +12,8 @@ export interface Notification {
     isRead: boolean;
     link?: string;
     meta?: string;
+    thumbnail?: string;
+    isPersistent?: boolean;
     internalId?: string;
     customColor?: string;
 }
@@ -81,7 +83,8 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     clearAll: async () => {
         const { activeUserId, activeChannelId, notifications } = get();
         if (!activeUserId || !activeChannelId) return;
-        const ids = notifications.map(n => n.id);
+        // Only clear non-persistent notifications
+        const ids = notifications.filter(n => !n.isPersistent).map(n => n.id);
         if (ids.length > 0) {
             await NotificationService.clearAll(activeUserId, activeChannelId, ids);
         }
