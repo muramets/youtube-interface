@@ -31,10 +31,8 @@ export const useCheckinScheduler = () => {
 
                     // Check if this check-in has already been done (exists in history)
                     let videoHistory = video.packagingHistory || [];
-                    // Find if checkin exists in ANY version (usually latest, but let's be safe)
                     let existingCheckin = videoHistory.flatMap(v => v.checkins).find(c => c.ruleId === rule.id);
 
-                    // A check-in is considered "done" if it exists AND has user data entered
                     const isCheckinComplete = existingCheckin && (existingCheckin.metrics.ctr !== null || existingCheckin.metrics.impressions !== null || existingCheckin.metrics.views !== null);
 
                     if (isCheckinComplete) {
@@ -48,7 +46,9 @@ export const useCheckinScheduler = () => {
                     }
 
                     // If it's not due yet, skip
-                    if (now < dueTime) continue;
+                    if (now < dueTime) {
+                        continue;
+                    }
 
                     // It IS due (or past due).
 

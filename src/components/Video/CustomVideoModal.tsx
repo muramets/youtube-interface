@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy } from '@dnd-kit/sortable';
-import { type VideoDetails, type CoverVersion, type PackagingMetrics, type PackagingVersion, type HistoryItem, type PackagingCheckin } from '../../utils/youtubeApi';
+import { type VideoDetails, type CoverVersion, type PackagingMetrics, type PackagingVersion, type HistoryItem, type PackagingCheckin, fetchVideoDetails, extractVideoId } from '../../utils/youtubeApi';
 
 import { useVideos } from '../../hooks/useVideos';
 
@@ -49,7 +49,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 }) => {
     const { user } = useAuth();
     const { currentChannel, updateChannel } = useChannelStore();
-    const { packagingSettings } = useSettings();
+    const { packagingSettings, generalSettings } = useSettings();
     const { addNotification } = useNotificationStore();
 
     const { saveVideoHistory, deleteVideoHistoryItem } = useVideos(user?.uid || '', currentChannel?.id || '');
@@ -297,6 +297,21 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
             setPackagingHistory(newHistory);
         }
     }, [isOpen, initialData?.publishedAt, hasRules, isPublished, packagingHistory.length, checkinCount]); // Minimized dependencies
+
+    // Auto-sync Duration when Published URL changes
+    useEffect(() => {
+        if (!isPublished) return;
+
+        const videoId = extractVideoId(publishedUrl);
+        if (videoId && generalSettings.apiKey) {
+            fetchVideoDetails(videoId, generalSettings.apiKey).then(details => {
+                // Update duration if found (overwriting manual entry as per user request)
+                if (details && details.duration) {
+                    setDuration(details.duration);
+                }
+            }).catch(console.error);
+        }
+    }, [publishedUrl, isPublished, generalSettings.apiKey]);
 
     // Update activeVersionTab when modal opens or data changes
     useEffect(() => {
@@ -919,8 +934,8 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                     onClick={() => handleSave(true)}
                                     disabled={(!isPackagingDirty && !isMetadataDirty) || isSaving}
                                     className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${(isPackagingDirty || isMetadataDirty) && !isSaving
-                                            ? 'bg-white text-black hover:bg-gray-200 cursor-pointer shadow-[0_0_10px_rgba(255,255,255,0.3)]'
-                                            : 'bg-[#424242] text-[#717171] cursor-default'
+                                        ? 'bg-white text-black hover:bg-gray-200 cursor-pointer shadow-[0_0_10px_rgba(255,255,255,0.3)]'
+                                        : 'bg-[#424242] text-[#717171] cursor-default'
                                         }`}
                                 >
                                     Save

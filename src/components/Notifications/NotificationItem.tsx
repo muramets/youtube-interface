@@ -22,12 +22,12 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
         return notification.customColor;
     }, [notification.internalId, notification.customColor, packagingSettings.checkinRules]);
 
-    const getIcon = () => {
+    const getIcon = (size: number = 20) => {
         switch (notification.type) {
-            case 'error': return <AlertCircle size={20} className="text-red-500" />;
-            case 'warning': return <AlertCircle size={20} className="text-yellow-500" />;
-            case 'success': return <CheckCircle size={20} className="text-green-500" />;
-            default: return <Info size={20} className={effectiveColor ? '' : "text-blue-500"} style={{ color: effectiveColor }} />;
+            case 'error': return <AlertCircle size={size} className="text-red-500" />;
+            case 'warning': return <AlertCircle size={size} className="text-yellow-500" />;
+            case 'success': return <CheckCircle size={size} className="text-green-500" />;
+            default: return <Info size={size} className={effectiveColor ? '' : "text-blue-500"} style={{ color: effectiveColor }} />;
         }
     };
 
@@ -82,7 +82,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
                                 borderColor: `${effectiveColor}30`
                             } : undefined}
                         >
-                            {React.cloneElement(getIcon() as React.ReactElement, { size: 14 })}
+                            {getIcon(14)}
                         </div>
                     </div>
                 ) : (

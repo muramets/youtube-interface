@@ -16,22 +16,43 @@ interface UIState {
     activeTab: 'details' | 'packaging' | 'traffic' | 'stats';
     openVideoModal: (videoId: string, tab?: 'details' | 'packaging' | 'traffic' | 'stats') => void;
     closeVideoModal: () => void;
+
+    // Video View Modes (Custom vs YouTube view)
+    videoViewModes: Record<string, 'custom' | 'youtube'>;
+    setVideoViewMode: (videoId: string, mode: 'custom' | 'youtube') => void;
 }
 
-export const useUIStore = create<UIState>((set) => ({
-    isSettingsOpen: false,
-    setSettingsOpen: (isOpen) => set({ isSettingsOpen: isOpen }),
+import { persist } from 'zustand/middleware';
 
-    toast: {
-        message: '',
-        type: 'success',
-        isVisible: false
-    },
-    showToast: (message, type = 'success') => set({ toast: { message, type, isVisible: true } }),
-    hideToast: () => set((state) => ({ toast: { ...state.toast, isVisible: false } })),
+export const useUIStore = create<UIState>()(
+    persist(
+        (set) => ({
+            isSettingsOpen: false,
+            setSettingsOpen: (isOpen) => set({ isSettingsOpen: isOpen }),
 
-    activeVideoId: null,
-    activeTab: 'details',
-    openVideoModal: (videoId, tab = 'details') => set({ activeVideoId: videoId, activeTab: tab }),
-    closeVideoModal: () => set({ activeVideoId: null, activeTab: 'details' }),
-}));
+            toast: {
+                message: '',
+                type: 'success',
+                isVisible: false
+            },
+            showToast: (message, type = 'success') => set({ toast: { message, type, isVisible: true } }),
+            hideToast: () => set((state) => ({ toast: { ...state.toast, isVisible: false } })),
+
+            activeVideoId: null,
+            activeTab: 'details',
+            openVideoModal: (videoId, tab = 'details') => set({ activeVideoId: videoId, activeTab: tab }),
+            closeVideoModal: () => set({ activeVideoId: null, activeTab: 'details' }),
+
+            videoViewModes: {},
+            setVideoViewMode: (videoId, mode) => set((state) => ({
+                videoViewModes: { ...state.videoViewModes, [videoId]: mode }
+            })),
+        }),
+        {
+            name: 'ui-storage',
+            partialize: (state) => ({
+                videoViewModes: state.videoViewModes
+            })
+        }
+    )
+);

@@ -12,6 +12,7 @@ import { VideoGridContainer } from './VideoGridContainer';
 import { GRID_LAYOUT } from '../../config/layout';
 import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
+import { useUIStore } from '../../stores/uiStore';
 
 interface VideoGridProps {
   videos?: VideoDetails[];
@@ -20,6 +21,26 @@ interface VideoGridProps {
   playlistId?: string;
   isLoading?: boolean;
 }
+
+const parseViewCount = (viewCount: string | number | undefined): number => {
+  if (viewCount === undefined || viewCount === null || viewCount === '') return 0;
+  if (typeof viewCount === 'number') return viewCount;
+
+  const clean = String(viewCount).toUpperCase().replace(/,/g, '').trim();
+  const multipliers: { [key: string]: number } = { 'K': 1e3, 'M': 1e6, 'B': 1e9 };
+
+  // Check for suffix
+  const suffix = Object.keys(multipliers).find(s => clean.endsWith(s));
+
+  if (suffix) {
+    const numStr = clean.slice(0, -suffix.length);
+    const num = parseFloat(numStr);
+    return isNaN(num) ? 0 : num * multipliers[suffix];
+  }
+
+  const num = parseFloat(clean);
+  return isNaN(num) ? 0 : num;
+};
 
 export const VideoGrid: React.FC<VideoGridProps> = ({
   videos: propVideos,
@@ -102,32 +123,175 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
     }
   };
 
+  const activeFilters = useFilterStore(state => state.activeFilters);
+  const homeSortBy = useFilterStore(state => state.homeSortBy);
+  const videoViewModes = useUIStore(state => state.videoViewModes);
+
   const filteredVideos = React.useMemo(() => {
-    if (propVideos) return propVideos;
+    // 1. Start with source videos
+    let result = propVideos || sourceVideos;
 
-    // Get Set of hidden video IDs
+    // 2. Filter out hidden videos from Settings (Global hide)
     const hiddenVideoIds = new Set<string>();
-    // Only apply playlist filtering if using global context videos
-    playlists.forEach(playlist => {
-      if (hiddenPlaylistIds.includes(playlist.id)) {
-        playlist.videoIds.forEach(id => hiddenVideoIds.add(id));
-      }
-    });
+    if (!playlistId) { // Only apply hidden playlist logic on Home/Global views, not inside a specific playlist
+      playlists.forEach(playlist => {
+        if (hiddenPlaylistIds.includes(playlist.id)) {
+          playlist.videoIds.forEach(id => hiddenVideoIds.add(id));
+        }
+      });
+    }
 
-    let result = sourceVideos;
-
-    // Filter out hidden videos
     if (hiddenVideoIds.size > 0) {
       result = result.filter(video => !hiddenVideoIds.has(video.id));
     }
 
-    return result.filter(video => {
+    // 3. Apply Legacy Channel & Search Filters
+    result = result.filter(video => {
       const matchesChannel = disableChannelFilter || !selectedChannel || selectedChannel === 'All' || video.channelTitle === selectedChannel;
       const matchesSearch = video.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         video.channelTitle.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesChannel && matchesSearch;
     });
-  }, [sourceVideos, selectedChannel, searchQuery, disableChannelFilter, propVideos, playlists, hiddenPlaylistIds]);
+
+    // 4. Apply Advanced Filters
+    if (activeFilters.length > 0) {
+      result = result.filter(video => {
+        return activeFilters.every(filter => {
+          switch (filter.type) {
+            case 'title':
+              return video.title.toLowerCase().includes(String(filter.value).toLowerCase());
+
+            case 'channel': {
+              const channels = Array.isArray(filter.value) ? filter.value : [filter.value];
+              return channels.includes(video.channelTitle);
+            }
+
+            case 'playlist': {
+              const playlistIds = Array.isArray(filter.value) ? filter.value : [filter.value];
+              return playlistIds.some(id => {
+                const pl = playlists.find(p => p.id === id);
+                return pl ? pl.videoIds.includes(video.id) : false;
+              });
+            }
+
+            case 'videoType': {
+              const types = Array.isArray(filter.value) ? filter.value : [filter.value];
+              return types.some(type => {
+                if (type === 'custom_video') return video.isCustom;
+                if (type === 'published_custom_video') return video.isCustom && video.publishedVideoId;
+                if (type === 'other_youtube') return !video.isCustom;
+                return true;
+              });
+            }
+
+            case 'views': {
+              const views = parseViewCount(video.viewCount);
+              const [min, max] = Array.isArray(filter.value) ? filter.value : [filter.value, undefined];
+
+              switch (filter.operator) {
+                case 'gt': return views > min;
+                case 'lt': return views < min;
+                case 'gte': return views >= min;
+                case 'lte': return views <= min;
+                case 'equals': return views === min;
+                case 'between': return views >= min && (max !== undefined ? views <= max : true);
+                default: return true;
+              }
+            }
+
+            case 'duration': {
+              // Duration is ISO 8601 (PT1H2M10S) or custom formatted string.
+              // Helper to parse duration string to SECONDS.
+              const parseDuration = (duration: string | number) => {
+                if (typeof duration === 'number') return duration; // Already seconds?
+                if (!duration) return 0;
+
+                // Check ISO 8601
+                const isoMatch = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
+                if (isoMatch) {
+                  const hours = parseInt(isoMatch[1] || '0') || 0;
+                  const minutes = parseInt(isoMatch[2] || '0') || 0;
+                  const seconds = parseInt(isoMatch[3] || '0') || 0;
+                  return (hours * 3600) + (minutes * 60) + seconds;
+                }
+
+                // Check HH:MM:SS or MM:SS format (Custom Video Manual Entry)
+                if (duration.includes(':')) {
+                  const parts = duration.split(':').map(Number).reverse();
+                  let seconds = 0;
+                  if (parts[0]) seconds += parts[0]; // S
+                  if (parts[1]) seconds += parts[1] * 60; // M
+                  if (parts[2]) seconds += parts[2] * 3600; // H
+                  return seconds;
+                }
+
+                return parseInt(duration) || 0;
+              };
+
+              const videoSeconds = parseDuration(video.duration || '');
+              const [min, max] = Array.isArray(filter.value) ? filter.value : [filter.value, undefined];
+
+              // Filter values are now passed in SECONDS from SmartDurationInput
+
+              switch (filter.operator) {
+                case 'gt': return videoSeconds > min;
+                case 'lt': return videoSeconds < min;
+                case 'gte': return videoSeconds >= min;
+                case 'lte': return videoSeconds <= min;
+                case 'equals': return Math.abs(videoSeconds - min) < 5; // Allow 5 second buffer for exact match?
+                case 'between': return videoSeconds >= min && (max !== undefined ? videoSeconds <= max : true);
+                default: return true;
+              }
+            }
+
+            case 'date': {
+              const videoDate = new Date(video.publishedAt).getTime();
+              const [start, end] = Array.isArray(filter.value) ? filter.value : [filter.value, undefined];
+              switch (filter.operator) {
+                case 'between': return videoDate >= start && (end !== undefined ? videoDate <= end : true);
+                default: return true;
+              }
+            }
+
+            default:
+              return true;
+          }
+        });
+      });
+    }
+
+    // 5. Apply Sorting (Home Sort) - overrides default order
+    if (homeSortBy !== 'default') {
+      const sorted = [...result];
+      sorted.sort((a, b) => {
+        if (homeSortBy === 'views') {
+          // Priority: Pure View Count (Descending)
+          const modeA = videoViewModes[a.id] || (a.publishedVideoId ? 'youtube' : 'custom');
+          const modeB = videoViewModes[b.id] || (b.publishedVideoId ? 'youtube' : 'custom');
+
+          const getEffectiveViews = (v: VideoDetails, mode: 'custom' | 'youtube') => {
+            // If it's a Custom Video in Custom Mode, use its specific viewCount input
+            if (v.isCustom && mode === 'custom') {
+              return parseViewCount(v.viewCount);
+            }
+            // Otherwise use the Merged (Live) stats if available, fall back to base viewCount
+            return parseViewCount(v.mergedVideoData?.viewCount || v.viewCount);
+          };
+
+          const viewsA = getEffectiveViews(a, modeA);
+          const viewsB = getEffectiveViews(b, modeB);
+
+          return viewsB - viewsA; // Descending
+        } else if (homeSortBy === 'date') {
+          return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+        }
+        return 0;
+      });
+      return sorted;
+    }
+
+    return result;
+  }, [sourceVideos, selectedChannel, searchQuery, disableChannelFilter, propVideos, playlists, hiddenPlaylistIds, activeFilters, homeSortBy, videoViewModes]);
 
 
 

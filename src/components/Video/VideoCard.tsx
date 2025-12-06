@@ -41,7 +41,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const { generalSettings, cloneSettings } = useSettings();
   const apiKey = generalSettings.apiKey;
 
-  const { setSettingsOpen, activeVideoId, activeTab, closeVideoModal } = useUIStore();
+  const { setSettingsOpen, activeVideoId, activeTab, closeVideoModal, videoViewModes, setVideoViewMode } = useUIStore();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
@@ -59,7 +59,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     }
   }, [activeVideoId, video.id]);
 
-  const [viewMode, setViewMode] = useState<'custom' | 'youtube'>('custom');
+  const viewMode = videoViewModes[video.id] || (video.publishedVideoId ? 'youtube' : 'custom');
   const [isFlipping, setIsFlipping] = useState(false);
 
   // Determine which video data to display
@@ -82,7 +82,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
 
     setIsFlipping(true);
     setTimeout(() => {
-      setViewMode(prev => prev === 'custom' ? 'youtube' : 'custom');
+      setVideoViewMode(video.id, viewMode === 'custom' ? 'youtube' : 'custom');
       setIsFlipping(false);
     }, 150); // Wait for half animation
   };
@@ -408,7 +408,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
             onSave={handleSaveCustomVideo}
             onClone={handleCloneVideo}
             initialData={video}
-            initialTab={activeVideoId === video.id ? activeTab : undefined}
+            initialTab={(activeVideoId === video.id && (activeTab === 'details' || activeTab === 'packaging' || activeTab === 'traffic')) ? activeTab : undefined}
           />
         )
       }
