@@ -55,7 +55,7 @@ export const SubTabs: React.FC<SubTabsProps> = ({
     };
 
     return (
-        <div className={`relative group ${className}`}>
+        <div className={`relative group w-full min-w-0 ${className}`}>
             {/* Left Gradient & Button */}
             <div
                 className={`absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-bg-secondary to-transparent z-10 transition-opacity duration-300 pointer-events-none ${showLeftGradient ? 'opacity-100' : 'opacity-0'}`}
@@ -97,13 +97,13 @@ export const SubTabs: React.FC<SubTabsProps> = ({
                         >
                             {/* Active Indicator Line */}
                             {isActive && (
-                                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-text-primary" />
+                                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-text-primary rounded-b-lg" />
                             )}
 
                             {/* Niche Color Dot */}
                             {tab.color && (
                                 <div
-                                    className="w-2 h-2 rounded-full shadow-[0_0_4px_rgba(0,0,0,0.5)]"
+                                    className="w-2 h-2 rounded-full shadow-[0_0_4px_rgba(0,0,0,0.5)] flex-shrink-0"
                                     style={{ backgroundColor: tab.color }}
                                 />
                             )}
