@@ -10,11 +10,18 @@ import { AddContentMenu } from '../Shared/AddContentMenu';
 import { useLocation } from 'react-router-dom';
 import { YouTubeCreateIcon } from '../Shared/YouTubeCreateIcon';
 import { useUIStore } from '../../stores/uiStore';
+import { useAuth } from '../../hooks/useAuth';
+import { useChannels } from '../../hooks/useChannels';
 
 export const Header: React.FC = () => {
   const location = useLocation();
   const [isChannelDropdownOpen, setIsChannelDropdownOpen] = React.useState(false);
   const { currentChannel } = useChannelStore();
+  const { user, isLoading: isAuthLoading } = useAuth();
+  const { isLoading: isChannelsLoading } = useChannels(user?.uid || '');
+
+  const isLoading = isAuthLoading || (!!user && isChannelsLoading && !currentChannel);
+
   const { searchQuery, setSearchQuery } = useFilterStore();
   const [channelAnchor, setChannelAnchor] = React.useState<HTMLElement | null>(null);
   const [isCreateMenuOpen, setIsCreateMenuOpen] = React.useState(false);
@@ -29,21 +36,21 @@ export const Header: React.FC = () => {
   return (
     <header className="flex justify-between items-center px-4 py-2 sticky top-0 bg-bg-primary z-[100]">
       <div className="flex items-center gap-4">
-        <button 
+        <button
           onClick={toggleSidebar}
           className="bg-none border-none text-text-primary cursor-pointer p-2 rounded-full hover:bg-hover-bg"
         >
           <Menu size={24} />
         </button>
         <a href="/" className="flex items-center cursor-pointer">
-          <img 
-            src="/yt_logo_fullcolor_almostblack_digital.svg" 
-            alt="YouTube" 
+          <img
+            src="/yt_logo_fullcolor_almostblack_digital.svg"
+            alt="YouTube"
             className="h-5 block dark:hidden"
           />
-          <img 
-            src="/yt_logo_fullcolor_white_digital.svg" 
-            alt="YouTube" 
+          <img
+            src="/yt_logo_fullcolor_white_digital.svg"
+            alt="YouTube"
             className="h-5 hidden dark:block"
           />
         </a>
@@ -122,7 +129,11 @@ export const Header: React.FC = () => {
           }}
           className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white cursor-pointer overflow-hidden ml-2 hover:opacity-90"
         >
-          {currentChannel?.avatar ? (
+          {isLoading ? (
+            <div className="w-8 h-8 rounded-full bg-bg-secondary relative overflow-hidden">
+              <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent" style={{ backgroundSize: '200% 100%' }} />
+            </div>
+          ) : currentChannel?.avatar ? (
             <img src={currentChannel.avatar} alt="Profile" className="w-full h-full object-cover" />
           ) : (
             <User size={20} />

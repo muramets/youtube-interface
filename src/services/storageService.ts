@@ -17,7 +17,10 @@ export const deleteImageFromStorage = async (url: string): Promise<void> => {
 
 export const uploadImageToStorage = async (file: Blob, path: string): Promise<string> => {
     const storageRef = ref(storage, path);
-    const snapshot = await uploadBytes(storageRef, file);
+    const metadata = {
+        cacheControl: 'public,max-age=31536000', // Cache for 1 year
+    };
+    const snapshot = await uploadBytes(storageRef, file, metadata);
     return getDownloadURL(snapshot.ref);
 };
 
