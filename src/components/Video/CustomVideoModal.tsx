@@ -108,8 +108,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                 impressions: null,
                 ctr: null,
                 views: null,
-                avdSeconds: null,
-                avdPercentage: null
+                avdSeconds: null
             };
             confirmSaveVersion(nullMetrics);
             return;
@@ -276,8 +275,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                             impressions: null,
                             ctr: null,
                             views: null,
-                            avdSeconds: null,
-                            avdPercentage: null
+                            avdSeconds: null
                         },
                         ruleId: rule.id
                     };
@@ -1202,8 +1200,27 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                                 history={packagingHistory}
                                                 onUpdateHistory={setPackagingHistory}
                                                 onAddCheckin={(versionNumber) => {
-                                                    setCheckinTargetVersion(versionNumber);
-                                                    setShowMetricsModal(true);
+                                                    const newCheckin = {
+                                                        id: crypto.randomUUID(),
+                                                        date: Date.now(),
+                                                        metrics: {
+                                                            impressions: null,
+                                                            ctr: null,
+                                                            views: null,
+                                                            avdSeconds: null
+                                                        }
+                                                        // No ruleId - this is a manual check-in
+                                                    };
+
+                                                    setPackagingHistory(prev => prev.map(v => {
+                                                        if (v.versionNumber === versionNumber) {
+                                                            return {
+                                                                ...v,
+                                                                checkins: [...v.checkins, newCheckin]
+                                                            };
+                                                        }
+                                                        return v;
+                                                    }));
                                                 }}
                                                 ctrRules={ctrRules}
                                                 onUpdateCtrRules={setCtrRules}

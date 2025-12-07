@@ -90,8 +90,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             return (m.impressions === null || m.impressions === undefined) &&
                 (m.ctr === null || m.ctr === undefined) &&
                 (m.views === null || m.views === undefined) &&
-                (m.avdSeconds === null || m.avdSeconds === undefined) &&
-                (m.avdPercentage === null || m.avdPercentage === undefined);
+                (m.avdSeconds === null || m.avdSeconds === undefined);
         };
 
         const notificationIdsToDelete: string[] = [];

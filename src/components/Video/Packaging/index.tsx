@@ -174,7 +174,7 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
         if (typeof value === 'number' && field !== 'avdSeconds') {
             displayValue = value.toLocaleString();
         }
-        if (field === 'ctr' || field === 'avdPercentage') displayValue = `${value}%`;
+        if (field === 'ctr') displayValue = `${value}%`;
         if (field === 'avdSeconds') displayValue = formatTime(value);
 
         // Apply CTR Color Rules
@@ -217,9 +217,9 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
             {/* Header */}
             <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-6 py-3 bg-[#1F1F1F] border-b border-white/5 items-center">
                 <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider">Date</div>
-                <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-right">Impressions</div>
-                <div className="flex items-center justify-end gap-1">
-                    <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-right">CTR</div>
+                <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">Impressions</div>
+                <div className="flex items-center justify-center gap-1">
+                    <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">CTR</div>
                     <button
                         ref={configAnchorRef}
                         onClick={() => setIsConfigOpen(!isConfigOpen)}
@@ -228,9 +228,9 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
                         <Settings size={14} />
                     </button>
                 </div>
-                <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-right">Views</div>
-                <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-right">AVD</div>
-                <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-right">Version</div>
+                <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">Views</div>
+                <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">AVD</div>
+                <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">Version</div>
             </div>
 
             {/* Body */}
@@ -281,12 +281,12 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
                                             )}
                                         </div>
 
-                                        <div className="flex justify-end">{renderCell(checkin, 'impressions', previousCheckin)}</div>
-                                        <div className="flex justify-end">{renderCell(checkin, 'ctr', previousCheckin)}</div>
-                                        <div className="flex justify-end">{renderCell(checkin, 'views', previousCheckin)}</div>
-                                        <div className="flex justify-end">{renderCell(checkin, 'avdSeconds', previousCheckin)}</div>
+                                        <div className="flex justify-center">{renderCell(checkin, 'impressions', previousCheckin)}</div>
+                                        <div className="flex justify-center">{renderCell(checkin, 'ctr', previousCheckin)}</div>
+                                        <div className="flex justify-center">{renderCell(checkin, 'views', previousCheckin)}</div>
+                                        <div className="flex justify-center">{renderCell(checkin, 'avdSeconds', previousCheckin)}</div>
 
-                                        <div className="flex items-center justify-end gap-2 relative">
+                                        <div className="flex items-center justify-center relative">
                                             {version.configurationSnapshot ? (
                                                 <PortalTooltip
                                                     content={<VersionDetailsTooltipContent snapshot={version.configurationSnapshot} />}
@@ -307,7 +307,7 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
                                                         e.stopPropagation();
                                                         onDeleteCheckin(version.versionNumber, checkin.id);
                                                     }}
-                                                    className="opacity-0 group-hover/row:opacity-100 text-[#555] hover:text-red-400 transition-all p-1"
+                                                    className="absolute right-0 opacity-0 group-hover/row:opacity-100 text-[#555] hover:text-red-400 transition-all p-1"
                                                     title="Delete check-in"
                                                 >
                                                     <Trash2 size={12} />

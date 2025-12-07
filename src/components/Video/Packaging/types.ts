@@ -7,7 +7,6 @@ export interface MetricCheckin {
         ctr?: number;
         views?: number;
         avdSeconds?: number;
-        avdPercentage?: number;
     };
     badge?: {
         text: string;

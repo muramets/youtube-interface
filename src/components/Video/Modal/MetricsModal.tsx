@@ -21,8 +21,7 @@ export const MetricsModal: React.FC<MetricsModalProps> = ({
         impressions: 0,
         ctr: 0,
         views: 0,
-        avdSeconds: 0,
-        avdPercentage: 0
+        avdSeconds: 0
     });
     const [avdInput, setAvdInput] = useState('');
 

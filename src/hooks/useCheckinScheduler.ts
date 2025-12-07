@@ -74,8 +74,7 @@ export const useCheckinScheduler = () => {
                                 impressions: null,
                                 ctr: null,
                                 views: null,
-                                avdSeconds: null,
-                                avdPercentage: null
+                                avdSeconds: null
                             },
                             ruleId: rule.id
                         };

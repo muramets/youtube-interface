@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useCallback } from 'react';
+import { deleteField } from 'firebase/firestore';
 import { VideoService } from '../services/videoService';
 import { fetchVideoDetails, extractVideoId, type VideoDetails, type PackagingVersion, type PackagingCheckin, type HistoryItem, type CoverVersion } from '../utils/youtubeApi';
 import { SettingsService } from '../services/settingsService';
@@ -99,8 +100,8 @@ export const useVideos = (userId: string, channelId: string) => {
                             finalUpdates.mergedVideoData = mergedDetails;
                             // Clear retry state on success
                             finalUpdates.fetchStatus = 'success';
-                            finalUpdates.fetchRetryCount = undefined;
-                            finalUpdates.lastFetchAttempt = undefined;
+                            finalUpdates.fetchRetryCount = deleteField() as any;
+                            finalUpdates.lastFetchAttempt = deleteField() as any;
                         } else {
                             // Failed to fetch - initialize retry state
                             finalUpdates.fetchStatus = 'pending';
@@ -117,9 +118,9 @@ export const useVideos = (userId: string, channelId: string) => {
                 } else if (updates.publishedVideoId === '') {
                     // Clearing publishedVideoId - reset all related fields
                     delete finalUpdates.mergedVideoData;
-                    finalUpdates.fetchStatus = undefined;
-                    finalUpdates.fetchRetryCount = undefined;
-                    finalUpdates.lastFetchAttempt = undefined;
+                    finalUpdates.fetchStatus = deleteField() as any;
+                    finalUpdates.fetchRetryCount = deleteField() as any;
+                    finalUpdates.lastFetchAttempt = deleteField() as any;
                 }
 
                 await VideoService.updateVideo(userId, channelId, videoId, finalUpdates);
@@ -197,8 +198,7 @@ export const useVideos = (userId: string, channelId: string) => {
                         impressions: 0,
                         ctr: 0,
                         views: 0,
-                        avdSeconds: 0,
-                        avdPercentage: 0
+                        avdSeconds: 0
                     }
                 }]
             };

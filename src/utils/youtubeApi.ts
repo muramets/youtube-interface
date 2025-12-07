@@ -56,7 +56,6 @@ export interface PackagingMetrics {
     ctr: number | null; // Percentage
     views: number | null;
     avdSeconds: number | null; // Average View Duration in seconds
-    avdPercentage: number | null; // Average View Duration percentage
 }
 
 export interface ABVariantMetrics {
