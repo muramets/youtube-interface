@@ -32,6 +32,10 @@
   --modal-button-bg: #3F3F3F;
   --modal-button-hover: #4F4F4F;
   --modal-placeholder: #717171;
+
+  /* Sidebar Colors */
+  --sidebar-active: #f2f2f2;
+  --sidebar-hover: #f2f2f2;
 }
 
 .dark {
@@ -51,6 +55,10 @@
   --settings-input-bg: #282828;
   --settings-dropdown-bg: #1F1F1F;
   --settings-dropdown-hover: #161616;
+
+  /* Sidebar Colors */
+  --sidebar-active: #272727;
+  --sidebar-hover: #272727;
 }
 
 body {

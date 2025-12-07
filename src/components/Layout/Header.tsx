@@ -9,6 +9,7 @@ import { Dropdown } from '../Shared/Dropdown';
 import { AddContentMenu } from '../Shared/AddContentMenu';
 import { useLocation } from 'react-router-dom';
 import { YouTubeCreateIcon } from '../Shared/YouTubeCreateIcon';
+import { useUIStore } from '../../stores/uiStore';
 
 export const Header: React.FC = () => {
   const location = useLocation();
@@ -22,10 +23,16 @@ export const Header: React.FC = () => {
   const { unreadCount } = useNotificationStore();
   const [notificationAnchor, setNotificationAnchor] = React.useState<HTMLElement | null>(null);
 
+  // Sidebar State
+  const { toggleSidebar } = useUIStore();
+
   return (
     <header className="flex justify-between items-center px-4 py-2 sticky top-0 bg-bg-primary z-[100]">
       <div className="flex items-center gap-4">
-        <button className="bg-none border-none text-text-primary cursor-pointer p-2 rounded-full hover:bg-hover-bg">
+        <button 
+          onClick={toggleSidebar}
+          className="bg-none border-none text-text-primary cursor-pointer p-2 rounded-full hover:bg-hover-bg"
+        >
           <Menu size={24} />
         </button>
         <div className="flex items-center gap-1 font-bold text-lg tracking-tighter text-text-primary cursor-pointer">

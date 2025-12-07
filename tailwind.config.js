@@ -20,8 +20,14 @@ export default {
                 'modal-button-bg': 'var(--modal-button-bg)',
                 'modal-button-hover': 'var(--modal-button-hover)',
                 'modal-placeholder': 'var(--modal-placeholder)',
+                'sidebar-active': 'var(--sidebar-active)',
+                'sidebar-hover': 'var(--sidebar-hover)',
             },
             keyframes: {
+                'slide-in-left': {
+                    '0%': { transform: 'translateX(-100%)' },
+                    '100%': { transform: 'translateX(0)' },
+                },
                 'fade-in-up': {
                     '0%': { opacity: '0', transform: 'translateY(20px) scale(0.95)' },
                     '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
@@ -60,6 +66,7 @@ export default {
                 }
             },
             animation: {
+                'slide-in-left': 'slide-in-left 0.2s ease-out forwards',
                 'fade-in-up': 'fade-in-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
                 'fade-out-down': 'fade-out-down 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
                 'fade-in-down': 'fade-in-down 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',

@@ -3,6 +3,9 @@ import { create } from 'zustand';
 interface UIState {
     isSettingsOpen: boolean;
     setSettingsOpen: (isOpen: boolean) => void;
+    isSidebarExpanded: boolean;
+    toggleSidebar: () => void;
+    setSidebarExpanded: (isExpanded: boolean) => void;
     toast: {
         message: string;
         type: 'success' | 'error';
@@ -29,6 +32,9 @@ export const useUIStore = create<UIState>()(
         (set) => ({
             isSettingsOpen: false,
             setSettingsOpen: (isOpen) => set({ isSettingsOpen: isOpen }),
+            isSidebarExpanded: false,
+            toggleSidebar: () => set((state) => ({ isSidebarExpanded: !state.isSidebarExpanded })),
+            setSidebarExpanded: (isExpanded) => set({ isSidebarExpanded: isExpanded }),
 
             toast: {
                 message: '',
