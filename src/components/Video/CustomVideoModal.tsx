@@ -101,6 +101,18 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     });
     const [deleteCheckinConfirmation, setDeleteCheckinConfirmation] = useState<{ isOpen: boolean; versionNumber: number | null; checkinId: string | null }>({ isOpen: false, versionNumber: null, checkinId: null });
 
+    // Pending Restore State for Persistence
+    const [pendingRestore, setPendingRestore] = useState(false);
+
+    // Effect to persist restored version immediately after state updates
+    useEffect(() => {
+        if (pendingRestore) {
+            // Save as NOT draft (clean version) and DO NOT close
+            handleSave(false, false);
+            setPendingRestore(false);
+        }
+    }, [pendingRestore]);
+
     const handleSaveAsVersion = () => {
         // If this is the first version (no history), automatically finalize it with null metrics
         if (packagingHistory.length === 0) {
@@ -143,14 +155,26 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 
         // Creating a NEW version
 
+        // IMPORTANT: Snapshot MUST use the DEFAULT locale content, not the active form values.
+        // If user is on Korean tab, `title` is Korean, but snapshot should store English.
+        let snapshotTitle = title;
+        let snapshotDescription = description;
+        let snapshotTags = tags;
+        if (activeLanguage !== 'default') {
+            // User is on a localization tab, so get the primary/default content
+            snapshotTitle = defaultData.title;
+            snapshotDescription = defaultData.description;
+            snapshotTags = defaultData.tags;
+        }
+
         const newHistoryItem: PackagingVersion = {
             versionNumber: currentPackagingVersion,
             startDate: Date.now(),
             checkins: [],
             configurationSnapshot: {
-                title: title,
-                description: description,
-                tags: tags,
+                title: snapshotTitle,
+                description: snapshotDescription,
+                tags: snapshotTags,
                 coverImage: coverImage || '',
                 abTestVariants: abTestVariants,
                 localizations: localizations
@@ -213,9 +237,11 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         // Localization
         activeLanguage,
         localizations,
+        setLocalizations,
         addLanguage,
         removeLanguage,
         switchLanguage,
+        defaultData, // For comparison with snapshots
         getFullPayload,
         getMetadataOnlyPayload,
         // A/B Testing
@@ -228,6 +254,17 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         ctrRules,
         setCtrRules
     } = useVideoForm(initialData, isOpen);
+
+    // Sole Survivor Logic: Auto-promote single variant
+    useEffect(() => {
+        if (abTestVariants.length === 1) {
+            setCoverImage(abTestVariants[0]);
+            setAbTestVariants([]);
+        }
+    }, [abTestVariants]);
+
+    // Derived dirty state for SaveMenu (fixes "Save" button remaining active after valid restore)
+    const isEffectivePackagingDirty = isPackagingDirty && isDraft;
 
     // Initialize activeVersionTab based on draft status
 
@@ -317,18 +354,146 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         }
     }, [publishedUrl, isPublished, generalSettings.apiKey]);
 
-    // Update activeVersionTab when modal opens or data changes
+    // Strict Sync: Draft status and Tab selection based on content equality with Latest Version
     useEffect(() => {
-        if (isOpen) {
-            if (initialData?.isDraft === false && packagingHistory.length > 0) {
-                // If not a draft, default to the latest version
-                const maxVersion = Math.max(...packagingHistory.map(v => v.versionNumber));
+        if (!isOpen) return;
+
+        if (packagingHistory.length === 0) {
+            // No history = Always Draft
+            if (!isDraft) setIsDraft(true);
+            if (activeVersionTab !== 'current') setActiveVersionTab('current');
+            return;
+        }
+
+        const maxVersion = Math.max(...packagingHistory.map(v => v.versionNumber));
+        const latestVersion = packagingHistory.find(v => v.versionNumber === maxVersion);
+
+        if (!latestVersion) return;
+
+        const snapshot = latestVersion.configurationSnapshot;
+
+        // Deep Equality Check
+        // IMPORTANT: We must compare the FULL PACKAGING STATE, not just active form values.
+        // The form state (title, description, tags) reflects the ACTIVE language tab.
+        // The `defaultData` holds the primary language when viewing a localization.
+        // The `localizations` object holds all translations, but may NOT have the current form values
+        // if the user is actively editing a non-default tab (form values are only synced on tab switch).
+        //
+        // To get the TRUE current state:
+        // 1. If on 'default' tab: effective default = form values, localizations = localizations state
+        // 2. If on a localization tab: effective default = defaultData, effective localizations = localizations + { [activeLanguage]: form values }
+
+        let effectiveDefaultTitle = title;
+        let effectiveDefaultDescription = description;
+        let effectiveDefaultTags = tags;
+        let effectiveLocalizations = { ...localizations };
+
+        if (activeLanguage === 'default') {
+            // On default tab: form values are for default, localizations are as-is
+        } else {
+            // On localization tab: merge form values into localizations, use defaultData for primary
+            effectiveDefaultTitle = defaultData.title;
+            effectiveDefaultDescription = defaultData.description;
+            effectiveDefaultTags = defaultData.tags;
+            effectiveLocalizations[activeLanguage] = {
+                languageCode: activeLanguage,
+                title: title,
+                description: description,
+                tags: tags
+            };
+        }
+
+        const isContentIdentical = (() => {
+            // 1. Compare DEFAULT content
+            if (effectiveDefaultTitle !== snapshot.title) {
+                console.log('Mismatch: Default Title', effectiveDefaultTitle, snapshot.title);
+                return false;
+            }
+            if ((effectiveDefaultDescription || '') !== (snapshot.description || '')) {
+                console.log('Mismatch: Default Description');
+                return false;
+            }
+            if (JSON.stringify(effectiveDefaultTags || []) !== JSON.stringify(snapshot.tags || [])) {
+                console.log('Mismatch: Default Tags');
+                return false;
+            }
+
+            // 2. Compare COVER IMAGE
+            const currentImg = coverImage || '';
+            const snapImg = snapshot.coverImage || '';
+            if (currentImg !== snapImg) {
+                console.log('Mismatch: Image', currentImg, snapImg);
+                return false;
+            }
+
+            // 3. Compare A/B VARIANTS (strict order)
+            if (JSON.stringify(abTestVariants || []) !== JSON.stringify(snapshot.abTestVariants || [])) {
+                console.log('Mismatch: AB Variants');
+                return false;
+            }
+
+            // 4. Compare ALL LOCALIZATIONS
+            const snapLocs = snapshot.localizations || {};
+            const allLocKeys = new Set([...Object.keys(effectiveLocalizations), ...Object.keys(snapLocs)]);
+            for (const key of allLocKeys) {
+                const currentLoc = effectiveLocalizations[key];
+                const snapLoc = snapLocs[key];
+                if (!currentLoc || !snapLoc) {
+                    // Added or removed localization
+                    console.log('Mismatch: Localization Added/Removed', key);
+                    return false;
+                }
+                if (currentLoc.title !== snapLoc.title ||
+                    currentLoc.description !== snapLoc.description ||
+                    JSON.stringify(currentLoc.tags) !== JSON.stringify(snapLoc.tags)) {
+                    console.log('Mismatch: Localization Content', key);
+                    return false;
+                }
+            }
+
+            return true;
+        })();
+
+        console.log('Sync Check:', { isContentIdentical, isDraft, activeVersionTab, maxVersion });
+
+        if (isContentIdentical) {
+            // MATCH: Treated as CLEAN (Not Draft)
+            // If we are currently marked as Draft, fix it
+            if (isDraft) setIsDraft(false);
+
+            // If we are on 'current' tab, switch to the Clean Version tab
+            if (activeVersionTab === 'current') {
                 setActiveVersionTab(maxVersion.toString());
-            } else {
+            }
+        } else {
+            // MISMATCH: Treated as DIRTY (Draft)
+            if (!isDraft) setIsDraft(true);
+
+            // If we are on the Clean Version tab, switch to 'current' because we just edited it
+            // Note: We only switch if we are NOT already on 'current'. 
+            // Also need to be careful: if user clicks "v.1" to view it (ReadOnly), we shouldn't auto-switch back to 'current' unless they edit?
+            // BUT: If they click "v.1", and it is NOT identical, then it is ReadOnly.
+            // If it IS identical, it is Editable.
+            // If they are on "v.1" (Editable) and type a character -> isContentIdentical becomes false.
+            // Then we switch to 'current'.
+            if (activeVersionTab !== 'current' && activeVersionTab === maxVersion.toString()) {
+                console.log('Forcing switch to current due to mismatch while on latest version tab');
                 setActiveVersionTab('current');
             }
         }
-    }, [isOpen, initialData, packagingHistory]);
+    }, [
+        isOpen,
+        packagingHistory,
+        // Dependencies for content equality
+        title,
+        description,
+        tags,
+        coverImage,
+        abTestVariants,
+        localizations,
+        // State dependencies
+        isDraft
+    ]);
 
     useEffect(() => {
         if (isOpen) {
@@ -555,6 +720,23 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
             setToastType('error');
             setShowToast(true);
             return;
+        } else if (coverImage.startsWith('data:image')) {
+            // Handle legacy or restored Base64 images for the MAIN cover
+            try {
+                // Determine user ID (fallback to anonymous but should be logged in)
+                const userId = user?.uid || 'anonymous';
+                const uploadedUrl = await uploadBase64ToStorage(coverImage, userId);
+                effectiveCoverImage = uploadedUrl;
+                // Update local state so UI reflects the new URL immediately
+                setCoverImage(uploadedUrl);
+            } catch (e) {
+                console.error("Failed to upload base64 cover image:", e);
+                setToastMessage("Failed to save cover image.");
+                setToastType('error');
+                setShowToast(true);
+                setIsSaving(false);
+                return;
+            }
         }
 
         setIsSaving(true);
@@ -836,17 +1018,23 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
             setDescription(snapshot.description);
             setTags(snapshot.tags);
             setCoverImage(snapshot.coverImage || '');
-            // Restore A/B tests if present in snapshot (need to check type definition, assuming it might be there or default to empty)
-            if (snapshot.abTestVariants) {
-                setAbTestVariants(snapshot.abTestVariants);
-            }
+            setAbTestVariants(snapshot.abTestVariants || []);
+            setLocalizations(snapshot.localizations || {}); // Restore localizations too
 
-            setActiveVersionTab('current');
+            // Trigger persistence
+            setPendingRestore(true);
+
             setToastMessage(`Restored version ${versionNumber}`);
             setToastType('success');
             setShowToast(true);
         }
-    };
+
+        // activeVersionTab update handled by effect
+        setToastMessage(`Restored version ${versionNumber}`);
+        setToastType('success');
+        setShowToast(true);
+    }
+
 
     return createPortal(
         <>
@@ -899,7 +1087,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                             {activeTab === 'details' ? (
                                 <SaveMenu
                                     isSaving={isSaving}
-                                    isPackagingDirty={isPackagingDirty}
+                                    isPackagingDirty={isEffectivePackagingDirty} // Updated prop
                                     isDraft={isDraft}
                                     hasCoverImage={!!coverImage}
                                     currentPackagingVersion={currentPackagingVersion}
@@ -1093,26 +1281,29 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                     {/* Right Column: Packaging Preview */}
                                     <div className="w-[352px] mt-[4px]">
                                         <div className="bg-modal-surface rounded-xl shadow-lg overflow-hidden">
-                                            <ImageUploader
-                                                coverImage={
-                                                    (activeVersionTab === 'current' || (packagingHistory.length > 0 && activeVersionTab === Math.max(...packagingHistory.map(v => v.versionNumber)).toString() && !isDraft))
-                                                        ? coverImage
-                                                        : (packagingHistory.find(v => v.versionNumber.toString() === activeVersionTab)?.configurationSnapshot.coverImage || '')
-                                                }
-                                                onUpload={handleImageUpload}
-                                                onDrop={handleDrop}
-                                                fileInputRef={fileInputRef}
-                                                onTriggerUpload={() => fileInputRef.current?.click()}
-                                                currentVersion={currentVersion}
-                                                currentOriginalName={currentOriginalName}
-                                                onDelete={handleDeleteCurrentVersion}
-                                                abTestVariants={abTestVariants}
-                                                onAddToAbTest={handleAddToAbTest}
-                                                readOnly={
-                                                    activeVersionTab !== 'current' &&
-                                                    !(packagingHistory.length > 0 && activeVersionTab === Math.max(...packagingHistory.map(v => v.versionNumber)).toString() && !isDraft)
-                                                }
-                                            />
+                                            {/* Main Cover Uploader - Hides when A/B Test is active (User Requirement) */}
+                                            {abTestVariants.length === 0 && (
+                                                <ImageUploader
+                                                    coverImage={
+                                                        (activeVersionTab === 'current' || (packagingHistory.length > 0 && activeVersionTab === Math.max(...packagingHistory.map(v => v.versionNumber)).toString() && !isDraft))
+                                                            ? coverImage
+                                                            : (packagingHistory.find(v => v.versionNumber.toString() === activeVersionTab)?.configurationSnapshot.coverImage || '')
+                                                    }
+                                                    onUpload={handleImageUpload}
+                                                    onDrop={handleDrop}
+                                                    fileInputRef={fileInputRef}
+                                                    onTriggerUpload={() => fileInputRef.current?.click()}
+                                                    currentVersion={currentVersion}
+                                                    currentOriginalName={currentOriginalName}
+                                                    onDelete={handleDeleteCurrentVersion}
+                                                    abTestVariants={abTestVariants}
+                                                    onAddToAbTest={handleAddToAbTest}
+                                                    readOnly={
+                                                        activeVersionTab !== 'current' &&
+                                                        !(packagingHistory.length > 0 && activeVersionTab === Math.max(...packagingHistory.map(v => v.versionNumber)).toString() && !isDraft)
+                                                    }
+                                                />
+                                            )}
                                         </div>
 
                                         {/* A/B Test Variants */}

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FolderPlus, Plus, X, ChevronDown, Check } from 'lucide-react';
+import { FolderPlus, Plus, X, ChevronDown, Check, Home, ListVideo } from 'lucide-react';
 import type { TrafficGroup } from '../../../../types/traffic';
+import type { Playlist } from '../../../../services/playlistService';
 
 interface TrafficSelectionBarProps {
     selectedCount: number;
@@ -10,6 +11,11 @@ interface TrafficSelectionBarProps {
     onClearSelection: () => void;
     onRemoveFromGroup?: () => void;
     activeGroupId?: string;
+    playlists?: Playlist[];
+    onAddToHome?: () => void;
+    onAddToPlaylist?: (playlistId: string) => void;
+    onCreatePlaylist?: (name: string) => void;
+    isProcessing?: boolean;
 }
 
 export const TrafficSelectionBar: React.FC<TrafficSelectionBarProps> = ({
@@ -19,17 +25,29 @@ export const TrafficSelectionBar: React.FC<TrafficSelectionBarProps> = ({
     onCreateGroup,
     onClearSelection,
     onRemoveFromGroup,
-    activeGroupId
+    activeGroupId,
+    playlists = [],
+    onAddToHome,
+    onAddToPlaylist,
+    onCreatePlaylist,
+    isProcessing = false
 }) => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [isPlaylistDropdownOpen, setIsPlaylistDropdownOpen] = useState(false);
     const [newGroupName, setNewGroupName] = useState('');
+    const [newPlaylistName, setNewPlaylistName] = useState('');
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const playlistDropdownRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const playlistInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
                 setIsDropdownOpen(false);
+            }
+            if (playlistDropdownRef.current && !playlistDropdownRef.current.contains(event.target as Node)) {
+                setIsPlaylistDropdownOpen(false);
             }
         };
 
@@ -37,6 +55,12 @@ export const TrafficSelectionBar: React.FC<TrafficSelectionBarProps> = ({
             document.addEventListener('click', handleClickOutside, true);
             // Focus input when dropdown opens
             setTimeout(() => inputRef.current?.focus(), 50);
+        }
+
+        if (isPlaylistDropdownOpen) {
+            document.addEventListener('click', handleClickOutside, true);
+            // Focus input when dropdown opens
+            setTimeout(() => playlistInputRef.current?.focus(), 50);
         }
 
         return () => {
@@ -50,6 +74,15 @@ export const TrafficSelectionBar: React.FC<TrafficSelectionBarProps> = ({
             onCreateGroup(newGroupName.trim());
             setNewGroupName('');
             setIsDropdownOpen(false);
+        }
+    };
+
+    const handleCreatePlaylistSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (newPlaylistName.trim() && onCreatePlaylist) {
+            onCreatePlaylist(newPlaylistName.trim());
+            setNewPlaylistName('');
+            setIsPlaylistDropdownOpen(false);
         }
     };
 
@@ -70,6 +103,92 @@ export const TrafficSelectionBar: React.FC<TrafficSelectionBarProps> = ({
                     </button>
                 </div>
 
+                {/* Divider */}
+                <div className="w-px h-6 bg-white/10 mx-1" />
+
+                {/* Add to Home Button */}
+                {onAddToHome && (
+                    <button
+                        onClick={onAddToHome}
+                        disabled={isProcessing}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium bg-white/10 text-white transition-all whitespace-nowrap ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/20'}`}
+                        title="Add to Home Page"
+                    >
+                        <Home size={16} />
+                        Add to Home
+                    </button>
+                )}
+
+                {/* Add to Playlist Dropdown */}
+                {onAddToPlaylist && (
+                    <div className="relative" ref={playlistDropdownRef}>
+                        <button
+                            onClick={() => setIsPlaylistDropdownOpen(!isPlaylistDropdownOpen)}
+                            disabled={isProcessing}
+                            className={`
+                            flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all
+                            ${isPlaylistDropdownOpen ? 'bg-white text-black' : isProcessing ? 'bg-white/10 text-white opacity-50 cursor-not-allowed' : 'bg-white/10 hover:bg-white/20 text-white'}
+                        `}
+                        >
+                            <ListVideo size={16} />
+                            Add to Playlist
+                            <ChevronDown size={14} className={`transition-transform ${isPlaylistDropdownOpen ? '' : 'rotate-180'}`} />
+                        </button>
+
+                        {isPlaylistDropdownOpen && (
+                            <div className="absolute bottom-full left-0 mb-2 w-64 bg-[#1F1F1F] border border-white/10 rounded-xl shadow-xl overflow-hidden flex flex-col animate-fade-in z-[60]">
+                                <div className="px-4 py-2 border-b border-white/10 text-[10px] text-text-secondary uppercase font-bold tracking-wider">
+                                    Select Playlist
+                                </div>
+
+                                {/* Quick Create Playlist Input */}
+                                {onCreatePlaylist && (
+                                    <div className="p-2 border-b border-white/10">
+                                        <form onSubmit={handleCreatePlaylistSubmit} className="relative">
+                                            <input
+                                                ref={playlistInputRef}
+                                                type="text"
+                                                placeholder="Create new playlist..."
+                                                className="w-full bg-white/5 text-white text-xs px-3 py-2 pl-8 rounded-lg focus:outline-none focus:bg-white/10 placeholder:text-text-secondary"
+                                                value={newPlaylistName}
+                                                onChange={(e) => setNewPlaylistName(e.target.value)}
+                                            />
+                                            <Plus size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary" />
+                                        </form>
+                                    </div>
+                                )}
+
+                                <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
+                                    {playlists.length === 0 ? (
+                                        <div className="px-4 py-3 text-center text-xs text-text-secondary">
+                                            No playlists found
+                                        </div>
+                                    ) : (
+                                        playlists.map(playlist => (
+                                            <button
+                                                key={playlist.id}
+                                                onClick={() => {
+                                                    onAddToPlaylist(playlist.id);
+                                                    setIsPlaylistDropdownOpen(false);
+                                                }}
+                                                className="w-full text-left px-3 py-2 text-xs text-text-secondary hover:text-white hover:bg-white/5 rounded-lg flex items-center gap-2 transition-colors group"
+                                            >
+                                                <div className="w-8 h-8 rounded bg-white/5 flex-shrink-0 flex items-center justify-center text-white/20">
+                                                    <ListVideo size={14} />
+                                                </div>
+                                                <span className="truncate flex-1 font-medium">{playlist.name}</span>
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Divider */}
+                <div className="w-px h-6 bg-white/10 mx-1" />
+
                 <div className="relative" ref={dropdownRef}>
                     <button
                         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -84,7 +203,7 @@ export const TrafficSelectionBar: React.FC<TrafficSelectionBarProps> = ({
                     </button>
 
                     {isDropdownOpen && (
-                        <div className="absolute bottom-full left-0 mb-2 w-64 bg-[#1F1F1F] border border-white/10 rounded-xl shadow-xl overflow-hidden flex flex-col animate-fade-in">
+                        <div className="absolute bottom-full right-0 mb-2 w-64 bg-[#1F1F1F] border border-white/10 rounded-xl shadow-xl overflow-hidden flex flex-col animate-fade-in z-[60]">
                             {/* Quick Create Input */}
                             <div className="p-2 border-b border-white/10">
                                 <form onSubmit={handleCreateSubmit} className="relative">

@@ -8,6 +8,14 @@ import type { TrafficGroup } from '../../../../types/traffic';
 import type { CTRRule } from '../../Packaging/types';
 import { TrafficSelectionBar } from './TrafficSelectionBar';
 import { SubTabs } from '../../../Shared/SubTabs';
+import { usePlaylists } from '../../../../hooks/usePlaylists';
+import { useVideos } from '../../../../hooks/useVideos';
+import { useAuth } from '../../../../hooks/useAuth';
+import { useChannelStore } from '../../../../stores/channelStore';
+import { useSettings } from '../../../../hooks/useSettings';
+import { fetchVideosBatch } from '../../../../utils/youtubeApi';
+import { VideoService } from '../../../../services/videoService';
+import { PlaylistService } from '../../../../services/playlistService';
 
 interface SuggestedTrafficTabProps {
     customVideoId: string;
@@ -20,6 +28,7 @@ export const SuggestedTrafficTab: React.FC<SuggestedTrafficTabProps> = ({ custom
         totalRow,
         groups,
         isLoading,
+        isInitialLoading,
         error,
         selectedIds,
         hideGrouped,
@@ -34,7 +43,14 @@ export const SuggestedTrafficTab: React.FC<SuggestedTrafficTabProps> = ({ custom
         handleRemoveFromGroup
     } = useSuggestedTraffic(customVideoId);
 
+    const { user } = useAuth();
+    const { currentChannel } = useChannelStore();
+    const { generalSettings } = useSettings();
+    const { videos } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const { playlists, createPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+
     const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
     const [editingGroup, setEditingGroup] = useState<TrafficGroup | undefined>(undefined);
     const [activeTab, setActiveTab] = useState<string>('all');
 
@@ -74,6 +90,31 @@ export const SuggestedTrafficTab: React.FC<SuggestedTrafficTabProps> = ({ custom
 
     const activeGroup = groups.find(g => g.id === activeTab);
 
+    // Show skeleton during initial load for premium experience
+    if (isInitialLoading) {
+        return (
+            <div className="p-6">
+                {/* Match TrafficUploader exactly: border border-white/10 rounded-xl p-8 bg-bg-secondary */}
+                <div className="relative border border-white/10 rounded-xl p-8 text-center bg-bg-secondary overflow-hidden">
+                    {/* Shimmer overlay */}
+                    <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/5 to-transparent" style={{ backgroundSize: '200% 100%' }} />
+
+                    {/* Content skeleton - matches TrafficUploader layout */}
+                    <div className="flex flex-col items-center gap-3">
+                        {/* Icon placeholder - w-12 h-12 like TrafficUploader */}
+                        <div className="w-12 h-12 rounded-full bg-white/5" />
+                        {/* Text placeholders */}
+                        <div className="flex flex-col items-center gap-1">
+                            <div className="w-36 h-5 rounded bg-white/5" />
+                            <div className="w-44 h-4 rounded bg-white/[0.03]" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Show uploader only after we've confirmed there's no data
     if (trafficData.length === 0 && !isLoading) {
         return (
             <div className="p-6">
@@ -85,7 +126,7 @@ export const SuggestedTrafficTab: React.FC<SuggestedTrafficTabProps> = ({ custom
     return (
         <div className="h-full flex flex-col overflow-hidden relative">
             {/* Tabs */}
-            <div className="z-20 bg-bg-secondary pl-[200px] pr-6 flex-shrink-0 border-b border-white/5">
+            <div className="z-20 bg-bg-secondary pl-[330px] pr-6 flex-shrink-0 border-b border-white/5">
                 <SubTabs
                     activeTabId={activeTab}
                     onTabChange={setActiveTab}
@@ -101,7 +142,7 @@ export const SuggestedTrafficTab: React.FC<SuggestedTrafficTabProps> = ({ custom
                 />
             </div>
 
-            <div className="flex-1 flex flex-col min-h-0 px-6 pb-6 gap-6">
+            <div className="flex-1 flex flex-col min-h-0 px-6 pt-6 pb-6 gap-6">
                 {/* Header Actions */}
                 <div className="flex items-center justify-between flex-shrink-0">
                     <div className="flex items-center gap-4">
@@ -176,6 +217,130 @@ export const SuggestedTrafficTab: React.FC<SuggestedTrafficTabProps> = ({ custom
                     clearSelection();
                 } : undefined}
                 activeGroupId={activeGroup?.id}
+                isProcessing={isProcessing}
+                playlists={playlists}
+                onAddToHome={async () => {
+                    if (!user || !currentChannel || !generalSettings.apiKey || selectedIds.size === 0) return;
+                    setIsProcessing(true);
+                    try {
+                        const idsToAdd = Array.from(selectedIds);
+                        // Filter out empty IDs
+                        const validIds = idsToAdd.filter(Boolean);
+
+                        // Batch fetch details
+                        const details = await fetchVideosBatch(validIds, generalSettings.apiKey);
+
+                        // Filter out already existing videos
+                        const existingIds = new Set(videos.map(v => v.id));
+                        const newVideos = details.filter(d => !existingIds.has(d.id));
+
+                        if (newVideos.length === 0) {
+                            alert("Selected videos are already in your library.");
+                            setIsProcessing(false);
+                            return;
+                        }
+
+                        // Save new videos
+                        await Promise.all(newVideos.map(async (video) => {
+                            const videoWithTimestamp = {
+                                ...video,
+                                createdAt: Date.now(),
+                                isPlaylistOnly: false // Explicitly show on home
+                            };
+                            await VideoService.addVideo(user.uid, currentChannel.id, videoWithTimestamp);
+                        }));
+
+                        clearSelection();
+                        // Toast handled by subscriber or we could add one here
+                    } catch (error) {
+                        console.error("Failed to add to home:", error);
+                        alert("Failed to add videos. Please check your API key.");
+                    } finally {
+                        setIsProcessing(false);
+                    }
+                }}
+                onAddToPlaylist={async (playlistId) => {
+                    if (!user || !currentChannel || !generalSettings.apiKey || selectedIds.size === 0) return;
+                    setIsProcessing(true);
+                    try {
+                        const idsToAdd = Array.from(selectedIds);
+                        const validIds = idsToAdd.filter(Boolean);
+
+                        // 1. Identify which videos are NOT in library yet
+                        const existingIds = new Set(videos.map(v => v.id));
+                        const missingIds = validIds.filter(id => !existingIds.has(id));
+
+                        // 2. Fetch and save missing videos as PlaylistOnly
+                        if (missingIds.length > 0) {
+                            const details = await fetchVideosBatch(missingIds, generalSettings.apiKey);
+                            await Promise.all(details.map(async (video) => {
+                                const videoWithTimestamp = {
+                                    ...video,
+                                    createdAt: Date.now(),
+                                    isPlaylistOnly: true // Hide from Home Page
+                                };
+                                await VideoService.addVideo(user.uid, currentChannel.id, videoWithTimestamp);
+                            }));
+                        }
+
+                        // 3. Add ALL selected videos to the playlist
+                        await Promise.all(validIds.map(videoId =>
+                            PlaylistService.addVideoToPlaylist(user.uid, currentChannel.id, playlistId, videoId)
+                        ));
+
+                        clearSelection();
+                    } catch (error) {
+                        console.error("Failed to add to playlist:", error);
+                        alert("Failed to add videos to playlist.");
+                    } finally {
+                        setIsProcessing(false);
+                    }
+                }}
+                onCreatePlaylist={async (name) => {
+                    if (!user || !currentChannel || !generalSettings.apiKey || selectedIds.size === 0) return;
+                    setIsProcessing(true);
+                    try {
+                        // 1. Create Playlist
+                        // Note: createPlaylist returns the new ID
+                        const newPlaylistId = await createPlaylist({ name, videoIds: [] });
+
+                        // 2. Reuse Add to Playlist logic
+                        // We can't directly call the onAddToPlaylist prop function from here since it's defined inline in the render.
+                        // So we duplicate the logic or extract it. Duplicating for now since it involves state (isProcessing) which we handle here.
+
+                        const idsToAdd = Array.from(selectedIds);
+                        const validIds = idsToAdd.filter(Boolean);
+
+                        // Identify missing videos
+                        const existingIds = new Set(videos.map(v => v.id));
+                        const missingIds = validIds.filter(id => !existingIds.has(id));
+
+                        // Fetch and save missing videos as PlaylistOnly
+                        if (missingIds.length > 0) {
+                            const details = await fetchVideosBatch(missingIds, generalSettings.apiKey);
+                            await Promise.all(details.map(async (video) => {
+                                const videoWithTimestamp = {
+                                    ...video,
+                                    createdAt: Date.now(),
+                                    isPlaylistOnly: true
+                                };
+                                await VideoService.addVideo(user.uid, currentChannel.id, videoWithTimestamp);
+                            }));
+                        }
+
+                        // Add ALL selected videos to the NEW playlist
+                        await Promise.all(validIds.map(videoId =>
+                            PlaylistService.addVideoToPlaylist(user.uid, currentChannel.id, newPlaylistId, videoId)
+                        ));
+
+                        clearSelection();
+                    } catch (error) {
+                        console.error("Failed to create playlist and add videos:", error);
+                        alert("Failed to create playlist.");
+                    } finally {
+                        setIsProcessing(false);
+                    }
+                }}
             />
 
             <GroupCreationModal

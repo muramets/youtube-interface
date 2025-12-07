@@ -41,6 +41,7 @@ export interface VideoDetails {
     fetchRetryCount?: number;
     lastFetchAttempt?: number;
     fetchStatus?: 'pending' | 'success' | 'failed';
+    isPlaylistOnly?: boolean;
 }
 
 export interface CTRRule {

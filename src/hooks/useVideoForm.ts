@@ -374,9 +374,11 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         // Localization exports
         activeLanguage,
         localizations,
+        setLocalizations,
         addLanguage,
         removeLanguage,
         switchLanguage,
+        defaultData, // Expose for comparison logic
         // A/B Testing State
         abTestVariants,
         setAbTestVariants,

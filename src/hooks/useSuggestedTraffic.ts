@@ -11,6 +11,7 @@ export const useSuggestedTraffic = (customVideoId: string) => {
     const [totalRow, setTotalRow] = useState<TrafficSource | undefined>(undefined);
     const [groups, setGroups] = useState<TrafficGroup[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const selectedIdsRef = useRef(selectedIds);
@@ -38,6 +39,7 @@ export const useSuggestedTraffic = (customVideoId: string) => {
                 setError('Failed to load traffic data');
             } finally {
                 setIsLoading(false);
+                setIsInitialLoading(false);
             }
         };
 
@@ -254,6 +256,7 @@ export const useSuggestedTraffic = (customVideoId: string) => {
         totalRow,
         groups,
         isLoading,
+        isInitialLoading,
         error,
         selectedIds,
         hideGrouped,

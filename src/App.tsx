@@ -23,11 +23,13 @@ import { Toast } from './components/Shared/Toast';
 import { useCheckinScheduler } from './hooks/useCheckinScheduler';
 import { useVideoFetchRetry } from './hooks/useVideoFetchRetry';
 import { useAutoCleanup } from './hooks/useAutoCleanup';
+import { useFilterChannelSync } from './hooks/useFilterChannelSync';
 
 function AppContent() {
   useCheckinScheduler();
   useVideoFetchRetry();
   useAutoCleanup();
+  useFilterChannelSync();
   const { user } = useAuth();
   const { currentChannel } = useChannelStore();
   const { isLoading, videos } = useVideos(user?.uid || '', currentChannel?.id || '');

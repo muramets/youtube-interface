@@ -131,14 +131,18 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
     // 1. Start with source videos
     let result = propVideos || sourceVideos;
 
-    // 2. Filter out hidden videos from Settings (Global hide)
+    // 2. Filter out hidden videos from Settings (Global hide) AND playlist-only videos
     const hiddenVideoIds = new Set<string>();
     if (!playlistId) { // Only apply hidden playlist logic on Home/Global views, not inside a specific playlist
+      // Filter out global hidden playlists
       playlists.forEach(playlist => {
         if (hiddenPlaylistIds.includes(playlist.id)) {
           playlist.videoIds.forEach(id => hiddenVideoIds.add(id));
         }
       });
+
+      // Also filter out playlist-only videos from Home Page
+      result = result.filter(video => !video.isPlaylistOnly);
     }
 
     if (hiddenVideoIds.size > 0) {

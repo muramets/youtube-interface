@@ -314,8 +314,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
           {/* Channel Avatar */}
           {!playlistId && (
             <div className="flex-shrink-0">
-              {displayVideo.channelAvatar ? (
-                <img src={displayVideo.channelAvatar} alt={displayVideo.channelTitle} className="w-9 h-9 rounded-full object-cover" />
+              {/* Always use original video's channel data, not merged YouTube data */}
+              {video.channelAvatar ? (
+                <img src={video.channelAvatar} alt={video.channelTitle} className="w-9 h-9 rounded-full object-cover" />
               ) : (
                 <div className="w-9 h-9 rounded-full bg-bg-secondary" />
               )}

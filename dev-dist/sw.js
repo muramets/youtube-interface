@@ -82,13 +82,13 @@ define(['./workbox-ca84f546'], (function (workbox) { 'use strict';
     "revision": "3ca0b8505b4bec776b69afdba2768812"
   }, {
     "url": "index.html",
-    "revision": "0.h7iq5bii68o"
+    "revision": "0.noqo8aoeavg"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
     allowlist: [/^\/$/]
   }));
-  workbox.registerRoute(/^https:\/\/firebasestorage\.googleapis\.com\/.*/i, new workbox.CacheFirst({
+  workbox.registerRoute(/^https:\/\/(firebasestorage\.googleapis\.com|lh3\.googleusercontent\.com|.*\.googleusercontent\.com)\/.*/i, new workbox.CacheFirst({
     "cacheName": "firebase-storage-images",
     plugins: [new workbox.ExpirationPlugin({
       maxEntries: 50,

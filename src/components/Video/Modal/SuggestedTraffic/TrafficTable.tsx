@@ -123,11 +123,11 @@ const TrafficTableRow = React.memo(({ item, isSelected, onToggleSelection, group
                     </div>
                 </VideoTooltip>
             </div>
-            <div className="text-right text-sm text-text-secondary font-mono">{item.impressions.toLocaleString()}</div>
-            <div className="text-right text-sm font-mono" style={{ color: ctrColor || '#AAAAAA' }}>{item.ctr.toFixed(1)}%</div>
-            <div className="text-right text-sm text-text-secondary font-mono">{item.views.toLocaleString()}</div>
-            <div className="text-right text-sm text-text-secondary font-mono">{item.avgViewDuration}</div>
-            <div className="text-right text-sm text-text-secondary font-mono">{item.watchTimeHours.toFixed(1)}</div>
+            <div className="text-center text-sm text-text-secondary font-mono">{item.impressions.toLocaleString()}</div>
+            <div className="text-center text-sm font-mono" style={{ color: ctrColor || '#AAAAAA' }}>{item.ctr.toFixed(1)}%</div>
+            <div className="text-center text-sm text-text-secondary font-mono">{item.views.toLocaleString()}</div>
+            <div className="text-center text-sm text-text-secondary font-mono">{item.avgViewDuration}</div>
+            <div className="text-center text-sm text-text-secondary font-mono">{item.watchTimeHours.toFixed(1)}</div>
         </div>
     );
 });
@@ -240,7 +240,7 @@ export const TrafficTable: React.FC<TrafficTableProps> = ({
 
 
     return (
-        <div className={`w-full h-full flex flex-col overflow-hidden rounded-xl bg-bg-secondary border border-border ${className}`}>
+        <div className={`w-full h-full flex flex-col overflow-hidden rounded-xl bg-bg-secondary ${className}`}>
             <CTRConfigPopup
                 isOpen={isConfigOpen}
                 onClose={() => setIsConfigOpen(false)}
@@ -259,11 +259,11 @@ export const TrafficTable: React.FC<TrafficTableProps> = ({
                     />
                 </div>
                 <div className="truncate">Source Title</div>
-                <div className="text-right cursor-pointer hover:text-white transition-colors flex items-center justify-end gap-1 truncate" onClick={() => handleSort('impressions')}>
+                <div className="text-center cursor-pointer hover:text-white transition-colors flex items-center justify-center gap-1 truncate" onClick={() => handleSort('impressions')}>
                     <span className="truncate">Impressions</span>
                     {sortField === 'impressions' && <SortIcon direction={sortDirection} />}
                 </div>
-                <div className="text-right cursor-pointer hover:text-white transition-colors flex items-center justify-end gap-1 truncate" onClick={() => handleSort('ctr')}>
+                <div className="text-center cursor-pointer hover:text-white transition-colors flex items-center justify-center gap-1 truncate" onClick={() => handleSort('ctr')}>
                     <span className="truncate">CTR</span>
                     {sortField === 'ctr' && <SortIcon direction={sortDirection} />}
                     <button
@@ -277,15 +277,15 @@ export const TrafficTable: React.FC<TrafficTableProps> = ({
                         <Settings size={12} />
                     </button>
                 </div>
-                <div className="text-right cursor-pointer hover:text-white transition-colors flex items-center justify-end gap-1 truncate" onClick={() => handleSort('views')}>
+                <div className="text-center cursor-pointer hover:text-white transition-colors flex items-center justify-center gap-1 truncate" onClick={() => handleSort('views')}>
                     <span className="truncate">Views</span>
                     {sortField === 'views' && <SortIcon direction={sortDirection} />}
                 </div>
-                <div className="text-right cursor-pointer hover:text-white transition-colors flex items-center justify-end gap-1 truncate" onClick={() => handleSort('avgViewDuration')}>
+                <div className="text-center cursor-pointer hover:text-white transition-colors flex items-center justify-center gap-1 truncate" onClick={() => handleSort('avgViewDuration')}>
                     <span className="truncate">Avg Duration</span>
                     {sortField === 'avgViewDuration' && <SortIcon direction={sortDirection} />}
                 </div>
-                <div className="text-right cursor-pointer hover:text-white transition-colors flex items-center justify-end gap-1 truncate" onClick={() => handleSort('watchTimeHours')}>
+                <div className="text-center cursor-pointer hover:text-white transition-colors flex items-center justify-center gap-1 truncate" onClick={() => handleSort('watchTimeHours')}>
                     <span className="truncate">Watch Time (h)</span>
                     {sortField === 'watchTimeHours' && <SortIcon direction={sortDirection} />}
                 </div>
@@ -298,11 +298,11 @@ export const TrafficTable: React.FC<TrafficTableProps> = ({
                     <div className="grid grid-cols-[40px_minmax(200px,1fr)_100px_80px_100px_120px_120px] gap-4 px-4 h-10 items-center bg-white/5 border-b border-white/5 text-sm font-medium text-white">
                         <div className="text-center text-[#5A5A5A]">Total</div>
                         <div></div>
-                        <div className="text-right font-mono">{totalRow.impressions.toLocaleString()}</div>
-                        <div className="text-right font-mono">{totalRow.ctr}%</div>
-                        <div className="text-right font-mono">{totalRow.views.toLocaleString()}</div>
-                        <div className="text-right font-mono">{totalRow.avgViewDuration}</div>
-                        <div className="text-right font-mono">{totalRow.watchTimeHours.toFixed(1)}</div>
+                        <div className="text-center font-mono">{totalRow.impressions.toLocaleString()}</div>
+                        <div className="text-center font-mono">{totalRow.ctr}%</div>
+                        <div className="text-center font-mono">{totalRow.views.toLocaleString()}</div>
+                        <div className="text-center font-mono">{totalRow.avgViewDuration}</div>
+                        <div className="text-center font-mono">{totalRow.watchTimeHours.toFixed(1)}</div>
                     </div>
                 )}
 
