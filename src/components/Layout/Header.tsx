@@ -35,12 +35,18 @@ export const Header: React.FC = () => {
         >
           <Menu size={24} />
         </button>
-        <div className="flex items-center gap-1 font-bold text-lg tracking-tighter text-text-primary cursor-pointer">
-          <div className="w-[30px] h-[20px] bg-red-600 rounded flex items-center justify-center">
-            <div className="w-0 h-0 border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-l-[6px] border-l-white"></div>
-          </div>
-          <span>YouTube</span>
-        </div>
+        <a href="/" className="flex items-center cursor-pointer">
+          <img 
+            src="/yt_logo_fullcolor_almostblack_digital.svg" 
+            alt="YouTube" 
+            className="h-5 block dark:hidden"
+          />
+          <img 
+            src="/yt_logo_fullcolor_white_digital.svg" 
+            alt="YouTube" 
+            className="h-5 hidden dark:block"
+          />
+        </a>
       </div>
 
       <div className="hidden sm:flex items-center flex-1 max-w-[720px] mx-4">
