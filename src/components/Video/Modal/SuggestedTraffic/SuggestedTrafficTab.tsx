@@ -4,7 +4,7 @@ import { TrafficUploader } from './TrafficUploader';
 import { TrafficTable } from './TrafficTable';
 import { GroupCreationModal } from './GroupCreationModal';
 import { useSuggestedTraffic } from '../../../../hooks/useSuggestedTraffic';
-import type { TrafficGroup } from '../../../../types/traffic';
+import type { TrafficGroup, TrafficSource } from '../../../../types/traffic';
 import type { CTRRule } from '../../Packaging/types';
 import { TrafficSelectionBar } from './TrafficSelectionBar';
 import { SubTabs } from '../../../Shared/SubTabs';
@@ -114,6 +114,48 @@ export const SuggestedTrafficTab: React.FC<SuggestedTrafficTabProps> = ({ custom
 
     const activeGroup = groups.find(g => g.id === activeTab);
 
+    const computedTotalRow = React.useMemo(() => {
+        if (activeTab === 'all') return totalRow;
+
+        if (displayData.length === 0) return undefined;
+
+        const totalImpressions = displayData.reduce((sum, item) => sum + item.impressions, 0);
+        const totalViews = displayData.reduce((sum, item) => sum + item.views, 0);
+        const totalWatchTime = displayData.reduce((sum, item) => sum + item.watchTimeHours, 0);
+
+        // Weighted CTR
+        // Derived Clicks = (Impressions * CTR) / 100
+        const totalClicks = displayData.reduce((sum, item) => sum + (item.impressions * (item.ctr / 100)), 0);
+        const rawWeightedCtr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+        const weightedCtr = parseFloat(rawWeightedCtr.toFixed(2));
+
+        // Weighted AVD
+        // AVD = Total Watch Time / Total Views. 
+        // Result is in hours. Need to convert to "HH:MM:SS" string.
+        const avgDurationSeconds = totalViews > 0 ? (totalWatchTime * 3600) / totalViews : 0;
+        const formatDuration = (seconds: number) => {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            const s = Math.floor(seconds % 60);
+            // If hours is 0, commonly just MM:SS or still H:MM:SS? 
+            // YouTube often does H:MM:SS. Let's keep consistent with existing format (usually H:MM:SS or MM:SS).
+            // Assuming existing data is H:MM:SS.
+            return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        };
+
+        return {
+            sourceType: 'Total',
+            sourceTitle: `Total (${displayData.length})`,
+            videoId: null,
+            impressions: totalImpressions,
+            ctr: weightedCtr,
+            views: totalViews,
+            avgViewDuration: formatDuration(avgDurationSeconds),
+            watchTimeHours: totalWatchTime
+        } as TrafficSource;
+
+    }, [activeTab, displayData, totalRow]);
+
     // Show skeleton during initial load for premium experience
     if (isInitialLoading) {
         return (
@@ -137,6 +179,10 @@ export const SuggestedTrafficTab: React.FC<SuggestedTrafficTabProps> = ({ custom
             </div>
         );
     }
+
+
+
+
 
     // Show uploader only after we've confirmed there's no data
     if (trafficData.length === 0 && !isLoading) {
@@ -218,7 +264,7 @@ export const SuggestedTrafficTab: React.FC<SuggestedTrafficTabProps> = ({ custom
                 <div className="flex-1 min-h-0">
                     <TrafficTable
                         data={displayData}
-                        totalRow={activeTab === 'all' ? totalRow : undefined}
+                        totalRow={computedTotalRow}
                         selectedIds={selectedIds}
                         onToggleSelection={handleToggleSelection}
                         onToggleAll={handleToggleAll}
