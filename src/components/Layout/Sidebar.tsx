@@ -52,7 +52,7 @@ export const Sidebar: React.FC = () => {
 
   return (
     <>
-      <aside className="w-[72px] h-[calc(100vh-56px)] sticky top-14 bg-bg-primary flex flex-col px-1 py-1 overflow-y-auto hidden sm:flex">
+      <aside className="w-[72px] h-[calc(100vh-56px)] sticky top-14 bg-bg-primary flex flex-col px-1 py-2 overflow-y-auto hidden sm:flex">
         <div onClick={() => navigate('/')}>
           <SidebarItem icon={<Home size={24} />} label="Home" active={location.pathname === '/'} />
         </div>

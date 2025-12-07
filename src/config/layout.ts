@@ -1,7 +1,7 @@
 export const GRID_LAYOUT = {
     GAP: 16,
     PADDING: {
-        TOP: 0,
+        TOP: 16,
         RIGHT: 24,
         BOTTOM: 24,
         LEFT: 0,

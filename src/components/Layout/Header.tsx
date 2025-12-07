@@ -23,7 +23,7 @@ export const Header: React.FC = () => {
   const [notificationAnchor, setNotificationAnchor] = React.useState<HTMLElement | null>(null);
 
   return (
-    <header className="flex justify-between items-center px-4 h-14 sticky top-0 bg-bg-primary z-[100]">
+    <header className="flex justify-between items-center px-4 py-2 sticky top-0 bg-bg-primary z-[100]">
       <div className="flex items-center gap-4">
         <button className="bg-none border-none text-text-primary cursor-pointer p-2 rounded-full hover:bg-hover-bg">
           <Menu size={24} />

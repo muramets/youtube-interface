@@ -304,6 +304,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
           className={`grid w-full h-full overflow-y-auto overflow-x-hidden`}
           style={{
             gap: GRID_LAYOUT.GAP,
+            paddingTop: GRID_LAYOUT.PADDING.TOP,
             paddingRight: GRID_LAYOUT.PADDING.RIGHT,
             paddingBottom: GRID_LAYOUT.PADDING.BOTTOM,
             paddingLeft: GRID_LAYOUT.PADDING.LEFT,

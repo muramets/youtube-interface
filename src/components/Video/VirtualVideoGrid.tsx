@@ -42,8 +42,23 @@ interface RowData {
     isDraggable: boolean;
 }
 
+const InnerGrid = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ style, ...rest }, ref) => (
+    <div
+        ref={ref}
+        style={{
+            ...style,
+            height: `${parseFloat((style?.height || 0).toString()) + GRID_LAYOUT.PADDING.TOP}px`,
+            position: 'relative'
+        }}
+        {...rest}
+    />
+));
+
 const Row = ({ index, style, data }: { index: number; style: React.CSSProperties; data: RowData }) => {
     const { videos, columnCount, cardWidth, gap, playlistId, onRemove, paddingLeft, paddingRight, isDraggable } = data;
+
+    // Shift row down by the top padding amount
+    const top = parseFloat((style.top || 0).toString()) + GRID_LAYOUT.PADDING.TOP;
 
     const rowVideos = [];
     for (let i = 0; i < columnCount; i++) {
@@ -54,7 +69,7 @@ const Row = ({ index, style, data }: { index: number; style: React.CSSProperties
     }
 
     return (
-        <div style={{ ...style, display: 'flex', gap, paddingLeft, paddingRight }}>
+        <div style={{ ...style, top, display: 'flex', gap, paddingLeft, paddingRight }}>
             {rowVideos.map((video) => (
                 <div key={video.id} style={{ width: cardWidth }}>
                     {isDraggable ? (
@@ -104,7 +119,7 @@ export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = ({ videos, play
         if (over && active.id !== over.id && onVideoMove) {
             onVideoMove(active.id as string, over.id as string);
         }
-        
+
         setActiveVideo(null);
     };
 
@@ -136,6 +151,7 @@ export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = ({ videos, play
                             width={width}
                             itemCount={rowCount}
                             itemSize={rowHeight}
+                            innerElementType={InnerGrid}
                             itemData={{
                                 videos,
                                 columnCount,

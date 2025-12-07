@@ -37,7 +37,7 @@ export const CategoryBar: React.FC = () => {
     return (
         <div className="flex flex-col sticky top-0 bg-bg-primary z-10 transition-all">
             {/* Row 1: Controls & Categories */}
-            <div className="flex items-center pl-0 pr-6 py-2 overflow-hidden">
+            <div className="flex items-center pl-0 pr-6 pt-3 pb-[11px] overflow-hidden">
                 <div className="flex gap-3 overflow-x-auto scrollbar-hide flex-1 items-center pr-2">
                     {categories.map((category, index) => (
                         <button
