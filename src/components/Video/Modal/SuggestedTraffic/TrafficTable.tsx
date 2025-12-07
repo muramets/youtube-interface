@@ -299,7 +299,7 @@ export const TrafficTable: React.FC<TrafficTableProps> = ({
                         <div className="text-center text-[#5A5A5A]">Total</div>
                         <div></div>
                         <div className="text-center font-mono">{totalRow.impressions.toLocaleString()}</div>
-                        <div className="text-center font-mono">{totalRow.ctr}%</div>
+                        <div className="text-center font-mono">{totalRow.ctr.toFixed(1)}%</div>
                         <div className="text-center font-mono">{totalRow.views.toLocaleString()}</div>
                         <div className="text-center font-mono">{totalRow.avgViewDuration}</div>
                         <div className="text-center font-mono">{totalRow.watchTimeHours.toFixed(1)}</div>
