@@ -6,6 +6,7 @@ import type { Playlist } from '../../../../services/playlistService';
 interface TrafficSelectionBarProps {
     selectedCount: number;
     groups: TrafficGroup[];
+    selectedGroupIds?: Set<string>;
     onAddToGroup: (groupId: string) => void;
     onCreateGroup: (name: string) => void;
     onClearSelection: () => void;
@@ -21,6 +22,7 @@ interface TrafficSelectionBarProps {
 export const TrafficSelectionBar: React.FC<TrafficSelectionBarProps> = ({
     selectedCount,
     groups,
+    selectedGroupIds,
     onAddToGroup,
     onCreateGroup,
     onClearSelection,
@@ -101,6 +103,64 @@ export const TrafficSelectionBar: React.FC<TrafficSelectionBarProps> = ({
                     >
                         <X size={16} />
                     </button>
+                </div>
+
+                {/* Assign Niche Dropdown */}
+                <div className="relative" ref={dropdownRef}>
+                    <button
+                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                        className={`
+                            flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all
+                            ${isDropdownOpen ? 'bg-white text-black' : 'bg-white/10 hover:bg-white/20 text-white'}
+                        `}
+                    >
+                        <FolderPlus size={16} />
+                        Assign Niche
+                        <ChevronDown size={14} className={`transition-transform ${isDropdownOpen ? '' : 'rotate-180'}`} />
+                    </button>
+
+                    {isDropdownOpen && (
+                        <div className="absolute bottom-full left-0 mb-2 w-64 bg-[#1F1F1F] border border-white/10 rounded-xl shadow-xl overflow-hidden flex flex-col animate-fade-in z-[60]">
+                            {/* Quick Create Input */}
+                            <div className="p-2 border-b border-white/10">
+                                <form onSubmit={handleCreateSubmit} className="relative">
+                                    <input
+                                        ref={inputRef}
+                                        type="text"
+                                        placeholder="Create new niche..."
+                                        className="w-full bg-white/5 text-white text-xs px-3 py-2 pl-8 rounded-lg focus:outline-none focus:bg-white/10 placeholder:text-text-secondary"
+                                        value={newGroupName}
+                                        onChange={(e) => setNewGroupName(e.target.value)}
+                                    />
+                                    <Plus size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary" />
+                                </form>
+                            </div>
+
+                            {/* Groups List */}
+                            <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
+                                {groups.length === 0 ? (
+                                    <div className="px-4 py-3 text-center text-xs text-text-secondary">
+                                        No niches yet
+                                    </div>
+                                ) : (
+                                    groups.map(group => (
+                                        <button
+                                            key={group.id}
+                                            onClick={() => {
+                                                onAddToGroup(group.id);
+                                                setIsDropdownOpen(false);
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-xs text-text-secondary hover:text-white hover:bg-white/5 rounded-lg flex items-center gap-2 transition-colors group"
+                                        >
+                                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: group.color }} />
+                                            <span className="truncate flex-1">{group.name}</span>
+                                            {selectedGroupIds?.has(group.id) && <Check size={12} className="text-white" />}
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Divider */}
@@ -185,66 +245,6 @@ export const TrafficSelectionBar: React.FC<TrafficSelectionBarProps> = ({
                         )}
                     </div>
                 )}
-
-                {/* Divider */}
-                <div className="w-px h-6 bg-white/10 mx-1" />
-
-                <div className="relative" ref={dropdownRef}>
-                    <button
-                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                        className={`
-                            flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all
-                            ${isDropdownOpen ? 'bg-white text-black' : 'bg-white/10 hover:bg-white/20 text-white'}
-                        `}
-                    >
-                        <FolderPlus size={16} />
-                        Assign Niche
-                        <ChevronDown size={14} className={`transition-transform ${isDropdownOpen ? '' : 'rotate-180'}`} />
-                    </button>
-
-                    {isDropdownOpen && (
-                        <div className="absolute bottom-full right-0 mb-2 w-64 bg-[#1F1F1F] border border-white/10 rounded-xl shadow-xl overflow-hidden flex flex-col animate-fade-in z-[60]">
-                            {/* Quick Create Input */}
-                            <div className="p-2 border-b border-white/10">
-                                <form onSubmit={handleCreateSubmit} className="relative">
-                                    <input
-                                        ref={inputRef}
-                                        type="text"
-                                        placeholder="Create new niche..."
-                                        className="w-full bg-white/5 text-white text-xs px-3 py-2 pl-8 rounded-lg focus:outline-none focus:bg-white/10 placeholder:text-text-secondary"
-                                        value={newGroupName}
-                                        onChange={(e) => setNewGroupName(e.target.value)}
-                                    />
-                                    <Plus size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary" />
-                                </form>
-                            </div>
-
-                            {/* Groups List */}
-                            <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
-                                {groups.length === 0 ? (
-                                    <div className="px-4 py-3 text-center text-xs text-text-secondary">
-                                        No niches yet
-                                    </div>
-                                ) : (
-                                    groups.map(group => (
-                                        <button
-                                            key={group.id}
-                                            onClick={() => {
-                                                onAddToGroup(group.id);
-                                                setIsDropdownOpen(false);
-                                            }}
-                                            className="w-full text-left px-3 py-2 text-xs text-text-secondary hover:text-white hover:bg-white/5 rounded-lg flex items-center gap-2 transition-colors group"
-                                        >
-                                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: group.color }} />
-                                            <span className="truncate flex-1">{group.name}</span>
-                                            {activeGroupId === group.id && <Check size={12} className="text-white" />}
-                                        </button>
-                                    ))
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </div>
 
                 {activeGroupId && onRemoveFromGroup && (
                     <button

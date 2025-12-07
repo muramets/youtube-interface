@@ -4,7 +4,7 @@ import type { TrafficGroup, TrafficSource } from '../types/traffic';
 import { useAuth } from './useAuth';
 import { useChannelStore } from '../stores/channelStore';
 
-export const useSuggestedTraffic = (customVideoId: string) => {
+export const useSuggestedTraffic = (customVideoId: string, activeTabId: string) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const [trafficData, setTrafficData] = useState<TrafficSource[]>([]);
@@ -13,7 +13,12 @@ export const useSuggestedTraffic = (customVideoId: string) => {
     const [isLoading, setIsLoading] = useState(false);
     const [isInitialLoading, setIsInitialLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+    // Scoped selections: map of tabId -> Set of selected videoIds
+    const [selectionsByTab, setSelectionsByTab] = useState<Record<string, Set<string>>>({});
+
+    // Derive selectedIds for the current active tab
+    const selectedIds = selectionsByTab[activeTabId] || new Set<string>();
     const selectedIdsRef = useRef(selectedIds);
 
     // Initialize from localStorage
@@ -167,20 +172,22 @@ export const useSuggestedTraffic = (customVideoId: string) => {
     };
 
     const handleToggleSelection = useCallback((id: string) => {
-        setSelectedIds(prev => {
-            const newSet = new Set(prev);
+        setSelectionsByTab(prev => {
+            const currentSet = prev[activeTabId] || new Set<string>();
+            const newSet = new Set(currentSet);
             if (newSet.has(id)) {
                 newSet.delete(id);
             } else {
                 newSet.add(id);
             }
-            return newSet;
+            return { ...prev, [activeTabId]: newSet };
         });
-    }, []);
+    }, [activeTabId]);
 
     const handleToggleAll = useCallback((ids: string[]) => {
-        setSelectedIds(prev => {
-            const newSet = new Set(prev);
+        setSelectionsByTab(prev => {
+            const currentSet = prev[activeTabId] || new Set<string>();
+            const newSet = new Set(currentSet);
             const allSelected = ids.every(id => newSet.has(id));
 
             if (allSelected) {
@@ -188,9 +195,9 @@ export const useSuggestedTraffic = (customVideoId: string) => {
             } else {
                 ids.forEach(id => newSet.add(id));
             }
-            return newSet;
+            return { ...prev, [activeTabId]: newSet };
         });
-    }, []);
+    }, [activeTabId]);
 
     const handleCreateGroup = useCallback((groupData: Omit<TrafficGroup, 'id' | 'videoIds'> & { id?: string }) => {
         if (groupData.id) {
@@ -213,7 +220,7 @@ export const useSuggestedTraffic = (customVideoId: string) => {
                 saveData(trafficData, newGroups, totalRow);
                 return newGroups;
             });
-            setSelectedIds(new Set()); // Clear selection
+            setSelectionsByTab(prev => ({ ...prev, [activeTabId]: new Set<string>() })); // Clear selection
         }
     }, [trafficData, totalRow, saveData]);
 
@@ -241,7 +248,7 @@ export const useSuggestedTraffic = (customVideoId: string) => {
             saveData(trafficData, newGroups, totalRow);
             return newGroups;
         });
-        setSelectedIds(new Set());
+        setSelectionsByTab(prev => ({ ...prev, [activeTabId]: new Set<string>() }));
     }, [trafficData, totalRow, saveData]);
 
     const handleRemoveFromGroup = useCallback((groupId: string, videoIdsToRemove: string[]) => {
@@ -258,8 +265,8 @@ export const useSuggestedTraffic = (customVideoId: string) => {
     }, [trafficData, totalRow, saveData]);
 
     const clearSelection = useCallback(() => {
-        setSelectedIds(new Set());
-    }, []);
+        setSelectionsByTab(prev => ({ ...prev, [activeTabId]: new Set<string>() }));
+    }, [activeTabId]);
 
     return {
         trafficData,

@@ -1094,7 +1094,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                     onSaveDraft={() => handleSave(true, true)}
                                     onSaveVersion={handleSaveAsVersion}
                                 />
-                            ) : (
+                            ) : activeTab === 'packaging' ? (
                                 <button
                                     onClick={() => handleSave(true)}
                                     disabled={(!isPackagingDirty && !isMetadataDirty && !isCtrRulesDirty) || isSaving}
@@ -1109,7 +1109,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                         "Save"
                                     )}
                                 </button>
-                            )}
+                            ) : null}
 
                             <button
                                 onClick={handleClose}

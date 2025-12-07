@@ -23,6 +23,8 @@ interface SuggestedTrafficTabProps {
 }
 
 export const SuggestedTrafficTab: React.FC<SuggestedTrafficTabProps> = ({ customVideoId, packagingCtrRules }) => {
+    const [activeTab, setActiveTab] = useState<string>('all');
+
     const {
         trafficData,
         totalRow,
@@ -41,7 +43,7 @@ export const SuggestedTrafficTab: React.FC<SuggestedTrafficTabProps> = ({ custom
         handleDeleteGroup,
         handleAddToGroup,
         handleRemoveFromGroup
-    } = useSuggestedTraffic(customVideoId);
+    } = useSuggestedTraffic(customVideoId, activeTab);
 
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
@@ -52,10 +54,32 @@ export const SuggestedTrafficTab: React.FC<SuggestedTrafficTabProps> = ({ custom
     const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [editingGroup, setEditingGroup] = useState<TrafficGroup | undefined>(undefined);
-    const [activeTab, setActiveTab] = useState<string>('all');
 
     // Filter ungrouped data if hideGrouped is true
     const groupedVideoIds = new Set(groups.flatMap(g => g.videoIds));
+
+    // Compute which groups ALL selected videos belong to
+    const selectedGroupIds = React.useMemo(() => {
+        if (selectedIds.size === 0) return new Set<string>();
+        const selectedArray = Array.from(selectedIds);
+        // A group is "checked" if ALL selected videos are in that group
+        const memberGroups = groups.filter(g =>
+            selectedArray.every(vid => g.videoIds.includes(vid))
+        );
+        return new Set(memberGroups.map(g => g.id));
+    }, [selectedIds, groups]);
+
+    // Toggle group membership: add if not all selected are in group, remove if all are
+    const handleToggleGroupMembership = (groupId: string) => {
+        const selectedArray = Array.from(selectedIds);
+        if (selectedGroupIds.has(groupId)) {
+            // All selected videos are in this group -> remove them
+            handleRemoveFromGroup(groupId, selectedArray);
+        } else {
+            // Not all selected videos are in this group -> add them
+            handleAddToGroup(groupId, selectedArray);
+        }
+    };
 
     // Determine data to show based on active tab
     const displayData = React.useMemo(() => {
@@ -208,7 +232,8 @@ export const SuggestedTrafficTab: React.FC<SuggestedTrafficTabProps> = ({ custom
             <TrafficSelectionBar
                 selectedCount={selectedIds.size}
                 groups={groups}
-                onAddToGroup={(groupId) => handleAddToGroup(groupId)}
+                selectedGroupIds={selectedGroupIds}
+                onAddToGroup={handleToggleGroupMembership}
                 onCreateGroup={handleQuickCreateGroup}
                 onClearSelection={clearSelection}
                 onRemoveFromGroup={activeGroup ? () => {
