@@ -88,10 +88,10 @@ export const SubTabs: React.FC<SubTabsProps> = ({
                                 // e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
                             }}
                             className={`
-                                relative flex items-center gap-2 px-4 py-2 text-xs font-medium rounded-b-lg transition-all whitespace-nowrap select-none
+                                relative flex items-center gap-2 px-4 py-2 text-xs font-medium transition-all whitespace-nowrap select-none
                                 ${isActive
                                     ? 'text-text-primary bg-white/5'
-                                    : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
+                                    : 'text-text-secondary hover:text-text-primary'
                                 }
                             `}
                         >
