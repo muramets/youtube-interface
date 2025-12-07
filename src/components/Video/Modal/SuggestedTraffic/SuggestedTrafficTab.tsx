@@ -150,7 +150,7 @@ export const SuggestedTrafficTab: React.FC<SuggestedTrafficTabProps> = ({ custom
     return (
         <div className="h-full flex flex-col overflow-hidden relative">
             {/* Tabs */}
-            <div className="z-20 bg-bg-secondary pl-[330px] pr-6 flex-shrink-0 border-b border-white/5">
+            <div className="z-20 bg-bg-secondary flex-shrink-0 border-b border-white/5">
                 <SubTabs
                     activeTabId={activeTab}
                     onTabChange={setActiveTab}
