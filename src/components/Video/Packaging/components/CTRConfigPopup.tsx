@@ -184,6 +184,14 @@ export const CTRConfigPopup: React.FC<{
         onSave(rules.filter(r => r.id !== id));
     };
 
+    const sortAndSaveRules = () => {
+        const sorted = [...rules].sort((a, b) => a.value - b.value);
+        // Only save if order changed to avoid unnecessary renders/saves
+        if (JSON.stringify(sorted) !== JSON.stringify(rules)) {
+            onSave(sorted);
+        }
+    };
+
     return createPortal(
         <div
             ref={popupRef}
@@ -223,6 +231,7 @@ export const CTRConfigPopup: React.FC<{
                                                     const val = e.target.value.replace(/[^\d.]/g, '');
                                                     updateRule(rule.id, { value: Number(val) });
                                                 }}
+                                                onBlur={sortAndSaveRules}
                                                 className="w-9 h-7 bg-[#2A2A2A] text-white text-xs rounded px-1 focus:outline-none text-center border border-transparent focus:border-white/20"
                                             />
                                             <span className="text-[9px] text-[#555]">-</span>
@@ -233,6 +242,7 @@ export const CTRConfigPopup: React.FC<{
                                                     const val = e.target.value.replace(/[^\d.]/g, '');
                                                     updateRule(rule.id, { maxValue: Number(val) });
                                                 }}
+                                                onBlur={sortAndSaveRules}
                                                 className="w-9 h-7 bg-[#2A2A2A] text-white text-xs rounded px-1 focus:outline-none text-center border border-transparent focus:border-white/20"
                                             />
                                         </div>
@@ -245,6 +255,7 @@ export const CTRConfigPopup: React.FC<{
                                                     const val = e.target.value.replace(/[^\d.]/g, '');
                                                     updateRule(rule.id, { value: Number(val) });
                                                 }}
+                                                onBlur={sortAndSaveRules}
                                                 className="w-12 h-7 bg-[#2A2A2A] text-white text-xs rounded px-2 focus:outline-none text-center border border-transparent focus:border-white/20"
                                             />
                                             <span className="absolute right-1 text-[9px] text-[#555] pointer-events-none">%</span>

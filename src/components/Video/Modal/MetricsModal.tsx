@@ -66,8 +66,8 @@ export const MetricsModal: React.FC<MetricsModalProps> = ({
                         <label className="text-xs text-[#AAAAAA]">Views</label>
                         <input
                             type="number"
-                            value={metricsData.views}
-                            onChange={(e) => setMetricsData(prev => ({ ...prev, views: Number(e.target.value) }))}
+                            value={metricsData.views ?? ''}
+                            onChange={(e) => setMetricsData(prev => ({ ...prev, views: e.target.value === '' ? null : Number(e.target.value) }))}
                             className="w-full bg-[#1F1F1F] border border-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             placeholder="0"
                         />
@@ -76,8 +76,8 @@ export const MetricsModal: React.FC<MetricsModalProps> = ({
                         <label className="text-xs text-[#AAAAAA]">CTR (%)</label>
                         <input
                             type="number"
-                            value={metricsData.ctr}
-                            onChange={(e) => setMetricsData(prev => ({ ...prev, ctr: Number(e.target.value) }))}
+                            value={metricsData.ctr ?? ''}
+                            onChange={(e) => setMetricsData(prev => ({ ...prev, ctr: e.target.value === '' ? null : Number(e.target.value) }))}
                             className="w-full bg-[#1F1F1F] border border-border rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             placeholder="0.0"
                             step="0.1"

@@ -97,12 +97,29 @@ export const useVideos = (userId: string, channelId: string) => {
                         const mergedDetails = await fetchVideoDetails(updates.publishedVideoId, apiKey);
                         if (mergedDetails) {
                             finalUpdates.mergedVideoData = mergedDetails;
+                            // Clear retry state on success
+                            finalUpdates.fetchStatus = 'success';
+                            finalUpdates.fetchRetryCount = undefined;
+                            finalUpdates.lastFetchAttempt = undefined;
+                        } else {
+                            // Failed to fetch - initialize retry state
+                            finalUpdates.fetchStatus = 'pending';
+                            finalUpdates.fetchRetryCount = 0;
+                            finalUpdates.lastFetchAttempt = Date.now();
                         }
                     } catch (error) {
                         console.error("Failed to fetch merged video details:", error);
+                        // Initialize retry state on error
+                        finalUpdates.fetchStatus = 'pending';
+                        finalUpdates.fetchRetryCount = 0;
+                        finalUpdates.lastFetchAttempt = Date.now();
                     }
                 } else if (updates.publishedVideoId === '') {
+                    // Clearing publishedVideoId - reset all related fields
                     delete finalUpdates.mergedVideoData;
+                    finalUpdates.fetchStatus = undefined;
+                    finalUpdates.fetchRetryCount = undefined;
+                    finalUpdates.lastFetchAttempt = undefined;
                 }
 
                 await VideoService.updateVideo(userId, channelId, videoId, finalUpdates);

@@ -29,6 +29,8 @@ const defaultArgs = {
     currentVersion: 1,
     currentOriginalName: 'image.jpg',
     onDelete: (e: React.MouseEvent) => e.stopPropagation(),
+    abTestVariants: [],
+    onAddToAbTest: () => { },
     fileInputRef: { current: null },
 };
 

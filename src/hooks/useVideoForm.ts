@@ -267,14 +267,16 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         if (audioRender !== (initialData.audioRender || '')) return true;
 
         if (!!initialData.publishedVideoId !== isPublished) return true;
-        if (isPublished && initialData.publishedVideoId && !publishedUrl.includes(initialData.publishedVideoId)) return true;
-        if (isPublished && !initialData.publishedVideoId && publishedUrl) return true;
 
+        return false;
+    })();
+
+    const isCtrRulesDirty = (() => {
+        if (!initialData) return false;
         // Check CTR Rules
         const initialRules = initialData.ctrRules || [];
         if (ctrRules.length !== initialRules.length) return true;
         if (JSON.stringify(ctrRules) !== JSON.stringify(initialRules)) return true;
-
         return false;
     })();
 
@@ -324,7 +326,7 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         return false;
     })();
 
-    const isDirty = isMetadataDirty || isPackagingDirty;
+    const isDirty = isMetadataDirty || isPackagingDirty || isCtrRulesDirty;
 
     const isValid = (() => {
         if (isPublished && !publishedUrl.trim()) return false;
@@ -364,6 +366,7 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         isDirty,
         isMetadataDirty,
         isPackagingDirty,
+        isCtrRulesDirty,
         isDraft, setIsDraft,
         isPublished, setIsPublished,
         publishedUrl, setPublishedUrl,

@@ -37,6 +37,10 @@ export interface VideoDetails {
     packagingHistory?: PackagingVersion[];
     currentPackagingVersion?: number;
     ctrRules?: CTRRule[];
+    // Retry state for private/unavailable videos
+    fetchRetryCount?: number;
+    lastFetchAttempt?: number;
+    fetchStatus?: 'pending' | 'success' | 'failed';
 }
 
 export interface CTRRule {

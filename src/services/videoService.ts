@@ -4,8 +4,10 @@ import {
     deleteDocument,
     subscribeToCollection,
     fetchCollection,
-    getDocument
+    getDocument,
+    updateDocument
 } from './firestore';
+import type { DocumentData } from 'firebase/firestore';
 import type { VideoDetails, HistoryItem, CoverVersion } from '../utils/youtubeApi';
 import { orderBy, getDocs, deleteDoc, writeBatch, doc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -62,11 +64,11 @@ export const VideoService = {
         videoId: string,
         updates: Partial<VideoDetails>
     ) => {
-        await setDocument(
+        // Use updateDoc to properly replace fields (including arrays) instead of merge
+        await updateDocument(
             getVideosPath(userId, channelId),
             videoId,
-            updates,
-            true
+            updates as DocumentData
         );
     },
 

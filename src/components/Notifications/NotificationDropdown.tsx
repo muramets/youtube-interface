@@ -14,6 +14,8 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onCl
     const { openVideoModal, setSettingsOpen } = useUIStore();
     const navigate = useNavigate();
 
+
+
     const [activeFilter, setActiveFilter] = React.useState<'All' | 'Sync'>('All');
 
     const hasSyncNotifications = notifications.some(n => n.title.includes('Sync'));

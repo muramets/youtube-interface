@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { type VideoDetails, type CoverVersion, type PackagingMetrics, type PackagingVersion, type HistoryItem, type PackagingCheckin, fetchVideoDetails, extractVideoId } from '../../utils/youtubeApi';
@@ -10,7 +10,7 @@ import { useVideos } from '../../hooks/useVideos';
 import { useChannelStore } from '../../stores/channelStore';
 import { useAuth } from '../../hooks/useAuth';
 import { useSettings } from '../../hooks/useSettings';
-import { useNotificationStore } from '../../stores/notificationStore';
+
 import { Toast } from '../Shared/Toast';
 import { useVideoForm } from '../../hooks/useVideoForm';
 
@@ -50,7 +50,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     const { user } = useAuth();
     const { currentChannel, updateChannel } = useChannelStore();
     const { packagingSettings, generalSettings } = useSettings();
-    const { addNotification } = useNotificationStore();
+
 
     const { saveVideoHistory, deleteVideoHistoryItem } = useVideos(user?.uid || '', currentChannel?.id || '');
     const modalRef = useRef<HTMLDivElement>(null);
@@ -66,6 +66,9 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
             setActiveTab(initialTab);
         }
     }, [initialTab]);
+
+    // Debug: Log current check-ins when modal opens
+
 
     // Initialize activeVersionTab based on draft status
     // Initialize activeVersionTab based on draft status
@@ -204,6 +207,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         deletedHistoryIds, setDeletedHistoryIds,
         isMetadataDirty,
         isPackagingDirty,
+        isCtrRulesDirty,
         isDraft, setIsDraft,
         isPublished, setIsPublished,
         publishedUrl, setPublishedUrl,
@@ -225,6 +229,8 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         ctrRules,
         setCtrRules
     } = useVideoForm(initialData, isOpen);
+
+    // Initialize activeVersionTab based on draft status
 
     // Auto-Checkin Logic
     // Helper to calculate checkin count for dependency stability
@@ -439,31 +445,6 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         }
     };
 
-    const handleRestoreVersion = (versionToRestore: CoverVersion) => {
-        if (coverImage) {
-            const historyVersion: CoverVersion = {
-                url: coverImage,
-                version: currentVersion,
-                timestamp: Date.now(),
-                originalName: currentOriginalName
-            };
-            setCoverHistory(prev => [historyVersion, ...prev.filter(v => v.timestamp !== versionToRestore.timestamp)]);
-            setDeletedHistoryIds(prev => new Set(prev).add(versionToRestore.timestamp));
-        }
-
-        setCoverImage(versionToRestore.url);
-        setCurrentOriginalName(versionToRestore.originalName || 'Restored Version');
-        setCurrentVersion(versionToRestore.version);
-    };
-
-    const handleDeleteVersion = (e: React.MouseEvent, timestamp: number) => {
-        e.stopPropagation();
-        setCoverHistory(prev => prev.filter(v => v.timestamp !== timestamp));
-        setDeletedHistoryIds(prev => new Set(prev).add(timestamp));
-    };
-
-
-
     const handleDeleteCurrentVersion = (e: React.MouseEvent) => {
         e.stopPropagation();
 
@@ -485,8 +466,6 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
             setCurrentOriginalName('');
         }
     };
-
-
 
     const handleDeleteHistoryItem = async (e: React.MouseEvent, timestamp: number, immediate: boolean = false) => {
         e.stopPropagation();
@@ -932,13 +911,17 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                             ) : (
                                 <button
                                     onClick={() => handleSave(true)}
-                                    disabled={(!isPackagingDirty && !isMetadataDirty) || isSaving}
-                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${(isPackagingDirty || isMetadataDirty) && !isSaving
+                                    disabled={(!isPackagingDirty && !isMetadataDirty && !isCtrRulesDirty) || isSaving}
+                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${(isPackagingDirty || isMetadataDirty || isCtrRulesDirty) && !isSaving
                                         ? 'bg-white text-black hover:bg-gray-200 cursor-pointer shadow-[0_0_10px_rgba(255,255,255,0.3)]'
                                         : 'bg-[#424242] text-[#717171] cursor-default'
                                         }`}
                                 >
-                                    Save
+                                    {isSaving ? (
+                                        <Loader2 size={16} className="animate-spin text-white" />
+                                    ) : (
+                                        "Save"
+                                    )}
                                 </button>
                             )}
 
@@ -952,25 +935,25 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                     </div>
 
                     {/* Tabs */}
-                    <div className="px-6 pt-4 border-b border-border/50 flex gap-6">
+                    <div className="flex items-center gap-2 px-6 pt-4 border-b border-white/5 flex-shrink-0">
                         <button
                             onClick={() => setActiveTab('details')}
-                            className={`pb-3 text-sm font-medium transition-all relative ${activeTab === 'details' ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
+                            className={`px-4 pb-3 text-sm font-medium transition-all relative ${activeTab === 'details' ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
                         >
-                            Details
+                            Packaging
                             {activeTab === 'details' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-text-primary rounded-t-full" />}
                         </button>
                         <button
                             onClick={() => setActiveTab('packaging')}
-                            className={`pb-3 text-sm font-medium transition-all relative ${activeTab === 'packaging' ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
+                            className={`px-4 pb-3 text-sm font-medium transition-all relative ${activeTab === 'packaging' ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
                         >
-                            Packaging
+                            Performance Tracking
                             {activeTab === 'packaging' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-text-primary rounded-t-full" />}
                         </button>
                         {initialData?.id && (
                             <button
                                 onClick={() => setActiveTab('traffic')}
-                                className={`pb-3 text-sm font-medium transition-all relative ${activeTab === 'traffic' ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
+                                className={`px-4 pb-3 text-sm font-medium transition-all relative ${activeTab === 'traffic' ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
                             >
                                 Suggested Traffic
                                 {activeTab === 'traffic' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-text-primary rounded-t-full" />}

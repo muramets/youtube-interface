@@ -124,7 +124,7 @@ export const FilterButton: React.FC = () => {
                     className="fixed z-[1000] bg-[#1F1F1F] rounded-xl shadow-2xl overflow-hidden animate-scale-in flex flex-col"
                     style={{
                         top: position.top,
-                        top: position.top,
+
                         right: position.right,
                         width: '260px'
                     }}

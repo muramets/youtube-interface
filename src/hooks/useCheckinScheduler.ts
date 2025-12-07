@@ -5,6 +5,7 @@ import { useChannelStore } from '../stores/channelStore';
 
 import { useSettings } from './useSettings';
 import { useNotificationStore } from '../stores/notificationStore';
+import { calculateDueDate } from '../utils/dueDateUtils';
 
 export const useCheckinScheduler = () => {
     const { user } = useAuth();
@@ -18,14 +19,16 @@ export const useCheckinScheduler = () => {
     useEffect(() => {
         const checkDueCheckins = async () => {
             const now = Date.now();
-            const customVideos = videos.filter(v => v.isCustom && v.publishedAt && v.publishedVideoId);
+            const customVideos = videos.filter(v => v.isCustom && v.publishedVideoId);
 
             for (const video of customVideos) {
-                if (!video.publishedAt) continue;
-                const publishTime = new Date(video.publishedAt).getTime();
+                // Use YouTube's publishedAt from mergedVideoData if available, fallback to video.publishedAt
+                const publishedAt = video.mergedVideoData?.publishedAt || video.publishedAt;
+                if (!publishedAt) continue;
 
                 for (const rule of packagingSettings.checkinRules) {
-                    const dueTime = publishTime + (rule.hoursAfterPublish * 60 * 60 * 1000);
+                    // Calculate due time using utility that accounts for YouTube analytics update at 12:00
+                    const dueTime = calculateDueDate(publishedAt, rule.hoursAfterPublish);
 
                     const notificationId = `checkin-due-${video.id}-${rule.id}`;
 

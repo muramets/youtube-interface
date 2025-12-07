@@ -96,12 +96,12 @@ export const Dropdown: React.FC<DropdownProps> = ({
             onClose();
         };
 
-        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('mousedown', handleClickOutside, { capture: true });
         window.addEventListener('resize', handleResize);
         window.addEventListener('scroll', handleScroll, true); // Capture scroll events
 
         return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('mousedown', handleClickOutside, { capture: true });
             window.removeEventListener('resize', handleResize);
             window.removeEventListener('scroll', handleScroll, true);
         };

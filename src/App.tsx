@@ -21,9 +21,13 @@ import { useNotificationStore } from './stores/notificationStore';
 import { Toast } from './components/Shared/Toast';
 
 import { useCheckinScheduler } from './hooks/useCheckinScheduler';
+import { useVideoFetchRetry } from './hooks/useVideoFetchRetry';
+import { useAutoCleanup } from './hooks/useAutoCleanup';
 
 function AppContent() {
   useCheckinScheduler();
+  useVideoFetchRetry();
+  useAutoCleanup();
   const { user } = useAuth();
   const { currentChannel } = useChannelStore();
   const { isLoading, videos } = useVideos(user?.uid || '', currentChannel?.id || '');

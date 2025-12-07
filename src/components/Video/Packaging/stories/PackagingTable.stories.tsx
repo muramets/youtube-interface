@@ -88,6 +88,9 @@ const defaultArgs = {
     history: mockHistory,
     onUpdateHistory: () => { },
     onAddCheckin: () => { },
+    ctrRules: [],
+    onUpdateCtrRules: () => { },
+    onDeleteVersion: () => { },
 };
 
 export const Default: Story = {

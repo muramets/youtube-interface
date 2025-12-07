@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Plus, Trash2, ChevronDown } from 'lucide-react';
 import { Dropdown } from '../Shared/Dropdown';
+import { PortalTooltip } from '../Shared/PortalTooltip';
 import { type PackagingSettings, type CheckinRule } from '../../services/settingsService';
 
 interface PackagingSettingsViewProps {
     settings: PackagingSettings;
     onChange: (settings: PackagingSettings) => void;
+    onCleanup: () => Promise<void>;
 }
 
 const PRESET_COLORS = [
@@ -63,11 +65,66 @@ const ColorSelect: React.FC<{ value: string; onChange: (color: string) => void }
     );
 };
 
+// Badge Preview component with truncation detection and custom tooltip
+const BadgePreview: React.FC<{ text: string; color: string }> = ({ text, color }) => {
+    const textRef = useRef<HTMLSpanElement>(null);
+    const [isTruncated, setIsTruncated] = useState(false);
+
+    useEffect(() => {
+        const checkTruncation = () => {
+            if (textRef.current) {
+                // Check if text is being clamped (scrollHeight > clientHeight)
+                setIsTruncated(textRef.current.scrollHeight > textRef.current.clientHeight);
+            }
+        };
+        checkTruncation();
+        // Re-check on text change
+    }, [text]);
+
+    const badge = (
+        <span
+            ref={textRef}
+            className="px-1.5 py-0.5 rounded text-[9px] font-medium text-white text-center leading-tight max-w-full line-clamp-2 break-words"
+            style={{ backgroundColor: color }}
+        >
+            {text}
+        </span>
+    );
+
+    const tooltipContent = (
+        <div
+            className="px-2 py-1 rounded text-[11px] font-medium text-white"
+            style={{ backgroundColor: color }}
+        >
+            {text}
+        </div>
+    );
+
+    return (
+        <div className="flex flex-col gap-1 w-[100px]">
+            <label className="text-[10px] text-[#AAAAAA] uppercase tracking-wider font-medium">Preview</label>
+            <div className="min-h-[34px] flex items-center justify-center">
+                {isTruncated ? (
+                    <PortalTooltip
+                        content={tooltipContent}
+                        className="!p-0 !bg-transparent !border-0 !shadow-none"
+                    >
+                        {badge}
+                    </PortalTooltip>
+                ) : (
+                    badge
+                )}
+            </div>
+        </div>
+    );
+};
+
 const RuleItem: React.FC<{
     rule: CheckinRule;
     onUpdate: (id: string, updates: Partial<CheckinRule>) => void;
     onDelete: (id: string) => void;
-}> = ({ rule, onUpdate, onDelete }) => {
+    isDuplicate?: boolean;
+}> = ({ rule, onUpdate, onDelete, isDuplicate }) => {
     const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
     // Default to 'days' if not set
@@ -84,18 +141,19 @@ const RuleItem: React.FC<{
     };
 
     return (
-        <div className="bg-[#1F1F1F] p-3 rounded-xl border border-white/5 flex items-start gap-3">
+        <div className={`bg-[#1F1F1F] p-3 rounded-xl border ${isDuplicate ? 'border-red-500' : 'border-white/5'} flex items-start gap-3 transition-colors`}>
             <div className="flex flex-col gap-1">
                 <label className="text-[10px] text-[#AAAAAA] uppercase tracking-wider font-medium">Time after publication</label>
                 <div className="flex gap-2">
                     <div className="w-16">
                         <input
                             type="number"
-                            min="0"
-                            step="0.1"
+                            min="1"
+                            step="1"
                             value={currentValue}
-                            onChange={(e) => handleTimeChange(parseFloat(e.target.value) || 0, currentUnit as 'days' | 'weeks')}
-                            className="w-full bg-[#2A2A2A] border border-transparent focus:border-white/20 rounded px-2 py-1.5 text-sm text-white focus:outline-none transition-colors no-spinner"
+                            onChange={(e) => handleTimeChange(Math.round(parseFloat(e.target.value)) || 1, currentUnit as 'days' | 'weeks')}
+                            className={`w-full bg-[#2A2A2A] border ${isDuplicate ? 'border-red-500' : 'border-transparent focus:border-white/20'} rounded px-2 py-1.5 text-sm text-white focus:outline-none transition-colors no-spinner`}
+                            title={isDuplicate ? "This time duration is already used by another rule" : undefined}
                         />
                     </div>
                     <div className="relative w-24">
@@ -130,7 +188,7 @@ const RuleItem: React.FC<{
                 </div>
             </div>
 
-            <div className="flex flex-col gap-1 flex-1">
+            <div className="flex flex-col gap-1 flex-1 min-w-[140px]">
                 <label className="text-[10px] text-[#AAAAAA] uppercase tracking-wider font-medium">Badge Text</label>
                 <input
                     type="text"
@@ -151,17 +209,7 @@ const RuleItem: React.FC<{
                 </div>
             </div>
 
-            <div className="flex flex-col gap-1 min-w-[60px]">
-                <label className="text-[10px] text-[#AAAAAA] uppercase tracking-wider font-medium">Preview</label>
-                <div className="min-h-[34px] flex items-center">
-                    <span
-                        className="px-1.5 py-0.5 rounded text-[9px] font-medium text-white text-center leading-tight max-w-[120px]"
-                        style={{ backgroundColor: rule.badgeColor }}
-                    >
-                        {rule.badgeText || 'Badge'}
-                    </span>
-                </div>
-            </div>
+            <BadgePreview text={rule.badgeText || 'Badge'} color={rule.badgeColor} />
 
             <div className="flex flex-col gap-1 pt-5">
                 <button
@@ -176,7 +224,7 @@ const RuleItem: React.FC<{
     );
 };
 
-export const PackagingSettingsView: React.FC<PackagingSettingsViewProps> = ({ settings, onChange }) => {
+export const PackagingSettingsView: React.FC<PackagingSettingsViewProps> = ({ settings, onChange, onCleanup }) => {
     const addRule = () => {
         // Find the first color that isn't used
         const usedColors = new Set(settings.checkinRules.map(r => r.badgeColor));
@@ -214,6 +262,17 @@ export const PackagingSettingsView: React.FC<PackagingSettingsViewProps> = ({ se
         onChange({ ...settings, checkinRules: newRules });
     };
 
+    // Calculate duplicates
+    const duplicateHours = new Set<number>();
+    const hoursSeen = new Set<number>();
+    settings.checkinRules.forEach(rule => {
+        if (hoursSeen.has(rule.hoursAfterPublish)) {
+            duplicateHours.add(rule.hoursAfterPublish);
+        } else {
+            hoursSeen.add(rule.hoursAfterPublish);
+        }
+    });
+
     return (
         <div className="flex flex-col h-full">
             <div className="flex justify-between items-center mb-6">
@@ -221,6 +280,16 @@ export const PackagingSettingsView: React.FC<PackagingSettingsViewProps> = ({ se
                     <h2 className="text-lg font-medium text-white">Packaging Check-ins</h2>
                     <p className="text-sm text-[#AAAAAA]">Configure mandatory check-ins for video packaging</p>
                 </div>
+                <button
+                    onClick={() => {
+                        if (confirm('Verify and cleanup all check-in data across videos? This will remove orphaned check-ins.')) {
+                            onCleanup();
+                        }
+                    }}
+                    className="text-xs text-[#555] hover:text-[#AAAAAA] underline transition-colors"
+                >
+                    Diff / Cleanup Data
+                </button>
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar">
@@ -236,6 +305,7 @@ export const PackagingSettingsView: React.FC<PackagingSettingsViewProps> = ({ se
                                 rule={rule}
                                 onUpdate={updateRule}
                                 onDelete={deleteRule}
+                                isDuplicate={duplicateHours.has(rule.hoursAfterPublish)}
                             />
                         ))}
                         <div className="flex justify-end pt-1">

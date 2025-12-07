@@ -21,7 +21,7 @@ interface PackagingTableProps {
     onDeleteCheckin?: (versionNumber: number, checkinId: string) => void;
 }
 
-export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdateHistory, onAddCheckin, ctrRules, onUpdateCtrRules, onDeleteVersion, isPublished, checkinRules, onDeleteCheckin }) => {
+export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdateHistory, onAddCheckin, ctrRules, onUpdateCtrRules, isPublished, checkinRules, onDeleteCheckin }) => {
     const [editingCell, setEditingCell] = useState<{ id: string, field: string } | null>(null);
 
     // CTR Configuration State
@@ -214,11 +214,12 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
                 anchorRef={configAnchorRef as React.RefObject<HTMLElement>}
             />
             {/* Header */}
-            <div className="grid grid-cols-6 gap-4 px-6 py-3 bg-[#1F1F1F] border-b border-white/5">
+            {/* Header */}
+            <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-6 py-3 bg-[#1F1F1F] border-b border-white/5 items-center">
                 <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider">Date</div>
-                <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">Impressions</div>
-                <div className="flex items-center justify-center gap-1">
-                    <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">CTR</div>
+                <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-right">Impressions</div>
+                <div className="flex items-center justify-end gap-1">
+                    <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-right">CTR</div>
                     <button
                         ref={configAnchorRef}
                         onClick={() => setIsConfigOpen(!isConfigOpen)}
@@ -227,8 +228,8 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
                         <Settings size={14} />
                     </button>
                 </div>
-                <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">Views</div>
-                <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-center">AVD</div>
+                <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-right">Views</div>
+                <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-right">AVD</div>
                 <div className="text-[10px] font-bold text-[#5A5A5A] uppercase tracking-wider text-right">Version</div>
             </div>
 
@@ -256,9 +257,9 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
                                 const previousCheckin = cIndex > 0 ? version.checkins[cIndex - 1] : undefined;
 
                                 return (
-                                    <div key={checkin.id} className="grid grid-cols-6 gap-4 px-6 py-2 items-center odd:bg-white/[0.02] even:bg-transparent hover:bg-white/[0.04] transition-colors group/row">
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex flex-col items-start">
+                                    <div key={checkin.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-6 py-2 items-center odd:bg-white/[0.02] even:bg-transparent hover:bg-white/[0.04] transition-colors group/row">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className="flex flex-col items-start truncate">
                                                 <span className="text-xs text-[#DDD] font-medium whitespace-nowrap">{formatDate(checkin.date)}</span>
                                                 <span className="text-[10px] text-[#555]">{formatTimeStr(checkin.date)}</span>
                                             </div>
@@ -280,10 +281,10 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
                                             )}
                                         </div>
 
-                                        {renderCell(checkin, 'impressions', previousCheckin)}
-                                        {renderCell(checkin, 'ctr', previousCheckin)}
-                                        {renderCell(checkin, 'views', previousCheckin)}
-                                        {renderCell(checkin, 'avdSeconds', previousCheckin)}
+                                        <div className="flex justify-end">{renderCell(checkin, 'impressions', previousCheckin)}</div>
+                                        <div className="flex justify-end">{renderCell(checkin, 'ctr', previousCheckin)}</div>
+                                        <div className="flex justify-end">{renderCell(checkin, 'views', previousCheckin)}</div>
+                                        <div className="flex justify-end">{renderCell(checkin, 'avdSeconds', previousCheckin)}</div>
 
                                         <div className="flex items-center justify-end gap-2 relative">
                                             {version.configurationSnapshot ? (

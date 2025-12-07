@@ -105,7 +105,7 @@ export const useSettings = () => {
         staleTime: Infinity
     });
 
-    const { data: packagingSettings = DEFAULT_PACKAGING_SETTINGS } = useQuery({
+    const packagingQuery = useQuery({
         queryKey: ['settings', 'packaging', userId, channelId],
         queryFn: async () => {
             const data = await SettingsService.fetchPackagingSettings(userId, channelId);
@@ -114,6 +114,7 @@ export const useSettings = () => {
         enabled,
         staleTime: Infinity
     });
+    const packagingSettings = packagingQuery.data || DEFAULT_PACKAGING_SETTINGS;
 
     const { data: uploadDefaults = DEFAULT_UPLOAD_DEFAULTS } = useQuery({
         queryKey: ['settings', 'uploadDefaults', userId, channelId],
@@ -321,6 +322,6 @@ export const useSettings = () => {
         updatePlaylistOrder: (_uid: string, _cid: string, order: string[]) => updatePlaylistOrderMutation.mutateAsync(order),
         updatePackagingSettings: (_uid: string, _cid: string, settings: PackagingSettings) => updatePackagingSettingsMutation.mutateAsync(settings),
         updateUploadDefaults: (_uid: string, _cid: string, settings: UploadDefaults) => updateUploadDefaultsMutation.mutateAsync(settings),
-        isLoading: generalQuery.isLoading || syncQuery.isLoading
+        isLoading: generalQuery.isLoading || syncQuery.isLoading || packagingQuery.isLoading
     };
 };

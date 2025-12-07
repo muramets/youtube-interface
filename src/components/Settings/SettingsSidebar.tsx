@@ -35,7 +35,8 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({ activeCategory
             <SidebarItem
                 label="Packaging"
                 isActive={activeCategory === 'packaging'}
-                onClick={() => onCategoryChange('packaging')}
+
+
                 onClick={() => onCategoryChange('packaging')}
                 theme={theme}
             />
