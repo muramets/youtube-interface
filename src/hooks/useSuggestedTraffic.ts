@@ -15,11 +15,21 @@ export const useSuggestedTraffic = (customVideoId: string) => {
     const [error, setError] = useState<string | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const selectedIdsRef = useRef(selectedIds);
-    const [hideGrouped, setHideGrouped] = useState(false);
+
+    // Initialize from localStorage
+    const [hideGrouped, setHideGrouped] = useState(() => {
+        const saved = localStorage.getItem('traffic_hideGrouped');
+        return saved ? JSON.parse(saved) : false;
+    });
 
     useEffect(() => {
         selectedIdsRef.current = selectedIds;
     }, [selectedIds]);
+
+    // Persist hideGrouped state
+    useEffect(() => {
+        localStorage.setItem('traffic_hideGrouped', JSON.stringify(hideGrouped));
+    }, [hideGrouped]);
 
     // Load data on mount
     useEffect(() => {

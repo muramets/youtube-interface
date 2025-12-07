@@ -16,7 +16,7 @@ export const VideoTooltip: React.FC<VideoTooltipProps> = ({ source, children }) 
             <div className="relative aspect-video rounded-lg overflow-hidden bg-black mb-3">
                 {source.videoId ? (
                     <iframe
-                        src={`https://www.youtube.com/embed/${source.videoId}?autoplay=0&mute=1&controls=1&modestbranding=1&rel=0`}
+                        src={`https://www.youtube.com/embed/${source.videoId}?autoplay=0&mute=0&controls=1&modestbranding=1&rel=0`}
                         title={source.sourceTitle}
                         className="w-full h-full"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
