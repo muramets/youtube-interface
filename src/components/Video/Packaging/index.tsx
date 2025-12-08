@@ -1,13 +1,15 @@
-import React, { useState, useRef } from 'react';
-import { ArrowUp, ArrowDown, Minus, Settings, Plus } from 'lucide-react';
-import { PortalTooltip } from '../../Shared/PortalTooltip';
+
 import type { PackagingVersion, PackagingCheckin, PackagingMetrics } from '../../../utils/youtubeApi';
 import type { CheckinRule } from '../../../services/settingsService';
 import type { CTRRule } from './types';
-import { Trash2 } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { ArrowUp, ArrowDown, Minus, Settings, Plus, Flag, Trash2 } from 'lucide-react';
+import { PortalTooltip } from '../../Shared/PortalTooltip';
 import { CTRConfigPopup } from './components/CTRConfigPopup';
 import { SmartTimeInput } from './components/SmartTimeInput';
 import { VersionDetailsTooltipContent } from './components/VersionDetailsTooltip';
+
+import { Dropdown } from '../../Shared/Dropdown';
 
 interface PackagingTableProps {
     history: PackagingVersion[];
@@ -20,6 +22,71 @@ interface PackagingTableProps {
     checkinRules?: CheckinRule[];
     onDeleteCheckin?: (versionNumber: number, checkinId: string) => void;
 }
+
+const VersionSelector: React.FC<{
+    currentVersion: number;
+    allVersions: PackagingVersion[];
+    onSelect: (version: number) => void;
+}> = ({ currentVersion, allVersions, onSelect }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
+    const [hoveredVersion, setHoveredVersion] = useState<number | null>(null);
+
+    return (
+        <div onMouseLeave={() => setHoveredVersion(null)}>
+            <button
+                ref={setAnchorEl}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setIsOpen(!isOpen);
+                }}
+                className="text-xs font-medium text-white hover:text-white/80 transition-colors border-b border-dashed border-white/20 hover:border-white/50 cursor-pointer"
+            >
+                v.{currentVersion}
+            </button>
+            <Dropdown
+                isOpen={isOpen}
+                onClose={() => setIsOpen(false)}
+                anchorEl={anchorEl}
+                width={120}
+                align="right"
+                className="p-1 max-h-[200px] overflow-y-auto custom-scrollbar"
+            >
+                <div className="flex flex-col gap-1" onMouseLeave={() => setHoveredVersion(null)}>
+                    {allVersions.map(v => (
+                        <PortalTooltip
+                            key={v.versionNumber}
+                            forceOpen={hoveredVersion === v.versionNumber}
+                            side="left"
+                            noAnimation={true}
+                            content={
+                                v.configurationSnapshot ? (
+                                    <VersionDetailsTooltipContent snapshot={v.configurationSnapshot} />
+                                ) : (
+                                    <div className="text-xs text-white p-2">v.{v.versionNumber} (No Snapshot)</div>
+                                )
+                            }
+                        >
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSelect(v.versionNumber);
+                                    setIsOpen(false);
+                                }}
+                                onMouseEnter={() => setHoveredVersion(v.versionNumber)}
+                                className={`w-full px-3 py-1.5 text-xs text-left rounded hover:bg-white/10 transition-colors ${v.versionNumber === currentVersion ? 'text-white bg-white/5 font-medium' : 'text-[#AAAAAA]'
+                                    }`}
+                            >
+                                v.{v.versionNumber}
+                            </button>
+                        </PortalTooltip>
+                    ))}
+                </div>
+            </Dropdown>
+        </div>
+    );
+};
+
 
 export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdateHistory, onAddCheckin, ctrRules, onUpdateCtrRules, isPublished, checkinRules, onDeleteCheckin }) => {
     const [editingCell, setEditingCell] = useState<{ id: string, field: string } | null>(null);
@@ -204,6 +271,55 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
         );
     };
 
+    const handleMoveCheckin = (checkinId: string, targetVersionNumber: number) => {
+        const newHistory = history.map(v => ({ ...v, checkins: [...v.checkins] }));
+
+        // Find source checkin
+        let sourceCheckin: PackagingCheckin | undefined;
+        let sourceVersionIdx = -1;
+
+        for (let i = 0; i < newHistory.length; i++) {
+            const found = newHistory[i].checkins.find(c => c.id === checkinId);
+            if (found) {
+                sourceCheckin = found;
+                sourceVersionIdx = i;
+                break;
+            }
+        }
+
+        if (!sourceCheckin || sourceVersionIdx === -1) return;
+
+        // Find target version
+        const targetVersionIdx = newHistory.findIndex(v => v.versionNumber === targetVersionNumber);
+        if (targetVersionIdx === -1) return;
+
+        // If same version, do nothing
+        if (sourceVersionIdx === targetVersionIdx) return;
+
+        // Remove from source
+        newHistory[sourceVersionIdx].checkins = newHistory[sourceVersionIdx].checkins.filter(c => c.id !== checkinId);
+
+        // Add to target
+        newHistory[targetVersionIdx].checkins.push(sourceCheckin);
+        // Sort target by date
+        newHistory[targetVersionIdx].checkins.sort((a, b) => a.date - b.date);
+
+        onUpdateHistory(newHistory);
+    };
+
+    const handleToggleFinal = (checkinId: string) => {
+        const newHistory = history.map(v => {
+            const newCheckins = v.checkins.map(c => {
+                if (c.id === checkinId) {
+                    return { ...c, isFinal: !c.isFinal };
+                }
+                return c;
+            });
+            return { ...v, checkins: newCheckins };
+        });
+        onUpdateHistory(newHistory);
+    };
+
     return (
         <div className="w-full overflow-hidden rounded-xl bg-bg-secondary">
             <CTRConfigPopup
@@ -259,8 +375,15 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
                                 return (
                                     <div key={checkin.id} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-4 px-6 py-2 items-center odd:bg-white/[0.02] even:bg-transparent hover:bg-white/[0.04] transition-colors group/row">
                                         <div className="flex items-center gap-3 min-w-0">
+                                            {/* Final Flag Indicator (Left of Date) - Premium visual hint */}
+                                            {checkin.isFinal && (
+                                                <div className="shrink-0 text-yellow-500" title="Final check-in for this version">
+                                                    <Flag size={10} fill="currentColor" />
+                                                </div>
+                                            )}
+
                                             <div className="flex flex-col items-start truncate">
-                                                <span className="text-xs text-[#DDD] font-medium whitespace-nowrap">{formatDate(checkin.date)}</span>
+                                                <span className={`text-xs font-medium whitespace-nowrap ${checkin.isFinal ? 'text-yellow-500/90' : 'text-[#DDD]'}`}>{formatDate(checkin.date)}</span>
                                                 <span className="text-[10px] text-[#555]">{formatTimeStr(checkin.date)}</span>
                                             </div>
                                             {checkin.ruleId && checkinRules && (
@@ -286,33 +409,40 @@ export const PackagingTable: React.FC<PackagingTableProps> = ({ history, onUpdat
                                         <div className="flex justify-center">{renderCell(checkin, 'views', previousCheckin)}</div>
                                         <div className="flex justify-center">{renderCell(checkin, 'avdSeconds', previousCheckin)}</div>
 
-                                        <div className="flex items-center justify-center relative">
-                                            {version.configurationSnapshot ? (
-                                                <PortalTooltip
-                                                    content={<VersionDetailsTooltipContent snapshot={version.configurationSnapshot} />}
-                                                    className="max-w-[300px] w-[300px]"
-                                                    align="left"
-                                                >
-                                                    <span className="text-xs font-medium text-white cursor-help border-b border-dashed border-white/20 hover:border-white/50 transition-colors">
-                                                        v.{version.versionNumber}
-                                                    </span>
-                                                </PortalTooltip>
-                                            ) : (
-                                                <span className="text-xs font-medium text-white">v.{version.versionNumber}</span>
-                                            )}
+                                        <div className="flex items-center justify-center relative min-h-[28px]">
+                                            <VersionSelector
+                                                currentVersion={version.versionNumber}
+                                                allVersions={history}
+                                                onSelect={(targetVer) => handleMoveCheckin(checkin.id, targetVer)}
+                                            />
 
-                                            {onDeleteCheckin && !checkin.ruleId && (
+                                            {/* Actions - Absolute positioned to not affect centering of VersionSelector */}
+                                            <div className="absolute left-1/2 ml-5 flex items-center gap-1">
+                                                {/* Flag Action */}
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        onDeleteCheckin(version.versionNumber, checkin.id);
+                                                        handleToggleFinal(checkin.id);
                                                     }}
-                                                    className="absolute right-0 opacity-0 group-hover/row:opacity-100 text-[#555] hover:text-red-400 transition-all p-1"
-                                                    title="Delete check-in"
+                                                    className={`opacity-0 group-hover/row:opacity-100 transition-all p-1 ${checkin.isFinal ? 'opacity-100 text-yellow-500' : 'text-[#444] hover:text-white'}`}
+                                                    title={checkin.isFinal ? "Unmark as Final" : "Mark as Final"}
                                                 >
-                                                    <Trash2 size={12} />
+                                                    <Flag size={12} fill={checkin.isFinal ? "currentColor" : "none"} />
                                                 </button>
-                                            )}
+
+                                                {onDeleteCheckin && !checkin.ruleId && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onDeleteCheckin(version.versionNumber, checkin.id);
+                                                        }}
+                                                        className="opacity-0 group-hover/row:opacity-100 text-[#444] hover:text-red-400 transition-all p-1"
+                                                        title="Delete check-in"
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 );

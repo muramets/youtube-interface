@@ -99,19 +99,68 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         for (const video of freshVideos) {
             if (!video.packagingHistory || video.packagingHistory.length === 0) continue;
 
+            // 1. Identify Duplicates across ALL versions
+            const allCheckins: { checkin: any, versionIndex: number }[] = [];
+            video.packagingHistory.forEach((v: any, vIdx: number) => {
+                v.checkins.forEach((c: any) => allCheckins.push({ checkin: c, versionIndex: vIdx }));
+            });
+
+            const checkinIdsToDelete = new Set<string>();
+
+            // Group by RuleId
+            const rulesMap = new Map<string, typeof allCheckins>();
+            allCheckins.forEach(item => {
+                if (!item.checkin.ruleId) return;
+                if (!rulesMap.has(item.checkin.ruleId)) rulesMap.set(item.checkin.ruleId, []);
+                rulesMap.get(item.checkin.ruleId)?.push(item);
+            });
+
+            // Resolve Duplicates
+            for (const [ruleId, items] of rulesMap) {
+                if (items.length > 1) {
+                    // Find best: has metrics?
+                    const withMetrics = items.filter(i => !isCheckinEmpty(i.checkin));
+
+                    let survivor;
+                    if (withMetrics.length > 0) {
+                        // Keep earliest with metrics
+                        withMetrics.sort((a, b) => a.checkin.date - b.checkin.date);
+                        survivor = withMetrics[0];
+                    } else {
+                        // Keep earliest overall
+                        items.sort((a, b) => a.checkin.date - b.checkin.date);
+                        survivor = items[0];
+                    }
+
+                    // Mark others for deletion
+                    items.forEach(i => {
+                        if (i.checkin.id !== survivor.checkin.id) {
+                            checkinIdsToDelete.add(i.checkin.id);
+                            if (!silent) console.log(`[Cleanup] Marking duplicate checkin for deletion: Video ${video.id}, Rule ${ruleId}, ID ${i.checkin.id}`);
+                        }
+                    });
+                }
+            }
+
             let hasChanges = false;
             const newHistory = video.packagingHistory.map((version: any) => {
                 const cleanedCheckins = version.checkins.filter((checkin: any) => {
+                    // If marked as duplicate, remove
+                    if (checkinIdsToDelete.has(checkin.id)) {
+                        hasChanges = true;
+                        return false;
+                    }
+
                     // Manual check-ins (no ruleId) are always kept
                     if (!checkin.ruleId) return true;
 
-                    // If rule exists, keep it
+                    // If rule exists in settings, keep it
                     if (validRuleIds.has(checkin.ruleId)) return true;
 
-                    // Rule is MISSING. Check if it's empty.
+                    // Rule is MISSING from settings. Check if it's empty.
                     const empty = isCheckinEmpty(checkin);
 
-                    // If it has data, kept it (safety)
+                    // If it has data, keep it (safety)
                     if (!empty) return true;
 
                     // It is Orphaned AND Empty -> REMOVE
@@ -125,7 +174,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             });
 
             if (hasChanges) {
-                if (!silent) console.log('[Cleanup] Removing orphaned check-ins from video:', video.id);
+                if (!silent) console.log('[Cleanup] Updating video history:', video.id);
                 // Use VideoService directly to update
                 cleanupPromises.push(
                     VideoService.updateVideo(user.uid, currentChannel.id, video.id, { packagingHistory: newHistory })

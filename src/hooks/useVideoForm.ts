@@ -323,6 +323,15 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         const initialHistory = initialData?.packagingHistory || [];
         if (JSON.stringify(packagingHistory) !== JSON.stringify(initialHistory)) return true;
 
+        // Check Cover History (Drafts)
+        const initialCoverHistory = initialData?.coverHistory || [];
+        if (coverHistory.length !== initialCoverHistory.length) return true;
+
+        // Deep compare cover history (ignoring potential undefined vs null differences if safe, but JSON stringify is easiest)
+        // We only care about URL and version/timestamp mainly.
+        // But since we modify the array directly, comparison is straightforward.
+        if (JSON.stringify(coverHistory) !== JSON.stringify(initialCoverHistory)) return true;
+
         return false;
     })();
 

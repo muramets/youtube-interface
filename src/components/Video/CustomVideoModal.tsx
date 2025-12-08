@@ -302,9 +302,12 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
             const targetTime = publishTime + (rule.hoursAfterPublish * 60 * 60 * 1000);
 
             if (now >= targetTime) {
-                const existingCheckin = latestVersion.checkins.find(c => c.ruleId === rule.id);
-                if (!existingCheckin) {
-                    // Add checkin
+                // BUG FIX: Check ENTIRE history for this rule, not just the latest version.
+                // Check-ins should be unique per video/rule.
+                const alreadyExists = historyCopy.some(v => v.checkins?.some(c => c.ruleId === rule.id));
+
+                if (!alreadyExists) {
+                    // Add checkin to latest version
                     const newCheckin: PackagingCheckin = {
                         id: crypto.randomUUID(),
                         date: targetTime,
@@ -318,8 +321,6 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                     };
                     latestVersion.checkins.push(newCheckin);
                     hasUpdates = true;
-                    // Notification removed: The global scheduler handles reminders. 
-                    // When the modal is open, we just show the new checkin in the UI.
                 }
             }
         });
@@ -334,7 +335,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 
             // Only update if actually different to prevent loops?
             // React state update is already optimized, but if objects are new references it will trigger re-render.
-            // We rely on the fact that if we add a checkin, next time `!existingCheckin` will be false.
+            // We rely on the fact that if we add a checkin, next time `!alreadyExists` will be true.
             setPackagingHistory(newHistory);
         }
     }, [isOpen, initialData?.publishedAt, hasRules, isPublished, packagingHistory.length, checkinCount]); // Minimized dependencies
@@ -633,30 +634,23 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     const handleDeleteHistoryItem = async (e: React.MouseEvent, timestamp: number, immediate: boolean = false) => {
         e.stopPropagation();
 
-        if (immediate) {
-            // Immediate delete for broken files (no confirmation, auto-save)
-            setCoverHistory(prev => prev.filter(h => h.timestamp !== timestamp));
+        // Optimistically remove from UI immediately
+        setCoverHistory(prev => prev.filter(h => h.timestamp !== timestamp));
 
-            // Perform actual backend deletion immediately
-            if (initialData?.id) {
-                try {
-                    await deleteVideoHistoryItem({ videoId: initialData.id, historyId: timestamp.toString() });
-                    setToastMessage('Broken version deleted');
-                    setToastType('success');
-                    setShowToast(true);
-                } catch (error) {
-                    console.error("Failed to delete history item:", error);
-                    setToastMessage('Failed to delete version');
-                    setToastType('error');
-                    setShowToast(true);
-                }
+        // Perform actual backend deletion immediately if it's a saved video
+        if (initialData?.id) {
+            try {
+                await deleteVideoHistoryItem({ videoId: initialData.id, historyId: timestamp.toString() });
+                setToastMessage('Version deleted');
+                setToastType('success');
+                setShowToast(true);
+            } catch (error) {
+                console.error("Failed to delete history item:", error);
+                setToastMessage('Failed to delete version');
+                setToastType('error');
+                setShowToast(true);
+                // Optionally revert state here if critical, but for now we prioritize UX responsiveness
             }
-            return;
-        }
-
-        if (window.confirm('Are you sure you want to delete this version?')) {
-            setCoverHistory(prev => prev.filter(h => h.timestamp !== timestamp));
-            setDeletedHistoryIds(prev => new Set(prev).add(timestamp));
         }
     };
 

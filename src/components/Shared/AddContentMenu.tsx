@@ -189,7 +189,7 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
                 onClose={() => setActiveModal(null)}
                 onSave={async (videoData) => {
                     if (user && currentChannel) {
-                        await addCustomVideo(videoData);
+                        return await addCustomVideo(videoData);
                     }
                 }}
                 initialData={customVideoInitialData}

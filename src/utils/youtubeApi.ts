@@ -71,6 +71,7 @@ export interface PackagingCheckin {
     abMetrics?: ABVariantMetrics[];
     diffs?: Partial<PackagingMetrics>; // Difference from previous check-in
     ruleId?: string;
+    isFinal?: boolean; // User manually marked as last for version
 }
 
 export interface PackagingVersion {

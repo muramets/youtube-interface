@@ -5,20 +5,26 @@ interface PortalTooltipProps {
     content: React.ReactNode;
     children: React.ReactElement;
     align?: 'left' | 'center' | 'right';
+    side?: 'bottom' | 'left' | 'right' | 'top';
     onOpenChange?: (isOpen: boolean) => void;
     className?: string;
     triggerClassName?: string;
     enterDelay?: number;
+    forceOpen?: boolean;
+    noAnimation?: boolean;
 }
 
 export const PortalTooltip: React.FC<PortalTooltipProps> = ({
     content,
     children,
     align = 'left',
+    side = 'bottom',
     onOpenChange,
     className = '',
     triggerClassName = '',
-    enterDelay = 0
+    enterDelay = 0,
+    forceOpen,
+    noAnimation = false
 }) => {
     const [isVisible, setIsVisible] = useState(false); // Controls visual opacity/transform
     const [shouldRender, setShouldRender] = useState(false); // Controls mounting
@@ -38,38 +44,79 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
         positionRaf.current = requestAnimationFrame(() => {
             if (triggerRef.current) {
                 const rect = triggerRef.current.getBoundingClientRect();
-                const top = rect.bottom + 8; // 8px gap
-                let left = rect.left;
+                let top = 0;
+                let left = 0;
 
-                if (align === 'right') {
-                    left = rect.right;
-                } else if (align === 'center') {
-                    left = rect.left + (rect.width / 2);
+                if (side === 'bottom') {
+                    top = rect.bottom + 8;
+                    if (align === 'right') left = rect.right;
+                    else if (align === 'center') left = rect.left + (rect.width / 2);
+                    else left = rect.left;
+                } else if (side === 'top') {
+                    top = rect.top - 8;
+                    if (align === 'right') left = rect.right;
+                    else if (align === 'center') left = rect.left + (rect.width / 2);
+                    else left = rect.left;
+                } else if (side === 'left') {
+                    top = rect.top; // Align top-to-top by default for side
+                    left = rect.left - 8;
+                } else if (side === 'right') {
+                    top = rect.top;
+                    left = rect.right + 8;
                 }
 
                 setPosition({ top, left });
             }
             positionRaf.current = null;
         });
-    }, [align]);
+    }, [align, side]);
 
-    const showTooltip = () => {
-        if (!isHoveredRef.current) return;
-
+    const showTooltip = useCallback(() => {
         updatePosition();
         setShouldRender(true);
 
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-                if (isHoveredRef.current) {
-                    setIsVisible(true);
-                    onOpenChange?.(true);
-                }
+                setIsVisible(true);
+                onOpenChange?.(true);
             });
         });
-    };
+    }, [updatePosition, onOpenChange]);
+
+    const hideTooltip = useCallback(() => {
+        setIsVisible(false);
+        onOpenChange?.(false);
+
+        const delay = noAnimation ? 0 : 200;
+
+        closeTimeoutRef.current = setTimeout(() => {
+            // Only unmount if not visible (handled by isVisible check in effect usually, but here relies on timeout)
+            // We can just unmount.
+            setShouldRender(false);
+        }, delay);
+    }, [onOpenChange, noAnimation]);
+
+    // Handle External Control
+    useEffect(() => {
+        if (forceOpen !== undefined) {
+            if (forceOpen) {
+                // Clear closing timeouts
+                if (closeTimeoutRef.current) {
+                    clearTimeout(closeTimeoutRef.current);
+                    closeTimeoutRef.current = null;
+                }
+                showTooltip();
+            } else {
+                if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                if (enterTimeoutRef.current) clearTimeout(enterTimeoutRef.current);
+                hideTooltip();
+            }
+        }
+    }, [forceOpen, showTooltip, hideTooltip]);
+
 
     const handleMouseEnter = () => {
+        if (forceOpen !== undefined) return; // Ignore internal hover if forced
         isHoveredRef.current = true;
 
         if (timeoutRef.current) {
@@ -93,6 +140,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
     };
 
     const handleMouseLeave = () => {
+        if (forceOpen !== undefined) return; // Ignore internal hover if forced
         isHoveredRef.current = false;
 
         if (enterTimeoutRef.current) {
@@ -101,16 +149,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
         }
 
         timeoutRef.current = setTimeout(() => {
-            setIsVisible(false);
-            // Sync exit: notify parent immediately when fading starts
-            onOpenChange?.(false);
-
-            // Wait for animation to finish before unmounting
-            closeTimeoutRef.current = setTimeout(() => {
-                if (!isHoveredRef.current) {
-                    setShouldRender(false);
-                }
-            }, 200); // Match transition duration
+            hideTooltip();
         }, 300); // Delay to allow moving to tooltip
     };
 
@@ -131,6 +170,17 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
         }
     }, [shouldRender, updatePosition]);
 
+    const getTransform = () => {
+        if (side === 'left') return 'translateX(-100%)';
+        if (side === 'top') return 'translateY(-100%)';
+        if (side === 'right') return 'none'; // Default origin is top-left, so it grows right.
+        if (side === 'bottom') {
+            // legacy handling based on align
+            return align === 'left' ? 'none' : 'translateX(-100%)';
+        }
+        return 'none';
+    };
+
     return (
         <div
             ref={triggerRef}
@@ -141,11 +191,11 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
             {children}
             {shouldRender && createPortal(
                 <div
-                    className="fixed z-[10000] pointer-events-auto will-change-transform"
+                    className={`fixed z-[10000] pointer-events-auto will-change-transform`}
                     style={{
                         top: Math.round(position.top),
                         left: Math.round(position.left),
-                        transform: align === 'left' ? 'none' : 'translateX(-100%)',
+                        transform: getTransform(),
                     }}
                     onPointerEnter={handleMouseEnter} // Keep open when hovering tooltip
                     onPointerLeave={handleMouseLeave}
@@ -154,8 +204,9 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                         className={`
                             bg-[#1F1F1F] text-white text-[11px] leading-relaxed px-3 py-2 rounded-lg
                             whitespace-normal break-words w-max max-w-[250px] shadow-xl text-left border border-white/10
-                            transition-all duration-200 ease-out origin-top-right
-                            ${isVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 scale-95'}
+                            transition-all ease-out origin-top-right
+                            ${noAnimation ? 'duration-0' : 'duration-200'}
+                            ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}
                             ${className}
                         `}
                     >

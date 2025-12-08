@@ -54,17 +54,17 @@ export const VersionDetailsTooltipContent: React.FC<{ snapshot: PackagingSnapsho
             {/* Images */}
             <div className="flex gap-2 mt-1">
                 <ImageIcon size={14} className="text-[#AAAAAA] mt-0.5 shrink-0" />
-                <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">
+                <div className="flex flex-col gap-3 w-full">
                     {/* Main / Variant A */}
-                    <div className="shrink-0 flex flex-col gap-1">
-                        <span className="text-[9px] text-[#AAAAAA]">{hasAbTest ? 'Variant A' : 'Main'}</span>
-                        <img src={snapshot.coverImage || ''} alt="Cover" className="w-24 aspect-video object-cover rounded border border-white/10" />
+                    <div className="flex flex-col gap-1 w-full">
+                        {hasAbTest && <span className="text-[9px] text-[#AAAAAA]">Variant A</span>}
+                        <img src={snapshot.coverImage || ''} alt="Cover" className="w-full aspect-video object-cover rounded border border-white/10" />
                     </div>
                     {/* AB Variants (B, C...) */}
                     {snapshot.abTestVariants?.map((url, i) => (
-                        <div key={i} className="shrink-0 flex flex-col gap-1">
+                        <div key={i} className="flex flex-col gap-1 w-full">
                             <span className="text-[9px] text-[#AAAAAA]">Variant {String.fromCharCode(66 + i)}</span>
-                            <img src={url} alt={`Variant ${i}`} className="w-24 aspect-video object-cover rounded border border-white/10 opacity-80" />
+                            <img src={url} alt={`Variant ${i}`} className="w-full aspect-video object-cover rounded border border-white/10 opacity-90" />
                         </div>
                     ))}
                 </div>
