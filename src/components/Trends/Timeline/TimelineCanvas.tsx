@@ -84,6 +84,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
     const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const showTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const [hoveredVideo, setHoveredVideo] = useState<{ video: VideoNode; x: number; y: number; height: number } | null>(null);
 
@@ -587,15 +588,22 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onMouseEnter={(e) => {
                                     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+
                                     const rect = e.currentTarget.getBoundingClientRect();
-                                    setHoveredVideo({
-                                        video,
-                                        x: rect.left + rect.width / 2,
-                                        y: rect.top,
-                                        height: rect.height
-                                    });
+
+                                    // Delay showing the tooltip
+                                    showTimeoutRef.current = setTimeout(() => {
+                                        setHoveredVideo({
+                                            video,
+                                            x: rect.left + rect.width / 2,
+                                            y: rect.top,
+                                            height: rect.height
+                                        });
+                                    }, 500);
                                 }}
                                 onMouseLeave={() => {
+                                    if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
+
                                     hoverTimeoutRef.current = setTimeout(() => {
                                         setHoveredVideo(null);
                                     }, 200); // 200ms grace period
