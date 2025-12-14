@@ -2,6 +2,8 @@ import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react'
 import { useTrendStore } from '../../../stores/trendStore';
 import { RotateCcw } from 'lucide-react';
 
+import { TrendTooltip } from './TrendTooltip';
+
 interface VideoNode {
     id: string;
     title: string;
@@ -76,13 +78,14 @@ import { useDebounce } from '../../../hooks/useDebounce';
 // ... (previous imports)
 
 export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
-    const { timelineConfig, setTimelineConfig, selectedChannelId } = useTrendStore();
+    const { timelineConfig, setTimelineConfig } = useTrendStore();
     const { scalingMode, isCustomView, zoomLevel, offsetX, offsetY } = timelineConfig;
 
     const containerRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
+    const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    const [hoveredVideo, setHoveredVideo] = useState<{ video: VideoNode; x: number; y: number } | null>(null);
+    const [hoveredVideo, setHoveredVideo] = useState<{ video: VideoNode; x: number; y: number; height: number } | null>(null);
 
     // Drag-to-pan state
     const [isPanning, setIsPanning] = useState(false);
@@ -583,14 +586,20 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                                 }}
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onMouseEnter={(e) => {
+                                    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                                     const rect = e.currentTarget.getBoundingClientRect();
                                     setHoveredVideo({
                                         video,
                                         x: rect.left + rect.width / 2,
-                                        y: rect.top
+                                        y: rect.top,
+                                        height: rect.height
                                     });
                                 }}
-                                onMouseLeave={() => setHoveredVideo(null)}
+                                onMouseLeave={() => {
+                                    hoverTimeoutRef.current = setTimeout(() => {
+                                        setHoveredVideo(null);
+                                    }, 200); // 200ms grace period
+                                }}
                             >
                                 <div
                                     className="overflow-hidden group-hover:scale-105 transition-transform duration-200 ease-out shadow-lg group-hover:shadow-2xl group-hover:shadow-white/10 bg-black/50 w-full"
@@ -643,55 +652,26 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
             </div>
 
             {/* Tooltip */}
-            {hoveredVideo && (
-                <div
-                    className="fixed z-[200] bg-[#1a1a1a]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-4 pointer-events-none w-[340px] animate-fade-in"
-                    style={{
-                        left: hoveredVideo.x,
-                        top: hoveredVideo.y - 16,
-                        transform: 'translate(-50%, -100%)'
-                    }}
-                >
-                    <div className="aspect-video w-full rounded-lg bg-black/40 mb-3 overflow-hidden border border-white/5">
-                        <img src={hoveredVideo.video.thumbnail} className="w-full h-full object-cover" alt="" />
-                    </div>
-
-                    <div className="mb-2">
-                        <div className="text-sm font-semibold text-text-primary line-clamp-2 leading-snug">
-                            {hoveredVideo.video.title}
-                        </div>
-                        {hoveredVideo.video.channelTitle && !selectedChannelId && (
-                            <div className="text-xs text-text-tertiary mt-1">
-                                {hoveredVideo.video.channelTitle}
-                            </div>
-                        )}
-                        <div className="flex justify-between items-center mt-2 text-xs">
-                            <span className="text-white font-bold px-2 py-1 bg-white/10 rounded-full">
-                                {hoveredVideo.video.viewCount.toLocaleString()} views
-                            </span>
-                            <span className="text-text-secondary">
-                                {new Date(hoveredVideo.video.publishedAt).toLocaleDateString()}
-                            </span>
-                        </div>
-                    </div>
-
-                    {hoveredVideo.video.description && (
-                        <div className="text-xs text-text-secondary line-clamp-2 border-t border-white/5 pt-2 mt-2">
-                            {hoveredVideo.video.description}
-                        </div>
-                    )}
-
-                    {hoveredVideo.video.tags && hoveredVideo.video.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-3">
-                            {hoveredVideo.video.tags.slice(0, 5).map((tag: string) => (
-                                <span key={tag} className="px-2 py-0.5 rounded-full bg-white/5 text-[10px] text-text-tertiary">
-                                    #{tag}
-                                </span>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
-        </div>
+            {
+                hoveredVideo && (
+                    <TrendTooltip
+                        video={hoveredVideo.video}
+                        style={{
+                            left: hoveredVideo.x,
+                            top: hoveredVideo.y < 350 ? hoveredVideo.y + hoveredVideo.height + 16 : hoveredVideo.y - 16,
+                            transform: hoveredVideo.y < 350 ? 'translate(-50%, 0)' : 'translate(-50%, -100%)'
+                        }}
+                        onMouseEnter={() => {
+                            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                        }}
+                        onMouseLeave={() => {
+                            hoverTimeoutRef.current = setTimeout(() => {
+                                setHoveredVideo(null);
+                            }, 200);
+                        }}
+                    />
+                )
+            }
+        </div >
     );
 };
