@@ -9,6 +9,7 @@ import { WatchPage } from './components/Watch/WatchPage';
 import { PlaylistsPage } from './components/Playlist/PlaylistsPage';
 import { PlaylistDetailPage } from './components/Playlist/PlaylistDetailPage';
 import { CategoryBar } from './components/Video/CategoryBar';
+import { TrendsPage } from './pages/TrendsPage';
 import { useStoreInitialization } from './hooks/useStoreInitialization';
 import { useVideos } from './hooks/useVideos';
 
@@ -24,12 +25,14 @@ import { useCheckinScheduler } from './hooks/useCheckinScheduler';
 import { useVideoFetchRetry } from './hooks/useVideoFetchRetry';
 import { useAutoCleanup } from './hooks/useAutoCleanup';
 import { useFilterChannelSync } from './hooks/useFilterChannelSync';
+import { useTrendSubscription } from './hooks/useTrendSubscription';
 
 function AppContent() {
   useCheckinScheduler();
   useVideoFetchRetry();
   useAutoCleanup();
   useFilterChannelSync();
+  useTrendSubscription();
   const { user } = useAuth();
   const { currentChannel } = useChannelStore();
   const { isLoading, videos } = useVideos(user?.uid || '', currentChannel?.id || '');
@@ -96,6 +99,7 @@ function AppContent() {
                     <Route path="/watch/:id" element={<WatchPage />} />
                     <Route path="/playlists" element={<PlaylistsPage />} />
                     <Route path="/playlists/:id" element={<PlaylistDetailPage />} />
+                    <Route path="/trends" element={<TrendsPage />} />
                   </Routes>
                 </main>
               </div>

@@ -1,21 +1,22 @@
 import React from 'react';
-import { Home, List, Settings } from 'lucide-react';
+import { Home, List, Settings, TrendingUp } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { SettingsModal } from '../Settings/SettingsModal';
 import { useUIStore } from '../../stores/uiStore';
 import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 import { useChannels } from '../../hooks/useChannels';
+import { TrendsSidebarSection } from '../Trends/TrendsSidebarSection';
 
 // Collapsed sidebar item - icon on top, text below
-const CollapsedSidebarItem: React.FC<{ 
-  icon: React.ReactNode; 
+const CollapsedSidebarItem: React.FC<{
+  icon: React.ReactNode;
   activeIcon: React.ReactNode;
-  label: string; 
+  label: string;
   active?: boolean;
   onClick?: () => void;
 }> = ({ icon, activeIcon, label, active, onClick }) => (
-  <div 
+  <div
     onClick={onClick}
     className={`flex flex-col items-center justify-center py-4 px-1 cursor-pointer rounded-lg transition-colors
       ${active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover'}
@@ -29,14 +30,14 @@ const CollapsedSidebarItem: React.FC<{
 );
 
 // Expanded sidebar item - icon on left, text on right
-const ExpandedSidebarItem: React.FC<{ 
-  icon: React.ReactNode; 
+const ExpandedSidebarItem: React.FC<{
+  icon: React.ReactNode;
   activeIcon: React.ReactNode;
-  label: string; 
+  label: string;
   active?: boolean;
   onClick?: () => void;
 }> = ({ icon, activeIcon, label, active, onClick }) => (
-  <div 
+  <div
     onClick={onClick}
     className={`flex items-center gap-6 py-2.5 px-3 cursor-pointer rounded-lg transition-colors
       ${active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover'}
@@ -50,7 +51,7 @@ const ExpandedSidebarItem: React.FC<{
 );
 
 // Divider component
-const SidebarDivider: React.FC = () => (
+export const SidebarDivider: React.FC = () => (
   <div className="my-3 mx-3 border-t border-border" />
 );
 
@@ -91,6 +92,7 @@ export const Sidebar: React.FC = () => {
 
   const isHome = location.pathname === '/';
   const isPlaylists = location.pathname.startsWith('/playlists');
+  const isTrends = location.pathname.startsWith('/trends');
 
   // Icons - normal (outline) and active (filled/bold)
   const homeIcon = <Home size={24} strokeWidth={1.5} />;
@@ -99,10 +101,12 @@ export const Sidebar: React.FC = () => {
   const playlistsActiveIcon = <List size={24} strokeWidth={2.5} />;
   const settingsIcon = <Settings size={24} strokeWidth={1.5} />;
   const settingsActiveIcon = <Settings size={24} strokeWidth={2.5} />;
+  const trendsIcon = <TrendingUp size={24} strokeWidth={1.5} />;
+  const trendsActiveIcon = <TrendingUp size={24} strokeWidth={2.5} />;
 
   return (
     <>
-      <aside 
+      <aside
         className={`h-[calc(100vh-56px)] sticky top-14 flex flex-col py-1 overflow-y-auto hidden sm:flex flex-shrink-0
           ${isSidebarExpanded ? 'w-[256px] px-3' : 'w-[72px] px-1'}`}
       >
@@ -110,30 +114,32 @@ export const Sidebar: React.FC = () => {
           // Expanded view - icon left, text right
           <>
             <div className="flex-1">
-              <ExpandedSidebarItem 
+              <ExpandedSidebarItem
                 icon={homeIcon}
                 activeIcon={homeActiveIcon}
-                label="Home" 
-                active={isHome} 
+                label="Home"
+                active={isHome}
                 onClick={() => navigate('/')}
               />
-              <ExpandedSidebarItem 
+              <ExpandedSidebarItem
                 icon={playlistsIcon}
                 activeIcon={playlistsActiveIcon}
-                label="Playlists" 
-                active={isPlaylists} 
+                label="Playlists"
+                active={isPlaylists}
                 onClick={() => navigate('/playlists')}
               />
+
+              <TrendsSidebarSection expanded={true} />
 
               <SidebarDivider />
             </div>
 
             <div className="border-t border-border pt-2">
-              <ExpandedSidebarItem 
+              <ExpandedSidebarItem
                 icon={settingsIcon}
                 activeIcon={settingsActiveIcon}
-                label="Settings" 
-                active={isSettingsOpen} 
+                label="Settings"
+                active={isSettingsOpen}
                 onClick={() => setSettingsOpen(true)}
               />
             </div>
@@ -141,27 +147,34 @@ export const Sidebar: React.FC = () => {
         ) : (
           // Collapsed view - icon on top, text below
           <>
-            <CollapsedSidebarItem 
+            <CollapsedSidebarItem
               icon={homeIcon}
               activeIcon={homeActiveIcon}
-              label="Home" 
-              active={isHome} 
+              label="Home"
+              active={isHome}
               onClick={() => navigate('/')}
             />
-            <CollapsedSidebarItem 
+            <CollapsedSidebarItem
               icon={playlistsIcon}
               activeIcon={playlistsActiveIcon}
-              label="Playlists" 
-              active={isPlaylists} 
+              label="Playlists"
+              active={isPlaylists}
               onClick={() => navigate('/playlists')}
+            />
+            <CollapsedSidebarItem
+              icon={trendsIcon}
+              activeIcon={trendsActiveIcon}
+              label="Trends"
+              active={isTrends}
+              onClick={() => navigate('/trends')}
             />
 
             <div className="mt-auto">
-              <CollapsedSidebarItem 
+              <CollapsedSidebarItem
                 icon={settingsIcon}
                 activeIcon={settingsActiveIcon}
-                label="Settings" 
-                active={isSettingsOpen} 
+                label="Settings"
+                active={isSettingsOpen}
                 onClick={() => setSettingsOpen(true)}
               />
             </div>

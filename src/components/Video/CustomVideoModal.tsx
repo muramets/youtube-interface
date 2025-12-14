@@ -631,7 +631,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         }
     };
 
-    const handleDeleteHistoryItem = async (e: React.MouseEvent, timestamp: number, immediate: boolean = false) => {
+    const handleDeleteHistoryItem = async (e: React.MouseEvent, timestamp: number) => {
         e.stopPropagation();
 
         // Optimistically remove from UI immediately
