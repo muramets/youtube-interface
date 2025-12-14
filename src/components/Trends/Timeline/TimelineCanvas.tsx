@@ -95,9 +95,52 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
 
     // Dynamic World Width - HOISTED to top for access in syncToDom
     const worldWidth = useMemo(() => {
-        const measuredWidth = videos.length * 60; // 60px per video avg
-        return Math.max(2000, measuredWidth);
-    }, [videos.length]);
+        if (videos.length === 0) return 2000;
+
+        // Calculate total width based on "Generous Expansion"
+        // Each video needs ~60px width + gaps. 
+        // We will sum up the widths of all months.
+
+        // Quick pre-calc (full logic repeated in monthLayouts but we need width first)
+        // Actually, we can move the width calculation into monthLayouts and return { layouts, totalWidth }
+        // BUT monthLayouts depends on stats which depends on videos.
+        // Let's keep it simple: Estimate roughly or move logic?
+
+        // Better: Let monthLayouts drive the width?
+        // But worldWidth is used BEFORE monthLayouts in the component (for clamping).
+        // Let's duplicate the counting logic briefly or just make monthLayouts the source of truth
+        // and have worldWidth be derived?
+        // We can't easily hoist monthLayouts before worldWidth if worldWidth is needed for Clamp.
+
+        // COMPROMISE: We'll calculate the counts here.
+        const counts = new Map<string, number>();
+        videos.forEach(v => {
+            const d = new Date(v.publishedAtTimestamp);
+            const key = `${d.getFullYear()}-${d.getMonth()}`;
+            counts.set(key, (counts.get(key) || 0) + 1);
+        });
+
+        let totalWidth = 0;
+        const start = new Date(Math.min(...videos.map(v => v.publishedAtTimestamp)));
+        const end = new Date(Math.max(...videos.map(v => v.publishedAtTimestamp)));
+        // Add buffer
+        start.setMonth(start.getMonth() - 1);
+        end.setMonth(end.getMonth() + 1);
+
+        const current = new Date(start);
+        current.setDate(1);
+
+        while (current <= end) {
+            const key = `${current.getFullYear()}-${current.getMonth()}`;
+            const count = counts.get(key) || 0;
+            // Generous width: AT LEAST 200px, plus 60px per video
+            const width = Math.max(200, count * 80); // 80px per video for plenty of space
+            totalWidth += width;
+            current.setMonth(current.getMonth() + 1);
+        }
+
+        return Math.max(2000, totalWidth);
+    }, [videos]);
 
     // Helper to apply transforms imperatively to DOM
     const syncToDom = useCallback(() => {
@@ -164,7 +207,6 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
     const monthLayouts = useMemo(() => {
         if (videos.length === 0) return [];
 
-        // 1. Group videos by month and count
         const counts = new Map<string, number>();
         videos.forEach(v => {
             const d = new Date(v.publishedAtTimestamp);
@@ -172,7 +214,6 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
             counts.set(key, (counts.get(key) || 0) + 1);
         });
 
-        // 2. Generate all months in range
         const layouts: {
             year: number;
             month: number;
@@ -186,19 +227,18 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
             endTs: number;
         }[] = [];
 
+        // Determine range stats (re-calculated to be safe or reuse stats?)
+        // reusing stats is safer for consistency
         let current = new Date(stats.minDate);
         current.setDate(1); // align to start of month
         current.setHours(0, 0, 0, 0);
 
         const endDate = new Date(stats.maxDate);
-        // Ensure we cover the full range including the last partial month
         const safeEndDate = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 1);
 
-        const rawWidths: number[] = [];
-
-        // Constants for sizing
-        const BASE_MONTH_WEIGHT = 1; // Minimum width weight per month (e.g. empty months)
-        const ITEM_WEIGHT = 0.05;    // Additional weight per video item
+        // First pass: Calculate absolute widths
+        const absLayouts: typeof layouts = [];
+        let totalAbsWidth = 0;
 
         while (current < safeEndDate) {
             const year = current.getFullYear();
@@ -206,45 +246,40 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
             const key = `${year}-${month}`;
             const count = counts.get(key) || 0;
 
-            // Calculate "Weight" for this month
-            // Base weight + extra space for videos
-            // We can tune ITEM_WEIGHT to control how much space dense months get
-            const weight = BASE_MONTH_WEIGHT + (count * ITEM_WEIGHT);
-
-            rawWidths.push(weight);
+            // ABSOLUTE WIDTH CALCULATION (Generous Expansion)
+            // 200px min width for empty months, 80px per video for dense months
+            const absWidth = Math.max(200, count * 80);
 
             const nextMonth = new Date(current);
             nextMonth.setMonth(current.getMonth() + 1);
 
-            layouts.push({
+            absLayouts.push({
                 year,
                 month,
                 monthKey: key,
                 label: current.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
                 count,
-                startX: 0, // placeholder
-                endX: 0,   // placeholder
-                width: 0,  // placeholder
+                startX: totalAbsWidth, // Temporary absolute X
+                endX: totalAbsWidth + absWidth, // Temporary absolute EndX
+                width: absWidth,
                 startTs: current.getTime(),
                 endTs: nextMonth.getTime()
             });
 
+            totalAbsWidth += absWidth;
             current = nextMonth;
         }
 
-        // 3. Normalize widths
-        const totalWeight = rawWidths.reduce((sum, w) => sum + w, 0);
-        let currentX = 0;
+        // Second pass: Normalize to 0-1 range for the rest of the app logic
+        // The `worldWidth` calculated earlier *should* match `totalAbsWidth` closely,
+        // but we'll use `totalAbsWidth` here to be self-consistent.
 
-        layouts.forEach((layout, i) => {
-            const normalizedWidth = rawWidths[i] / totalWeight;
-            layout.startX = currentX;
-            layout.width = normalizedWidth;
-            layout.endX = currentX + normalizedWidth;
-            currentX += normalizedWidth;
-        });
-
-        return layouts;
+        return absLayouts.map(l => ({
+            ...l,
+            startX: l.startX / totalAbsWidth,
+            endX: l.endX / totalAbsWidth,
+            width: l.width / totalAbsWidth
+        }));
     }, [videos, stats]);
 
 
@@ -279,34 +314,14 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
         };
     }, [worldWidth]);
 
-    // Calculate "world" coordinates for each video with collision detection
+    // Calculate "world" coordinates for each video 
+    // STRICT CHRONOLOGICAL ORDERING (Removed collision resolution)
     const videoPositions = useMemo(() => {
         const viewRangeLinear = stats.maxViews - stats.minViews || 1;
         const viewRangeLog = Math.log(stats.maxViews) - Math.log(stats.minViews) || 1;
 
-        console.log('[TimelineCanvas Debug] Stats:', {
-            minDate: new Date(stats.minDate).toLocaleString(),
-            maxDate: new Date(stats.maxDate).toLocaleString(),
-            videoCount: videos.length
-        });
-
-        // Helper to check if two videos are on the same day
-        const isSameDay = (ts1: number, ts2: number) => {
-            const d1 = new Date(ts1);
-            const d2 = new Date(ts2);
-            return d1.getFullYear() === d2.getFullYear() &&
-                d1.getMonth() === d2.getMonth() &&
-                d1.getDate() === d2.getDate();
-        };
-
-        // Helper to check if views are similar (within 50% of each other)
-        const hasSimilarViews = (v1: number, v2: number) => {
-            const ratio = Math.max(v1, v2) / Math.min(v1, v2);
-            return ratio < 1.5;
-        };
-
-        // First pass: calculate base positions using monthLayouts
-        const initialPositions = videos.map(video => {
+        // Calculate positions
+        const positions = videos.map(video => {
             // Find the month layout for this video
             const d = new Date(video.publishedAtTimestamp);
             const key = `${d.getFullYear()}-${d.getMonth()}`;
@@ -323,7 +338,6 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                 // Map to global X
                 xNorm = layout.startX + (localProgress * layout.width);
             } else {
-                // Fallback (shouldn't happen if layouts cover full range)
                 const dateRange = stats.maxDate - stats.minDate || 1;
                 xNorm = (video.publishedAtTimestamp - stats.minDate) / dateRange;
             }
@@ -351,59 +365,13 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
             return { video, xNorm, yNorm, baseSize };
         });
 
-        const worldW = worldWidth;
-        const worldH = WORLD_HEIGHT;
-        const MIN_GAP = 10;
+        // Sort by X (Time) purely for rendering order (z-index implicit)
+        // Actually rendering order should maybe be by ViewCount (small on top?) or Reverse ViewCount?
+        // Let's render smaller videos later so they are on top
+        positions.sort((a, b) => b.baseSize - a.baseSize); // Largest first, Smallest last (on top)
 
-        // Second pass: resolve horizontal collisions
-        const sorted = [...initialPositions].sort((a, b) => a.xNorm - b.xNorm);
-        const resolved: typeof initialPositions = [];
-
-        for (const current of sorted) {
-            let finalX = current.xNorm * worldW;
-            const currentWidth = current.baseSize;
-            const currentY = current.yNorm * (worldH - 50) + 25;
-            const currentHeight = currentWidth / (16 / 9);
-
-            for (const placed of resolved) {
-                const placedX = placed.xNorm * worldW;
-                const placedWidth = placed.baseSize;
-                const placedY = placed.yNorm * (worldH - 50) + 25;
-                const placedHeight = placedWidth / (16 / 9);
-
-                const currentLeft = finalX - currentWidth / 2;
-                const currentRight = finalX + currentWidth / 2;
-                const placedLeft = placedX - placedWidth / 2;
-                const placedRight = placedX + placedWidth / 2;
-
-                const currentTop = currentY - currentHeight / 2;
-                const currentBottom = currentY + currentHeight / 2;
-                const placedTop = placedY - placedHeight / 2;
-                const placedBottom = placedY + placedHeight / 2;
-
-                const horizontalOverlap = currentLeft < placedRight + MIN_GAP && currentRight > placedLeft - MIN_GAP;
-                const verticalOverlap = currentTop < placedBottom && currentBottom > placedTop;
-
-                if (horizontalOverlap && verticalOverlap) {
-                    const sameDay = isSameDay(current.video.publishedAtTimestamp, placed.video.publishedAtTimestamp);
-                    const similarViews = hasSimilarViews(current.video.viewCount, placed.video.viewCount);
-
-                    if (!(sameDay && similarViews)) {
-                        const requiredX = placedRight + MIN_GAP + currentWidth / 2;
-                        finalX = Math.max(finalX, requiredX);
-                    }
-                }
-            }
-
-            const resolvedXNorm = finalX / worldW;
-            resolved.push({ ...current, xNorm: resolvedXNorm });
-        }
-
-        const videoIdOrder = new Map(videos.map((v, i) => [v.id, i]));
-        resolved.sort((a, b) => (videoIdOrder.get(a.video.id) ?? 0) - (videoIdOrder.get(b.video.id) ?? 0));
-
-        return resolved;
-    }, [videos, stats, scalingMode, monthLayouts, worldWidth]);
+        return positions;
+    }, [videos, stats, scalingMode, monthLayouts]);
 
 
 
@@ -676,6 +644,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
     // Updated text counter scale to use state
     // const textCounterScale = 1 / transformState.scale; // UNUSED
 
+    const [focusedVideoId, setFocusedVideoId] = useState<string | null>(null);
+
     return (
         <div
             ref={containerRef}
@@ -802,16 +772,18 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                         return (
                             <div
                                 key={video.id}
-                                className="absolute cursor-pointer hover:z-50 group flex flex-col items-center"
+                                className="absolute cursor-pointer group flex flex-col items-center transition-all duration-200"
                                 style={{
                                     left: x,
                                     top: y,
                                     width: width,
                                     transform: 'translate(-50%, -50%)',
-                                    zIndex: 10 + index
+                                    zIndex: focusedVideoId === video.id ? 1000 : 10 + index
                                 }}
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onMouseEnter={(e) => {
+                                    setFocusedVideoId(video.id); // Instant Z-Index change
+
                                     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
 
                                     const rect = e.currentTarget.getBoundingClientRect();
@@ -827,6 +799,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                                     }, 500);
                                 }}
                                 onMouseLeave={() => {
+                                    setFocusedVideoId(null); // Instant Z-Index reset
+
                                     if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
 
                                     hoverTimeoutRef.current = setTimeout(() => {

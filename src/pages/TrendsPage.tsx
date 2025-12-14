@@ -18,6 +18,40 @@ interface VideoNode {
     channelTitle?: string;
 }
 
+// Tooltip Component
+const ScalingTooltip: React.FC<{
+    title: string;
+    description: string;
+    example: string;
+    parentRect: DOMRect | null;
+}> = ({ title, description, example, parentRect }) => {
+    if (!parentRect) return null;
+
+    // Position to the left of the menu item
+    const style: React.CSSProperties = {
+        top: parentRect.top,
+        right: window.innerWidth - parentRect.left + 8, // 8px gap
+        position: 'fixed',
+        zIndex: 1100
+    };
+
+    return createPortal(
+        <div
+            className="bg-[#1f1f1f] border border-white/10 rounded-lg shadow-xl p-3 w-64 animate-scale-in origin-right"
+            style={style}
+        >
+            <div className="text-sm font-medium text-white mb-1">{title}</div>
+            <div className="text-xs text-text-secondary leading-relaxed mb-2">
+                {description}
+            </div>
+            <div className="bg-white/5 rounded p-2 text-xs text-text-tertiary border border-white/5">
+                <span className="text-text-secondary font-medium">Example:</span> {example}
+            </div>
+        </div>,
+        document.body
+    );
+};
+
 export const TrendsPage: React.FC = () => {
     const { channels, selectedChannelId, timelineConfig, setTimelineConfig } = useTrendStore();
     const activeChannel = selectedChannelId ? channels.find(c => c.id === selectedChannelId) : null;
@@ -28,6 +62,21 @@ export const TrendsPage: React.FC = () => {
     const [settingsView, setSettingsView] = useState<'main' | 'scaling'>('main');
     const settingsButtonRef = useRef<HTMLButtonElement>(null);
     const settingsDropdownRef = useRef<HTMLDivElement>(null);
+
+    // Tooltip State
+    const [hoveredScalingMode, setHoveredScalingMode] = useState<'linear' | 'log' | null>(null);
+    const [hoveredItemRect, setHoveredItemRect] = useState<DOMRect | null>(null);
+
+    const handleMouseEnter = (mode: 'linear' | 'log', e: React.MouseEvent) => {
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        setHoveredScalingMode(mode);
+        setHoveredItemRect(rect);
+    };
+
+    const handleMouseLeave = () => {
+        setHoveredScalingMode(null);
+        setHoveredItemRect(null);
+    };
 
     // Computed visible channels (lifted from TimelineCanvas)
     const visibleChannels = useMemo(() => {
@@ -132,8 +181,6 @@ export const TrendsPage: React.FC = () => {
                                             </div>
                                             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" className="text-text-secondary"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" /></svg>
                                         </div>
-
-
                                     </div>
                                 ) : (
                                     /* Scaling Submenu */
@@ -154,7 +201,9 @@ export const TrendsPage: React.FC = () => {
 
                                         <div
                                             onClick={() => setTimelineConfig({ scalingMode: 'linear' })}
-                                            className="px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-hover-bg transition-colors"
+                                            onMouseEnter={(e) => handleMouseEnter('linear', e)}
+                                            onMouseLeave={handleMouseLeave}
+                                            className="px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-hover-bg transition-colors relative"
                                         >
                                             <div className="flex flex-col">
                                                 <span className="text-sm text-text-primary">Linear</span>
@@ -165,7 +214,9 @@ export const TrendsPage: React.FC = () => {
 
                                         <div
                                             onClick={() => setTimelineConfig({ scalingMode: 'log' })}
-                                            className="px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-hover-bg transition-colors"
+                                            onMouseEnter={(e) => handleMouseEnter('log', e)}
+                                            onMouseLeave={handleMouseLeave}
+                                            className="px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-hover-bg transition-colors relative"
                                         >
                                             <div className="flex flex-col">
                                                 <span className="text-sm text-text-primary">Logarithmic</span>
@@ -177,6 +228,24 @@ export const TrendsPage: React.FC = () => {
                                 )}
                             </div>,
                             document.body
+                        )}
+
+                        {/* Tooltips */}
+                        {isSettingsOpen && hoveredScalingMode === 'linear' && (
+                            <ScalingTooltip
+                                title="Linear Scaling"
+                                description="Size is directly proportional to view count. Ideal for identifying massive viral outliers vs average videos."
+                                example="1M views is 10x larger than 100k views."
+                                parentRect={hoveredItemRect}
+                            />
+                        )}
+                        {isSettingsOpen && hoveredScalingMode === 'log' && (
+                            <ScalingTooltip
+                                title="Logarithmic Scaling"
+                                description="Size increases by order of magnitude. Better for comparing performance nuances across a wide range of channels."
+                                example="1M views is only ~2x larger than 10k views."
+                                parentRect={hoveredItemRect}
+                            />
                         )}
                     </div>
                 </div>
