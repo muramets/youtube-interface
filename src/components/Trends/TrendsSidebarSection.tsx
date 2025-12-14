@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Eye, EyeOff, TrendingUp, MoreVertical, Trash2 } from 'lucide-react';
+import { Plus, Eye, EyeOff, TrendingUp, MoreVertical, Trash2, RefreshCw } from 'lucide-react';
 import { useTrendStore } from '../../stores/trendStore';
 import { TrendService } from '../../services/trendService';
 import { useAuth } from '../../hooks/useAuth';
@@ -8,12 +8,18 @@ import { useChannelStore } from '../../stores/channelStore';
 import { SidebarDivider } from '../Layout/Sidebar';
 import { Dropdown } from '../Shared/Dropdown';
 import { ConfirmationModal } from '../Shared/ConfirmationModal';
+import { useSettings } from '../../hooks/useSettings';
+import { useUIStore } from '../../stores/uiStore';
+import { useNotificationStore } from '../../stores/notificationStore';
 import type { TrendChannel } from '../../types/trends';
 
 export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded }) => {
     const { channels, selectedChannelId, setSelectedChannelId, setAddChannelModalOpen } = useTrendStore();
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
+    const { generalSettings } = useSettings();
+    const { showToast } = useUIStore();
+    const { addNotification } = useNotificationStore();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -47,6 +53,41 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                 navigate('/trends');
             }
             setChannelToDelete(null);
+        }
+    };
+
+    const handleSyncChannel = async () => {
+        const channelId = menuState.channelId;
+        setMenuState({ anchorEl: null, channelId: null });
+
+        if (!user || !currentChannel || !channelId) return;
+
+        const channel = channels.find(c => c.id === channelId);
+        if (!channel) return;
+
+        const apiKey = generalSettings?.apiKey || localStorage.getItem('youtube_api_key') || '';
+        if (!apiKey) {
+            showToast('API Key not found. Please set it in Settings.', 'error');
+            return;
+        }
+
+        showToast(`Syncing videos for ${channel.title}...`, 'success');
+
+        try {
+            const { totalNewVideos, totalQuotaUsed } = await TrendService.syncChannelVideos(user.uid, currentChannel.id, channel, apiKey);
+
+            const message = `Sync complete. Added ${totalNewVideos} new videos. Quota used: ${totalQuotaUsed}`;
+            showToast(message, 'success');
+
+            await addNotification({
+                title: 'Channel Synced',
+                message: `${message} for ${channel.title}`,
+                type: 'success',
+                meta: 'Quota',
+            });
+        } catch (error: any) {
+            console.error('Sync failed:', error);
+            showToast(`Sync failed: ${error.message}`, 'error');
         }
     };
 
@@ -144,7 +185,14 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                         anchorEl={menuState.anchorEl}
                         width={180}
                     >
-                        <div className="p-1">
+                        <div className="p-1 space-y-0.5">
+                            <button
+                                onClick={handleSyncChannel}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-white/5 rounded cursor-pointer transition-colors text-left"
+                            >
+                                <RefreshCw size={14} />
+                                <span>Sync</span>
+                            </button>
                             <button
                                 onClick={() => {
                                     const channel = channels.find(c => c.id === menuState.channelId);

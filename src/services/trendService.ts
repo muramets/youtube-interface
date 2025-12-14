@@ -99,14 +99,15 @@ export const TrendService = {
         await setDoc(doc(db, `users/${userId}/channels/${userChannelId}/trendChannels`, newChannel.id), newChannel);
 
         // 4. Initial Sync of Videos
+        let initialSyncStats = { totalQuotaUsed: 0 };
         try {
-            await TrendService.syncChannelVideos(userId, userChannelId, newChannel, apiKey);
+            initialSyncStats = await TrendService.syncChannelVideos(userId, userChannelId, newChannel, apiKey);
         } catch (error) {
             console.error('Initial video sync failed:', error);
             // We still return the channel even if sync fails, it will just be empty initially
         }
 
-        return { channel: newChannel, quotaCost: 3 }; // 1 (search) + 1 (playlist) + 1 (videos) = 3 units
+        return { channel: newChannel, quotaCost: 1 + initialSyncStats.totalQuotaUsed }; // 1 (channel search) + sync cost
     },
 
     removeTrendChannel: async (userId: string, userChannelId: string, channelId: string) => {
@@ -130,69 +131,106 @@ export const TrendService = {
     // --- Video Fetching & Caching (IndexedDB) ---
 
     syncChannelVideos: async (userId: string, userChannelId: string, channel: TrendChannel, apiKey: string) => {
-        // 1. Fetch from YouTube (Uploads Playlist)
-        // Limit to last 50 videos for 'Explore' purpose usually, or pagination loop
-        // For this generic impl, let's fetch 50.
+        console.log(`[TrendService] Starting full sync for channel: ${channel.title}`);
 
-        const params = new URLSearchParams({
-            part: 'snippet,contentDetails',
-            playlistId: channel.uploadsPlaylistId,
-            maxResults: '50',
-            key: apiKey,
-        });
+        let nextPageToken: string | undefined = undefined;
+        let totalNewVideos = 0;
+        let totalQuotaUsed = 0;
 
-        const res = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${params.toString()}`);
-        const data = await res.json();
-
-        console.log('[TrendService] PlaylistItems response:', data);
-
-        if (!data.items) {
-            console.warn('[TrendService] No items found in playlist response');
-            return;
-        }
-
-        // Need to fetch statistics (viewCount) separately for these videos
-        const videoIds = data.items.map((i: any) => i.contentDetails.videoId).join(',');
-        const statsParams = new URLSearchParams({
-            part: 'statistics,contentDetails,snippet',
-            id: videoIds,
-            key: apiKey,
-        });
-
-        const statsRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?${statsParams.toString()}`);
-        const statsData = await statsRes.json();
-
-        const videos: TrendVideo[] = statsData.items.map((item: any) => ({
-            id: item.id,
-            channelId: channel.id,
-            publishedAt: item.snippet.publishedAt,
-            publishedAtTimestamp: new Date(item.snippet.publishedAt).getTime(),
-            title: item.snippet.title,
-            thumbnail: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url,
-            viewCount: parseInt(item.statistics.viewCount),
-            duration: item.contentDetails.duration,
-            tags: item.snippet.tags,
-            description: item.snippet.description,
-        }));
-
-        console.log(`[TrendService] Parsed ${videos.length} videos. Saving to DB...`, videos[0]);
-
-        // 2. Update IndexedDB
         const idb = await getDB();
-        const tx = idb.transaction('videos', 'readwrite');
-        await Promise.all(videos.map(v => tx.store.put(v)));
-        await tx.done;
 
-        console.log('[TrendService] Videos saved to IndexedDB successfully');
+        // Recursively fetch all pages from playlistItems
+        do {
+            const params = new URLSearchParams({
+                part: 'snippet,contentDetails',
+                playlistId: channel.uploadsPlaylistId,
+                maxResults: '50',
+                key: apiKey,
+            });
 
-        // 3. Update Channel 'lastUpdated' and 'averageViews'
-        const totalViews = videos.reduce((sum, v) => sum + v.viewCount, 0);
-        const averageViews = videos.length > 0 ? totalViews / videos.length : 0;
+            if (nextPageToken) {
+                params.append('pageToken', nextPageToken);
+            }
+
+            const res = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${params.toString()}`);
+            const data = await res.json();
+            totalQuotaUsed += 1; // playlistItems cost
+
+            if (!data.items || data.items.length === 0) {
+                break;
+            }
+
+            // Optimization: Filter out videos we already have in DB
+            // For now, we'll check against IDB for each batch.
+            const newVideoIds: string[] = [];
+
+            for (const item of data.items) {
+                const videoId = item.contentDetails.videoId;
+                // Check if video exists in IDB. 
+                // idb.get returns undefined if not found.
+                const existing = await idb.get('videos', videoId);
+
+                if (!existing) {
+                    newVideoIds.push(videoId);
+                }
+            }
+
+            if (newVideoIds.length > 0) {
+                // Fetch details ONLY for new videos
+                const videoIdsChunk = newVideoIds.join(',');
+                const statsParams = new URLSearchParams({
+                    part: 'statistics,contentDetails,snippet',
+                    id: videoIdsChunk,
+                    key: apiKey,
+                });
+
+                const statsRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?${statsParams.toString()}`);
+                const statsData = await statsRes.json();
+                totalQuotaUsed += 1; // videos list cost
+
+                if (statsData.items) {
+                    const videos: TrendVideo[] = statsData.items.map((item: any) => ({
+                        id: item.id,
+                        channelId: channel.id,
+                        publishedAt: item.snippet.publishedAt,
+                        publishedAtTimestamp: new Date(item.snippet.publishedAt).getTime(),
+                        title: item.snippet.title,
+                        thumbnail: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url,
+                        viewCount: parseInt(item.statistics.viewCount),
+                        duration: item.contentDetails.duration,
+                        tags: item.snippet.tags,
+                        description: item.snippet.description,
+                    }));
+
+                    const tx = idb.transaction('videos', 'readwrite');
+                    await Promise.all(videos.map(v => tx.store.put(v)));
+                    await tx.done;
+
+                    totalNewVideos += videos.length;
+                }
+            } else {
+                console.log('[TrendService] All videos in this page already exist. Skipping details fetch.');
+            }
+
+            nextPageToken = data.nextPageToken;
+            nextPageToken = data.nextPageToken;
+
+
+        } while (nextPageToken);
+
+        console.log(`[TrendService] Sync complete. Added ${totalNewVideos} new videos. Quota used: ${totalQuotaUsed}`);
+
+        // Update stats
+        const allVideos = await idb.getAllFromIndex('videos', 'by-channel', channel.id);
+        const totalViews = allVideos.reduce((sum, v) => sum + v.viewCount, 0);
+        const averageViews = allVideos.length > 0 ? totalViews / allVideos.length : 0;
 
         await updateDoc(doc(db, `users/${userId}/channels/${userChannelId}/trendChannels`, channel.id), {
             lastUpdated: Date.now(),
             averageViews
         });
+
+        return { totalNewVideos, totalQuotaUsed };
     },
 
     getChannelVideosFromCache: async (channelId: string) => {
