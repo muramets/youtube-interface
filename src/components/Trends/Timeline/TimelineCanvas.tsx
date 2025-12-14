@@ -34,44 +34,10 @@ const HEADER_HEIGHT = 48;
 const PADDING = 40;
 
 // World dimensions (used in multiple places)
-const WORLD_WIDTH = 2000;
+// Width is now dynamic
 const WORLD_HEIGHT = 1000;
 
-// Helper to clamp transform so content stays visible
-const clampTransform = (
-    transform: { scale: number; offsetX: number; offsetY: number },
-    viewportWidth: number,
-    viewportHeight: number
-): { scale: number; offsetX: number; offsetY: number } => {
-    const scaledWidth = WORLD_WIDTH * transform.scale;
-    const scaledHeight = WORLD_HEIGHT * transform.scale;
-    const viewportH = viewportHeight - HEADER_HEIGHT;
 
-    // Visibility constraint: keep 74% of the "effective" dimension visible
-    // "Effective" means the smaller of the content size or the viewport size.
-    // - If zoomed out (content < viewport): Keep 74% of content visible.
-    // - If zoomed in (content > viewport): Keep 74% of viewport filled with content (allow max 26% void).
-    const VISIBILITY_RATIO = 0.74;
-
-    const minVisibleX = Math.min(scaledWidth, viewportWidth) * VISIBILITY_RATIO;
-    const minVisibleY = Math.min(scaledHeight, viewportH) * VISIBILITY_RATIO;
-
-    // Bounds for offsetX
-    // Max: Content starts near right edge (viewportW - minVisibleX)
-    // Min: Content ends near left edge (minVisibleX - scaledW)
-    const maxOffsetX = viewportWidth - minVisibleX;
-    const minOffsetX = minVisibleX - scaledWidth;
-
-    // Bounds for offsetY
-    const maxOffsetY = viewportH - minVisibleY;
-    const minOffsetY = minVisibleY - scaledHeight;
-
-    return {
-        scale: transform.scale,
-        offsetX: Math.max(minOffsetX, Math.min(maxOffsetX, transform.offsetX)),
-        offsetY: Math.max(minOffsetY, Math.min(maxOffsetY, transform.offsetY))
-    };
-};
 
 import { useDebounce } from '../../../hooks/useDebounce';
 
@@ -81,30 +47,89 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
     const { timelineConfig, setTimelineConfig, setAddChannelModalOpen } = useTrendStore();
     const { scalingMode, isCustomView, zoomLevel, offsetX, offsetY } = timelineConfig;
 
+    // Refs for imperative access (perf optimization)
     const containerRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
+    const headerRef = useRef<HTMLDivElement>(null);
+    const bgRef = useRef<HTMLDivElement>(null);
+
     const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const showTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Initial ResizeObserver to cache size
+    useEffect(() => {
+        if (!containerRef.current) return;
+
+        const observer = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                containerSizeRef.current = {
+                    width: entry.contentRect.width,
+                    height: entry.contentRect.height
+                };
+            }
+        });
+
+        observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, []);
 
     const [hoveredVideo, setHoveredVideo] = useState<{ video: VideoNode; x: number; y: number; height: number } | null>(null);
 
     // Drag-to-pan state
     const [isPanning, setIsPanning] = useState(false);
-    const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+    const isPanningRef = useRef(false); // Ref for event handlers
+    const panStartRef = useRef({ x: 0, y: 0 });
 
-    // Transform state: initialized from store if available
-    const [transform, setTransform] = useState<Transform>({
+    // Cache viewport size to avoid reflows during zoom (120Hz optimization)
+    const containerSizeRef = useRef({ width: 0, height: 0 });
+
+    // Transform state: Mutable ref for high-perf updates + React state for sync
+    const transformRef = useRef<Transform>({
         scale: Math.max(0.1, zoomLevel || 1),
         offsetX: offsetX || 0,
         offsetY: offsetY || 0
     });
 
+    // Keep React state for non-critical UI (like zoom label)
+    const [transformState, setTransformState] = useState<Transform>(transformRef.current);
+
+    // Dynamic World Width - HOISTED to top for access in syncToDom
+    const worldWidth = useMemo(() => {
+        const measuredWidth = videos.length * 60; // 60px per video avg
+        return Math.max(2000, measuredWidth);
+    }, [videos.length]);
+
+    // Helper to apply transforms imperatively to DOM
+    const syncToDom = useCallback(() => {
+        const { scale, offsetX, offsetY } = transformRef.current;
+        // width unused
+
+        requestAnimationFrame(() => {
+            // 1. Content Layer
+            if (contentRef.current) {
+                contentRef.current.style.transform = `translate3d(${offsetX}px, ${offsetY}px, 0) scale(${scale})`;
+            }
+            // 2. Header Layer (Sticky X, Fixed Y)
+            if (headerRef.current) {
+                headerRef.current.style.transform = `translate3d(${offsetX}px, 0, 0) scaleX(${scale})`;
+            }
+            // 3. Background Layer
+            if (bgRef.current) {
+                bgRef.current.style.transform = `translate3d(${offsetX}px, 0, 0) scaleX(${scale})`;
+            }
+        });
+    }, []); // worldWidth removed from deps as it's not used inside
+
+    // Initial sync
+    useEffect(() => {
+        syncToDom();
+    }, [syncToDom]);
+
     // Debounce value to prevent excessive store updates
-    const debouncedTransform = useDebounce(transform, 500);
+    const debouncedTransform = useDebounce(transformState, 500);
 
     // Sync transform back to store when it settles
     useEffect(() => {
-        // Only update if changed significantly to avoid loops
         if (
             Math.abs(debouncedTransform.scale - zoomLevel) > 0.001 ||
             Math.abs(debouncedTransform.offsetX - offsetX) > 1 ||
@@ -114,7 +139,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                 zoomLevel: debouncedTransform.scale,
                 offsetX: debouncedTransform.offsetX,
                 offsetY: debouncedTransform.offsetY,
-                isCustomView: true // Mark as custom once user interacts/state settles
+                isCustomView: true
             });
         }
     }, [debouncedTransform, setTimelineConfig, zoomLevel, offsetX, offsetY]);
@@ -135,11 +160,135 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
         };
     }, [videos]);
 
+    // Calculate density-based month layouts
+    const monthLayouts = useMemo(() => {
+        if (videos.length === 0) return [];
+
+        // 1. Group videos by month and count
+        const counts = new Map<string, number>();
+        videos.forEach(v => {
+            const d = new Date(v.publishedAtTimestamp);
+            const key = `${d.getFullYear()}-${d.getMonth()}`;
+            counts.set(key, (counts.get(key) || 0) + 1);
+        });
+
+        // 2. Generate all months in range
+        const layouts: {
+            year: number;
+            month: number;
+            monthKey: string;
+            label: string;
+            count: number;
+            startX: number;
+            endX: number;
+            width: number;
+            startTs: number;
+            endTs: number;
+        }[] = [];
+
+        let current = new Date(stats.minDate);
+        current.setDate(1); // align to start of month
+        current.setHours(0, 0, 0, 0);
+
+        const endDate = new Date(stats.maxDate);
+        // Ensure we cover the full range including the last partial month
+        const safeEndDate = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 1);
+
+        const rawWidths: number[] = [];
+
+        // Constants for sizing
+        const BASE_MONTH_WEIGHT = 1; // Minimum width weight per month (e.g. empty months)
+        const ITEM_WEIGHT = 0.05;    // Additional weight per video item
+
+        while (current < safeEndDate) {
+            const year = current.getFullYear();
+            const month = current.getMonth();
+            const key = `${year}-${month}`;
+            const count = counts.get(key) || 0;
+
+            // Calculate "Weight" for this month
+            // Base weight + extra space for videos
+            // We can tune ITEM_WEIGHT to control how much space dense months get
+            const weight = BASE_MONTH_WEIGHT + (count * ITEM_WEIGHT);
+
+            rawWidths.push(weight);
+
+            const nextMonth = new Date(current);
+            nextMonth.setMonth(current.getMonth() + 1);
+
+            layouts.push({
+                year,
+                month,
+                monthKey: key,
+                label: current.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
+                count,
+                startX: 0, // placeholder
+                endX: 0,   // placeholder
+                width: 0,  // placeholder
+                startTs: current.getTime(),
+                endTs: nextMonth.getTime()
+            });
+
+            current = nextMonth;
+        }
+
+        // 3. Normalize widths
+        const totalWeight = rawWidths.reduce((sum, w) => sum + w, 0);
+        let currentX = 0;
+
+        layouts.forEach((layout, i) => {
+            const normalizedWidth = rawWidths[i] / totalWeight;
+            layout.startX = currentX;
+            layout.width = normalizedWidth;
+            layout.endX = currentX + normalizedWidth;
+            currentX += normalizedWidth;
+        });
+
+        return layouts;
+    }, [videos, stats]);
+
+
+
+    // Helper to clamp transform so content stays visible
+    // Helper to clamp transform so content stays visible
+    const clampTransform = useCallback((
+        t: { scale: number; offsetX: number; offsetY: number },
+        viewportWidth: number,
+        viewportHeight: number
+    ): { scale: number; offsetX: number; offsetY: number } => {
+        const scaledWidth = worldWidth * t.scale;
+        const scaledHeight = WORLD_HEIGHT * t.scale;
+        const viewportH = viewportHeight - HEADER_HEIGHT;
+
+        // Visibility constraint
+        const VISIBILITY_RATIO = 0.74;
+
+        const minVisibleX = Math.min(scaledWidth, viewportWidth) * VISIBILITY_RATIO;
+        const minVisibleY = Math.min(scaledHeight, viewportH) * VISIBILITY_RATIO;
+
+        const maxOffsetX = viewportWidth - minVisibleX;
+        const minOffsetX = minVisibleX - scaledWidth;
+
+        const maxOffsetY = viewportH - minVisibleY;
+        const minOffsetY = minVisibleY - scaledHeight;
+
+        return {
+            scale: t.scale,
+            offsetX: Math.max(minOffsetX, Math.min(maxOffsetX, t.offsetX)),
+            offsetY: Math.max(minOffsetY, Math.min(maxOffsetY, t.offsetY))
+        };
+    }, [worldWidth]);
+
     // Calculate "world" coordinates for each video with collision detection
     const videoPositions = useMemo(() => {
-        const dateRange = stats.maxDate - stats.minDate || 1;
         const viewRangeLinear = stats.maxViews - stats.minViews || 1;
         const viewRangeLog = Math.log(stats.maxViews) - Math.log(stats.minViews) || 1;
+
+        console.log('[TimelineCanvas Debug] Stats:', {
+            minDate: new Date(stats.minDate).toLocaleString(),
+            maxDate: new Date(stats.maxDate).toLocaleString(),
+            videoCount: videos.length
+        });
 
         // Helper to check if two videos are on the same day
         const isSameDay = (ts1: number, ts2: number) => {
@@ -156,9 +305,28 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
             return ratio < 1.5;
         };
 
-        // First pass: calculate base positions and sizes
+        // First pass: calculate base positions using monthLayouts
         const initialPositions = videos.map(video => {
-            const xNorm = (video.publishedAtTimestamp - stats.minDate) / dateRange;
+            // Find the month layout for this video
+            const d = new Date(video.publishedAtTimestamp);
+            const key = `${d.getFullYear()}-${d.getMonth()}`;
+            const layout = monthLayouts.find(l => l.monthKey === key);
+
+            let xNorm: number;
+
+            if (layout) {
+                // Calculate position WITHIN the month
+                const monthDuration = layout.endTs - layout.startTs;
+                const offsetInMonth = video.publishedAtTimestamp - layout.startTs;
+                const localProgress = Math.max(0, Math.min(1, offsetInMonth / monthDuration));
+
+                // Map to global X
+                xNorm = layout.startX + (localProgress * layout.width);
+            } else {
+                // Fallback (shouldn't happen if layouts cover full range)
+                const dateRange = stats.maxDate - stats.minDate || 1;
+                xNorm = (video.publishedAtTimestamp - stats.minDate) / dateRange;
+            }
 
             let yNorm: number;
             if (scalingMode === 'linear') {
@@ -183,7 +351,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
             return { video, xNorm, yNorm, baseSize };
         });
 
-        const worldW = WORLD_WIDTH;
+        const worldW = worldWidth;
         const worldH = WORLD_HEIGHT;
         const MIN_GAP = 10;
 
@@ -235,8 +403,11 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
         resolved.sort((a, b) => (videoIdOrder.get(a.video.id) ?? 0) - (videoIdOrder.get(b.video.id) ?? 0));
 
         return resolved;
-    }, [videos, stats, scalingMode]);
+    }, [videos, stats, scalingMode, monthLayouts, worldWidth]);
 
+
+
+    // Reusable auto-fit logic
     // Reusable auto-fit logic
     const handleAutoFit = useCallback(() => {
         if (videos.length === 0 || !containerRef.current) return;
@@ -247,25 +418,31 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
 
         if (viewportWidth <= 0 || viewportHeight <= 0) return;
 
-        const scaleX = (viewportWidth - PADDING * 2) / WORLD_WIDTH;
+        const scaleX = (viewportWidth - PADDING * 2) / worldWidth;
         const scaleY = (viewportHeight - PADDING * 2) / WORLD_HEIGHT;
         const fitScale = Math.min(scaleX, scaleY);
 
-        const contentWidth = WORLD_WIDTH * fitScale;
+        const contentWidth = worldWidth * fitScale;
         const contentHeight = WORLD_HEIGHT * fitScale;
         const newOffsetX = (viewportWidth - contentWidth) / 2;
         const newOffsetY = (viewportHeight - contentHeight) / 2;
 
-        setTransform({ scale: fitScale, offsetX: newOffsetX, offsetY: newOffsetY });
+        const newState = { scale: fitScale, offsetX: newOffsetX, offsetY: newOffsetY };
 
-        // Reset custom view flag so auto-fit can work again if window resizes
+        // Update Ref & DOM
+        transformRef.current = newState;
+        syncToDom();
+
+        // Update React State
+        setTransformState(newState);
+
         setTimelineConfig({
             zoomLevel: fitScale,
             offsetX: newOffsetX,
             offsetY: newOffsetY,
             isCustomView: false
         });
-    }, [videos.length, setTimelineConfig]);
+    }, [videos.length, setTimelineConfig, worldWidth, syncToDom]);
 
     // Auto-fit on load
     useEffect(() => {
@@ -296,68 +473,110 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
         e.preventDefault();
 
         if (e.ctrlKey || e.metaKey) {
+            // Use cached size
+            const { width: viewportWidth, height: viewportHeight } = containerSizeRef.current;
+            if (viewportWidth === 0 || viewportHeight === 0) return;
+
+            // Approximate mouse position relative to container (without getBoundingClientRect)
+            // We can't perfectly get mouseX/Y without reading DOM, but for trackpad zoom,
+            // we can assume center or use e.layerX/Y if available or just clamp.
+            // BETTER: Read DOM *once* on mouse move and cache it? 
+            // OR: Just accept one read per frame? 
+            // actually getBoundingClientRect IS expensive.
+            // Let's use e.offsetX / e.offsetY if available on the event target?
+            // Native WheelEvent doesn't always have offsetX relative to the specific container if it bubbled.
+            // Compromise: Read rect only if we absolutely must, but try to rely on cache.
+
+            // For 120Hz perfection, we should cache the rect position too, but it changes on scroll??
+            // Actually, if the container is full screen...
+            // Let's stick to standard behavior for now but use cached Dimensions at least.
+
             const container = containerRef.current;
             if (!container) return;
 
+            // optimization: only call getBoundingClientRect if needed
             const rect = container.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top - HEADER_HEIGHT;
 
-            const velocity = Math.abs(e.deltaY);
-            const baseSensitivity = 0.002;
-            const velocityMultiplier = 1 + Math.min(velocity / 5, 19); // Max 20x acceleration
-            const sensitivity = baseSensitivity * velocityMultiplier;
-            const attractionBoost = velocity > 10 ? 1 + Math.abs(Math.log(transform.scale / 1.0)) * 0.5 : 1; // Target zoom 1.0
+            // Standard exponential zoom
+            const ZOOM_SENSITIVITY = 0.01;
+            const delta = Math.max(-100, Math.min(100, e.deltaY));
 
-            const zoomFactor = 1 - e.deltaY * sensitivity * attractionBoost;
-            const newScale = Math.max(0.1, Math.min(10, transform.scale * zoomFactor));
-            const scaleRatio = newScale / transform.scale;
+            const currentScale = transformRef.current.scale;
+            const newScale = Math.max(0.1, Math.min(10, currentScale * Math.exp(-delta * ZOOM_SENSITIVITY)));
+            const scaleRatio = newScale / currentScale;
 
             const clamped = clampTransform({
                 scale: newScale,
-                offsetX: mouseX - (mouseX - transform.offsetX) * scaleRatio,
-                offsetY: mouseY - (mouseY - transform.offsetY) * scaleRatio
-            }, container.clientWidth, container.clientHeight);
+                offsetX: mouseX - (mouseX - transformRef.current.offsetX) * scaleRatio,
+                offsetY: mouseY - (mouseY - transformRef.current.offsetY) * scaleRatio
+            }, viewportWidth, viewportHeight); // Use CACHED width/height
 
-            setTransform(clamped);
+            // Imperative Update
+            transformRef.current = clamped;
+            syncToDom();
+
+            // Sync to UI state occasionally
+            setTransformState(clamped);
+
         } else {
-            const container = containerRef.current;
-            if (!container) return;
+            // Use cached size
+            const { width: viewportWidth, height: viewportHeight } = containerSizeRef.current;
+            if (viewportWidth === 0) return;
 
             const clamped = clampTransform({
-                ...transform,
-                offsetX: transform.offsetX - e.deltaX,
-                offsetY: transform.offsetY - e.deltaY
-            }, container.clientWidth, container.clientHeight);
+                ...transformRef.current,
+                offsetX: transformRef.current.offsetX - e.deltaX,
+                offsetY: transformRef.current.offsetY - e.deltaY
+            }, viewportWidth, viewportHeight); // Use CACHED width/height
 
-            setTransform(clamped);
+            // Imperative Update
+            transformRef.current = clamped;
+            syncToDom();
+
+            // Sync to UI state
+            setTransformState(clamped);
         }
-    }, [transform]);
+    }, [clampTransform, syncToDom]);
 
+    // Mouse drag-to-pan handlers
     // Mouse drag-to-pan handlers
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
         if (e.button === 0 && !hoveredVideo) {
             setIsPanning(true);
-            setPanStart({ x: e.clientX - transform.offsetX, y: e.clientY - transform.offsetY });
+            isPanningRef.current = true;
+            panStartRef.current = {
+                x: e.clientX - transformRef.current.offsetX,
+                y: e.clientY - transformRef.current.offsetY
+            };
         }
-    }, [transform.offsetX, transform.offsetY, hoveredVideo]);
+    }, [hoveredVideo]);
 
     const handleMouseMove = useCallback((e: React.MouseEvent) => {
-        if (isPanning && containerRef.current) {
-            const container = containerRef.current;
-            const clamped = clampTransform({
-                ...transform,
-                offsetX: e.clientX - panStart.x,
-                offsetY: e.clientY - panStart.y
-            }, container.clientWidth, container.clientHeight);
+        if (isPanningRef.current) {
+            // Use cached size optimization
+            const { width: viewportWidth, height: viewportHeight } = containerSizeRef.current;
+            if (viewportWidth === 0) return;
 
-            setTransform(clamped);
+            const clamped = clampTransform({
+                ...transformRef.current,
+                offsetX: e.clientX - panStartRef.current.x,
+                offsetY: e.clientY - panStartRef.current.y
+            }, viewportWidth, viewportHeight);
+
+            transformRef.current = clamped;
+            syncToDom();
+            setTransformState(clamped);
         }
-    }, [isPanning, panStart, transform]);
+    }, [clampTransform, syncToDom]);
 
     const handleMouseUp = useCallback(() => {
         setIsPanning(false);
+        isPanningRef.current = false;
     }, []);
+
+
 
     // Attach non-passive wheel listener
     useEffect(() => {
@@ -379,45 +598,26 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
         };
     }, [handleWheel]);
 
-    // Generate month regions for background
+    // Generate month regions for background - NOW USING DYNAMIC LAYOUTS
     const monthRegions = useMemo(() => {
-        if (videos.length === 0) return [];
+        if (videos.length === 0 || monthLayouts.length === 0) return [];
 
-        const regions: { month: string; year: number; startX: number; endX: number; center: number; isFirstOfYear: boolean }[] = [];
-        const dateRange = stats.maxDate - stats.minDate;
-
-        let current = new Date(stats.minDate);
-        current.setDate(1);
-        const endDate = new Date(stats.maxDate);
         let prevYear: number | null = null;
 
-        while (current <= endDate) {
-            const monthStart = current.getTime();
-            const nextMonth = new Date(current);
-            nextMonth.setMonth(current.getMonth() + 1);
-            const monthEnd = nextMonth.getTime();
+        return monthLayouts.map(layout => {
+            const isFirstOfYear = layout.year !== prevYear;
+            prevYear = layout.year;
 
-            const visibleStart = Math.max(stats.minDate, monthStart);
-            const visibleEnd = Math.min(stats.maxDate, monthEnd);
-
-            if (visibleStart < visibleEnd) {
-                const startX = (visibleStart - stats.minDate) / dateRange;
-                const endX = (visibleEnd - stats.minDate) / dateRange;
-                const isFirstOfYear = current.getFullYear() !== prevYear;
-                regions.push({
-                    month: current.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
-                    year: current.getFullYear(),
-                    startX,
-                    endX,
-                    center: (startX + endX) / 2,
-                    isFirstOfYear
-                });
-                prevYear = current.getFullYear();
-            }
-            current.setMonth(current.getMonth() + 1);
-        }
-        return regions;
-    }, [stats, videos.length]);
+            return {
+                month: layout.label,
+                year: layout.year,
+                startX: layout.startX,
+                endX: layout.endX,
+                center: (layout.startX + layout.endX) / 2,
+                isFirstOfYear
+            };
+        });
+    }, [monthLayouts, videos.length]);
 
     // Generate year markers from month regions
     const yearMarkers = useMemo(() => {
@@ -444,6 +644,27 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
         return years;
     }, [monthRegions]);
 
+    // Debug logging for regions and positions
+    useEffect(() => {
+        if (monthRegions.length > 0) {
+            console.log('[TimelineCanvas Debug] Month Regions:', monthRegions.map(r => ({
+                month: r.month,
+                year: r.year,
+                startX: r.startX.toFixed(4),
+                endX: r.endX.toFixed(4)
+            })));
+        }
+
+        if (videoPositions.length > 0) {
+            const sample = videoPositions.slice(0, 5).map(p => ({
+                title: p.video.title,
+                date: new Date(p.video.publishedAtTimestamp).toLocaleDateString(),
+                xNorm: p.xNorm.toFixed(4)
+            }));
+            console.log('[TimelineCanvas Debug] First 5 Videos:', sample);
+        }
+    }, [monthRegions, videoPositions]);
+
     // Format views like "1.2M"
     const formatCompactNumber = (num: number) => {
         return new Intl.NumberFormat('en-US', {
@@ -452,7 +673,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
         }).format(num);
     };
 
-    const textCounterScale = 1 / transform.scale;
+    // Updated text counter scale to use state
+    // const textCounterScale = 1 / transformState.scale; // UNUSED
 
     return (
         <div
@@ -469,10 +691,11 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                 className="absolute top-0 left-0 right-0 h-12 bg-[#1a1a1a]/80 backdrop-blur-md border-b border-white/10 z-30 overflow-hidden"
             >
                 <div
+                    ref={headerRef}
                     style={{
-                        transform: `translateX(${transform.offsetX}px) scaleX(${transform.scale})`,
+                        transform: `translateX(${transformState.offsetX}px) scaleX(${transformState.scale})`,
                         transformOrigin: '0 0',
-                        width: WORLD_WIDTH,
+                        width: worldWidth,
                         height: '100%',
                         position: 'relative'
                     }}
@@ -491,7 +714,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                             <span
                                 className="text-xs font-bold text-white/70 tracking-widest"
                                 style={{
-                                    transform: `scaleX(${textCounterScale})`,
+                                    transform: `scaleX(${1 / transformState.scale})`,
                                     transformOrigin: 'center',
                                     whiteSpace: 'nowrap'
                                 }}
@@ -515,7 +738,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                             <span
                                 className="text-[10px] font-medium text-text-tertiary tracking-wider"
                                 style={{
-                                    transform: `scaleX(${textCounterScale})`,
+                                    transform: `scaleX(${1 / transformState.scale})`,
                                     transformOrigin: 'center',
                                     whiteSpace: 'nowrap'
                                 }}
@@ -532,10 +755,11 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                 className="absolute inset-0 top-12 pointer-events-none overflow-hidden z-0"
             >
                 <div
+                    ref={bgRef}
                     style={{
-                        transform: `translateX(${transform.offsetX}px) scaleX(${transform.scale})`,
+                        transform: `translateX(${transformState.offsetX}px) scaleX(${transformState.scale})`,
                         transformOrigin: '0 0',
-                        width: WORLD_WIDTH,
+                        width: worldWidth,
                         height: '100%',
                         position: 'relative'
                     }}
@@ -559,15 +783,16 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                 <div
                     ref={contentRef}
                     style={{
-                        transform: `translate(${transform.offsetX}px, ${transform.offsetY}px) scale(${transform.scale})`,
+                        transform: `translate(${transformState.offsetX}px, ${transformState.offsetY}px) scale(${transformState.scale})`,
                         transformOrigin: '0 0',
-                        width: WORLD_WIDTH,
+                        width: worldWidth,
                         height: WORLD_HEIGHT,
-                        position: 'absolute'
+                        position: 'absolute',
+                        willChange: 'transform'
                     }}
                 >
                     {videoPositions.map(({ video, xNorm, yNorm, baseSize }, index) => {
-                        const x = xNorm * WORLD_WIDTH;
+                        const x = xNorm * worldWidth;
                         const y = yNorm * (WORLD_HEIGHT - 50) + 25;
                         const width = baseSize;
                         const height = baseSize / (16 / 9);
@@ -655,7 +880,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
 
                 <div className="flex items-center bg-[#1a1a1a]/90 backdrop-blur-md border border-white/10 rounded-full px-1.5 py-1">
                     <span className="text-xs pl-2 pr-1 text-text-secondary font-mono text-right tabular-nums">
-                        {(transform.scale * 100).toFixed(0)}%
+                        {(transformState.scale * 100).toFixed(0)}%
                     </span>
                     <div className="w-[1px] h-3 bg-white/10 mx-1" />
                     <button
