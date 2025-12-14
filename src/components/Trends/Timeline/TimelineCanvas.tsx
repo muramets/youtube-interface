@@ -644,7 +644,12 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
     // Updated text counter scale to use state
     // const textCounterScale = 1 / transformState.scale; // UNUSED
 
+    // Two separate states:
+    // 1. focusedVideoId - controls visual effects (scale, shadow, brightness) - changes instantly
+    // 2. elevatedVideoId - controls z-index - changes with delay on unfocus to allow animation to complete
     const [focusedVideoId, setFocusedVideoId] = useState<string | null>(null);
+    const [elevatedVideoId, setElevatedVideoId] = useState<string | null>(null);
+    const elevationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     return (
         <div
@@ -769,20 +774,34 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                         const borderRadius = Math.max(3, Math.min(12, 8));
                         const viewLabel = formatCompactNumber(video.viewCount);
 
+                        const isFocused = focusedVideoId === video.id;
+                        const isElevated = elevatedVideoId === video.id;
+
                         return (
                             <div
                                 key={video.id}
-                                className="absolute cursor-pointer group flex flex-col items-center transition-all duration-200"
+                                className={`absolute cursor-pointer group flex flex-col items-center will-change-transform ${isFocused ? 'drop-shadow-[0_8px_30px_rgba(255,255,255,0.15)]' : ''}`}
                                 style={{
                                     left: x,
                                     top: y,
                                     width: width,
-                                    transform: 'translate(-50%, -50%)',
-                                    zIndex: focusedVideoId === video.id ? 1000 : 10 + index
+                                    // Premium "lift" animation: scale up when focused (visual)
+                                    transform: `translate(-50%, -50%) scale(${isFocused ? 1.25 : 1})`,
+                                    // Z-index is controlled by elevatedVideoId (with delay on unfocus)
+                                    zIndex: isElevated ? 1000 : 10 + index,
+                                    // Subtle brightness boost when focused
+                                    filter: isFocused ? 'brightness(1.1)' : 'brightness(1)',
+                                    // Simple ease-out transition for smooth appear/disappear
+                                    transition: 'transform 200ms ease-out, filter 200ms ease-out, box-shadow 200ms ease-out',
                                 }}
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onMouseEnter={(e) => {
-                                    setFocusedVideoId(video.id); // Instant Z-Index change
+                                    // Clear any pending elevation timeout
+                                    if (elevationTimeoutRef.current) clearTimeout(elevationTimeoutRef.current);
+
+                                    // Instant: set both focus (visual) and elevation (z-index)
+                                    setFocusedVideoId(video.id);
+                                    setElevatedVideoId(video.id);
 
                                     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
 
@@ -799,7 +818,13 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                                     }, 500);
                                 }}
                                 onMouseLeave={() => {
-                                    setFocusedVideoId(null); // Instant Z-Index reset
+                                    // Instant: remove visual focus (starts shrink animation)
+                                    setFocusedVideoId(null);
+
+                                    // Delayed: keep z-index high until animation completes (200ms matches transition)
+                                    elevationTimeoutRef.current = setTimeout(() => {
+                                        setElevatedVideoId(null);
+                                    }, 200);
 
                                     if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
 
@@ -809,16 +834,17 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                                 }}
                             >
                                 <div
-                                    className="overflow-hidden group-hover:scale-105 transition-transform duration-200 ease-out shadow-lg group-hover:shadow-2xl group-hover:shadow-white/10 bg-black/50 w-full"
+                                    className={`overflow-hidden shadow-lg bg-black/50 w-full ${isFocused ? 'shadow-2xl shadow-white/20' : 'group-hover:shadow-xl'}`}
                                     style={{
                                         height,
                                         borderRadius: `${borderRadius}px`,
                                         backgroundImage: `url(${video.thumbnail})`,
                                         backgroundSize: 'cover',
                                         backgroundPosition: 'center',
+                                        transition: 'box-shadow 200ms ease-out',
                                     }}
                                 />
-                                <span className="mt-1.5 text-[10px] font-medium text-white/50 group-hover:text-white transition-colors bg-black/40 px-1.5 py-0.5 rounded-md backdrop-blur-sm pointer-events-none whitespace-nowrap">
+                                <span className={`mt-1.5 text-[10px] font-medium transition-colors bg-black/40 px-1.5 py-0.5 rounded-md backdrop-blur-sm pointer-events-none whitespace-nowrap ${isFocused ? 'text-white' : 'text-white/50 group-hover:text-white'}`}>
                                     {viewLabel}
                                 </span>
                             </div>

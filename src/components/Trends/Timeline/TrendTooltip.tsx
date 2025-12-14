@@ -85,7 +85,7 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({ video, style, classN
                 <div className="flex gap-2 border-t border-white/5 pt-3">
                     <AlignLeft size={14} className="text-[#AAAAAA] mt-0.5 shrink-0" />
                     <div
-                        className={`text-[10px] text-[#CCCCCC] cursor-pointer hover:text-white transition-colors ${isExpanded ? '' : 'line-clamp-2'}`}
+                        className={`text-[10px] text-[#CCCCCC] cursor-pointer hover:text-white transition-colors whitespace-pre-wrap ${isExpanded ? '' : 'line-clamp-2'}`}
                         onClick={() => setIsExpanded(!isExpanded)}
                         title={isExpanded ? "Collapse" : "Expand"}
                     >
