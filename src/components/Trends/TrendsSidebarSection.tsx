@@ -86,8 +86,8 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                                     <img
                                         src={channel.avatarUrl}
                                         alt={channel.title}
-                                        className={`w-6 h-6 rounded-full mr-3 ring-2 transition-all ${isActive ? 'ring-white/30' : 'ring-transparent'
-                                            }`}
+                                        className={`w-6 h-6 rounded-full mr-3 ring-2 transition-all ${!channel.isVisible ? 'grayscale opacity-50' : ''
+                                            } ${isActive ? 'ring-white/30' : 'ring-transparent'}`}
                                     />
                                     <span className={`text-sm truncate flex-1 transition-colors ${isActive ? 'text-text-primary font-medium' : 'text-text-secondary'
                                         }`}>

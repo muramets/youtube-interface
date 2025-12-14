@@ -15,12 +15,13 @@ const CollapsedSidebarItem: React.FC<{
   activeIcon: React.ReactNode;
   label: string;
   active?: boolean;
+  noBackground?: boolean;
   onClick?: () => void;
-}> = ({ icon, activeIcon, label, active, onClick }) => (
+}> = ({ icon, activeIcon, label, active, noBackground, onClick }) => (
   <div
     onClick={onClick}
     className={`flex flex-col items-center justify-center py-4 px-1 cursor-pointer rounded-lg transition-colors
-      ${active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover'}
+      ${active && !noBackground ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover'}
       ${active ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
   >
     {active ? activeIcon : icon}
@@ -95,6 +96,7 @@ export const TrendsCollapsedGroup: React.FC<{
           activeIcon={icons.active}
           label="Trends"
           active={isActive && !selectedChannelId}
+          noBackground={true}
           onClick={() => {
             setSelectedChannelId(null);
             navigate('/trends');
@@ -114,7 +116,7 @@ export const TrendsCollapsedGroup: React.FC<{
               layout
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              exit={{ opacity: 0, transition: { duration: 0.3 } }}
               className="flex flex-col items-center gap-3 pt-4 pb-4 w-full"
             >
               <AnimatePresence mode="popLayout">
@@ -122,7 +124,6 @@ export const TrendsCollapsedGroup: React.FC<{
                   const isSelected = selectedChannelId === channel.id;
 
                   const imageClasses = `w-8 h-8 rounded-full object-cover transition-all duration-300
-                                        ${!channel.isVisible ? 'grayscale opacity-50' : ''}
                                         hover:shadow-[0_0_15px_rgba(255,255,255,0.4)] hover:scale-110
                                     `;
 
@@ -132,7 +133,7 @@ export const TrendsCollapsedGroup: React.FC<{
                       layout="position"
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.1 } }}
+                      exit={{ opacity: 0, scale: 0.8 }}
                       transition={{
                         opacity: { duration: 0.2 }
                       }}
@@ -268,6 +269,7 @@ export const Sidebar: React.FC = () => {
               activeIcon={homeActiveIcon}
               label="Home"
               active={isHome}
+              noBackground={true}
               onClick={() => navigate('/')}
             />
             <CollapsedSidebarItem
@@ -275,6 +277,7 @@ export const Sidebar: React.FC = () => {
               activeIcon={playlistsActiveIcon}
               label="Playlists"
               active={isPlaylists}
+              noBackground={true}
               onClick={() => navigate('/playlists')}
             />
             {/* Trends Section with Hover Dropdown */}
