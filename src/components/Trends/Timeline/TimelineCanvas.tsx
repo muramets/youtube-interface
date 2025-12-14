@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useTrendStore } from '../../../stores/trendStore';
 import { TrendService } from '../../../services/trendService';
+import { Settings } from 'lucide-react';
 
 interface VideoNode {
     id: string;
@@ -15,12 +16,39 @@ interface VideoNode {
     channelTitle?: string;
 }
 
+interface Transform {
+    scale: number;
+    offsetX: number;
+    offsetY: number;
+}
+
+// Constants for "world" coordinate system
+const BASE_THUMBNAIL_SIZE = 200;
+const MIN_THUMBNAIL_SIZE = 40;
+const HEADER_HEIGHT = 48;
+const PADDING = 40;
+
 export const TimelineCanvas: React.FC = () => {
     const { channels, selectedChannelId, timelineConfig, setTimelineConfig } = useTrendStore();
-    const { zoomLevel } = timelineConfig;
+    const { scalingMode } = timelineConfig;
+
+    const containerRef = useRef<HTMLDivElement>(null);
+    const contentRef = useRef<HTMLDivElement>(null);
 
     const [videos, setVideos] = useState<VideoNode[]>([]);
     const [hoveredVideo, setHoveredVideo] = useState<{ video: VideoNode; x: number; y: number } | null>(null);
+    const [showSettings, setShowSettings] = useState(false);
+
+    // Drag-to-pan state
+    const [isPanning, setIsPanning] = useState(false);
+    const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+
+    // Transform state: scale + pan offsets
+    const [transform, setTransform] = useState<Transform>({
+        scale: 1,
+        offsetX: 0,
+        offsetY: 0
+    });
 
     // Get visible channels based on mode
     const visibleChannels = useMemo(() => {
@@ -41,431 +69,553 @@ export const TimelineCanvas: React.FC = () => {
                     channelTitle: channel.title
                 })));
             }
-            // Sort by date
             allVideos.sort((a, b) => a.publishedAtTimestamp - b.publishedAtTimestamp);
             setVideos(allVideos);
         };
         loadVideos();
     }, [visibleChannels]);
 
-    // Calculate stats for scaling - TIGHT range +/- 1 day buffer
+    // Calculate view stats for scaling
     const stats = useMemo(() => {
-        if (videos.length === 0) return { minViews: 0, maxViews: 0, minDate: Date.now(), maxDate: Date.now() };
+        if (videos.length === 0) return { minViews: 0, maxViews: 1, minDate: Date.now(), maxDate: Date.now() };
         const views = videos.map(v => v.viewCount);
         const dates = videos.map(v => v.publishedAtTimestamp);
 
-        // Add 12 hours buffer before/after to prevent edge clipping of the first/last video
         const buffer = 1000 * 60 * 60 * 12;
 
         return {
-            minViews: Math.min(...views),
-            maxViews: Math.max(...views),
+            minViews: Math.max(1, Math.min(...views)),
+            maxViews: Math.max(1, Math.max(...views)),
             minDate: Math.min(...dates) - buffer,
             maxDate: Math.max(...dates) + buffer
         };
     }, [videos]);
 
-    // Constant for spacing
-    const MIN_PIXELS_PER_DAY = 320;
-    const MS_PER_DAY = 1000 * 60 * 60 * 24;
-    const totalDays = Math.max(1, Math.ceil((stats.maxDate - stats.minDate) / MS_PER_DAY));
+    // Calculate "world" coordinates for each video with collision detection
+    const videoPositions = useMemo(() => {
+        const dateRange = stats.maxDate - stats.minDate || 1;
+        const viewRangeLinear = stats.maxViews - stats.minViews || 1;
+        const viewRangeLog = Math.log(stats.maxViews) - Math.log(stats.minViews) || 1;
 
-    // Auto-fit Zoom on Load
-    useEffect(() => {
-        if (videos.length === 0) return;
+        // Helper to check if two videos are on the same day
+        const isSameDay = (ts1: number, ts2: number) => {
+            const d1 = new Date(ts1);
+            const d2 = new Date(ts2);
+            return d1.getFullYear() === d2.getFullYear() &&
+                d1.getMonth() === d2.getMonth() &&
+                d1.getDate() === d2.getDate();
+        };
 
-        // Calculate required zoom to fit everything in viewport
-        // Available width approx window width (or generic 80% of it)
-        const viewportWidth = window.innerWidth - 300; // Deduct sidebar estimate
-        const requiredWidth = totalDays * MIN_PIXELS_PER_DAY;
+        // Helper to check if views are similar (within 50% of each other)
+        const hasSimilarViews = (v1: number, v2: number) => {
+            const ratio = Math.max(v1, v2) / Math.min(v1, v2);
+            return ratio < 1.5;
+        };
 
-        // targetZoom * requiredWidth = viewportWidth
-        // targetZoom = viewportWidth / requiredWidth
-        // Clamp to sensible min/max
-        const fitZoom = Math.max(0.2, Math.min(1.5, viewportWidth / requiredWidth));
+        // First pass: calculate base positions and sizes
+        const initialPositions = videos.map(video => {
+            const xNorm = (video.publishedAtTimestamp - stats.minDate) / dateRange;
 
-        console.log('[Timeline] Auto-fitting:', { totalDays, requiredWidth, viewportWidth, fitZoom });
-        setTimelineConfig({ zoomLevel: fitZoom });
-    }, [stats, videos.length, totalDays, setTimelineConfig]);
+            let yNorm: number;
+            if (scalingMode === 'linear') {
+                yNorm = 1 - (video.viewCount - stats.minViews) / viewRangeLinear;
+            } else {
+                const viewLog = Math.log(Math.max(1, video.viewCount));
+                const minLog = Math.log(stats.minViews);
+                yNorm = 1 - (viewLog - minLog) / viewRangeLog;
+            }
 
-    // Zoom handler - Zoom to Cursor
-    const handleWheel = useCallback((e: WheelEvent) => {
-        if (e.ctrlKey || e.metaKey) {
-            e.preventDefault();
-            e.stopPropagation();
+            let sizeRatio: number;
+            if (scalingMode === 'linear') {
+                sizeRatio = video.viewCount / stats.maxViews;
+            } else {
+                const viewLog = Math.log(Math.max(1, video.viewCount));
+                const minLog = Math.log(stats.minViews);
+                const maxLog = Math.log(stats.maxViews);
+                sizeRatio = (viewLog - minLog) / (maxLog - minLog);
+            }
+            const baseSize = MIN_THUMBNAIL_SIZE + sizeRatio * (BASE_THUMBNAIL_SIZE - MIN_THUMBNAIL_SIZE);
 
-            const container = e.currentTarget as HTMLDivElement;
-            const rect = container.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const contentX = mouseX + container.scrollLeft;
-            const totalWidth = container.scrollWidth;
-            const percentage = contentX / totalWidth;
+            return { video, xNorm, yNorm, baseSize };
+        });
 
-            const currentZoom = zoomLevel;
-            // Restore zoom out capability, clamp to 0.2
-            const newZoom = Math.max(0.2, Math.min(5, currentZoom + (e.deltaY * -0.003)));
+        // World dimensions (same as defined below)
+        const worldW = 2000;
+        const worldH = 1000;
+        const MIN_GAP = 10; // Minimum gap between videos in world pixels
 
-            setTimelineConfig({ zoomLevel: newZoom });
+        // Second pass: resolve horizontal collisions
+        // Process in order of x position (left to right)
+        const sorted = [...initialPositions].sort((a, b) => a.xNorm - b.xNorm);
+        const resolved: typeof initialPositions = [];
 
-            requestAnimationFrame(() => {
-                const newTotalWidth = container.scrollWidth;
-                const newScrollLeft = (percentage * newTotalWidth) - mouseX;
-                container.scrollLeft = newScrollLeft;
+        for (const current of sorted) {
+            let finalX = current.xNorm * worldW;
+            const currentWidth = current.baseSize;
+            const currentY = current.yNorm * (worldH - 50) + 25;
+            const currentHeight = currentWidth / (16 / 9);
+
+            // Check against all previously placed videos
+            for (const placed of resolved) {
+                const placedX = placed.xNorm * worldW;
+                const placedWidth = placed.baseSize;
+                const placedY = placed.yNorm * (worldH - 50) + 25;
+                const placedHeight = placedWidth / (16 / 9);
+
+                // Calculate horizontal overlap
+                const currentLeft = finalX - currentWidth / 2;
+                const currentRight = finalX + currentWidth / 2;
+                const placedLeft = placedX - placedWidth / 2;
+                const placedRight = placedX + placedWidth / 2;
+
+                // Calculate vertical overlap
+                const currentTop = currentY - currentHeight / 2;
+                const currentBottom = currentY + currentHeight / 2;
+                const placedTop = placedY - placedHeight / 2;
+                const placedBottom = placedY + placedHeight / 2;
+
+                const horizontalOverlap = currentLeft < placedRight + MIN_GAP && currentRight > placedLeft - MIN_GAP;
+                const verticalOverlap = currentTop < placedBottom && currentBottom > placedTop;
+
+                // Only resolve if there's actual 2D overlap
+                if (horizontalOverlap && verticalOverlap) {
+                    // Check if they should be allowed to overlap
+                    const sameDay = isSameDay(current.video.publishedAtTimestamp, placed.video.publishedAtTimestamp);
+                    const similarViews = hasSimilarViews(current.video.viewCount, placed.video.viewCount);
+
+                    if (!(sameDay && similarViews)) {
+                        // Push current video to the right
+                        const requiredX = placedRight + MIN_GAP + currentWidth / 2;
+                        finalX = Math.max(finalX, requiredX);
+                    }
+                }
+            }
+
+            // Update xNorm based on resolved position
+            const resolvedXNorm = finalX / worldW;
+
+            resolved.push({
+                ...current,
+                xNorm: resolvedXNorm
             });
         }
-    }, [zoomLevel, setTimelineConfig]);
 
-    // Prevent default browser zoom with non-passive event listeners
+        // Re-sort by original video order for stable rendering
+        const videoIdOrder = new Map(videos.map((v, i) => [v.id, i]));
+        resolved.sort((a, b) => (videoIdOrder.get(a.video.id) ?? 0) - (videoIdOrder.get(b.video.id) ?? 0));
+
+        return resolved;
+    }, [videos, stats, scalingMode]);
+
+    // World dimensions
+    const worldWidth = 2000;
+    const worldHeight = 1000;
+
+    // Auto-fit on load
     useEffect(() => {
-        const container = document.getElementById('timeline-canvas');
-        if (!container) return; // Wait for mount? Ref would be better but ID works for now.
-        // Actually the container with ID 'timeline-canvas' is the outer wrapper!
-        // We need the scrollable inner div for scrollLeft.
-        // Let's attach the handler to the scrollable div if possible, OR
-        // handle logic here but find the scrollable child.
+        if (videos.length === 0 || !containerRef.current) return;
 
-        // The outer div is 'timeline-canvas'. The scrollable one is the child.
-        // Let's attach directly to the scrollable div using a Ref?
-        // For minimal code change, I'll attach to the outer but assume the scrollable element is user's target or query it.
-        const scrollContainer = container.querySelector('.custom-scrollbar') as HTMLElement;
-        if (!scrollContainer) return;
+        const container = containerRef.current;
+        const viewportWidth = container.clientWidth;
+        const viewportHeight = container.clientHeight - HEADER_HEIGHT;
 
-        // Actually, we can just use the React `onWheel` on the element if we set `passive: false`?
-        // React doesn't support passive: false easily.
-        // Let's use the native listener approach to prevent browser zoom,
-        // AND trigger the zoom update.
-        // Since we need state (zoomLevel), we can't easily do it in a static effect without re-binding.
-        // Re-binding is fine.
+        if (viewportWidth <= 0 || viewportHeight <= 0) return;
 
-        const strictWheel = (e: WheelEvent) => {
-            if (e.ctrlKey || e.metaKey) {
-                e.preventDefault();
-                handleWheel(e);
-            }
-        };
+        const scaleX = (viewportWidth - PADDING * 2) / worldWidth;
+        const scaleY = (viewportHeight - PADDING * 2) / worldHeight;
+        const fitScale = Math.min(scaleX, scaleY);
+
+        const contentWidth = worldWidth * fitScale;
+        const contentHeight = worldHeight * fitScale;
+        const offsetX = (viewportWidth - contentWidth) / 2;
+        const offsetY = (viewportHeight - contentHeight) / 2;
+
+        console.log('[Timeline] Auto-fit:', { viewportWidth, viewportHeight, fitScale, offsetX, offsetY });
+
+        setTransform({ scale: fitScale, offsetX, offsetY });
+    }, [videos.length, stats]);
+
+    // Scroll-to-pan + Zoom handler
+    const handleWheel = useCallback((e: WheelEvent) => {
+        e.preventDefault();
+
+        if (e.ctrlKey || e.metaKey) {
+            const container = containerRef.current;
+            if (!container) return;
+
+            const rect = container.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top - HEADER_HEIGHT;
+
+            const zoomFactor = 1 - e.deltaY * 0.002;
+            const newScale = Math.max(0.1, Math.min(10, transform.scale * zoomFactor));
+            const scaleRatio = newScale / transform.scale;
+
+            setTransform({
+                scale: newScale,
+                offsetX: mouseX - (mouseX - transform.offsetX) * scaleRatio,
+                offsetY: mouseY - (mouseY - transform.offsetY) * scaleRatio
+            });
+        } else {
+            setTransform(t => ({
+                ...t,
+                offsetX: t.offsetX - e.deltaX,
+                offsetY: t.offsetY - e.deltaY
+            }));
+        }
+    }, [transform]);
+
+    // Mouse drag-to-pan handlers
+    const handleMouseDown = useCallback((e: React.MouseEvent) => {
+        if (e.button === 0 && !hoveredVideo) {
+            setIsPanning(true);
+            setPanStart({ x: e.clientX - transform.offsetX, y: e.clientY - transform.offsetY });
+        }
+    }, [transform.offsetX, transform.offsetY, hoveredVideo]);
+
+    const handleMouseMove = useCallback((e: React.MouseEvent) => {
+        if (isPanning) {
+            setTransform(t => ({
+                ...t,
+                offsetX: e.clientX - panStart.x,
+                offsetY: e.clientY - panStart.y
+            }));
+        }
+    }, [isPanning, panStart]);
+
+    const handleMouseUp = useCallback(() => {
+        setIsPanning(false);
+    }, []);
+
+    // Attach non-passive wheel listener
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
 
         const gestureHandler = (e: Event) => e.preventDefault();
 
-        scrollContainer.addEventListener('wheel', strictWheel, { passive: false });
+        container.addEventListener('wheel', handleWheel, { passive: false });
         document.addEventListener('gesturestart', gestureHandler);
         document.addEventListener('gesturechange', gestureHandler);
         document.addEventListener('gestureend', gestureHandler);
 
         return () => {
-            scrollContainer.removeEventListener('wheel', strictWheel);
+            container.removeEventListener('wheel', handleWheel);
             document.removeEventListener('gesturestart', gestureHandler);
             document.removeEventListener('gesturechange', gestureHandler);
             document.removeEventListener('gestureend', gestureHandler);
         };
     }, [handleWheel]);
 
-    // Calculate thumbnail size based on views - SCALES with ZOOM now
-    const getSize = useCallback((viewCount: number) => {
-        // Base sizes at 100% zoom
-        // We scale them by zoomLevel to keep proportions with the timeline width
-        const minSize = 120 * zoomLevel;
-        const maxSize = 260 * zoomLevel;
+    // Generate month regions for background
+    const monthRegions = useMemo(() => {
+        if (videos.length === 0) return [];
 
-        if (stats.maxViews === stats.minViews) return (minSize + maxSize) / 2;
-
-        const minLog = Math.log(Math.max(1, stats.minViews));
-        const maxLog = Math.log(Math.max(1, stats.maxViews));
-        const valLog = Math.log(Math.max(1, viewCount));
-        const scale = (valLog - minLog) / (maxLog - minLog);
-
-        return minSize + scale * (maxSize - minSize);
-    }, [stats, zoomLevel]);
-
-    // Generate year/month markers for the date header
-    const dateMarkers = useMemo(() => {
-        if (videos.length === 0) return { years: [], months: [] };
-
-        const years: { year: number; xPercent: number }[] = [];
-        const months: { month: string; year: number; xPercent: number }[] = [];
-
-        const startDate = new Date(stats.minDate);
-        const endDate = new Date(stats.maxDate);
+        const regions: { month: string; year: number; startX: number; endX: number; center: number; isFirstOfYear: boolean }[] = [];
         const dateRange = stats.maxDate - stats.minDate;
 
-        console.log('[Timeline] Generating markers covering:', {
-            start: startDate.toLocaleDateString(),
-            end: endDate.toLocaleDateString()
-        });
+        let current = new Date(stats.minDate);
+        current.setDate(1);
+        const endDate = new Date(stats.maxDate);
+        let prevYear: number | null = null;
 
-        // Generate year markers (centered)
-        for (let y = startDate.getFullYear(); y <= endDate.getFullYear(); y++) {
-            const yearStart = Math.max(stats.minDate, new Date(y, 0, 1).getTime());
-            const yearEnd = Math.min(stats.maxDate, new Date(y + 1, 0, 1).getTime());
-
-            // Only add if the year logic makes sense (start < end)
-            if (yearStart < yearEnd) {
-                const midTimestamp = (yearStart + yearEnd) / 2;
-                const xPercent = (midTimestamp - stats.minDate) / dateRange;
-                years.push({ year: y, xPercent });
-            }
-        }
-
-        // Generate month markers (centered)
-        const current = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
         while (current <= endDate) {
             const monthStart = current.getTime();
             const nextMonth = new Date(current);
             nextMonth.setMonth(current.getMonth() + 1);
             const monthEnd = nextMonth.getTime();
 
-            // Calculate center point of the month
-            const midTimestamp = (monthStart + monthEnd) / 2;
-            const xPercent = (midTimestamp - stats.minDate) / dateRange;
-
-            // Only add if visible (allowing slight buffer)
-            if (xPercent >= -0.1 && xPercent <= 1.1) {
-                const monthName = current.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
-                console.log(`[Timeline] Adding month: ${monthName} at ${xPercent.toFixed(3)}`);
-                months.push({
-                    month: monthName,
-                    year: current.getFullYear(),
-                    xPercent
-                });
-            }
-            current.setMonth(current.getMonth() + 1);
-        }
-
-        return { years, months };
-    }, [stats, videos.length]);
-
-    // Generate month markers and regions - CLIPPED to visible range
-    const monthRegions = useMemo(() => {
-        if (videos.length === 0) return [];
-
-        const regions: { month: string; year: number; startX: number; endX: number; center: number }[] = [];
-        const dateRange = stats.maxDate - stats.minDate;
-
-        // Start iteration from the month of the minDate
-        let current = new Date(stats.minDate);
-        current.setDate(1); // Start at beginning of that month
-
-        const endDate = new Date(stats.maxDate);
-
-        while (current <= endDate || (current.getFullYear() === endDate.getFullYear() && current.getMonth() === endDate.getMonth())) {
-            const monthStart = current.getTime();
-
-            const nextMonth = new Date(current);
-            nextMonth.setMonth(current.getMonth() + 1);
-            const monthEnd = nextMonth.getTime();
-
-            // Intersection of Month [monthStart, monthEnd] and Timeline [stats.minDate, stats.maxDate]
             const visibleStart = Math.max(stats.minDate, monthStart);
             const visibleEnd = Math.min(stats.maxDate, monthEnd);
 
             if (visibleStart < visibleEnd) {
                 const startX = (visibleStart - stats.minDate) / dateRange;
                 const endX = (visibleEnd - stats.minDate) / dateRange;
-                const center = (startX + endX) / 2;
-
+                const isFirstOfYear = current.getFullYear() !== prevYear;
                 regions.push({
                     month: current.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
                     year: current.getFullYear(),
                     startX,
                     endX,
-                    center
+                    center: (startX + endX) / 2,
+                    isFirstOfYear
                 });
+                prevYear = current.getFullYear();
             }
             current.setMonth(current.getMonth() + 1);
         }
         return regions;
-    }, [stats]);
+    }, [stats, videos.length]);
 
-    // Calculate position for a video based on STRICT DAILY SLOTS
-    const getPosition = useCallback((video: VideoNode) => {
-        const dateRange = stats.maxDate - stats.minDate || 1;
-        const viewRange = Math.log(stats.maxViews) - Math.log(Math.max(1, stats.minViews)) || 1;
+    // Generate year markers from month regions
+    const yearMarkers = useMemo(() => {
+        const years: { year: number; startX: number; endX: number }[] = [];
+        let currentYear: number | null = null;
+        let yearStart = 0;
+        let yearEnd = 0;
 
-        // X: Snapped to Day Center
-        // Find which day index this is from Start
-        // Use exact day-center logic (e.g. Day 0 -> 0.5/TotalDays?)
-        // Mapping linear time is accurate enough IF the width is sufficient.
+        monthRegions.forEach((region, i) => {
+            if (region.year !== currentYear) {
+                if (currentYear !== null) {
+                    years.push({ year: currentYear, startX: yearStart, endX: yearEnd });
+                }
+                currentYear = region.year;
+                yearStart = region.startX;
+            }
+            yearEnd = region.endX;
 
-        // Strict linear time is fine because we enforced Width = TotalDays * 300px.
-        // So Day 0 is at 0px -> 300px. Day 1 is 300px -> 600px.
-        // A video at 12:00 on Day 0 is at 150px.
-        // A video at 12:00 on Day 1 is at 450px. Distance 300px.
-        // Max video width 260px. Gap 40px guaranteed.
+            if (i === monthRegions.length - 1 && currentYear !== null) {
+                years.push({ year: currentYear, startX: yearStart, endX: yearEnd });
+            }
+        });
 
-        const xPercent = (video.publishedAtTimestamp - stats.minDate) / dateRange;
+        return years;
+    }, [monthRegions]);
 
-        // Y: Views (Log scale)
-        const viewLog = Math.log(Math.max(1, video.viewCount));
-        const minLog = Math.log(Math.max(1, stats.minViews));
-        const yPercent = 1 - (viewLog - minLog) / viewRange;
+    // Format views like "1.2M"
+    const formatCompactNumber = (num: number) => {
+        return new Intl.NumberFormat('en-US', {
+            notation: "compact",
+            maximumFractionDigits: 1
+        }).format(num);
+    };
 
-        return { xPercent, yPercent };
-    }, [stats, MS_PER_DAY]);
-
-    const containerWidth = Math.max(100, totalDays * MIN_PIXELS_PER_DAY * zoomLevel);
+    // Counter-scale for header text (inverse of scaleX so text remains readable)
+    const textCounterScale = 1 / transform.scale;
 
     return (
         <div
-            id="timeline-canvas"
-            className="w-full h-[calc(100vh-56px)] mt-[56px] flex flex-col bg-gradient-to-b from-[#181818] to-[#0a0a0a] overflow-hidden relative"
+            ref={containerRef}
+            className="w-full h-[calc(100vh-56px)] flex flex-col bg-gradient-to-b from-[#181818] to-[#0a0a0a] overflow-hidden relative"
+            style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
         >
-            {/* Stats Overlay (Fixed) */}
-            <div className="absolute top-2 right-6 flex items-center gap-4 text-sm text-text-secondary z-30 pointer-events-none">
-                <span>{videos.length} videos</span>
-                <span className="text-xs px-2 py-1 bg-white/5 rounded-full backdrop-blur-md">
-                    {(zoomLevel * 100).toFixed(0)}%
+            {/* Stats & Settings Overlay */}
+            <div className="absolute top-2 right-6 flex items-center gap-3 z-50 pointer-events-auto">
+                <span className="text-sm text-text-secondary">{videos.length} videos</span>
+                <span className="text-xs px-2 py-1 bg-white/5 rounded-full backdrop-blur-md text-text-secondary">
+                    {(transform.scale * 100).toFixed(0)}%
                 </span>
+
+                {/* Settings Gear */}
+                <div className="relative">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowSettings(!showSettings);
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-text-secondary hover:text-text-primary"
+                    >
+                        <Settings size={16} />
+                    </button>
+
+                    {showSettings && (
+                        <div
+                            className="absolute right-0 top-full mt-2 bg-[#1a1a1a]/95 backdrop-blur-xl border border-white/10 rounded-lg shadow-2xl p-3 min-w-[200px]"
+                            onMouseDown={(e) => e.stopPropagation()}
+                        >
+                            <div className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">
+                                Size Scaling
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <button
+                                    onClick={() => {
+                                        setTimelineConfig({ scalingMode: 'linear' });
+                                        setShowSettings(false);
+                                    }}
+                                    className={`px-3 py-2 rounded-md text-sm text-left transition-colors ${scalingMode === 'linear' ? 'bg-white/20 text-white' : 'hover:bg-white/10 text-text-secondary'}`}
+                                >
+                                    Linear
+                                    <span className="block text-[10px] text-text-tertiary">Proportional to views</span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setTimelineConfig({ scalingMode: 'log' });
+                                        setShowSettings(false);
+                                    }}
+                                    className={`px-3 py-2 rounded-md text-sm text-left transition-colors ${scalingMode === 'log' ? 'bg-white/20 text-white' : 'hover:bg-white/10 text-text-secondary'}`}
+                                >
+                                    Logarithmic
+                                    <span className="block text-[10px] text-text-tertiary">Less extreme differences</span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* Main Scroll Area containing Header AND Content */}
-            <div className="flex-1 overflow-x-auto overflow-y-hidden custom-scrollbar relative">
+            {/* Sticky Date Header - Two rows: Year + Month */}
+            <div
+                className="absolute top-0 left-0 right-0 h-12 bg-[#1a1a1a]/80 backdrop-blur-md border-b border-white/10 z-30 overflow-hidden"
+            >
+                {/* Horizontal transform container */}
                 <div
                     style={{
-                        minWidth: `${containerWidth}px`,
+                        transform: `translateX(${transform.offsetX}px) scaleX(${transform.scale})`,
+                        transformOrigin: '0 0',
+                        width: worldWidth,
                         height: '100%',
                         position: 'relative'
                     }}
                 >
-                    {/* Background Month Regions (Visuals only, Labels moved to Header) */}
-                    <div className="absolute inset-0 pointer-events-none flex">
-                        {monthRegions.map((region, i) => (
-                            <div
-                                key={`${region.month}-${region.year}`}
-                                className={`h-full border-l border-white/5 ${i % 2 === 0 ? 'bg-white/[0.02]' : 'bg-transparent'}`}
+                    {/* Year Row */}
+                    {yearMarkers.map((yearMarker) => (
+                        <div
+                            key={`year-${yearMarker.year}`}
+                            className="absolute h-5 flex items-center justify-center border-l border-white/20"
+                            style={{
+                                left: `${yearMarker.startX * 100}%`,
+                                width: `${(yearMarker.endX - yearMarker.startX) * 100}%`,
+                                top: 0
+                            }}
+                        >
+                            <span
+                                className="text-xs font-bold text-white/70 tracking-widest"
                                 style={{
-                                    position: 'absolute',
-                                    left: `${region.startX * 100}%`,
-                                    width: `${(region.endX - region.startX) * 100}%`
+                                    transform: `scaleX(${textCounterScale})`,
+                                    transformOrigin: 'center',
+                                    whiteSpace: 'nowrap'
                                 }}
-                            />
-                        ))}
-                    </div>
-
-                    {/* Date Header (Now scrolls with content) */}
-                    <div className="h-16 border-b border-white/10 relative z-20 bg-[#1a1a1a]/40 backdrop-blur-sm">
-                        {/* Year Items */}
-                        {dateMarkers.years.map((marker, i) => (
-                            <div
-                                key={i}
-                                className="absolute top-4 -translate-y-1/2 text-lg font-bold text-white/50 tracking-widest pointer-events-none"
-                                style={{ left: `${marker.xPercent * 100}%`, transform: 'translate(-50%, -50%)' }}
                             >
-                                {marker.year}
-                            </div>
-                        ))}
+                                {yearMarker.year}
+                            </span>
+                        </div>
+                    ))}
 
-                        {/* Month Labels - Centered in their region */}
-                        {monthRegions.map((region) => (
-                            <div
-                                key={`label-${region.month}-${region.year}`}
-                                className="absolute top-10 text-xs font-bold text-text-secondary tracking-widest px-2 py-1 rounded transition-colors group-hover:bg-[#1a1a1a]"
+                    {/* Month Row */}
+                    {monthRegions.map((region) => (
+                        <div
+                            key={`header-${region.month}-${region.year}`}
+                            className="absolute h-7 flex items-center justify-center border-l border-white/10"
+                            style={{
+                                left: `${region.startX * 100}%`,
+                                width: `${(region.endX - region.startX) * 100}%`,
+                                top: 20
+                            }}
+                        >
+                            <span
+                                className="text-[10px] font-medium text-text-tertiary tracking-wider"
                                 style={{
-                                    left: `${region.center * 100}%`,
-                                    transform: 'translate(-50%, -50%)',
-                                    zIndex: 25
+                                    transform: `scaleX(${textCounterScale})`,
+                                    transformOrigin: 'center',
+                                    whiteSpace: 'nowrap'
                                 }}
                             >
                                 {region.month}
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Chart Area */}
-                    <div
-                        className="relative z-10"
-                        style={{
-                            height: 'calc(100% - 64px)',
-                            marginTop: '20px'
-                        }}
-                    >
-                        {/* Video Nodes - Strict Position */}
-                        {videos.map((video, index) => {
-                            const { xPercent, yPercent } = getPosition(video);
-                            const size = getSize(video.viewCount);
-                            const aspectRatio = 16 / 9;
-                            const width = size;
-                            const height = size / aspectRatio;
-
-                            // Dynamic safe bounds based on card height
-                            // Container height = viewport - app header - date bar with margin
-                            const containerHeightEstimate = window.innerHeight - 56 - 84;
-                            const cardHalfHeightPercent = (height / 2 + 30) / containerHeightEstimate; // +30 for label + margin
-
-                            // Clamp yPercent to ensure full visibility within the chart area
-                            // At min zoom, cards are small so they can be close to edges
-                            // At max zoom, cards are large so cardHalfHeightPercent naturally pushes them away
-                            const minY = cardHalfHeightPercent;
-                            const maxY = 1 - cardHalfHeightPercent;
-                            const clampedY = Math.max(minY, Math.min(maxY, yPercent));
-                            const safeY = clampedY;
-
-                            // Format views like "1.2M", "10K"
-                            const formatCompactNumber = (num: number) => {
-                                return new Intl.NumberFormat('en-US', {
-                                    notation: "compact",
-                                    maximumFractionDigits: 1
-                                }).format(num);
-                            };
-
-                            const viewLabel = formatCompactNumber(video.viewCount);
-
-                            // Dynamic border radius that scales down with zoom but stays minimal
-                            const borderRadius = Math.max(3, Math.min(12, 8 * zoomLevel));
-
-                            return (
-                                <div
-                                    key={video.id}
-                                    className="absolute cursor-pointer hover:z-50 group flex flex-col items-center"
-                                    style={{
-                                        left: `${xPercent * 100}%`,
-                                        top: `${safeY * 100}%`,
-                                        width: width,
-                                        transform: 'translate(-50%, -50%)',
-                                        zIndex: 10 + index
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        const rect = e.currentTarget.getBoundingClientRect();
-                                        setHoveredVideo({
-                                            video,
-                                            x: rect.left + rect.width / 2,
-                                            y: rect.top
-                                        });
-                                    }}
-                                    onMouseLeave={() => setHoveredVideo(null)}
-                                >
-                                    {/* Thumbnail */}
-                                    <div
-                                        className="overflow-hidden group-hover:scale-105 transition-transform duration-200 ease-out shadow-lg group-hover:shadow-2xl group-hover:shadow-white/10 bg-black/50 w-full"
-                                        style={{
-                                            height,
-                                            borderRadius: `${borderRadius}px`,
-                                            backgroundImage: `url(${video.thumbnail})`,
-                                            backgroundSize: 'cover',
-                                            backgroundPosition: 'center',
-                                        }}
-                                    />
-
-                                    {/* View Count Under Thumbnail */}
-                                    <span className="mt-1.5 text-[10px] font-medium text-white/50 group-hover:text-white transition-colors bg-black/40 px-1.5 py-0.5 rounded-md backdrop-blur-sm pointer-events-none">
-                                        {viewLabel}
-                                    </span>
-                                </div>
-                            );
-                        })}
-
-                        {/* Empty State */}
-                        {videos.length === 0 && (
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="text-center">
-                                    <div className="text-text-tertiary text-lg mb-2">No videos to display</div>
-                                    <div className="text-text-secondary text-sm">Add channels and sync data</div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                            </span>
+                        </div>
+                    ))}
                 </div>
             </div>
 
-            {/* Tooltip */}
+            {/* Month Background Columns - Screen height, not world height */}
+            <div
+                className="absolute inset-0 top-12 pointer-events-none overflow-hidden z-0"
+            >
+                <div
+                    style={{
+                        transform: `translateX(${transform.offsetX}px) scaleX(${transform.scale})`,
+                        transformOrigin: '0 0',
+                        width: worldWidth,
+                        height: '100%',
+                        position: 'relative'
+                    }}
+                >
+                    {monthRegions.map((region, i) => (
+                        <div
+                            key={`bg-${region.month}-${region.year}`}
+                            className={`h-full border-l border-white/5 ${i % 2 === 0 ? 'bg-white/[0.015]' : 'bg-transparent'}`}
+                            style={{
+                                position: 'absolute',
+                                left: `${region.startX * 100}%`,
+                                width: `${(region.endX - region.startX) * 100}%`
+                            }}
+                        />
+                    ))}
+                </div>
+            </div>
+
+            {/* Infinite Canvas Container */}
+            <div className="flex-1 relative overflow-hidden mt-12">
+                {/* Transformed Content Layer - Videos Only */}
+                <div
+                    ref={contentRef}
+                    style={{
+                        transform: `translate(${transform.offsetX}px, ${transform.offsetY}px) scale(${transform.scale})`,
+                        transformOrigin: '0 0',
+                        width: worldWidth,
+                        height: worldHeight,
+                        position: 'absolute'
+                    }}
+                >
+                    {/* Video Nodes */}
+                    {videoPositions.map(({ video, xNorm, yNorm, baseSize }, index) => {
+                        const x = xNorm * worldWidth;
+                        const y = yNorm * (worldHeight - 50) + 25;
+                        const width = baseSize;
+                        const height = baseSize / (16 / 9);
+                        const borderRadius = Math.max(3, Math.min(12, 8));
+                        const viewLabel = formatCompactNumber(video.viewCount);
+
+                        return (
+                            <div
+                                key={video.id}
+                                className="absolute cursor-pointer hover:z-50 group flex flex-col items-center"
+                                style={{
+                                    left: x,
+                                    top: y,
+                                    width: width,
+                                    transform: 'translate(-50%, -50%)',
+                                    zIndex: 10 + index
+                                }}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onMouseEnter={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setHoveredVideo({
+                                        video,
+                                        x: rect.left + rect.width / 2,
+                                        y: rect.top
+                                    });
+                                }}
+                                onMouseLeave={() => setHoveredVideo(null)}
+                            >
+                                {/* Thumbnail */}
+                                <div
+                                    className="overflow-hidden group-hover:scale-105 transition-transform duration-200 ease-out shadow-lg group-hover:shadow-2xl group-hover:shadow-white/10 bg-black/50 w-full"
+                                    style={{
+                                        height,
+                                        borderRadius: `${borderRadius}px`,
+                                        backgroundImage: `url(${video.thumbnail})`,
+                                        backgroundSize: 'cover',
+                                        backgroundPosition: 'center',
+                                    }}
+                                />
+
+                                {/* View Count Label */}
+                                <span className="mt-1.5 text-[10px] font-medium text-white/50 group-hover:text-white transition-colors bg-black/40 px-1.5 py-0.5 rounded-md backdrop-blur-sm pointer-events-none whitespace-nowrap">
+                                    {viewLabel}
+                                </span>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {/* Empty State */}
+                {videos.length === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="text-center">
+                            <div className="text-text-tertiary text-lg mb-2">No videos to display</div>
+                            <div className="text-text-secondary text-sm">Add channels and sync data</div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Tooltip (Fixed, not transformed) */}
             {hoveredVideo && (
                 <div
                     className="fixed z-[200] bg-[#1a1a1a]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-4 pointer-events-none w-[340px] animate-fade-in"

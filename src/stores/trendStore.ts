@@ -37,7 +37,8 @@ export const useTrendStore = create<TrendStore>((set) => ({
         zoomLevel: 1,
         startDate: Date.now() - 30 * 24 * 60 * 60 * 1000, // Default last 30 days
         endDate: Date.now(),
-        viewMode: 'per-channel'
+        viewMode: 'per-channel',
+        scalingMode: 'log' // Default to log for less extreme size differences
     },
 
     activeNicheId: null,
