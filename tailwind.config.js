@@ -23,6 +23,14 @@ export default {
                 'sidebar-active': 'var(--sidebar-active)',
                 'sidebar-hover': 'var(--sidebar-hover)',
             },
+            zIndex: {
+                'base': '0',
+                'sticky': '100',      // Sticky headers, timeline headers
+                'dropdown': '200',    // Dropdown menus
+                'popover': '300',     // Tooltips, popovers
+                'modal': '400',       // Modals, dialogs
+                'toast': '500',       // Toast notifications
+            },
             keyframes: {
                 'slide-in-left': {
                     '0%': { transform: 'translateX(-100%)' },

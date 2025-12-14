@@ -28,6 +28,7 @@ export interface TrendChannel {
 export interface TrendVideo {
     id: string;
     channelId: string;
+    channelTitle?: string;
     publishedAt: string; // ISO date
     publishedAtTimestamp: number; // For easier sorting/timeline pos
     title: string;
@@ -51,4 +52,19 @@ export interface TimelineConfig {
     viewMode: 'global' | 'per-channel'; // Global = all on one timeline (optional future), Per-channel = separate tracks
     scalingMode: 'linear' | 'log' | 'sqrt' | 'percentile'; // Scaling algorithm for video sizes
     layoutMode: 'spacious' | 'compact'; // Spacious = gaps between videos, Compact = allow horizontal overlap
+}
+
+export interface MonthRegion {
+    month: string;
+    year: number;
+    startX: number; // 0-1 normalized
+    endX: number;   // 0-1 normalized
+    center: number;
+    isFirstOfYear: boolean;
+}
+
+export interface YearMarker {
+    year: number;
+    startX: number; // 0-1 normalized
+    endX: number;   // 0-1 normalized
 }

@@ -1,21 +1,9 @@
 import React, { useState } from 'react';
 import { AlignLeft, Tag, Copy, Check, Calendar } from 'lucide-react';
-
-export interface TrendVideoNode {
-    id: string;
-    title: string;
-    thumbnail: string;
-    viewCount: number;
-    publishedAt: string; // ISO string
-    publishedAtTimestamp: number;
-    description?: string;
-    tags?: string[];
-    channelId: string;
-    channelTitle?: string;
-}
+import type { TrendVideo } from '../../../types/trends';
 
 interface TrendTooltipProps {
-    video: TrendVideoNode;
+    video: TrendVideo;
     style?: React.CSSProperties;
     className?: string;
     onMouseEnter?: () => void;
@@ -35,7 +23,7 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({ video, style, classN
 
     return (
         <div
-            className={`fixed z-[200] bg-[#1a1a1a]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-4 pointer-events-auto w-[340px] animate-fade-in flex flex-col gap-3 ${className || ''}`}
+            className={`fixed z-popover bg-bg-secondary/95 backdrop-blur-xl border border-border rounded-xl shadow-2xl p-4 pointer-events-auto w-[340px] animate-fade-in flex flex-col gap-3 ${className || ''}`}
             style={style}
             // Prevent clicks from propagating to the timeline which might trigger auto-fit or panning
             onMouseDown={(e) => e.stopPropagation()}
@@ -45,7 +33,7 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({ video, style, classN
             onMouseLeave={onMouseLeave}
         >
             {/* Thumbnail / Mini Player */}
-            <div className="aspect-video w-full rounded-lg bg-black/40 overflow-hidden border border-white/5 shrink-0 relative z-10">
+            <div className="aspect-video w-full rounded-lg bg-black/40 overflow-hidden border border-border shrink-0 relative z-10">
                 <iframe
                     width="100%"
                     height="100%"
@@ -60,49 +48,53 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({ video, style, classN
 
             {/* Title & Channel */}
             <div className="flex flex-col gap-1">
-                <div className="text-sm font-semibold text-white line-clamp-2 leading-snug">
+                <div className="text-sm font-semibold text-text-primary line-clamp-2 leading-snug">
                     {video.title}
                 </div>
                 {video.channelTitle && (
-                    <div className="text-xs text-[#AAAAAA]">
+                    <div className="text-xs text-text-secondary">
                         {video.channelTitle}
                     </div>
                 )}
             </div>
 
             {/* Metadata Badges */}
-            <div className="flex justify-between items-center text-xs">
-                <div className="flex items-center gap-2">
-                    <span className="text-white font-bold px-2 py-1 bg-white/10 rounded-full">
-                        {video.viewCount.toLocaleString()} views
+            <div className="flex items-center justify-between text-xs">
+                {/* Views - left aligned */}
+                <span className="text-text-primary font-bold px-2 py-1 bg-black/10 dark:bg-white/10 rounded-full whitespace-nowrap">
+                    {video.viewCount.toLocaleString()} views
+                </span>
+
+                {/* Percentile - center (or empty placeholder if no percentile) */}
+                {percentileGroup === 'Top 1%' && (
+                    <span className="text-emerald-700 dark:text-white font-bold px-2 py-1 bg-gradient-to-r from-emerald-500/30 to-green-500/30 border border-emerald-500/50 rounded-full whitespace-nowrap">
+                        {percentileGroup}
                     </span>
-                    {percentileGroup === 'Top 1%' && (
-                        <span className="text-white font-bold px-2 py-1 bg-gradient-to-r from-emerald-500/30 to-green-500/30 border border-emerald-500/50 rounded-full">
-                            {percentileGroup}
-                        </span>
-                    )}
-                    {percentileGroup === 'Top 5%' && (
-                        <span className="text-white font-bold px-2 py-1 bg-gradient-to-r from-lime-500/30 to-teal-500/30 border border-lime-500/50 rounded-full">
-                            {percentileGroup}
-                        </span>
-                    )}
-                    {percentileGroup === 'Top 20%' && (
-                        <span className="text-white font-bold px-2 py-1 bg-gradient-to-r from-blue-500/30 to-cyan-500/30 border border-blue-500/50 rounded-full">
-                            {percentileGroup}
-                        </span>
-                    )}
-                    {percentileGroup === 'Middle 60%' && (
-                        <span className="text-white font-bold px-2 py-1 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-full">
-                            {percentileGroup}
-                        </span>
-                    )}
-                    {percentileGroup === 'Bottom 20%' && (
-                        <span className="text-white font-bold px-2 py-1 bg-gradient-to-r from-red-500/30 to-rose-500/30 border border-red-500/50 rounded-full">
-                            {percentileGroup}
-                        </span>
-                    )}
-                </div>
-                <div className="flex items-center gap-1.5 text-[#AAAAAA]">
+                )}
+                {percentileGroup === 'Top 5%' && (
+                    <span className="text-lime-700 dark:text-white font-bold px-2 py-1 bg-gradient-to-r from-lime-500/30 to-teal-500/30 border border-lime-500/50 rounded-full whitespace-nowrap">
+                        {percentileGroup}
+                    </span>
+                )}
+                {percentileGroup === 'Top 20%' && (
+                    <span className="text-blue-700 dark:text-white font-bold px-2 py-1 bg-gradient-to-r from-blue-500/30 to-cyan-500/30 border border-blue-500/50 rounded-full whitespace-nowrap">
+                        {percentileGroup}
+                    </span>
+                )}
+                {percentileGroup === 'Middle 60%' && (
+                    <span className="text-purple-700 dark:text-white font-bold px-2 py-1 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-full whitespace-nowrap">
+                        {percentileGroup}
+                    </span>
+                )}
+                {percentileGroup === 'Bottom 20%' && (
+                    <span className="text-red-700 dark:text-white font-bold px-2 py-1 bg-gradient-to-r from-red-500/30 to-rose-500/30 border border-red-500/50 rounded-full whitespace-nowrap">
+                        {percentileGroup}
+                    </span>
+                )}
+                {!percentileGroup && <span />}
+
+                {/* Date - right aligned */}
+                <div className="flex items-center gap-1.5 text-text-secondary bg-black/5 dark:bg-white/10 px-2 py-1 rounded-full whitespace-nowrap">
                     <Calendar size={12} />
                     <span>{formatDate(video.publishedAt)}</span>
                 </div>
@@ -110,10 +102,10 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({ video, style, classN
 
             {/* Description */}
             {video.description && (
-                <div className="flex gap-2 border-t border-white/5 pt-3">
-                    <AlignLeft size={14} className="text-[#AAAAAA] mt-0.5 shrink-0" />
+                <div className="flex gap-2 border-t border-border pt-3">
+                    <AlignLeft size={14} className="text-text-tertiary mt-0.5 shrink-0" />
                     <div
-                        className={`text-[10px] text-[#CCCCCC] cursor-pointer hover:text-white transition-colors whitespace-pre-wrap ${isExpanded ? '' : 'line-clamp-2'}`}
+                        className={`text-[10px] text-text-secondary cursor-pointer hover:text-text-primary transition-colors whitespace-pre-wrap ${isExpanded ? '' : 'line-clamp-2'}`}
                         onClick={() => setIsExpanded(!isExpanded)}
                         title={isExpanded ? "Collapse" : "Expand"}
                     >
@@ -124,11 +116,11 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({ video, style, classN
 
             {/* Tags */}
             {video.tags && video.tags.length > 0 && (
-                <div className="flex gap-2 relative border-t border-white/5 pt-3">
-                    <Tag size={14} className="text-[#AAAAAA] mt-0.5 shrink-0" />
+                <div className="flex gap-2 relative border-t border-border pt-3">
+                    <Tag size={14} className="text-text-tertiary mt-0.5 shrink-0" />
                     <div className="flex flex-wrap gap-1 pr-6">
                         {(areTagsExpanded ? video.tags : video.tags.slice(0, 5)).map(tag => (
-                            <span key={tag} className="text-[9px] bg-white/10 px-1.5 py-0.5 rounded text-[#DDDDDD]">
+                            <span key={tag} className="text-[9px] bg-black/10 dark:bg-white/10 px-2 py-0.5 rounded-full text-text-secondary">
                                 #{tag}
                             </span>
                         ))}
@@ -138,7 +130,7 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({ video, style, classN
                                     e.stopPropagation();
                                     setAreTagsExpanded(true);
                                 }}
-                                className="text-[9px] text-[#AAAAAA] px-1.5 py-0.5 hover:text-white transition-colors cursor-pointer"
+                                className="text-[9px] text-text-tertiary px-1.5 py-0.5 hover:text-text-primary transition-colors cursor-pointer"
                             >
                                 +{video.tags.length - 5} more
                             </button>
@@ -149,7 +141,7 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({ video, style, classN
                                     e.stopPropagation();
                                     setAreTagsExpanded(false);
                                 }}
-                                className="text-[9px] text-[#AAAAAA] px-1.5 py-0.5 hover:text-white transition-colors cursor-pointer"
+                                className="text-[9px] text-text-tertiary px-1.5 py-0.5 hover:text-text-primary transition-colors cursor-pointer"
                             >
                                 Show less
                             </button>
@@ -163,7 +155,7 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({ video, style, classN
                             setIsCopied(true);
                             setTimeout(() => setIsCopied(false), 2000);
                         }}
-                        className="absolute top-3 right-0 text-[#AAAAAA] hover:text-white transition-colors p-1 hover:bg-white/5 rounded"
+                        className="absolute top-3 right-0 text-text-tertiary hover:text-text-primary transition-colors p-1 hover:bg-text-primary/5 rounded"
                         title="Copy all tags"
                     >
                         {isCopied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
