@@ -56,6 +56,113 @@ export const SidebarDivider: React.FC = () => (
   <div className="my-3 mx-3 border-t border-border" />
 );
 
+import { AnimatePresence, motion } from 'framer-motion';
+
+// Expanded sidebar item - icon on left, text on right
+export const TrendsCollapsedGroup: React.FC<{
+  isActive: boolean;
+  channels: any[]; // Avoid circular dep or import type
+  selectedChannelId: string | null;
+  navigate: (path: string) => void;
+  setSelectedChannelId: (id: string | null) => void;
+  icons: {
+    normal: React.ReactNode;
+    active: React.ReactNode;
+  };
+}> = ({ isActive, channels, selectedChannelId, navigate, setSelectedChannelId, icons }) => {
+  const [isHovered, setHovered] = React.useState(false);
+
+  // Robust single-list approach
+  const showDropdown = isHovered;
+
+  // Determine which channels to show
+  // If hovering: Show ALL channels
+  // If not hovering: Show ONLY selected channel (if any)
+  const visibleChannels = showDropdown
+    ? channels
+    : (selectedChannelId ? channels.filter(c => c.id === selectedChannelId) : []);
+
+  return (
+    <div
+      className="flex flex-col items-center w-full"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Main Trigger */}
+      <div className="w-full relative z-20">
+        <CollapsedSidebarItem
+          icon={icons.normal}
+          activeIcon={icons.active}
+          label="Trends"
+          active={isActive && !selectedChannelId}
+          onClick={() => {
+            setSelectedChannelId(null);
+            navigate('/trends');
+          }}
+        />
+      </div>
+
+      {/* Single Unified Channel List */}
+      <motion.div
+        layout
+        className="relative z-10 w-full flex flex-col items-center overflow-hidden"
+        initial={false}
+      >
+        <AnimatePresence mode="popLayout">
+          {visibleChannels.length > 0 && (
+            <motion.div
+              layout
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-col items-center gap-3 pt-4 pb-4 w-full"
+            >
+              <AnimatePresence mode="popLayout">
+                {visibleChannels.map(channel => {
+                  const isSelected = selectedChannelId === channel.id;
+
+                  const imageClasses = `w-8 h-8 rounded-full object-cover transition-all duration-300
+                                        ${!channel.isVisible ? 'grayscale opacity-50' : ''}
+                                        hover:shadow-[0_0_15px_rgba(255,255,255,0.4)] hover:scale-110
+                                    `;
+
+                  return (
+                    <motion.div
+                      key={channel.id}
+                      layout="position"
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.1 } }}
+                      transition={{
+                        opacity: { duration: 0.2 }
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedChannelId(channel.id);
+                        navigate('/trends');
+                      }}
+                      className="flex flex-col items-center justify-center w-full px-1 relative hover:z-30"
+                      title={channel.title}
+                    >
+                      <div className={`relative transition-all duration-200 ${isSelected ? 'ring-2 ring-text-primary rounded-full p-[2px]' : ''}`}>
+                        <img
+                          src={channel.avatarUrl}
+                          alt={channel.title}
+                          className={imageClasses}
+                        />
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </div>
+  );
+};
+
 export const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -91,6 +198,13 @@ export const Sidebar: React.FC = () => {
       localStorage.setItem(`lastSelectedChannelId_${user.uid}`, currentChannel.id);
     }
   }, [currentChannel, user?.uid]);
+
+  // Clear Trends channel selection when navigating away
+  React.useEffect(() => {
+    if (!location.pathname.startsWith('/trends')) {
+      setSelectedChannelId(null);
+    }
+  }, [location.pathname, setSelectedChannelId]);
 
   const isHome = location.pathname === '/';
   const isPlaylists = location.pathname.startsWith('/playlists');
@@ -163,52 +277,29 @@ export const Sidebar: React.FC = () => {
               active={isPlaylists}
               onClick={() => navigate('/playlists')}
             />
-            {/* Trends Section */}
-            <CollapsedSidebarItem
-              icon={trendsIcon}
-              activeIcon={trendsActiveIcon}
-              label="Trends"
-              active={isTrends && !selectedChannelId}
-              onClick={() => {
-                setSelectedChannelId(null);
-                navigate('/trends');
+            {/* Trends Section with Hover Dropdown */}
+            <div
+              className="flex flex-col w-full"
+              onMouseEnter={() => {
+                // Preload or ensure logic is ready if needed
               }}
-            />
-
-            {/* Collapsed Trends Channels */}
-            {isTrends && trendChannels.map(channel => {
-              const isSelected = selectedChannelId === channel.id;
-              // Gray if not visible (eye off), unless selected (then force full visibility/color to indicate active context, or keep gray but ringed? User said "icon is gray if...". Let's keep it gray if hidden, but add ring if selected)
-              // Actually, if I select a hidden channel, does it become visible? The logic in TrendsPage filters by 'isVisible' UNLESS selected. So if selected, we see its videos. 
-              // Let's keep the icon gray if !isVisible, but add the selection ring.
-
-              const imageClasses = `w-6 h-6 rounded-full object-cover transition-all 
-                    ${isSelected ? 'ring-2 ring-text-primary' : ''}
-                    ${!channel.isVisible ? 'grayscale opacity-50' : 'hover:opacity-80'}
-                `;
-
-              return (
-                <div
-                  key={channel.id}
-                  onClick={() => {
-                    setSelectedChannelId(channel.id);
-                    navigate('/trends');
-                  }}
-                  className={`flex flex-col items-center justify-center py-4 px-1 cursor-pointer rounded-lg transition-colors
-                            ${isSelected ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover'}`}
-                  title={channel.title}
-                >
-                  <img
-                    src={channel.avatarUrl}
-                    alt={channel.title}
-                    className={imageClasses}
-                  />
-                  <span className={`text-[10px] mt-1.5 overflow-hidden text-ellipsis whitespace-nowrap w-full text-center ${isSelected ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
-                    {channel.title}
-                  </span>
-                </div>
-              );
-            })}
+            >
+              {/* Main Trends Icon - acts as hover trigger for the group if we wrap it? 
+                    Actually, we want the list to stay open when hovering the list too.
+                    So we need a wrapper around both.
+                */}
+              <TrendsCollapsedGroup
+                isActive={isTrends && !selectedChannelId}
+                channels={trendChannels}
+                selectedChannelId={selectedChannelId}
+                navigate={navigate}
+                setSelectedChannelId={setSelectedChannelId}
+                icons={{
+                  normal: trendsIcon,
+                  active: trendsActiveIcon
+                }}
+              />
+            </div>
 
             <div className="mt-auto">
               <CollapsedSidebarItem
