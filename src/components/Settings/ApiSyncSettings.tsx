@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, Eye, EyeOff } from 'lucide-react';
+import { ChevronDown, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { Dropdown } from '../Shared/Dropdown';
 import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
+import { useVideoSync } from '../../hooks/useVideoSync';
 
 import type { GeneralSettings, SyncSettings } from '../../services/settingsService';
 
@@ -30,6 +31,7 @@ export const ApiSyncSettings: React.FC<ApiSyncSettingsProps> = ({ generalSetting
     const [showApiKey, setShowApiKey] = useState(true); // Default to visible
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
+    const { syncAllVideos, isSyncing } = useVideoSync(user?.uid || '', currentChannel?.id || '');
 
     const getUnit = (hours: number) => {
         if (hours % 168 === 0 && hours >= 168) return 'Weeks';
@@ -164,6 +166,34 @@ export const ApiSyncSettings: React.FC<ApiSyncSettingsProps> = ({ generalSetting
                 </div>
             </section>
 
+            <div className={`border-t ${theme.borderColor}`} />
+
+            {/* Manual Sync Section */}
+            <section className="space-y-4">
+                <div className="space-y-1">
+                    <h3 className="text-base font-medium">Manual Sync</h3>
+                    <p className={`text-sm ${theme.textSecondary}`}>
+                        Force an immediate update of all tracked metrics.
+                    </p>
+                </div>
+
+                <button
+                    onClick={() => {
+                        if (user && currentChannel && generalSettings.apiKey) {
+                            syncAllVideos(generalSettings.apiKey);
+                        } else if (!generalSettings.apiKey) {
+                            // Ideally show a toast here, but alert is a quick fallback if no toast hook available in this file context yet
+                            // Actually we can just rely on the button incorrectly not disabling for now or just generic alert
+                            alert("Please set API Key first");
+                        }
+                    }}
+                    disabled={isSyncing || !generalSettings.apiKey}
+                    className={`w-full py-2 rounded-md font-medium text-sm flex items-center justify-center gap-2 transition-colors ${isSyncing || !generalSettings.apiKey ? `${theme.activeItemBg} ${theme.textSecondary} cursor-not-allowed` : 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'}`}
+                >
+                    <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
+                    {isSyncing ? 'Syncing...' : 'Sync Now'}
+                </button>
+            </section>
         </div>
     );
 };

@@ -143,6 +143,7 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                                             <img
                                                 src={channel.avatarUrl}
                                                 alt={channel.title}
+                                                referrerPolicy="no-referrer"
                                                 className={`w-6 h-6 rounded-full mr-3 ring-2 transition-all ${!channel.isVisible ? 'grayscale opacity-50' : ''
                                                     } ${isActive ? 'ring-white/30' : 'ring-transparent'}`}
                                             />

@@ -137,6 +137,7 @@ export const SettingsMenuSync: React.FC<SettingsMenuSyncProps> = ({ onBack }) =>
                     </div>
                 )}
 
+
                 <div className="border-t border-border pt-4">
                     <button
                         onClick={() => {
@@ -156,6 +157,7 @@ export const SettingsMenuSync: React.FC<SettingsMenuSyncProps> = ({ onBack }) =>
                         Updates video stats (views, likes) from YouTube.
                     </p>
                 </div>
+
             </div>
         </>
     );

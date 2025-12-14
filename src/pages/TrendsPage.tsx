@@ -1,11 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useTrendStore } from '../stores/trendStore';
 import { TimelineCanvas } from '../components/Trends/Timeline/TimelineCanvas';
-import { RefreshCw, Settings, Check, Maximize2 } from 'lucide-react';
+import { Settings, Check, Maximize2 } from 'lucide-react';
 import { TrendService } from '../services/trendService';
-import { useAuth } from '../hooks/useAuth';
-import { useSettings } from '../hooks/useSettings';
-import { useChannelStore } from '../stores/channelStore';
 import { createPortal } from 'react-dom';
 
 interface VideoNode {
@@ -23,10 +20,7 @@ interface VideoNode {
 
 export const TrendsPage: React.FC = () => {
     const { channels, selectedChannelId, timelineConfig, setTimelineConfig } = useTrendStore();
-    const { user } = useAuth();
-    const { generalSettings } = useSettings();
-    const { currentChannel } = useChannelStore();
-    const [isSyncing, setIsSyncing] = useState(false);
+    const activeChannel = selectedChannelId ? channels.find(c => c.id === selectedChannelId) : null;
     const [videos, setVideos] = useState<VideoNode[]>([]);
 
     // Settings Dropdown State
@@ -34,8 +28,6 @@ export const TrendsPage: React.FC = () => {
     const [settingsView, setSettingsView] = useState<'main' | 'scaling'>('main');
     const settingsButtonRef = useRef<HTMLButtonElement>(null);
     const settingsDropdownRef = useRef<HTMLDivElement>(null);
-
-    const activeChannel = selectedChannelId ? channels.find(c => c.id === selectedChannelId) : null;
 
     // Computed visible channels (lifted from TimelineCanvas)
     const visibleChannels = useMemo(() => {
@@ -82,39 +74,7 @@ export const TrendsPage: React.FC = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [isSettingsOpen]);
 
-    const handleSync = async () => {
-        if (!user || isSyncing) return;
 
-        const apiKey = generalSettings.apiKey;
-        if (!apiKey) {
-            console.error('No API Key configured');
-            return;
-        }
-
-        setIsSyncing(true);
-        // Close dropdown if open
-        setIsSettingsOpen(false);
-        setSettingsView('main');
-
-        if (!user || !currentChannel) {
-            console.warn('[TrendsPage] No user or currentChannel, cannot sync');
-            setIsSyncing(false);
-            return;
-        }
-
-        try {
-            console.log('[TrendsPage] Starting manual sync...');
-            await Promise.all(channels.map(channel =>
-                TrendService.syncChannelVideos(user.uid, currentChannel.id, channel, apiKey)
-            ));
-            console.log('[TrendsPage] Manual sync complete');
-            window.location.reload();
-        } catch (e) {
-            console.error('Sync failed', e);
-        } finally {
-            setIsSyncing(false);
-        }
-    };
 
     return (
         <div className="flex flex-col h-full bg-bg-primary">
@@ -143,7 +103,7 @@ export const TrendsPage: React.FC = () => {
                                 setIsSettingsOpen(!isSettingsOpen);
                                 if (isSettingsOpen) setTimeout(() => setSettingsView('main'), 200);
                             }}
-                            className={`p-2 rounded-lg transition-colors ${isSettingsOpen ? 'bg-bg-secondary text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-secondary'}`}
+                            className={`p - 2 rounded - lg transition - colors ${isSettingsOpen ? 'bg-bg-secondary text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-secondary'} `}
                         >
                             <Settings size={20} />
                         </button>
@@ -173,18 +133,7 @@ export const TrendsPage: React.FC = () => {
                                             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" className="text-text-secondary"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" /></svg>
                                         </div>
 
-                                        <div className="h-px bg-border my-1" />
 
-                                        {/* Sync Now Item */}
-                                        <div
-                                            onClick={handleSync}
-                                            className={`px-4 py-2.5 flex items-center gap-3 cursor-pointer hover:bg-hover-bg text-text-primary text-sm transition-colors ${isSyncing ? 'opacity-50 pointer-events-none' : ''}`}
-                                        >
-                                            <div className="w-5 h-5 flex items-center justify-center">
-                                                <RefreshCw size={20} className={isSyncing ? 'animate-spin' : ''} />
-                                            </div>
-                                            <span>{isSyncing ? 'Syncing...' : 'Sync Now'}</span>
-                                        </div>
                                     </div>
                                 ) : (
                                     /* Scaling Submenu */
