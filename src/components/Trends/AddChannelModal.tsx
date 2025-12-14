@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Loader2 } from 'lucide-react';
 import { TrendService } from '../../services/trendService';
 import { useAuth } from '../../hooks/useAuth';
 import { useSettings } from '../../hooks/useSettings';
 import { useChannelStore } from '../../stores/channelStore';
-import { Toast } from '../Shared/Toast';
+import { useUIStore } from '../../stores/uiStore';
+import { useNotificationStore } from '../../stores/notificationStore';
 
 interface AddChannelModalProps {
     isOpen: boolean;
@@ -16,11 +17,12 @@ export const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClos
     const [url, setUrl] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
-    const [toastState, setToastState] = useState<{ show: boolean, message: string }>({ show: false, message: '' });
 
     const { user } = useAuth();
     const { generalSettings } = useSettings();
     const { currentChannel } = useChannelStore();
+    const { showToast } = useUIStore();
+    const { addNotification } = useNotificationStore();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -35,30 +37,22 @@ export const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClos
 
             const { quotaCost } = await TrendService.addTrendChannel(user.uid, currentChannel.id, url, apiKey);
 
-            setToastState({
-                show: true,
-                message: `Channel added successfully. Quota used: ${quotaCost} units`
+            const successMessage = `Channel added successfully. Quota used: ${quotaCost} units`;
+
+            // Global Toast (persists after modal close)
+            showToast(successMessage, 'success');
+
+            // Persistent Notification
+            await addNotification({
+                title: 'Channel Tracked',
+                message: `${successMessage}. Initial sync started.`,
+                type: 'success',
+                meta: 'Quota',
+                link: '/trends'
             });
 
-            // Delay closing to let the user see the toast? 
-            // The request says "toast... after adding".
-            // Since the button is inside the modal, if we close instantly, the toast (portal) persists.
-            // Let's verify if `Toast` portal survives parent unmount. 
-            // React Portals *unmount* if the component that renders them unmounts.
-            // So we MUST keep the modal mounted but maybe hidden? Or delay onClose.
-
-            // Actually, correct UX: User adds channel -> Success Toast -> Modal closes.
-            // If Modal closes, Toast dies.
-            // I will delay onClose by 2s and show success state in modal.
-
-            // Alternative: Pass onSuccess callback to parent, and parent (Sidebar) renders toast.
-            // But I am editing this file.
-            // Let's try delaying onClose.
-            setTimeout(() => {
-                onClose();
-                setUrl('');
-                setToastState(prev => ({ ...prev, show: false })); // Cleanup
-            }, 2000);
+            onClose();
+            setUrl('');
 
         } catch (err: any) {
             setError(err.message || 'Failed to add channel');
@@ -120,12 +114,6 @@ export const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClos
                     </div>
                 </form>
             </div>
-            <Toast
-                message={toastState.message}
-                isVisible={toastState.show}
-                onClose={() => setToastState(prev => ({ ...prev, show: false }))}
-                type="success"
-            />
         </div>,
         document.body
     );
