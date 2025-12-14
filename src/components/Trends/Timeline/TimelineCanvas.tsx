@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useTrendStore } from '../../../stores/trendStore';
+import { RotateCcw } from 'lucide-react';
 
 interface VideoNode {
     id: string;
@@ -232,11 +233,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
         return resolved;
     }, [videos, stats, scalingMode]);
 
-    // Auto-fit on load
-    useEffect(() => {
-        // If user has manually moved, do NOT auto-fit
-        if (isCustomView) return;
-
+    // Reusable auto-fit logic
+    const handleAutoFit = useCallback(() => {
         if (videos.length === 0 || !containerRef.current) return;
 
         const container = containerRef.current;
@@ -255,7 +253,39 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
         const newOffsetY = (viewportHeight - contentHeight) / 2;
 
         setTransform({ scale: fitScale, offsetX: newOffsetX, offsetY: newOffsetY });
-    }, [videos.length, stats, isCustomView]);
+
+        // Reset custom view flag so auto-fit can work again if window resizes
+        setTimelineConfig({
+            zoomLevel: fitScale,
+            offsetX: newOffsetX,
+            offsetY: newOffsetY,
+            isCustomView: false
+        });
+    }, [videos.length, setTimelineConfig]);
+
+    // Auto-fit on load
+    useEffect(() => {
+        if (!isCustomView) {
+            handleAutoFit();
+        }
+    }, [handleAutoFit, isCustomView]);
+
+    // Keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Only trigger if not typing in an input
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+            const key = e.key.toLowerCase();
+            if (key === 'z' || key === 'я') {
+                e.preventDefault();
+                handleAutoFit();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handleAutoFit]);
 
     // Scroll-to-pan + Intelligent Zoom handler (velocity-based)
     const handleWheel = useCallback((e: WheelEvent) => {
@@ -590,11 +620,26 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                 )}
             </div>
 
-            {/* Bottom Right Zoom Indicator */}
-            <div className="absolute bottom-4 right-6 pointer-events-none z-50">
-                <span className="text-xs px-2 py-1 bg-white/5 rounded-full backdrop-blur-md text-text-secondary border border-white/5 font-mono">
-                    {(transform.scale * 100).toFixed(0)}%
-                </span>
+            {/* Bottom Right Zoom Indicator & Controls */}
+            <div className="absolute bottom-4 right-6 pointer-events-auto z-50 flex flex-col items-end gap-2 group">
+                {/* Hotkey Hint */}
+                <div className="flex items-center gap-2 text-[10px] text-text-tertiary opacity-0 group-hover:opacity-100 transition-all duration-300 ease-out translate-y-2 group-hover:translate-y-0 pointer-events-none">
+                    <span className="px-1.5 py-0.5 bg-[#2a2a2a] border border-white/10 rounded text-text-secondary font-mono">z</span>
+                    <span>reset</span>
+                </div>
+
+                <div className="flex items-center bg-[#1a1a1a]/90 backdrop-blur-md border border-white/10 rounded-full px-1.5 py-1">
+                    <span className="text-xs pl-2 pr-1 text-text-secondary font-mono text-right tabular-nums">
+                        {(transform.scale * 100).toFixed(0)}%
+                    </span>
+                    <div className="w-[1px] h-3 bg-white/10 mx-1" />
+                    <button
+                        onClick={handleAutoFit}
+                        className="p-1 hover:bg-white/10 rounded-full text-text-tertiary hover:text-white transition-colors"
+                    >
+                        <RotateCcw size={12} />
+                    </button>
+                </div>
             </div>
 
             {/* Tooltip */}
