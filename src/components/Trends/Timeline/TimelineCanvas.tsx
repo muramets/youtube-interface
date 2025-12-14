@@ -28,6 +28,46 @@ const MIN_THUMBNAIL_SIZE = 40;
 const HEADER_HEIGHT = 48;
 const PADDING = 40;
 
+// World dimensions (used in multiple places)
+const WORLD_WIDTH = 2000;
+const WORLD_HEIGHT = 1000;
+
+// Helper to clamp transform so content stays visible
+const clampTransform = (
+    transform: { scale: number; offsetX: number; offsetY: number },
+    viewportWidth: number,
+    viewportHeight: number
+): { scale: number; offsetX: number; offsetY: number } => {
+    const scaledWidth = WORLD_WIDTH * transform.scale;
+    const scaledHeight = WORLD_HEIGHT * transform.scale;
+    const viewportH = viewportHeight - HEADER_HEIGHT;
+
+    // Visibility constraint: keep 74% of the "effective" dimension visible
+    // "Effective" means the smaller of the content size or the viewport size.
+    // - If zoomed out (content < viewport): Keep 74% of content visible.
+    // - If zoomed in (content > viewport): Keep 74% of viewport filled with content (allow max 26% void).
+    const VISIBILITY_RATIO = 0.74;
+
+    const minVisibleX = Math.min(scaledWidth, viewportWidth) * VISIBILITY_RATIO;
+    const minVisibleY = Math.min(scaledHeight, viewportH) * VISIBILITY_RATIO;
+
+    // Bounds for offsetX
+    // Max: Content starts near right edge (viewportW - minVisibleX)
+    // Min: Content ends near left edge (minVisibleX - scaledW)
+    const maxOffsetX = viewportWidth - minVisibleX;
+    const minOffsetX = minVisibleX - scaledWidth;
+
+    // Bounds for offsetY
+    const maxOffsetY = viewportH - minVisibleY;
+    const minOffsetY = minVisibleY - scaledHeight;
+
+    return {
+        scale: transform.scale,
+        offsetX: Math.max(minOffsetX, Math.min(maxOffsetX, transform.offsetX)),
+        offsetY: Math.max(minOffsetY, Math.min(maxOffsetY, transform.offsetY))
+    };
+};
+
 export const TimelineCanvas: React.FC = () => {
     const { channels, selectedChannelId, timelineConfig, setTimelineConfig } = useTrendStore();
     const { scalingMode } = timelineConfig;
@@ -235,7 +275,7 @@ export const TimelineCanvas: React.FC = () => {
         setTransform({ scale: fitScale, offsetX, offsetY });
     }, [videos.length, stats]);
 
-    // Scroll-to-pan + Zoom handler
+    // Scroll-to-pan + Intelligent Zoom handler (velocity-based)
     const handleWheel = useCallback((e: WheelEvent) => {
         e.preventDefault();
 
@@ -247,21 +287,44 @@ export const TimelineCanvas: React.FC = () => {
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top - HEADER_HEIGHT;
 
-            const zoomFactor = 1 - e.deltaY * 0.002;
+            // Velocity-based zoom: faster pinch = more aggressive zoom
+            // deltaY magnitude indicates pinch speed
+            const velocity = Math.abs(e.deltaY);
+
+            // Base sensitivity + velocity multiplier
+            // Fast pinch (velocity > 10) accelerates the zoom
+            const baseSensitivity = 0.002;
+            const velocityMultiplier = 1 + Math.min(velocity / 5, 19); // Max 20x acceleration
+            const sensitivity = baseSensitivity * velocityMultiplier;
+
+            // Target zone attraction: when far from "normal" zoom (0.5-1.5), 
+            // fast pinches pull stronger towards normal
+            const targetZoom = 1.0; // Ideal zoom level
+            const distanceFromTarget = Math.abs(Math.log(transform.scale / targetZoom));
+            const attractionBoost = velocity > 10 ? 1 + distanceFromTarget * 0.5 : 1;
+
+            const zoomFactor = 1 - e.deltaY * sensitivity * attractionBoost;
             const newScale = Math.max(0.1, Math.min(10, transform.scale * zoomFactor));
             const scaleRatio = newScale / transform.scale;
 
-            setTransform({
+            const clamped = clampTransform({
                 scale: newScale,
                 offsetX: mouseX - (mouseX - transform.offsetX) * scaleRatio,
                 offsetY: mouseY - (mouseY - transform.offsetY) * scaleRatio
-            });
+            }, container.clientWidth, container.clientHeight);
+
+            setTransform(clamped);
         } else {
-            setTransform(t => ({
-                ...t,
-                offsetX: t.offsetX - e.deltaX,
-                offsetY: t.offsetY - e.deltaY
-            }));
+            const container = containerRef.current;
+            if (!container) return;
+
+            const clamped = clampTransform({
+                ...transform,
+                offsetX: transform.offsetX - e.deltaX,
+                offsetY: transform.offsetY - e.deltaY
+            }, container.clientWidth, container.clientHeight);
+
+            setTransform(clamped);
         }
     }, [transform]);
 
@@ -274,14 +337,17 @@ export const TimelineCanvas: React.FC = () => {
     }, [transform.offsetX, transform.offsetY, hoveredVideo]);
 
     const handleMouseMove = useCallback((e: React.MouseEvent) => {
-        if (isPanning) {
-            setTransform(t => ({
-                ...t,
+        if (isPanning && containerRef.current) {
+            const container = containerRef.current;
+            const clamped = clampTransform({
+                ...transform,
                 offsetX: e.clientX - panStart.x,
                 offsetY: e.clientY - panStart.y
-            }));
+            }, container.clientWidth, container.clientHeight);
+
+            setTransform(clamped);
         }
-    }, [isPanning, panStart]);
+    }, [isPanning, panStart, transform]);
 
     const handleMouseUp = useCallback(() => {
         setIsPanning(false);
