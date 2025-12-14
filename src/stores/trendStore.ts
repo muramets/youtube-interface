@@ -10,7 +10,8 @@ const DEFAULT_TIMELINE_CONFIG: TimelineConfig = {
     startDate: Date.now() - 30 * 24 * 60 * 60 * 1000, // Default last 30 days
     endDate: Date.now(),
     viewMode: 'per-channel',
-    scalingMode: 'log'
+    scalingMode: 'log',
+    layoutMode: 'spacious'
 };
 
 interface TrendStore {

@@ -20,9 +20,10 @@ interface TrendTooltipProps {
     className?: string;
     onMouseEnter?: () => void;
     onMouseLeave?: () => void;
+    percentileGroup?: string; // e.g. "Top 1%", "Top 5%", etc.
 }
 
-export const TrendTooltip: React.FC<TrendTooltipProps> = ({ video, style, className, onMouseEnter, onMouseLeave }) => {
+export const TrendTooltip: React.FC<TrendTooltipProps> = ({ video, style, className, onMouseEnter, onMouseLeave, percentileGroup }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [areTagsExpanded, setAreTagsExpanded] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
@@ -71,9 +72,36 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({ video, style, classN
 
             {/* Metadata Badges */}
             <div className="flex justify-between items-center text-xs">
-                <span className="text-white font-bold px-2 py-1 bg-white/10 rounded-full">
-                    {video.viewCount.toLocaleString()} views
-                </span>
+                <div className="flex items-center gap-2">
+                    <span className="text-white font-bold px-2 py-1 bg-white/10 rounded-full">
+                        {video.viewCount.toLocaleString()} views
+                    </span>
+                    {percentileGroup === 'Top 1%' && (
+                        <span className="text-white font-bold px-2 py-1 bg-gradient-to-r from-emerald-500/30 to-green-500/30 border border-emerald-500/50 rounded-full">
+                            {percentileGroup}
+                        </span>
+                    )}
+                    {percentileGroup === 'Top 5%' && (
+                        <span className="text-white font-bold px-2 py-1 bg-gradient-to-r from-lime-500/30 to-teal-500/30 border border-lime-500/50 rounded-full">
+                            {percentileGroup}
+                        </span>
+                    )}
+                    {percentileGroup === 'Top 20%' && (
+                        <span className="text-white font-bold px-2 py-1 bg-gradient-to-r from-blue-500/30 to-cyan-500/30 border border-blue-500/50 rounded-full">
+                            {percentileGroup}
+                        </span>
+                    )}
+                    {percentileGroup === 'Middle 60%' && (
+                        <span className="text-white font-bold px-2 py-1 bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-full">
+                            {percentileGroup}
+                        </span>
+                    )}
+                    {percentileGroup === 'Bottom 20%' && (
+                        <span className="text-white font-bold px-2 py-1 bg-gradient-to-r from-red-500/30 to-rose-500/30 border border-red-500/50 rounded-full">
+                            {percentileGroup}
+                        </span>
+                    )}
+                </div>
                 <div className="flex items-center gap-1.5 text-[#AAAAAA]">
                     <Calendar size={12} />
                     <span>{formatDate(video.publishedAt)}</span>

@@ -49,5 +49,6 @@ export interface TimelineConfig {
     startDate: number;
     endDate: number;
     viewMode: 'global' | 'per-channel'; // Global = all on one timeline (optional future), Per-channel = separate tracks
-    scalingMode: 'linear' | 'log'; // Linear = proportional to views, Log = logarithmic (less extreme differences)
+    scalingMode: 'linear' | 'log' | 'sqrt' | 'percentile'; // Scaling algorithm for video sizes
+    layoutMode: 'spacious' | 'compact'; // Spacious = gaps between videos, Compact = allow horizontal overlap
 }

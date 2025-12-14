@@ -45,7 +45,7 @@ import { useDebounce } from '../../../hooks/useDebounce';
 
 export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
     const { timelineConfig, setTimelineConfig, setAddChannelModalOpen } = useTrendStore();
-    const { scalingMode, isCustomView, zoomLevel, offsetX, offsetY } = timelineConfig;
+    const { scalingMode, layoutMode, isCustomView, zoomLevel, offsetX, offsetY } = timelineConfig;
 
     // Refs for imperative access (perf optimization)
     const containerRef = useRef<HTMLDivElement>(null);
@@ -133,14 +133,18 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
         while (current <= end) {
             const key = `${current.getFullYear()}-${current.getMonth()}`;
             const count = counts.get(key) || 0;
-            // Generous width: AT LEAST 200px, plus 60px per video
-            const width = Math.max(200, count * 80); // 80px per video for plenty of space
+            // Layout mode determines spacing:
+            // - Spacious: Generous width (200px min, 80px per video) - no overlap
+            // - Compact: Minimal width (60px min, 30px per video) - allows overlap
+            const width = layoutMode === 'compact'
+                ? Math.max(60, count * 30)
+                : Math.max(200, count * 80);
             totalWidth += width;
             current.setMonth(current.getMonth() + 1);
         }
 
         return Math.max(2000, totalWidth);
-    }, [videos]);
+    }, [videos, layoutMode]);
 
     // Helper to apply transforms imperatively to DOM
     const syncToDom = useCallback(() => {
@@ -246,9 +250,12 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
             const key = `${year}-${month}`;
             const count = counts.get(key) || 0;
 
-            // ABSOLUTE WIDTH CALCULATION (Generous Expansion)
-            // 200px min width for empty months, 80px per video for dense months
-            const absWidth = Math.max(200, count * 80);
+            // Layout mode determines spacing:
+            // - Spacious: Generous width (200px min, 80px per video) - no overlap
+            // - Compact: Minimal width (60px min, 30px per video) - allows overlap
+            const absWidth = layoutMode === 'compact'
+                ? Math.max(60, count * 30)
+                : Math.max(200, count * 80);
 
             const nextMonth = new Date(current);
             nextMonth.setMonth(current.getMonth() + 1);
@@ -280,7 +287,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
             endX: l.endX / totalAbsWidth,
             width: l.width / totalAbsWidth
         }));
-    }, [videos, stats]);
+    }, [videos, stats, layoutMode]);
 
 
 
@@ -319,6 +326,12 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
     const videoPositions = useMemo(() => {
         const viewRangeLinear = stats.maxViews - stats.minViews || 1;
         const viewRangeLog = Math.log(stats.maxViews) - Math.log(stats.minViews) || 1;
+        const viewRangeSqrt = Math.sqrt(stats.maxViews) - Math.sqrt(stats.minViews) || 1;
+
+        // Pre-calculate ranks for percentile mode
+        const sortedByViews = [...videos].sort((a, b) => a.viewCount - b.viewCount);
+        const rankMap = new Map<string, number>();
+        sortedByViews.forEach((v, i) => rankMap.set(v.id, i / (videos.length - 1 || 1)));
 
         // Calculate positions
         const positions = videos.map(video => {
@@ -342,24 +355,44 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                 xNorm = (video.publishedAtTimestamp - stats.minDate) / dateRange;
             }
 
+            // Calculate yNorm based on scaling mode
             let yNorm: number;
-            if (scalingMode === 'linear') {
-                yNorm = 1 - (video.viewCount - stats.minViews) / viewRangeLinear;
-            } else {
-                const viewLog = Math.log(Math.max(1, video.viewCount));
-                const minLog = Math.log(stats.minViews);
-                yNorm = 1 - (viewLog - minLog) / viewRangeLog;
+            let sizeRatio: number;
+
+            switch (scalingMode) {
+                case 'linear':
+                    yNorm = 1 - (video.viewCount - stats.minViews) / viewRangeLinear;
+                    sizeRatio = video.viewCount / stats.maxViews;
+                    break;
+
+                case 'log':
+                    const viewLog = Math.log(Math.max(1, video.viewCount));
+                    const minLog = Math.log(stats.minViews);
+                    const maxLog = Math.log(stats.maxViews);
+                    yNorm = 1 - (viewLog - minLog) / viewRangeLog;
+                    sizeRatio = (viewLog - minLog) / (maxLog - minLog);
+                    break;
+
+                case 'sqrt':
+                    const viewSqrt = Math.sqrt(video.viewCount);
+                    const minSqrt = Math.sqrt(stats.minViews);
+                    const maxSqrt = Math.sqrt(stats.maxViews);
+                    yNorm = 1 - (viewSqrt - minSqrt) / viewRangeSqrt;
+                    sizeRatio = (viewSqrt - minSqrt) / (maxSqrt - minSqrt);
+                    break;
+
+                case 'percentile':
+                    // Rank-based: position and size by percentile
+                    const rank = rankMap.get(video.id) ?? 0.5;
+                    yNorm = 1 - rank; // Top performers at top
+                    sizeRatio = rank; // Higher rank = larger size
+                    break;
+
+                default:
+                    yNorm = 0.5;
+                    sizeRatio = 0.5;
             }
 
-            let sizeRatio: number;
-            if (scalingMode === 'linear') {
-                sizeRatio = video.viewCount / stats.maxViews;
-            } else {
-                const viewLog = Math.log(Math.max(1, video.viewCount));
-                const minLog = Math.log(stats.minViews);
-                const maxLog = Math.log(stats.maxViews);
-                sizeRatio = (viewLog - minLog) / (maxLog - minLog);
-            }
             const baseSize = MIN_THUMBNAIL_SIZE + sizeRatio * (BASE_THUMBNAIL_SIZE - MIN_THUMBNAIL_SIZE);
 
             return { video, xNorm, yNorm, baseSize };
@@ -641,6 +674,29 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
         }).format(num);
     };
 
+    // Calculate percentile group for a video (only used in percentile mode)
+    const getPercentileGroup = useMemo(() => {
+        if (scalingMode !== 'percentile' || videos.length === 0) return () => undefined;
+
+        const sortedByViews = [...videos].sort((a, b) => b.viewCount - a.viewCount); // Descending
+        const rankMap = new Map<string, number>();
+        sortedByViews.forEach((v, i) => {
+            const percentile = (i / videos.length) * 100;
+            rankMap.set(v.id, percentile);
+        });
+
+        return (videoId: string): string | undefined => {
+            const percentile = rankMap.get(videoId);
+            if (percentile === undefined) return undefined;
+
+            if (percentile <= 1) return 'Top 1%';
+            if (percentile <= 5) return 'Top 5%';
+            if (percentile <= 20) return 'Top 20%';
+            if (percentile <= 80) return 'Middle 60%';
+            return 'Bottom 20%';
+        };
+    }, [videos, scalingMode]);
+
     // Updated text counter scale to use state
     // const textCounterScale = 1 / transformState.scale; // UNUSED
 
@@ -897,6 +953,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                 hoveredVideo && (
                     <TrendTooltip
                         video={hoveredVideo.video}
+                        percentileGroup={getPercentileGroup(hoveredVideo.video.id)}
                         style={{
                             left: hoveredVideo.x,
                             top: hoveredVideo.y < 350 ? hoveredVideo.y + hoveredVideo.height + 16 : hoveredVideo.y - 16,
