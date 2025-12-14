@@ -630,8 +630,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                 {videos.length === 0 && (
                     <div className="absolute inset-0 flex items-center justify-center">
                         <div className="text-center">
-                            <div className="text-text-tertiary text-lg mb-2">No videos to display</div>
-                            <div className="text-text-secondary text-sm">
+                            <div className="text-[#555] text-lg mb-2">No videos to display</div>
+                            <div className="text-[#555] text-sm">
                                 <span
                                     onClick={() => setAddChannelModalOpen(true)}
                                     className="text-[#AAAAAA] hover:text-white transition-colors hover:underline cursor-pointer"

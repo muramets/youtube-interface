@@ -7,6 +7,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 import { useChannels } from '../../hooks/useChannels';
 import { TrendsSidebarSection } from '../Trends/TrendsSidebarSection';
+import { AddChannelModal } from '../Trends/AddChannelModal';
 import { useTrendStore } from '../../stores/trendStore';
 
 // Collapsed sidebar item - icon on top, text below
@@ -318,6 +319,10 @@ export const Sidebar: React.FC = () => {
       </aside>
 
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setSettingsOpen(false)} />
+      <AddChannelModal
+        isOpen={useTrendStore((state) => state.isAddChannelModalOpen)}
+        onClose={() => useTrendStore.getState().setAddChannelModalOpen(false)}
+      />
     </>
   );
 };
