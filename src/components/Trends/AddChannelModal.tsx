@@ -4,6 +4,7 @@ import { X, Loader2 } from 'lucide-react';
 import { TrendService } from '../../services/trendService';
 import { useAuth } from '../../hooks/useAuth';
 import { useSettings } from '../../hooks/useSettings';
+import { useChannelStore } from '../../stores/channelStore';
 
 interface AddChannelModalProps {
     isOpen: boolean;
@@ -17,10 +18,11 @@ export const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClos
 
     const { user } = useAuth();
     const { generalSettings } = useSettings();
+    const { currentChannel } = useChannelStore();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!url.trim() || !user) return;
+        if (!url.trim() || !user || !currentChannel) return;
 
         setIsLoading(true);
         setError('');
@@ -29,7 +31,7 @@ export const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClos
             const apiKey = generalSettings?.apiKey || localStorage.getItem('youtube_api_key') || '';
             if (!apiKey) throw new Error('API Key not found. Please set it in Settings.');
 
-            await TrendService.addTrendChannel(user.uid, url, apiKey);
+            await TrendService.addTrendChannel(user.uid, currentChannel.id, url, apiKey);
             onClose();
             setUrl('');
         } catch (err: any) {

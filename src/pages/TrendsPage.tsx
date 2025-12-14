@@ -5,6 +5,7 @@ import { RefreshCw, Settings, Check, Maximize2 } from 'lucide-react';
 import { TrendService } from '../services/trendService';
 import { useAuth } from '../hooks/useAuth';
 import { useSettings } from '../hooks/useSettings';
+import { useChannelStore } from '../stores/channelStore';
 import { createPortal } from 'react-dom';
 
 interface VideoNode {
@@ -24,6 +25,7 @@ export const TrendsPage: React.FC = () => {
     const { channels, selectedChannelId, timelineConfig, setTimelineConfig } = useTrendStore();
     const { user } = useAuth();
     const { generalSettings } = useSettings();
+    const { currentChannel } = useChannelStore();
     const [isSyncing, setIsSyncing] = useState(false);
     const [videos, setVideos] = useState<VideoNode[]>([]);
 
@@ -94,10 +96,16 @@ export const TrendsPage: React.FC = () => {
         setIsSettingsOpen(false);
         setSettingsView('main');
 
+        if (!user || !currentChannel) {
+            console.warn('[TrendsPage] No user or currentChannel, cannot sync');
+            setIsSyncing(false);
+            return;
+        }
+
         try {
             console.log('[TrendsPage] Starting manual sync...');
             await Promise.all(channels.map(channel =>
-                TrendService.syncChannelVideos(user.uid, channel, apiKey)
+                TrendService.syncChannelVideos(user.uid, currentChannel.id, channel, apiKey)
             ));
             console.log('[TrendsPage] Manual sync complete');
             window.location.reload();

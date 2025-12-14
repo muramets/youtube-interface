@@ -4,12 +4,14 @@ import { Plus, Eye, EyeOff, TrendingUp } from 'lucide-react';
 import { useTrendStore } from '../../stores/trendStore';
 import { TrendService } from '../../services/trendService';
 import { useAuth } from '../../hooks/useAuth';
+import { useChannelStore } from '../../stores/channelStore';
 import { AddChannelModal } from './AddChannelModal';
 import { SidebarDivider } from '../Layout/Sidebar';
 
 export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded }) => {
     const { channels, isAddChannelModalOpen, setAddChannelModalOpen, selectedChannelId, setSelectedChannelId } = useTrendStore();
     const { user } = useAuth();
+    const { currentChannel } = useChannelStore();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -27,8 +29,8 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
 
     const handleToggleVisibility = async (e: React.MouseEvent, channelId: string, currentVisibility: boolean) => {
         e.stopPropagation();
-        if (user) {
-            await TrendService.toggleVisibility(user.uid, channelId, !currentVisibility);
+        if (user && currentChannel) {
+            await TrendService.toggleVisibility(user.uid, currentChannel.id, channelId, !currentVisibility);
         }
     };
 

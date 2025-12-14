@@ -37,15 +37,15 @@ const getDB = () => {
 export const TrendService = {
     // --- Channel Management (Firestore) ---
 
-    subscribeToTrendChannels: (userId: string, callback: (channels: TrendChannel[]) => void) => {
-        const ref = collection(db, `users/${userId}/trendChannels`);
+    subscribeToTrendChannels: (userId: string, userChannelId: string, callback: (channels: TrendChannel[]) => void) => {
+        const ref = collection(db, `users/${userId}/channels/${userChannelId}/trendChannels`);
         return onSnapshot(ref, (snapshot) => {
             const channels = snapshot.docs.map(doc => doc.data() as TrendChannel);
             callback(channels);
         });
     },
 
-    addTrendChannel: async (userId: string, channelUrl: string, apiKey: string) => {
+    addTrendChannel: async (userId: string, userChannelId: string, channelUrl: string, apiKey: string) => {
         // 1. Resolve Channel ID from URL (naive implementation, assumes channel ID or handle for now)
 
         let channelId = '';
@@ -96,11 +96,11 @@ export const TrendService = {
         };
 
         // 3. Save to Firestore
-        await setDoc(doc(db, `users/${userId}/trendChannels`, newChannel.id), newChannel);
+        await setDoc(doc(db, `users/${userId}/channels/${userChannelId}/trendChannels`, newChannel.id), newChannel);
 
         // 4. Initial Sync of Videos
         try {
-            await TrendService.syncChannelVideos(userId, newChannel, apiKey);
+            await TrendService.syncChannelVideos(userId, userChannelId, newChannel, apiKey);
         } catch (error) {
             console.error('Initial video sync failed:', error);
             // We still return the channel even if sync fails, it will just be empty initially
@@ -109,8 +109,8 @@ export const TrendService = {
         return newChannel;
     },
 
-    removeTrendChannel: async (userId: string, channelId: string) => {
-        await deleteDoc(doc(db, `users/${userId}/trendChannels`, channelId));
+    removeTrendChannel: async (userId: string, userChannelId: string, channelId: string) => {
+        await deleteDoc(doc(db, `users/${userId}/channels/${userChannelId}/trendChannels`, channelId));
         // Cleanup IndexedDB videos for this channel
         const idb = await getDB();
         const tx = idb.transaction('videos', 'readwrite');
@@ -123,13 +123,13 @@ export const TrendService = {
         await tx.done;
     },
 
-    toggleVisibility: async (userId: string, channelId: string, isVisible: boolean) => {
-        await updateDoc(doc(db, `users/${userId}/trendChannels`, channelId), { isVisible });
+    toggleVisibility: async (userId: string, userChannelId: string, channelId: string, isVisible: boolean) => {
+        await updateDoc(doc(db, `users/${userId}/channels/${userChannelId}/trendChannels`, channelId), { isVisible });
     },
 
     // --- Video Fetching & Caching (IndexedDB) ---
 
-    syncChannelVideos: async (userId: string, channel: TrendChannel, apiKey: string) => {
+    syncChannelVideos: async (userId: string, userChannelId: string, channel: TrendChannel, apiKey: string) => {
         // 1. Fetch from YouTube (Uploads Playlist)
         // Limit to last 50 videos for 'Explore' purpose usually, or pagination loop
         // For this generic impl, let's fetch 50.
@@ -189,7 +189,7 @@ export const TrendService = {
         const totalViews = videos.reduce((sum, v) => sum + v.viewCount, 0);
         const averageViews = videos.length > 0 ? totalViews / videos.length : 0;
 
-        await updateDoc(doc(db, `users/${userId}/trendChannels`, channel.id), {
+        await updateDoc(doc(db, `users/${userId}/channels/${userChannelId}/trendChannels`, channel.id), {
             lastUpdated: Date.now(),
             averageViews
         });
