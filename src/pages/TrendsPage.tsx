@@ -226,7 +226,10 @@ export const TrendsPage: React.FC = () => {
             </div>
 
             {/* Timeline Area (pass loaded videos) */}
-            <TimelineCanvas videos={videos} />
+            <TimelineCanvas
+                key={selectedChannelId || 'global'}
+                videos={videos}
+            />
         </div>
     );
 };

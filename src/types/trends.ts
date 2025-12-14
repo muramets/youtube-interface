@@ -42,7 +42,10 @@ export interface TrendVideo {
 }
 
 export interface TimelineConfig {
-    zoomLevel: number; // Scale factor
+    zoomLevel: number;
+    offsetX: number;
+    offsetY: number;
+    isCustomView: boolean; // True if user has manually panned/zoomed
     startDate: number;
     endDate: number;
     viewMode: 'global' | 'per-channel'; // Global = all on one timeline (optional future), Per-channel = separate tracks

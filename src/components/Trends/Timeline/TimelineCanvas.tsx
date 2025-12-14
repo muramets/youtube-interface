@@ -70,9 +70,13 @@ const clampTransform = (
     };
 };
 
+import { useDebounce } from '../../../hooks/useDebounce';
+
+// ... (previous imports)
+
 export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
-    const { timelineConfig, selectedChannelId } = useTrendStore();
-    const { scalingMode } = timelineConfig;
+    const { timelineConfig, setTimelineConfig, selectedChannelId } = useTrendStore();
+    const { scalingMode, isCustomView, zoomLevel, offsetX, offsetY } = timelineConfig;
 
     const containerRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
@@ -83,12 +87,32 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
     const [isPanning, setIsPanning] = useState(false);
     const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
-    // Transform state: scale + pan offsets
+    // Transform state: initialized from store if available
     const [transform, setTransform] = useState<Transform>({
-        scale: 1,
-        offsetX: 0,
-        offsetY: 0
+        scale: Math.max(0.1, zoomLevel || 1),
+        offsetX: offsetX || 0,
+        offsetY: offsetY || 0
     });
+
+    // Debounce value to prevent excessive store updates
+    const debouncedTransform = useDebounce(transform, 500);
+
+    // Sync transform back to store when it settles
+    useEffect(() => {
+        // Only update if changed significantly to avoid loops
+        if (
+            Math.abs(debouncedTransform.scale - zoomLevel) > 0.001 ||
+            Math.abs(debouncedTransform.offsetX - offsetX) > 1 ||
+            Math.abs(debouncedTransform.offsetY - offsetY) > 1
+        ) {
+            setTimelineConfig({
+                zoomLevel: debouncedTransform.scale,
+                offsetX: debouncedTransform.offsetX,
+                offsetY: debouncedTransform.offsetY,
+                isCustomView: true // Mark as custom once user interacts/state settles
+            });
+        }
+    }, [debouncedTransform, setTimelineConfig, zoomLevel, offsetX, offsetY]);
 
     // Calculate view stats for scaling
     const stats = useMemo(() => {
@@ -208,9 +232,11 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
         return resolved;
     }, [videos, stats, scalingMode]);
 
-
     // Auto-fit on load
     useEffect(() => {
+        // If user has manually moved, do NOT auto-fit
+        if (isCustomView) return;
+
         if (videos.length === 0 || !containerRef.current) return;
 
         const container = containerRef.current;
@@ -225,11 +251,11 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
 
         const contentWidth = WORLD_WIDTH * fitScale;
         const contentHeight = WORLD_HEIGHT * fitScale;
-        const offsetX = (viewportWidth - contentWidth) / 2;
-        const offsetY = (viewportHeight - contentHeight) / 2;
+        const newOffsetX = (viewportWidth - contentWidth) / 2;
+        const newOffsetY = (viewportHeight - contentHeight) / 2;
 
-        setTransform({ scale: fitScale, offsetX, offsetY });
-    }, [videos.length, stats]);
+        setTransform({ scale: fitScale, offsetX: newOffsetX, offsetY: newOffsetY });
+    }, [videos.length, stats, isCustomView]);
 
     // Scroll-to-pan + Intelligent Zoom handler (velocity-based)
     const handleWheel = useCallback((e: WheelEvent) => {
@@ -247,10 +273,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
             const baseSensitivity = 0.002;
             const velocityMultiplier = 1 + Math.min(velocity / 5, 19); // Max 20x acceleration
             const sensitivity = baseSensitivity * velocityMultiplier;
-
-            const targetZoom = 1.0;
-            const distanceFromTarget = Math.abs(Math.log(transform.scale / targetZoom));
-            const attractionBoost = velocity > 10 ? 1 + distanceFromTarget * 0.5 : 1;
+            const attractionBoost = velocity > 10 ? 1 + Math.abs(Math.log(transform.scale / 1.0)) * 0.5 : 1; // Target zoom 1.0
 
             const zoomFactor = 1 - e.deltaY * sensitivity * attractionBoost;
             const newScale = Math.max(0.1, Math.min(10, transform.scale * zoomFactor));

@@ -1,5 +1,17 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { TrendChannel, TrendNiche, TimelineConfig, TrendVideo } from '../types/trends';
+
+const DEFAULT_TIMELINE_CONFIG: TimelineConfig = {
+    zoomLevel: 1,
+    offsetX: 0,
+    offsetY: 0,
+    isCustomView: false,
+    startDate: Date.now() - 30 * 24 * 60 * 60 * 1000, // Default last 30 days
+    endDate: Date.now(),
+    viewMode: 'per-channel',
+    scalingMode: 'log'
+};
 
 interface TrendStore {
     // Data
@@ -8,6 +20,7 @@ interface TrendStore {
 
     // UI State
     timelineConfig: TimelineConfig;
+    savedConfigs: Record<string, TimelineConfig>; // Keyed by channelId or 'global'
     activeNicheId: string | null; // Filter by niche
     selectedChannelId: string | null; // null = Trends Overview, else = Single Channel View
     selectedVideo: TrendVideo | null; // For floating bar
@@ -29,49 +42,75 @@ interface TrendStore {
     toggleChannelVisibility: (id: string) => void;
 }
 
-export const useTrendStore = create<TrendStore>((set) => ({
-    channels: [],
-    niches: [],
+export const useTrendStore = create<TrendStore>()(
+    persist(
+        (set) => ({
+            channels: [],
+            niches: [],
 
-    timelineConfig: {
-        zoomLevel: 1,
-        startDate: Date.now() - 30 * 24 * 60 * 60 * 1000, // Default last 30 days
-        endDate: Date.now(),
-        viewMode: 'per-channel',
-        scalingMode: 'log' // Default to log for less extreme size differences
-    },
+            timelineConfig: { ...DEFAULT_TIMELINE_CONFIG },
+            savedConfigs: {},
 
-    activeNicheId: null,
-    selectedChannelId: null,
-    selectedVideo: null,
-    hoveredVideo: null,
-    isAddChannelModalOpen: false,
+            activeNicheId: null,
+            selectedChannelId: null,
+            selectedVideo: null,
+            hoveredVideo: null,
+            isAddChannelModalOpen: false,
 
-    setChannels: (channels) => set({ channels }),
+            setChannels: (channels) => set({ channels }),
 
-    updateChannel: (id, updates) => set((state) => ({
-        channels: state.channels.map(c => c.id === id ? { ...c, ...updates } : c)
-    })),
+            updateChannel: (id, updates) => set((state) => ({
+                channels: state.channels.map(c => c.id === id ? { ...c, ...updates } : c)
+            })),
 
-    setNiches: (niches) => set({ niches }),
+            setNiches: (niches) => set({ niches }),
 
-    setTimelineConfig: (config) => set((state) => ({
-        timelineConfig: { ...state.timelineConfig, ...config }
-    })),
+            setTimelineConfig: (config) => set((state) => ({
+                timelineConfig: { ...state.timelineConfig, ...config }
+            })),
 
-    setActiveNicheId: (id) => set({ activeNicheId: id }),
+            setActiveNicheId: (id) => set({ activeNicheId: id }),
 
-    setSelectedChannelId: (id) => set({ selectedChannelId: id }),
+            setSelectedChannelId: (id) => set((state) => {
+                // Save current config
+                const currentKey = state.selectedChannelId || 'global';
+                const nextKey = id || 'global';
 
-    setSelectedVideo: (video) => set({ selectedVideo: video }),
+                const updatedSavedConfigs = {
+                    ...state.savedConfigs,
+                    [currentKey]: state.timelineConfig
+                };
 
-    setHoveredVideo: (video) => set({ hoveredVideo: video }),
+                // Load next config or default
+                // Ensure we clone the default to avoid mutation issues
+                const nextConfig = updatedSavedConfigs[nextKey] || { ...DEFAULT_TIMELINE_CONFIG };
 
-    setAddChannelModalOpen: (isOpen) => set({ isAddChannelModalOpen: isOpen }),
+                return {
+                    selectedChannelId: id,
+                    savedConfigs: updatedSavedConfigs,
+                    timelineConfig: nextConfig
+                };
+            }),
 
-    toggleChannelVisibility: (id) => set((state) => ({
-        channels: state.channels.map(c =>
-            c.id === id ? { ...c, isVisible: !c.isVisible } : c
-        )
-    }))
-}));
+            setSelectedVideo: (video) => set({ selectedVideo: video }),
+
+            setHoveredVideo: (video) => set({ hoveredVideo: video }),
+
+            setAddChannelModalOpen: (isOpen) => set({ isAddChannelModalOpen: isOpen }),
+
+            toggleChannelVisibility: (id) => set((state) => ({
+                channels: state.channels.map(c =>
+                    c.id === id ? { ...c, isVisible: !c.isVisible } : c
+                )
+            }))
+        }),
+        {
+            name: 'trend-store',
+            partialize: (state) => ({
+                timelineConfig: state.timelineConfig,
+                savedConfigs: state.savedConfigs,
+                selectedChannelId: state.selectedChannelId
+            }),
+        }
+    )
+);
