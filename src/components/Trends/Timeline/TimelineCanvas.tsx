@@ -1,7 +1,5 @@
-import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useTrendStore } from '../../../stores/trendStore';
-import { TrendService } from '../../../services/trendService';
-import { Settings } from 'lucide-react';
 
 interface VideoNode {
     id: string;
@@ -20,6 +18,10 @@ interface Transform {
     scale: number;
     offsetX: number;
     offsetY: number;
+}
+
+interface TimelineCanvasProps {
+    videos: VideoNode[];
 }
 
 // Constants for "world" coordinate system
@@ -68,16 +70,14 @@ const clampTransform = (
     };
 };
 
-export const TimelineCanvas: React.FC = () => {
-    const { channels, selectedChannelId, timelineConfig, setTimelineConfig } = useTrendStore();
+export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
+    const { timelineConfig, selectedChannelId } = useTrendStore();
     const { scalingMode } = timelineConfig;
 
     const containerRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
 
-    const [videos, setVideos] = useState<VideoNode[]>([]);
     const [hoveredVideo, setHoveredVideo] = useState<{ video: VideoNode; x: number; y: number } | null>(null);
-    const [showSettings, setShowSettings] = useState(false);
 
     // Drag-to-pan state
     const [isPanning, setIsPanning] = useState(false);
@@ -89,31 +89,6 @@ export const TimelineCanvas: React.FC = () => {
         offsetX: 0,
         offsetY: 0
     });
-
-    // Get visible channels based on mode
-    const visibleChannels = useMemo(() => {
-        if (selectedChannelId) {
-            return channels.filter(c => c.id === selectedChannelId);
-        }
-        return channels.filter(c => c.isVisible);
-    }, [channels, selectedChannelId]);
-
-    // Load videos from all visible channels
-    useEffect(() => {
-        const loadVideos = async () => {
-            const allVideos: VideoNode[] = [];
-            for (const channel of visibleChannels) {
-                const channelVideos = await TrendService.getChannelVideosFromCache(channel.id);
-                allVideos.push(...channelVideos.map(v => ({
-                    ...v,
-                    channelTitle: channel.title
-                })));
-            }
-            allVideos.sort((a, b) => a.publishedAtTimestamp - b.publishedAtTimestamp);
-            setVideos(allVideos);
-        };
-        loadVideos();
-    }, [visibleChannels]);
 
     // Calculate view stats for scaling
     const stats = useMemo(() => {
@@ -179,13 +154,11 @@ export const TimelineCanvas: React.FC = () => {
             return { video, xNorm, yNorm, baseSize };
         });
 
-        // World dimensions (same as defined below)
-        const worldW = 2000;
-        const worldH = 1000;
-        const MIN_GAP = 10; // Minimum gap between videos in world pixels
+        const worldW = WORLD_WIDTH;
+        const worldH = WORLD_HEIGHT;
+        const MIN_GAP = 10;
 
         // Second pass: resolve horizontal collisions
-        // Process in order of x position (left to right)
         const sorted = [...initialPositions].sort((a, b) => a.xNorm - b.xNorm);
         const resolved: typeof initialPositions = [];
 
@@ -195,20 +168,17 @@ export const TimelineCanvas: React.FC = () => {
             const currentY = current.yNorm * (worldH - 50) + 25;
             const currentHeight = currentWidth / (16 / 9);
 
-            // Check against all previously placed videos
             for (const placed of resolved) {
                 const placedX = placed.xNorm * worldW;
                 const placedWidth = placed.baseSize;
                 const placedY = placed.yNorm * (worldH - 50) + 25;
                 const placedHeight = placedWidth / (16 / 9);
 
-                // Calculate horizontal overlap
                 const currentLeft = finalX - currentWidth / 2;
                 const currentRight = finalX + currentWidth / 2;
                 const placedLeft = placedX - placedWidth / 2;
                 const placedRight = placedX + placedWidth / 2;
 
-                // Calculate vertical overlap
                 const currentTop = currentY - currentHeight / 2;
                 const currentBottom = currentY + currentHeight / 2;
                 const placedTop = placedY - placedHeight / 2;
@@ -217,39 +187,27 @@ export const TimelineCanvas: React.FC = () => {
                 const horizontalOverlap = currentLeft < placedRight + MIN_GAP && currentRight > placedLeft - MIN_GAP;
                 const verticalOverlap = currentTop < placedBottom && currentBottom > placedTop;
 
-                // Only resolve if there's actual 2D overlap
                 if (horizontalOverlap && verticalOverlap) {
-                    // Check if they should be allowed to overlap
                     const sameDay = isSameDay(current.video.publishedAtTimestamp, placed.video.publishedAtTimestamp);
                     const similarViews = hasSimilarViews(current.video.viewCount, placed.video.viewCount);
 
                     if (!(sameDay && similarViews)) {
-                        // Push current video to the right
                         const requiredX = placedRight + MIN_GAP + currentWidth / 2;
                         finalX = Math.max(finalX, requiredX);
                     }
                 }
             }
 
-            // Update xNorm based on resolved position
             const resolvedXNorm = finalX / worldW;
-
-            resolved.push({
-                ...current,
-                xNorm: resolvedXNorm
-            });
+            resolved.push({ ...current, xNorm: resolvedXNorm });
         }
 
-        // Re-sort by original video order for stable rendering
         const videoIdOrder = new Map(videos.map((v, i) => [v.id, i]));
         resolved.sort((a, b) => (videoIdOrder.get(a.video.id) ?? 0) - (videoIdOrder.get(b.video.id) ?? 0));
 
         return resolved;
     }, [videos, stats, scalingMode]);
 
-    // World dimensions
-    const worldWidth = 2000;
-    const worldHeight = 1000;
 
     // Auto-fit on load
     useEffect(() => {
@@ -261,16 +219,14 @@ export const TimelineCanvas: React.FC = () => {
 
         if (viewportWidth <= 0 || viewportHeight <= 0) return;
 
-        const scaleX = (viewportWidth - PADDING * 2) / worldWidth;
-        const scaleY = (viewportHeight - PADDING * 2) / worldHeight;
+        const scaleX = (viewportWidth - PADDING * 2) / WORLD_WIDTH;
+        const scaleY = (viewportHeight - PADDING * 2) / WORLD_HEIGHT;
         const fitScale = Math.min(scaleX, scaleY);
 
-        const contentWidth = worldWidth * fitScale;
-        const contentHeight = worldHeight * fitScale;
+        const contentWidth = WORLD_WIDTH * fitScale;
+        const contentHeight = WORLD_HEIGHT * fitScale;
         const offsetX = (viewportWidth - contentWidth) / 2;
         const offsetY = (viewportHeight - contentHeight) / 2;
-
-        console.log('[Timeline] Auto-fit:', { viewportWidth, viewportHeight, fitScale, offsetX, offsetY });
 
         setTransform({ scale: fitScale, offsetX, offsetY });
     }, [videos.length, stats]);
@@ -287,19 +243,12 @@ export const TimelineCanvas: React.FC = () => {
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top - HEADER_HEIGHT;
 
-            // Velocity-based zoom: faster pinch = more aggressive zoom
-            // deltaY magnitude indicates pinch speed
             const velocity = Math.abs(e.deltaY);
-
-            // Base sensitivity + velocity multiplier
-            // Fast pinch (velocity > 10) accelerates the zoom
             const baseSensitivity = 0.002;
             const velocityMultiplier = 1 + Math.min(velocity / 5, 19); // Max 20x acceleration
             const sensitivity = baseSensitivity * velocityMultiplier;
 
-            // Target zone attraction: when far from "normal" zoom (0.5-1.5), 
-            // fast pinches pull stronger towards normal
-            const targetZoom = 1.0; // Ideal zoom level
+            const targetZoom = 1.0;
             const distanceFromTarget = Math.abs(Math.log(transform.scale / targetZoom));
             const attractionBoost = velocity > 10 ? 1 + distanceFromTarget * 0.5 : 1;
 
@@ -446,7 +395,6 @@ export const TimelineCanvas: React.FC = () => {
         }).format(num);
     };
 
-    // Counter-scale for header text (inverse of scaleX so text remains readable)
     const textCounterScale = 1 / transform.scale;
 
     return (
@@ -459,71 +407,15 @@ export const TimelineCanvas: React.FC = () => {
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
         >
-            {/* Stats & Settings Overlay */}
-            <div className="absolute top-2 right-6 flex items-center gap-3 z-50 pointer-events-auto">
-                <span className="text-sm text-text-secondary">{videos.length} videos</span>
-                <span className="text-xs px-2 py-1 bg-white/5 rounded-full backdrop-blur-md text-text-secondary">
-                    {(transform.scale * 100).toFixed(0)}%
-                </span>
-
-                {/* Settings Gear */}
-                <div className="relative">
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setShowSettings(!showSettings);
-                        }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        className="p-1.5 rounded-lg hover:bg-white/10 transition-colors text-text-secondary hover:text-text-primary"
-                    >
-                        <Settings size={16} />
-                    </button>
-
-                    {showSettings && (
-                        <div
-                            className="absolute right-0 top-full mt-2 bg-[#1a1a1a]/95 backdrop-blur-xl border border-white/10 rounded-lg shadow-2xl p-3 min-w-[200px]"
-                            onMouseDown={(e) => e.stopPropagation()}
-                        >
-                            <div className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">
-                                Size Scaling
-                            </div>
-                            <div className="flex flex-col gap-1">
-                                <button
-                                    onClick={() => {
-                                        setTimelineConfig({ scalingMode: 'linear' });
-                                        setShowSettings(false);
-                                    }}
-                                    className={`px-3 py-2 rounded-md text-sm text-left transition-colors ${scalingMode === 'linear' ? 'bg-white/20 text-white' : 'hover:bg-white/10 text-text-secondary'}`}
-                                >
-                                    Linear
-                                    <span className="block text-[10px] text-text-tertiary">Proportional to views</span>
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setTimelineConfig({ scalingMode: 'log' });
-                                        setShowSettings(false);
-                                    }}
-                                    className={`px-3 py-2 rounded-md text-sm text-left transition-colors ${scalingMode === 'log' ? 'bg-white/20 text-white' : 'hover:bg-white/10 text-text-secondary'}`}
-                                >
-                                    Logarithmic
-                                    <span className="block text-[10px] text-text-tertiary">Less extreme differences</span>
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Sticky Date Header - Two rows: Year + Month */}
+            {/* Sticky Date Header */}
             <div
                 className="absolute top-0 left-0 right-0 h-12 bg-[#1a1a1a]/80 backdrop-blur-md border-b border-white/10 z-30 overflow-hidden"
             >
-                {/* Horizontal transform container */}
                 <div
                     style={{
                         transform: `translateX(${transform.offsetX}px) scaleX(${transform.scale})`,
                         transformOrigin: '0 0',
-                        width: worldWidth,
+                        width: WORLD_WIDTH,
                         height: '100%',
                         position: 'relative'
                     }}
@@ -578,7 +470,7 @@ export const TimelineCanvas: React.FC = () => {
                 </div>
             </div>
 
-            {/* Month Background Columns - Screen height, not world height */}
+            {/* Month Background Columns */}
             <div
                 className="absolute inset-0 top-12 pointer-events-none overflow-hidden z-0"
             >
@@ -586,7 +478,7 @@ export const TimelineCanvas: React.FC = () => {
                     style={{
                         transform: `translateX(${transform.offsetX}px) scaleX(${transform.scale})`,
                         transformOrigin: '0 0',
-                        width: worldWidth,
+                        width: WORLD_WIDTH,
                         height: '100%',
                         position: 'relative'
                     }}
@@ -607,21 +499,19 @@ export const TimelineCanvas: React.FC = () => {
 
             {/* Infinite Canvas Container */}
             <div className="flex-1 relative overflow-hidden mt-12">
-                {/* Transformed Content Layer - Videos Only */}
                 <div
                     ref={contentRef}
                     style={{
                         transform: `translate(${transform.offsetX}px, ${transform.offsetY}px) scale(${transform.scale})`,
                         transformOrigin: '0 0',
-                        width: worldWidth,
-                        height: worldHeight,
+                        width: WORLD_WIDTH,
+                        height: WORLD_HEIGHT,
                         position: 'absolute'
                     }}
                 >
-                    {/* Video Nodes */}
                     {videoPositions.map(({ video, xNorm, yNorm, baseSize }, index) => {
-                        const x = xNorm * worldWidth;
-                        const y = yNorm * (worldHeight - 50) + 25;
+                        const x = xNorm * WORLD_WIDTH;
+                        const y = yNorm * (WORLD_HEIGHT - 50) + 25;
                         const width = baseSize;
                         const height = baseSize / (16 / 9);
                         const borderRadius = Math.max(3, Math.min(12, 8));
@@ -649,7 +539,6 @@ export const TimelineCanvas: React.FC = () => {
                                 }}
                                 onMouseLeave={() => setHoveredVideo(null)}
                             >
-                                {/* Thumbnail */}
                                 <div
                                     className="overflow-hidden group-hover:scale-105 transition-transform duration-200 ease-out shadow-lg group-hover:shadow-2xl group-hover:shadow-white/10 bg-black/50 w-full"
                                     style={{
@@ -660,8 +549,6 @@ export const TimelineCanvas: React.FC = () => {
                                         backgroundPosition: 'center',
                                     }}
                                 />
-
-                                {/* View Count Label */}
                                 <span className="mt-1.5 text-[10px] font-medium text-white/50 group-hover:text-white transition-colors bg-black/40 px-1.5 py-0.5 rounded-md backdrop-blur-sm pointer-events-none whitespace-nowrap">
                                     {viewLabel}
                                 </span>
@@ -670,7 +557,6 @@ export const TimelineCanvas: React.FC = () => {
                     })}
                 </div>
 
-                {/* Empty State */}
                 {videos.length === 0 && (
                     <div className="absolute inset-0 flex items-center justify-center">
                         <div className="text-center">
@@ -681,7 +567,14 @@ export const TimelineCanvas: React.FC = () => {
                 )}
             </div>
 
-            {/* Tooltip (Fixed, not transformed) */}
+            {/* Bottom Right Zoom Indicator */}
+            <div className="absolute bottom-4 right-6 pointer-events-none z-50">
+                <span className="text-xs px-2 py-1 bg-white/5 rounded-full backdrop-blur-md text-text-secondary border border-white/5 font-mono">
+                    {(transform.scale * 100).toFixed(0)}%
+                </span>
+            </div>
+
+            {/* Tooltip */}
             {hoveredVideo && (
                 <div
                     className="fixed z-[200] bg-[#1a1a1a]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-4 pointer-events-none w-[340px] animate-fade-in"
