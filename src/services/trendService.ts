@@ -106,7 +106,7 @@ export const TrendService = {
             // We still return the channel even if sync fails, it will just be empty initially
         }
 
-        return newChannel;
+        return { channel: newChannel, quotaCost: 3 }; // 1 (search) + 1 (playlist) + 1 (videos) = 3 units
     },
 
     removeTrendChannel: async (userId: string, userChannelId: string, channelId: string) => {

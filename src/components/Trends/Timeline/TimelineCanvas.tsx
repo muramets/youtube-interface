@@ -78,7 +78,7 @@ import { useDebounce } from '../../../hooks/useDebounce';
 // ... (previous imports)
 
 export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
-    const { timelineConfig, setTimelineConfig } = useTrendStore();
+    const { timelineConfig, setTimelineConfig, setAddChannelModalOpen } = useTrendStore();
     const { scalingMode, isCustomView, zoomLevel, offsetX, offsetY } = timelineConfig;
 
     const containerRef = useRef<HTMLDivElement>(null);
@@ -631,7 +631,15 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                     <div className="absolute inset-0 flex items-center justify-center">
                         <div className="text-center">
                             <div className="text-text-tertiary text-lg mb-2">No videos to display</div>
-                            <div className="text-text-secondary text-sm">Add channels and sync data</div>
+                            <div className="text-text-secondary text-sm">
+                                <span
+                                    onClick={() => setAddChannelModalOpen(true)}
+                                    className="text-[#AAAAAA] hover:text-white transition-colors hover:underline cursor-pointer"
+                                >
+                                    Add channels
+                                </span>
+                                {" and sync data"}
+                            </div>
                         </div>
                     </div>
                 )}
