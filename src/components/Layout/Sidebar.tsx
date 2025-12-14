@@ -7,6 +7,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 import { useChannels } from '../../hooks/useChannels';
 import { TrendsSidebarSection } from '../Trends/TrendsSidebarSection';
+import { useTrendStore } from '../../stores/trendStore';
 
 // Collapsed sidebar item - icon on top, text below
 const CollapsedSidebarItem: React.FC<{
@@ -61,6 +62,7 @@ export const Sidebar: React.FC = () => {
   const { isSettingsOpen, setSettingsOpen, isSidebarExpanded } = useUIStore();
   const { user } = useAuth();
   const { currentChannel, setCurrentChannel } = useChannelStore();
+  const { channels: trendChannels, selectedChannelId, setSelectedChannelId } = useTrendStore();
 
   // Use TanStack Query hook for channels
   const { data: channels, isLoading } = useChannels(user?.uid || '');
@@ -161,13 +163,52 @@ export const Sidebar: React.FC = () => {
               active={isPlaylists}
               onClick={() => navigate('/playlists')}
             />
+            {/* Trends Section */}
             <CollapsedSidebarItem
               icon={trendsIcon}
               activeIcon={trendsActiveIcon}
               label="Trends"
-              active={isTrends}
-              onClick={() => navigate('/trends')}
+              active={isTrends && !selectedChannelId}
+              onClick={() => {
+                setSelectedChannelId(null);
+                navigate('/trends');
+              }}
             />
+
+            {/* Collapsed Trends Channels */}
+            {isTrends && trendChannels.map(channel => {
+              const isSelected = selectedChannelId === channel.id;
+              // Gray if not visible (eye off), unless selected (then force full visibility/color to indicate active context, or keep gray but ringed? User said "icon is gray if...". Let's keep it gray if hidden, but add ring if selected)
+              // Actually, if I select a hidden channel, does it become visible? The logic in TrendsPage filters by 'isVisible' UNLESS selected. So if selected, we see its videos. 
+              // Let's keep the icon gray if !isVisible, but add the selection ring.
+
+              const imageClasses = `w-6 h-6 rounded-full object-cover transition-all 
+                    ${isSelected ? 'ring-2 ring-text-primary' : ''}
+                    ${!channel.isVisible ? 'grayscale opacity-50' : 'hover:opacity-80'}
+                `;
+
+              return (
+                <div
+                  key={channel.id}
+                  onClick={() => {
+                    setSelectedChannelId(channel.id);
+                    navigate('/trends');
+                  }}
+                  className={`flex flex-col items-center justify-center py-4 px-1 cursor-pointer rounded-lg transition-colors
+                            ${isSelected ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover'}`}
+                  title={channel.title}
+                >
+                  <img
+                    src={channel.avatarUrl}
+                    alt={channel.title}
+                    className={imageClasses}
+                  />
+                  <span className={`text-[10px] mt-1.5 overflow-hidden text-ellipsis whitespace-nowrap w-full text-center ${isSelected ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
+                    {channel.title}
+                  </span>
+                </div>
+              );
+            })}
 
             <div className="mt-auto">
               <CollapsedSidebarItem
