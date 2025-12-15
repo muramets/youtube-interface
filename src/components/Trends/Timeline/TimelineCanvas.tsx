@@ -97,6 +97,10 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
     // Keep React state for non-critical UI (like zoom label) - AND for React rendering of children
     const [transformState, setTransformState] = useState<Transform>(transformRef.current);
 
+    // Zoom anchor: stores the world coordinates of viewport center when user manually zooms/pans
+    // Used for premium zoom-out experience that interpolates back from user's position
+    const zoomAnchorRef = useRef<{ worldX: number; worldY: number; isFromZero: boolean } | null>(null);
+
     // Dynamic World Width
     const worldWidth = useMemo(() => {
         if (videos.length === 0) return 2000;
@@ -533,6 +537,9 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
         if (viewportWidth === 0) return;
 
         if (e.ctrlKey || e.metaKey) {
+            // Hide tooltip immediately on zoom
+            setHoveredVideo(null);
+
             const container = containerRef.current;
             if (!container) return;
             const rect = container.getBoundingClientRect();
@@ -712,12 +719,11 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
             <TimelineVideoLayer
                 ref={videoLayerRef}
                 videoPositions={videoPositions}
-                transform={transformState} // Will fix interface in component
+                transform={transformState}
                 worldWidth={worldWidth}
                 worldHeight={dynamicWorldHeight}
                 style={{
-                    // No counter-scaling needed for true 2D zoom
-                    opacity: isLoading ? 0 : 1, // Hide actual layer while loading
+                    opacity: isLoading ? 0 : 1,
                     transition: 'opacity 0.3s ease'
                 } as React.CSSProperties}
                 getPercentileGroup={getPercentileGroup}
@@ -727,13 +733,33 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
                         if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
                         setHoveredVideo(data);
                     } else {
-                        // Delay hiding to allow mouse to reach tooltip
                         hideTimeoutRef.current = setTimeout(() => {
                             if (!isTooltipHoveredRef.current) {
                                 setHoveredVideo(null);
                             }
                         }, 150);
                     }
+                }}
+                onDoubleClickVideo={(_video, worldX, worldY) => {
+                    // Center the clicked video at 100% scale
+                    const { width, height } = containerSizeRef.current;
+                    const targetScale = 1.0;
+
+                    // Calculate offset to center the video
+                    const newOffsetX = (width / 2) - (worldX * targetScale);
+                    const newOffsetY = (height / 2) - (worldY * targetScale);
+
+                    const clamped = clampTransform({
+                        scale: targetScale,
+                        offsetX: newOffsetX,
+                        offsetY: newOffsetY
+                    }, width, height);
+
+                    // Hide tooltip
+                    setHoveredVideo(null);
+
+                    transformRef.current = clamped;
+                    syncToDom();
                 }}
                 setAddChannelModalOpen={setAddChannelModalOpen}
                 isLoading={isLoading}
@@ -746,68 +772,97 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
                 amplifierLevel={amplifierLevel}
                 onAmplifierChange={(level) => setTimelineConfig({ amplifierLevel: level })}
                 onZoomChange={(newScale) => {
-                    if (isLoading) return; // Prevent zoom during load
+                    if (isLoading) return;
                     if (!containerRef.current) return;
-                    // ... existing zoom logic ...
+
+                    // Hide tooltip immediately on zoom
+                    setHoveredVideo(null);
+
                     const { width, height } = containerSizeRef.current;
-                    // ...
-                    // Find the largest video for zoom targeting
+                    const currentScale = transformRef.current.scale;
+
+                    // Calculate current viewport center in world coordinates
+                    const currentCenterWorldX = (width / 2 - transformRef.current.offsetX) / currentScale;
+                    const currentCenterWorldY = (height / 2 - transformRef.current.offsetY) / currentScale;
+
+                    // Find largest video for "from-zero" mode
+                    let largestVideoWorld: { x: number; y: number } | null = null;
                     if (videoPositions.length > 0) {
                         const largestVideo = videos.reduce((max, v) =>
                             v.viewCount > max.viewCount ? v : max, videos[0]);
                         const largestPos = videoPositions.find(p => p.video.id === largestVideo.id);
-
                         if (largestPos) {
-                            // Calculate world coordinates of the largest video
-                            const videoWorldX = largestPos.xNorm * worldWidth;
-                            const videoWorldY = largestPos.yNorm * dynamicWorldHeight;
-
-                            // Interpolation factor: 0 at minScale, 1 at maxScale (1.0)
-                            const zoomRange = 1.0 - minScale;
-                            const t = zoomRange > 0 ? (newScale - minScale) / zoomRange : 0;
-
-                            // === Fixed endpoint positions ===
-
-                            // Position at 0% (fit): centered auto-fit
-                            const fitContentWidth = worldWidth * minScale;
-                            const fitContentHeight = dynamicWorldHeight * minScale;
-                            const fitOffsetX = (width - fitContentWidth) / 2;
-                            const fitOffsetY = HEADER_HEIGHT + ((height - HEADER_HEIGHT) - fitContentHeight) / 2;
-
-                            // Scale fit position to current zoom level
-                            // We need to figure out where the CENTER of viewport maps at fit, then keep that center stable
-                            const fitCenterWorldX = (width / 2 - fitOffsetX) / minScale;
-                            const fitCenterWorldY = (height / 2 - fitOffsetY) / minScale;
-
-                            // Position at 100%: centered on largest video
-                            const targetCenterWorldX = videoWorldX;
-                            const targetCenterWorldY = videoWorldY;
-
-                            // Interpolate the world-space center point
-                            const currentCenterWorldX = fitCenterWorldX + (targetCenterWorldX - fitCenterWorldX) * t;
-                            const currentCenterWorldY = fitCenterWorldY + (targetCenterWorldY - fitCenterWorldY) * t;
-
-                            // Convert interpolated world center back to offset at current scale
-                            const interpolatedOffsetX = (width / 2) - (currentCenterWorldX * newScale);
-                            const interpolatedOffsetY = (height / 2) - (currentCenterWorldY * newScale);
-
-                            const clamped = clampTransform({
-                                scale: newScale,
-                                offsetX: interpolatedOffsetX,
-                                offsetY: interpolatedOffsetY
-                            }, width, height);
-
-                            transformRef.current = clamped;
-                            syncToDom();
-                            return;
+                            largestVideoWorld = {
+                                x: largestPos.xNorm * worldWidth,
+                                y: largestPos.yNorm * dynamicWorldHeight
+                            };
                         }
                     }
 
-                    // Fallback: Normal zoom behavior (no videos)
+                    // Calculate fit state center in world coordinates
+                    const fitContentWidth = worldWidth * minScale;
+                    const fitContentHeight = dynamicWorldHeight * minScale;
+                    const fitOffsetX = (width - fitContentWidth) / 2;
+                    const fitOffsetY = HEADER_HEIGHT + ((height - HEADER_HEIGHT) - fitContentHeight) / 2;
+                    const fitCenterWorldX = (width / 2 - fitOffsetX) / minScale;
+                    const fitCenterWorldY = (height / 2 - fitOffsetY) / minScale;
+
+                    // Determine zoom mode and target
+                    const isAtMinScale = currentScale <= minScale * 1.01; // ~0% zoom
+                    const isZoomingIn = newScale > currentScale;
+
+                    // Initialize anchor if starting from zero
+                    if (isAtMinScale && isZoomingIn && largestVideoWorld) {
+                        // MODE 1: From-zero → use largest video as target
+                        zoomAnchorRef.current = {
+                            worldX: largestVideoWorld.x,
+                            worldY: largestVideoWorld.y,
+                            isFromZero: true
+                        };
+                    } else if (!zoomAnchorRef.current || (zoomAnchorRef.current.isFromZero && !isZoomingIn)) {
+                        // Capture current position as anchor when:
+                        // - No anchor exists yet
+                        // - Was in from-zero mode but now zooming out from a different position
+                        const isNearLargestVideo = largestVideoWorld &&
+                            Math.abs(currentCenterWorldX - largestVideoWorld.x) < 100 &&
+                            Math.abs(currentCenterWorldY - largestVideoWorld.y) < 100;
+
+                        if (!isNearLargestVideo || currentScale > 1.0) {
+                            // User has moved away from largest video - capture their position
+                            zoomAnchorRef.current = {
+                                worldX: currentCenterWorldX,
+                                worldY: currentCenterWorldY,
+                                isFromZero: false
+                            };
+                        }
+                    }
+
+                    // Calculate interpolation factor: 0 at minScale, 1 at maxScale (1.0 for from-zero, current for custom)
+                    const maxInterpScale = zoomAnchorRef.current?.isFromZero ? 1.0 : Math.max(currentScale, 1.0);
+                    const zoomRange = maxInterpScale - minScale;
+                    const t = zoomRange > 0 ? Math.max(0, Math.min(1, (newScale - minScale) / zoomRange)) : 0;
+
+                    // Interpolate between fit center and anchor
+                    const targetWorldX = zoomAnchorRef.current?.worldX ?? fitCenterWorldX;
+                    const targetWorldY = zoomAnchorRef.current?.worldY ?? fitCenterWorldY;
+
+                    const interpCenterWorldX = fitCenterWorldX + (targetWorldX - fitCenterWorldX) * t;
+                    const interpCenterWorldY = fitCenterWorldY + (targetWorldY - fitCenterWorldY) * t;
+
+                    // Convert interpolated world center back to offset
+                    const newOffsetX = (width / 2) - (interpCenterWorldX * newScale);
+                    const newOffsetY = (height / 2) - (interpCenterWorldY * newScale);
+
                     const clamped = clampTransform({
-                        ...transformState,
-                        scale: newScale
+                        scale: newScale,
+                        offsetX: newOffsetX,
+                        offsetY: newOffsetY
                     }, width, height);
+
+                    // Clear anchor when reaching minScale
+                    if (newScale <= minScale * 1.01) {
+                        zoomAnchorRef.current = null;
+                    }
 
                     transformRef.current = clamped;
                     syncToDom();
@@ -823,26 +878,51 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
                 <div>VP: {Math.round(viewportSize.width)}x{Math.round(viewportSize.height)}</div>
             </div>
 
-            {/* Tooltip */}
-            {hoveredVideo && (
-                <TrendTooltip
-                    video={hoveredVideo.video}
-                    percentileGroup={getPercentileGroup(hoveredVideo.video.id)}
-                    style={{
-                        left: hoveredVideo.x,
-                        top: hoveredVideo.y < 350 ? hoveredVideo.y + hoveredVideo.height + 16 : hoveredVideo.y - 16,
-                        transform: hoveredVideo.y < 350 ? 'translate(-50%, 0)' : 'translate(-50%, -100%)'
-                    }}
-                    onMouseEnter={() => {
-                        isTooltipHoveredRef.current = true;
-                        if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
-                    }}
-                    onMouseLeave={() => {
-                        isTooltipHoveredRef.current = false;
-                        setHoveredVideo(null);
-                    }}
-                />
-            )}
+            {/* Tooltip with smart positioning */}
+            {hoveredVideo && (() => {
+                // Estimate tooltip height (expanded state is taller)
+                const TOOLTIP_MAX_HEIGHT = 500; // Approximate max height when description/tags expanded
+                const TOOLTIP_GAP = 16;
+
+                // Check if there's enough space above the element
+                const spaceAbove = hoveredVideo.y;
+                const spaceBelow = window.innerHeight - (hoveredVideo.y + hoveredVideo.height);
+
+                // Prefer showing above, but flip to below if not enough space
+                const showBelow = spaceAbove < TOOLTIP_MAX_HEIGHT + TOOLTIP_GAP;
+
+                // Also check if below would clip - if both clip, prefer the one with more space
+                const showBelowFinal = showBelow && (spaceBelow > TOOLTIP_GAP || spaceBelow > spaceAbove);
+
+                return (
+                    <TrendTooltip
+                        key={hoveredVideo.video.id}
+                        video={hoveredVideo.video}
+                        percentileGroup={getPercentileGroup(hoveredVideo.video.id)}
+                        style={{
+                            left: hoveredVideo.x,
+                            top: showBelowFinal
+                                ? hoveredVideo.y + hoveredVideo.height + TOOLTIP_GAP
+                                : hoveredVideo.y - TOOLTIP_GAP,
+                            transform: showBelowFinal
+                                ? 'translate(-50%, 0)'
+                                : 'translate(-50%, -100%)',
+                            maxHeight: showBelowFinal
+                                ? `calc(100vh - ${hoveredVideo.y + hoveredVideo.height + TOOLTIP_GAP + 20}px)`
+                                : `${hoveredVideo.y - TOOLTIP_GAP - 20}px`,
+                            overflowY: 'auto'
+                        }}
+                        onMouseEnter={() => {
+                            isTooltipHoveredRef.current = true;
+                            if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+                        }}
+                        onMouseLeave={() => {
+                            isTooltipHoveredRef.current = false;
+                            setHoveredVideo(null);
+                        }}
+                    />
+                );
+            })()}
 
             {/* Header rendered LAST to stay on top */}
             <TimelineDateHeader

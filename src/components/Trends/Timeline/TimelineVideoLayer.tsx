@@ -15,9 +15,10 @@ interface TimelineVideoLayerProps {
     worldWidth: number;
     worldHeight: number;
     onHoverVideo: (data: { video: TrendVideo; x: number; y: number; height: number } | null) => void;
+    onDoubleClickVideo: (video: TrendVideo, worldX: number, worldY: number) => void;
     setAddChannelModalOpen: (isOpen: boolean) => void;
     getPercentileGroup: (videoId: string) => string | undefined;
-    amplifierLevel?: number; // Optional prop for now
+    amplifierLevel?: number;
     style?: React.CSSProperties;
     isLoading?: boolean;
 }
@@ -57,33 +58,52 @@ const getPercentileStyle = (percentile: string | undefined) => {
     }
 };
 
-// Simplified dot for low zoom (LOD)
+// Simplified dot for low zoom (LOD) with hover effects
 const VideoDot = memo(({
     position,
     worldWidth,
     worldHeight,
-    percentileGroup
+    percentileGroup,
+    isFocused,
+    isElevated,
+    onMouseEnter,
+    onMouseLeave,
+    onDoubleClick
 }: {
     position: VideoPosition;
     worldWidth: number;
     worldHeight: number;
     percentileGroup: string | undefined;
+    isFocused: boolean;
+    isElevated: boolean;
+    onMouseEnter: (e: React.MouseEvent, vid: TrendVideo) => void;
+    onMouseLeave: () => void;
+    onDoubleClick: (video: TrendVideo, worldX: number, worldY: number) => void;
 }) => {
-    const { xNorm, yNorm } = position;
+    const { video, xNorm, yNorm } = position;
     const x = xNorm * worldWidth;
     const y = yNorm * worldHeight;
     const { color, size: baseSize } = getPercentileStyle(percentileGroup);
 
     return (
         <div
-            className={`absolute rounded-full ${color} shadow-sm`}
+            className={`absolute rounded-full cursor-pointer ${color} ${isFocused ? 'shadow-lg shadow-white/30' : 'shadow-sm'}`}
             style={{
                 left: x,
                 top: y,
                 width: baseSize,
                 height: baseSize,
-                // No counter-scaling for true 2D zoom - items scale naturally
-                transform: `translate(-50%, -50%)`,
+                transform: `translate(-50%, -50%) ${isFocused ? 'scale(1.4)' : ''}`,
+                zIndex: isElevated ? 1000 : 10,
+                filter: isFocused ? 'brightness(1.2)' : 'brightness(1)',
+                transition: 'transform 200ms ease-out, filter 200ms ease-out, box-shadow 200ms ease-out',
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onMouseEnter={(e) => onMouseEnter(e, video)}
+            onMouseLeave={onMouseLeave}
+            onDoubleClick={(e) => {
+                e.stopPropagation();
+                onDoubleClick(video, x, y);
             }}
         />
     );
@@ -98,7 +118,8 @@ const VideoItem = memo(({
     isElevated,
     showLabel,
     onMouseEnter,
-    onMouseLeave
+    onMouseLeave,
+    onDoubleClick
 }: {
     position: VideoPosition;
     worldWidth: number;
@@ -108,13 +129,14 @@ const VideoItem = memo(({
     showLabel: boolean;
     onMouseEnter: (e: React.MouseEvent, vid: TrendVideo) => void;
     onMouseLeave: () => void;
+    onDoubleClick: (video: TrendVideo, worldX: number, worldY: number) => void;
 }) => {
     const { video, xNorm, yNorm, baseSize } = position;
     const x = xNorm * worldWidth;
     const y = yNorm * worldHeight;
     const width = baseSize;
     const height = baseSize / (16 / 9);
-    const borderRadius = Math.max(3, Math.min(12, 8));
+    const borderRadius = Math.max(2, Math.min(12, baseSize * 0.04)); // 4% of size, clamped 2-12px
     const viewLabel = formatCompactNumber(video.viewCount);
 
     return (
@@ -133,6 +155,10 @@ const VideoItem = memo(({
             onMouseDown={(e) => e.stopPropagation()}
             onMouseEnter={(e) => onMouseEnter(e, video)}
             onMouseLeave={onMouseLeave}
+            onDoubleClick={(e) => {
+                e.stopPropagation();
+                onDoubleClick(video, x, y);
+            }}
         >
             <div
                 className={`overflow-hidden shadow-lg bg-black/50 w-full ${isFocused ? 'shadow-2xl shadow-white/20' : 'group-hover:shadow-xl'}`}
@@ -160,6 +186,7 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
     worldWidth,
     worldHeight,
     onHoverVideo,
+    onDoubleClickVideo,
     setAddChannelModalOpen,
     getPercentileGroup,
     style,
@@ -274,6 +301,7 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
                             showLabel={showLabels}
                             onMouseEnter={handleMouseEnter}
                             onMouseLeave={handleMouseLeave}
+                            onDoubleClick={onDoubleClickVideo}
                         />
                     ))
                 ) : (
@@ -285,6 +313,11 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
                             worldWidth={worldWidth}
                             worldHeight={worldHeight}
                             percentileGroup={getPercentileGroup(position.video.id)}
+                            isFocused={focusedVideoId === position.video.id}
+                            isElevated={elevatedVideoId === position.video.id}
+                            onMouseEnter={handleMouseEnter}
+                            onMouseLeave={handleMouseLeave}
+                            onDoubleClick={onDoubleClickVideo}
                         />
                     ))
                 ))}

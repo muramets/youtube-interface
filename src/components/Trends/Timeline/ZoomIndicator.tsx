@@ -143,9 +143,10 @@ export const ZoomIndicator: React.FC<ZoomIndicatorProps> = ({
             // Use combined delta (horizontal has more weight for natural feel)
             const combinedDelta = deltaX + deltaY * 0.5;
 
-            // Sensitivity: 200px drag = full range from minScale to 1.0
-            const sensitivity = (1.0 - minScale) / 200;
-            const newScale = Math.max(minScale, Math.min(1.0, dragStartRef.current.scale + combinedDelta * sensitivity));
+            // Sensitivity: 200px drag = range from minScale to 1.0 (0-100%)
+            // Beyond 100%, same sensitivity continues naturally
+            const baseSensitivity = (1.0 - minScale) / 200;
+            const newScale = Math.max(minScale, Math.min(10.0, dragStartRef.current.scale + combinedDelta * baseSensitivity));
 
             // Update target (will be picked up by animation loop)
             targetScaleRef.current = newScale;
@@ -175,7 +176,7 @@ export const ZoomIndicator: React.FC<ZoomIndicatorProps> = ({
     // -- LOGIC --
     const ampPercentage = Math.round((amplifierLevel ?? 1.0) * 100);
 
-    // Normalized zoom percentage: minScale = 0%, 1.0 = 100%
+    // Normalized zoom percentage: minScale = 0%, 1.0 = 100%, higher = higher %
     const zoomRange = 1.0 - minScale;
     const normalizedZoomPercent = (isLoading || zoomRange <= 0)
         ? 0
