@@ -10,7 +10,7 @@ import { AmplifierSlider } from './AmplifierSlider';
 import type { MonthRegion, YearMarker, TrendVideo } from '../../../types/trends';
 
 // Performance logging flag (set to true to enable console logging)
-const PERF_LOGGING = false;
+const PERF_LOGGING = true; // Enabled for debugging
 
 interface Transform {
     scale: number;
@@ -27,27 +27,22 @@ const BASE_THUMBNAIL_SIZE = 200;
 const MIN_THUMBNAIL_SIZE = 40;
 const HEADER_HEIGHT = 48;
 const PADDING = 40;
-const WORLD_HEIGHT = 1000;
+// WORLD_HEIGHT is now dynamic based on viewport aspect ratio
+// Note: For true 2D zoom, thumbnails scale with zoom level (no counter-scaling)
 
-// Amplifier constants and helpers
-const EXPANSION_STRENGTH = 3.8; // Calibrated so amp=3.0 fills visible area
+// Amplifier constants and helpers -> REMOVING AMPLIFIER LOGIC for simplicity/Miro-style first
+// We can re-add if needed, but "Zooming into 2D" usually replaces the need for an "Amplifier".
+// User asked for Miro-style zoom.
+// Let's keep logic simple: 2D World with fixed dimensions.
+
 
 /**
  * Calculate the expansion factor for Range Expansion based on amplifier level.
  * At amp=1: factor=1 (no expansion)
  * At amp=3: factor=8.6 (strong expansion)
  */
-function getExpansionFactor(amp: number): number {
-    return 1 + (amp - 1) * EXPANSION_STRENGTH;
-}
+// Amplifier constants and helpers -> REMOVED
 
-/**
- * Apply Range Expansion to a Y coordinate.
- * Pushes values away from center (0.5) based on expansion factor.
- */
-function applyRangeExpansion(y: number, expansionFactor: number): number {
-    return (y - 0.5) * expansionFactor + 0.5;
-}
 
 export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
     const { timelineConfig, setTimelineConfig, setAddChannelModalOpen } = useTrendStore();
@@ -58,15 +53,20 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
 
     // Initial ResizeObserver to cache size
     const containerSizeRef = useRef({ width: 0, height: 0 });
+    // State to trigger re-renders on resize (needed for dynamic world height)
+    const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+
     useEffect(() => {
         if (!containerRef.current) return;
 
         const observer = new ResizeObserver((entries) => {
             for (const entry of entries) {
-                containerSizeRef.current = {
+                const newSize = {
                     width: entry.contentRect.width,
                     height: entry.contentRect.height
                 };
+                containerSizeRef.current = newSize;
+                setViewportSize(newSize);
             }
         });
 
@@ -300,51 +300,98 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
         }));
     }, [videos, stats, layoutMode]);
 
+    // 1. Calculate the 'Fit Scale' based on Width (Primary constraint)
+    const fitScale = useMemo(() => {
+        if (viewportSize.width <= 0) return 0.001;
+        // Use PADDING to ensure horizontal breathing room
+        return (viewportSize.width - PADDING * 2) / worldWidth;
+    }, [viewportSize.width, worldWidth]);
+
+    // 2. Derive Dynamic World Height
+    // We want the content to fill the Viewport Height exactly when at 'Fit Scale'.
+    // worldHeight * fitScale = viewportHeight - Header
+    const dynamicWorldHeight = useMemo(() => {
+        if (viewportSize.height <= 0 || fitScale <= 0) return 1000;
+        return (viewportSize.height - HEADER_HEIGHT) / fitScale;
+    }, [viewportSize.height, fitScale]);
+
+    // 3. Min Scale is simply the fit scale
+    // We don't want to zoom out further than fitting the width
+    const minScale = fitScale;
+
     // Helper to clamp transform
     const clampTransform = useCallback((
-        t: { scale: number; offsetX: number; offsetY: number },
+        t: Transform,
         viewportWidth: number,
         viewportHeight: number
-    ): { scale: number; offsetX: number; offsetY: number } => {
+    ): Transform => {
+        // Uniform scaling - same scale for X and Y
         const scaledWidth = worldWidth * t.scale;
+        const scaledHeight = dynamicWorldHeight * t.scale;
 
-        // Calculate effective Y bounds based on Range Expansion
-        const amp = amplifierLevel || 1.0;
-        const expansionFactor = getExpansionFactor(amp);
+        // X-Axis clamping
+        let constrainedOffsetX: number;
+        if (scaledWidth < viewportWidth) {
+            // Center horizontally if content is smaller than viewport
+            constrainedOffsetX = (viewportWidth - scaledWidth) / 2;
+        } else {
+            const minOffsetX = viewportWidth - scaledWidth;
+            const maxOffsetX = 0;
+            constrainedOffsetX = Math.max(minOffsetX, Math.min(maxOffsetX, t.offsetX));
+        }
 
-        // Effective bounds using applyRangeExpansion for y=0 and y=1
-        const effectiveTop = applyRangeExpansion(0, expansionFactor) * WORLD_HEIGHT;
-        const effectiveBottom = applyRangeExpansion(1, expansionFactor) * WORLD_HEIGHT;
-        const effectiveHeight = effectiveBottom - effectiveTop;
+        // Y-Axis clamping
+        let constrainedOffsetY: number;
+        // Available height for content is below the header
+        const availableHeight = viewportHeight - HEADER_HEIGHT;
 
-        const scaledHeight = effectiveHeight * t.scale;
-        const viewportH = viewportHeight - HEADER_HEIGHT;
+        if (scaledHeight < availableHeight) {
+            // Center vertically within the available space below header
+            // Offset = HeaderHeight + (Available - Scaled)/2
+            constrainedOffsetY = HEADER_HEIGHT + (availableHeight - scaledHeight) / 2;
+        } else {
+            // Allow panning such that:
+            // Top of content can touch bottom of header (HEADER_HEIGHT)
+            // Bottom of content can touch bottom of viewport (viewportHeight)
 
-        // Visibility constraint
-        const VISIBILITY_RATIO = 0.74;
+            const maxOffsetY = HEADER_HEIGHT;
+            const minOffsetY = viewportHeight - scaledHeight;
 
-        const minVisibleX = Math.min(scaledWidth, viewportWidth) * VISIBILITY_RATIO;
-        const minVisibleY = Math.min(scaledHeight, viewportH) * VISIBILITY_RATIO;
-
-        const maxOffsetX = viewportWidth - minVisibleX;
-        const minOffsetX = minVisibleX - scaledWidth;
-
-        // Y bounds need to account for the shifted origin (effectiveTop is negative at high amp)
-        const maxOffsetY = viewportH - minVisibleY - (effectiveTop * t.scale);
-        const minOffsetY = minVisibleY - (effectiveBottom * t.scale);
+            constrainedOffsetY = Math.max(minOffsetY, Math.min(maxOffsetY, t.offsetY));
+        }
 
         return {
             scale: t.scale,
-            offsetX: Math.max(minOffsetX, Math.min(maxOffsetX, t.offsetX)),
-            offsetY: Math.max(minOffsetY, Math.min(maxOffsetY, t.offsetY))
+            offsetX: constrainedOffsetX,
+            offsetY: constrainedOffsetY
         };
-    }, [worldWidth, amplifierLevel]);
+    }, [worldWidth, dynamicWorldHeight]);
+
+    // Calculate local stats for the currently visible videos
+    // This ensures the top video *in the current set* is strictly at yNorm=0
+    const localStats = useMemo(() => {
+        if (videos.length === 0) return { minViews: 0, maxViews: 1, minDate: 0, maxDate: 1 };
+
+        let minViews = Infinity;
+        let maxViews = -Infinity;
+        // We use global dates for X axis to maintain timeline consistency across filters? 
+        // Or local? Usually Timeline X is time, so fixed range is better.
+        // But Y axis (Views) is relative density.
+
+        videos.forEach(v => {
+            if (v.viewCount < minViews) minViews = v.viewCount;
+            if (v.viewCount > maxViews) maxViews = v.viewCount;
+        });
+
+        return { minViews, maxViews };
+    }, [videos]);
 
     // Calculate video positions
     const videoPositions = useMemo(() => {
-        const viewRangeLinear = stats.maxViews - stats.minViews || 1;
-        const viewRangeLog = Math.log(stats.maxViews) - Math.log(stats.minViews) || 1;
-        const viewRangeSqrt = Math.sqrt(stats.maxViews) - Math.sqrt(stats.minViews) || 1;
+        // Use LOCAL stats for Y-axis normalization
+        const viewRangeLinear = localStats.maxViews - localStats.minViews || 1;
+        const viewRangeLog = Math.log(localStats.maxViews) - Math.log(localStats.minViews) || 1;
+        const viewRangeSqrt = Math.sqrt(localStats.maxViews) - Math.sqrt(localStats.minViews) || 1;
 
         const sortedByViews = [...videos].sort((a, b) => a.viewCount - b.viewCount);
         const rankMap = new Map<string, number>();
@@ -355,6 +402,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
             const key = `${d.getFullYear()}-${d.getMonth()}`;
             const layout = monthLayouts.find(l => l.monthKey === key);
 
+            // X-AXIS uses global stats or layout (Time is absolute)
             let xNorm: number;
 
             if (layout) {
@@ -372,20 +420,20 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
 
             switch (scalingMode) {
                 case 'linear':
-                    yNorm = 1 - (video.viewCount - stats.minViews) / viewRangeLinear;
-                    sizeRatio = video.viewCount / stats.maxViews;
+                    yNorm = 1 - (video.viewCount - localStats.minViews) / viewRangeLinear;
+                    sizeRatio = (video.viewCount - localStats.minViews) / (localStats.maxViews - localStats.minViews);
                     break;
                 case 'log':
                     const viewLog = Math.log(Math.max(1, video.viewCount));
-                    const minLog = Math.log(stats.minViews);
-                    const maxLog = Math.log(stats.maxViews);
+                    const minLog = Math.log(Math.max(1, localStats.minViews));
+                    const maxLog = Math.log(Math.max(1, localStats.maxViews));
                     yNorm = 1 - (viewLog - minLog) / viewRangeLog;
                     sizeRatio = (viewLog - minLog) / (maxLog - minLog);
                     break;
                 case 'sqrt':
                     const viewSqrt = Math.sqrt(video.viewCount);
-                    const minSqrt = Math.sqrt(stats.minViews);
-                    const maxSqrt = Math.sqrt(stats.maxViews);
+                    const minSqrt = Math.sqrt(localStats.minViews);
+                    const maxSqrt = Math.sqrt(localStats.maxViews);
                     yNorm = 1 - (viewSqrt - minSqrt) / viewRangeSqrt;
                     sizeRatio = (viewSqrt - minSqrt) / (maxSqrt - minSqrt);
                     break;
@@ -399,28 +447,24 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                     sizeRatio = 0.5;
             }
 
-            // Apply Amplifier:
-            // 1. Vertical Spread: Blend towards Uniform Rank Distribution
-            const amp = amplifierLevel || 1.0;
-            const blendFactor = (amp - 1) / 2.0;
+            // Simple Y-Norm distribution (0-1)
+            // We want yNorm=0 to place visually at top edge (radius)
+            // We want yNorm=1 to place visually at bottom edge (H - radius)
 
-            const videoRank = rankMap.get(video.id) ?? 0.5;
-            const rankY = 1 - videoRank;
-            const blendedY = yNorm * (1 - blendFactor) + rankY * blendFactor;
+            const baseSize = MIN_THUMBNAIL_SIZE + sizeRatio * (BASE_THUMBNAIL_SIZE - MIN_THUMBNAIL_SIZE);
+            const radius = baseSize / 2;
 
-            // 2. Range Expansion: Push videos beyond [0, 1] bounds
-            const expansionFactor = getExpansionFactor(amp);
-            const expandedY = applyRangeExpansion(blendedY, expansionFactor);
+            // Dynamic Radius Position
+            // y = Radius + yNorm * (WorldHeight - Diameter)
+            const expandedY = radius + yNorm * (dynamicWorldHeight - baseSize);
 
-            const amplifiedMaxSize = BASE_THUMBNAIL_SIZE * amp;
-            const baseSize = MIN_THUMBNAIL_SIZE + sizeRatio * (amplifiedMaxSize - MIN_THUMBNAIL_SIZE);
-
-            return { video, xNorm, yNorm: expandedY, baseSize };
+            // Return normalized Y relative to dynamicWorldHeight
+            return { video, xNorm, yNorm: expandedY / dynamicWorldHeight, baseSize };
         });
 
         positions.sort((a, b) => b.baseSize - a.baseSize);
         return positions;
-    }, [videos, stats, scalingMode, monthLayouts, amplifierLevel]);
+    }, [videos, stats, scalingMode, monthLayouts, amplifierLevel, dynamicWorldHeight, localStats]);
 
     // Handle Auto Fit
     const handleAutoFit = useCallback(() => {
@@ -428,18 +472,18 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
 
         const container = containerRef.current;
         const viewportWidth = container.clientWidth;
-        const viewportHeight = container.clientHeight - HEADER_HEIGHT;
+        const viewportHeight = container.clientHeight;
 
         if (viewportWidth <= 0 || viewportHeight <= 0) return;
 
-        const scaleX = (viewportWidth - PADDING * 2) / worldWidth;
-        const scaleY = (viewportHeight - PADDING * 2) / WORLD_HEIGHT;
-        const fitScale = Math.min(scaleX, scaleY);
+        // Auto Fit: Use uniform scale to fit content
 
         const contentWidth = worldWidth * fitScale;
-        const contentHeight = WORLD_HEIGHT * fitScale;
+        const contentHeight = dynamicWorldHeight * fitScale;
+
+        // Center both horizontally and vertically (but respect Header)
         const newOffsetX = (viewportWidth - contentWidth) / 2;
-        const newOffsetY = (viewportHeight - contentHeight) / 2;
+        const newOffsetY = HEADER_HEIGHT + ((viewportHeight - HEADER_HEIGHT) - contentHeight) / 2;
 
         const newState = { scale: fitScale, offsetX: newOffsetX, offsetY: newOffsetY };
 
@@ -451,7 +495,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
             offsetY: newOffsetY,
             isCustomView: false
         });
-    }, [videos.length, setTimelineConfig, worldWidth, syncToDom]);
+    }, [videos.length, setTimelineConfig, worldWidth, minScale, syncToDom]);
 
     // Auto-fit on load
     useEffect(() => {
@@ -492,13 +536,21 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
             const delta = Math.max(-100, Math.min(100, e.deltaY));
 
             const currentScale = transformRef.current.scale;
-            const newScale = Math.max(0.1, Math.min(10, currentScale * Math.exp(-delta * ZOOM_SENSITIVITY)));
+            const scaleFactor = Math.exp(-delta * ZOOM_SENSITIVITY);
+
+            // Enforce Minimum Scale (The "Fit" state)
+            // User cannot zoom out further than the fit state
+            const newScale = Math.max(minScale, Math.min(10, currentScale * scaleFactor));
             const scaleRatio = newScale / currentScale;
+
+            // Zoom towards mouse point
+            const newOffsetX = mouseX - (mouseX - transformRef.current.offsetX) * scaleRatio;
+            const newOffsetY = mouseY - (mouseY - transformRef.current.offsetY) * scaleRatio;
 
             const clamped = clampTransform({
                 scale: newScale,
-                offsetX: mouseX - (mouseX - transformRef.current.offsetX) * scaleRatio,
-                offsetY: mouseY - (mouseY - transformRef.current.offsetY) * scaleRatio
+                offsetX: newOffsetX,
+                offsetY: newOffsetY
             }, viewportWidth, viewportHeight);
 
             transformRef.current = clamped;
@@ -513,7 +565,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
             transformRef.current = clamped;
             syncToDom();
         }
-    }, [clampTransform, syncToDom]);
+    }, [clampTransform, syncToDom, minScale]);
 
     // Mouse Pan Handlers
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -639,25 +691,30 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
         >
             {/* Subtle Vertical Gradient Overlay */}
             <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-text-primary/[0.02] to-transparent" />
+
+            {/* Header moved to bottom for Z-index */}
             <TimelineDateHeader
                 yearMarkers={yearMarkers}
                 monthRegions={monthRegions}
-                transform={transformState}
+                transform={transformState} // Will fix interface in component
                 worldWidth={worldWidth}
             />
 
             <TimelineBackground
                 monthRegions={monthRegions}
-                transform={transformState}
+                transform={transformState} // Will fix interface in component
                 worldWidth={worldWidth}
             />
 
             <TimelineVideoLayer
                 ref={videoLayerRef}
                 videoPositions={videoPositions}
-                transform={transformState}
+                transform={transformState} // Will fix interface in component
                 worldWidth={worldWidth}
-                worldHeight={WORLD_HEIGHT}
+                worldHeight={dynamicWorldHeight}
+                style={{
+                    // No counter-scaling needed for true 2D zoom
+                } as React.CSSProperties}
                 getPercentileGroup={getPercentileGroup}
                 amplifierLevel={amplifierLevel}
                 onHoverVideo={(data) => {
@@ -682,6 +739,14 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
             />
             <ZoomIndicator scale={transformState.scale} onReset={handleAutoFit} />
 
+            {/* DEBUG OVERLAY */}
+            <div className="absolute bottom-4 left-4 bg-black/80 text-white font-mono text-xs p-2 rounded pointer-events-none z-50">
+                <div>Scale: {transformState.scale.toFixed(3)}</div>
+                <div>Offset X: {transformState.offsetX.toFixed(0)}</div>
+                <div>Offset Y: {transformState.offsetY.toFixed(0)}</div>
+                <div>VP: {Math.round(viewportSize.width)}x{Math.round(viewportSize.height)}</div>
+            </div>
+
             {/* Tooltip */}
             {hoveredVideo && (
                 <TrendTooltip
@@ -702,6 +767,14 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                     }}
                 />
             )}
+
+            {/* Header rendered LAST to stay on top */}
+            <TimelineDateHeader
+                yearMarkers={yearMarkers}
+                monthRegions={monthRegions}
+                transform={transformState}
+                worldWidth={worldWidth}
+            />
         </div>
     );
 };

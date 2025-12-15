@@ -18,6 +18,7 @@ interface TimelineVideoLayerProps {
     setAddChannelModalOpen: (isOpen: boolean) => void;
     getPercentileGroup: (videoId: string) => string | undefined;
     amplifierLevel?: number; // Optional prop for now
+    style?: React.CSSProperties;
 }
 
 export interface TimelineVideoLayerHandle {
@@ -86,7 +87,8 @@ const VideoDot = memo(({
                 top: y,
                 width: finalSize,
                 height: finalSize,
-                transform: 'translate(-50%, -50%)',
+                // No counter-scaling for true 2D zoom - items scale naturally
+                transform: `translate(-50%, -50%)`,
             }}
         />
     );
@@ -127,7 +129,8 @@ const VideoItem = memo(({
                 left: x,
                 top: y,
                 width: width,
-                transform: `translate(-50%, -50%) scale(${isFocused ? 1.25 : 1})`,
+                // No counter-scaling for true 2D zoom - items scale naturally
+                transform: `translate(-50%, -50%) ${isFocused ? 'scale(1.25)' : ''}`,
                 zIndex: isElevated ? 1000 : 10,
                 filter: isFocused ? 'brightness(1.1)' : 'brightness(1)',
                 transition: 'transform 200ms ease-out, filter 200ms ease-out, box-shadow 200ms ease-out',
@@ -164,7 +167,8 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
     onHoverVideo,
     setAddChannelModalOpen,
     getPercentileGroup,
-    amplifierLevel
+    amplifierLevel,
+    style
 }, ref) => {
     // Ref for imperative DOM updates
     const layerRef = useRef<HTMLDivElement>(null);
@@ -173,6 +177,7 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
     useImperativeHandle(ref, () => ({
         updateTransform: (t) => {
             if (layerRef.current) {
+                // True 2D zoom - uniform scaling
                 layerRef.current.style.transform = `translate(${t.offsetX}px, ${t.offsetY}px) scale(${t.scale})`;
             }
         }
@@ -248,10 +253,11 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
     };
 
     return (
-        <div className="flex-1 relative overflow-hidden mt-12">
+        <div className="flex-1 relative overflow-hidden">
             <div
                 ref={layerRef}
                 style={{
+                    ...style,
                     transform: `translate(${transform.offsetX}px, ${transform.offsetY}px) scale(${transform.scale})`,
                     transformOrigin: '0 0',
                     width: worldWidth,
