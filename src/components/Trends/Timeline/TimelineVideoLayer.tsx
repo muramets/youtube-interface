@@ -17,6 +17,7 @@ interface TimelineVideoLayerProps {
     onHoverVideo: (data: { video: TrendVideo; x: number; y: number; height: number } | null) => void;
     setAddChannelModalOpen: (isOpen: boolean) => void;
     getPercentileGroup: (videoId: string) => string | undefined;
+    amplifierLevel?: number; // Optional prop for now
 }
 
 export interface TimelineVideoLayerHandle {
@@ -36,20 +37,21 @@ const formatCompactNumber = (num: number) => {
 };
 
 // Percentile color and size mapping
+// Returns size and a 'weight' (0-1) for amplification
 const getPercentileStyle = (percentile: string | undefined) => {
     switch (percentile) {
         case 'Top 1%':
-            return { color: 'bg-emerald-500', size: 16 };
+            return { color: 'bg-emerald-500', size: 16, weight: 1.0 };
         case 'Top 5%':
-            return { color: 'bg-lime-500', size: 12 };
+            return { color: 'bg-lime-500', size: 12, weight: 0.8 };
         case 'Top 20%':
-            return { color: 'bg-blue-500', size: 10 };
+            return { color: 'bg-blue-500', size: 10, weight: 0.5 };
         case 'Middle 60%':
-            return { color: 'bg-purple-400', size: 7 };
+            return { color: 'bg-purple-400', size: 7, weight: 0.2 };
         case 'Bottom 20%':
-            return { color: 'bg-red-400', size: 5 };
+            return { color: 'bg-red-400', size: 5, weight: 0.0 };
         default:
-            return { color: 'bg-gray-400', size: 6 };
+            return { color: 'bg-gray-400', size: 6, weight: 0.1 };
     }
 };
 
@@ -59,16 +61,22 @@ const VideoDot = memo(({
     worldWidth,
     worldHeight,
     percentileGroup,
+    amplifierLevel
 }: {
     position: VideoPosition;
     worldWidth: number;
     worldHeight: number;
     percentileGroup: string | undefined;
+    amplifierLevel?: number;
 }) => {
     const { xNorm, yNorm } = position;
     const x = xNorm * worldWidth;
-    const y = yNorm * (worldHeight - 50) + 25;
-    const { color, size } = getPercentileStyle(percentileGroup);
+    const y = yNorm * worldHeight;
+    const { color, size: baseSize, weight } = getPercentileStyle(percentileGroup);
+
+    // Apply amplifier: Large dots grow, small dots stay roughly same
+    const amp = amplifierLevel || 1.0;
+    const finalSize = baseSize * (1 + weight * (amp - 1));
 
     return (
         <div
@@ -76,8 +84,8 @@ const VideoDot = memo(({
             style={{
                 left: x,
                 top: y,
-                width: size,
-                height: size,
+                width: finalSize,
+                height: finalSize,
                 transform: 'translate(-50%, -50%)',
             }}
         />
@@ -106,7 +114,7 @@ const VideoItem = memo(({
 }) => {
     const { video, xNorm, yNorm, baseSize } = position;
     const x = xNorm * worldWidth;
-    const y = yNorm * (worldHeight - 50) + 25;
+    const y = yNorm * worldHeight;
     const width = baseSize;
     const height = baseSize / (16 / 9);
     const borderRadius = Math.max(3, Math.min(12, 8));
@@ -155,7 +163,8 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
     worldHeight,
     onHoverVideo,
     setAddChannelModalOpen,
-    getPercentileGroup
+    getPercentileGroup,
+    amplifierLevel
 }, ref) => {
     // Ref for imperative DOM updates
     const layerRef = useRef<HTMLDivElement>(null);
@@ -275,6 +284,7 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
                             worldWidth={worldWidth}
                             worldHeight={worldHeight}
                             percentileGroup={getPercentileGroup(position.video.id)}
+                            amplifierLevel={amplifierLevel}
                         />
                     ))
                 )}

@@ -11,7 +11,8 @@ const DEFAULT_TIMELINE_CONFIG: TimelineConfig = {
     endDate: Date.now(),
     viewMode: 'per-channel',
     scalingMode: 'log',
-    layoutMode: 'spacious'
+    layoutMode: 'spacious',
+    amplifierLevel: 1.0 // Default 1.0, range 1.0 to 3.0
 };
 
 interface TrendStore {

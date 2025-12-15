@@ -6,6 +6,7 @@ import { TimelineDateHeader } from './TimelineDateHeader';
 import { TimelineBackground } from './TimelineBackground';
 import { TimelineVideoLayer, type TimelineVideoLayerHandle } from './TimelineVideoLayer';
 import { ZoomIndicator } from './ZoomIndicator';
+import { AmplifierSlider } from './AmplifierSlider';
 import type { MonthRegion, YearMarker, TrendVideo } from '../../../types/trends';
 
 // Performance logging flag (set to true to enable console logging)
@@ -30,7 +31,7 @@ const WORLD_HEIGHT = 1000;
 
 export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
     const { timelineConfig, setTimelineConfig, setAddChannelModalOpen } = useTrendStore();
-    const { scalingMode, layoutMode, isCustomView, zoomLevel, offsetX, offsetY } = timelineConfig;
+    const { scalingMode, layoutMode, isCustomView, zoomLevel, offsetX, offsetY, amplifierLevel } = timelineConfig;
 
     // Refs for imperative access (perf optimization)
     const containerRef = useRef<HTMLDivElement>(null);
@@ -367,14 +368,31 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                     sizeRatio = 0.5;
             }
 
-            const baseSize = MIN_THUMBNAIL_SIZE + sizeRatio * (BASE_THUMBNAIL_SIZE - MIN_THUMBNAIL_SIZE);
+            // Apply Amplifier:
+            // 1. Vertical Spread: Blend towards Uniform Rank Distribution
+            // The goal is to maximize vertical spread so videos use the full height.
+            const amp = amplifierLevel || 1.0;
+            const blendFactor = (amp - 1) / 2.0;
 
-            return { video, xNorm, yNorm, baseSize };
+            const rank = rankMap.get(video.id) ?? 0.5;
+            const rankY = 1 - rank;
+            const blendedY = yNorm * (1 - blendFactor) + rankY * blendFactor;
+
+            // 2. Range Expansion: Push videos beyond [0, 1] bounds
+            // expansionStrength calibrated so that at amp=3.0 (300%), videos fill the visible area
+            const expansionStrength = 3.8;
+            const expansionFactor = 1 + (amp - 1) * expansionStrength;
+            const expandedY = (blendedY - 0.5) * expansionFactor + 0.5;
+
+            const amplifiedMaxSize = BASE_THUMBNAIL_SIZE * amp;
+            const baseSize = MIN_THUMBNAIL_SIZE + sizeRatio * (amplifiedMaxSize - MIN_THUMBNAIL_SIZE);
+
+            return { video, xNorm, yNorm: expandedY, baseSize };
         });
 
         positions.sort((a, b) => b.baseSize - a.baseSize);
         return positions;
-    }, [videos, stats, scalingMode, monthLayouts]);
+    }, [videos, stats, scalingMode, monthLayouts, amplifierLevel]);
 
     // Handle Auto Fit
     const handleAutoFit = useCallback(() => {
@@ -613,6 +631,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                 worldWidth={worldWidth}
                 worldHeight={WORLD_HEIGHT}
                 getPercentileGroup={getPercentileGroup}
+                amplifierLevel={amplifierLevel}
                 onHoverVideo={(data) => {
                     if (data) {
                         if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
@@ -629,6 +648,10 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                 setAddChannelModalOpen={setAddChannelModalOpen}
             />
 
+            <AmplifierSlider
+                amplifierLevel={amplifierLevel}
+                onChange={(level) => setTimelineConfig({ amplifierLevel: level })}
+            />
             <ZoomIndicator scale={transformState.scale} onReset={handleAutoFit} />
 
             {/* Tooltip */}

@@ -52,6 +52,7 @@ export interface TimelineConfig {
     viewMode: 'global' | 'per-channel'; // Global = all on one timeline (optional future), Per-channel = separate tracks
     scalingMode: 'linear' | 'log' | 'sqrt' | 'percentile'; // Scaling algorithm for video sizes
     layoutMode: 'spacious' | 'compact'; // Spacious = gaps between videos, Compact = allow horizontal overlap
+    amplifierLevel: number; // 1.0-3.0, controls vertical spread and size difference (replaces contrastLevel)
 }
 
 export interface MonthRegion {
