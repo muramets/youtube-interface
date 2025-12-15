@@ -51,8 +51,8 @@ export interface TimelineConfig {
     endDate: number;
     viewMode: 'global' | 'per-channel'; // Global = all on one timeline (optional future), Per-channel = separate tracks
     scalingMode: 'linear' | 'log' | 'sqrt' | 'percentile'; // Scaling algorithm for video sizes
-    layoutMode: 'spacious' | 'compact'; // Spacious = gaps between videos, Compact = allow horizontal overlap
     amplifierLevel: number; // 1.0-3.0, controls vertical spread and size difference (replaces contrastLevel)
+    timeLinearity: number; // 0.0-1.0, 0 = Linear (time-based), 1 = Compact (count-based)
 }
 
 export interface MonthRegion {
@@ -61,6 +61,7 @@ export interface MonthRegion {
     startX: number; // 0-1 normalized
     endX: number;   // 0-1 normalized
     center: number;
+    daysInMonth: number; // For grid rendering
     isFirstOfYear: boolean;
 }
 

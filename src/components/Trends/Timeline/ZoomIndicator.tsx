@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, forwardRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { RotateCcw, Zap } from 'lucide-react';
+import { RotateCcw, Zap, LayoutList } from 'lucide-react';
 
 interface ZoomIndicatorProps {
     scale: number;
@@ -8,6 +8,8 @@ interface ZoomIndicatorProps {
     onReset: () => void;
     amplifierLevel: number;
     onAmplifierChange: (level: number) => void;
+    timeLinearity: number;
+    onTimeLinearityChange: (level: number) => void;
     onZoomChange: (scale: number) => void;
     isLoading?: boolean;
 }
@@ -80,35 +82,45 @@ export const ZoomIndicator: React.FC<ZoomIndicatorProps> = ({
     onReset,
     amplifierLevel,
     onAmplifierChange,
+    timeLinearity,
+    onTimeLinearityChange,
     onZoomChange,
     isLoading = false
 }) => {
     const [isAmplifierOpen, setIsAmplifierOpen] = useState(false);
+    const [isLinearityOpen, setIsLinearityOpen] = useState(false);
+
     const [isDraggingZoom, setIsDraggingZoom] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const amplifierButtonRef = useRef<HTMLButtonElement>(null);
     const amplifierSliderRef = useRef<HTMLDivElement>(null);
+
+    const linearityButtonRef = useRef<HTMLButtonElement>(null);
+    const linearitySliderRef = useRef<HTMLDivElement>(null);
+
     const dragStartRef = useRef<{ x: number; y: number; scale: number } | null>(null);
 
-    // Close amplifier slider when clicking outside
+    // Close popovers when clicking outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             const target = event.target as Node;
             const isInsideContainer = containerRef.current?.contains(target);
             const isInsideAmplifierSlider = amplifierSliderRef.current?.contains(target);
+            const isInsideLinearitySlider = linearitySliderRef.current?.contains(target);
 
-            if (!isInsideContainer && !isInsideAmplifierSlider) {
+            if (!isInsideContainer && !isInsideAmplifierSlider && !isInsideLinearitySlider) {
                 setIsAmplifierOpen(false);
+                setIsLinearityOpen(false);
             }
         };
 
-        if (isAmplifierOpen) {
+        if (isAmplifierOpen || isLinearityOpen) {
             document.addEventListener('mousedown', handleClickOutside);
         }
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [isAmplifierOpen]);
+    }, [isAmplifierOpen, isLinearityOpen]);
 
     // -- Drag handling for Scale indicator with smoothing --
     const targetScaleRef = useRef(scale);
@@ -175,12 +187,13 @@ export const ZoomIndicator: React.FC<ZoomIndicatorProps> = ({
 
     // -- LOGIC --
     const ampPercentage = Math.round((amplifierLevel ?? 1.0) * 100);
+    const linearityPercentage = Math.round((timeLinearity ?? 1.0) * 100);
 
     // Normalized zoom percentage: minScale = 0%, 1.0 = 100%, higher = higher %
     const zoomRange = 1.0 - minScale;
     const normalizedZoomPercent = (isLoading || zoomRange <= 0)
         ? 0
-        : Math.round(((scale - minScale) / zoomRange) * 100);
+        : Math.max(0, Math.round(((scale - minScale) / zoomRange) * 100));
 
     return (
         <div
@@ -196,14 +209,17 @@ export const ZoomIndicator: React.FC<ZoomIndicatorProps> = ({
                     <button
                         ref={amplifierButtonRef}
                         onClick={() => {
-                            if (!isLoading) setIsAmplifierOpen(!isAmplifierOpen);
+                            if (!isLoading) {
+                                setIsAmplifierOpen(!isAmplifierOpen);
+                                setIsLinearityOpen(false);
+                            }
                         }}
                         className={`p-1.5 rounded-full transition-colors ${isAmplifierOpen ? 'bg-text-secondary text-bg-primary' : 'text-text-tertiary hover:bg-hover-bg hover:text-text-primary'}`}
                         disabled={isLoading}
                     >
                         <Zap size={14} className={isAmplifierOpen ? "fill-current" : ""} />
                     </button>
-                    {/* Rich Tooltip for Amplifier - Aligned to Left of Pill (avoiding right clip) */}
+                    {/* Rich Tooltip for Amplifier */}
                     {!isAmplifierOpen && !isLoading && (
                         <div className="absolute bottom-full right-0 mb-3 opacity-0 group-hover/amp:opacity-100 transition-opacity duration-200 pointer-events-none w-48 z-50">
                             <div className="bg-black/90 backdrop-blur text-white text-[10px] p-2 rounded-lg shadow-xl border border-white/10 leading-relaxed text-left">
@@ -213,7 +229,6 @@ export const ZoomIndicator: React.FC<ZoomIndicatorProps> = ({
                     )}
                 </div>
 
-                {/* Amplifier Slider Popover - via Portal */}
                 <SliderPopover
                     ref={amplifierSliderRef}
                     isOpen={isAmplifierOpen}
@@ -226,10 +241,48 @@ export const ZoomIndicator: React.FC<ZoomIndicatorProps> = ({
                     }}
                 />
 
-                {/* Divider */}
                 <div className="w-[1px] h-3 bg-border mx-1" />
 
-                {/* --- 2. Scale Display (Center) - Drag to change --- */}
+                {/* --- 2. Time Linearity Toggle (Center-Left) --- */}
+                <div className="relative flex justify-center group/lin">
+                    <button
+                        ref={linearityButtonRef}
+                        onClick={() => {
+                            if (!isLoading) {
+                                setIsLinearityOpen(!isLinearityOpen);
+                                setIsAmplifierOpen(false);
+                            }
+                        }}
+                        className={`p-1.5 rounded-full transition-colors ${isLinearityOpen ? 'bg-text-secondary text-bg-primary' : 'text-text-tertiary hover:bg-hover-bg hover:text-text-primary'}`}
+                        disabled={isLoading}
+                    >
+                        <LayoutList size={14} className={isLinearityOpen ? "stroke-2" : ""} />
+                    </button>
+                    {/* Rich Tooltip for Linearity */}
+                    {!isLinearityOpen && !isLoading && (
+                        <div className="absolute bottom-full right-0 mb-3 opacity-0 group-hover/lin:opacity-100 transition-opacity duration-200 pointer-events-none w-48 z-50">
+                            <div className="bg-black/90 backdrop-blur text-white text-[10px] p-2 rounded-lg shadow-xl border border-white/10 leading-relaxed text-left">
+                                time distribution: 0% = strict linear time, 100% = compact density
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <SliderPopover
+                    ref={linearitySliderRef}
+                    isOpen={isLinearityOpen}
+                    anchorRef={linearityButtonRef}
+                    value={linearityPercentage}
+                    label={`${linearityPercentage}%`}
+                    onChange={(val) => {
+                        const level = val / 100;
+                        if (!isNaN(level)) onTimeLinearityChange(level);
+                    }}
+                />
+
+                <div className="w-[1px] h-3 bg-border mx-1" />
+
+                {/* --- 3. Scale Display (Center-Right) --- */}
                 <div className="relative flex justify-center group/zoom">
                     <div
                         onMouseDown={!isLoading ? handleZoomDragStart : undefined}
@@ -242,8 +295,7 @@ export const ZoomIndicator: React.FC<ZoomIndicatorProps> = ({
                     >
                         {normalizedZoomPercent}%
                     </div>
-
-                    {/* Tooltip for Zoom - shows on hover when not dragging */}
+                    {/* Tooltip for Zoom */}
                     {!isDraggingZoom && !isLoading && (
                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 opacity-0 group-hover/zoom:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
                             <div className="bg-black/90 backdrop-blur text-white text-[10px] px-2 py-1 rounded shadow-xl border border-white/10">
@@ -253,10 +305,9 @@ export const ZoomIndicator: React.FC<ZoomIndicatorProps> = ({
                     )}
                 </div>
 
-                {/* Divider */}
                 <div className="w-[1px] h-3 bg-border mx-1" />
 
-                {/* --- 3. Reset Button (Right) --- */}
+                {/* --- 4. Reset Button (Right) --- */}
                 <div className="relative flex justify-center group/reset">
                     <button
                         onClick={onReset}
@@ -265,11 +316,10 @@ export const ZoomIndicator: React.FC<ZoomIndicatorProps> = ({
                     >
                         <RotateCcw size={14} />
                     </button>
-                    {/* Tooltip for Reset - Aligned Right */}
                     {!isLoading && (
                         <div className="absolute bottom-full right-0 mb-3 opacity-0 group-hover/reset:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
                             <div className="bg-black/90 backdrop-blur text-white text-[10px] px-2 py-1 rounded shadow-xl border border-white/10">
-                                reset scale
+                                reset scale (z)
                             </div>
                         </div>
                     )}

@@ -1,0 +1,115 @@
+import { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useTrendStore } from '../../../stores/trendStore';
+import { TrendService } from '../../../services/trendService';
+import { useAuth } from '../../../hooks/useAuth';
+import { useChannelStore } from '../../../stores/channelStore';
+import { useSettings } from '../../../hooks/useSettings';
+import { useUIStore } from '../../../stores/uiStore';
+import { useNotificationStore } from '../../../stores/notificationStore';
+import type { TrendChannel } from '../../../types/trends';
+
+interface MenuState {
+    anchorEl: HTMLElement | null;
+    channelId: string | null;
+}
+
+export const useTrendsSidebar = () => {
+    const { channels, selectedChannelId, setSelectedChannelId, setAddChannelModalOpen } = useTrendStore();
+    const { user } = useAuth();
+    const { currentChannel } = useChannelStore();
+    const { generalSettings } = useSettings();
+    const { showToast } = useUIStore();
+    const { addNotification } = useNotificationStore();
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    const [menuState, setMenuState] = useState<MenuState>({ anchorEl: null, channelId: null });
+    const [channelToDelete, setChannelToDelete] = useState<TrendChannel | null>(null);
+
+    const isOnTrendsPage = location.pathname === '/trends';
+
+    const handleTrendsClick = () => {
+        setSelectedChannelId(null);
+        navigate('/trends');
+    };
+
+    const handleChannelClick = (channelId: string) => {
+        setSelectedChannelId(channelId);
+        navigate('/trends');
+    };
+
+    const handleToggleVisibility = async (e: React.MouseEvent, channelId: string, currentVisibility: boolean) => {
+        e.stopPropagation();
+        if (user && currentChannel) {
+            await TrendService.toggleVisibility(user.uid, currentChannel.id, channelId, !currentVisibility);
+        }
+    };
+
+    const handleRemoveChannel = async () => {
+        if (user && currentChannel && channelToDelete) {
+            await TrendService.removeTrendChannel(user.uid, currentChannel.id, channelToDelete.id);
+            if (selectedChannelId === channelToDelete.id) {
+                setSelectedChannelId(null);
+                navigate('/trends');
+            }
+            setChannelToDelete(null);
+        }
+    };
+
+    const handleSyncChannel = async () => {
+        const channelId = menuState.channelId;
+        setMenuState({ anchorEl: null, channelId: null });
+
+        if (!user || !currentChannel || !channelId) return;
+
+        const channel = channels.find(c => c.id === channelId);
+        if (!channel) return;
+
+        const apiKey = generalSettings?.apiKey || localStorage.getItem('youtube_api_key') || '';
+        if (!apiKey) {
+            showToast('API Key not found. Please set it in Settings.', 'error');
+            return;
+        }
+
+        showToast(`Syncing videos for ${channel.title}...`, 'success');
+
+        try {
+            const { totalNewVideos, totalQuotaUsed } = await TrendService.syncChannelVideos(user.uid, currentChannel.id, channel, apiKey);
+
+            const message = `Sync complete. Added ${totalNewVideos} new videos. Quota used: ${totalQuotaUsed}`;
+            showToast(message, 'success');
+
+            await addNotification({
+                title: 'Channel Synced',
+                message: `${message} for ${channel.title}`,
+                type: 'success',
+                meta: 'Quota',
+            });
+        } catch (error: any) {
+            console.error('Sync failed:', error);
+            showToast(`Sync failed: ${error.message}`, 'error');
+        }
+    };
+
+    return {
+        // State
+        channels,
+        selectedChannelId,
+        isOnTrendsPage,
+        menuState,
+        channelToDelete,
+
+        // Actions
+        setMenuState,
+        setChannelToDelete,
+        setAddChannelModalOpen,
+
+        // Handlers
+        handleTrendsClick,
+        handleChannelClick,
+        handleToggleVisibility,
+        handleRemoveChannel,
+        handleSyncChannel
+    };
+};
