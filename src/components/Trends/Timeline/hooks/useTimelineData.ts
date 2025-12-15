@@ -29,36 +29,93 @@ export const useTimelineStructure = ({
     // Helper: Days in month
     const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
 
-    // Calculate world width from videos (used for initial layout)
+    // 1. Calculate View Stats (Moved first to support size-based width calculation)
+    const stats = useMemo(() => {
+        if (videos.length === 0) return { minViews: 0, maxViews: 1, minDate: Date.now(), maxDate: Date.now() };
+        const views = videos.map(v => v.viewCount);
+        const dates = videos.map(v => v.publishedAtTimestamp);
+        const buffer = 1000 * 60 * 60 * 12;
+        return {
+            minViews: Math.max(1, Math.min(...views)),
+            maxViews: Math.max(1, Math.max(...views)),
+            minDate: Math.min(...dates) - buffer,
+            maxDate: Math.max(...dates) + buffer
+        };
+    }, [videos]);
+
+    // 2. Calculate World Width (Now size-aware)
     const calculatedWorldWidth = useMemo(() => {
         if (videos.length === 0) return 2000;
 
         const counts = new Map<string, number>();
+        const monthDetails = new Map<string, { count: number, totalSizeRatio: number }>();
         let maxCount = 0;
+        let busiestMonthKey = '';
+
+        // Pre-calculate size ratios roughly to estimate width
+        // Note: Exact scaling mode is complex to duplicate here perfectly without passing 'scalingMode' prop
+        // We will assume "Log" scaling as a safe default for size estimation if mode isn't available, or passed in.
+        // Actually, we should probably pass scalingMode to useTimelineStructure if we want precision, 
+        // but for now, let's use a heuristic based on the range we have in 'stats'.
+
+        const viewRangeLog = Math.log(stats.maxViews) - Math.log(stats.minViews) || 1;
 
         videos.forEach(v => {
             const d = new Date(v.publishedAtTimestamp);
             const key = `${d.getFullYear()}-${d.getMonth()}`;
-            const newCount = (counts.get(key) || 0) + 1;
-            counts.set(key, newCount);
-            maxCount = Math.max(maxCount, newCount);
+
+            // Heuristic size calculation (Log-based default)
+            const viewLog = Math.log(Math.max(1, v.viewCount));
+            const minLog = Math.log(Math.max(1, stats.minViews));
+            const sizeRatio = (viewLog - minLog) / viewRangeLog;
+            // baseSize = MIN + ratio * (MAX - MIN)
+
+            const current = monthDetails.get(key) || { count: 0, totalSizeRatio: 0 };
+            current.count += 1;
+            current.totalSizeRatio += sizeRatio;
+
+            monthDetails.set(key, current);
+            counts.set(key, current.count);
+
+            if (current.count > maxCount) {
+                maxCount = current.count;
+                busiestMonthKey = key;
+            }
         });
 
-        // DENSITY-BASED WIDTH (Previously "Compact" / "Spacious")
-        // We now standardize on the "Spacious" multiplier (80px) as the default density width.
+        // STANDARD CONSTANTS
         const VIDEO_DENSITY_MULTIPLIER = 80;
 
-        // DYNAMIC LINEAR SCALE
-        // Ensure "Linear" mode (0%) is at least as wide as the busiest month in "Density" mode.
-        // Busiest Density Width ~= maxCount * 80px
-        // Required Linear PPD ~= (maxCount * 80px) / 30days
-        // Min PPD = 40px
-        const busyMonthWidth = maxCount * VIDEO_DENSITY_MULTIPLIER;
-        const dynamicLinearPixelsPerDay = Math.max(40, busyMonthWidth / 30);
+        // SMART LINEAR SCALE CALCULATION
+        // "Average Width" strategy:
+        // 1. Find busiest month.
+        // 2. Calculate average thumbnail size for that month.
+        // 3. Target Width = Count * AvgSize * OverlapFactor (heuristic) for that month.
+
+        let dynamicLinearPixelsPerDay = 40; // Default fallback
+
+        if (busiestMonthKey && maxCount > 0) {
+            const details = monthDetails.get(busiestMonthKey);
+            if (details) {
+                const avgSizeRatio = details.totalSizeRatio / details.count;
+                const avgThumbnailHeight = MIN_THUMBNAIL_SIZE + avgSizeRatio * (BASE_THUMBNAIL_SIZE - MIN_THUMBNAIL_SIZE);
+
+                // Account for Aspect Ratio (16:9)
+                const avgThumbnailWidth = avgThumbnailHeight * (16 / 9);
+
+                // Calculate Required Width
+                // User requirement: "neighboring covers don't overlap much"
+                // We calculate width to allow them to sit side-by-side with a small overlap (e.g. 10% overlap = 0.9 factor)
+                const requiredWidth = details.count * (avgThumbnailWidth * 0.9);
+
+                // Provide specific linear PPD for this busy month
+                dynamicLinearPixelsPerDay = Math.max(40, requiredWidth / 30);
+            }
+        }
 
         let totalWidth = 0;
-        const start = new Date(Math.min(...videos.map(v => v.publishedAtTimestamp)));
-        const end = new Date(Math.max(...videos.map(v => v.publishedAtTimestamp)));
+        const start = new Date(stats.minDate);
+        const end = new Date(stats.maxDate);
         // Add buffer
         start.setMonth(start.getMonth() - 1);
         end.setMonth(end.getMonth() + 1);
@@ -75,7 +132,7 @@ export const useTimelineStructure = ({
             // 1. Density Width (Count-based)
             const densityWidth = Math.max(200, count * VIDEO_DENSITY_MULTIPLIER);
 
-            // 2. Linear Width (Time-based)
+            // 2. Linear Width (Time-based, Smart)
             const daysInMonth = getDaysInMonth(year, month);
             const linearWidth = daysInMonth * dynamicLinearPixelsPerDay;
 
@@ -88,7 +145,7 @@ export const useTimelineStructure = ({
         }
 
         return Math.max(2000, totalWidth);
-    }, [videos, timeLinearity]); // layoutMode dependency removed
+    }, [videos, timeLinearity, stats]); // Added stats dependency
 
     const frozenWorldWidthRef = useRef<number | null>(null);
 
@@ -105,50 +162,65 @@ export const useTimelineStructure = ({
     }
     const worldWidth = frozenWorldWidthRef.current ?? calculatedWorldWidth;
 
-    // Calculate view stats for scaling
-    const calculatedStats = useMemo(() => {
-        if (videos.length === 0) return { minViews: 0, maxViews: 1, minDate: Date.now(), maxDate: Date.now() };
-        const views = videos.map(v => v.viewCount);
-        const dates = videos.map(v => v.publishedAtTimestamp);
-        const buffer = 1000 * 60 * 60 * 12;
-        return {
-            minViews: Math.max(1, Math.min(...views)),
-            maxViews: Math.max(1, Math.max(...views)),
-            minDate: Math.min(...dates) - buffer,
-            maxDate: Math.max(...dates) + buffer
-        };
-    }, [videos]);
-
-    const frozenStatsRef = useRef<typeof calculatedStats | null>(null);
+    // Stats are now calculated first, so we just memoize/ref them for return consistency?
+    // Actually, we can just return 'stats' directly since it's already a memo above.
+    // We'll keep the frozen ref pattern if needed for stability, but stats generally shouldn't flicker unless videos change.
+    const frozenStatsRef = useRef<typeof stats | null>(null);
     if (frozenStatsRef.current === null && videos.length > 0) {
-        frozenStatsRef.current = calculatedStats;
+        frozenStatsRef.current = stats;
     }
-    const stats = frozenStatsRef.current ?? calculatedStats;
+    const stableStats = frozenStatsRef.current ?? stats;
 
-    // Calculate density-based month layouts
+    // 3. Calculate Layouts (using synchronized logic)
     const calculatedMonthLayouts = useMemo(() => {
         if (videos.length === 0) return [];
+
         const counts = new Map<string, number>();
+        const monthDetails = new Map<string, { count: number, totalSizeRatio: number }>();
         let maxCount = 0;
+        let busiestMonthKey = '';
+
+        const viewRangeLog = Math.log(stableStats.maxViews) - Math.log(stableStats.minViews) || 1;
 
         videos.forEach(v => {
             const d = new Date(v.publishedAtTimestamp);
             const key = `${d.getFullYear()}-${d.getMonth()}`;
-            const newCount = (counts.get(key) || 0) + 1;
-            counts.set(key, newCount);
-            maxCount = Math.max(maxCount, newCount);
+
+            const viewLog = Math.log(Math.max(1, v.viewCount));
+            const minLog = Math.log(Math.max(1, stableStats.minViews));
+            const sizeRatio = (viewLog - minLog) / viewRangeLog;
+
+            const current = monthDetails.get(key) || { count: 0, totalSizeRatio: 0 };
+            current.count += 1;
+            current.totalSizeRatio += sizeRatio;
+
+            monthDetails.set(key, current);
+            counts.set(key, current.count);
+
+            if (current.count > maxCount) {
+                maxCount = current.count;
+                busiestMonthKey = key;
+            }
         });
 
-        // STANDARD CONSTANTS
-        const VIDEO_DENSITY_MULTIPLIER = 80;
-        const busyMonthWidth = maxCount * VIDEO_DENSITY_MULTIPLIER;
-        const dynamicLinearPixelsPerDay = Math.max(40, busyMonthWidth / 30);
+        // SMART LINEAR SCALE CALCULATION (Duplicated logic for consistency)
+        let dynamicLinearPixelsPerDay = 40;
 
-        let current = new Date(stats.minDate);
+        if (busiestMonthKey && maxCount > 0) {
+            const details = monthDetails.get(busiestMonthKey);
+            if (details) {
+                const avgSizeRatio = details.totalSizeRatio / details.count;
+                const avgThumbnailSize = MIN_THUMBNAIL_SIZE + avgSizeRatio * (BASE_THUMBNAIL_SIZE - MIN_THUMBNAIL_SIZE);
+                const requiredWidth = details.count * (avgThumbnailSize * 0.8);
+                dynamicLinearPixelsPerDay = Math.max(40, requiredWidth / 30);
+            }
+        }
+
+        let current = new Date(stableStats.minDate);
         current.setDate(1);
         current.setHours(0, 0, 0, 0);
 
-        const endDate = new Date(stats.maxDate);
+        const endDate = new Date(stableStats.maxDate);
         const safeEndDate = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 1);
 
         const layouts = [];
@@ -161,7 +233,7 @@ export const useTimelineStructure = ({
             const count = counts.get(key) || 0;
 
             // 1. Density Width
-            const densityWidth = Math.max(200, count * VIDEO_DENSITY_MULTIPLIER);
+            const densityWidth = Math.max(200, count * 80);
 
             // 2. Linear Width
             const daysInMonth = getDaysInMonth(year, month);
@@ -197,7 +269,7 @@ export const useTimelineStructure = ({
             endX: l.endX / totalAbsWidth,
             width: l.width / totalAbsWidth
         }));
-    }, [videos, stats, timeLinearity]); // layoutMode removed
+    }, [videos, stableStats, timeLinearity]);
 
     const frozenMonthLayoutsRef = useRef<typeof calculatedMonthLayouts | null>(null);
 
@@ -217,10 +289,7 @@ export const useTimelineStructure = ({
     // Derived regions
     const monthRegions: MonthRegion[] = useMemo(() => {
         if (videos.length === 0 || monthLayouts.length === 0) return [];
-        let prevYear: number | null = null;
-        return monthLayouts.map(layout => {
-            const isFirstOfYear = layout.year !== prevYear;
-            prevYear = layout.year;
+        return monthLayouts.map(layout => { // Simplified
             return {
                 month: layout.label,
                 year: layout.year,
@@ -228,10 +297,20 @@ export const useTimelineStructure = ({
                 endX: layout.endX,
                 center: (layout.startX + layout.endX) / 2,
                 daysInMonth: getDaysInMonth(layout.year, layout.month),
-                isFirstOfYear
+                isFirstOfYear: false // Recalculated below properly or simplified
             };
         });
     }, [monthLayouts, videos.length]);
+
+    // Fix isFirstOfYear logic from previous map
+    const refinedMonthRegions = useMemo(() => {
+        let prevYear: number | null = null;
+        return monthRegions.map(m => {
+            const isFirst = m.year !== prevYear;
+            prevYear = m.year;
+            return { ...m, isFirstOfYear: isFirst };
+        });
+    }, [monthRegions]);
 
     const yearMarkers: YearMarker[] = useMemo(() => {
         const years: YearMarker[] = [];
@@ -239,7 +318,7 @@ export const useTimelineStructure = ({
         let yearStart = 0;
         let yearEnd = 0;
 
-        monthRegions.forEach((region, i) => {
+        refinedMonthRegions.forEach((region, i) => {
             if (region.year !== currentYear) {
                 if (currentYear !== null) {
                     years.push({ year: currentYear, startX: yearStart, endX: yearEnd });
@@ -248,18 +327,18 @@ export const useTimelineStructure = ({
                 yearStart = region.startX;
             }
             yearEnd = region.endX;
-            if (i === monthRegions.length - 1 && currentYear !== null) {
+            if (i === refinedMonthRegions.length - 1 && currentYear !== null) {
                 years.push({ year: currentYear, startX: yearStart, endX: yearEnd });
             }
         });
         return years;
-    }, [monthRegions]);
+    }, [refinedMonthRegions]);
 
     return {
         worldWidth,
-        stats,
+        stats: stableStats,
         monthLayouts,
-        monthRegions,
+        monthRegions: refinedMonthRegions,
         yearMarkers
     };
 };

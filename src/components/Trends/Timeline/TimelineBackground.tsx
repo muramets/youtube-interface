@@ -16,13 +16,20 @@ export const TimelineBackground: React.FC<TimelineBackgroundProps> = ({
 }) => {
     // Determine opacities
     const weekOpacity = useMemo(() => {
+        // Linearity 1.0 -> 0 opacity
+        // Linearity 0.0 -> 0.15 opacity (visible but subtle)
+        // Fade starts around 0.8
         if (timeLinearity > 0.8) return 0;
-        return Math.min(1, (0.8 - timeLinearity) * 2.5);
+        const fade = (0.8 - timeLinearity) / 0.8; // 0 to 1
+        return 0.05 + fade * 0.1; // Min 0.05, Max 0.15
     }, [timeLinearity]);
 
     const dayOpacity = useMemo(() => {
+        // Linearity > 0.4 -> 0 opacity
+        // Fade starts around 0.4
         if (timeLinearity > 0.4) return 0;
-        return Math.min(1, (0.4 - timeLinearity) * 2.5);
+        const fade = (0.4 - timeLinearity) / 0.4; // 0 to 1
+        return 0.02 + fade * 0.06; // Min 0.02, Max 0.08 (Very subtle)
     }, [timeLinearity]);
 
     return (
