@@ -4,9 +4,12 @@ import { TrendTooltip } from './TrendTooltip';
 import { useDebounce } from '../../../hooks/useDebounce';
 import { TimelineDateHeader } from './TimelineDateHeader';
 import { TimelineBackground } from './TimelineBackground';
-import { TimelineVideoLayer } from './TimelineVideoLayer';
+import { TimelineVideoLayer, type TimelineVideoLayerHandle } from './TimelineVideoLayer';
 import { ZoomIndicator } from './ZoomIndicator';
 import type { MonthRegion, YearMarker, TrendVideo } from '../../../types/trends';
+
+// Performance logging flag (set to true to enable console logging)
+const PERF_LOGGING = false;
 
 interface Transform {
     scale: number;
@@ -53,6 +56,9 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
     const [hoveredVideo, setHoveredVideo] = useState<{ video: TrendVideo; x: number; y: number; height: number } | null>(null);
     const isTooltipHoveredRef = useRef(false);
     const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Ref for imperative DOM updates (bypass React for max performance)
+    const videoLayerRef = useRef<TimelineVideoLayerHandle>(null);
 
     // Drag-to-pan state
     const [isPanning, setIsPanning] = useState(false);
@@ -123,9 +129,57 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
     // The "standard" way in complex apps (Figma-like) is often imperative or using specialized canvasses.
     // Let's stick to React Props for clean code first (as requested "components"), but optimize `TimelineVideoLayer` with `memo`.
 
+    // Performance tracking refs
+    const perfFrameCountRef = useRef(0);
+    const perfLastTimeRef = useRef(performance.now());
+    const perfActiveRef = useRef(false);
+    const perfTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
     const syncToDom = useCallback(() => {
-        // Updated to use React State for triggering updates in children
+        // Imperative DOM update for video layer (bypasses React reconciliation)
+        if (videoLayerRef.current) {
+            videoLayerRef.current.updateTransform(transformRef.current);
+        }
+
+        // Still update React state for components that need it (throttled updates)
         setTransformState({ ...transformRef.current });
+
+        // Performance logging - accurate FPS measurement
+        if (PERF_LOGGING) {
+            perfFrameCountRef.current++;
+
+            // Start tracking when interaction begins
+            if (!perfActiveRef.current) {
+                perfActiveRef.current = true;
+                perfLastTimeRef.current = performance.now();
+                perfFrameCountRef.current = 1;
+            }
+
+            // Clear any existing timeout
+            if (perfTimeoutRef.current) clearTimeout(perfTimeoutRef.current);
+
+            // Log FPS every second during activity
+            const now = performance.now();
+            const elapsed = now - perfLastTimeRef.current;
+
+            if (elapsed >= 1000) {
+                const fps = Math.round(perfFrameCountRef.current * 1000 / elapsed);
+                console.log(`📊 FPS: ${fps} (${perfFrameCountRef.current} frames in ${elapsed.toFixed(0)}ms)`);
+                perfFrameCountRef.current = 0;
+                perfLastTimeRef.current = now;
+            }
+
+            // Stop tracking after 500ms of inactivity
+            perfTimeoutRef.current = setTimeout(() => {
+                if (perfFrameCountRef.current > 0) {
+                    const finalElapsed = performance.now() - perfLastTimeRef.current;
+                    const finalFps = Math.round(perfFrameCountRef.current * 1000 / finalElapsed);
+                    console.log(`📊 Final FPS: ${finalFps} (${perfFrameCountRef.current} frames)`);
+                }
+                perfActiveRef.current = false;
+                perfFrameCountRef.current = 0;
+            }, 500);
+        }
     }, []);
 
     // Debounce value to prevent excessive store updates
@@ -553,10 +607,12 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
             />
 
             <TimelineVideoLayer
+                ref={videoLayerRef}
                 videoPositions={videoPositions}
                 transform={transformState}
                 worldWidth={worldWidth}
                 worldHeight={WORLD_HEIGHT}
+                getPercentileGroup={getPercentileGroup}
                 onHoverVideo={(data) => {
                     if (data) {
                         if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);

@@ -1,5 +1,6 @@
-import React, { useState, useRef, memo, useMemo } from 'react';
+import React, { useState, useRef, memo, useMemo, forwardRef, useImperativeHandle } from 'react';
 import type { TrendVideo } from '../../../types/trends';
+import { useThrottle } from '../../../hooks/useThrottle';
 
 interface VideoPosition {
     video: TrendVideo;
@@ -15,7 +16,16 @@ interface TimelineVideoLayerProps {
     worldHeight: number;
     onHoverVideo: (data: { video: TrendVideo; x: number; y: number; height: number } | null) => void;
     setAddChannelModalOpen: (isOpen: boolean) => void;
+    getPercentileGroup: (videoId: string) => string | undefined;
 }
+
+export interface TimelineVideoLayerHandle {
+    updateTransform: (transform: { scale: number; offsetX: number; offsetY: number }) => void;
+}
+
+// LOD Thresholds
+const LOD_SHOW_THUMBNAIL = 0.25;  // Below this, show colored dots
+const LOD_SHOW_LABEL = 0.4;       // Below this, hide view count labels
 
 // Format views like "1.2M"
 const formatCompactNumber = (num: number) => {
@@ -25,6 +35,55 @@ const formatCompactNumber = (num: number) => {
     }).format(num);
 };
 
+// Percentile color and size mapping
+const getPercentileStyle = (percentile: string | undefined) => {
+    switch (percentile) {
+        case 'Top 1%':
+            return { color: 'bg-emerald-500', size: 16 };
+        case 'Top 5%':
+            return { color: 'bg-lime-500', size: 12 };
+        case 'Top 20%':
+            return { color: 'bg-blue-500', size: 10 };
+        case 'Middle 60%':
+            return { color: 'bg-purple-400', size: 7 };
+        case 'Bottom 20%':
+            return { color: 'bg-red-400', size: 5 };
+        default:
+            return { color: 'bg-gray-400', size: 6 };
+    }
+};
+
+// Simplified dot for low zoom (LOD)
+const VideoDot = memo(({
+    position,
+    worldWidth,
+    worldHeight,
+    percentileGroup,
+}: {
+    position: VideoPosition;
+    worldWidth: number;
+    worldHeight: number;
+    percentileGroup: string | undefined;
+}) => {
+    const { xNorm, yNorm } = position;
+    const x = xNorm * worldWidth;
+    const y = yNorm * (worldHeight - 50) + 25;
+    const { color, size } = getPercentileStyle(percentileGroup);
+
+    return (
+        <div
+            className={`absolute rounded-full ${color} shadow-sm`}
+            style={{
+                left: x,
+                top: y,
+                width: size,
+                height: size,
+                transform: 'translate(-50%, -50%)',
+            }}
+        />
+    );
+});
+
 // Memoized single video component for extreme performance updates
 const VideoItem = memo(({
     position,
@@ -32,6 +91,7 @@ const VideoItem = memo(({
     worldHeight,
     isFocused,
     isElevated,
+    showLabel,
     onMouseEnter,
     onMouseLeave
 }: {
@@ -40,6 +100,7 @@ const VideoItem = memo(({
     worldHeight: number;
     isFocused: boolean;
     isElevated: boolean;
+    showLabel: boolean;
     onMouseEnter: (e: React.MouseEvent, vid: TrendVideo) => void;
     onMouseLeave: () => void;
 }) => {
@@ -78,21 +139,36 @@ const VideoItem = memo(({
                     transition: 'box-shadow 200ms ease-out',
                 }}
             />
-            <span className={`mt-1.5 text-[10px] font-medium transition-colors bg-black/40 px-1.5 py-0.5 rounded-md backdrop-blur-sm pointer-events-none whitespace-nowrap ${isFocused ? 'text-white' : 'text-white/50 group-hover:text-white'}`}>
-                {viewLabel}
-            </span>
+            {showLabel && (
+                <span className={`mt-1.5 text-[10px] font-medium transition-colors bg-black/40 px-1.5 py-0.5 rounded-md backdrop-blur-sm pointer-events-none whitespace-nowrap ${isFocused ? 'text-white' : 'text-white/50 group-hover:text-white'}`}>
+                    {viewLabel}
+                </span>
+            )}
         </div>
     );
 });
 
-export const TimelineVideoLayer: React.FC<TimelineVideoLayerProps> = ({
+export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineVideoLayerProps>(({
     videoPositions,
     transform,
     worldWidth,
     worldHeight,
     onHoverVideo,
-    setAddChannelModalOpen
-}) => {
+    setAddChannelModalOpen,
+    getPercentileGroup
+}, ref) => {
+    // Ref for imperative DOM updates
+    const layerRef = useRef<HTMLDivElement>(null);
+
+    // Expose imperative handle for direct DOM updates
+    useImperativeHandle(ref, () => ({
+        updateTransform: (t) => {
+            if (layerRef.current) {
+                layerRef.current.style.transform = `translate(${t.offsetX}px, ${t.offsetY}px) scale(${t.scale})`;
+            }
+        }
+    }), []);
+
     // Internal state for hover effects
     const [focusedVideoId, setFocusedVideoId] = useState<string | null>(null);
     const [elevatedVideoId, setElevatedVideoId] = useState<string | null>(null);
@@ -100,14 +176,13 @@ export const TimelineVideoLayer: React.FC<TimelineVideoLayerProps> = ({
     const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const showTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    // -- VIRTUALIZATION / CULLING --
-    const visibleRegion = useMemo(() => {
-        const viewportW = window.innerWidth;
-        // const viewportH = window.innerHeight; // Unused for now as we cull X only for simple timeline usually, or XY?
-        // Let's cull X only for now as horizontal scroll is the main factor in timeline. 
-        // Although vertical is bounded by WORLD_HEIGHT so it's always "visible" vertically 
-        // unless zoomed in extremely. 
+    // LOD state based on zoom level
+    const showThumbnails = transform.scale >= LOD_SHOW_THUMBNAIL;
+    const showLabels = transform.scale >= LOD_SHOW_LABEL;
 
+    // -- VIRTUALIZATION / CULLING (throttled for performance) --
+    const rawVisibleRegion = useMemo(() => {
+        const viewportW = window.innerWidth;
         const minX = -500; // Buffer
         const maxX = viewportW + 500;
 
@@ -118,14 +193,16 @@ export const TimelineVideoLayer: React.FC<TimelineVideoLayerProps> = ({
         return { start: worldMinX, end: worldMaxX };
     }, [transform.offsetX, transform.scale]);
 
-    // Filter videos. 
+    // Throttle visible region updates to reduce recalculation
+    const visibleRegion = useThrottle(rawVisibleRegion, 32); // ~30fps for culling
+
+    // Filter videos
     const visibleVideos = useMemo(() => {
         return videoPositions.filter(p => {
             const x = p.xNorm * worldWidth;
             return x >= visibleRegion.start && x <= visibleRegion.end;
         });
     }, [videoPositions, visibleRegion, worldWidth]);
-
 
     const handleMouseEnter = (e: React.MouseEvent, video: TrendVideo) => {
         if (elevationTimeoutRef.current) clearTimeout(elevationTimeoutRef.current);
@@ -164,6 +241,7 @@ export const TimelineVideoLayer: React.FC<TimelineVideoLayerProps> = ({
     return (
         <div className="flex-1 relative overflow-hidden mt-12">
             <div
+                ref={layerRef}
                 style={{
                     transform: `translate(${transform.offsetX}px, ${transform.offsetY}px) scale(${transform.scale})`,
                     transformOrigin: '0 0',
@@ -173,18 +251,33 @@ export const TimelineVideoLayer: React.FC<TimelineVideoLayerProps> = ({
                     willChange: 'transform'
                 }}
             >
-                {visibleVideos.map((position) => (
-                    <VideoItem
-                        key={position.video.id}
-                        position={position}
-                        worldWidth={worldWidth}
-                        worldHeight={worldHeight}
-                        isFocused={focusedVideoId === position.video.id}
-                        isElevated={elevatedVideoId === position.video.id}
-                        onMouseEnter={handleMouseEnter}
-                        onMouseLeave={handleMouseLeave}
-                    />
-                ))}
+                {showThumbnails ? (
+                    // Full quality thumbnails
+                    visibleVideos.map((position) => (
+                        <VideoItem
+                            key={position.video.id}
+                            position={position}
+                            worldWidth={worldWidth}
+                            worldHeight={worldHeight}
+                            isFocused={focusedVideoId === position.video.id}
+                            isElevated={elevatedVideoId === position.video.id}
+                            showLabel={showLabels}
+                            onMouseEnter={handleMouseEnter}
+                            onMouseLeave={handleMouseLeave}
+                        />
+                    ))
+                ) : (
+                    // LOD: Simplified dots for low zoom with percentile colors
+                    visibleVideos.map((position) => (
+                        <VideoDot
+                            key={position.video.id}
+                            position={position}
+                            worldWidth={worldWidth}
+                            worldHeight={worldHeight}
+                            percentileGroup={getPercentileGroup(position.video.id)}
+                        />
+                    ))
+                )}
             </div>
 
             {videoPositions.length === 0 && (
@@ -205,4 +298,4 @@ export const TimelineVideoLayer: React.FC<TimelineVideoLayerProps> = ({
             )}
         </div>
     );
-};
+});
