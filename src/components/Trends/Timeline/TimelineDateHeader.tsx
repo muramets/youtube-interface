@@ -20,7 +20,7 @@ export const TimelineDateHeader: React.FC<TimelineDateHeaderProps> = ({ yearMark
     };
 
     return (
-        <div className="absolute top-0 left-0 right-0 h-12 border-b border-border z-50 overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-12 border-b border-border overflow-hidden">
             {/* LAYER 1: Month Stripes Background (bottom layer) */}
             <div style={transformStyle} className="pointer-events-none">
                 {monthRegions.map((region, i) => (

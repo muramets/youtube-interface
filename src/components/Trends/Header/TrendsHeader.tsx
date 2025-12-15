@@ -21,7 +21,7 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
     setTimelineConfig
 }) => {
     return (
-        <div className="h-14 border-b border-border flex items-center px-4 justify-between flex-shrink-0 bg-bg-primary z-sticky">
+        <div className="h-14 border-b border-border flex items-center px-4 justify-between flex-shrink-0 bg-bg-primary sticky top-0 z-sticky">
             <h1 className="text-xl font-semibold text-text-primary">
                 <span className="text-text-secondary">Trends Analysis:</span> {title}
             </h1>

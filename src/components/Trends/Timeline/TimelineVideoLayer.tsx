@@ -42,17 +42,17 @@ const formatCompactNumber = (num: number) => {
 const getPercentileStyle = (percentile: string | undefined) => {
     switch (percentile) {
         case 'Top 1%':
-            return { color: 'bg-emerald-500', size: 16, weight: 1.0 };
+            return { color: 'bg-emerald-500', size: 160, weight: 1.0 };
         case 'Top 5%':
-            return { color: 'bg-lime-500', size: 12, weight: 0.8 };
+            return { color: 'bg-lime-500', size: 120, weight: 0.8 };
         case 'Top 20%':
-            return { color: 'bg-blue-500', size: 10, weight: 0.5 };
+            return { color: 'bg-blue-500', size: 100, weight: 0.5 };
         case 'Middle 60%':
-            return { color: 'bg-purple-400', size: 7, weight: 0.2 };
+            return { color: 'bg-purple-400', size: 70, weight: 0.2 };
         case 'Bottom 20%':
-            return { color: 'bg-red-400', size: 5, weight: 0.0 };
+            return { color: 'bg-red-400', size: 50, weight: 0.0 };
         default:
-            return { color: 'bg-gray-400', size: 6, weight: 0.1 };
+            return { color: 'bg-gray-400', size: 60, weight: 0.1 };
     }
 };
 

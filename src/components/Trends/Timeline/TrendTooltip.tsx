@@ -11,6 +11,8 @@ interface TrendTooltipProps {
     percentileGroup?: string; // e.g. "Top 1%", "Top 5%", etc.
 }
 
+import { createPortal } from 'react-dom';
+
 export const TrendTooltip: React.FC<TrendTooltipProps> = ({ video, style, className, onMouseEnter, onMouseLeave, percentileGroup }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [areTagsExpanded, setAreTagsExpanded] = useState(false);
@@ -21,7 +23,7 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({ video, style, classN
         return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
     };
 
-    return (
+    return createPortal(
         <div
             className={`fixed z-popover bg-bg-secondary/95 backdrop-blur-xl border border-border rounded-xl shadow-2xl p-4 pointer-events-auto w-[340px] animate-fade-in flex flex-col gap-3 ${className || ''}`}
             style={style}
@@ -162,6 +164,7 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({ video, style, classN
                     </button>
                 </div>
             )}
-        </div>
+        </div>,
+        document.body
     );
 };

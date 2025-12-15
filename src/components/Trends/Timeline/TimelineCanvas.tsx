@@ -530,7 +530,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
             if (!container) return;
             const rect = container.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top - HEADER_HEIGHT;
+            const mouseY = e.clientY - rect.top;
 
             const ZOOM_SENSITIVITY = 0.01;
             const delta = Math.max(-100, Math.min(100, e.deltaY));
@@ -691,14 +691,6 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
         >
             {/* Subtle Vertical Gradient Overlay */}
             <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-text-primary/[0.02] to-transparent" />
-
-            {/* Header moved to bottom for Z-index */}
-            <TimelineDateHeader
-                yearMarkers={yearMarkers}
-                monthRegions={monthRegions}
-                transform={transformState} // Will fix interface in component
-                worldWidth={worldWidth}
-            />
 
             <TimelineBackground
                 monthRegions={monthRegions}
