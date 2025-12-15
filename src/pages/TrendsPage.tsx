@@ -11,6 +11,15 @@ export const TrendsPage: React.FC = () => {
     const [videos, setVideos] = useState<TrendVideo[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
+    // Reset state immediately when channel switches (Derived State pattern)
+    // This prevents stale data from being passed to new TimelineCanvas instance
+    const [prevChannelForReset, setPrevChannelForReset] = useState(selectedChannelId);
+    if (selectedChannelId !== prevChannelForReset) {
+        setPrevChannelForReset(selectedChannelId);
+        setVideos([]);
+        setIsLoading(true);
+    }
+
     // Computed visible channels (lifted from TimelineCanvas)
     const visibleChannels = useMemo(() => {
         if (selectedChannelId) {
@@ -20,13 +29,25 @@ export const TrendsPage: React.FC = () => {
     }, [channels, selectedChannelId]);
 
     // Load videos (lifted from TimelineCanvas)
+    // Track if this is initial load vs channel visibility toggle
+    const hasLoadedOnceRef = React.useRef(false);
+    const prevSelectedChannelRef = React.useRef(selectedChannelId);
+
     useEffect(() => {
         const loadVideos = async () => {
-            setIsLoading(true);
+            // Only show skeleton on initial load or when switching between channels
+            // Don't show skeleton when just toggling visibility on "All Channels" view
+            const isChannelSwitch = prevSelectedChannelRef.current !== selectedChannelId;
+            const isInitialLoad = !hasLoadedOnceRef.current;
+
+            if (isInitialLoad || isChannelSwitch) {
+                setIsLoading(true);
+            }
+
+            prevSelectedChannelRef.current = selectedChannelId;
+
             const allVideos: TrendVideo[] = [];
-            // Artificial delay for better UX (prevent flicker) + ensures skeleton shows
-            // Only if we actually have channels to load
-            const minLoadTime = visibleChannels.length > 0 ? 500 : 0;
+            const minLoadTime = (isInitialLoad || isChannelSwitch) && visibleChannels.length > 0 ? 500 : 0;
             const startStr = Date.now();
 
             for (const channel of visibleChannels) {
@@ -45,9 +66,10 @@ export const TrendsPage: React.FC = () => {
 
             setVideos(allVideos);
             setIsLoading(false);
+            hasLoadedOnceRef.current = true;
         };
         loadVideos();
-    }, [visibleChannels]);
+    }, [visibleChannels, selectedChannelId]);
 
     return (
         <div className="flex flex-col h-full bg-bg-primary">

@@ -89,7 +89,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
 
     // Transform state: Mutable ref for high-perf updates + React state for sync
     const transformRef = useRef<Transform>({
-        scale: Math.max(0.1, zoomLevel || 1),
+        scale: zoomLevel || 0.01, // Will be updated by auto-fit if needed
         offsetX: offsetX || 0,
         offsetY: offsetY || 0
     });
@@ -101,8 +101,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
     // Used for premium zoom-out experience that interpolates back from user's position
     const zoomAnchorRef = useRef<{ worldX: number; worldY: number; isFromZero: boolean } | null>(null);
 
-    // Dynamic World Width
-    const worldWidth = useMemo(() => {
+    // Calculate world width from videos (used for initial layout)
+    const calculatedWorldWidth = useMemo(() => {
         if (videos.length === 0) return 2000;
 
         const counts = new Map<string, number>();
@@ -135,6 +135,14 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
 
         return Math.max(2000, totalWidth);
     }, [videos, layoutMode]);
+
+    // Frozen worldWidth: locks at first render with videos, doesn't recalculate on channel toggle
+    // This prevents layout jumps when toggling channel visibility
+    const frozenWorldWidthRef = useRef<number | null>(null);
+    if (frozenWorldWidthRef.current === null && videos.length > 0) {
+        frozenWorldWidthRef.current = calculatedWorldWidth;
+    }
+    const worldWidth = frozenWorldWidthRef.current ?? calculatedWorldWidth;
 
     // Helper to apply transforms imperatively to DOM is NO LONGER NEEDED for children that are React components
     // relying on props. However, for max performance we might want to ref pass?
@@ -228,7 +236,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
     }, [debouncedTransform, setTimelineConfig, zoomLevel, offsetX, offsetY]);
 
     // Calculate view stats for scaling
-    const stats = useMemo(() => {
+    const calculatedStats = useMemo(() => {
         if (videos.length === 0) return { minViews: 0, maxViews: 1, minDate: Date.now(), maxDate: Date.now() };
         const views = videos.map(v => v.viewCount);
         const dates = videos.map(v => v.publishedAtTimestamp);
@@ -243,8 +251,15 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
         };
     }, [videos]);
 
+    // Frozen stats: locks at first render with videos
+    const frozenStatsRef = useRef<typeof calculatedStats | null>(null);
+    if (frozenStatsRef.current === null && videos.length > 0) {
+        frozenStatsRef.current = calculatedStats;
+    }
+    const stats = frozenStatsRef.current ?? calculatedStats;
+
     // Calculate density-based month layouts
-    const monthLayouts = useMemo(() => {
+    const calculatedMonthLayouts = useMemo(() => {
         if (videos.length === 0) return [];
 
         const counts = new Map<string, number>();
@@ -304,6 +319,13 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
             width: l.width / totalAbsWidth
         }));
     }, [videos, stats, layoutMode]);
+
+    // Frozen monthLayouts: locks at first render with videos
+    const frozenMonthLayoutsRef = useRef<typeof calculatedMonthLayouts | null>(null);
+    if (frozenMonthLayoutsRef.current === null && calculatedMonthLayouts.length > 0) {
+        frozenMonthLayoutsRef.current = calculatedMonthLayouts;
+    }
+    const monthLayouts = frozenMonthLayoutsRef.current ?? calculatedMonthLayouts;
 
     // 1. Calculate the 'Fit Scale' based on Width (Primary constraint)
     const fitScale = useMemo(() => {
@@ -393,10 +415,10 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
 
     // Calculate video positions
     const videoPositions = useMemo(() => {
-        // Use LOCAL stats for Y-axis normalization
-        const viewRangeLinear = localStats.maxViews - localStats.minViews || 1;
-        const viewRangeLog = Math.log(localStats.maxViews) - Math.log(localStats.minViews) || 1;
-        const viewRangeSqrt = Math.sqrt(localStats.maxViews) - Math.sqrt(localStats.minViews) || 1;
+        // Use GLOBAL stable stats for Y-axis normalization to prevent jumps on toggle
+        const viewRangeLinear = stats.maxViews - stats.minViews || 1;
+        const viewRangeLog = Math.log(stats.maxViews) - Math.log(stats.minViews) || 1;
+        const viewRangeSqrt = Math.sqrt(stats.maxViews) - Math.sqrt(stats.minViews) || 1;
 
         const sortedByViews = [...videos].sort((a, b) => a.viewCount - b.viewCount);
         const rankMap = new Map<string, number>();
@@ -425,20 +447,20 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
 
             switch (scalingMode) {
                 case 'linear':
-                    yNorm = 1 - (video.viewCount - localStats.minViews) / viewRangeLinear;
-                    sizeRatio = (video.viewCount - localStats.minViews) / (localStats.maxViews - localStats.minViews);
+                    yNorm = 1 - (video.viewCount - stats.minViews) / viewRangeLinear;
+                    sizeRatio = (video.viewCount - stats.minViews) / (stats.maxViews - stats.minViews);
                     break;
                 case 'log':
                     const viewLog = Math.log(Math.max(1, video.viewCount));
-                    const minLog = Math.log(Math.max(1, localStats.minViews));
-                    const maxLog = Math.log(Math.max(1, localStats.maxViews));
+                    const minLog = Math.log(Math.max(1, stats.minViews));
+                    const maxLog = Math.log(Math.max(1, stats.maxViews));
                     yNorm = 1 - (viewLog - minLog) / viewRangeLog;
                     sizeRatio = (viewLog - minLog) / (maxLog - minLog);
                     break;
                 case 'sqrt':
                     const viewSqrt = Math.sqrt(video.viewCount);
-                    const minSqrt = Math.sqrt(localStats.minViews);
-                    const maxSqrt = Math.sqrt(localStats.maxViews);
+                    const minSqrt = Math.sqrt(stats.minViews);
+                    const maxSqrt = Math.sqrt(stats.maxViews);
                     yNorm = 1 - (viewSqrt - minSqrt) / viewRangeSqrt;
                     sizeRatio = (viewSqrt - minSqrt) / (maxSqrt - minSqrt);
                     break;
@@ -508,12 +530,41 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
         });
     }, [videos.length, setTimelineConfig, worldWidth, minScale, syncToDom]);
 
-    // Auto-fit on load
+    // Track whether we've done initial setup
+    const hasInitializedRef = useRef(false);
+    // Track previous viewport size for resize detection
+    const prevViewportSizeRef = useRef({ width: 0, height: 0 });
+
+    // Auto-fit on initial mount (only if not in custom view from store)
     useEffect(() => {
+        if (hasInitializedRef.current) return;
+        if (videos.length === 0 || viewportSize.width === 0) return;
+
+        hasInitializedRef.current = true;
+        prevViewportSizeRef.current = viewportSize;
+
+        // Only auto-fit if user wasn't in a custom view
         if (!isCustomView) {
             handleAutoFit();
         }
-    }, [handleAutoFit, isCustomView]);
+    }, [handleAutoFit, isCustomView, videos.length, viewportSize]);
+
+    // Auto-fit on viewport resize (sidebar toggle) - ALWAYS fit to fill viewport
+    useEffect(() => {
+        if (!hasInitializedRef.current) return;
+
+        const prevSize = prevViewportSizeRef.current;
+        const hasResized = prevSize.width > 0 &&
+            (Math.abs(prevSize.width - viewportSize.width) > 10 ||
+                Math.abs(prevSize.height - viewportSize.height) > 10);
+
+        if (hasResized) {
+            // Always auto-fit on resize to fill the new viewport
+            handleAutoFit();
+        }
+
+        prevViewportSizeRef.current = viewportSize;
+    }, [viewportSize, handleAutoFit]);
 
     // Keyboard shortcuts
     useEffect(() => {

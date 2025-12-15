@@ -57,7 +57,8 @@ export const useUIStore = create<UIState>()(
         {
             name: 'ui-storage',
             partialize: (state) => ({
-                videoViewModes: state.videoViewModes
+                videoViewModes: state.videoViewModes,
+                isSidebarExpanded: state.isSidebarExpanded
             })
         }
     )
