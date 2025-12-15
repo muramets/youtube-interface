@@ -7,6 +7,7 @@ import { TimelineBackground } from './TimelineBackground';
 import { TimelineVideoLayer, type TimelineVideoLayerHandle } from './TimelineVideoLayer';
 import { ZoomIndicator } from './ZoomIndicator';
 import type { MonthRegion, YearMarker, TrendVideo } from '../../../types/trends';
+import { TimelineSkeleton } from './TimelineSkeleton';
 
 // Performance logging flag (set to true to enable console logging)
 const PERF_LOGGING = true; // Enabled for debugging
@@ -19,6 +20,7 @@ interface Transform {
 
 interface TimelineCanvasProps {
     videos: TrendVideo[];
+    isLoading?: boolean;
 }
 
 // Constants for "world" coordinate system
@@ -43,7 +45,7 @@ const PADDING = 40;
 // Amplifier constants and helpers -> REMOVED
 
 
-export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
+export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoading = false }) => {
     const { timelineConfig, setTimelineConfig, setAddChannelModalOpen } = useTrendStore();
     const { scalingMode, layoutMode, isCustomView, zoomLevel, offsetX, offsetY, amplifierLevel } = timelineConfig;
 
@@ -697,11 +699,15 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
             {/* Subtle Vertical Gradient Overlay */}
             <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-text-primary/[0.02] to-transparent" />
 
-            <TimelineBackground
-                monthRegions={monthRegions}
-                transform={transformState} // Will fix interface in component
-                worldWidth={worldWidth}
-            />
+            {isLoading ? (
+                <TimelineSkeleton />
+            ) : (
+                <TimelineBackground
+                    monthRegions={monthRegions}
+                    transform={transformState}
+                    worldWidth={worldWidth}
+                />
+            )}
 
             <TimelineVideoLayer
                 ref={videoLayerRef}
@@ -711,6 +717,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                 worldHeight={dynamicWorldHeight}
                 style={{
                     // No counter-scaling needed for true 2D zoom
+                    opacity: isLoading ? 0 : 1, // Hide actual layer while loading
+                    transition: 'opacity 0.3s ease'
                 } as React.CSSProperties}
                 getPercentileGroup={getPercentileGroup}
                 amplifierLevel={amplifierLevel}
@@ -728,6 +736,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                     }
                 }}
                 setAddChannelModalOpen={setAddChannelModalOpen}
+                isLoading={isLoading}
             />
 
             <ZoomIndicator
@@ -737,9 +746,11 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                 amplifierLevel={amplifierLevel}
                 onAmplifierChange={(level) => setTimelineConfig({ amplifierLevel: level })}
                 onZoomChange={(newScale) => {
+                    if (isLoading) return; // Prevent zoom during load
                     if (!containerRef.current) return;
+                    // ... existing zoom logic ...
                     const { width, height } = containerSizeRef.current;
-
+                    // ...
                     // Find the largest video for zoom targeting
                     if (videoPositions.length > 0) {
                         const largestVideo = videos.reduce((max, v) =>
@@ -751,30 +762,39 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                             const videoWorldX = largestPos.xNorm * worldWidth;
                             const videoWorldY = largestPos.yNorm * dynamicWorldHeight;
 
-                            // Target offset: centers the largest video in viewport
-                            const targetOffsetX = (width / 2) - (videoWorldX * newScale);
-                            const targetOffsetY = (height / 2) - (videoWorldY * newScale);
-
                             // Interpolation factor: 0 at minScale, 1 at maxScale (1.0)
                             const zoomRange = 1.0 - minScale;
                             const t = zoomRange > 0 ? (newScale - minScale) / zoomRange : 0;
 
-                            // Interpolate offset based on zoom level
-                            // As zoom increases, we smoothly move towards the largest video
-                            // Current offset at this scale (keeping proportional position)
-                            const currentScaleRatio = newScale / transformState.scale;
-                            const scaledCurrentOffsetX = transformState.offsetX * currentScaleRatio + (width / 2) * (1 - currentScaleRatio);
-                            const scaledCurrentOffsetY = transformState.offsetY * currentScaleRatio + (height / 2) * (1 - currentScaleRatio);
+                            // === Fixed endpoint positions ===
 
-                            // Blend between scaled current position and target position
-                            // More t = more towards target (largest video)
-                            const blendedOffsetX = scaledCurrentOffsetX + (targetOffsetX - scaledCurrentOffsetX) * t;
-                            const blendedOffsetY = scaledCurrentOffsetY + (targetOffsetY - scaledCurrentOffsetY) * t;
+                            // Position at 0% (fit): centered auto-fit
+                            const fitContentWidth = worldWidth * minScale;
+                            const fitContentHeight = dynamicWorldHeight * minScale;
+                            const fitOffsetX = (width - fitContentWidth) / 2;
+                            const fitOffsetY = HEADER_HEIGHT + ((height - HEADER_HEIGHT) - fitContentHeight) / 2;
+
+                            // Scale fit position to current zoom level
+                            // We need to figure out where the CENTER of viewport maps at fit, then keep that center stable
+                            const fitCenterWorldX = (width / 2 - fitOffsetX) / minScale;
+                            const fitCenterWorldY = (height / 2 - fitOffsetY) / minScale;
+
+                            // Position at 100%: centered on largest video
+                            const targetCenterWorldX = videoWorldX;
+                            const targetCenterWorldY = videoWorldY;
+
+                            // Interpolate the world-space center point
+                            const currentCenterWorldX = fitCenterWorldX + (targetCenterWorldX - fitCenterWorldX) * t;
+                            const currentCenterWorldY = fitCenterWorldY + (targetCenterWorldY - fitCenterWorldY) * t;
+
+                            // Convert interpolated world center back to offset at current scale
+                            const interpolatedOffsetX = (width / 2) - (currentCenterWorldX * newScale);
+                            const interpolatedOffsetY = (height / 2) - (currentCenterWorldY * newScale);
 
                             const clamped = clampTransform({
                                 scale: newScale,
-                                offsetX: blendedOffsetX,
-                                offsetY: blendedOffsetY
+                                offsetX: interpolatedOffsetX,
+                                offsetY: interpolatedOffsetY
                             }, width, height);
 
                             transformRef.current = clamped;
@@ -792,6 +812,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                     transformRef.current = clamped;
                     syncToDom();
                 }}
+                isLoading={isLoading}
             />
 
             {/* DEBUG OVERLAY */}

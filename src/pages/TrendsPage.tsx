@@ -9,6 +9,7 @@ export const TrendsPage: React.FC = () => {
     const { channels, selectedChannelId, timelineConfig, setTimelineConfig } = useTrendStore();
     const activeChannel = selectedChannelId ? channels.find(c => c.id === selectedChannelId) : null;
     const [videos, setVideos] = useState<TrendVideo[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
     // Computed visible channels (lifted from TimelineCanvas)
     const visibleChannels = useMemo(() => {
@@ -21,7 +22,13 @@ export const TrendsPage: React.FC = () => {
     // Load videos (lifted from TimelineCanvas)
     useEffect(() => {
         const loadVideos = async () => {
+            setIsLoading(true);
             const allVideos: TrendVideo[] = [];
+            // Artificial delay for better UX (prevent flicker) + ensures skeleton shows
+            // Only if we actually have channels to load
+            const minLoadTime = visibleChannels.length > 0 ? 500 : 0;
+            const startStr = Date.now();
+
             for (const channel of visibleChannels) {
                 const channelVideos = await TrendService.getChannelVideosFromCache(channel.id);
                 allVideos.push(...channelVideos.map(v => ({
@@ -30,7 +37,14 @@ export const TrendsPage: React.FC = () => {
                 })));
             }
             allVideos.sort((a, b) => a.publishedAtTimestamp - b.publishedAtTimestamp);
+
+            const elapsed = Date.now() - startStr;
+            if (elapsed < minLoadTime) {
+                await new Promise(resolve => setTimeout(resolve, minLoadTime - elapsed));
+            }
+
             setVideos(allVideos);
+            setIsLoading(false);
         };
         loadVideos();
     }, [visibleChannels]);
@@ -50,6 +64,7 @@ export const TrendsPage: React.FC = () => {
             <TimelineCanvas
                 key={selectedChannelId || 'global'}
                 videos={videos}
+                isLoading={isLoading || channels.length === 0}
             />
         </div>
     );

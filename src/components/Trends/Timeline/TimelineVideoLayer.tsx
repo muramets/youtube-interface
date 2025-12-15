@@ -19,6 +19,7 @@ interface TimelineVideoLayerProps {
     getPercentileGroup: (videoId: string) => string | undefined;
     amplifierLevel?: number; // Optional prop for now
     style?: React.CSSProperties;
+    isLoading?: boolean;
 }
 
 export interface TimelineVideoLayerHandle {
@@ -61,8 +62,7 @@ const VideoDot = memo(({
     position,
     worldWidth,
     worldHeight,
-    percentileGroup,
-    amplifierLevel
+    percentileGroup
 }: {
     position: VideoPosition;
     worldWidth: number;
@@ -162,7 +162,8 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
     onHoverVideo,
     setAddChannelModalOpen,
     getPercentileGroup,
-    style
+    style,
+    isLoading = false
 }, ref) => {
     // Ref for imperative DOM updates
     const layerRef = useRef<HTMLDivElement>(null);
@@ -260,7 +261,7 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
                     willChange: 'transform'
                 }}
             >
-                {showThumbnails ? (
+                {!isLoading && (showThumbnails ? (
                     // Full quality thumbnails
                     visibleVideos.map((position) => (
                         <VideoItem
@@ -286,10 +287,10 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
                             percentileGroup={getPercentileGroup(position.video.id)}
                         />
                     ))
-                )}
+                ))}
             </div>
 
-            {videoPositions.length === 0 && (
+            {!isLoading && videoPositions.length === 0 && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="text-center pointer-events-auto">
                         <div className="text-text-secondary text-lg mb-2">No videos to display</div>
