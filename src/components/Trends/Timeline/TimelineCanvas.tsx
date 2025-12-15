@@ -29,6 +29,26 @@ const HEADER_HEIGHT = 48;
 const PADDING = 40;
 const WORLD_HEIGHT = 1000;
 
+// Amplifier constants and helpers
+const EXPANSION_STRENGTH = 3.8; // Calibrated so amp=3.0 fills visible area
+
+/**
+ * Calculate the expansion factor for Range Expansion based on amplifier level.
+ * At amp=1: factor=1 (no expansion)
+ * At amp=3: factor=8.6 (strong expansion)
+ */
+function getExpansionFactor(amp: number): number {
+    return 1 + (amp - 1) * EXPANSION_STRENGTH;
+}
+
+/**
+ * Apply Range Expansion to a Y coordinate.
+ * Pushes values away from center (0.5) based on expansion factor.
+ */
+function applyRangeExpansion(y: number, expansionFactor: number): number {
+    return (y - 0.5) * expansionFactor + 0.5;
+}
+
 export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
     const { timelineConfig, setTimelineConfig, setAddChannelModalOpen } = useTrendStore();
     const { scalingMode, layoutMode, isCustomView, zoomLevel, offsetX, offsetY, amplifierLevel } = timelineConfig;
@@ -289,17 +309,12 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
         const scaledWidth = worldWidth * t.scale;
 
         // Calculate effective Y bounds based on Range Expansion
-        // At amp=1: bounds are [0, 1] -> [0, 1000]
-        // At amp=3: expansionFactor=8.6, y=0->-3.3, y=1->4.3 in normalized coords
         const amp = amplifierLevel || 1.0;
-        const expansionStrength = 3.8;
-        const expansionFactor = 1 + (amp - 1) * expansionStrength;
+        const expansionFactor = getExpansionFactor(amp);
 
-        // Effective bounds in normalized coords: (y - 0.5) * factor + 0.5
-        // y=0: effectiveTop = (0 - 0.5) * factor + 0.5 = -0.5 * factor + 0.5
-        // y=1: effectiveBottom = (1 - 0.5) * factor + 0.5 = 0.5 * factor + 0.5
-        const effectiveTop = (-0.5 * expansionFactor + 0.5) * WORLD_HEIGHT;
-        const effectiveBottom = (0.5 * expansionFactor + 0.5) * WORLD_HEIGHT;
+        // Effective bounds using applyRangeExpansion for y=0 and y=1
+        const effectiveTop = applyRangeExpansion(0, expansionFactor) * WORLD_HEIGHT;
+        const effectiveBottom = applyRangeExpansion(1, expansionFactor) * WORLD_HEIGHT;
         const effectiveHeight = effectiveBottom - effectiveTop;
 
         const scaledHeight = effectiveHeight * t.scale;
@@ -375,9 +390,9 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                     sizeRatio = (viewSqrt - minSqrt) / (maxSqrt - minSqrt);
                     break;
                 case 'percentile':
-                    const rank = rankMap.get(video.id) ?? 0.5;
-                    yNorm = 1 - rank;
-                    sizeRatio = rank;
+                    const percentileRank = rankMap.get(video.id) ?? 0.5;
+                    yNorm = 1 - percentileRank;
+                    sizeRatio = percentileRank;
                     break;
                 default:
                     yNorm = 0.5;
@@ -386,19 +401,16 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
 
             // Apply Amplifier:
             // 1. Vertical Spread: Blend towards Uniform Rank Distribution
-            // The goal is to maximize vertical spread so videos use the full height.
             const amp = amplifierLevel || 1.0;
             const blendFactor = (amp - 1) / 2.0;
 
-            const rank = rankMap.get(video.id) ?? 0.5;
-            const rankY = 1 - rank;
+            const videoRank = rankMap.get(video.id) ?? 0.5;
+            const rankY = 1 - videoRank;
             const blendedY = yNorm * (1 - blendFactor) + rankY * blendFactor;
 
             // 2. Range Expansion: Push videos beyond [0, 1] bounds
-            // expansionStrength calibrated so that at amp=3.0 (300%), videos fill the visible area
-            const expansionStrength = 3.8;
-            const expansionFactor = 1 + (amp - 1) * expansionStrength;
-            const expandedY = (blendedY - 0.5) * expansionFactor + 0.5;
+            const expansionFactor = getExpansionFactor(amp);
+            const expandedY = applyRangeExpansion(blendedY, expansionFactor);
 
             const amplifiedMaxSize = BASE_THUMBNAIL_SIZE * amp;
             const baseSize = MIN_THUMBNAIL_SIZE + sizeRatio * (amplifiedMaxSize - MIN_THUMBNAIL_SIZE);
