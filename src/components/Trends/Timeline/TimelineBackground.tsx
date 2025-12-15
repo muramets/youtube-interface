@@ -60,11 +60,11 @@ export const TimelineBackground: React.FC<TimelineBackgroundProps> = ({
                                     return (
                                         <div
                                             key={`grid-${region.month}-${day}`}
-                                            className="absolute top-0 bottom-0 border-l border-black/5 dark:border-white/5"
+                                            className={`absolute top-0 bottom-0 border-l ${isWeek ? 'border-text-secondary/20' : 'border-text-secondary/10'}`}
                                             style={{
                                                 left: `${(dayIndex / region.daysInMonth) * 100}%`,
                                                 opacity: isWeek ? weekOpacity : dayOpacity,
-                                                borderColor: isWeek ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.05)'
+                                                // borderColor removed to allow class colors to work
                                             }}
                                         />
                                     );
