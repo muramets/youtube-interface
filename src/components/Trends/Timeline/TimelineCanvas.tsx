@@ -287,7 +287,22 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
         viewportHeight: number
     ): { scale: number; offsetX: number; offsetY: number } => {
         const scaledWidth = worldWidth * t.scale;
-        const scaledHeight = WORLD_HEIGHT * t.scale;
+
+        // Calculate effective Y bounds based on Range Expansion
+        // At amp=1: bounds are [0, 1] -> [0, 1000]
+        // At amp=3: expansionFactor=8.6, y=0->-3.3, y=1->4.3 in normalized coords
+        const amp = amplifierLevel || 1.0;
+        const expansionStrength = 3.8;
+        const expansionFactor = 1 + (amp - 1) * expansionStrength;
+
+        // Effective bounds in normalized coords: (y - 0.5) * factor + 0.5
+        // y=0: effectiveTop = (0 - 0.5) * factor + 0.5 = -0.5 * factor + 0.5
+        // y=1: effectiveBottom = (1 - 0.5) * factor + 0.5 = 0.5 * factor + 0.5
+        const effectiveTop = (-0.5 * expansionFactor + 0.5) * WORLD_HEIGHT;
+        const effectiveBottom = (0.5 * expansionFactor + 0.5) * WORLD_HEIGHT;
+        const effectiveHeight = effectiveBottom - effectiveTop;
+
+        const scaledHeight = effectiveHeight * t.scale;
         const viewportH = viewportHeight - HEADER_HEIGHT;
 
         // Visibility constraint
@@ -299,15 +314,16 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
         const maxOffsetX = viewportWidth - minVisibleX;
         const minOffsetX = minVisibleX - scaledWidth;
 
-        const maxOffsetY = viewportH - minVisibleY;
-        const minOffsetY = minVisibleY - scaledHeight;
+        // Y bounds need to account for the shifted origin (effectiveTop is negative at high amp)
+        const maxOffsetY = viewportH - minVisibleY - (effectiveTop * t.scale);
+        const minOffsetY = minVisibleY - (effectiveBottom * t.scale);
 
         return {
             scale: t.scale,
             offsetX: Math.max(minOffsetX, Math.min(maxOffsetX, t.offsetX)),
             offsetY: Math.max(minOffsetY, Math.min(maxOffsetY, t.offsetY))
         };
-    }, [worldWidth]);
+    }, [worldWidth, amplifierLevel]);
 
     // Calculate video positions
     const videoPositions = useMemo(() => {
