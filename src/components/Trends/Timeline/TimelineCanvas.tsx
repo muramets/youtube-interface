@@ -6,7 +6,6 @@ import { TimelineDateHeader } from './TimelineDateHeader';
 import { TimelineBackground } from './TimelineBackground';
 import { TimelineVideoLayer, type TimelineVideoLayerHandle } from './TimelineVideoLayer';
 import { ZoomIndicator } from './ZoomIndicator';
-import { AmplifierSlider } from './AmplifierSlider';
 import type { MonthRegion, YearMarker, TrendVideo } from '../../../types/trends';
 
 // Performance logging flag (set to true to enable console logging)
@@ -451,12 +450,18 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
             // We want yNorm=0 to place visually at top edge (radius)
             // We want yNorm=1 to place visually at bottom edge (H - radius)
 
+            // Squash Logic for Amplifier:
+            // amplifierLevel 1.0 = Normal spread
+            // amplifierLevel 0.0 = Squashed to center (single line)
+            const amp = amplifierLevel !== undefined ? amplifierLevel : 1.0;
+            const effectiveYNorm = 0.5 + (yNorm - 0.5) * amp;
+
             const baseSize = MIN_THUMBNAIL_SIZE + sizeRatio * (BASE_THUMBNAIL_SIZE - MIN_THUMBNAIL_SIZE);
             const radius = baseSize / 2;
 
             // Dynamic Radius Position
             // y = Radius + yNorm * (WorldHeight - Diameter)
-            const expandedY = radius + yNorm * (dynamicWorldHeight - baseSize);
+            const expandedY = radius + effectiveYNorm * (dynamicWorldHeight - baseSize);
 
             // Return normalized Y relative to dynamicWorldHeight
             return { video, xNorm, yNorm: expandedY / dynamicWorldHeight, baseSize };
@@ -725,11 +730,69 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos }) => {
                 setAddChannelModalOpen={setAddChannelModalOpen}
             />
 
-            <AmplifierSlider
+            <ZoomIndicator
+                scale={transformState.scale}
+                minScale={minScale}
+                onReset={handleAutoFit}
                 amplifierLevel={amplifierLevel}
-                onChange={(level) => setTimelineConfig({ amplifierLevel: level })}
+                onAmplifierChange={(level) => setTimelineConfig({ amplifierLevel: level })}
+                onZoomChange={(newScale) => {
+                    if (!containerRef.current) return;
+                    const { width, height } = containerSizeRef.current;
+
+                    // Find the largest video for zoom targeting
+                    if (videoPositions.length > 0) {
+                        const largestVideo = videos.reduce((max, v) =>
+                            v.viewCount > max.viewCount ? v : max, videos[0]);
+                        const largestPos = videoPositions.find(p => p.video.id === largestVideo.id);
+
+                        if (largestPos) {
+                            // Calculate world coordinates of the largest video
+                            const videoWorldX = largestPos.xNorm * worldWidth;
+                            const videoWorldY = largestPos.yNorm * dynamicWorldHeight;
+
+                            // Target offset: centers the largest video in viewport
+                            const targetOffsetX = (width / 2) - (videoWorldX * newScale);
+                            const targetOffsetY = (height / 2) - (videoWorldY * newScale);
+
+                            // Interpolation factor: 0 at minScale, 1 at maxScale (1.0)
+                            const zoomRange = 1.0 - minScale;
+                            const t = zoomRange > 0 ? (newScale - minScale) / zoomRange : 0;
+
+                            // Interpolate offset based on zoom level
+                            // As zoom increases, we smoothly move towards the largest video
+                            // Current offset at this scale (keeping proportional position)
+                            const currentScaleRatio = newScale / transformState.scale;
+                            const scaledCurrentOffsetX = transformState.offsetX * currentScaleRatio + (width / 2) * (1 - currentScaleRatio);
+                            const scaledCurrentOffsetY = transformState.offsetY * currentScaleRatio + (height / 2) * (1 - currentScaleRatio);
+
+                            // Blend between scaled current position and target position
+                            // More t = more towards target (largest video)
+                            const blendedOffsetX = scaledCurrentOffsetX + (targetOffsetX - scaledCurrentOffsetX) * t;
+                            const blendedOffsetY = scaledCurrentOffsetY + (targetOffsetY - scaledCurrentOffsetY) * t;
+
+                            const clamped = clampTransform({
+                                scale: newScale,
+                                offsetX: blendedOffsetX,
+                                offsetY: blendedOffsetY
+                            }, width, height);
+
+                            transformRef.current = clamped;
+                            syncToDom();
+                            return;
+                        }
+                    }
+
+                    // Fallback: Normal zoom behavior (no videos)
+                    const clamped = clampTransform({
+                        ...transformState,
+                        scale: newScale
+                    }, width, height);
+
+                    transformRef.current = clamped;
+                    syncToDom();
+                }}
             />
-            <ZoomIndicator scale={transformState.scale} onReset={handleAutoFit} />
 
             {/* DEBUG OVERLAY */}
             <div className="absolute bottom-4 left-4 bg-black/80 text-white font-mono text-xs p-2 rounded pointer-events-none z-50">

@@ -68,16 +68,11 @@ const VideoDot = memo(({
     worldWidth: number;
     worldHeight: number;
     percentileGroup: string | undefined;
-    amplifierLevel?: number;
 }) => {
     const { xNorm, yNorm } = position;
     const x = xNorm * worldWidth;
     const y = yNorm * worldHeight;
-    const { color, size: baseSize, weight } = getPercentileStyle(percentileGroup);
-
-    // Apply amplifier: Large dots grow, small dots stay roughly same
-    const amp = amplifierLevel || 1.0;
-    const finalSize = baseSize * (1 + weight * (amp - 1));
+    const { color, size: baseSize } = getPercentileStyle(percentileGroup);
 
     return (
         <div
@@ -85,8 +80,8 @@ const VideoDot = memo(({
             style={{
                 left: x,
                 top: y,
-                width: finalSize,
-                height: finalSize,
+                width: baseSize,
+                height: baseSize,
                 // No counter-scaling for true 2D zoom - items scale naturally
                 transform: `translate(-50%, -50%)`,
             }}
@@ -167,7 +162,6 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
     onHoverVideo,
     setAddChannelModalOpen,
     getPercentileGroup,
-    amplifierLevel,
     style
 }, ref) => {
     // Ref for imperative DOM updates
@@ -290,7 +284,6 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
                             worldWidth={worldWidth}
                             worldHeight={worldHeight}
                             percentileGroup={getPercentileGroup(position.video.id)}
-                            amplifierLevel={amplifierLevel}
                         />
                     ))
                 )}

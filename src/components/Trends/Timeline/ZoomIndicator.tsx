@@ -1,32 +1,249 @@
-import React from 'react';
-import { RotateCcw } from 'lucide-react';
+import React, { useState, useRef, useEffect, forwardRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { RotateCcw, Zap } from 'lucide-react';
 
 interface ZoomIndicatorProps {
     scale: number;
+    minScale: number;
     onReset: () => void;
+    amplifierLevel: number;
+    onAmplifierChange: (level: number) => void;
+    onZoomChange: (scale: number) => void;
 }
 
-export const ZoomIndicator: React.FC<ZoomIndicatorProps> = ({ scale, onReset }) => {
-    return (
-        <div className="absolute bottom-4 right-6 pointer-events-auto z-sticky flex flex-col items-end gap-2 group">
-            {/* Keyboard Hint (appears on hover) */}
-            <div className="flex items-center gap-2 text-[10px] text-text-tertiary opacity-0 group-hover:opacity-100 transition-all duration-300 ease-out translate-y-2 group-hover:translate-y-0 pointer-events-none">
-                <span className="px-1.5 py-0.5 bg-bg-secondary border border-border rounded text-text-secondary font-mono">z</span>
-                <span>reset</span>
-            </div>
+// Slider Popover component rendered via portal for proper backdrop-blur
+const SliderPopover = forwardRef<HTMLDivElement, {
+    isOpen: boolean;
+    anchorRef: React.RefObject<HTMLButtonElement | null>;
+    value: number;
+    label: string;
+    onChange: (value: number) => void;
+}>(({ isOpen, anchorRef, value, label, onChange }, ref) => {
+    const [position, setPosition] = useState({ x: 0, y: 0 });
 
-            {/* Zoom Control Pill */}
-            <div className="flex items-center bg-bg-secondary/90 backdrop-blur-md border border-border rounded-full px-1.5 py-1">
-                <span className="text-xs pl-2 pr-1 text-text-secondary font-mono text-right tabular-nums">
-                    {(scale * 100).toFixed(0)}%
-                </span>
+    useEffect(() => {
+        if (isOpen && anchorRef.current) {
+            const rect = anchorRef.current.getBoundingClientRect();
+            setPosition({
+                x: rect.left + rect.width / 2,
+                y: rect.top - 12 // 12px gap above the button
+            });
+        }
+    }, [isOpen, anchorRef]);
+
+    if (!isOpen) return null;
+
+    return createPortal(
+        <div
+            ref={ref}
+            className="fixed z-[1000] pointer-events-auto"
+            style={{
+                left: position.x,
+                top: position.y,
+                transform: 'translate(-50%, -100%)'
+            }}
+        >
+            <div className="bg-bg-secondary/90 backdrop-blur-md border border-border rounded-full p-2 flex flex-col items-center gap-2 shadow-xl animate-fade-in-up">
+                <span className="text-[10px] font-mono text-text-secondary w-8 text-center">{label}</span>
+                <div className="h-32 w-6 flex items-center justify-center relative">
+                    <div className="absolute w-1 h-full bg-border rounded-full pointer-events-none" />
+                    <div
+                        className="absolute w-1 bg-text-secondary rounded-full bottom-0 pointer-events-none transition-all duration-75"
+                        style={{ height: `${value}%` }}
+                    />
+                    <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        // @ts-ignore
+                        orient="vertical"
+                        value={value}
+                        onChange={(e) => onChange(parseInt(e.target.value))}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer appearance-none z-10"
+                        style={{ WebkitAppearance: 'slider-vertical' } as any}
+                    />
+                    <div
+                        className="absolute w-3 h-3 bg-white rounded-full shadow-md pointer-events-none transition-all duration-75"
+                        style={{ bottom: `calc(${value}% - 6px)` }}
+                    />
+                </div>
+            </div>
+        </div>,
+        document.body
+    );
+});
+
+export const ZoomIndicator: React.FC<ZoomIndicatorProps> = ({
+    scale,
+    minScale,
+    onReset,
+    amplifierLevel,
+    onAmplifierChange,
+    onZoomChange
+}) => {
+    const [isAmplifierOpen, setIsAmplifierOpen] = useState(false);
+    const [isDraggingZoom, setIsDraggingZoom] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const amplifierButtonRef = useRef<HTMLButtonElement>(null);
+    const amplifierSliderRef = useRef<HTMLDivElement>(null);
+    const dragStartRef = useRef<{ x: number; y: number; scale: number } | null>(null);
+
+    // Close amplifier slider when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as Node;
+            const isInsideContainer = containerRef.current?.contains(target);
+            const isInsideAmplifierSlider = amplifierSliderRef.current?.contains(target);
+
+            if (!isInsideContainer && !isInsideAmplifierSlider) {
+                setIsAmplifierOpen(false);
+            }
+        };
+
+        if (isAmplifierOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isAmplifierOpen]);
+
+    // -- Drag handling for Scale indicator --
+    const handleZoomDragStart = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        setIsDraggingZoom(true);
+        dragStartRef.current = { x: e.clientX, y: e.clientY, scale };
+    }, [scale]);
+
+    useEffect(() => {
+        if (!isDraggingZoom) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!dragStartRef.current) return;
+
+            const deltaX = e.clientX - dragStartRef.current.x;
+            const deltaY = -(e.clientY - dragStartRef.current.y); // Negative because up = increase
+
+            // Use combined delta (horizontal has more weight for natural feel)
+            const combinedDelta = deltaX + deltaY * 0.5;
+
+            // Sensitivity: 200px drag = full range from minScale to 1.0
+            const sensitivity = (1.0 - minScale) / 200;
+            const newScale = Math.max(minScale, Math.min(1.0, dragStartRef.current.scale + combinedDelta * sensitivity));
+
+            onZoomChange(newScale);
+        };
+
+        const handleMouseUp = () => {
+            setIsDraggingZoom(false);
+            dragStartRef.current = null;
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isDraggingZoom, minScale, onZoomChange]);
+
+    // -- LOGIC --
+    const ampPercentage = Math.round((amplifierLevel ?? 1.0) * 100);
+
+    // Normalized zoom percentage: minScale = 0%, 1.0 = 100%
+    const zoomRange = 1.0 - minScale;
+    const normalizedZoomPercent = zoomRange > 0
+        ? Math.round(((scale - minScale) / zoomRange) * 100)
+        : 100;
+
+    return (
+        <div
+            ref={containerRef}
+            className="absolute bottom-4 right-6 pointer-events-auto z-sticky group select-none"
+            onDragStart={(e) => e.preventDefault()} // Fix: Prevent "ghost" icon dragging
+        >
+            {/* Unified Control Pill */}
+            <div className="flex items-center bg-bg-secondary/90 backdrop-blur-md border border-border rounded-full px-1.5 py-1 shadow-lg relative">
+
+                {/* --- 1. Amplifier Toggle (Left) --- */}
+                <div className="relative flex justify-center group/amp">
+                    <button
+                        ref={amplifierButtonRef}
+                        onClick={() => {
+                            setIsAmplifierOpen(!isAmplifierOpen);
+                        }}
+                        className={`p-1.5 rounded-full transition-colors ${isAmplifierOpen ? 'bg-text-secondary text-bg-primary' : 'text-text-tertiary hover:bg-hover-bg hover:text-text-primary'}`}
+                    >
+                        <Zap size={14} className={isAmplifierOpen ? "fill-current" : ""} />
+                    </button>
+
+                    {/* Rich Tooltip for Amplifier - Aligned to Left of Pill (avoiding right clip) */}
+                    {!isAmplifierOpen && (
+                        <div className="absolute bottom-full right-0 mb-3 opacity-0 group-hover/amp:opacity-100 transition-opacity duration-200 pointer-events-none w-48 z-50">
+                            <div className="bg-black/90 backdrop-blur text-white text-[10px] p-2 rounded-lg shadow-xl border border-white/10 leading-relaxed text-left">
+                                vertical spread: separates high and low performing videos
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Amplifier Slider Popover - via Portal */}
+                <SliderPopover
+                    ref={amplifierSliderRef}
+                    isOpen={isAmplifierOpen}
+                    anchorRef={amplifierButtonRef}
+                    value={ampPercentage}
+                    label={`${ampPercentage}%`}
+                    onChange={(val) => {
+                        const level = val / 100;
+                        if (!isNaN(level)) onAmplifierChange(level);
+                    }}
+                />
+
+                {/* Divider */}
                 <div className="w-[1px] h-3 bg-border mx-1" />
-                <button
-                    onClick={onReset}
-                    className="p-1 hover:bg-hover-bg rounded-full text-text-tertiary hover:text-text-primary transition-colors"
-                >
-                    <RotateCcw size={12} />
-                </button>
+
+                {/* --- 2. Scale Display (Center) - Drag to change --- */}
+                <div className="relative flex justify-center group/zoom">
+                    <div
+                        onMouseDown={handleZoomDragStart}
+                        className={`text-xs px-2 font-mono tabular-nums min-w-[3.5rem] text-center transition-colors select-none ${isDraggingZoom
+                            ? 'text-text-primary cursor-ew-resize'
+                            : 'text-text-secondary hover:text-text-primary cursor-ew-resize'
+                            }`}
+                    >
+                        {normalizedZoomPercent}%
+                    </div>
+
+                    {/* Tooltip for Zoom - shows on hover when not dragging */}
+                    {!isDraggingZoom && (
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 opacity-0 group-hover/zoom:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
+                            <div className="bg-black/90 backdrop-blur text-white text-[10px] px-2 py-1 rounded shadow-xl border border-white/10">
+                                drag to zoom
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Divider */}
+                <div className="w-[1px] h-3 bg-border mx-1" />
+
+                {/* --- 3. Reset Button (Right) --- */}
+                <div className="relative flex justify-center group/reset">
+                    <button
+                        onClick={onReset}
+                        className="p-1.5 hover:bg-hover-bg rounded-full text-text-tertiary hover:text-text-primary transition-colors"
+                    >
+                        <RotateCcw size={14} />
+                    </button>
+                    {/* Tooltip for Reset - Aligned Right */}
+                    <div className="absolute bottom-full right-0 mb-3 opacity-0 group-hover/reset:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
+                        <div className="bg-black/90 backdrop-blur text-white text-[10px] px-2 py-1 rounded shadow-xl border border-white/10">
+                            reset scale
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );
