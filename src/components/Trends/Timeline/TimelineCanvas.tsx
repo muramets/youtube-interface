@@ -5,7 +5,7 @@ import { TimelineDateHeader } from './TimelineDateHeader';
 import { TimelineViewAxis } from './TimelineViewAxis';
 import { TimelineBackground } from './TimelineBackground';
 import { TimelineVideoLayer, type TimelineVideoLayerHandle } from './layers/TimelineVideoLayer';
-import { ZoomIndicator } from './ZoomIndicator';
+import { TimelineControls } from './TimelineControls';
 import { TimelineSkeleton } from './TimelineSkeleton';
 import type { TrendVideo } from '../../../types/trends';
 
@@ -194,13 +194,13 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
                 </>
             )}
 
-            <ZoomIndicator
+            <TimelineControls
                 scale={transformState.scale}
                 minScale={minScale}
-                verticalSpread={verticalSpread ?? 1.0}
-                timeLinearity={timeLinearity ?? 1.0}
                 onReset={handleAutoFit}
+                verticalSpread={verticalSpread ?? 1.0}
                 onSpreadChange={(level) => setTimelineConfig({ verticalSpread: level })}
+                timeLinearity={timeLinearity ?? 1.0}
                 onTimeLinearityChange={(level) => setTimelineConfig({ timeLinearity: level })}
                 onZoomChange={(newScale) => {
                     // Center zoom (simplified for now, ideally zooms to center of viewport)

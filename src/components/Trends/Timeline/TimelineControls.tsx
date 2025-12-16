@@ -3,7 +3,7 @@ import { RotateCcw, LayoutList } from 'lucide-react';
 import { SliderPopover } from '../Shared/SliderPopover';
 import { VerticalSpreadControl } from './VerticalSpreadControl';
 
-interface ZoomIndicatorProps {
+interface TimelineControlsProps {
     scale: number;
     minScale: number;
     onReset: () => void;
@@ -15,7 +15,7 @@ interface ZoomIndicatorProps {
     isLoading?: boolean;
 }
 
-export const ZoomIndicator: React.FC<ZoomIndicatorProps> = ({
+export const TimelineControls: React.FC<TimelineControlsProps> = ({
     scale,
     minScale,
     onReset,

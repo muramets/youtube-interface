@@ -129,7 +129,7 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
 
     return (
         <div className="relative group/spread">
-            {/* Main Pill Container - Matches ZoomIndicator style (vertical) */}
+            {/* Main Pill Container - Matches TimelineControls style (vertical) */}
             <div
                 ref={buttonRef}
                 onMouseDown={handleMouseDown}
