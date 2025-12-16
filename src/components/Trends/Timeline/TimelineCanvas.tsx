@@ -7,6 +7,7 @@ import { TimelineBackground } from './TimelineBackground';
 import { TimelineVideoLayer, type TimelineVideoLayerHandle } from './layers/TimelineVideoLayer';
 import { TimelineControls } from './TimelineControls';
 import { TimelineSkeleton } from './TimelineSkeleton';
+import { TimelineSelectionOverlay } from './TimelineSelectionOverlay';
 import type { TrendVideo } from '../../../types/trends';
 
 // Hooks
@@ -79,7 +80,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
     const isTooltipHoveredRef = useRef(false);
     const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    const { isPanning } = useTimelineInteraction({
+    const interaction = useTimelineInteraction({
         containerRef,
         videoLayerRef,
         transformRef,
@@ -96,6 +97,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
         headerHeight: HEADER_HEIGHT
     });
 
+    const { isPanning, selectionRect } = interaction;
+
 
 
     // Hotkey: 'Z' to Auto Fit
@@ -106,8 +109,12 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
     return (
         <div
             ref={containerRef}
-            className="w-full h-[calc(100vh-56px)] flex flex-col bg-bg-primary overflow-hidden relative"
+            className="w-full h-[calc(100vh-56px)] flex flex-col bg-bg-primary overflow-hidden relative select-none"
             style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
+            onMouseDown={interaction.handleMouseDown}
+            onMouseMove={interaction.handleMouseMove}
+            onMouseUp={interaction.handleMouseUp}
+            onMouseLeave={interaction.handleMouseUp}
         >
             {/* Subtle Vertical Gradient Overlay */}
             <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-text-primary/[0.02] to-transparent" />
@@ -198,6 +205,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
                     />
                 </>
             )}
+
+            <TimelineSelectionOverlay selectionRect={selectionRect} />
 
             <TimelineControls
                 scale={transformState.scale}

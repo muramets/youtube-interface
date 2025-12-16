@@ -42,6 +42,11 @@ export const useTimelineInteraction = ({
     const isPanningRef = useRef(false);
     const panStartRef = useRef({ x: 0, y: 0 });
 
+    // Selection State
+    const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+    const isSelectingRef = useRef(false);
+    const selectionStartRef = useRef({ x: 0, y: 0 });
+
     // Interpolation State
     const targetTransformRef = useRef({ ...transformRef.current });
     const rafRef = useRef<number | null>(null);
@@ -59,7 +64,7 @@ export const useTimelineInteraction = ({
         if (videoLayerRef.current) {
             videoLayerRef.current.updateTransform(transformRef.current);
         }
-        // React state update
+        // React state update (might be throttled by parent if needed, but here direct)
         setTransformState({ ...transformRef.current });
     }, [videoLayerRef, transformRef, setTransformState]);
 
@@ -136,7 +141,7 @@ export const useTimelineInteraction = ({
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
 
-            const ZOOM_SENSITIVITY = 0.03; // Adjusted to 3x base sensitivity
+            const ZOOM_SENSITIVITY = 0.03; // 3x sensitivity
             const delta = Math.max(-100, Math.min(100, e.deltaY));
 
             const currentTargetScale = targetTransformRef.current.scale; // Use TARGET for accumulation
@@ -178,15 +183,42 @@ export const useTimelineInteraction = ({
         // Sync target to where we actually are
         targetTransformRef.current = { ...transformRef.current };
 
+        // Prevent default to stop text selection or native drag
         if (e.button === 0) {
-            setIsPanning(true);
-            isPanningRef.current = true;
-            panStartRef.current = {
-                x: e.clientX - transformRef.current.offsetX,
-                y: e.clientY - transformRef.current.offsetY
-            };
+            // e.preventDefault(); // CAREFUL: This prevents focus?
+            // Usually fine for canvas.
         }
-    }, [transformRef, stopAnimation]);
+
+        if (e.button === 0) {
+            // Prevent text selection/native drag
+            // We use standard DOM event preventDefault if possible, but this is React event.
+            // e.preventDefault(); 
+            // Note: Preventing default on MouseDown prevents input focus blur usually, 
+            // but here we are on a div. It helps stop text selection significantly.
+
+            const container = containerRef.current;
+            if (!container) return;
+            const rect = container.getBoundingClientRect();
+            const localX = e.clientX - rect.left;
+            const localY = e.clientY - rect.top;
+
+            if (e.shiftKey) {
+                // START SELECTION
+                isSelectingRef.current = true;
+                selectionStartRef.current = { x: localX, y: localY };
+                // Hide tooltip during selection
+                if (onHoverVideo) onHoverVideo(false);
+            } else {
+                // START PANNING
+                setIsPanning(true);
+                isPanningRef.current = true;
+                panStartRef.current = {
+                    x: e.clientX - transformRef.current.offsetX,
+                    y: e.clientY - transformRef.current.offsetY
+                };
+            }
+        }
+    }, [transformRef, stopAnimation, containerRef, onHoverVideo]);
 
     const handleMouseMove = useCallback((e: React.MouseEvent) => {
         if (isPanningRef.current) {
@@ -205,14 +237,111 @@ export const useTimelineInteraction = ({
             // Sync target so releasing doesn't jump back to old target
             targetTransformRef.current = clamped;
             syncToDom();
-        }
-    }, [containerSizeRef, transformRef, clampTransform, syncToDom, onHoverVideo]);
+        } else if (isSelectingRef.current) {
+            const container = containerRef.current;
+            if (!container) return;
+            const rect = container.getBoundingClientRect();
+            const localX = e.clientX - rect.left;
+            const localY = e.clientY - rect.top;
 
-    const handleMouseUp = useCallback(() => {
-        setIsPanning(false);
-        isPanningRef.current = false;
-        // No momentum for drag release yet
-    }, []);
+            const startX = selectionStartRef.current.x;
+            const startY = selectionStartRef.current.y;
+
+            // Calculate positive width/height rect
+            const x = Math.min(startX, localX);
+            const y = Math.min(startY, localY);
+            const width = Math.abs(localX - startX);
+            const height = Math.abs(localY - startY);
+
+            setSelectionRect({ x, y, width, height });
+        }
+    }, [containerSizeRef, transformRef, clampTransform, syncToDom, onHoverVideo, containerRef]);
+
+    const handleMouseUp = useCallback((e?: React.MouseEvent) => {
+        // PAN END
+        if (isPanningRef.current) {
+            setIsPanning(false);
+            isPanningRef.current = false;
+        }
+
+        // SELECTION END -> ZOOM
+        if (isSelectingRef.current) {
+            isSelectingRef.current = false;
+            setSelectionRect(null); // Hide rect
+
+            const { width: viewportWidth, height: viewportHeight } = containerSizeRef.current;
+            if (viewportWidth === 0) return;
+
+            const container = containerRef.current;
+            if (!container) return;
+
+            // We need to calculate based on the FINAL MOUSE POSITION.
+            // If e is provided, use it. If not (global listener), we might need to rely on the last rect state?
+            // Actually, handleMouseUp IS usually attached to the container in this case, receiving the event.
+            // Assuming this is used as onMouseUp={handleMouseUp}
+
+            if (e) {
+                const rect = container.getBoundingClientRect();
+                const localX = e.clientX - rect.left;
+                const localY = e.clientY - rect.top;
+
+                const startX = selectionStartRef.current.x;
+                const startY = selectionStartRef.current.y;
+
+                const width = Math.abs(localX - startX);
+                const height = Math.abs(localY - startY);
+
+                // Ignore tiny accidental selections
+                if (width < 10 || height < 10) return;
+
+                // Center of Selection (Viewport Space)
+                const selectionCenterX = (startX + localX) / 2;
+                const selectionCenterY = (startY + localY) / 2;
+
+                // Calculate required scale to fit
+                const scaleX = viewportWidth / width;
+                const scaleY = viewportHeight / height;
+                // Use the smaller scale to ensure it fits entirely (contain)
+                let newScale = Math.min(scaleX, scaleY);
+                // Also multiply by current scale? NO.
+                // The selection was drawn on the screen. 
+                // We want that screen region to fill the screen.
+                // Screen -> Scale -> New Screen.
+                // If I select "half the screen", I want to zoom in 2x.
+                // So newScale = currentScale * (viewport / selection)
+                const zoomFactor = Math.min(scaleX, scaleY);
+
+                // Cap the zoom factor per step if desired, but here we want to direct fit.
+                // Apply constraints
+                let targetScale = transformRef.current.scale * zoomFactor;
+                targetScale = Math.max(minScale, Math.min(10, targetScale));
+
+                // Now, we want the Selection Center (currently at selectionCenterX/Y)
+                // to move to the Viewport Center (viewportWidth/2, viewportHeight/2).
+
+                // Convert Selection Center to World Space (using CURRENT transform)
+                const worldCenterX = (selectionCenterX - transformRef.current.offsetX) / transformRef.current.scale;
+                const worldCenterY = (selectionCenterY - transformRef.current.offsetY) / transformRef.current.scale;
+
+                // Calculate New Offset (using NEW target scale)
+                // ViewportCenter = WorldCenter * TargetScale + NewOffset
+                // NewOffset = ViewportCenter - WorldCenter * TargetScale
+                const newOffsetX = (viewportWidth / 2) - (worldCenterX * targetScale);
+                const newOffsetY = (viewportHeight / 2) - (worldCenterY * targetScale);
+
+                // Clamp final result
+                const clamped = clampTransform({
+                    scale: targetScale,
+                    offsetX: newOffsetX,
+                    offsetY: newOffsetY
+                }, viewportWidth, viewportHeight);
+
+                // Animate to it
+                targetTransformRef.current = clamped;
+                startAnimation();
+            }
+        }
+    }, [containerSizeRef, containerRef, transformRef, minScale, clampTransform, startAnimation]);
 
     // Events attachment
     useEffect(() => {
@@ -237,9 +366,10 @@ export const useTimelineInteraction = ({
 
     return {
         isPanning,
+        selectionRect,
         handleMouseDown,
         handleMouseMove,
         handleMouseUp,
-        syncToDom  // Expose sync for other imperative needs
+        syncToDom
     };
 };
