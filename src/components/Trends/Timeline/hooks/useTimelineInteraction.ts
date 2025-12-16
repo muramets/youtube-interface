@@ -130,13 +130,14 @@ export const useTimelineInteraction = ({
                 const idealCenterY = headerHeight + (availableHeight - contentHeight) / 2;
 
                 // Calculate progress (0.0 at threshold -> 1.0 at minScale)
-                // We use a non-linear ease (cubic) for a "magnetic" feel that gets stronger closer to the center.
                 const range = magneticThreshold - minScale;
                 const dist = magneticThreshold - newScale;
                 const rawProgress = Math.min(1, Math.max(0, dist / range));
 
-                // Cubic ease-out for smooth "landing"
-                const blend = 1 - Math.pow(1 - rawProgress, 3);
+                // SmoothStep interpolation (hermite)
+                // Start slope 0, End slope 0.
+                // Eliminates the "Jerk" at the threshold start (unlike EaseOut which has steep start).
+                const blend = rawProgress * rawProgress * (3 - 2 * rawProgress);
 
                 targetOffsetX = targetOffsetX + (idealCenterX - targetOffsetX) * blend;
                 targetOffsetY = targetOffsetY + (idealCenterY - targetOffsetY) * blend;
