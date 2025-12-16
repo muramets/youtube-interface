@@ -21,8 +21,8 @@ interface UseTimelineInteractionProps {
     headerHeight: number;
 }
 
-// Performance logging flag
-const PERF_LOGGING = true;
+
+
 
 export const useTimelineInteraction = ({
     containerRef,
@@ -42,12 +42,6 @@ export const useTimelineInteraction = ({
     const isPanningRef = useRef(false);
     const panStartRef = useRef({ x: 0, y: 0 });
 
-    // Performance refs
-    const perfFrameCountRef = useRef(0);
-    const perfLastTimeRef = useRef(performance.now());
-    const perfActiveRef = useRef(false);
-    const perfTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
     const syncToDom = useCallback(() => {
         // Imperative DOM update for video layer (bypasses React reconciliation)
         if (videoLayerRef.current) {
@@ -57,30 +51,7 @@ export const useTimelineInteraction = ({
         // React state update (might be throttled by parent if needed, but here direct)
         setTransformState({ ...transformRef.current });
 
-        // Performance logging
-        if (PERF_LOGGING) {
-            perfFrameCountRef.current++;
-            if (!perfActiveRef.current) {
-                perfActiveRef.current = true;
-                perfLastTimeRef.current = performance.now();
-                perfFrameCountRef.current = 1;
-            }
-            if (perfTimeoutRef.current) clearTimeout(perfTimeoutRef.current);
 
-            const now = performance.now();
-            const elapsed = now - perfLastTimeRef.current;
-            if (elapsed >= 1000) {
-                const fps = Math.round(perfFrameCountRef.current * 1000 / elapsed);
-                console.log(`📊 FPS: ${fps} (${perfFrameCountRef.current} frames in ${elapsed.toFixed(0)}ms)`);
-                perfFrameCountRef.current = 0;
-                perfLastTimeRef.current = now;
-            }
-
-            perfTimeoutRef.current = setTimeout(() => {
-                perfActiveRef.current = false;
-                perfFrameCountRef.current = 0;
-            }, 500);
-        }
     }, [videoLayerRef, transformRef, setTransformState]);
 
     // Wheel Handler

@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react';
 import type { TrendVideo, MonthRegion, YearMarker } from '../../../../types/trends';
 
 // Constants
-// Constants
+
 const BASE_THUMBNAIL_SIZE = 200;
 const MIN_THUMBNAIL_SIZE = 40;
 
