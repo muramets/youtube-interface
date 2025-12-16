@@ -22,6 +22,9 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
     // Ensure strictly clamped value for display to prevent artifacts
     const safeValue = Math.max(0, Math.min(1, value));
 
+    // DEBUG: Trace value anomalies
+    console.log('[VerticalSpread] Render:', { raw: value, safe: safeValue, isNaN: Number.isNaN(value) });
+
     // Format value for display (e.g. 100%)
     const displayValue = Math.round(safeValue * 100) + '%';
 
