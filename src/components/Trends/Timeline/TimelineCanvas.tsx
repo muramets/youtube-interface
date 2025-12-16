@@ -254,6 +254,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
                     // If so, we DON'T want to anchor to a time, we want to stay fitted (Autofit).
                     const isRoughlyFitted = Math.abs(currentScale - minScale) < 0.0001 || (Math.abs(currentScale - minScale) / minScale) < 0.01;
 
+
+
                     if (!isRoughlyFitted) {
                         // 2. Find World X at Viewport Center
                         const centerX = viewportWidth / 2;

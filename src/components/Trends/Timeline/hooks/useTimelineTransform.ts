@@ -360,6 +360,26 @@ export const useTimelineTransform = ({
         }
 
         if (wChanged || hChanged) {
+            // Priority 0: Auto-Fit Maintenance
+            // If we were fitted to the PREVIOUS width, we should snap to the NEW width (Auto-Fit)
+            // unless we specifically requested an anchor (handled above).
+
+            const prevFitScale = (viewportSize.width - padding * 2) / Math.max(1, pWidth);
+            // Relaxed tolerance for "roughly fitted"
+            const scaleDiff = Math.abs(transformState.scale - prevFitScale);
+            const isRoughlyFitted = scaleDiff < 0.001 || (scaleDiff / prevFitScale) < 0.05;
+
+            // Check if we effectively had a "Fit" state
+            // Note: isCustomView might be true if we dragged, but if we snapped back to fit, we treat it as fit.
+            if (isRoughlyFitted && wChanged) {
+                handleAutoFit();
+                // Update refs since we handled the change
+                prevWorldWidthRef.current = cWidth;
+                prevWorldHeightRef.current = cHeight;
+                return;
+            }
+
+            // Priority 1: Initialization / Placeholder Transition
             // Check for initialization case (loading -> loaded) OR (placeholder -> placeholder resize)
             // If previous width was small (placeholder), we assume we rely on the ABSOLUTE persisted offset.
             // We should NOT scale the offset based on the ratio of placeholder dimensions.
@@ -399,7 +419,7 @@ export const useTimelineTransform = ({
             });
         }
 
-    }, [worldWidth, dynamicWorldHeight, videosLength, viewportSize, headerHeight, isCustomView, handleAutoFit, transformState, setTransformState, monthLayouts, stats]); // Dependencies
+    }, [worldWidth, dynamicWorldHeight, videosLength, viewportSize, headerHeight, isCustomView, handleAutoFit, transformState, setTransformState, monthLayouts, stats, padding]); // Dependencies
 
     // Track latest store config in ref to avoid effect dependency loops
     const latestConfigRef = useRef({ zoomLevel, offsetX, offsetY });
