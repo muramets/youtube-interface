@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Loader2 } from 'lucide-react';
-import { TrendService } from '../../services/trendService';
-import { useAuth } from '../../hooks/useAuth';
-import { useSettings } from '../../hooks/useSettings';
-import { useChannelStore } from '../../stores/channelStore';
-import { useUIStore } from '../../stores/uiStore';
-import { useNotificationStore } from '../../stores/notificationStore';
+import { TrendService } from '../../../services/trendService';
+import { useAuth } from '../../../hooks/useAuth';
+import { useSettings } from '../../../hooks/useSettings';
+import { useChannelStore } from '../../../stores/channelStore';
+import { useUIStore } from '../../../stores/uiStore';
+import { useNotificationStore } from '../../../stores/notificationStore';
 
 interface AddChannelModalProps {
     isOpen: boolean;

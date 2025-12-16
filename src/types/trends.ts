@@ -53,6 +53,7 @@ export interface TimelineConfig {
     scalingMode: 'linear' | 'log' | 'sqrt' | 'percentile'; // Scaling algorithm for video sizes
     amplifierLevel: number; // 1.0-3.0, controls vertical spread and size difference (replaces contrastLevel)
     timeLinearity: number; // 0.0-1.0, 0 = Linear (time-based), 1 = Compact (count-based)
+    layoutMode?: 'compact' | 'spacious'; // Optional view preference
 }
 
 export interface MonthRegion {

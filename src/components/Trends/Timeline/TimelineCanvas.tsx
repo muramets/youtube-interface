@@ -13,6 +13,7 @@ import type { TrendVideo } from '../../../types/trends';
 import { useTimelineStructure, useTimelinePositions } from './hooks/useTimelineData';
 import { useTimelineTransform } from './hooks/useTimelineTransform';
 import { useTimelineInteraction } from './hooks/useTimelineInteraction';
+import { useTimelineHotkeys } from './hooks/useTimelineHotkeys';
 
 // Constants
 const HEADER_HEIGHT = 48;
@@ -88,26 +89,10 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
         }
     });
 
-    // Hotkey: 'Z' to Auto Fit
-    // Use a ref to avoid re-binding the event listener when handleAutoFit changes
-    const handleAutoFitRef = useRef(handleAutoFit);
-    useEffect(() => {
-        handleAutoFitRef.current = handleAutoFit;
-    }, [handleAutoFit]);
 
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-            const key = e.key.toLowerCase();
-            if (key === 'z' || key === 'я') {
-                console.log('Z key detected');
-                e.preventDefault();
-                handleAutoFitRef.current();
-            }
-        };
-        document.addEventListener('keydown', handleKeyDown);
-        return () => document.removeEventListener('keydown', handleKeyDown);
-    }, []);
+
+    // Hotkey: 'Z' to Auto Fit
+    useTimelineHotkeys({ onAutoFit: handleAutoFit });
 
     // Safety: Auto-clamp scale if world shrinks (e.g. switching to Linear mode)
     useEffect(() => {

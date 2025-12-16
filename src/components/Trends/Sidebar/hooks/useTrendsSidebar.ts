@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useTrendStore } from '../../../stores/trendStore';
-import { TrendService } from '../../../services/trendService';
-import { useAuth } from '../../../hooks/useAuth';
-import { useChannelStore } from '../../../stores/channelStore';
-import { useSettings } from '../../../hooks/useSettings';
-import { useUIStore } from '../../../stores/uiStore';
-import { useNotificationStore } from '../../../stores/notificationStore';
-import type { TrendChannel } from '../../../types/trends';
+import { useTrendStore } from '../../../../stores/trendStore';
+import { TrendService } from '../../../../services/trendService';
+import { useAuth } from '../../../../hooks/useAuth';
+import { useChannelStore } from '../../../../stores/channelStore';
+import { useSettings } from '../../../../hooks/useSettings';
+import { useUIStore } from '../../../../stores/uiStore';
+import { useNotificationStore } from '../../../../stores/notificationStore';
+import type { TrendChannel } from '../../../../types/trends';
 
 interface MenuState {
     anchorEl: HTMLElement | null;

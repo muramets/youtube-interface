@@ -7,12 +7,7 @@ const BASE_THUMBNAIL_SIZE = 200;
 const MIN_THUMBNAIL_SIZE = 40;
 
 
-interface UseTimelineDataProps {
-    videos: TrendVideo[];
-    scalingMode: 'linear' | 'log' | 'sqrt' | 'percentile';
-    amplifierLevel?: number;
-    dynamicWorldHeight: number;
-}
+
 
 export interface VideoPosition {
     video: TrendVideo;

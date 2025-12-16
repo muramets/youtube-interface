@@ -1,9 +1,11 @@
 import React from 'react';
-import { Plus, Eye, EyeOff, TrendingUp, MoreVertical, Trash2, RefreshCw } from 'lucide-react';
-import { SidebarDivider } from '../Layout/Sidebar';
-import { Dropdown } from '../Shared/Dropdown';
-import { ConfirmationModal } from '../Shared/ConfirmationModal';
+import { Plus, TrendingUp, Trash2, RefreshCw } from 'lucide-react';
+import { TrendsChannelItem } from './TrendsChannelItem';
+import { SidebarDivider } from '../../Layout/Sidebar';
+import { Dropdown } from '../../Shared/Dropdown';
+import { ConfirmationModal } from '../../Shared/ConfirmationModal';
 import { useTrendsSidebar } from './hooks/useTrendsSidebar';
+import type { TrendChannel } from '../../../types/trends';
 
 export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded }) => {
     const {
@@ -74,54 +76,16 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                             </div>
                         ) : (
                             <ul className="space-y-0.5">
-                                {channels.map(channel => {
-                                    const isActive = isOnTrendsPage && selectedChannelId === channel.id;
-
-                                    return (
-                                        <li
-                                            key={channel.id}
-                                            onClick={() => handleChannelClick(channel.id)}
-                                            className={`flex items-center group cursor-pointer p-2 rounded-lg transition-all duration-200 ${isActive
-                                                ? 'bg-white/10'
-                                                : 'hover:bg-white/5'
-                                                }`}
-                                        >
-                                            <img
-                                                src={channel.avatarUrl}
-                                                alt={channel.title}
-                                                referrerPolicy="no-referrer"
-                                                className={`w-6 h-6 rounded-full mr-3 ring-2 transition-all ${!channel.isVisible ? 'grayscale opacity-50' : ''
-                                                    } ${isActive ? 'ring-white/30' : 'ring-transparent'}`}
-                                            />
-                                            <span className={`text-sm truncate flex-1 transition-colors ${isActive ? 'text-text-primary font-medium' : 'text-text-secondary'
-                                                }`}>
-                                                {channel.title}
-                                            </span>
-                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button
-                                                    onClick={(e) => handleToggleVisibility(e, channel.id, channel.isVisible)}
-                                                    className={`p-1 rounded-full transition-all ${channel.isVisible
-                                                        ? 'text-text-secondary hover:bg-white/10'
-                                                        : 'text-text-tertiary opacity-100' // Force opacity for consistency if hidden
-                                                        }`}
-                                                    title={channel.isVisible ? "Hide channel" : "Show channel"}
-                                                >
-                                                    {channel.isVisible ? <Eye size={14} /> : <EyeOff size={14} />}
-                                                </button>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setMenuState({ anchorEl: e.currentTarget, channelId: channel.id });
-                                                    }}
-                                                    className="p-1 text-text-secondary hover:text-white hover:bg-white/10 rounded-full transition-colors"
-                                                    title="More options"
-                                                >
-                                                    <MoreVertical size={14} />
-                                                </button>
-                                            </div>
-                                        </li>
-                                    );
-                                })}
+                                {channels.map((channel: TrendChannel) => (
+                                    <TrendsChannelItem
+                                        key={channel.id}
+                                        channel={channel}
+                                        isActive={isOnTrendsPage && selectedChannelId === channel.id}
+                                        onChannelClick={handleChannelClick}
+                                        onToggleVisibility={handleToggleVisibility}
+                                        onOpenMenu={(e, channelId) => setMenuState({ anchorEl: e.currentTarget as HTMLElement, channelId })}
+                                    />
+                                ))}
                             </ul>
                         )}
                     </div>
@@ -142,7 +106,7 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                             </button>
                             <button
                                 onClick={() => {
-                                    const channel = channels.find(c => c.id === menuState.channelId);
+                                    const channel = channels.find((c: TrendChannel) => c.id === menuState.channelId);
                                     if (channel) setChannelToDelete(channel);
                                     setMenuState({ anchorEl: null, channelId: null });
                                 }}
