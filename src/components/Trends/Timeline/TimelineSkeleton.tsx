@@ -18,7 +18,7 @@ export const TimelineSkeleton: React.FC = () => {
                     {Array(monthCount).fill(0).map((_, i) => (
                         <div
                             key={i}
-                            className={`flex-1 border-l border-black/5 dark:border-white/5 ${i % 2 === 0 ? 'bg-black/5 dark:bg-white/5' : 'bg-transparent'}`}
+                            className={`flex-1 ${i % 2 === 0 ? 'bg-black/5 dark:bg-white/5' : 'bg-transparent'}`}
                         />
                     ))}
                 </div>
@@ -61,8 +61,12 @@ export const TimelineSkeleton: React.FC = () => {
                 {Array(monthCount).fill(0).map((_, i) => (
                     <div
                         key={i}
-                        className={`flex-1 border-l border-black/5 dark:border-white/5 ${i % 2 === 0 ? 'bg-black/5 dark:bg-white/5' : 'bg-transparent'}`}
-                    />
+                        className={`flex-1 relative overflow-hidden ${i % 2 === 0 ? 'bg-black/5 dark:bg-white/5' : 'bg-transparent'}`}
+                    >
+                        {i % 2 === 0 && (
+                            <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/5 to-transparent" style={{ backgroundSize: '200% 100%' }} />
+                        )}
+                    </div>
                 ))}
             </div>
         </div>

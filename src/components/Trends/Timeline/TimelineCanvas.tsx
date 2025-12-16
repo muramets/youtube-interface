@@ -135,6 +135,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
                 } as React.CSSProperties}
                 getPercentileGroup={getPercentileGroup}
                 setAddChannelModalOpen={setAddChannelModalOpen}
+                isLoading={isLoading}
                 onHoverVideo={(data) => {
                     if (data) {
                         if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
