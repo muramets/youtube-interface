@@ -92,3 +92,10 @@ export interface TimelineStats {
     minViews: number;
     maxViews: number;
 }
+
+export interface VideoPosition {
+    video: TrendVideo;
+    xNorm: number;
+    yNorm: number;
+    baseSize: number;
+}

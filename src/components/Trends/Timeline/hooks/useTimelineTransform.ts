@@ -236,11 +236,15 @@ export const useTimelineTransform = ({
     // (This block keeps the relative positioning on data/viewport changes)
     const prevWorldWidthRef = useRef(worldWidth);
     const prevWorldHeightRef = useRef(dynamicWorldHeight);
-    const pendingAnchorTimeRef = useRef<number | null>(null);
+    const pendingAnchorRef = useRef<{ time: number; yNorm?: number; screenX?: number; screenY?: number } | null>(null);
 
     // Provide a way to queue a time-anchor (e.g. from hotkeys or external actions)
-    const anchorToTime = useCallback((time: number) => {
-        pendingAnchorTimeRef.current = time;
+    const anchorToTime = useCallback((timeOrObj: number | { time: number; yNorm?: number; screenX?: number; screenY?: number }) => {
+        if (typeof timeOrObj === 'number') {
+            pendingAnchorRef.current = { time: timeOrObj };
+        } else {
+            pendingAnchorRef.current = timeOrObj;
+        }
     }, []);
 
     // 4. Render-Phase Anchoring (Synchronous)
@@ -257,8 +261,7 @@ export const useTimelineTransform = ({
     let activeTransform = transformState;
 
     // Only apply correction if we have a pending anchor request
-    // Only apply correction if we have a pending anchor request
-    if (pendingAnchorTimeRef.current !== null && (widthChanged || heightChanged)) {
+    if (pendingAnchorRef.current !== null && (widthChanged || heightChanged)) {
         activeTransform = calculatePreservedTransform({
             currentTransform: transformState,
             viewportSize,
@@ -270,7 +273,10 @@ export const useTimelineTransform = ({
                 currHeight: currentHeight
             },
             anchor: {
-                time: pendingAnchorTimeRef.current,
+                time: pendingAnchorRef.current.time,
+                yNorm: pendingAnchorRef.current.yNorm,
+                screenX: pendingAnchorRef.current.screenX,
+                screenY: pendingAnchorRef.current.screenY,
                 monthLayouts,
                 stats
             }
@@ -296,7 +302,7 @@ export const useTimelineTransform = ({
         if (hChanged) prevWorldHeightRef.current = cHeight;
 
         // 1. Commit Synchronous Anchor
-        if (pendingAnchorTimeRef.current !== null) {
+        if (pendingAnchorRef.current !== null) {
             const newTransform = calculatePreservedTransform({
                 currentTransform: transformState,
                 viewportSize,
@@ -308,14 +314,17 @@ export const useTimelineTransform = ({
                     currHeight: cHeight
                 },
                 anchor: {
-                    time: pendingAnchorTimeRef.current,
+                    time: pendingAnchorRef.current.time,
+                    yNorm: pendingAnchorRef.current.yNorm,
+                    screenX: pendingAnchorRef.current.screenX,
+                    screenY: pendingAnchorRef.current.screenY,
                     monthLayouts,
                     stats
                 }
             });
 
             setTransformState(newTransform);
-            pendingAnchorTimeRef.current = null;
+            pendingAnchorRef.current = null;
             return;
         }
 

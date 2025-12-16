@@ -15,7 +15,7 @@ import { useTimelineStructure, useTimelinePositions } from './hooks/useTimelineD
 import { useTimelineTransform } from './hooks/useTimelineTransform';
 import { useTimelineInteraction } from './hooks/useTimelineInteraction';
 import { useTimelineHotkeys } from './hooks/useTimelineHotkeys';
-import { getTimeAtWorldX } from './utils/timelineMath';
+import { getTimeAtWorldX, findSmartAnchorTime } from './utils/timelineMath';
 
 // Constants
 const HEADER_HEIGHT = 48;
@@ -305,15 +305,27 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
 
 
                     if (!isRoughlyFitted) {
-                        // 2. Find World X at Viewport Center
-                        const centerX = viewportWidth / 2;
-                        const worldX = (centerX - transformState.offsetX) / currentScale;
-                        // Normalize (0-1)
-                        const normX = worldX / worldWidth;
+                        // 2. Try Smart Anchoring (Focus on best video)
+                        const smartAnchorTime = findSmartAnchorTime({
+                            videoPositions,
+                            currentTransform: transformState,
+                            worldWidth,
+                            worldHeight: dynamicWorldHeight,
+                            viewportWidth,
+                            viewportHeight: containerSizeRef.current.height,
+                            stats
+                        });
 
-                        // 3. Find Time and Request Anchor
-                        const centerTime = getTimeAtWorldX(normX, monthLayouts, stats);
-                        anchorToTime(centerTime);
+                        if (smartAnchorTime !== null) {
+                            anchorToTime(smartAnchorTime);
+                        } else {
+                            // 3. Fallback: Center Time
+                            const centerX = viewportWidth / 2;
+                            const worldX = (centerX - transformState.offsetX) / currentScale;
+                            const normX = worldX / worldWidth;
+                            const centerTime = getTimeAtWorldX(normX, monthLayouts, stats);
+                            anchorToTime(centerTime);
+                        }
                     }
 
                     setTimelineConfig({ timeLinearity: level });

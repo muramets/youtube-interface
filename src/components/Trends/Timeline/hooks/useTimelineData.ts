@@ -1,20 +1,10 @@
 import { useMemo, useRef } from 'react';
-import type { TrendVideo, MonthRegion, YearMarker, TimelineStats } from '../../../../types/trends';
+import type { TrendVideo, MonthRegion, YearMarker, TimelineStats, VideoPosition } from '../../../../types/trends';
 
 // Constants
 
 const BASE_THUMBNAIL_SIZE = 200;
 const MIN_THUMBNAIL_SIZE = 40;
-
-
-
-
-export interface VideoPosition {
-    video: TrendVideo;
-    xNorm: number;
-    yNorm: number;
-    baseSize: number;
-}
 
 export const useTimelineStructure = ({
     videos,
@@ -321,7 +311,7 @@ export const useTimelinePositions = ({
     dynamicWorldHeight
 }: UseTimelinePositionsProps) => {
     // Calculate video positions
-    const videoPositions = useMemo(() => {
+    const videoPositions = useMemo<VideoPosition[]>(() => {
         if (!videos.length || !stats) return [];
 
         const { minViews, maxViews } = stats;
