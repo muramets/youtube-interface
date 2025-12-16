@@ -19,8 +19,11 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
     const buttonRef = useRef<HTMLDivElement>(null);
     const [showTooltip, setShowTooltip] = useState(false);
 
+    // Ensure strictly clamped value for display to prevent artifacts
+    const safeValue = Math.max(0, Math.min(1, value));
+
     // Format value for display (e.g. 100%)
-    const displayValue = Math.round(value * 100) + '%';
+    const displayValue = Math.round(safeValue * 100) + '%';
 
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
         if (isLoading) return;
@@ -42,9 +45,10 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
 
         const handleMouseMove = (e: MouseEvent) => {
             const deltaY = dragStartY - e.clientY; // Up moves positive
-            const sensitivity = 0.015; // ~66px = full range (much more sensitive)
+            const sensitivity = 0.015; // ~66px = full range
 
             // Range: 0 (Line) to 1 (Fit In)
+            // Clamp strictly between 0 and 1
             const newValue = Math.max(0, Math.min(1, startValue + deltaY * sensitivity));
 
             onChange(newValue);
@@ -69,50 +73,50 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
 
     return (
         <div className="relative group/spread">
-            {/* Main Pill Container - Fixed Width */}
+            {/* Main Pill Container - Matches ZoomIndicator style (vertical) */}
             <div
                 ref={buttonRef}
                 onMouseDown={handleMouseDown}
                 onMouseEnter={() => !isDragging && setShowTooltip(true)}
                 onMouseLeave={() => setShowTooltip(false)}
                 className={`
-                    flex flex-col items-center justify-center gap-0 px-2 py-1.5 min-w-[38px]
+                    flex flex-col items-center justify-center gap-1 py-1.5 w-[28px]
                     bg-bg-secondary/90 backdrop-blur-md border border-border rounded-full shadow-lg
                     transition-all duration-200 select-none
-                    ${isDragging ? 'cursor-ns-resize ring-1 ring-text-primary/20 bg-bg-secondary' : 'cursor-ns-resize hover:bg-hover-bg'}
+                    ${isDragging ? 'cursor-ns-resize ring-1 ring-white/30 brightness-110' : 'cursor-ns-resize hover:brightness-125'}
                     ${isLoading ? 'opacity-50 cursor-default' : ''}
                 `}
             >
                 {/* Value Display */}
-                <div className={`text-[10px] font-mono font-medium text-text-secondary tracking-tighter tabular-nums min-w-[24px] text-center ${isDragging ? 'text-text-primary' : ''}`}>
+                <div className={`text-[9px] font-mono font-medium text-text-secondary tracking-tighter tabular-nums w-full text-center ${isDragging ? 'text-white' : ''}`}>
                     {displayValue}
                 </div>
 
                 {/* Divider */}
-                <div className="w-3 h-[1px] bg-border my-1" />
+                <div className="w-3 h-[1px] bg-white/10" />
 
                 {/* Icon */}
-                <ArrowUpDown size={14} className={`text-text-tertiary transition-colors ${isDragging ? 'text-text-primary' : 'group-hover/spread:text-text-primary'}`} />
+                <ArrowUpDown size={13} className={`text-text-tertiary transition-colors ${isDragging ? 'text-white' : 'group-hover/spread:text-white'}`} />
             </div>
 
             {/* Tooltip (Left side) */}
             {showTooltip && !isDragging && !isLoading && (
                 <div className="absolute right-full top-1/2 -translate-y-1/2 mr-3 pointer-events-none z-50 whitespace-nowrap">
                     <div className="bg-black/90 backdrop-blur text-white text-[10px] px-2 py-1 rounded shadow-xl border border-white/10">
-                        vertical spread (drag)
+                        vertical spread
                     </div>
                 </div>
             )}
 
             {/* Drag Slider Indicator (Appears ABOVE the pill during drag) */}
             {isDragging && (
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 pointer-events-none z-50 flex flex-col items-center">
-                    {/* Slider Track (Dark background = empty) */}
-                    <div className="h-20 w-2 rounded-full bg-black/40 border border-white/10 backdrop-blur-md overflow-hidden relative shadow-xl">
-                        {/* Fill Bar (Bottom Up) - Lighter = filled */}
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 pointer-events-none z-50 flex flex-col items-center">
+                    {/* Slider Track (Dark background) */}
+                    <div className="h-24 w-1.5 rounded-full bg-black/60 border border-white/10 backdrop-blur-md overflow-hidden relative shadow-2xl">
+                        {/* Fill Bar (Bottom Up) - WHITE */}
                         <div
-                            className="absolute bottom-0 w-full bg-text-secondary/80 rounded-full transition-all duration-75 ease-out"
-                            style={{ height: `${value * 100}%` }}
+                            className="absolute bottom-0 w-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.5)] transition-all duration-75 ease-out"
+                            style={{ height: `${safeValue * 100}%` }}
                         />
                     </div>
                 </div>
