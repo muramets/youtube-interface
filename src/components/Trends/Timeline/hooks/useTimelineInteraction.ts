@@ -117,7 +117,7 @@ export const useTimelineInteraction = ({
             // As we approach minScale (Fit State), gradually blend the target from "Mouse Position" to "Screen Center".
             // This prevents the "Jump" at the end and guides the user smoothly to the fitted view.
 
-            const magneticThreshold = minScale * 10.0; // Wide threshold: start guiding to center early (e.g. from 10% down to 1%)
+            const magneticThreshold = minScale * 5.0; // Moderate threshold: starts early enough but not too wide.
             const isZoomingOut = newScale < currentScale;
 
             if (newScale < magneticThreshold && isZoomingOut) {
@@ -134,10 +134,11 @@ export const useTimelineInteraction = ({
                 const dist = magneticThreshold - newScale;
                 const rawProgress = Math.min(1, Math.max(0, dist / range));
 
-                // SmoothStep interpolation (hermite)
-                // Start slope 0, End slope 0.
-                // Eliminates the "Jerk" at the threshold start (unlike EaseOut which has steep start).
-                const blend = rawProgress * rawProgress * (3 - 2 * rawProgress);
+                // Quartic Ease-In (p^4)
+                // We use a high power to ensure the blend stays EXTREMELY low at the start.
+                // This prevents "Fast Scroll Jerk" where a user might jump into the 10-20% range instantly.
+                // At 20% progress: SmoothStep is ~10%, Quartic is 0.16%. The difference is massive.
+                const blend = Math.pow(rawProgress, 4);
 
                 targetOffsetX = targetOffsetX + (idealCenterX - targetOffsetX) * blend;
                 targetOffsetY = targetOffsetY + (idealCenterY - targetOffsetY) * blend;
