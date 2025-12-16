@@ -116,8 +116,9 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
                     width: worldWidth,
                     height: worldHeight,
                     position: 'absolute',
-                    willChange: 'transform'
-                }}
+                    willChange: 'transform',
+                    '--timeline-scale': transform.scale,
+                } as React.CSSProperties}
             >
                 {!isLoading && (showThumbnails ? (
                     visibleVideos.map((position) => (

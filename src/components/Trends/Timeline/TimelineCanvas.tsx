@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 import { useTrendStore } from '../../../stores/trendStore';
 import { TrendTooltip } from './TrendTooltip';
 import { TimelineDateHeader } from './TimelineDateHeader';
@@ -94,15 +94,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
     // Hotkey: 'Z' to Auto Fit
     useTimelineHotkeys({ onAutoFit: handleAutoFit });
 
-    // Safety: Auto-clamp scale if world shrinks (e.g. switching to Linear mode)
-    useEffect(() => {
-        if (transformState.scale < minScale) {
-            const clamped = { ...transformState, scale: minScale };
-            setTransformState(clamped);
-            transformRef.current = clamped;
-            if (videoLayerRef.current) videoLayerRef.current.updateTransform(clamped);
-        }
-    }, [minScale, transformState]);
+
 
     return (
         <div

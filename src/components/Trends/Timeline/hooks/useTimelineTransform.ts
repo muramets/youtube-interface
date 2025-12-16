@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
 import { useDebounce } from '../../../../hooks/useDebounce';
 import { useTrendStore } from '../../../../stores/trendStore';
 
@@ -86,12 +86,73 @@ export const useTimelineTransform = ({
 
         // X-Axis clamping
         let constrainedOffsetX: number;
+
+        // Calculate the safe bounds (with padding)
+        // Upper bound (Leftmost position): Padding
+        // Lower bound (Rightmost position): Viewport - Scaled - Padding
+        const maxOffsetX = padding;
+        const minOffsetX = viewportWidth - scaledWidth - padding;
+
+        // Simplification: The math is identical in both cases if we just use Min/Max correctly!
+        // When Small: minOffset (Right Edge) > maxOffset (Left Edge).
+        // We want constraint: between Left(40) and Right(800).
+        // When Large: minOffset (Left Limit) < maxOffset (Left Edge).
+        // We want constraint: between LeftLimit(-500) and RightLimit(40).
+
+        // So we can just say:
+        // const lowerBound = Math.min(minOffsetX, maxOffsetX); -- Wait, no.
+
+        // Use logic:
+        // Left Limit is always Math.min(maxOffsetX, minOffsetX)? No.
+
+        // Let's stick to the explicit branches to be safe and readable.
         if (scaledWidth < viewportWidth) {
-            constrainedOffsetX = (viewportWidth - scaledWidth) / 2;
+            // Content is smaller than viewport ("slack" exists)
+            // minOffsetX is the Left Limit (Padding)
+            // maxOffsetX is the Right Limit (Viewport - Scaled - Padding)
+            // Wait, standard coordinate system:
+            // Larger OffsetX = Moves Right. Lower OffsetX = Moves Left.
+            // Rightmost valid position: OffsetX such that Left Edge is at Padding? -> OffsetX = Padding.
+            // Leftmost valid position: OffsetX such that Right Edge is at Viewport-Padding? -> OffsetX = Viewport - Width - Padding.
+
+            // So:
+            // Max Val (Rightmost visual) = Padding.
+            // Min Val (Leftmost visual) = Viewport - Width - Padding.
+
+            // So logic was: const maxOffsetX = padding; const minOffsetX = ...
+            // And we want to clamp t.offsetX between min and max.
+
+            // Wait, if ScaledWidth < Viewport.
+            // Viewport (1000) - Width (500) - Padding (40) = 460.
+            // Padding = 40.
+            // 460 is > 40.
+
+            // So MinOffsetX (variable name) = 460? That's confusing naming.
+            // We want [40, 460].
+            // So numerical min = maxOffsetX (40).
+            // Numerical max = minOffsetX (460).
+
+            const lowerBound = Math.min(maxOffsetX, minOffsetX);
+            const upperBound = Math.max(maxOffsetX, minOffsetX);
+
+            constrainedOffsetX = Math.max(lowerBound, Math.min(upperBound, t.offsetX));
+
         } else {
-            const minOffsetX = viewportWidth - scaledWidth;
-            const maxOffsetX = 0;
-            constrainedOffsetX = Math.max(minOffsetX, Math.min(maxOffsetX, t.offsetX));
+            // Content larger.
+            // minOffsetX = Viewport(1000) - Width(2000) - Padding(40) = -1040.
+            // maxOffsetX = 40.
+            // Range [-1040, 40].
+            // Numerical min = -1040. Numerical max = 40.
+
+            // Same logic works: Math.min/max of the two bounds.
+            const lowerBound = Math.min(maxOffsetX, minOffsetX);
+            const upperBound = Math.max(maxOffsetX, minOffsetX);
+
+            constrainedOffsetX = Math.max(lowerBound, Math.min(upperBound, t.offsetX));
+        }
+
+        if (Math.abs(constrainedOffsetX - t.offsetX) > 0.1) {
+            // Debug log removed
         }
 
         // Y-Axis clamping
@@ -101,8 +162,10 @@ export const useTimelineTransform = ({
         if (scaledHeight < availableHeight) {
             constrainedOffsetY = headerHeight + (availableHeight - scaledHeight) / 2;
         } else {
-            const maxOffsetY = headerHeight;
-            const minOffsetY = viewportHeight - scaledHeight;
+            // Add vertical padding for consistency (optional but "robust")
+            const verticalPadding = 20; // Hardcoded small buffer or reuse padding
+            const maxOffsetY = headerHeight + verticalPadding;
+            const minOffsetY = viewportHeight - scaledHeight - verticalPadding;
             constrainedOffsetY = Math.max(minOffsetY, Math.min(maxOffsetY, t.offsetY));
         }
 
@@ -111,7 +174,7 @@ export const useTimelineTransform = ({
             offsetX: constrainedOffsetX,
             offsetY: constrainedOffsetY
         };
-    }, [worldWidth, dynamicWorldHeight, headerHeight]);
+    }, [worldWidth, dynamicWorldHeight, headerHeight, padding]);
 
     // Handle Auto Fit
     const handleAutoFit = useCallback(() => {
@@ -176,13 +239,83 @@ export const useTimelineTransform = ({
         prevViewportSizeRef.current = viewportSize;
     }, [viewportSize, handleAutoFit]);
 
+    // Track previous world width to calculate ratios for anchoring
+    const prevWorldWidthRef = useRef(worldWidth);
+
+    // Auto-fit OR Anchor on World Width Change
+    // usage of useLayoutEffect prevents visual "stutter" or "flash" of incorrect position before the anchor logic applies
+    useLayoutEffect(() => {
+        const prevWidth = prevWorldWidthRef.current;
+        const currentWidth = worldWidth;
+
+        // CRITICAL FIX: Only proceed if world width ACTUALLY changed.
+        if (Math.abs(currentWidth - prevWidth) < 1) {
+            return;
+        }
+
+        // Update ref immediately for next run
+        prevWorldWidthRef.current = currentWidth;
+
+        if (videosLength === 0 || viewportSize.width === 0 || prevWidth === 0) return;
+
+        // Calculate what the fit scale WAS before this width change
+        const prevFitScale = (viewportSize.width - padding * 2) / Math.max(1, prevWidth);
+
+        // Compare our current scale (which hasn't updated yet) to that previous fit scale
+        const scaleDiff = Math.abs(transformState.scale - prevFitScale);
+
+        // Relaxed tolerance: 5% relative error or 0.01 absolute
+        const isRoughlyFitted = scaleDiff < 0.01 || (scaleDiff / prevFitScale) < 0.05;
+
+        const wasFitted = !isCustomView || isRoughlyFitted;
+
+        if (wasFitted) {
+            // Case 1: Was fitted -> Stay fitted (re-run auto-fit for new width)
+            handleAutoFit();
+        } else {
+            // Case 2: Was zoomed in -> Anchor center
+
+            // Ratios
+            const widthRatio = currentWidth / prevWidth;
+            const ratio = widthRatio;
+
+            // X-Axis Anchoring
+            const viewportCenterX = viewportSize.width / 2;
+            const distCenterX = viewportCenterX - transformState.offsetX;
+            const newOffsetX = viewportCenterX - (distCenterX * ratio);
+
+            // Y-Axis Anchoring
+            const availableHeight = viewportSize.height - headerHeight;
+            const viewportCenterY = headerHeight + (availableHeight / 2);
+            const distCenterY = viewportCenterY - transformState.offsetY;
+            const newOffsetY = viewportCenterY - (distCenterY * ratio);
+
+            const newTransform = {
+                ...transformState,
+                offsetX: newOffsetX,
+                offsetY: newOffsetY
+            };
+
+            setTransformState(newTransform);
+        }
+
+    }, [worldWidth, videosLength, viewportSize.width, viewportSize.height, headerHeight, isCustomView, fitScale, handleAutoFit, transformState, setTransformState]);
+
+    // Track latest store config in ref to avoid effect dependency loops
+    const latestConfigRef = useRef({ zoomLevel, offsetX, offsetY });
+    useEffect(() => {
+        latestConfigRef.current = { zoomLevel, offsetX, offsetY };
+    }, [zoomLevel, offsetX, offsetY]);
+
     // Persist to store (Debounced)
     const debouncedTransform = useDebounce(transformState, 500);
     useEffect(() => {
+        const { zoomLevel: sZoom, offsetX: sX, offsetY: sY } = latestConfigRef.current;
+
         if (
-            Math.abs(debouncedTransform.scale - zoomLevel) > 0.001 ||
-            Math.abs(debouncedTransform.offsetX - offsetX) > 1 ||
-            Math.abs(debouncedTransform.offsetY - offsetY) > 1
+            Math.abs(debouncedTransform.scale - sZoom) > 0.001 ||
+            Math.abs(debouncedTransform.offsetX - sX) > 1 ||
+            Math.abs(debouncedTransform.offsetY - sY) > 1
         ) {
             setTimelineConfig({
                 zoomLevel: debouncedTransform.scale,
@@ -191,7 +324,7 @@ export const useTimelineTransform = ({
                 isCustomView: true
             });
         }
-    }, [debouncedTransform, setTimelineConfig, zoomLevel, offsetX, offsetY]);
+    }, [debouncedTransform, setTimelineConfig]);
 
     return {
         containerRef,
