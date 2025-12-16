@@ -47,7 +47,7 @@ export const TimelineViewAxis: React.FC<TimelineViewAxisProps> = ({
 
     // Calculate ticks with screen positions and opacity
     const visibleTicks = useMemo(() => {
-        const BASE_SPACING = containerHeight / 10; // Target 10 ticks at min scale
+
 
         const result = ticksWithPriority.map((tick, idx, arr) => {
             const y = getY(tick.value) * transform.scale + transform.offsetY;
@@ -63,31 +63,35 @@ export const TimelineViewAxis: React.FC<TimelineViewAxisProps> = ({
                 minDistance = Math.min(minDistance, Math.abs(y - nextY));
             }
 
-            // Calculate opacity based on priority and available space
-            // Linear progression instead of exponential:
-            // Priority 0: needs BASE_SPACING (always visible at min scale)
-            // Priority 1: needs 1.5× BASE_SPACING
-            // Priority 2: needs 2.0× BASE_SPACING
-            // Priority 3: needs 2.5× BASE_SPACING
-            // Priority 4: needs 3.0× BASE_SPACING
-            let opacity = 1;
-            if (tick.priority > 0) {
-                const requiredSpacing = BASE_SPACING * (1 + tick.priority * 0.5);
-                const fadeRange = requiredSpacing * 0.3; // 30% fade zone
+            // Density-based Opacity Logic
+            // Priority 0 (1x): Major ticks. Always show unless overlapping heavily.
+            // Priority 1 (5x): Halves. Show when there is moderate space.
+            // Priority 2 (2x): Seconds. Show only when there is plenty of space.
 
-                if (minDistance < requiredSpacing - fadeRange) {
-                    opacity = 0;
-                } else if (minDistance < requiredSpacing + fadeRange) {
-                    opacity = (minDistance - (requiredSpacing - fadeRange)) / (2 * fadeRange);
-                } else {
-                    opacity = 1;
-                }
+            let requiredSpacing = 20; // Default min gap for P0
+
+            if (tick.priority === 1) requiredSpacing = 45;
+            if (tick.priority === 2) requiredSpacing = 80;
+
+            // Dynamic spacing based on container height? 
+            // constant pixels is better for text readability.
+
+            const fadeRange = 15;
+            let opacity = 1;
+
+            if (minDistance < requiredSpacing - fadeRange) {
+                opacity = 0;
+            } else if (minDistance < requiredSpacing + fadeRange) {
+                // Smooth fade in
+                opacity = (minDistance - (requiredSpacing - fadeRange)) / (2 * fadeRange);
+            } else {
+                opacity = 1;
             }
 
             return { value: tick.value, y, opacity, priority: tick.priority };
         });
 
-        // Filter out nearly invisible ticks to reduce DOM overhead
+        // Filter out invisible ticks
         return result.filter(t => t.opacity > 0.05);
     }, [ticksWithPriority, getY, transform.scale, transform.offsetY, containerHeight]);
 

@@ -1,5 +1,9 @@
 import { useMemo } from 'react';
 
+// Constants matching useTimelinePositions
+const BASE_THUMBNAIL_SIZE = 200;
+const MIN_THUMBNAIL_SIZE = 40;
+
 interface UseAxisTicksProps {
     stats: { minViews: number; maxViews: number };
     scalingMode: 'linear' | 'log' | 'sqrt' | 'percentile';
@@ -13,73 +17,105 @@ export const useAxisTicks = ({
     amplifierLevel,
     dynamicWorldHeight
 }: UseAxisTicksProps) => {
-    // Generate ticks with priority levels for LOD
-    const ticksWithPriority = useMemo(() => {
-        const { minViews, maxViews } = stats;
-        if (minViews === maxViews) return [{ value: minViews, priority: 0 }];
 
-        const result: { value: number; priority: number }[] = [];
-
-        // Helper to assign priority based on "niceness"
-        const getPriority = (val: number, base: number): number => {
-            const mult = val / base;
-            if (mult === 1) return 0;      // 10K, 100K, 1M (always show)
-            if (mult === 5) return 1;      // 50K, 500K, 5M (show when space doubles)
-            if (mult === 2) return 2;      // 20K, 200K, 2M
-            if (mult === 2.5) return 3;    // 25K, 250K
-            return 4;                       // Everything else
-        };
-
-        const minLog = Math.floor(Math.log10(Math.max(1, minViews)));
-        const maxLog = Math.ceil(Math.log10(Math.max(1, maxViews)));
-
-        for (let i = minLog; i <= maxLog; i++) {
-            const base = Math.pow(10, i);
-            // Multipliers covering various steps
-            const multipliers = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 7, 8, 9];
-
-            multipliers.forEach(mult => {
-                const val = base * mult;
-                if (val >= minViews && val <= maxViews) {
-                    result.push({ value: val, priority: getPriority(val, base) });
-                }
-            });
-        }
-
-        return result.sort((a, b) => a.value - b.value);
-    }, [stats.minViews, stats.maxViews]);
-
-    // Calculate Y position for a view count
-    const getY = (viewCount: number) => {
-        let yNorm: number;
+    // 1. Calculate Tick Size (Matches VideoNode size logic)
+    const getTickSize = (value: number) => {
+        let sizeRatio = 0;
 
         if (scalingMode === 'linear') {
             const range = stats.maxViews - stats.minViews || 1;
-            yNorm = 1 - (viewCount - stats.minViews) / range;
+            sizeRatio = (value - stats.minViews) / range;
         } else if (scalingMode === 'log') {
             const viewRangeLog = Math.log(stats.maxViews) - Math.log(stats.minViews) || 1;
-            const viewLog = Math.log(Math.max(1, viewCount));
+            const viewLog = Math.log(Math.max(1, value));
+            const minLog = Math.log(Math.max(1, stats.minViews));
+            sizeRatio = (viewLog - minLog) / viewRangeLog;
+        } else if (scalingMode === 'sqrt') {
+            const viewRangeSqrt = Math.sqrt(stats.maxViews) - Math.sqrt(stats.minViews) || 1;
+            const viewSqrt = Math.sqrt(value);
+            const minSqrt = Math.sqrt(stats.minViews);
+            sizeRatio = (viewSqrt - minSqrt) / viewRangeSqrt;
+        } else {
+            // Percentile default
+            sizeRatio = 0.5;
+        }
+
+        // Clamp ratio
+        sizeRatio = Math.max(0, Math.min(1, sizeRatio));
+
+        return MIN_THUMBNAIL_SIZE + sizeRatio * (BASE_THUMBNAIL_SIZE - MIN_THUMBNAIL_SIZE);
+    };
+
+    // 2. Calculate Y Position (Snake Layout)
+    const getY = (value: number) => {
+        let yNorm = 0;
+
+        if (scalingMode === 'linear') {
+            const range = stats.maxViews - stats.minViews || 1;
+            yNorm = 1 - (value - stats.minViews) / range;
+        } else if (scalingMode === 'log') {
+            const viewRangeLog = Math.log(stats.maxViews) - Math.log(stats.minViews) || 1;
+            const viewLog = Math.log(Math.max(1, value));
             const minLog = Math.log(Math.max(1, stats.minViews));
             yNorm = 1 - (viewLog - minLog) / viewRangeLog;
         } else if (scalingMode === 'sqrt') {
             const viewRangeSqrt = Math.sqrt(stats.maxViews) - Math.sqrt(stats.minViews) || 1;
-            const viewSqrt = Math.sqrt(viewCount);
+            const viewSqrt = Math.sqrt(value);
             const minSqrt = Math.sqrt(stats.minViews);
             yNorm = 1 - (viewSqrt - minSqrt) / viewRangeSqrt;
         } else {
-            return 0.5;
+            yNorm = 0.5;
         }
 
-        const effectiveYNorm = 0.5 + (yNorm - 0.5) * amplifierLevel;
+        const amp = amplifierLevel !== undefined ? amplifierLevel : 1.0;
+        const effectiveYNorm = 0.5 + (yNorm - 0.5) * amp;
 
-        // Match video positioning: add padding based on average thumbnail size
-        // Videos use: radius + effectiveYNorm * (height - diameter)
-        const AVG_THUMBNAIL_SIZE = 120; // Average between MIN (40) and BASE (200)
-        const radius = AVG_THUMBNAIL_SIZE / 2;
-        const expandedY = radius + effectiveYNorm * (dynamicWorldHeight - AVG_THUMBNAIL_SIZE);
+        // SNAKE ALIGNMENT: match the video bubble center
+        const tickSize = getTickSize(value);
+        const radius = tickSize / 2;
 
-        return expandedY;
+        // y = Radius + yNorm * (WorldHeight - Diameter)
+        return radius + effectiveYNorm * (dynamicWorldHeight - tickSize);
     };
+
+    // 3. Generate Ticks (Standard 1-2-5 Grid)
+    const ticksWithPriority = useMemo(() => {
+        const { minViews, maxViews } = stats;
+        if (minViews >= maxViews) return [{ value: minViews, priority: 0 }];
+
+        const result: { value: number; priority: number }[] = [];
+
+        const minLog = Math.floor(Math.log10(Math.max(1, minViews)));
+        const maxLog = Math.ceil(Math.log10(Math.max(1, maxViews)));
+
+        // Standard 1-2-5 Steps
+        // 1  (1x) -> Priority 0 (Major)
+        // 5  (0.5x) -> Priority 1 (Halves)
+        // 2  (0.2x) -> Priority 2 (Fifths/Tenths)
+
+        for (let i = minLog - 1; i <= maxLog + 1; i++) {
+            const base = Math.pow(10, i);
+
+            // Major (1x)
+            const v1 = base * 1;
+            if (v1 >= minViews && v1 <= maxViews) result.push({ value: v1, priority: 0 });
+
+            // Halves (5x)
+            const v5 = base * 5;
+            if (v5 >= minViews && v5 <= maxViews) result.push({ value: v5, priority: 1 });
+
+            // Tenths (2x, 8x? No just 2x usually provides the bridge between 1 and 5)
+            // Actually standard sequence is usually: 1, 2, 5.
+            const v2 = base * 2;
+            if (v2 >= minViews && v2 <= maxViews) result.push({ value: v2, priority: 2 });
+
+            // 8x is rarely needed but sometimes helpful for linear gap filling? 
+            // Let's stick to 1-2-5 for cleanliness. 
+            // If we need more density, we can add 0.5 steps later.
+        }
+
+        return result.sort((a, b) => a.value - b.value);
+    }, [stats.minViews, stats.maxViews]);
 
     return {
         ticksWithPriority,
