@@ -1,15 +1,15 @@
 import React, { useRef, useState } from 'react';
-import { ArrowUpDown } from 'lucide-react';
+import { ArrowLeftRight } from 'lucide-react';
 import { useSmoothDrag } from './hooks/useSmoothDrag';
 import { ControlPill } from './components/ControlPill';
 
-interface VerticalSpreadControlProps {
+interface TimeDistributionControlProps {
     value: number;
     onChange: (value: number) => void;
     isLoading?: boolean;
 }
 
-export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
+export const TimeDistributionControl: React.FC<TimeDistributionControlProps> = ({
     value,
     onChange,
     isLoading = false
@@ -20,7 +20,7 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
     const { isDragging, handleMouseDown } = useSmoothDrag({
         value,
         onChange,
-        axis: 'y',
+        axis: 'x',
         isLoading,
     });
 
@@ -31,22 +31,25 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
     return (
         <div className="relative group/pill">
             <ControlPill
-                orientation="vertical"
+                orientation="horizontal"
                 containerRef={buttonRef}
                 text={displayValue}
-                icon={<ArrowUpDown size={14} />}
+                icon={<ArrowLeftRight size={14} />}
                 isDragging={isDragging}
                 isLoading={isLoading}
                 onMouseDown={handleMouseDown}
                 onMouseEnter={() => !isDragging && setShowTooltip(true)}
                 onMouseLeave={() => setShowTooltip(false)}
+                // Fixed width for TimeDistribution to match Scale Pill if needed, or let content define it
+                // Using w-[92px] as requested previously for extra spacing
+                className="w-[92px]"
             />
 
-            {/* Tooltip (Left side) */}
+            {/* Tooltip */}
             {showTooltip && !isDragging && !isLoading && (
-                <div className="absolute right-full top-1/2 -translate-y-1/2 mr-3 pointer-events-none z-50 whitespace-nowrap">
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 pointer-events-none z-50 whitespace-nowrap">
                     <div className="bg-black/90 backdrop-blur text-white text-[10px] px-2 py-1 rounded shadow-xl border border-white/10">
-                        vertical spread
+                        time distribution
                     </div>
                 </div>
             )}
@@ -54,10 +57,10 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
             {/* Drag Slider Indicator */}
             {isDragging && (
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 pointer-events-none z-50 flex flex-col items-center">
-                    <div className="h-24 w-1.5 rounded-full bg-black/60 border border-white/10 backdrop-blur-md overflow-hidden relative shadow-2xl">
+                    <div className="w-24 h-1.5 rounded-full bg-black/60 border border-white/10 backdrop-blur-md overflow-hidden relative shadow-2xl">
                         <div
-                            className="absolute bottom-0 w-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.5)] transition-all duration-75 ease-out"
-                            style={{ height: `${safeValue * 100}%` }}
+                            className="absolute left-0 h-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.5)] transition-all duration-75 ease-out"
+                            style={{ width: `${safeValue * 100}%` }}
                         />
                     </div>
                 </div>
