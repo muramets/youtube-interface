@@ -16,9 +16,6 @@ interface UseTimelineInteractionProps {
     setTransformState: (t: Transform) => void;
     clampTransform: (t: Transform, w: number, h: number) => Transform;
     onHoverVideo?: (hovered: boolean) => void;
-    worldWidth: number;
-    dynamicWorldHeight: number;
-    headerHeight: number;
 }
 
 
@@ -32,10 +29,7 @@ export const useTimelineInteraction = ({
     containerSizeRef,
     setTransformState,
     clampTransform,
-    onHoverVideo,
-    worldWidth,
-    dynamicWorldHeight,
-    headerHeight
+    onHoverVideo
 }: UseTimelineInteractionProps) => {
 
     const [isPanning, setIsPanning] = useState(false);
@@ -302,7 +296,7 @@ export const useTimelineInteraction = ({
                 const scaleX = viewportWidth / width;
                 const scaleY = viewportHeight / height;
                 // Use the smaller scale to ensure it fits entirely (contain)
-                let newScale = Math.min(scaleX, scaleY);
+
                 // Also multiply by current scale? NO.
                 // The selection was drawn on the screen. 
                 // We want that screen region to fill the screen.

@@ -54,6 +54,7 @@ export interface TimelineConfig {
     verticalSpread: number; // 0.0-1.0, controls vertical spread of nodes
     timeLinearity: number; // 0.0-1.0, 0 = Linear (time-based), 1 = Compact (count-based)
     layoutMode?: 'compact' | 'spacious'; // Optional view preference
+    contentHash?: string; // ID hash of the content visible when this config was saved
 }
 
 export interface MonthRegion {

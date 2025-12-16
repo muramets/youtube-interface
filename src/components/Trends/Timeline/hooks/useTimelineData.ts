@@ -18,14 +18,15 @@ export interface VideoPosition {
 
 export const useTimelineStructure = ({
     videos,
-    timeLinearity = 1.0 // Default to Density (1.0)
-}: { videos: TrendVideo[], timeLinearity?: number }) => {
+    timeLinearity = 1.0, // Default to Density (1.0)
+    structureVersion = 0 // Version to force structure recalculation
+}: { videos: TrendVideo[], timeLinearity?: number, structureVersion?: number }) => {
 
     // Helper: Days in month
     const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
 
     // 1. Calculate View Stats (Moved first to support size-based width calculation)
-    const stats = useMemo(() => {
+    const currentStats = useMemo(() => {
         if (videos.length === 0) return { minViews: 0, maxViews: 1, minDate: Date.now(), maxDate: Date.now() };
         const views = videos.map(v => v.viewCount);
         const dates = videos.map(v => v.publishedAtTimestamp);
@@ -38,20 +39,30 @@ export const useTimelineStructure = ({
         };
     }, [videos]);
 
+    // Freeze Stats
+    const frozenStatsRef = useRef<{ version: number, value: typeof currentStats, wasEmpty: boolean } | null>(null);
+    if (
+        frozenStatsRef.current === null ||
+        frozenStatsRef.current.version !== structureVersion ||
+        (frozenStatsRef.current.wasEmpty && videos.length > 0) // Allow update if initializing
+    ) {
+        frozenStatsRef.current = {
+            version: structureVersion,
+            value: currentStats,
+            wasEmpty: videos.length === 0
+        };
+    }
+    const stats = frozenStatsRef.current.value;
+
+
     // 2. Calculate World Width (Now size-aware)
-    const calculatedWorldWidth = useMemo(() => {
+    const currentWorldWidth = useMemo(() => {
         if (videos.length === 0) return 2000;
 
         const counts = new Map<string, number>();
         const monthDetails = new Map<string, { count: number, totalSizeRatio: number }>();
         let maxCount = 0;
         let busiestMonthKey = '';
-
-        // Pre-calculate size ratios roughly to estimate width
-        // Note: Exact scaling mode is complex to duplicate here perfectly without passing 'scalingMode' prop
-        // We will assume "Log" scaling as a safe default for size estimation if mode isn't available, or passed in.
-        // Actually, we should probably pass scalingMode to useTimelineStructure if we want precision, 
-        // but for now, let's use a heuristic based on the range we have in 'stats'.
 
         const viewRangeLog = Math.log(stats.maxViews) - Math.log(stats.minViews) || 1;
 
@@ -82,11 +93,6 @@ export const useTimelineStructure = ({
         const VIDEO_DENSITY_MULTIPLIER = 80;
 
         // SMART LINEAR SCALE CALCULATION
-        // "Average Width" strategy:
-        // 1. Find busiest month.
-        // 2. Calculate average thumbnail size for that month.
-        // 3. Target Width = Count * AvgSize * OverlapFactor (heuristic) for that month.
-
         let dynamicLinearPixelsPerDay = 40; // Default fallback
 
         if (busiestMonthKey && maxCount > 0) {
@@ -99,8 +105,6 @@ export const useTimelineStructure = ({
                 const avgThumbnailWidth = avgThumbnailHeight * (16 / 9);
 
                 // Calculate Required Width
-                // User requirement: "neighboring covers don't overlap much"
-                // We calculate width to allow them to sit side-by-side with a small overlap (e.g. 10% overlap = 0.9 factor)
                 const requiredWidth = details.count * (avgThumbnailWidth * 0.9);
 
                 // Provide specific linear PPD for this busy month
@@ -140,34 +144,35 @@ export const useTimelineStructure = ({
         }
 
         return Math.max(2000, totalWidth);
-    }, [videos, timeLinearity, stats]); // Added stats dependency
+    }, [videos, timeLinearity, stats]);
+    // ^ Dependency on 'stats' ensures that if 'stats' is frozen, width calculation uses frozen stats logic, 
+    // but the 'videos' array might contain new videos. 
+    // However, if we freeze 'stats', 'width' calculation above iterates NEW videos using FROZEN stats (min/max/date).
+    // This is correct behavior for "freeze": new videos appear on old scale.
 
-    const frozenWorldWidthRef = useRef<number | null>(null);
+    // Freeze World Width
+    // We also need to invalidate if timeLinearity changes, regardless of version
+    const frozenWorldWidthRef = useRef<{ version: number, linearity: number, value: number, wasEmpty: boolean } | null>(null);
 
-    // Invalidate world width if timeLinearity changes
-    const prevWidthLinearityRef = useRef(timeLinearity);
-
-    if (prevWidthLinearityRef.current !== timeLinearity) {
-        frozenWorldWidthRef.current = null;
-        prevWidthLinearityRef.current = timeLinearity;
+    // If version changed OR linearity changed OR first load OR initializing from empty
+    if (
+        frozenWorldWidthRef.current === null ||
+        frozenWorldWidthRef.current.version !== structureVersion ||
+        frozenWorldWidthRef.current.linearity !== timeLinearity ||
+        (frozenWorldWidthRef.current.wasEmpty && videos.length > 0)
+    ) {
+        frozenWorldWidthRef.current = {
+            version: structureVersion,
+            linearity: timeLinearity,
+            value: currentWorldWidth,
+            wasEmpty: videos.length === 0
+        };
     }
+    const worldWidth = frozenWorldWidthRef.current.value;
 
-    if (frozenWorldWidthRef.current === null && videos.length > 0) {
-        frozenWorldWidthRef.current = calculatedWorldWidth;
-    }
-    const worldWidth = frozenWorldWidthRef.current ?? calculatedWorldWidth;
 
-    // Stats are now calculated first, so we just memoize/ref them for return consistency?
-    // Actually, we can just return 'stats' directly since it's already a memo above.
-    // We'll keep the frozen ref pattern if needed for stability, but stats generally shouldn't flicker unless videos change.
-    const frozenStatsRef = useRef<typeof stats | null>(null);
-    if (frozenStatsRef.current === null && videos.length > 0) {
-        frozenStatsRef.current = stats;
-    }
-    const stableStats = frozenStatsRef.current ?? stats;
-
-    // 3. Calculate Layouts (using synchronized logic)
-    const calculatedMonthLayouts = useMemo(() => {
+    // 4. Calculate Layouts (using synchronized logic)
+    const currentMonthLayouts = useMemo(() => {
         if (videos.length === 0) return [];
 
         const counts = new Map<string, number>();
@@ -175,14 +180,14 @@ export const useTimelineStructure = ({
         let maxCount = 0;
         let busiestMonthKey = '';
 
-        const viewRangeLog = Math.log(stableStats.maxViews) - Math.log(stableStats.minViews) || 1;
+        const viewRangeLog = Math.log(stats.maxViews) - Math.log(stats.minViews) || 1;
 
         videos.forEach(v => {
             const d = new Date(v.publishedAtTimestamp);
             const key = `${d.getFullYear()}-${d.getMonth()}`;
 
             const viewLog = Math.log(Math.max(1, v.viewCount));
-            const minLog = Math.log(Math.max(1, stableStats.minViews));
+            const minLog = Math.log(Math.max(1, stats.minViews));
             const sizeRatio = (viewLog - minLog) / viewRangeLog;
 
             const current = monthDetails.get(key) || { count: 0, totalSizeRatio: 0 };
@@ -211,11 +216,11 @@ export const useTimelineStructure = ({
             }
         }
 
-        let current = new Date(stableStats.minDate);
+        let current = new Date(stats.minDate);
         current.setDate(1);
         current.setHours(0, 0, 0, 0);
 
-        const endDate = new Date(stableStats.maxDate);
+        const endDate = new Date(stats.maxDate);
         const safeEndDate = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 1);
 
         const layouts = [];
@@ -264,22 +269,24 @@ export const useTimelineStructure = ({
             endX: l.endX / totalAbsWidth,
             width: l.width / totalAbsWidth
         }));
-    }, [videos, stableStats, timeLinearity]);
+    }, [videos, stats, timeLinearity]);
 
-    const frozenMonthLayoutsRef = useRef<typeof calculatedMonthLayouts | null>(null);
-
-    // Invalidate frozen ref if timeLinearity changes
-    const prevTimeLinearityRef = useRef(timeLinearity);
-
-    if (prevTimeLinearityRef.current !== timeLinearity) {
-        frozenMonthLayoutsRef.current = null;
-        prevTimeLinearityRef.current = timeLinearity;
+    // Freeze Month Layouts
+    const frozenLayoutsRef = useRef<{ version: number, linearity: number, value: typeof currentMonthLayouts, wasEmpty: boolean } | null>(null);
+    if (
+        frozenLayoutsRef.current === null ||
+        frozenLayoutsRef.current.version !== structureVersion ||
+        frozenLayoutsRef.current.linearity !== timeLinearity ||
+        (frozenLayoutsRef.current.wasEmpty && videos.length > 0)
+    ) {
+        frozenLayoutsRef.current = {
+            version: structureVersion,
+            linearity: timeLinearity,
+            value: currentMonthLayouts,
+            wasEmpty: videos.length === 0
+        };
     }
-
-    if (frozenMonthLayoutsRef.current === null && calculatedMonthLayouts.length > 0) {
-        frozenMonthLayoutsRef.current = calculatedMonthLayouts;
-    }
-    const monthLayouts = frozenMonthLayoutsRef.current ?? calculatedMonthLayouts;
+    const monthLayouts = frozenLayoutsRef.current.value;
 
     // Derived regions
     const monthRegions: MonthRegion[] = useMemo(() => {
@@ -331,7 +338,7 @@ export const useTimelineStructure = ({
 
     return {
         worldWidth,
-        stats: stableStats,
+        stats: stats,
         monthLayouts,
         monthRegions: refinedMonthRegions,
         yearMarkers

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useTrendStore } from '../../../stores/trendStore';
 import { TrendTooltip } from './TrendTooltip';
 import { TimelineDateHeader } from './TimelineDateHeader';
@@ -30,6 +30,9 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
     const { timelineConfig, setTimelineConfig, setAddChannelModalOpen } = useTrendStore();
     const { scalingMode, verticalSpread, timeLinearity } = timelineConfig;
 
+    // State to control structure updates ('Z' key forces update)
+    const [structureVersion, setStructureVersion] = useState(0);
+
     // 1. Structure (independent of viewport)
     const {
         worldWidth,
@@ -37,7 +40,9 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
         monthLayouts,
         monthRegions,
         yearMarkers
-    } = useTimelineStructure({ videos, timeLinearity });
+    } = useTimelineStructure({ videos, timeLinearity, structureVersion });
+
+
 
     // 2. Transform & Viewport Logic
     const {
@@ -52,7 +57,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
         minScale,
         dynamicWorldHeight, // Now derived inside the hook
         anchorToTime,
-        calculateAutoFitTransform
+        calculateAutoFitTransform,
+        currentContentHash
     } = useTimelineTransform({
         worldWidth,
         headerHeight: HEADER_HEIGHT,
@@ -103,23 +109,49 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
         clampTransform,
         onHoverVideo: (active: boolean) => {
             if (!active) closeTooltipSmoothly();
-        },
-        worldWidth,
-        dynamicWorldHeight,
-        headerHeight: HEADER_HEIGHT
+        }
     });
 
     const { isPanning, selectionRect } = interaction;
 
 
-
+    // Triggered by 'Z' or Double Click
     const handleSmoothFit = () => {
-        closeTooltipSmoothly(); // Close tooltip on zoom out
-        const fitTransform = calculateAutoFitTransform();
-        if (fitTransform) {
-            interaction.smoothToTransform(fitTransform);
-        }
+        closeTooltipSmoothly();
+
+        // Force structure recalculation first
+        setStructureVersion(v => v + 1);
+
+        // The actual auto-fit will happen in the effect below once the structure updates
+        // We delay it slightly to ensure the new worldWidth is available
     };
+
+    // Effect to trigger Auto-Fit when structure updates explicitly
+    useEffect(() => {
+        if (structureVersion > 0) {
+            // Verify if we can fit immediately? 
+            // useTimelineTransform handles auto-fit logic, but we need to trigger it *after* 
+            // the render cycle where worldWidth updated.
+
+            // We'll use a timeout to let the render cycle complete with the new worldWidth
+            // before calculating the fit.
+            const t = setTimeout(() => {
+                const fitTransform = calculateAutoFitTransform();
+                if (fitTransform) {
+                    interaction.smoothToTransform(fitTransform);
+                    setTimelineConfig({
+                        zoomLevel: fitTransform.scale,
+                        offsetX: fitTransform.offsetX,
+                        offsetY: fitTransform.offsetY,
+                        isCustomView: false,
+                        contentHash: currentContentHash
+                    });
+                }
+            }, 0);
+            return () => clearTimeout(t);
+        }
+    }, [structureVersion, calculateAutoFitTransform, interaction, setTimelineConfig, currentContentHash]);
+
 
     // Hotkey: 'Z' to Auto Fit (Smooth)
     useTimelineHotkeys({ onAutoFit: handleSmoothFit });
@@ -218,7 +250,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
             <TimelineControls
                 scale={transformState.scale}
                 minScale={minScale}
-                onReset={handleAutoFit}
+                onReset={handleSmoothFit}
                 verticalSpread={verticalSpread ?? 1.0}
                 onSpreadChange={(newSpread) => {
                     const oldSpread = verticalSpread ?? 1.0;
