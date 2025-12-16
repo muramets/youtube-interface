@@ -41,6 +41,7 @@ export const VideoNode = memo(({
     const height = baseSize / (16 / 9);
 
     const borderRadius = Math.max(2, Math.min(12, baseSize * 0.04)); // 4% of size, clamped 2-12px
+    const labelSize = width * 0.13; // Proportional 13% of width
     const viewLabel = formatCompactNumber(video.viewCount);
 
     return (
@@ -76,7 +77,15 @@ export const VideoNode = memo(({
                 }}
             />
             {showLabel && (
-                <span className={`mt-1.5 text-[10px] font-medium transition-colors bg-black/40 px-1.5 py-0.5 rounded-md backdrop-blur-sm pointer-events-none whitespace-nowrap ${isFocused ? 'text-white' : 'text-white/50 group-hover:text-white'}`}>
+                <span
+                    className={`font-medium transition-colors bg-black/40 rounded-sm backdrop-blur-sm pointer-events-none whitespace-nowrap ${isFocused ? 'text-white' : 'text-white/50 group-hover:text-white'}`}
+                    style={{
+                        fontSize: labelSize,
+                        marginTop: labelSize * 0.4,
+                        padding: '0.15em 0.5em',
+                        borderRadius: labelSize * 0.4
+                    }}
+                >
                     {viewLabel}
                 </span>
             )}
