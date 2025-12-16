@@ -85,3 +85,10 @@ export interface MonthLayout {
     startTs: number;
     endTs: number;
 }
+
+export interface TimelineStats {
+    minDate: number;
+    maxDate: number;
+    minViews: number;
+    maxViews: number;
+}

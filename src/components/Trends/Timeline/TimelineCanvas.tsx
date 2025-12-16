@@ -53,7 +53,6 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
         transformRef,
         setTransformState,
         clampTransform,
-        handleAutoFit,
         minScale,
         dynamicWorldHeight, // Now derived inside the hook
         anchorToTime,
@@ -139,22 +138,17 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
             // useTimelineTransform handles auto-fit logic, but we need to trigger it *after* 
             // the render cycle where worldWidth updated.
 
-            // We'll use a timeout to let the render cycle complete with the new worldWidth
-            // before calculating the fit.
-            const t = setTimeout(() => {
-                const fitTransform = calculateAutoFitTransform();
-                if (fitTransform) {
-                    smoothToTransform(fitTransform);
-                    setTimelineConfig({
-                        zoomLevel: fitTransform.scale,
-                        offsetX: fitTransform.offsetX,
-                        offsetY: fitTransform.offsetY,
-                        isCustomView: false,
-                        contentHash: currentContentHash
-                    });
-                }
-            }, 0);
-            return () => clearTimeout(t);
+            const fitTransform = calculateAutoFitTransform();
+            if (fitTransform) {
+                smoothToTransform(fitTransform);
+                setTimelineConfig({
+                    zoomLevel: fitTransform.scale,
+                    offsetX: fitTransform.offsetX,
+                    offsetY: fitTransform.offsetY,
+                    isCustomView: false,
+                    contentHash: currentContentHash
+                });
+            }
         }
     }, [structureVersion, calculateAutoFitTransform, smoothToTransform, setTimelineConfig, currentContentHash]);
 

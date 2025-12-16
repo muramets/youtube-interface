@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
 import { useDebounce } from '../../../../hooks/useDebounce';
 import { useTrendStore } from '../../../../stores/trendStore';
-import { getWorldXAtTime } from '../utils/timelineMath';
-import type { MonthLayout } from '../../../../types/trends';
+import { calculatePreservedTransform } from '../utils/timelineMath';
+import type { MonthLayout, TimelineStats } from '../../../../types/trends';
 
 export interface Transform {
     scale: number;
@@ -17,7 +17,7 @@ interface UseTimelineTransformProps {
     videosLength: number;
     // New props for timestamp anchoring
     monthLayouts: MonthLayout[];
-    stats: { minDate: number; maxDate: number };
+    stats: TimelineStats;
 }
 
 export const useTimelineTransform = ({
@@ -97,7 +97,6 @@ export const useTimelineTransform = ({
         viewportWidth: number,
         viewportHeight: number
     ): Transform => {
-        const scaledWidth = worldWidth * t.scale;
         const scaledHeight = dynamicWorldHeight * t.scale;
 
         // X-Axis clamping
@@ -105,9 +104,7 @@ export const useTimelineTransform = ({
 
         // Calculate the safe bounds (with padding)
         // Upper bound (Leftmost position): Padding
-        // Lower bound (Rightmost position): Viewport - Scaled - Padding
         const maxOffsetX = padding;
-        const minOffsetX = viewportWidth - scaledWidth - padding;
 
         // Simplification: The math is identical in both cases if we just use Min/Max correctly!
         // When Small: minOffset (Right Edge) > maxOffset (Left Edge).
@@ -136,9 +133,7 @@ export const useTimelineTransform = ({
             constrainedOffsetX = Math.max(lowerBound, Math.min(upperBound, t.offsetX));
         }
 
-        if (Math.abs(constrainedOffsetX - t.offsetX) > 0.1) {
-            // Debug log removed
-        }
+
 
         // Y-Axis clamping
         let constrainedOffsetY: number;
@@ -262,32 +257,24 @@ export const useTimelineTransform = ({
     let activeTransform = transformState;
 
     // Only apply correction if we have a pending anchor request
+    // Only apply correction if we have a pending anchor request
     if (pendingAnchorTimeRef.current !== null && (widthChanged || heightChanged)) {
-        const anchorTime = pendingAnchorTimeRef.current;
-        // Debug log removed
-
-        // X-AXIS: Restore center based on timestamp
-        const newNormX = getWorldXAtTime(anchorTime, monthLayouts, stats);
-        const newWorldX = newNormX * currentWidth;
-
-        // Center in Viewport
-        const viewportCenterX = viewportSize.width / 2;
-        const newOffsetX = viewportCenterX - (newWorldX * transformState.scale);
-
-        // Y-AXIS: Scale Vertical Position
-        const heightRatio = heightChanged ? currentHeight / prevHeight : 1.0;
-        const availableHeight = viewportSize.height - headerHeight;
-        const viewportCenterY = headerHeight + (availableHeight / 2);
-
-        const distCenterY = viewportCenterY - transformState.offsetY;
-        const newOffsetY = viewportCenterY - (distCenterY * heightRatio);
-
-        // OVERRIDE state for this render frame
-        activeTransform = {
-            ...transformState,
-            offsetX: newOffsetX,
-            offsetY: newOffsetY
-        };
+        activeTransform = calculatePreservedTransform({
+            currentTransform: transformState,
+            viewportSize,
+            headerHeight,
+            worldDimensions: {
+                prevWidth,
+                currWidth: currentWidth,
+                prevHeight,
+                currHeight: currentHeight
+            },
+            anchor: {
+                time: pendingAnchorTimeRef.current,
+                monthLayouts,
+                stats
+            }
+        });
     }
 
     // Auto-fit OR Anchor (Commit Phase)
@@ -310,111 +297,65 @@ export const useTimelineTransform = ({
 
         // 1. Commit Synchronous Anchor
         if (pendingAnchorTimeRef.current !== null) {
-            // We already calculated and rendered this frame using 'activeTransform'.
-            // Now we must Commit it to state so future renders use it.
-            // Be careful to use the SAME calculation to ensure stability.
-
-            const anchorTime = pendingAnchorTimeRef.current;
-            const anchorNormX = getWorldXAtTime(anchorTime, monthLayouts, stats);
-            const anchorX = anchorNormX * worldWidth;
-
-            const viewportX = viewportSize.width / 2;
-            const newOffsetX = viewportX - (anchorX * transformState.scale); // Center the time
-
-            // Y-AXIS: Preserve relative position (same logic as render-phase)
-            const heightRatio = hChanged ? cHeight / pHeight : 1.0;
-            const availableHeight = viewportSize.height - headerHeight;
-            const viewportCenterY = headerHeight + (availableHeight / 2);
-            const distCenterY = viewportCenterY - transformState.offsetY;
-            const newOffsetY = viewportCenterY - (distCenterY * heightRatio);
-
-            console.log('[Anchor Commit] Debug:', {
-                anchorTime: new Date(anchorTime).toISOString(),
-                anchorNormX,
-                anchorX,
-                worldWidth,
-                scale: transformState.scale,
+            const newTransform = calculatePreservedTransform({
+                currentTransform: transformState,
                 viewportSize,
                 headerHeight,
-                dynamicWorldHeight: cHeight,
-                prevWorldHeight: pHeight,
-                heightRatio,
-                currentOffsetX: transformState.offsetX,
-                currentOffsetY: transformState.offsetY,
-                newOffsetX,
-                newOffsetY,
-                wChanged,
-                hChanged
+                worldDimensions: {
+                    prevWidth: pWidth,
+                    currWidth: cWidth,
+                    prevHeight: pHeight,
+                    currHeight: cHeight
+                },
+                anchor: {
+                    time: pendingAnchorTimeRef.current,
+                    monthLayouts,
+                    stats
+                }
             });
 
-            setTransformState({
-                ...transformState,
-                offsetX: newOffsetX,
-                offsetY: newOffsetY
-            });
-
+            setTransformState(newTransform);
             pendingAnchorTimeRef.current = null;
             return;
         }
 
         if (wChanged || hChanged) {
             // Priority 0: Auto-Fit Maintenance
-            // If we were fitted to the PREVIOUS width, we should snap to the NEW width (Auto-Fit)
-            // unless we specifically requested an anchor (handled above).
-
             const prevFitScale = (viewportSize.width - padding * 2) / Math.max(1, pWidth);
-            // Relaxed tolerance for "roughly fitted"
             const scaleDiff = Math.abs(transformState.scale - prevFitScale);
             const isRoughlyFitted = scaleDiff < 0.001 || (scaleDiff / prevFitScale) < 0.05;
 
-            // Check if we effectively had a "Fit" state
-            // Note: isCustomView might be true if we dragged, but if we snapped back to fit, we treat it as fit.
             if (isRoughlyFitted && wChanged) {
                 handleAutoFit();
-                // Update refs since we handled the change
                 prevWorldWidthRef.current = cWidth;
                 prevWorldHeightRef.current = cHeight;
                 return;
             }
 
             // Priority 1: Initialization / Placeholder Transition
-            // Check for initialization case (loading -> loaded) OR (placeholder -> placeholder resize)
-            // If previous width was small (placeholder), we assume we rely on the ABSOLUTE persisted offset.
-            // We should NOT scale the offset based on the ratio of placeholder dimensions.
             const isTransitionFromPlaceholder = pWidth <= 2500 && Math.abs(transformState.offsetX) > 1;
 
             if (isTransitionFromPlaceholder) {
-                // Update refs but do NOT scale the offset
-                // This allows the persisted offset to remain valid for the new content size
                 prevWorldWidthRef.current = cWidth;
                 prevWorldHeightRef.current = cHeight;
                 return;
             }
 
-            const prevW = Math.max(1, pWidth);
-            const prevH = Math.max(1, pHeight);
-
-            // Only apply ratio if we had a valid previous dimension to scale FROM.
-            // If pWidth was 0 (or close to), it means we are hydrating/loading.
-            const isValidTransition = pWidth > 1 && pHeight > 1;
-
-            const widthRatio = (wChanged && isValidTransition) ? cWidth / prevW : 1.0;
-            const heightRatio = (hChanged && isValidTransition) ? cHeight / prevH : 1.0;
-
-            const viewportX = viewportSize.width / 2;
-            const distX = viewportX - transformState.offsetX;
-            const newX = viewportX - (distX * widthRatio);
-
-            const availH = viewportSize.height - headerHeight;
-            const viewY = headerHeight + (availH / 2);
-            const distY = viewY - transformState.offsetY;
-            const newY = viewY - (distY * heightRatio);
-
-            setTransformState({
-                ...transformState,
-                offsetX: newX,
-                offsetY: newY
+            // Priority 2: Standard Ratio Preservation
+            const newTransform = calculatePreservedTransform({
+                currentTransform: transformState,
+                viewportSize,
+                headerHeight,
+                worldDimensions: {
+                    prevWidth: pWidth,
+                    currWidth: cWidth,
+                    prevHeight: pHeight,
+                    currHeight: cHeight
+                }
+                // No anchor -> implies ratio mode
             });
+
+            setTransformState(newTransform);
         }
 
     }, [worldWidth, dynamicWorldHeight, videosLength, viewportSize, headerHeight, isCustomView, handleAutoFit, transformState, setTransformState, monthLayouts, stats, padding]); // Dependencies

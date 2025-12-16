@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react';
-import type { TrendVideo, MonthRegion, YearMarker } from '../../../../types/trends';
+import type { TrendVideo, MonthRegion, YearMarker, TimelineStats } from '../../../../types/trends';
 
 // Constants
 
@@ -26,7 +26,7 @@ export const useTimelineStructure = ({
     const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
 
     // 1. Calculate View Stats (Moved first to support size-based width calculation)
-    const currentStats = useMemo(() => {
+    const currentStats = useMemo((): TimelineStats => {
         if (videos.length === 0) return { minViews: 0, maxViews: 1, minDate: Date.now(), maxDate: Date.now() };
         const views = videos.map(v => v.viewCount);
         const dates = videos.map(v => v.publishedAtTimestamp);
@@ -55,9 +55,10 @@ export const useTimelineStructure = ({
     const stats = frozenStatsRef.current.value;
 
 
-    // 2. Calculate World Width (Now size-aware)
-    const currentWorldWidth = useMemo(() => {
-        if (videos.length === 0) return 2000;
+
+    // 2. Calculate Density Stats (Shared Logic)
+    const densityStats = useMemo(() => {
+        if (videos.length === 0) return { counts: new Map<string, number>(), dynamicLinearPixelsPerDay: 40 };
 
         const counts = new Map<string, number>();
         const monthDetails = new Map<string, { count: number, totalSizeRatio: number }>();
@@ -74,7 +75,6 @@ export const useTimelineStructure = ({
             const viewLog = Math.log(Math.max(1, v.viewCount));
             const minLog = Math.log(Math.max(1, stats.minViews));
             const sizeRatio = (viewLog - minLog) / viewRangeLog;
-            // baseSize = MIN + ratio * (MAX - MIN)
 
             const current = monthDetails.get(key) || { count: 0, totalSizeRatio: 0 };
             current.count += 1;
@@ -89,9 +89,6 @@ export const useTimelineStructure = ({
             }
         });
 
-        // STANDARD CONSTANTS
-        const VIDEO_DENSITY_MULTIPLIER = 80;
-
         // SMART LINEAR SCALE CALCULATION
         let dynamicLinearPixelsPerDay = 40; // Default fallback
 
@@ -100,17 +97,24 @@ export const useTimelineStructure = ({
             if (details) {
                 const avgSizeRatio = details.totalSizeRatio / details.count;
                 const avgThumbnailHeight = MIN_THUMBNAIL_SIZE + avgSizeRatio * (BASE_THUMBNAIL_SIZE - MIN_THUMBNAIL_SIZE);
-
                 // Account for Aspect Ratio (16:9)
                 const avgThumbnailWidth = avgThumbnailHeight * (16 / 9);
-
                 // Calculate Required Width
                 const requiredWidth = details.count * (avgThumbnailWidth * 0.9);
-
                 // Provide specific linear PPD for this busy month
                 dynamicLinearPixelsPerDay = Math.max(40, requiredWidth / 30);
             }
         }
+
+        return { counts, dynamicLinearPixelsPerDay };
+    }, [videos, stats]);
+
+    // 3. Calculate World Width (Now size-aware)
+    const currentWorldWidth = useMemo(() => {
+        if (videos.length === 0) return 2000;
+
+        const { counts, dynamicLinearPixelsPerDay } = densityStats;
+        const VIDEO_DENSITY_MULTIPLIER = 80;
 
         let totalWidth = 0;
         const start = new Date(stats.minDate);
@@ -136,7 +140,6 @@ export const useTimelineStructure = ({
             const linearWidth = daysInMonth * dynamicLinearPixelsPerDay;
 
             // 3. Interpolate
-            // timeLinearity: 1 = Density, 0 = Linear
             const width = linearWidth + (densityWidth - linearWidth) * timeLinearity;
 
             totalWidth += width;
@@ -144,14 +147,9 @@ export const useTimelineStructure = ({
         }
 
         return Math.max(2000, totalWidth);
-    }, [videos, timeLinearity, stats]);
-    // ^ Dependency on 'stats' ensures that if 'stats' is frozen, width calculation uses frozen stats logic, 
-    // but the 'videos' array might contain new videos. 
-    // However, if we freeze 'stats', 'width' calculation above iterates NEW videos using FROZEN stats (min/max/date).
-    // This is correct behavior for "freeze": new videos appear on old scale.
+    }, [videos, timeLinearity, stats, densityStats]);
 
     // Freeze World Width
-    // We also need to invalidate if timeLinearity changes, regardless of version
     const frozenWorldWidthRef = useRef<{ version: number, linearity: number, value: number, wasEmpty: boolean } | null>(null);
 
     // If version changed OR linearity changed OR first load OR initializing from empty
@@ -171,50 +169,12 @@ export const useTimelineStructure = ({
     const worldWidth = frozenWorldWidthRef.current.value;
 
 
+
     // 4. Calculate Layouts (using synchronized logic)
     const currentMonthLayouts = useMemo(() => {
         if (videos.length === 0) return [];
 
-        const counts = new Map<string, number>();
-        const monthDetails = new Map<string, { count: number, totalSizeRatio: number }>();
-        let maxCount = 0;
-        let busiestMonthKey = '';
-
-        const viewRangeLog = Math.log(stats.maxViews) - Math.log(stats.minViews) || 1;
-
-        videos.forEach(v => {
-            const d = new Date(v.publishedAtTimestamp);
-            const key = `${d.getFullYear()}-${d.getMonth()}`;
-
-            const viewLog = Math.log(Math.max(1, v.viewCount));
-            const minLog = Math.log(Math.max(1, stats.minViews));
-            const sizeRatio = (viewLog - minLog) / viewRangeLog;
-
-            const current = monthDetails.get(key) || { count: 0, totalSizeRatio: 0 };
-            current.count += 1;
-            current.totalSizeRatio += sizeRatio;
-
-            monthDetails.set(key, current);
-            counts.set(key, current.count);
-
-            if (current.count > maxCount) {
-                maxCount = current.count;
-                busiestMonthKey = key;
-            }
-        });
-
-        // SMART LINEAR SCALE CALCULATION (Duplicated logic for consistency)
-        let dynamicLinearPixelsPerDay = 40;
-
-        if (busiestMonthKey && maxCount > 0) {
-            const details = monthDetails.get(busiestMonthKey);
-            if (details) {
-                const avgSizeRatio = details.totalSizeRatio / details.count;
-                const avgThumbnailSize = MIN_THUMBNAIL_SIZE + avgSizeRatio * (BASE_THUMBNAIL_SIZE - MIN_THUMBNAIL_SIZE);
-                const requiredWidth = details.count * (avgThumbnailSize * 0.8);
-                dynamicLinearPixelsPerDay = Math.max(40, requiredWidth / 30);
-            }
-        }
+        const { counts, dynamicLinearPixelsPerDay } = densityStats;
 
         let current = new Date(stats.minDate);
         current.setDate(1);
@@ -269,7 +229,7 @@ export const useTimelineStructure = ({
             endX: l.endX / totalAbsWidth,
             width: l.width / totalAbsWidth
         }));
-    }, [videos, stats, timeLinearity]);
+    }, [videos, stats, timeLinearity, densityStats]);
 
     // Freeze Month Layouts
     const frozenLayoutsRef = useRef<{ version: number, linearity: number, value: typeof currentMonthLayouts, wasEmpty: boolean } | null>(null);
@@ -346,7 +306,7 @@ export const useTimelineStructure = ({
 };
 export interface UseTimelinePositionsProps {
     videos: TrendVideo[];
-    stats: any;
+    stats: TimelineStats;
     monthLayouts: any[];
     scalingMode: 'linear' | 'log' | 'sqrt' | 'percentile';
     verticalSpread?: number;
