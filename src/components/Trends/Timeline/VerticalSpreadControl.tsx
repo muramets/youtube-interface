@@ -42,7 +42,7 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
 
         const handleMouseMove = (e: MouseEvent) => {
             const deltaY = dragStartY - e.clientY; // Up moves positive
-            const sensitivity = 0.005; // 200px = full range
+            const sensitivity = 0.015; // ~66px = full range (much more sensitive)
 
             // Range: 0 (Line) to 1 (Fit In)
             const newValue = Math.max(0, Math.min(1, startValue + deltaY * sensitivity));
@@ -69,14 +69,14 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
 
     return (
         <div className="relative group/spread">
-            {/* Main Pill Container */}
+            {/* Main Pill Container - Fixed Width */}
             <div
                 ref={buttonRef}
                 onMouseDown={handleMouseDown}
                 onMouseEnter={() => !isDragging && setShowTooltip(true)}
                 onMouseLeave={() => setShowTooltip(false)}
                 className={`
-                    flex flex-col items-center justify-center gap-0.5 px-1.5 py-1.5
+                    flex flex-col items-center justify-center gap-0 px-2 py-1.5 min-w-[38px]
                     bg-bg-secondary/90 backdrop-blur-md border border-border rounded-full shadow-lg
                     transition-all duration-200 select-none
                     ${isDragging ? 'cursor-ns-resize ring-1 ring-text-primary/20 bg-bg-secondary' : 'cursor-ns-resize hover:bg-hover-bg'}
@@ -84,9 +84,12 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
                 `}
             >
                 {/* Value Display */}
-                <div className={`text-[10px] font-mono font-medium text-text-secondary tracking-tighter tabular-nums ${isDragging ? 'text-text-primary' : ''}`}>
+                <div className={`text-[10px] font-mono font-medium text-text-secondary tracking-tighter tabular-nums min-w-[24px] text-center ${isDragging ? 'text-text-primary' : ''}`}>
                     {displayValue}
                 </div>
+
+                {/* Divider */}
+                <div className="w-3 h-[1px] bg-border my-1" />
 
                 {/* Icon */}
                 <ArrowUpDown size={14} className={`text-text-tertiary transition-colors ${isDragging ? 'text-text-primary' : 'group-hover/spread:text-text-primary'}`} />
@@ -104,11 +107,11 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
             {/* Drag Slider Indicator (Appears ABOVE the pill during drag) */}
             {isDragging && (
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 pointer-events-none z-50 flex flex-col items-center">
-                    {/* Slider Track */}
-                    <div className="h-24 w-1.5 rounded-full bg-bg-secondary border border-white/10 backdrop-blur-md overflow-hidden relative shadow-xl">
-                        {/* Fill Bar (Bottom Up) */}
+                    {/* Slider Track (Dark background = empty) */}
+                    <div className="h-20 w-2 rounded-full bg-black/40 border border-white/10 backdrop-blur-md overflow-hidden relative shadow-xl">
+                        {/* Fill Bar (Bottom Up) - Lighter = filled */}
                         <div
-                            className="absolute bottom-0 w-full bg-primary transition-all duration-75 ease-out"
+                            className="absolute bottom-0 w-full bg-text-secondary/80 rounded-full transition-all duration-75 ease-out"
                             style={{ height: `${value * 100}%` }}
                         />
                     </div>
