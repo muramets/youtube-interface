@@ -108,35 +108,17 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
             {/* Subtle Vertical Gradient Overlay */}
             <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-text-primary/[0.02] to-transparent" />
 
-            {isLoading ? (
-                <TimelineSkeleton />
-            ) : (
-                <>
-                    <TimelineDateHeader
-                        yearMarkers={yearMarkers}
-                        monthRegions={monthRegions}
-                        transform={transformState}
-                        worldWidth={worldWidth}
-                    />
-                    <TimelineBackground
-                        monthRegions={monthRegions}
-                        transform={transformState}
-                        worldWidth={worldWidth}
-                        timeLinearity={timeLinearity || 1.0}
-                    />
-
-                    {/* Vertical View Axis (Side Header) */}
-                    <TimelineViewAxis
-                        stats={stats}
-                        scalingMode={scalingMode}
-                        amplifierLevel={amplifierLevel}
-                        dynamicWorldHeight={dynamicWorldHeight}
-                        transform={transformState}
-                        style={{ top: HEADER_HEIGHT }}
-                    />
-                </>
+            {/* 1. Background (Bottom Layer) */}
+            {!isLoading && (
+                <TimelineBackground
+                    monthRegions={monthRegions}
+                    transform={transformState}
+                    worldWidth={worldWidth}
+                    timeLinearity={timeLinearity || 1.0}
+                />
             )}
 
+            {/* 2. Video Content (Middle Layer) */}
             <TimelineVideoLayer
                 ref={videoLayerRef}
                 videoPositions={videoPositions}
@@ -181,6 +163,33 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
                     setTransformState(clamped);
                 }}
             />
+
+            {/* 3. Headers & UI Overlays (Top Layer) */}
+            {isLoading ? (
+                <TimelineSkeleton />
+            ) : (
+                <>
+                    {/* Date Header with Backdrop Blur */}
+                    <div className="relative z-10">
+                        <TimelineDateHeader
+                            yearMarkers={yearMarkers}
+                            monthRegions={monthRegions}
+                            transform={transformState}
+                            worldWidth={worldWidth}
+                        />
+                    </div>
+
+                    {/* Vertical View Axis */}
+                    <TimelineViewAxis
+                        stats={stats}
+                        scalingMode={scalingMode}
+                        amplifierLevel={amplifierLevel}
+                        dynamicWorldHeight={dynamicWorldHeight}
+                        transform={transformState}
+                        style={{ top: HEADER_HEIGHT }}
+                    />
+                </>
+            )}
 
             <ZoomIndicator
                 scale={transformState.scale}
