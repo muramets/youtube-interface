@@ -170,13 +170,16 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
             ) : (
                 <>
                     {/* Date Header with Backdrop Blur */}
-                    <div className="relative z-10">
-                        <TimelineDateHeader
-                            yearMarkers={yearMarkers}
-                            monthRegions={monthRegions}
-                            transform={transformState}
-                            worldWidth={worldWidth}
-                        />
+                    <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
+                        {/* Wrapper handles z-index and positioning. Inner header handles content. */}
+                        <div className="pointer-events-auto">
+                            <TimelineDateHeader
+                                yearMarkers={yearMarkers}
+                                monthRegions={monthRegions}
+                                transform={transformState}
+                                worldWidth={worldWidth}
+                            />
+                        </div>
                     </div>
 
                     {/* Vertical View Axis */}
