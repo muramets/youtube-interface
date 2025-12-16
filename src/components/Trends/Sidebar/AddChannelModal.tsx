@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Loader2 } from 'lucide-react';
 import { TrendService } from '../../../services/trendService';
 import { useAuth } from '../../../hooks/useAuth';
-import { useSettings } from '../../../hooks/useSettings';
+import { useApiKey } from '../../../hooks/useApiKey';
 import { useChannelStore } from '../../../stores/channelStore';
 import { useUIStore } from '../../../stores/uiStore';
 import { useNotificationStore } from '../../../stores/notificationStore';
@@ -19,7 +19,7 @@ export const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClos
     const [error, setError] = useState('');
 
     const { user } = useAuth();
-    const { generalSettings } = useSettings();
+    const { apiKey, hasApiKey } = useApiKey();
     const { currentChannel } = useChannelStore();
     const { showToast } = useUIStore();
     const { addNotification } = useNotificationStore();
@@ -32,8 +32,7 @@ export const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClos
         setError('');
 
         try {
-            const apiKey = generalSettings?.apiKey || localStorage.getItem('youtube_api_key') || '';
-            if (!apiKey) throw new Error('API Key not found. Please set it in Settings.');
+            if (!hasApiKey) throw new Error('API Key not found. Please set it in Settings.');
 
             const { quotaCost } = await TrendService.addTrendChannel(user.uid, currentChannel.id, url, apiKey);
 

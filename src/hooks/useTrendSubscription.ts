@@ -5,20 +5,35 @@ import { TrendService } from '../services/trendService';
 import { useChannelStore } from '../stores/channelStore';
 
 export const useTrendSubscription = () => {
-    const { user } = useAuth();
+    const { user, isLoading: isAuthLoading } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { setChannels } = useTrendStore();
+    const { setChannels, setIsLoadingChannels } = useTrendStore();
 
     useEffect(() => {
-        if (!user?.uid || !currentChannel?.id) {
-            setChannels([]); // Clear channels when no user channel selected
+        // While auth is still loading, keep showing skeleton
+        if (isAuthLoading) {
             return;
         }
 
+        if (!user?.uid || !currentChannel?.id) {
+            setChannels([]); // Clear channels when no user channel selected
+            setIsLoadingChannels(false);
+            return;
+        }
+
+        // Start loading when subscribing
+        setIsLoadingChannels(true);
+        let isFirstCallback = true;
+
         const unsubscribe = TrendService.subscribeToTrendChannels(user.uid, currentChannel.id, (channels) => {
             setChannels(channels);
+            // Only set loading to false on first callback
+            if (isFirstCallback) {
+                setIsLoadingChannels(false);
+                isFirstCallback = false;
+            }
         });
 
         return () => unsubscribe();
-    }, [user, currentChannel?.id, setChannels]);
+    }, [user, currentChannel?.id, setChannels, setIsLoadingChannels, isAuthLoading]);
 };

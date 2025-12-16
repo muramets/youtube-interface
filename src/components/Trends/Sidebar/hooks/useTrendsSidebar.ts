@@ -4,7 +4,8 @@ import { useTrendStore } from '../../../../stores/trendStore';
 import { TrendService } from '../../../../services/trendService';
 import { useAuth } from '../../../../hooks/useAuth';
 import { useChannelStore } from '../../../../stores/channelStore';
-import { useSettings } from '../../../../hooks/useSettings';
+import { useChannels } from '../../../../hooks/useChannels';
+import { useApiKey } from '../../../../hooks/useApiKey';
 import { useUIStore } from '../../../../stores/uiStore';
 import { useNotificationStore } from '../../../../stores/notificationStore';
 import type { TrendChannel } from '../../../../types/trends';
@@ -15,10 +16,11 @@ interface MenuState {
 }
 
 export const useTrendsSidebar = () => {
-    const { channels, selectedChannelId, setSelectedChannelId, setAddChannelModalOpen } = useTrendStore();
-    const { user } = useAuth();
+    const { channels, selectedChannelId, setSelectedChannelId, setAddChannelModalOpen, isLoadingChannels } = useTrendStore();
+    const { user, isLoading: isAuthLoading } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { generalSettings } = useSettings();
+    const { isLoading: isChannelsLoading } = useChannels(user?.uid || '');
+    const { apiKey, hasApiKey } = useApiKey();
     const { showToast } = useUIStore();
     const { addNotification } = useNotificationStore();
     const navigate = useNavigate();
@@ -66,8 +68,7 @@ export const useTrendsSidebar = () => {
         const channel = channels.find(c => c.id === channelId);
         if (!channel) return;
 
-        const apiKey = generalSettings?.apiKey || localStorage.getItem('youtube_api_key') || '';
-        if (!apiKey) {
+        if (!hasApiKey) {
             showToast('API Key not found. Please set it in Settings.', 'error');
             return;
         }
@@ -92,6 +93,10 @@ export const useTrendsSidebar = () => {
         }
     };
 
+    // Show skeleton while any loading is in progress
+    // Same pattern as Header: auth loading OR (user exists AND channels still loading)
+    const isLoading = isAuthLoading || (!!user && isChannelsLoading && !currentChannel) || isLoadingChannels;
+
     return {
         // State
         channels,
@@ -99,6 +104,7 @@ export const useTrendsSidebar = () => {
         isOnTrendsPage,
         menuState,
         channelToDelete,
+        isLoadingChannels: isLoading,
 
         // Actions
         setMenuState,

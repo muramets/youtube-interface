@@ -28,6 +28,7 @@ interface TrendStore {
     selectedVideo: TrendVideo | null; // For floating bar
     hoveredVideo: TrendVideo | null; // For tooltip
     isAddChannelModalOpen: boolean;
+    isLoadingChannels: boolean; // Loading state for channels list
 
     // Actions
     setChannels: (channels: TrendChannel[]) => void;
@@ -39,6 +40,7 @@ interface TrendStore {
     setSelectedVideo: (video: TrendVideo | null) => void;
     setHoveredVideo: (video: TrendVideo | null) => void;
     setAddChannelModalOpen: (isOpen: boolean) => void;
+    setIsLoadingChannels: (isLoading: boolean) => void;
 
     // Helpers
     toggleChannelVisibility: (id: string) => void;
@@ -58,6 +60,7 @@ export const useTrendStore = create<TrendStore>()(
             selectedVideo: null,
             hoveredVideo: null,
             isAddChannelModalOpen: false,
+            isLoadingChannels: true, // Start as loading
 
             setChannels: (channels) => set({ channels }),
 
@@ -99,6 +102,8 @@ export const useTrendStore = create<TrendStore>()(
             setHoveredVideo: (video) => set({ hoveredVideo: video }),
 
             setAddChannelModalOpen: (isOpen) => set({ isAddChannelModalOpen: isOpen }),
+
+            setIsLoadingChannels: (isLoading) => set({ isLoadingChannels: isLoading }),
 
             toggleChannelVisibility: (id) => set((state) => ({
                 channels: state.channels.map(c =>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Plus, TrendingUp, Trash2, RefreshCw } from 'lucide-react';
 import { TrendsChannelItem } from './TrendsChannelItem';
+import { TrendsChannelSkeleton } from './TrendsChannelSkeleton';
 import { SidebarDivider } from '../../Layout/Sidebar';
 import { Dropdown } from '../../Shared/Dropdown';
 import { ConfirmationModal } from '../../Shared/ConfirmationModal';
@@ -14,6 +15,7 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
         isOnTrendsPage,
         menuState,
         channelToDelete,
+        isLoadingChannels,
         setMenuState,
         setChannelToDelete,
         setAddChannelModalOpen,
@@ -70,7 +72,9 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                         </div>
 
                         {/* Channel List */}
-                        {channels.length === 0 ? (
+                        {isLoadingChannels ? (
+                            <TrendsChannelSkeleton />
+                        ) : channels.length === 0 ? (
                             <div className="text-text-tertiary text-xs px-2 py-1">
                                 No channels tracked
                             </div>

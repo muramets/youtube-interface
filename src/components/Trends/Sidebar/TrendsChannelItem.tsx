@@ -36,19 +36,19 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                 }`}>
                 {channel.title}
             </span>
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className={`flex items-center gap-1 transition-opacity ${!channel.isVisible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
                         onToggleVisibility(e, channel.id, channel.isVisible);
                     }}
-                    className={`p-1 rounded-full transition-all ${channel.isVisible
-                        ? 'text-text-secondary hover:bg-white/10'
-                        : 'text-text-tertiary opacity-100'
+                    className={`p-1.5 rounded-full transition-all ${channel.isVisible
+                        ? 'text-text-secondary hover:text-text-primary hover:bg-white/10'
+                        : 'text-text-tertiary bg-white/5 hover:bg-white/10'
                         }`}
                     title={channel.isVisible ? "Hide channel" : "Show channel"}
                 >
-                    {channel.isVisible ? <Eye size={14} /> : <EyeOff size={14} />}
+                    {channel.isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
                 </button>
                 <button
                     onClick={(e) => {
