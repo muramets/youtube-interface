@@ -12,7 +12,7 @@ interface TrendsSettingsProps {
 export const TrendsSettings: React.FC<TrendsSettingsProps> = ({ timelineConfig, setTimelineConfig }) => {
     // Settings Dropdown State
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const [settingsView, setSettingsView] = useState<'main' | 'scaling' | 'layout'>('main');
+    const [settingsView, setSettingsView] = useState<'main' | 'scaling'>('main');
     const settingsButtonRef = useRef<HTMLButtonElement>(null);
 
     // Tooltip State
@@ -76,24 +76,9 @@ export const TrendsSettings: React.FC<TrendsSettingsProps> = ({ timelineConfig, 
                             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" className="text-text-secondary"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" /></svg>
                         </div>
 
-                        {/* Layout Mode Menu Item */}
-                        <div
-                            onClick={() => setSettingsView('layout')}
-                            className="px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-hover-bg transition-colors"
-                        >
-                            <div className="flex items-center gap-3">
-                                <div className="w-5 h-5 flex items-center justify-center">
-                                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                                        <path d="M3 5h2v14H3V5zm4 0h2v14H7V5zm4 0h2v14h-2V5zm4 0h2v14h-2V5zm4 0h2v14h-2V5z" />
-                                    </svg>
-                                </div>
-                                <span className="text-sm">Layout: {timelineConfig.layoutMode === 'compact' ? 'Compact' : 'Spacious'}</span>
-                            </div>
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" className="text-text-secondary"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" /></svg>
-                        </div>
                     </div>
-                ) : settingsView === 'scaling' ? (
-                    /* Scaling Submenu */
+                ) : (
+                    /* Scaling Submenu (Default Fallback if not main) */
                     <div className="pb-2">
                         <div className="px-4 py-3 flex items-center gap-2 border-b border-border mb-2">
                             <button
@@ -117,22 +102,9 @@ export const TrendsSettings: React.FC<TrendsSettingsProps> = ({ timelineConfig, 
                         >
                             <div className="flex flex-col">
                                 <span className="text-sm text-text-primary">Linear</span>
-                                <span className="text-xs text-text-secondary">Proportional to views</span>
+                                <span className="text-xs text-text-secondary">Raw view counts</span>
                             </div>
                             {timelineConfig.scalingMode === 'linear' && <Check size={20} className="text-text-primary" />}
-                        </div>
-
-                        <div
-                            onClick={() => setTimelineConfig({ scalingMode: 'log' })}
-                            onMouseEnter={(e) => handleMouseEnter('log', e)}
-                            onMouseLeave={handleMouseLeave}
-                            className="px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-hover-bg transition-colors relative"
-                        >
-                            <div className="flex flex-col">
-                                <span className="text-sm text-text-primary">Logarithmic</span>
-                                <span className="text-xs text-text-secondary">Less extreme differences</span>
-                            </div>
-                            {timelineConfig.scalingMode === 'log' && <Check size={20} className="text-text-primary" />}
                         </div>
 
                         <div
@@ -143,10 +115,25 @@ export const TrendsSettings: React.FC<TrendsSettingsProps> = ({ timelineConfig, 
                         >
                             <div className="flex flex-col">
                                 <span className="text-sm text-text-primary">Square Root</span>
-                                <span className="text-xs text-text-secondary">Balanced compromise</span>
+                                <span className="text-xs text-text-secondary">Emphasizes top performers</span>
                             </div>
                             {timelineConfig.scalingMode === 'sqrt' && <Check size={20} className="text-text-primary" />}
                         </div>
+
+                        <div
+                            onClick={() => setTimelineConfig({ scalingMode: 'log' })}
+                            onMouseEnter={(e) => handleMouseEnter('log', e)}
+                            onMouseLeave={handleMouseLeave}
+                            className="px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-hover-bg transition-colors relative"
+                        >
+                            <div className="flex flex-col">
+                                <span className="text-sm text-text-primary">Logarithmic</span>
+                                <span className="text-xs text-text-secondary">Balanced distribution</span>
+                            </div>
+                            {timelineConfig.scalingMode === 'log' && <Check size={20} className="text-text-primary" />}
+                        </div>
+
+                        <div className="h-px bg-border my-1 mx-4 opacity-50" />
 
                         <div
                             onClick={() => setTimelineConfig({ scalingMode: 'percentile' })}
@@ -161,45 +148,6 @@ export const TrendsSettings: React.FC<TrendsSettingsProps> = ({ timelineConfig, 
                             {timelineConfig.scalingMode === 'percentile' && <Check size={20} className="text-text-primary" />}
                         </div>
                     </div>
-                ) : (
-                    /* Layout Submenu */
-                    <div className="pb-2">
-                        <div className="px-4 py-3 flex items-center gap-2 border-b border-border mb-2">
-                            <button
-                                onClick={() => setSettingsView('main')}
-                                className="p-1 -ml-2 hover:bg-hover-bg rounded-full text-text-primary"
-                            >
-                                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>
-                            </button>
-                            <span className="text-base font-medium">Timeline Layout</span>
-                        </div>
-
-                        <div className="px-4 py-2 text-xs text-text-secondary">
-                            Control horizontal spacing between videos
-                        </div>
-
-                        <div
-                            onClick={() => setTimelineConfig({ layoutMode: 'spacious' })}
-                            className="px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-hover-bg transition-colors"
-                        >
-                            <div className="flex flex-col">
-                                <span className="text-sm text-text-primary">Spacious</span>
-                                <span className="text-xs text-text-secondary">Videos have gaps between them</span>
-                            </div>
-                            {timelineConfig.layoutMode === 'spacious' && <Check size={20} className="text-text-primary" />}
-                        </div>
-
-                        <div
-                            onClick={() => setTimelineConfig({ layoutMode: 'compact' })}
-                            className="px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-hover-bg transition-colors"
-                        >
-                            <div className="flex flex-col">
-                                <span className="text-sm text-text-primary">Compact</span>
-                                <span className="text-xs text-text-secondary">Videos can overlap horizontally</span>
-                            </div>
-                            {timelineConfig.layoutMode === 'compact' && <Check size={20} className="text-text-primary" />}
-                        </div>
-                    </div>
                 )}
             </Dropdown>
 
@@ -207,32 +155,32 @@ export const TrendsSettings: React.FC<TrendsSettingsProps> = ({ timelineConfig, 
             {isSettingsOpen && hoveredScalingMode === 'linear' && (
                 <ScalingTooltip
                     title="Linear Scaling"
-                    description="Size is directly proportional to view count. Ideal for identifying massive viral outliers vs average videos."
-                    example="1M views is 10x larger than 100k views."
-                    parentRect={hoveredItemRect}
-                />
-            )}
-            {isSettingsOpen && hoveredScalingMode === 'log' && (
-                <ScalingTooltip
-                    title="Logarithmic Scaling"
-                    description="Size increases by order of magnitude. Better for comparing performance nuances across a wide range of channels."
-                    example="1M views is only ~2x larger than 10k views."
+                    description="The raw reality. See exactly how much bigger viral videos are compared to the rest. The gaps here are massive."
+                    example="1M views is 10x larger than 100K views."
                     parentRect={hoveredItemRect}
                 />
             )}
             {isSettingsOpen && hoveredScalingMode === 'sqrt' && (
                 <ScalingTooltip
                     title="Square Root Scaling"
-                    description="Compromise between Linear and Log. Top videos are noticeable but don't dominate. Very readable for the eye."
-                    example="1M views is ~3x larger than 100k views."
+                    description="Heavy emphasis on top performers. Reduces the extreme gaps of Linear, but viral hits still clearly dominate the chart."
+                    example="1M views is ~3.2x larger than 100K views."
+                    parentRect={hoveredItemRect}
+                />
+            )}
+            {isSettingsOpen && hoveredScalingMode === 'log' && (
+                <ScalingTooltip
+                    title="Logarithmic Scaling"
+                    description="The great equalizer. Spreads out all videos evenly so you can see patterns across small, medium, and huge channels."
+                    example="1M views is only ~1.2x larger than 100K views."
                     parentRect={hoveredItemRect}
                 />
             )}
             {isSettingsOpen && hoveredScalingMode === 'percentile' && (
                 <ScalingTooltip
                     title="Percentile Scaling"
-                    description="Size based on rank, not absolute views. Shows which videos consistently hit top positions. Buckets: Top 1%, 1-5%, 5-20%, Middle 60%, Bottom 20%."
-                    example="Top 1% videos are largest, regardless of view count delta."
+                    description="Rank-based sizing. Ignores absolute view counts to simply show which videos performed best relative to others."
+                    example="1M (Top 1%) is max size. 100K is sized by rank, ignoring the 10x gap."
                     parentRect={hoveredItemRect}
                 />
             )}
