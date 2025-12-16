@@ -159,13 +159,15 @@ export const useTimelineTransform = ({
         let constrainedOffsetY: number;
         const availableHeight = viewportHeight - headerHeight;
 
-        if (scaledHeight < availableHeight) {
+        if (scaledHeight <= availableHeight) {
+            // Content matches or is smaller than viewport: Center it vertically (or top-align if preferred)
             constrainedOffsetY = headerHeight + (availableHeight - scaledHeight) / 2;
         } else {
-            // Add vertical padding for consistency (optional but "robust")
-            const verticalPadding = 20; // Hardcoded small buffer or reuse padding
-            const maxOffsetY = headerHeight + verticalPadding;
-            const minOffsetY = viewportHeight - scaledHeight - verticalPadding;
+            // Content is larger: Clamp strict bounds (No overscroll padding)
+            // Top limit: Header Bottom (headerHeight)
+            // Bottom limit: Viewport Bottom (viewportHeight - scaledHeight)
+            const maxOffsetY = headerHeight;
+            const minOffsetY = viewportHeight - scaledHeight;
             constrainedOffsetY = Math.max(minOffsetY, Math.min(maxOffsetY, t.offsetY));
         }
 
