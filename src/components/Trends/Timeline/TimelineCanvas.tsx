@@ -197,8 +197,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
             <ZoomIndicator
                 scale={transformState.scale}
                 minScale={minScale}
-                amplifierLevel={amplifierLevel || 1.0}
-                timeLinearity={timeLinearity || 1.0}
+                amplifierLevel={amplifierLevel ?? 1.0}
+                timeLinearity={timeLinearity ?? 1.0}
                 onReset={handleAutoFit}
                 onAmplifierChange={(level) => setTimelineConfig({ amplifierLevel: level })}
                 onTimeLinearityChange={(level) => setTimelineConfig({ timeLinearity: level })}
