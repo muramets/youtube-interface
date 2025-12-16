@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useTrendStore } from '../../../stores/trendStore';
 import { TrendTooltip } from './TrendTooltip';
 import { TimelineDateHeader } from './TimelineDateHeader';
+import { TimelineViewAxis } from './TimelineViewAxis';
 import { TimelineBackground } from './TimelineBackground';
 import { TimelineVideoLayer, type TimelineVideoLayerHandle } from './layers/TimelineVideoLayer';
 import { ZoomIndicator } from './ZoomIndicator';
@@ -142,6 +143,16 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
                         transform={transformState}
                         worldWidth={worldWidth}
                         timeLinearity={timeLinearity || 1.0}
+                    />
+
+                    {/* Vertical View Axis (Side Header) */}
+                    <TimelineViewAxis
+                        stats={stats}
+                        scalingMode={scalingMode}
+                        amplifierLevel={amplifierLevel}
+                        dynamicWorldHeight={dynamicWorldHeight}
+                        transform={transformState}
+                        style={{ top: HEADER_HEIGHT }}
                     />
                 </>
             )}
