@@ -1,45 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Filter, ChevronRight, X, Calendar, Clock, Eye, Type, List, MonitorPlay, ChevronLeft } from 'lucide-react';
+import { Filter, ChevronRight, X, Calendar, Eye, ChevronLeft } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { useFilterStore, type FilterType, type FilterOperator } from '../../stores/filterStore';
-import { FilterInputTitle } from './FilterInputs/FilterInputTitle';
-import { FilterInputNumeric } from './FilterInputs/FilterInputNumeric';
-import { FilterInputDate } from './FilterInputs/FilterInputDate';
-import { FilterInputList } from './FilterInputs/FilterInputList';
-import { useVideos } from '../../hooks/useVideos';
-import { usePlaylists } from '../../hooks/usePlaylists';
-import { useAuth } from '../../hooks/useAuth';
-import { useChannelStore } from '../../stores/channelStore';
+import { useTrendStore } from '../../../stores/trendStore';
+import { FilterInputDate } from '../../Shared/FilterInputs/FilterInputDate';
+import { FilterInputNumeric } from '../../Shared/FilterInputs/FilterInputNumeric';
+import type { FilterOperator } from '../../../stores/filterStore';
 
-export const FilterButton: React.FC = () => {
+type TrendsFilterType = 'date' | 'views';
+
+export const TrendsFilterButton: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
 
     // State for Navigation (Main vs Submenu)
-    const [activeView, setActiveView] = useState<FilterType | 'main'>('main');
+    const [activeView, setActiveView] = useState<TrendsFilterType | 'main'>('main');
 
-    const { addFilter, activeFilters } = useFilterStore();
-    const { user } = useAuth();
-    const { currentChannel } = useChannelStore();
-
-    // Data hooks for lists
-    const { videos } = useVideos(user?.uid || '', currentChannel?.id || '');
-    const { playlists } = usePlaylists(user?.uid || '', currentChannel?.id || '');
-
-    // Prepare list options
-    const channelOptions = Array.from(new Set(videos.map(v => v.channelTitle))).map(name => ({
-        id: name,
-        label: name
-    })).sort((a, b) => a.label.localeCompare(b.label));
-
-    const playlistOptions = playlists.map(p => ({
-        id: p.id,
-        label: p.name,
-        description: `${p.videoIds.length} videos`
-    }));
-
+    const { addTrendsFilter, trendsFilters } = useTrendStore();
 
     useEffect(() => {
         if (isOpen && buttonRef.current) {
@@ -57,7 +35,6 @@ export const FilterButton: React.FC = () => {
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            // IGNORE clicks inside the CustomSelect dropdown portal
             const target = event.target as Element;
             if (target.closest('#custom-select-dropdown')) {
                 return;
@@ -84,22 +61,17 @@ export const FilterButton: React.FC = () => {
         };
     }, [isOpen]);
 
-    const handleAddFilter = (type: FilterType, operator: FilterOperator, value: any, label: string) => {
-        addFilter({ type, operator, value, label });
+    const handleAddFilter = (type: TrendsFilterType, operator: FilterOperator, value: any, label: string) => {
+        addTrendsFilter({ type, operator, value, label });
         setIsOpen(false);
     };
 
-    const filterTypes: { type: FilterType; label: string; icon: React.FC<any> }[] = [
-        { type: 'channel', label: 'Channel', icon: MonitorPlay },
-        { type: 'playlist', label: 'Playlist', icon: List },
-        { type: 'title', label: 'Title', icon: Type },
-        { type: 'duration', label: 'Duration', icon: Clock },
+    const filterTypes: { type: TrendsFilterType; label: string; icon: React.FC<any> }[] = [
         { type: 'date', label: 'Publish Date', icon: Calendar },
         { type: 'views', label: 'Views', icon: Eye },
-        { type: 'videoType', label: 'Video Type', icon: MonitorPlay }, // Reusing icon for now
     ];
 
-    const getTitleForView = (view: FilterType) => {
+    const getTitleForView = (view: TrendsFilterType) => {
         const match = filterTypes.find(t => t.type === view);
         return match ? match.label : 'Filter';
     };
@@ -113,7 +85,7 @@ export const FilterButton: React.FC = () => {
                 title="Filter"
             >
                 <Filter size={20} />
-                {activeFilters.length > 0 && (
+                {trendsFilters.length > 0 && (
                     <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-bg-primary" />
                 )}
             </button>
@@ -124,12 +96,10 @@ export const FilterButton: React.FC = () => {
                     className="fixed z-[1000] bg-[#1F1F1F] rounded-xl shadow-2xl overflow-hidden animate-scale-in flex flex-col"
                     style={{
                         top: position.top,
-
                         right: position.right,
                         width: activeView === 'date' ? '288px' : 'auto'
                     }}
                 >
-                    {/* Header for Submenus */}
                     {/* Header for Submenus */}
                     {activeView !== 'main' && (
                         <div className="flex items-center justify-between px-2 py-2 border-b border-[#333333]">
@@ -169,26 +139,11 @@ export const FilterButton: React.FC = () => {
                             </div>
                         ) : (
                             <div className="animate-fade-in">
-                                {activeView === 'title' && (
-                                    <FilterInputTitle
-                                        value=""
-                                        onApply={(val) => handleAddFilter('title', 'contains', val, `Title: ${val}`)}
-                                    />
-                                )}
                                 {activeView === 'views' && (
                                     <FilterInputNumeric
                                         onApply={(op, val, max) => {
                                             const opLabel = op === 'between' ? `${val}-${max}` : `${op === 'gte' ? '>=' : op === 'lte' ? '<=' : op === 'gt' ? '>' : op === 'lt' ? '<' : '='} ${val}`;
                                             handleAddFilter('views', op, op === 'between' ? [val, max] : val, `Views ${opLabel}`);
-                                        }}
-                                    />
-                                )}
-                                {activeView === 'duration' && (
-                                    <FilterInputNumeric
-                                        isDuration
-                                        onApply={(op, val, max) => {
-                                            const opLabel = op === 'between' ? `${val}-${max}m` : `${op} ${val}m`;
-                                            handleAddFilter('duration', op, op === 'between' ? [val, max] : val, `Duration ${opLabel}`);
                                         }}
                                     />
                                 )}
@@ -201,42 +156,6 @@ export const FilterButton: React.FC = () => {
                                             handleAddFilter('date', 'between', [start, end], label);
                                         }}
                                         onClose={() => setIsOpen(false)}
-                                    />
-                                )}
-                                {activeView === 'channel' && (
-                                    <FilterInputList
-                                        options={channelOptions}
-                                        placeholder="Search channels"
-                                        onApply={(ids) => handleAddFilter('channel', 'equals', ids, `Channel: ${ids.length > 1 ? `${ids.length} Selected` : ids[0]}`)}
-                                    />
-                                )}
-                                {activeView === 'playlist' && (
-                                    <FilterInputList
-                                        options={playlistOptions}
-                                        placeholder="Search playlists"
-                                        onApply={(ids) => {
-                                            const names = ids.map(id => playlists.find(p => p.id === id)?.name || id);
-                                            handleAddFilter('playlist', 'equals', ids, `Playlist: ${ids.length > 1 ? `${ids.length} Selected` : names[0]}`);
-                                        }}
-                                    />
-                                )}
-                                {activeView === 'videoType' && (
-                                    <FilterInputList
-                                        options={[
-                                            { id: 'custom_video', label: 'Custom Video' },
-                                            { id: 'published_custom_video', label: 'Published Custom Video' },
-                                            { id: 'other_youtube', label: 'Other YouTube Video' }
-                                        ]}
-                                        placeholder="Search types"
-                                        onApply={(ids) => {
-                                            const labelMap: Record<string, string> = {
-                                                'custom_video': 'Custom Video',
-                                                'published_custom_video': 'Published Custom',
-                                                'other_youtube': 'Other YouTube'
-                                            };
-                                            const labels = ids.map(id => labelMap[id] || id);
-                                            handleAddFilter('videoType', 'equals', ids, `Type: ${ids.length > 1 ? `${ids.length} Selected` : labels[0]}`);
-                                        }}
                                     />
                                 )}
                             </div>

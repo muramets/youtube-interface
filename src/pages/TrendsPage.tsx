@@ -4,9 +4,26 @@ import { TimelineCanvas } from '../components/Trends/Timeline/TimelineCanvas';
 import { TrendService } from '../services/trendService';
 import { TrendsHeader } from '../components/Trends/Header/TrendsHeader';
 import type { TrendVideo } from '../types/trends';
+import type { FilterOperator } from '../stores/filterStore';
+
+// Helper function to apply numeric filter
+const applyNumericFilter = (value: number, operator: FilterOperator, filterValue: any): boolean => {
+    switch (operator) {
+        case 'gte': return value >= filterValue;
+        case 'lte': return value <= filterValue;
+        case 'gt': return value > filterValue;
+        case 'lt': return value < filterValue;
+        case 'equals': return value === filterValue;
+        case 'between': {
+            const [min, max] = filterValue;
+            return value >= min && value <= max;
+        }
+        default: return true;
+    }
+};
 
 export const TrendsPage: React.FC = () => {
-    const { channels, selectedChannelId, timelineConfig, setTimelineConfig } = useTrendStore();
+    const { channels, selectedChannelId, timelineConfig, setTimelineConfig, trendsFilters } = useTrendStore();
     const activeChannel = selectedChannelId ? channels.find(c => c.id === selectedChannelId) : null;
     const [videos, setVideos] = useState<TrendVideo[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -75,11 +92,29 @@ export const TrendsPage: React.FC = () => {
         loadVideos();
     }, [visibleChannels, selectedChannelId]);
 
+    // Apply filters to videos
+    const filteredVideos = useMemo(() => {
+        if (trendsFilters.length === 0) return videos;
+
+        return videos.filter(video => {
+            return trendsFilters.every(filter => {
+                if (filter.type === 'date') {
+                    const [start, end] = filter.value;
+                    return video.publishedAtTimestamp >= start && video.publishedAtTimestamp <= end;
+                }
+                if (filter.type === 'views') {
+                    return applyNumericFilter(video.viewCount, filter.operator, filter.value);
+                }
+                return true;
+            });
+        });
+    }, [videos, trendsFilters]);
+
     return (
         <div className="flex flex-col h-full bg-bg-primary">
             <TrendsHeader
                 title={activeChannel ? activeChannel.title : 'All Channels'}
-                videoCount={videos.length}
+                videoCount={filteredVideos.length}
                 channelCount={channels.length}
                 showChannelCount={!selectedChannelId}
                 timelineConfig={timelineConfig}
@@ -87,10 +122,10 @@ export const TrendsPage: React.FC = () => {
                 isLoading={isLoading || channels.length === 0}
             />
 
-            {/* Timeline Area (pass loaded videos) */}
+            {/* Timeline Area (pass filtered videos) */}
             <TimelineCanvas
-                key={selectedChannelId || 'global'}
-                videos={videos}
+                key={`${selectedChannelId || 'global'}-${trendsFilters.length}`}
+                videos={filteredVideos}
                 isLoading={isLoading || channels.length === 0}
             />
         </div>

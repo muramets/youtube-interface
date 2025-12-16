@@ -1,6 +1,16 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { TrendChannel, TrendNiche, TimelineConfig, TrendVideo } from '../types/trends';
+import type { FilterOperator } from './filterStore';
+
+// Trends-specific filter item (only date and views)
+export interface TrendsFilterItem {
+    id: string;
+    type: 'date' | 'views';
+    operator: FilterOperator;
+    value: any;
+    label: string;
+}
 
 const DEFAULT_TIMELINE_CONFIG: TimelineConfig = {
     zoomLevel: 1,
@@ -29,6 +39,7 @@ interface TrendStore {
     hoveredVideo: TrendVideo | null; // For tooltip
     isAddChannelModalOpen: boolean;
     isLoadingChannels: boolean; // Loading state for channels list
+    trendsFilters: TrendsFilterItem[]; // Filters for trends page
 
     // Actions
     setChannels: (channels: TrendChannel[]) => void;
@@ -41,6 +52,11 @@ interface TrendStore {
     setHoveredVideo: (video: TrendVideo | null) => void;
     setAddChannelModalOpen: (isOpen: boolean) => void;
     setIsLoadingChannels: (isLoading: boolean) => void;
+
+    // Trends filter actions
+    addTrendsFilter: (filter: Omit<TrendsFilterItem, 'id'>) => void;
+    removeTrendsFilter: (id: string) => void;
+    clearTrendsFilters: () => void;
 
     // Helpers
     toggleChannelVisibility: (id: string) => void;
@@ -61,6 +77,7 @@ export const useTrendStore = create<TrendStore>()(
             hoveredVideo: null,
             isAddChannelModalOpen: false,
             isLoadingChannels: true, // Start as loading
+            trendsFilters: [],
 
             setChannels: (channels) => set({ channels }),
 
@@ -104,6 +121,16 @@ export const useTrendStore = create<TrendStore>()(
             setAddChannelModalOpen: (isOpen) => set({ isAddChannelModalOpen: isOpen }),
 
             setIsLoadingChannels: (isLoading) => set({ isLoadingChannels: isLoading }),
+
+            addTrendsFilter: (filter) => set((state) => ({
+                trendsFilters: [...state.trendsFilters, { ...filter, id: crypto.randomUUID() }]
+            })),
+
+            removeTrendsFilter: (id) => set((state) => ({
+                trendsFilters: state.trendsFilters.filter((f) => f.id !== id)
+            })),
+
+            clearTrendsFilters: () => set({ trendsFilters: [] }),
 
             toggleChannelVisibility: (id) => set((state) => ({
                 channels: state.channels.map(c =>

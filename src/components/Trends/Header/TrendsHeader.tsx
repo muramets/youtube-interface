@@ -2,6 +2,8 @@ import React from 'react';
 import type { TimelineConfig } from '../../../types/trends';
 import { TrendsStats } from './TrendsStats';
 import { TrendsSettings } from './TrendsSettings';
+import { TrendsFilterButton } from './TrendsFilterButton';
+import { TrendsFilterChips } from './TrendsFilterChips';
 
 interface TrendsHeaderProps {
     title: string;
@@ -24,9 +26,12 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
 }) => {
     return (
         <div className="h-14 border-b border-border flex items-center px-4 justify-between flex-shrink-0 bg-bg-primary sticky top-0 z-sticky">
-            <h1 className="text-xl font-semibold text-text-primary">
-                <span className="text-text-secondary">Trends Analysis:</span> {title}
-            </h1>
+            <div className="flex items-center gap-4">
+                <h1 className="text-xl font-semibold text-text-primary">
+                    <span className="text-text-secondary">Trends Analysis:</span> {title}
+                </h1>
+                <TrendsFilterChips />
+            </div>
 
             <div className="flex items-center gap-6">
                 <TrendsStats
@@ -35,7 +40,11 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
                     showChannelCount={showChannelCount}
                     isLoading={isLoading}
                 />
-                <TrendsSettings timelineConfig={timelineConfig} setTimelineConfig={setTimelineConfig} />
+                {/* Icons aligned with main header (gap-2) */}
+                <div className="flex items-center gap-2 mr-2">
+                    <TrendsFilterButton />
+                    <TrendsSettings timelineConfig={timelineConfig} setTimelineConfig={setTimelineConfig} />
+                </div>
             </div>
         </div>
     );
