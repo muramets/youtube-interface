@@ -314,20 +314,40 @@ export const useTimelineTransform = ({
             // Now we must Commit it to state so future renders use it.
             // Be careful to use the SAME calculation to ensure stability.
 
-            // Re-calculate (or we could store the derived transform in a ref during render?)
-            // Re-calculation is safer than side-effects in render.
-
             const anchorTime = pendingAnchorTimeRef.current;
-            const anchorX = getWorldXAtTime(anchorTime, monthLayouts, stats.minDate, stats.maxDate, worldWidth);
+            const anchorNormX = getWorldXAtTime(anchorTime, monthLayouts, stats);
+            const anchorX = anchorNormX * worldWidth;
 
             const viewportX = viewportSize.width / 2;
             const newOffsetX = viewportX - (anchorX * transformState.scale); // Center the time
 
-            // Keep vertical overlap relative or centered
-            const viewportY = headerHeight + (viewportSize.height - headerHeight) / 2;
-            const newOffsetY = viewportY - (dynamicWorldHeight * transformState.scale) / 2;
+            // Y-AXIS: Preserve relative position (same logic as render-phase)
+            const heightRatio = hChanged ? cHeight / pHeight : 1.0;
+            const availableHeight = viewportSize.height - headerHeight;
+            const viewportCenterY = headerHeight + (availableHeight / 2);
+            const distCenterY = viewportCenterY - transformState.offsetY;
+            const newOffsetY = viewportCenterY - (distCenterY * heightRatio);
 
-            setTransformState({ // Changed from setTransformStateInternal to setTransformState
+            console.log('[Anchor Commit] Debug:', {
+                anchorTime: new Date(anchorTime).toISOString(),
+                anchorNormX,
+                anchorX,
+                worldWidth,
+                scale: transformState.scale,
+                viewportSize,
+                headerHeight,
+                dynamicWorldHeight: cHeight,
+                prevWorldHeight: pHeight,
+                heightRatio,
+                currentOffsetX: transformState.offsetX,
+                currentOffsetY: transformState.offsetY,
+                newOffsetX,
+                newOffsetY,
+                wChanged,
+                hChanged
+            });
+
+            setTransformState({
                 ...transformState,
                 offsetX: newOffsetX,
                 offsetY: newOffsetY
