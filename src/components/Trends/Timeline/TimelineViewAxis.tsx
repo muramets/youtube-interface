@@ -97,9 +97,11 @@ export const TimelineViewAxis: React.FC<TimelineViewAxisProps> = ({
     }, [ticksWithPriority, getY, transform.scale, transform.offsetY, containerHeight]);
 
     const safeSpread = verticalSpread ?? 1.0;
-    const axisOpacity = Math.min(1, Math.max(0, (safeSpread - 0.1) / 0.4));
 
-    if (scalingMode === 'percentile' || axisOpacity <= 0) return null;
+    // Relaxed opacity: Visible as soon as spread > 0. Full opacity at 0.3.
+    const axisOpacity = Math.min(1, Math.max(0, safeSpread * 3.33));
+
+    if (scalingMode === 'percentile') return null;
 
     return (
         <div
