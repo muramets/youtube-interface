@@ -117,9 +117,10 @@ export const useTimelineInteraction = ({
             // As we approach minScale (Fit State), gradually blend the target from "Mouse Position" to "Screen Center".
             // This prevents the "Jump" at the end and guides the user smoothly to the fitted view.
 
-            const magneticThreshold = minScale * 2.0; // Start blending when within 2x of min scale
+            const magneticThreshold = minScale * 1.25; // Narrow threshold: only capture when very close to fit.
+            const isZoomingOut = newScale < currentScale;
 
-            if (newScale < magneticThreshold) {
+            if (newScale < magneticThreshold && isZoomingOut) {
                 // Calculate "Ideal Center" (Fit State)
                 const contentWidth = worldWidth * newScale;
                 const idealCenterX = (viewportWidth - contentWidth) / 2;
