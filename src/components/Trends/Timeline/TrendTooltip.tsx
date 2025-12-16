@@ -5,7 +5,7 @@ import type { TrendVideo } from '../../../types/trends';
 
 interface TrendTooltipProps {
     video: TrendVideo;
-    anchorPos: { x: number; y: number }; // Screen coordinates of the target
+    anchorPos: { x: number; y: number; width: number; height: number }; // x=center, y=top, width/height=element dims
     onMouseEnter?: () => void;
     onMouseLeave?: () => void;
     percentileGroup?: string;
@@ -40,28 +40,64 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({
 
         const rect = el.getBoundingClientRect();
         const { innerWidth, innerHeight } = window;
-        const GAP = 12;
+        const GAP = 16; // Increased gap for better separation
+        const SCREEN_MARGIN = 12;
 
-        let left = anchorPos.x - rect.width / 2;
-        let top = anchorPos.y - rect.height - GAP; // Default: Top
+        // --- Vertical Logic ---
+        // 1. Try Top
+        let top = anchorPos.y - rect.height - GAP;
+        let placement = 'top';
 
-        // 1. Vertical Check (Top vs Bottom)
-        // If it goes off the top, flip to bottom
-        if (top < 10) {
-            top = anchorPos.y + GAP; // Place below
-            // If below goes off bottom, check which has more space ??
-            // For now, simple flip is usually sufficient.
-            // If both fail, clamp to top=10
-            if (top + rect.height > innerHeight - 10) {
-                top = 10;
+        if (top < SCREEN_MARGIN) {
+            // 2. Try Bottom
+            const bottomY = anchorPos.y + anchorPos.height + GAP;
+            if (bottomY + rect.height <= innerHeight - SCREEN_MARGIN) {
+                top = bottomY;
+                placement = 'bottom';
+            } else {
+                // Both vertical fail. Determine fallback.
+                // We will constrain vertical position but MUST move horizontally to avoid overlapping.
+                placement = 'side';
+
+                // Center vertically relative to dot (clamped)
+                // Ideal center:
+                const dotCenterY = anchorPos.y + anchorPos.height / 2;
+                top = dotCenterY - rect.height / 2;
+
+                // Clamp vertical to screen
+                if (top < SCREEN_MARGIN) top = SCREEN_MARGIN;
+                if (top + rect.height > innerHeight - SCREEN_MARGIN) top = innerHeight - rect.height - SCREEN_MARGIN;
             }
         }
 
-        // 2. Horizontal Check (Left vs Right)
-        if (left < 10) {
-            left = 10;
-        } else if (left + rect.width > innerWidth - 10) {
-            left = innerWidth - rect.width - 10;
+        // --- Horizontal Logic ---
+        let left = 0;
+
+        if (placement === 'side') {
+            // 3. Try Right Side
+            const rightX = anchorPos.x + anchorPos.width / 2 + GAP;
+            if (rightX + rect.width <= innerWidth - SCREEN_MARGIN) {
+                left = rightX;
+            } else {
+                // 4. Try Left Side
+                const leftX = anchorPos.x - anchorPos.width / 2 - GAP - rect.width;
+                if (leftX >= SCREEN_MARGIN) {
+                    left = leftX;
+                } else {
+                    // All sides failed. Overlap is inevitable. 
+                    // Default to Right but clamped (it will cover, but stay on screen)
+                    left = innerWidth - rect.width - SCREEN_MARGIN;
+                }
+            }
+        } else {
+            // Normal Top/Bottom center alignment
+            left = anchorPos.x - rect.width / 2;
+
+            // Clamp horizontal
+            if (left < SCREEN_MARGIN) left = SCREEN_MARGIN;
+            else if (left + rect.width > innerWidth - SCREEN_MARGIN) {
+                left = innerWidth - rect.width - SCREEN_MARGIN;
+            }
         }
 
         setPositionStyle({
@@ -69,7 +105,7 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({
             top,
             opacity: 1
         });
-    }, [anchorPos.x, anchorPos.y, isExpanded, areTagsExpanded, video.id]);
+    }, [anchorPos.x, anchorPos.y, anchorPos.width, anchorPos.height, isExpanded, areTagsExpanded, video.id]);
     // Re-run if content expands (height changes) or anchor moves
 
     // Apply isClosing override

@@ -10,7 +10,7 @@ interface TimelineVideoLayerProps {
     transform: { scale: number; offsetX: number; offsetY: number };
     worldWidth: number;
     worldHeight: number;
-    onHoverVideo: (data: { video: TrendVideo; x: number; y: number; height: number } | null) => void;
+    onHoverVideo: (data: { video: TrendVideo; x: number; y: number; width: number; height: number } | null) => void;
     onDoubleClickVideo: (video: TrendVideo, worldX: number, worldY: number) => void;
     setAddChannelModalOpen: (isOpen: boolean) => void;
     getPercentileGroup: (videoId: string) => string | undefined;
@@ -86,6 +86,7 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
                 video,
                 x: rect.left + rect.width / 2,
                 y: rect.top,
+                width: rect.width,
                 height: rect.height
             });
         }, 500);

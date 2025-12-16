@@ -77,7 +77,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
 
     // 4. Interaction
     const videoLayerRef = useRef<TimelineVideoLayerHandle>(null);
-    const [hoveredVideo, setHoveredVideo] = useState<{ video: TrendVideo; x: number; y: number; height: number } | null>(null);
+    const [hoveredVideo, setHoveredVideo] = useState<{ video: TrendVideo; x: number; y: number; width: number; height: number } | null>(null);
     const isTooltipHoveredRef = useRef(false);
     const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -114,6 +114,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
 
 
     const handleSmoothFit = () => {
+        closeTooltipSmoothly(); // Close tooltip on zoom out
         const fitTransform = calculateAutoFitTransform();
         if (fitTransform) {
             interaction.smoothToTransform(fitTransform);
@@ -176,6 +177,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
                     }
                 }}
                 onDoubleClickVideo={(_video, worldX, worldY) => {
+                    closeTooltipSmoothly(); // Close tooltip on zoom in
                     // Smoothly animate to center the video
                     interaction.zoomToPoint(worldX, worldY, 1.0); // 1.0 = 100% scale
                 }}
@@ -291,7 +293,12 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
                 <TrendTooltip
                     key={hoveredVideo.video.id}
                     video={hoveredVideo.video}
-                    anchorPos={{ x: hoveredVideo.x, y: hoveredVideo.y }}
+                    anchorPos={{
+                        x: hoveredVideo.x,
+                        y: hoveredVideo.y,
+                        width: hoveredVideo.width,
+                        height: hoveredVideo.height
+                    }}
                     isClosing={isTooltipClosing}
                     onMouseEnter={() => {
                         isTooltipHoveredRef.current = true;
