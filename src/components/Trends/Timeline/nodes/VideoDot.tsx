@@ -18,17 +18,17 @@ interface VideoDotProps {
 const getPercentileStyle = (percentile: string | undefined) => {
     switch (percentile) {
         case 'Top 1%':
-            return { color: 'bg-emerald-500', size: 24 };
+            return { color: 'bg-emerald-500', size: 96 }; // Was 24
         case 'Top 5%':
-            return { color: 'bg-lime-500', size: 20 };
+            return { color: 'bg-lime-500', size: 80 }; // Was 20
         case 'Top 20%':
-            return { color: 'bg-blue-500', size: 16 };
+            return { color: 'bg-blue-500', size: 64 }; // Was 16
         case 'Middle 60%':
-            return { color: 'bg-purple-400', size: 12 };
+            return { color: 'bg-purple-400', size: 48 }; // Was 12
         case 'Bottom 20%':
-            return { color: 'bg-red-400', size: 10 };
+            return { color: 'bg-red-400', size: 40 }; // Was 10
         default:
-            return { color: 'bg-gray-400', size: 10 };
+            return { color: 'bg-gray-400', size: 40 };
     }
 };
 
@@ -56,8 +56,10 @@ export const VideoDot = memo(({
                 top: y,
                 width: baseSize,
                 height: baseSize,
-                // Static Counter-Scaling (Instant, NO Transition)
-                transform: `translate(-50%, -50%) scale(calc(1 / var(--timeline-scale, 1)))`,
+                // Proportional Scaling with Minimum Visibility Clamp
+                // Above zoom 0.13: Scale is 1 (Natural world size, grows with container)
+                // Below zoom 0.13: Scale increases to maintain approx min visual size
+                transform: `translate(-50%, -50%) scale(max(1, calc(0.13 / var(--timeline-scale, 0.13))))`,
                 zIndex: isElevated ? 1000 : 10,
                 willChange: 'transform'
             }}

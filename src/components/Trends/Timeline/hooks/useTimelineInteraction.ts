@@ -16,6 +16,9 @@ interface UseTimelineInteractionProps {
     setTransformState: (t: Transform) => void;
     clampTransform: (t: Transform, w: number, h: number) => Transform;
     onHoverVideo?: (hovered: boolean) => void;
+    worldWidth: number;
+    dynamicWorldHeight: number;
+    headerHeight: number;
 }
 
 // Performance logging flag
@@ -29,7 +32,10 @@ export const useTimelineInteraction = ({
     containerSizeRef,
     setTransformState,
     clampTransform,
-    onHoverVideo
+    onHoverVideo,
+    worldWidth,
+    dynamicWorldHeight,
+    headerHeight
 }: UseTimelineInteractionProps) => {
 
     const [isPanning, setIsPanning] = useState(false);
@@ -103,13 +109,42 @@ export const useTimelineInteraction = ({
             const newScale = Math.max(minScale, Math.min(10, currentScale * scaleFactor));
             const scaleRatio = newScale / currentScale;
 
-            const newOffsetX = mouseX - (mouseX - transformRef.current.offsetX) * scaleRatio;
-            const newOffsetY = mouseY - (mouseY - transformRef.current.offsetY) * scaleRatio;
+            // Calculate standard relative zoom offsets (Mouse-Centered)
+            let targetOffsetX = mouseX - (mouseX - transformRef.current.offsetX) * scaleRatio;
+            let targetOffsetY = mouseY - (mouseY - transformRef.current.offsetY) * scaleRatio;
+
+            // SMOOTH MAGNETIC CENTER:
+            // As we approach minScale (Fit State), gradually blend the target from "Mouse Position" to "Screen Center".
+            // This prevents the "Jump" at the end and guides the user smoothly to the fitted view.
+
+            const magneticThreshold = minScale * 2.0; // Start blending when within 2x of min scale
+
+            if (newScale < magneticThreshold) {
+                // Calculate "Ideal Center" (Fit State)
+                const contentWidth = worldWidth * newScale;
+                const idealCenterX = (viewportWidth - contentWidth) / 2;
+
+                const contentHeight = dynamicWorldHeight * newScale;
+                const availableHeight = viewportHeight - headerHeight;
+                const idealCenterY = headerHeight + (availableHeight - contentHeight) / 2;
+
+                // Calculate progress (0.0 at threshold -> 1.0 at minScale)
+                // We use a non-linear ease (cubic) for a "magnetic" feel that gets stronger closer to the center.
+                const range = magneticThreshold - minScale;
+                const dist = magneticThreshold - newScale;
+                const rawProgress = Math.min(1, Math.max(0, dist / range));
+
+                // Cubic ease-out for smooth "landing"
+                const blend = 1 - Math.pow(1 - rawProgress, 3);
+
+                targetOffsetX = targetOffsetX + (idealCenterX - targetOffsetX) * blend;
+                targetOffsetY = targetOffsetY + (idealCenterY - targetOffsetY) * blend;
+            }
 
             const clamped = clampTransform({
                 scale: newScale,
-                offsetX: newOffsetX,
-                offsetY: newOffsetY
+                offsetX: targetOffsetX,
+                offsetY: targetOffsetY
             }, viewportWidth, viewportHeight);
 
             transformRef.current = clamped;
@@ -125,7 +160,7 @@ export const useTimelineInteraction = ({
             transformRef.current = clamped;
             syncToDom();
         }
-    }, [containerSizeRef, containerRef, transformRef, minScale, clampTransform, syncToDom, onHoverVideo]);
+    }, [containerSizeRef, containerRef, transformRef, minScale, clampTransform, syncToDom, onHoverVideo, worldWidth, dynamicWorldHeight, headerHeight]);
 
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
         // Only left click and if not clicking a video (handled by bubble propagation stop usually, but check here if needed)

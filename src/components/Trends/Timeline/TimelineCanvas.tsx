@@ -86,7 +86,10 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
         onHoverVideo: (hovered: boolean) => {
             // Logic to hide tooltip if needed
             if (!hovered) setHoveredVideo(null);
-        }
+        },
+        worldWidth,
+        dynamicWorldHeight,
+        headerHeight: HEADER_HEIGHT
     });
 
 
