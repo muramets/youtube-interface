@@ -364,12 +364,39 @@ export const useTimelineInteraction = ({
         };
     }, [handleWheel, containerRef]);
 
+    const zoomToPoint = useCallback((worldX: number, worldY: number, targetZoomScale: number) => {
+        const { width: viewportWidth, height: viewportHeight } = containerSizeRef.current;
+        if (viewportWidth === 0) return;
+
+        // Calculate New Offset to center the world point
+        // ViewportCenter = WorldPoint * Scale + Offset
+        // Offset = ViewportCenter - WorldPoint * Scale
+        const newOffsetX = (viewportWidth / 2) - (worldX * targetZoomScale);
+        const newOffsetY = (viewportHeight / 2) - (worldY * targetZoomScale);
+
+        const clamped = clampTransform({
+            scale: targetZoomScale,
+            offsetX: newOffsetX,
+            offsetY: newOffsetY
+        }, viewportWidth, viewportHeight);
+
+        targetTransformRef.current = clamped;
+        startAnimation();
+    }, [containerSizeRef, clampTransform, startAnimation]);
+
+    const smoothToTransform = useCallback((target: Transform) => {
+        targetTransformRef.current = { ...target };
+        startAnimation();
+    }, [startAnimation]);
+
     return {
         isPanning,
         selectionRect,
         handleMouseDown,
         handleMouseMove,
         handleMouseUp,
-        syncToDom
+        syncToDom,
+        zoomToPoint,
+        smoothToTransform
     };
 };

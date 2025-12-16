@@ -51,7 +51,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
         handleAutoFit,
         minScale,
         dynamicWorldHeight, // Now derived inside the hook
-        anchorToTime
+        anchorToTime,
+        calculateAutoFitTransform
     } = useTimelineTransform({
         worldWidth,
         headerHeight: HEADER_HEIGHT,
@@ -101,10 +102,15 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
 
 
 
-    // Hotkey: 'Z' to Auto Fit
-    useTimelineHotkeys({ onAutoFit: handleAutoFit });
+    const handleSmoothFit = () => {
+        const fitTransform = calculateAutoFitTransform();
+        if (fitTransform) {
+            interaction.smoothToTransform(fitTransform);
+        }
+    };
 
-
+    // Hotkey: 'Z' to Auto Fit (Smooth)
+    useTimelineHotkeys({ onAutoFit: handleSmoothFit });
 
     return (
         <div
@@ -115,6 +121,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
             onMouseMove={interaction.handleMouseMove}
             onMouseUp={interaction.handleMouseUp}
             onMouseLeave={interaction.handleMouseUp}
+            onDoubleClick={handleSmoothFit} // Double click empty space to fit
         >
             {/* Subtle Vertical Gradient Overlay */}
             <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-text-primary/[0.02] to-transparent" />
@@ -156,23 +163,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
                     }
                 }}
                 onDoubleClickVideo={(_video, worldX, worldY) => {
-                    // Center the clicked video at 100% scale
-                    const { width, height } = containerSizeRef.current;
-                    const targetScale = 1.0;
-
-                    // Calculate offset to center the video
-                    const newOffsetX = (width / 2) - (worldX * targetScale);
-                    const newOffsetY = (height / 2) - (worldY * targetScale);
-
-                    const clamped = clampTransform({
-                        scale: targetScale,
-                        offsetX: newOffsetX,
-                        offsetY: newOffsetY
-                    }, width, height);
-
-                    transformRef.current = clamped;
-                    if (videoLayerRef.current) videoLayerRef.current.updateTransform(clamped);
-                    setTransformState(clamped);
+                    // Smoothly animate to center the video
+                    interaction.zoomToPoint(worldX, worldY, 1.0); // 1.0 = 100% scale
                 }}
             />
 

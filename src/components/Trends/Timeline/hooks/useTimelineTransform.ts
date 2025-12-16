@@ -185,9 +185,9 @@ export const useTimelineTransform = ({
         };
     }, [worldWidth, dynamicWorldHeight, headerHeight, padding]);
 
-    // Handle Auto Fit
-    const handleAutoFit = useCallback(() => {
-        if (videosLength === 0 || viewportSize.width <= 0) return;
+    // Calculate Auto Fit Transform (Pure Calculation)
+    const calculateAutoFitTransform = useCallback(() => {
+        if (videosLength === 0 || viewportSize.width <= 0) return null;
 
         const currentFitScale = (viewportSize.width - padding * 2) / Math.max(1, worldWidth);
         const contentWidth = worldWidth * currentFitScale;
@@ -196,26 +196,23 @@ export const useTimelineTransform = ({
         const newOffsetX = (viewportSize.width - contentWidth) / 2;
         const newOffsetY = headerHeight + ((viewportSize.height - headerHeight) - contentHeight) / 2;
 
-        const newState = { scale: currentFitScale, offsetX: newOffsetX, offsetY: newOffsetY };
+        return { scale: currentFitScale, offsetX: newOffsetX, offsetY: newOffsetY };
+    }, [videosLength, viewportSize, padding, worldWidth, dynamicWorldHeight, headerHeight]);
+
+    // Handle Auto Fit (Instant)
+    const handleAutoFit = useCallback(() => {
+        const newState = calculateAutoFitTransform();
+        if (!newState) return;
 
         setTransformState(newState);
 
         setTimelineConfig({
-            zoomLevel: currentFitScale,
-            offsetX: newOffsetX,
-            offsetY: newOffsetY,
+            zoomLevel: newState.scale,
+            offsetX: newState.offsetX,
+            offsetY: newState.offsetY,
             isCustomView: false
         });
-    }, [
-        videosLength,
-        viewportSize,
-        padding,
-        worldWidth,
-        dynamicWorldHeight,
-        headerHeight,
-        setTransformState,
-        setTimelineConfig
-    ]);
+    }, [calculateAutoFitTransform, setTransformState, setTimelineConfig]);
 
     // Track initialization
     const hasInitializedRef = useRef(false);
@@ -458,6 +455,7 @@ export const useTimelineTransform = ({
         minScale,
         dynamicWorldHeight,
         fitScale,
-        anchorToTime
+        anchorToTime,
+        calculateAutoFitTransform
     };
 };
