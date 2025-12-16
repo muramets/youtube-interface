@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useThrottle } from '../../../../hooks/useThrottle';
+
 import type { VideoPosition } from './useTimelineData';
 
 interface UseTimelineVirtualizationProps {
@@ -30,8 +30,9 @@ export const useTimelineVirtualization = ({
         return { start: worldMinX, end: worldMaxX };
     }, [transform.offsetX, transform.scale, viewportWidth]);
 
-    // Throttle visible region updates to reduce recalculation steps during rapid scroll
-    const visibleRegion = useThrottle(rawVisibleRegion, 32); // ~30fps for culling
+    // Throttle removed to prevent flickering during rapid layout changes (anchoring)
+    // The visibility check is cheap enough to run every frame
+    const visibleRegion = rawVisibleRegion;
 
     // Filter videos based on X position
     const visibleVideos = useMemo(() => {

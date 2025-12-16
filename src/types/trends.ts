@@ -71,3 +71,16 @@ export interface YearMarker {
     startX: number; // 0-1 normalized
     endX: number;   // 0-1 normalized
 }
+
+export interface MonthLayout {
+    year: number;
+    month: number;
+    monthKey: string;
+    label: string;
+    count: number;
+    startX: number;
+    endX: number;
+    width: number;
+    startTs: number;
+    endTs: number;
+}

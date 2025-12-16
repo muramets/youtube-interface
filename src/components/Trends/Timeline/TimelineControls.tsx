@@ -12,7 +12,6 @@ interface TimelineControlsProps {
     onSpreadChange: (level: number) => void;
     timeLinearity: number;
     onTimeLinearityChange: (level: number) => void;
-    onZoomChange: (scale: number) => void;
     isLoading?: boolean;
 }
 
@@ -24,7 +23,6 @@ export const TimelineControls: React.FC<TimelineControlsProps> = ({
     onSpreadChange,
     timeLinearity,
     onTimeLinearityChange,
-    onZoomChange, // Kept in interface if needed later, but dragging is removed
     isLoading = false
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);

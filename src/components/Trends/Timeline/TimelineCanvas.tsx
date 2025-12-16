@@ -14,6 +14,7 @@ import { useTimelineStructure, useTimelinePositions } from './hooks/useTimelineD
 import { useTimelineTransform } from './hooks/useTimelineTransform';
 import { useTimelineInteraction } from './hooks/useTimelineInteraction';
 import { useTimelineHotkeys } from './hooks/useTimelineHotkeys';
+import { getTimeAtWorldX } from './utils/timelineMath';
 
 // Constants
 const HEADER_HEIGHT = 48;
@@ -48,12 +49,15 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
         clampTransform,
         handleAutoFit,
         minScale,
-        dynamicWorldHeight // Now derived inside the hook
+        dynamicWorldHeight, // Now derived inside the hook
+        anchorToTime
     } = useTimelineTransform({
         worldWidth,
         headerHeight: HEADER_HEIGHT,
         padding: PADDING,
-        videosLength: videos.length
+        videosLength: videos.length,
+        monthLayouts,
+        stats
     });
 
     // 3. Data Positions (needs dynamicWorldHeight)
@@ -199,24 +203,69 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
                 minScale={minScale}
                 onReset={handleAutoFit}
                 verticalSpread={verticalSpread ?? 1.0}
-                onSpreadChange={(level) => setTimelineConfig({ verticalSpread: level })}
-                timeLinearity={timeLinearity ?? 1.0}
-                onTimeLinearityChange={(level) => setTimelineConfig({ timeLinearity: level })}
-                onZoomChange={(newScale) => {
-                    // Center zoom (simplified for now, ideally zooms to center of viewport)
-                    const { width, height } = containerSizeRef.current;
-                    const newOffsetX = transformRef.current.offsetX; // Keep offset for now or improve
-                    const newOffsetY = transformRef.current.offsetY;
+                onSpreadChange={(newSpread) => {
+                    const oldSpread = verticalSpread ?? 1.0;
+                    if (Math.abs(oldSpread - newSpread) < 0.001) return;
 
-                    const clamped = clampTransform({
-                        scale: newScale,
-                        offsetX: newOffsetX,
+                    const currentScale = transformState.scale;
+                    const currentOffsetY = transformState.offsetY;
+                    const viewportHeight = containerSizeRef.current.height;
+
+                    // 1. Find World Y at Viewport Center
+                    const centerY = HEADER_HEIGHT + (viewportHeight - HEADER_HEIGHT) / 2;
+                    const worldY = (centerY - currentOffsetY) / currentScale;
+
+                    // 2. Normalize relative to World Height
+                    const normY = worldY / dynamicWorldHeight;
+
+                    // 3. De-normalize to find Base Position (0-1 ideal)
+                    // Formula: effective = 0.5 + (base - 0.5) * spread
+                    // base = 0.5 + (effective - 0.5) / spread
+                    const distFromCenter = normY - 0.5;
+                    // Avoid division by zero, though spread should be > 0
+                    const safeOldSpread = Math.max(0.001, oldSpread);
+                    const baseDist = distFromCenter / safeOldSpread;
+
+                    // 4. Re-normalize with New Spread
+                    const newDist = baseDist * newSpread;
+                    const newNormY = 0.5 + newDist;
+                    const newWorldY = newNormY * dynamicWorldHeight;
+
+                    // 5. Calculate New Offset
+                    // centerY = newWorldY * scale + newOffsetY
+                    // newOffsetY = centerY - newWorldY * scale
+                    const newOffsetY = centerY - (newWorldY * currentScale);
+
+                    setTimelineConfig({ verticalSpread: newSpread, offsetY: newOffsetY });
+
+                    // Update local state immediately to prevents jumps
+                    setTransformState({
+                        ...transformState,
                         offsetY: newOffsetY
-                    }, width, height);
+                    });
+                }}
+                timeLinearity={timeLinearity ?? 1.0}
+                onTimeLinearityChange={(level) => {
+                    const currentScale = transformState.scale;
+                    const viewportWidth = containerSizeRef.current.width;
 
-                    transformRef.current = clamped;
-                    if (videoLayerRef.current) videoLayerRef.current.updateTransform(clamped);
-                    setTransformState(clamped);
+                    // 1. Check if we are currently "Fitted" (Zoomed out to see everything)
+                    // If so, we DON'T want to anchor to a time, we want to stay fitted (Autofit).
+                    const isRoughlyFitted = Math.abs(currentScale - minScale) < 0.0001 || (Math.abs(currentScale - minScale) / minScale) < 0.01;
+
+                    if (!isRoughlyFitted) {
+                        // 2. Find World X at Viewport Center
+                        const centerX = viewportWidth / 2;
+                        const worldX = (centerX - transformState.offsetX) / currentScale;
+                        // Normalize (0-1)
+                        const normX = worldX / worldWidth;
+
+                        // 3. Find Time and Request Anchor
+                        const centerTime = getTimeAtWorldX(normX, monthLayouts, stats);
+                        anchorToTime(centerTime);
+                    }
+
+                    setTimelineConfig({ timeLinearity: level });
                 }}
                 isLoading={isLoading}
             />

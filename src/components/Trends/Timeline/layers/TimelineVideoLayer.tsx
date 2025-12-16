@@ -31,14 +31,15 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
     transform,
     worldWidth,
     worldHeight,
+    style,
+    getPercentileGroup,
+    setAddChannelModalOpen,
     onHoverVideo,
     onDoubleClickVideo,
-    setAddChannelModalOpen,
-    getPercentileGroup,
-    style,
     isLoading = false
 }, ref) => {
-    // Ref for imperative DOM updates
+
+    // Local state for smooth interactions (hover, pan) -- decoupled from React render if needed
     const layerRef = useRef<HTMLDivElement>(null);
 
     // Expose imperative handle for direct DOM updates
