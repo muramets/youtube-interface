@@ -40,7 +40,11 @@ export const TrendsPage: React.FC = () => {
             const isChannelSwitch = prevSelectedChannelRef.current !== selectedChannelId;
             const isInitialLoad = !hasLoadedOnceRef.current;
 
-            if (isInitialLoad || isChannelSwitch) {
+            // Show loading if:
+            // 1. First load
+            // 2. Switching channels
+            // 3. We have 0 videos currently (prevents 0 -> N flicker during updates)
+            if (isInitialLoad || isChannelSwitch || videos.length === 0) {
                 setIsLoading(true);
             }
 
@@ -80,6 +84,7 @@ export const TrendsPage: React.FC = () => {
                 showChannelCount={!selectedChannelId}
                 timelineConfig={timelineConfig}
                 setTimelineConfig={setTimelineConfig}
+                isLoading={isLoading || channels.length === 0}
             />
 
             {/* Timeline Area (pass loaded videos) */}

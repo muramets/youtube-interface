@@ -10,6 +10,7 @@ interface TrendsHeaderProps {
     showChannelCount?: boolean;
     timelineConfig: TimelineConfig;
     setTimelineConfig: (config: Partial<TimelineConfig>) => void;
+    isLoading: boolean;
 }
 
 export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
@@ -18,7 +19,8 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
     channelCount,
     showChannelCount = true,
     timelineConfig,
-    setTimelineConfig
+    setTimelineConfig,
+    isLoading
 }) => {
     return (
         <div className="h-14 border-b border-border flex items-center px-4 justify-between flex-shrink-0 bg-bg-primary sticky top-0 z-sticky">
@@ -27,7 +29,12 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
             </h1>
 
             <div className="flex items-center gap-6">
-                <TrendsStats videoCount={videoCount} channelCount={channelCount} showChannelCount={showChannelCount} />
+                <TrendsStats
+                    videoCount={videoCount}
+                    channelCount={channelCount}
+                    showChannelCount={showChannelCount}
+                    isLoading={isLoading}
+                />
                 <TrendsSettings timelineConfig={timelineConfig} setTimelineConfig={setTimelineConfig} />
             </div>
         </div>
