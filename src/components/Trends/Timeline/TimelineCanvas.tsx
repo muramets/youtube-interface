@@ -127,8 +127,14 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
     };
 
     // Effect to trigger Auto-Fit when structure updates explicitly
+    const appliedStructureVersionRef = useRef(0);
+
+    const { smoothToTransform } = interaction;
+
     useEffect(() => {
-        if (structureVersion > 0) {
+        if (structureVersion > 0 && structureVersion > appliedStructureVersionRef.current) {
+            appliedStructureVersionRef.current = structureVersion;
+
             // Verify if we can fit immediately? 
             // useTimelineTransform handles auto-fit logic, but we need to trigger it *after* 
             // the render cycle where worldWidth updated.
@@ -138,7 +144,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
             const t = setTimeout(() => {
                 const fitTransform = calculateAutoFitTransform();
                 if (fitTransform) {
-                    interaction.smoothToTransform(fitTransform);
+                    smoothToTransform(fitTransform);
                     setTimelineConfig({
                         zoomLevel: fitTransform.scale,
                         offsetX: fitTransform.offsetX,
@@ -150,7 +156,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
             }, 0);
             return () => clearTimeout(t);
         }
-    }, [structureVersion, calculateAutoFitTransform, interaction, setTimelineConfig, currentContentHash]);
+    }, [structureVersion, calculateAutoFitTransform, smoothToTransform, setTimelineConfig, currentContentHash]);
 
 
     // Hotkey: 'Z' to Auto Fit (Smooth)
