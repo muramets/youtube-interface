@@ -113,36 +113,10 @@ export const useTimelineInteraction = ({
             let targetOffsetX = mouseX - (mouseX - transformRef.current.offsetX) * scaleRatio;
             let targetOffsetY = mouseY - (mouseY - transformRef.current.offsetY) * scaleRatio;
 
-            // SMOOTH MAGNETIC CENTER:
-            // As we approach minScale (Fit State), gradually blend the target from "Mouse Position" to "Screen Center".
-            // This prevents the "Jump" at the end and guides the user smoothly to the fitted view.
-
-            const magneticThreshold = minScale * 5.0; // Moderate threshold: starts early enough but not too wide.
-            const isZoomingOut = newScale < currentScale;
-
-            if (newScale < magneticThreshold && isZoomingOut) {
-                // Calculate "Ideal Center" (Fit State)
-                const contentWidth = worldWidth * newScale;
-                const idealCenterX = (viewportWidth - contentWidth) / 2;
-
-                const contentHeight = dynamicWorldHeight * newScale;
-                const availableHeight = viewportHeight - headerHeight;
-                const idealCenterY = headerHeight + (availableHeight - contentHeight) / 2;
-
-                // Calculate progress (0.0 at threshold -> 1.0 at minScale)
-                const range = magneticThreshold - minScale;
-                const dist = magneticThreshold - newScale;
-                const rawProgress = Math.min(1, Math.max(0, dist / range));
-
-                // Quartic Ease-In (p^4)
-                // We use a high power to ensure the blend stays EXTREMELY low at the start.
-                // This prevents "Fast Scroll Jerk" where a user might jump into the 10-20% range instantly.
-                // At 20% progress: SmoothStep is ~10%, Quartic is 0.16%. The difference is massive.
-                const blend = Math.pow(rawProgress, 4);
-
-                targetOffsetX = targetOffsetX + (idealCenterX - targetOffsetX) * blend;
-                targetOffsetY = targetOffsetY + (idealCenterY - targetOffsetY) * blend;
-            }
+            // Standard Zoom Behavior (Miro-like)
+            // We rely on clampTransform to naturally constrain the view.
+            // When scale approaches minScale, the clamping bounds tighten, 
+            // naturally forcing the content to center horizontally without artificial "pulling".
 
             const clamped = clampTransform({
                 scale: newScale,
