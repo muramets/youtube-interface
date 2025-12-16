@@ -81,6 +81,18 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
     const isTooltipHoveredRef = useRef(false);
     const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+    const [isTooltipClosing, setIsTooltipClosing] = useState(false);
+    const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const closeTooltipSmoothly = () => {
+        setIsTooltipClosing(true);
+        if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+        closeTimeoutRef.current = setTimeout(() => {
+            setHoveredVideo(null);
+            setIsTooltipClosing(false);
+        }, 200); // Wait for fade out
+    };
+
     const interaction = useTimelineInteraction({
         containerRef,
         videoLayerRef,
@@ -89,9 +101,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
         containerSizeRef,
         setTransformState,
         clampTransform,
-        onHoverVideo: (hovered: boolean) => {
-            // Logic to hide tooltip if needed
-            if (!hovered) setHoveredVideo(null);
+        onHoverVideo: (active: boolean) => {
+            if (!active) closeTooltipSmoothly();
         },
         worldWidth,
         dynamicWorldHeight,
@@ -153,13 +164,15 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
                 onHoverVideo={(data) => {
                     if (data) {
                         if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+                        if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+                        setIsTooltipClosing(false);
                         setHoveredVideo(data);
                     } else {
                         hideTimeoutRef.current = setTimeout(() => {
                             if (!isTooltipHoveredRef.current) {
-                                setHoveredVideo(null);
+                                closeTooltipSmoothly();
                             }
-                        }, 150);
+                        }, 150); // Delay before starting fade out
                     }
                 }}
                 onDoubleClickVideo={(_video, worldX, worldY) => {
@@ -276,14 +289,14 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
 
             {hoveredVideo && (
                 <TrendTooltip
+                    key={hoveredVideo.video.id}
                     video={hoveredVideo.video}
-                    style={{
-                        left: hoveredVideo.x,
-                        top: hoveredVideo.y,
-                        transform: 'translate(-50%, -100%) translateY(-12px)'
-                    }}
+                    anchorPos={{ x: hoveredVideo.x, y: hoveredVideo.y }}
+                    isClosing={isTooltipClosing}
                     onMouseEnter={() => {
                         isTooltipHoveredRef.current = true;
+                        setIsTooltipClosing(false); // Cancel closing if we re-enter
+                        if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
                         if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
                     }}
                     onMouseLeave={() => {

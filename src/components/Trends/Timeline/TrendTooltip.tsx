@@ -1,22 +1,82 @@
-import React, { useState } from 'react';
+import React, { useState, useLayoutEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { AlignLeft, Tag, Copy, Check, Calendar } from 'lucide-react';
 import type { TrendVideo } from '../../../types/trends';
 
 interface TrendTooltipProps {
     video: TrendVideo;
-    style?: React.CSSProperties;
-    className?: string;
+    anchorPos: { x: number; y: number }; // Screen coordinates of the target
     onMouseEnter?: () => void;
     onMouseLeave?: () => void;
-    percentileGroup?: string; // e.g. "Top 1%", "Top 5%", etc.
+    percentileGroup?: string;
+    className?: string; // Optional custom class
+    isClosing?: boolean;
 }
 
-import { createPortal } from 'react-dom';
-
-export const TrendTooltip: React.FC<TrendTooltipProps> = ({ video, style, className, onMouseEnter, onMouseLeave, percentileGroup }) => {
+export const TrendTooltip: React.FC<TrendTooltipProps> = ({
+    video,
+    anchorPos,
+    className,
+    onMouseEnter,
+    onMouseLeave,
+    percentileGroup,
+    isClosing = false
+}) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [areTagsExpanded, setAreTagsExpanded] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
+
+    // Smart Positioning
+    const tooltipRef = useRef<HTMLDivElement>(null);
+    const [positionStyle, setPositionStyle] = useState<React.CSSProperties>({
+        opacity: 0, // start invisible to calculate layout
+        left: 0,
+        top: 0
+    });
+
+    useLayoutEffect(() => {
+        const el = tooltipRef.current;
+        if (!el) return;
+
+        const rect = el.getBoundingClientRect();
+        const { innerWidth, innerHeight } = window;
+        const GAP = 12;
+
+        let left = anchorPos.x - rect.width / 2;
+        let top = anchorPos.y - rect.height - GAP; // Default: Top
+
+        // 1. Vertical Check (Top vs Bottom)
+        // If it goes off the top, flip to bottom
+        if (top < 10) {
+            top = anchorPos.y + GAP; // Place below
+            // If below goes off bottom, check which has more space ??
+            // For now, simple flip is usually sufficient.
+            // If both fail, clamp to top=10
+            if (top + rect.height > innerHeight - 10) {
+                top = 10;
+            }
+        }
+
+        // 2. Horizontal Check (Left vs Right)
+        if (left < 10) {
+            left = 10;
+        } else if (left + rect.width > innerWidth - 10) {
+            left = innerWidth - rect.width - 10;
+        }
+
+        setPositionStyle({
+            left,
+            top,
+            opacity: 1
+        });
+    }, [anchorPos.x, anchorPos.y, isExpanded, areTagsExpanded, video.id]);
+    // Re-run if content expands (height changes) or anchor moves
+
+    // Apply isClosing override
+    const activeStyle = {
+        ...positionStyle,
+        opacity: (positionStyle.opacity === 1 && isClosing) ? 0 : positionStyle.opacity
+    };
 
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
@@ -25,9 +85,10 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({ video, style, classN
 
     return createPortal(
         <div
-            className={`fixed z-popover bg-bg-secondary/95 backdrop-blur-xl border border-border rounded-xl shadow-2xl p-4 pointer-events-auto w-[340px] animate-fade-in flex flex-col gap-3 ${className || ''}`}
-            style={style}
-            // Prevent clicks from propagating to the timeline which might trigger auto-fit or panning
+            ref={tooltipRef}
+            className={`fixed z-popover bg-bg-secondary/95 backdrop-blur-xl border border-border rounded-xl shadow-2xl p-4 pointer-events-auto w-[340px] flex flex-col gap-3 transition-opacity duration-150 ${className || ''}`}
+            style={activeStyle}
+            // Prevent clicks from propagating logic (scrolling etc)
             onMouseDown={(e) => e.stopPropagation()}
             onMouseUp={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
@@ -67,7 +128,7 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({ video, style, classN
                     {video.viewCount.toLocaleString()} views
                 </span>
 
-                {/* Percentile - center (or empty placeholder if no percentile) */}
+                {/* Percentile - center */}
                 {percentileGroup === 'Top 1%' && (
                     <span className="text-emerald-700 dark:text-white font-bold px-2 py-1 bg-gradient-to-r from-emerald-500/30 to-green-500/30 border border-emerald-500/50 rounded-full whitespace-nowrap">
                         {percentileGroup}
