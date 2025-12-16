@@ -337,28 +337,35 @@ export const useTimelineStructure = ({
         yearMarkers
     };
 };
-
+export interface UseTimelinePositionsProps {
+    videos: TrendVideo[];
+    stats: any;
+    monthLayouts: any[];
+    scalingMode: 'linear' | 'log' | 'sqrt' | 'percentile';
+    verticalSpread?: number;
+    dynamicWorldHeight: number;
+}
 export const useTimelinePositions = ({
     videos,
     stats,
     monthLayouts,
     scalingMode,
-    amplifierLevel,
+    verticalSpread,
     dynamicWorldHeight
-}: {
-    videos: TrendVideo[],
-    stats: any,
-    monthLayouts: any[],
-    scalingMode: string,
-    amplifierLevel?: number,
-    dynamicWorldHeight: number
-}) => {
+}: UseTimelinePositionsProps) => {
     // Calculate video positions
     const videoPositions = useMemo(() => {
-        const viewRangeLinear = stats.maxViews - stats.minViews || 1;
-        const viewRangeLog = Math.log(stats.maxViews) - Math.log(stats.minViews) || 1;
-        const viewRangeSqrt = Math.sqrt(stats.maxViews) - Math.sqrt(stats.minViews) || 1;
+        if (!videos.length || !stats) return [];
 
+        const { minViews, maxViews } = stats;
+        const viewRangeLinear = maxViews - minViews || 1;
+        const viewRangeLog = Math.log(maxViews) - Math.log(minViews) || 1;
+        const viewRangeSqrt = Math.sqrt(maxViews) - Math.sqrt(minViews) || 1;
+
+        // Effective Spread
+        const spread = verticalSpread !== undefined ? verticalSpread : 1.0;
+
+        // Pre-calculate percentile thresholds if needed
         const sortedByViews = [...videos].sort((a, b) => a.viewCount - b.viewCount);
         const rankMap = new Map<string, number>();
         sortedByViews.forEach((v, i) => rankMap.set(v.id, i / (videos.length - 1 || 1)));
@@ -413,8 +420,8 @@ export const useTimelinePositions = ({
             }
 
             // Squash Logic
-            const amp = amplifierLevel !== undefined ? amplifierLevel : 1.0;
-            const effectiveYNorm = 0.5 + (yNorm - 0.5) * amp;
+            // spread is already effectiveVerticalSpread derived above
+            const effectiveYNorm = 0.5 + (yNorm - 0.5) * spread;
 
             const baseSize = MIN_THUMBNAIL_SIZE + sizeRatio * (BASE_THUMBNAIL_SIZE - MIN_THUMBNAIL_SIZE);
             const radius = baseSize / 2;
@@ -429,7 +436,7 @@ export const useTimelinePositions = ({
 
         positions.sort((a, b) => b.baseSize - a.baseSize);
         return positions;
-    }, [videos, stats, scalingMode, monthLayouts, amplifierLevel, dynamicWorldHeight]);
+    }, [videos, stats, scalingMode, monthLayouts, verticalSpread, dynamicWorldHeight]);
 
     // Percentile Helper
     const getPercentileGroup = useMemo(() => {

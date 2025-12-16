@@ -26,7 +26,7 @@ interface TimelineCanvasProps {
 
 export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoading = false }) => {
     const { timelineConfig, setTimelineConfig, setAddChannelModalOpen } = useTrendStore();
-    const { scalingMode, amplifierLevel, timeLinearity } = timelineConfig;
+    const { scalingMode, verticalSpread, timeLinearity } = timelineConfig;
 
     // 1. Structure (independent of viewport)
     const {
@@ -65,7 +65,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
         stats,
         monthLayouts,
         scalingMode,
-        amplifierLevel,
+        verticalSpread,
         dynamicWorldHeight
     });
 
@@ -186,7 +186,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
                     <TimelineViewAxis
                         stats={stats}
                         scalingMode={scalingMode}
-                        amplifierLevel={amplifierLevel}
+                        verticalSpread={verticalSpread}
                         dynamicWorldHeight={dynamicWorldHeight}
                         transform={transformState}
                         style={{ top: HEADER_HEIGHT }}
@@ -197,10 +197,10 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({ videos, isLoadin
             <ZoomIndicator
                 scale={transformState.scale}
                 minScale={minScale}
-                amplifierLevel={amplifierLevel ?? 1.0}
+                verticalSpread={verticalSpread ?? 1.0}
                 timeLinearity={timeLinearity ?? 1.0}
                 onReset={handleAutoFit}
-                onAmplifierChange={(level) => setTimelineConfig({ amplifierLevel: level })}
+                onSpreadChange={(level) => setTimelineConfig({ verticalSpread: level })}
                 onTimeLinearityChange={(level) => setTimelineConfig({ timeLinearity: level })}
                 onZoomChange={(newScale) => {
                     // Center zoom (simplified for now, ideally zooms to center of viewport)

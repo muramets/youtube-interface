@@ -7,8 +7,8 @@ interface ZoomIndicatorProps {
     scale: number;
     minScale: number;
     onReset: () => void;
-    amplifierLevel: number;
-    onAmplifierChange: (level: number) => void;
+    verticalSpread: number;
+    onSpreadChange: (level: number) => void;
     timeLinearity: number;
     onTimeLinearityChange: (level: number) => void;
     onZoomChange: (scale: number) => void;
@@ -19,8 +19,8 @@ export const ZoomIndicator: React.FC<ZoomIndicatorProps> = ({
     scale,
     minScale,
     onReset,
-    amplifierLevel,
-    onAmplifierChange,
+    verticalSpread,
+    onSpreadChange,
     timeLinearity,
     onTimeLinearityChange,
     onZoomChange,
@@ -137,8 +137,8 @@ export const ZoomIndicator: React.FC<ZoomIndicatorProps> = ({
         >
             {/* 1. Vertical Spread Control (Top) */}
             <VerticalSpreadControl
-                value={amplifierLevel}
-                onChange={onAmplifierChange}
+                value={verticalSpread}
+                onChange={onSpreadChange}
                 isLoading={isLoading}
             />
 

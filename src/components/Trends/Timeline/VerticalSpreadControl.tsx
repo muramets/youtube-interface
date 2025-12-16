@@ -22,12 +22,24 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
     // Ensure strictly clamped value for display to prevent artifacts
     const safeValue = Math.max(0, Math.min(1, value));
 
-    // DEBUG: Trace value anomalies
-    // DEBUG: Trace value anomalies (Fixed)
-    // console.log('[VerticalSpread] Render:', { raw: value, safe: safeValue, isNaN: Number.isNaN(value) });
-
     // Format value for display (e.g. 100%)
     const displayValue = Math.round(safeValue * 100) + '%';
+
+    // Constant for drag sensitivity (~66px = full range)
+    const DRAG_SENSITIVITY = 0.015;
+
+    // Smoothing state
+    const rafRef = useRef<number | null>(null);
+    const targetValueRef = useRef(value);
+    const currentValueRef = useRef(value);
+
+    // Sync refs when not dragging to prevent jumps when starting next drag
+    useEffect(() => {
+        if (!isDragging) {
+            targetValueRef.current = value;
+            currentValueRef.current = value;
+        }
+    }, [value, isDragging]);
 
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
         if (isLoading) return;
@@ -39,6 +51,10 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
         setStartValue(value);
         setShowTooltip(false);
 
+        // Initialize smoothing refs
+        targetValueRef.current = value;
+        currentValueRef.current = value;
+
         // Disable text selection and enforce cursor during drag
         document.body.style.userSelect = 'none';
         document.body.style.cursor = 'ns-resize';
@@ -49,17 +65,50 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
 
         const handleMouseMove = (e: MouseEvent) => {
             const deltaY = dragStartY - e.clientY; // Up moves positive
-            const sensitivity = 0.015; // ~66px = full range
 
+            // Calculate RAW constant target based on mouse position
             // Range: 0 (Line) to 1 (Fit In)
             // Clamp strictly between 0 and 1
-            const newValue = Math.max(0, Math.min(1, startValue + deltaY * sensitivity));
-
-            onChange(newValue);
+            const rawTarget = Math.max(0, Math.min(1, startValue + deltaY * DRAG_SENSITIVITY));
+            targetValueRef.current = rawTarget;
         };
+
+        // Animation loop for smoothing
+        const animate = () => {
+            if (!isDragging) return;
+
+            // Lerp factor: 0.15 = snappy but smooth, 0.05 = very floaty
+            const lerpFactor = 0.15;
+
+            const current = currentValueRef.current;
+            const target = targetValueRef.current;
+
+            // Simple Lerp
+            const next = current + (target - current) * lerpFactor;
+
+            // Update ref
+            currentValueRef.current = next;
+
+            // Only update if difference is significant to save renders
+            if (Math.abs(target - current) > 0.0001) {
+                onChange(next);
+                rafRef.current = requestAnimationFrame(animate);
+            } else {
+                // Snap if very close
+                onChange(target);
+                rafRef.current = requestAnimationFrame(animate);
+            }
+        };
+
+        // Start loop
+        rafRef.current = requestAnimationFrame(animate);
 
         const handleMouseUp = () => {
             setIsDragging(false);
+            if (rafRef.current) {
+                cancelAnimationFrame(rafRef.current);
+                rafRef.current = null;
+            }
             document.body.style.userSelect = '';
             document.body.style.cursor = '';
         };
@@ -70,6 +119,9 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
         return () => {
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
+            if (rafRef.current) {
+                cancelAnimationFrame(rafRef.current);
+            }
             document.body.style.userSelect = '';
             document.body.style.cursor = '';
         };

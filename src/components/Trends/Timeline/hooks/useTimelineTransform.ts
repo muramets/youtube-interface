@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } fr
 import { useDebounce } from '../../../../hooks/useDebounce';
 import { useTrendStore } from '../../../../stores/trendStore';
 
-interface Transform {
+export interface Transform {
     scale: number;
     offsetX: number;
     offsetY: number;

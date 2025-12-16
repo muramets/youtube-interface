@@ -4,16 +4,16 @@ import { useAxisTicks } from './hooks/useAxisTicks';
 interface TimelineViewAxisProps {
     stats: { minViews: number; maxViews: number };
     scalingMode: 'linear' | 'log' | 'sqrt' | 'percentile';
-    amplifierLevel: number;
+    verticalSpread: number;
     dynamicWorldHeight: number;
-    transform: { scale: number; offsetY: number };
+    transform: { scale: number; offsetY: number; offsetX: number };
     style?: React.CSSProperties;
 }
 
 export const TimelineViewAxis: React.FC<TimelineViewAxisProps> = ({
     stats,
     scalingMode,
-    amplifierLevel,
+    verticalSpread,
     dynamicWorldHeight,
     transform,
     style
@@ -24,8 +24,9 @@ export const TimelineViewAxis: React.FC<TimelineViewAxisProps> = ({
     const { ticksWithPriority, getY } = useAxisTicks({
         stats,
         scalingMode,
-        amplifierLevel,
-        dynamicWorldHeight
+        verticalSpread,
+        dynamicWorldHeight,
+        transform
     });
 
     useEffect(() => {
@@ -49,7 +50,7 @@ export const TimelineViewAxis: React.FC<TimelineViewAxisProps> = ({
     const visibleTicks = useMemo(() => {
 
 
-        const result = ticksWithPriority.map((tick, idx, arr) => {
+        const result = ticksWithPriority.map((tick: { value: number; priority: number }, idx: number, arr: { value: number; priority: number }[]) => {
             const y = getY(tick.value) * transform.scale + transform.offsetY;
 
             // Calculate spacing to nearest neighbors
@@ -92,10 +93,11 @@ export const TimelineViewAxis: React.FC<TimelineViewAxisProps> = ({
         });
 
         // Filter out invisible ticks
-        return result.filter(t => t.opacity > 0.05);
+        return result.filter((t: { opacity: number }) => t.opacity > 0.05);
     }, [ticksWithPriority, getY, transform.scale, transform.offsetY, containerHeight]);
 
-    const axisOpacity = Math.min(1, Math.max(0, (amplifierLevel - 0.1) / 0.4));
+    const safeSpread = verticalSpread ?? 1.0;
+    const axisOpacity = Math.min(1, Math.max(0, (safeSpread - 0.1) / 0.4));
 
     if (scalingMode === 'percentile' || axisOpacity <= 0) return null;
 

@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import type { Transform } from './useTimelineTransform';
 
 // Constants matching useTimelinePositions
 const BASE_THUMBNAIL_SIZE = 200;
@@ -7,15 +8,17 @@ const MIN_THUMBNAIL_SIZE = 40;
 interface UseAxisTicksProps {
     stats: { minViews: number; maxViews: number };
     scalingMode: 'linear' | 'log' | 'sqrt' | 'percentile';
-    amplifierLevel: number;
+    verticalSpread: number;
     dynamicWorldHeight: number;
+    transform: Transform;
 }
 
 export const useAxisTicks = ({
     stats,
     scalingMode,
-    amplifierLevel,
-    dynamicWorldHeight
+    verticalSpread,
+    dynamicWorldHeight,
+    // transform unused for now
 }: UseAxisTicksProps) => {
 
     // 1. Calculate Tick Size (Matches VideoNode size logic)
@@ -67,8 +70,13 @@ export const useAxisTicks = ({
             yNorm = 0.5;
         }
 
-        const amp = amplifierLevel !== undefined ? amplifierLevel : 1.0;
-        const effectiveYNorm = 0.5 + (yNorm - 0.5) * amp;
+        // Effective Vertical Spread (same logic as useTimelinePositions)
+        const spread = verticalSpread !== undefined ? verticalSpread : 1.0;
+
+        // At spread 0: all items are at y=0.5 (center) -> yNorm = 0.5
+        // At spread 1: items use full height -> yNorm = rawY
+        // Interpolate: y = 0.5 + (rawY - 0.5) * spread
+        const effectiveYNorm = 0.5 + (yNorm - 0.5) * spread;
 
         // SNAKE ALIGNMENT: match the video bubble center
         const tickSize = getTickSize(value);

@@ -51,7 +51,7 @@ export interface TimelineConfig {
     endDate: number;
     viewMode: 'global' | 'per-channel'; // Global = all on one timeline (optional future), Per-channel = separate tracks
     scalingMode: 'linear' | 'log' | 'sqrt' | 'percentile'; // Scaling algorithm for video sizes
-    amplifierLevel: number; // 1.0-3.0, controls vertical spread and size difference (replaces contrastLevel)
+    verticalSpread: number; // 0.0-1.0, controls vertical spread of nodes
     timeLinearity: number; // 0.0-1.0, 0 = Linear (time-based), 1 = Compact (count-based)
     layoutMode?: 'compact' | 'spacious'; // Optional view preference
 }
