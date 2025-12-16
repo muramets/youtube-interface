@@ -80,7 +80,7 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
                 onMouseEnter={() => !isDragging && setShowTooltip(true)}
                 onMouseLeave={() => setShowTooltip(false)}
                 className={`
-                    flex flex-col items-center justify-center gap-1 py-1.5 w-[28px]
+                    flex flex-col items-center justify-center gap-1 py-1.5 w-[34px]
                     bg-bg-secondary/90 backdrop-blur-md border border-border rounded-full shadow-lg
                     transition-all duration-200 select-none
                     ${isDragging ? 'cursor-ns-resize ring-1 ring-white/30 brightness-110' : 'cursor-ns-resize hover:brightness-125'}
@@ -92,11 +92,11 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
                     {displayValue}
                 </div>
 
-                {/* Divider */}
-                <div className="w-3 h-[1px] bg-white/10" />
+                {/* Divider - Slightly wider now to match new width? */}
+                <div className="w-4 h-[1px] bg-white/10" />
 
                 {/* Icon */}
-                <ArrowUpDown size={13} className={`text-text-tertiary transition-colors ${isDragging ? 'text-white' : 'group-hover/spread:text-white'}`} />
+                <ArrowUpDown size={14} className={`text-text-tertiary transition-colors ${isDragging ? 'text-white' : 'group-hover/spread:text-white'}`} />
             </div>
 
             {/* Tooltip (Left side) */}
