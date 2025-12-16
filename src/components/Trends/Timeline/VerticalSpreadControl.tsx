@@ -16,22 +16,23 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
     const [dragStartY, setDragStartY] = useState(0);
     const [startValue, setStartValue] = useState(0);
 
-    const buttonRef = useRef<HTMLButtonElement>(null);
+    const buttonRef = useRef<HTMLDivElement>(null);
     const [showTooltip, setShowTooltip] = useState(false);
 
-    // Format value for display (e.g. 1.2x)
-    const displayValue = value.toFixed(1) + 'x';
+    // Format value for display (e.g. 100%)
+    const displayValue = Math.round(value * 100) + '%';
 
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
         if (isLoading) return;
 
         e.preventDefault();
+        e.stopPropagation();
         setIsDragging(true);
         setDragStartY(e.clientY);
         setStartValue(value);
         setShowTooltip(false);
 
-        // Disable text selection during drag
+        // Disable text selection and enforce cursor during drag
         document.body.style.userSelect = 'none';
         document.body.style.cursor = 'ns-resize';
     }, [isLoading, value]);
@@ -40,13 +41,11 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
         if (!isDragging) return;
 
         const handleMouseMove = (e: MouseEvent) => {
-            const deltaY = dragStartY - e.clientY; // Up is positive
-            const sensitivity = 0.01; // Adjust sensitivity
+            const deltaY = dragStartY - e.clientY; // Up moves positive
+            const sensitivity = 0.005; // 200px = full range
 
-            // Calculate new value
-            // Range: 0.1 to 3.0? Or strictly > 0.
-            // Let's assume min 0.1, max 5.0 for safety
-            const newValue = Math.max(0.1, Math.min(5.0, startValue + deltaY * sensitivity));
+            // Range: 0 (Line) to 1 (Fit In)
+            const newValue = Math.max(0, Math.min(1, startValue + deltaY * sensitivity));
 
             onChange(newValue);
         };
@@ -69,53 +68,48 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
     }, [isDragging, dragStartY, startValue, onChange]);
 
     return (
-        <div className="flex flex-col items-center gap-1 group/spread relative">
-            {/* Value Display (Always Visible) */}
-            <div className={`text-[10px] font-mono text-text-secondary select-none tracking-tighter tabular-nums transition-opacity ${isLoading || isDragging ? 'opacity-100' : 'opacity-70 group-hover/spread:opacity-100'}`}
-                style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
-                {displayValue}
-            </div>
-
-            {/* Control Button */}
-            <button
+        <div className="relative group/spread">
+            {/* Main Pill Container */}
+            <div
                 ref={buttonRef}
                 onMouseDown={handleMouseDown}
                 onMouseEnter={() => !isDragging && setShowTooltip(true)}
                 onMouseLeave={() => setShowTooltip(false)}
-                disabled={isLoading}
                 className={`
-                    p-1.5 rounded-full backdrop-blur-md transition-all duration-200
-                    bg-bg-secondary/90 border border-border shadow-lg
-                    ${isDragging ? 'cursor-ns-resize ring-1 ring-white/20 bg-bg-secondary' : 'cursor-ns-resize hover:bg-hover-bg'}
+                    flex flex-col items-center justify-center gap-0.5 px-1.5 py-1.5
+                    bg-bg-secondary/90 backdrop-blur-md border border-border rounded-full shadow-lg
+                    transition-all duration-200 select-none
+                    ${isDragging ? 'cursor-ns-resize ring-1 ring-text-primary/20 bg-bg-secondary' : 'cursor-ns-resize hover:bg-hover-bg'}
                     ${isLoading ? 'opacity-50 cursor-default' : ''}
                 `}
             >
-                <ArrowUpDown size={14} className={`text-text-secondary ${isDragging ? 'text-text-primary' : 'group-hover/spread:text-text-primary'}`} />
-            </button>
+                {/* Value Display */}
+                <div className={`text-[10px] font-mono font-medium text-text-secondary tracking-tighter tabular-nums ${isDragging ? 'text-text-primary' : ''}`}>
+                    {displayValue}
+                </div>
 
-            {/* Tooltip (Only when NOT dragging) */}
+                {/* Icon */}
+                <ArrowUpDown size={14} className={`text-text-tertiary transition-colors ${isDragging ? 'text-text-primary' : 'group-hover/spread:text-text-primary'}`} />
+            </div>
+
+            {/* Tooltip (Left side) */}
             {showTooltip && !isDragging && !isLoading && (
                 <div className="absolute right-full top-1/2 -translate-y-1/2 mr-3 pointer-events-none z-50 whitespace-nowrap">
                     <div className="bg-black/90 backdrop-blur text-white text-[10px] px-2 py-1 rounded shadow-xl border border-white/10">
-                        vertical spread
+                        vertical spread (drag)
                     </div>
                 </div>
             )}
 
-            {/* Drag Slider Indicator (Visual feedback during drag) */}
+            {/* Drag Slider Indicator (Appears ABOVE the pill during drag) */}
             {isDragging && (
-                <div className="absolute right-full top-1/2 -translate-y-1/2 mr-3 pointer-events-none z-50 flex items-center gap-2">
-                    {/* We can show a visual slider bar here if requested, 
-                         but user asked for "sleek slider" logic. 
-                         Given the gesture is invisible drag, a visual bar might effectively just be the value display updating.
-                         However, user said "appears slider... without outline". 
-                         Let's add a subtle vertical track next to it to show the range?
-                      */}
-                    <div className="h-24 w-1 rounded-full bg-white/10 backdrop-blur-sm overflow-hidden relative">
-                        {/* Fill bar */}
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 pointer-events-none z-50 flex flex-col items-center">
+                    {/* Slider Track */}
+                    <div className="h-24 w-1.5 rounded-full bg-bg-secondary border border-white/10 backdrop-blur-md overflow-hidden relative shadow-xl">
+                        {/* Fill Bar (Bottom Up) */}
                         <div
-                            className="absolute bottom-0 w-full bg-primary/80 transition-all duration-75 ease-out"
-                            style={{ height: `${Math.min(100, Math.max(0, (value / 3.0) * 100))}%` }}
+                            className="absolute bottom-0 w-full bg-primary transition-all duration-75 ease-out"
+                            style={{ height: `${value * 100}%` }}
                         />
                     </div>
                 </div>
