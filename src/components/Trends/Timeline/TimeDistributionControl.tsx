@@ -6,12 +6,16 @@ import { ControlPill } from './components/ControlPill';
 interface TimeDistributionControlProps {
     value: number;
     onChange: (value: number) => void;
+    onDragStart?: () => void;
+    onDragEnd?: () => void;
     isLoading?: boolean;
 }
 
 export const TimeDistributionControl: React.FC<TimeDistributionControlProps> = ({
     value,
     onChange,
+    onDragStart,
+    onDragEnd,
     isLoading = false
 }) => {
     const [showTooltip, setShowTooltip] = useState(false);
@@ -20,6 +24,8 @@ export const TimeDistributionControl: React.FC<TimeDistributionControlProps> = (
     const { isDragging, handleMouseDown } = useSmoothDrag({
         value,
         onChange,
+        onDragStart,
+        onDragEnd,
         axis: 'x',
         isLoading,
     });

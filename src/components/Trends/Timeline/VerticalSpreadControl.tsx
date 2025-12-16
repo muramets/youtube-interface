@@ -6,12 +6,16 @@ import { ControlPill } from './components/ControlPill';
 interface VerticalSpreadControlProps {
     value: number;
     onChange: (value: number) => void;
+    onDragStart?: () => void;
+    onDragEnd?: () => void;
     isLoading?: boolean;
 }
 
 export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
     value,
     onChange,
+    onDragStart,
+    onDragEnd,
     isLoading = false
 }) => {
     const [showTooltip, setShowTooltip] = useState(false);
@@ -20,6 +24,8 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
     const { isDragging, handleMouseDown } = useSmoothDrag({
         value,
         onChange,
+        onDragStart,
+        onDragEnd,
         axis: 'y',
         isLoading,
     });

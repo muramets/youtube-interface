@@ -9,14 +9,17 @@ const MIN_THUMBNAIL_SIZE = 40;
 export const useTimelineStructure = ({
     videos,
     timeLinearity = 1.0, // Default to Density (1.0)
-    structureVersion = 0 // Version to force structure recalculation
-}: { videos: TrendVideo[], timeLinearity?: number, structureVersion?: number }) => {
+    structureVersion = 0, // Version to force structure recalculation
+    stats: forcedStatsOverride // Optional forced stats (renamed to avoid conflict)
+}: { videos: TrendVideo[], timeLinearity?: number, structureVersion?: number, stats?: TimelineStats }) => {
 
     // Helper: Days in month
     const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
 
-    // 1. Calculate View Stats (Moved first to support size-based width calculation)
+    // 1. Calculate Stats (Memoized)
     const currentStats = useMemo((): TimelineStats => {
+        // If we have no videos, but we have forced stats, we might not use this locally calculated one anyway.
+        // But we need a fallback.
         if (videos.length === 0) return { minViews: 0, maxViews: 1, minDate: Date.now(), maxDate: Date.now() };
         const views = videos.map(v => v.viewCount);
         const dates = videos.map(v => v.publishedAtTimestamp);
@@ -28,6 +31,9 @@ export const useTimelineStructure = ({
             maxDate: Math.max(...dates) + buffer
         };
     }, [videos]);
+
+    // Use forced stats if provided, otherwise local stats
+    const effectiveStats = forcedStatsOverride || currentStats;
 
     // Freeze Stats
     const frozenStatsRef = useRef<{ version: number, value: typeof currentStats, wasEmpty: boolean } | null>(null);
@@ -42,62 +48,26 @@ export const useTimelineStructure = ({
             wasEmpty: videos.length === 0
         };
     }
-    const stats = frozenStatsRef.current.value;
+    // The original `stats` variable is now `effectiveStats`
+    // const stats = frozenStatsRef.current.value; // This line is removed as `effectiveStats` is used instead
 
-
-
-    // 2. Calculate Density Stats (Shared Logic)
+    // 2. Density Analysis (Independent of time linearity)
+    // We analyze the distribution of videos across months to determine "dense" regions
     const densityStats = useMemo(() => {
-        if (videos.length === 0) return { counts: new Map<string, number>(), dynamicLinearPixelsPerDay: 40 };
+        // Calculate dynamic linear scale if needed, based on effectiveStats
+        // Linear mode: each day should be wide enough to fit videos side by side
+        // 120px per day allows ~1-2 thumbnails per day column
+        const dynamicLinearPixelsPerDay = 120;
 
         const counts = new Map<string, number>();
-        const monthDetails = new Map<string, { count: number, totalSizeRatio: number }>();
-        let maxCount = 0;
-        let busiestMonthKey = '';
-
-        const viewRangeLog = Math.log(stats.maxViews) - Math.log(stats.minViews) || 1;
-
         videos.forEach(v => {
             const d = new Date(v.publishedAtTimestamp);
             const key = `${d.getFullYear()}-${d.getMonth()}`;
-
-            // Heuristic size calculation (Log-based default)
-            const viewLog = Math.log(Math.max(1, v.viewCount));
-            const minLog = Math.log(Math.max(1, stats.minViews));
-            const sizeRatio = (viewLog - minLog) / viewRangeLog;
-
-            const current = monthDetails.get(key) || { count: 0, totalSizeRatio: 0 };
-            current.count += 1;
-            current.totalSizeRatio += sizeRatio;
-
-            monthDetails.set(key, current);
-            counts.set(key, current.count);
-
-            if (current.count > maxCount) {
-                maxCount = current.count;
-                busiestMonthKey = key;
-            }
+            counts.set(key, (counts.get(key) || 0) + 1);
         });
 
-        // SMART LINEAR SCALE CALCULATION
-        let dynamicLinearPixelsPerDay = 40; // Default fallback
-
-        if (busiestMonthKey && maxCount > 0) {
-            const details = monthDetails.get(busiestMonthKey);
-            if (details) {
-                const avgSizeRatio = details.totalSizeRatio / details.count;
-                const avgThumbnailHeight = MIN_THUMBNAIL_SIZE + avgSizeRatio * (BASE_THUMBNAIL_SIZE - MIN_THUMBNAIL_SIZE);
-                // Account for Aspect Ratio (16:9)
-                const avgThumbnailWidth = avgThumbnailHeight * (16 / 9);
-                // Calculate Required Width
-                const requiredWidth = details.count * (avgThumbnailWidth * 0.9);
-                // Provide specific linear PPD for this busy month
-                dynamicLinearPixelsPerDay = Math.max(40, requiredWidth / 30);
-            }
-        }
-
         return { counts, dynamicLinearPixelsPerDay };
-    }, [videos, stats]);
+    }, [videos, effectiveStats]);
 
     // 3. Calculate World Width (Now size-aware)
     const currentWorldWidth = useMemo(() => {
@@ -107,8 +77,8 @@ export const useTimelineStructure = ({
         const VIDEO_DENSITY_MULTIPLIER = 80;
 
         let totalWidth = 0;
-        const start = new Date(stats.minDate);
-        const end = new Date(stats.maxDate);
+        const start = new Date(effectiveStats.minDate);
+        const end = new Date(effectiveStats.maxDate);
         // Add buffer
         start.setMonth(start.getMonth() - 1);
         end.setMonth(end.getMonth() + 1);
@@ -137,7 +107,7 @@ export const useTimelineStructure = ({
         }
 
         return Math.max(2000, totalWidth);
-    }, [videos, timeLinearity, stats, densityStats]);
+    }, [videos, timeLinearity, effectiveStats, densityStats]);
 
     // Freeze World Width
     const frozenWorldWidthRef = useRef<{ version: number, linearity: number, value: number, wasEmpty: boolean } | null>(null);
@@ -162,15 +132,16 @@ export const useTimelineStructure = ({
 
     // 4. Calculate Layouts (using synchronized logic)
     const currentMonthLayouts = useMemo(() => {
-        if (videos.length === 0) return [];
+        if (videos.length === 0 && !forcedStatsOverride) return []; // Allow layouts if we have forced stats
 
+        // Use effectiveStats here
         const { counts, dynamicLinearPixelsPerDay } = densityStats;
 
-        let current = new Date(stats.minDate);
+        let current = new Date(effectiveStats.minDate);
         current.setDate(1);
         current.setHours(0, 0, 0, 0);
 
-        const endDate = new Date(stats.maxDate);
+        const endDate = new Date(effectiveStats.maxDate);
         const safeEndDate = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 1);
 
         const layouts = [];
@@ -215,11 +186,11 @@ export const useTimelineStructure = ({
         // Normalize
         return layouts.map(l => ({
             ...l,
-            startX: l.startX / totalAbsWidth,
-            endX: l.endX / totalAbsWidth,
-            width: l.width / totalAbsWidth
+            startX: l.startX / Math.max(1, totalAbsWidth), // Safety div
+            endX: l.endX / Math.max(1, totalAbsWidth),
+            width: l.width / Math.max(1, totalAbsWidth)
         }));
-    }, [videos, stats, timeLinearity, densityStats]);
+    }, [videos, effectiveStats, timeLinearity, densityStats, forcedStatsOverride]);
 
     // Freeze Month Layouts
     const frozenLayoutsRef = useRef<{ version: number, linearity: number, value: typeof currentMonthLayouts, wasEmpty: boolean } | null>(null);
@@ -240,7 +211,7 @@ export const useTimelineStructure = ({
 
     // Derived regions
     const monthRegions: MonthRegion[] = useMemo(() => {
-        if (videos.length === 0 || monthLayouts.length === 0) return [];
+        if (monthLayouts.length === 0) return [];
         return monthLayouts.map(layout => { // Simplified
             return {
                 month: layout.label,
@@ -252,7 +223,7 @@ export const useTimelineStructure = ({
                 isFirstOfYear: false // Recalculated below properly or simplified
             };
         });
-    }, [monthLayouts, videos.length]);
+    }, [monthLayouts]);
 
     // Fix isFirstOfYear logic from previous map
     const refinedMonthRegions = useMemo(() => {
@@ -288,7 +259,7 @@ export const useTimelineStructure = ({
 
     return {
         worldWidth,
-        stats: stats,
+        stats: effectiveStats, // Return effective stats
         monthLayouts,
         monthRegions: refinedMonthRegions,
         yearMarkers
@@ -301,6 +272,7 @@ export interface UseTimelinePositionsProps {
     scalingMode: 'linear' | 'log' | 'sqrt' | 'percentile';
     verticalSpread?: number;
     dynamicWorldHeight: number;
+    percentileMap?: Map<string, string>;
 }
 export const useTimelinePositions = ({
     videos,
@@ -308,7 +280,8 @@ export const useTimelinePositions = ({
     monthLayouts,
     scalingMode,
     verticalSpread,
-    dynamicWorldHeight
+    dynamicWorldHeight,
+    percentileMap
 }: UseTimelinePositionsProps) => {
     // Calculate video positions
     const videoPositions = useMemo<VideoPosition[]>(() => {
@@ -332,13 +305,14 @@ export const useTimelinePositions = ({
             const key = `${d.getFullYear()}-${d.getMonth()}`;
             const layout = monthLayouts.find(l => l.monthKey === key);
 
-            // X-AXIS
+            // X-AXIS: Snap to day grid (center of day)
             let xNorm: number;
             if (layout) {
-                const monthDuration = layout.endTs - layout.startTs;
-                const offsetInMonth = video.publishedAtTimestamp - layout.startTs;
-                const localProgress = Math.max(0, Math.min(1, offsetInMonth / monthDuration));
-                xNorm = layout.startX + (localProgress * layout.width);
+                const dayOfMonth = d.getDate(); // 1-indexed
+                const daysInMonth = layout.daysInMonth || new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+                // Center of the day: (day - 0.5) / daysInMonth gives center position
+                const dayProgress = (dayOfMonth - 0.5) / daysInMonth;
+                xNorm = layout.startX + (dayProgress * layout.width);
             } else {
                 const dateRange = stats.maxDate - stats.minDate || 1;
                 xNorm = (video.publishedAtTimestamp - stats.minDate) / dateRange;
@@ -397,6 +371,13 @@ export const useTimelinePositions = ({
 
     // Percentile Helper
     const getPercentileGroup = useMemo(() => {
+        // If percentileMap is provided, use it directly (O(1))
+        if (percentileMap) {
+            return (videoId: string): string | undefined => {
+                return percentileMap.get(videoId);
+            };
+        }
+
         if (videos.length === 0) return () => undefined;
         const sortedByViews = [...videos].sort((a, b) => b.viewCount - a.viewCount);
         const rankMap = new Map<string, number>();
@@ -413,11 +394,10 @@ export const useTimelinePositions = ({
             if (percentile <= 80) return 'Middle 60%';
             return 'Bottom 20%';
         };
-    }, [videos]);
+    }, [videos, percentileMap]); // Added percentileMap dep
 
     return {
         videoPositions,
         getPercentileGroup
     };
 };
-

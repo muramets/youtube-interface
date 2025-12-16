@@ -82,10 +82,15 @@ export const useTimelineTransform = ({
         return (viewportSize.width - padding * 2) / Math.max(1, worldWidth);
     }, [viewportSize.width, padding, worldWidth]);
 
-    // 2. Derive Dynamic World Height
+    // 2. Derive Dynamic World Height (with stability)
+    const lastValidWorldHeightRef = useRef(1000);
     const dynamicWorldHeight = useMemo(() => {
-        if (viewportSize.height <= 0 || fitScale <= 0) return 1000;
-        return (viewportSize.height - headerHeight) / fitScale;
+        if (viewportSize.height <= 0 || fitScale <= 0) {
+            return lastValidWorldHeightRef.current; // Use last valid instead of fallback
+        }
+        const calculated = (viewportSize.height - headerHeight) / fitScale;
+        lastValidWorldHeightRef.current = calculated; // Update ref
+        return calculated;
     }, [viewportSize.height, headerHeight, fitScale]);
 
     // 3. Min Scale
@@ -236,10 +241,10 @@ export const useTimelineTransform = ({
     // (This block keeps the relative positioning on data/viewport changes)
     const prevWorldWidthRef = useRef(worldWidth);
     const prevWorldHeightRef = useRef(dynamicWorldHeight);
-    const pendingAnchorRef = useRef<{ time: number; yNorm?: number; screenX?: number; screenY?: number } | null>(null);
+    const pendingAnchorRef = useRef<{ time: number; xNorm?: number; yNorm?: number; screenX?: number; screenY?: number } | null>(null);
 
     // Provide a way to queue a time-anchor (e.g. from hotkeys or external actions)
-    const anchorToTime = useCallback((timeOrObj: number | { time: number; yNorm?: number; screenX?: number; screenY?: number }) => {
+    const anchorToTime = useCallback((timeOrObj: number | { time: number; xNorm?: number; yNorm?: number; screenX?: number; screenY?: number }) => {
         if (typeof timeOrObj === 'number') {
             pendingAnchorRef.current = { time: timeOrObj };
         } else {
@@ -274,6 +279,7 @@ export const useTimelineTransform = ({
             },
             anchor: {
                 time: pendingAnchorRef.current.time,
+                xNorm: pendingAnchorRef.current.xNorm,
                 yNorm: pendingAnchorRef.current.yNorm,
                 screenX: pendingAnchorRef.current.screenX,
                 screenY: pendingAnchorRef.current.screenY,
@@ -315,6 +321,7 @@ export const useTimelineTransform = ({
                 },
                 anchor: {
                     time: pendingAnchorRef.current.time,
+                    xNorm: pendingAnchorRef.current.xNorm,
                     yNorm: pendingAnchorRef.current.yNorm,
                     screenX: pendingAnchorRef.current.screenX,
                     screenY: pendingAnchorRef.current.screenY,

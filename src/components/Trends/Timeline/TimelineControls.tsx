@@ -10,8 +10,12 @@ interface TimelineControlsProps {
     onReset: () => void;
     verticalSpread: number;
     onSpreadChange: (level: number) => void;
+    onSpreadDragStart?: () => void;
+    onSpreadDragEnd?: () => void;
     timeLinearity: number;
     onTimeLinearityChange: (level: number) => void;
+    onTimeDragStart?: () => void;
+    onTimeDragEnd?: () => void;
     isLoading?: boolean;
 }
 
@@ -21,8 +25,12 @@ export const TimelineControls: React.FC<TimelineControlsProps> = ({
     onReset,
     verticalSpread,
     onSpreadChange,
+    onSpreadDragStart,
+    onSpreadDragEnd,
     timeLinearity,
     onTimeLinearityChange,
+    onTimeDragStart,
+    onTimeDragEnd,
     isLoading = false
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -45,6 +53,8 @@ export const TimelineControls: React.FC<TimelineControlsProps> = ({
             <VerticalSpreadControl
                 value={verticalSpread}
                 onChange={onSpreadChange}
+                onDragStart={onSpreadDragStart}
+                onDragEnd={onSpreadDragEnd}
                 isLoading={isLoading}
             />
 
@@ -54,6 +64,8 @@ export const TimelineControls: React.FC<TimelineControlsProps> = ({
                 <TimeDistributionControl
                     value={timeLinearity}
                     onChange={onTimeLinearityChange}
+                    onDragStart={onTimeDragStart}
+                    onDragEnd={onTimeDragEnd}
                     isLoading={isLoading}
                 />
 

@@ -3,6 +3,8 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 interface UseSmoothDragOptions {
     value: number;
     onChange: (value: number) => void;
+    onDragStart?: () => void;
+    onDragEnd?: () => void;
     axis: 'x' | 'y';
     sensitivity?: number;
     isLoading?: boolean;
@@ -20,6 +22,8 @@ interface UseSmoothDragResult {
 export function useSmoothDrag({
     value,
     onChange,
+    onDragStart,
+    onDragEnd,
     axis,
     sensitivity = 0.015,
     isLoading = false,
@@ -54,10 +58,13 @@ export function useSmoothDrag({
         targetValueRef.current = value;
         currentValueRef.current = value;
 
+        // Notify drag start
+        onDragStart?.();
+
         // Disable text selection and enforce cursor during drag
         document.body.style.userSelect = 'none';
         document.body.style.cursor = axis === 'x' ? 'ew-resize' : 'ns-resize';
-    }, [isLoading, value, axis]);
+    }, [isLoading, value, axis, onDragStart]);
 
     useEffect(() => {
         if (!isDragging) return;
@@ -103,6 +110,8 @@ export function useSmoothDrag({
             }
             document.body.style.userSelect = '';
             document.body.style.cursor = '';
+            // Notify drag end
+            onDragEnd?.();
         };
 
         document.addEventListener('mousemove', handleMouseMove);
@@ -117,7 +126,7 @@ export function useSmoothDrag({
             document.body.style.userSelect = '';
             document.body.style.cursor = '';
         };
-    }, [isDragging, dragStart, startValue, onChange, axis, sensitivity]);
+    }, [isDragging, dragStart, startValue, onChange, axis, sensitivity, onDragEnd]);
 
     return { isDragging, handleMouseDown };
 }

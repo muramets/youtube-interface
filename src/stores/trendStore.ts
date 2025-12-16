@@ -3,14 +3,25 @@ import { persist } from 'zustand/middleware';
 import type { TrendChannel, TrendNiche, TimelineConfig, TrendVideo } from '../types/trends';
 import type { FilterOperator } from './filterStore';
 
-// Trends-specific filter item (only date and views)
+// Trends-specific filter item (date, views, percentile)
 export interface TrendsFilterItem {
     id: string;
-    type: 'date' | 'views';
+    type: 'date' | 'views' | 'percentile';
     operator: FilterOperator;
     value: any;
     label: string;
 }
+
+// Available percentile groups
+export const PERCENTILE_GROUPS = [
+    'Top 1%',
+    'Top 5%',
+    'Top 20%',
+    'Middle 60%',
+    'Bottom 20%'
+] as const;
+
+export type PercentileGroup = typeof PERCENTILE_GROUPS[number];
 
 const DEFAULT_TIMELINE_CONFIG: TimelineConfig = {
     zoomLevel: 1,
@@ -32,6 +43,7 @@ interface TrendStore {
 
     // UI State
     timelineConfig: TimelineConfig;
+    filterMode: 'global' | 'filtered';
     savedConfigs: Record<string, TimelineConfig>; // Keyed by channelId or 'global'
     activeNicheId: string | null; // Filter by niche
     selectedChannelId: string | null; // null = Trends Overview, else = Single Channel View
@@ -52,6 +64,7 @@ interface TrendStore {
     setHoveredVideo: (video: TrendVideo | null) => void;
     setAddChannelModalOpen: (isOpen: boolean) => void;
     setIsLoadingChannels: (isLoading: boolean) => void;
+    setFilterMode: (mode: 'global' | 'filtered') => void;
 
     // Trends filter actions
     addTrendsFilter: (filter: Omit<TrendsFilterItem, 'id'>) => void;
@@ -69,6 +82,7 @@ export const useTrendStore = create<TrendStore>()(
             niches: [],
 
             timelineConfig: { ...DEFAULT_TIMELINE_CONFIG },
+            filterMode: 'global', // Default to global Scaling
             savedConfigs: {},
 
             activeNicheId: null,
@@ -121,6 +135,7 @@ export const useTrendStore = create<TrendStore>()(
             setAddChannelModalOpen: (isOpen) => set({ isAddChannelModalOpen: isOpen }),
 
             setIsLoadingChannels: (isLoading) => set({ isLoadingChannels: isLoading }),
+            setFilterMode: (mode) => set({ filterMode: mode }),
 
             addTrendsFilter: (filter) => set((state) => ({
                 trendsFilters: [...state.trendsFilters, { ...filter, id: crypto.randomUUID() }]

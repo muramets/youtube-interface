@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useTrendStore } from '../stores/trendStore';
 import { TimelineCanvas } from '../components/Trends/Timeline/TimelineCanvas';
 import { TrendService } from '../services/trendService';
@@ -23,8 +23,7 @@ const applyNumericFilter = (value: number, operator: FilterOperator, filterValue
 };
 
 export const TrendsPage: React.FC = () => {
-    const { channels, selectedChannelId, timelineConfig, setTimelineConfig, trendsFilters } = useTrendStore();
-    const activeChannel = selectedChannelId ? channels.find(c => c.id === selectedChannelId) : null;
+    const { channels, selectedChannelId, timelineConfig, setTimelineConfig, trendsFilters, filterMode } = useTrendStore();
     const [videos, setVideos] = useState<TrendVideo[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -47,8 +46,8 @@ export const TrendsPage: React.FC = () => {
 
     // Load videos (lifted from TimelineCanvas)
     // Track if this is initial load vs channel visibility toggle
-    const hasLoadedOnceRef = React.useRef(false);
-    const prevSelectedChannelRef = React.useRef(selectedChannelId);
+    const hasLoadedOnceRef = useRef(false);
+    const prevSelectedChannelRef = useRef(selectedChannelId);
 
     useEffect(() => {
         const loadVideos = async () => {
@@ -92,7 +91,39 @@ export const TrendsPage: React.FC = () => {
         loadVideos();
     }, [visibleChannels, selectedChannelId]);
 
-    // Apply filters to videos
+    // 1. Calculate Global Percentile Map (always based on full dataset)
+    const globalPercentileMap = useMemo(() => {
+        if (videos.length === 0) return new Map<string, string>();
+        const sortedByViews = [...videos].sort((a, b) => b.viewCount - a.viewCount);
+        const map = new Map<string, string>();
+        sortedByViews.forEach((v, i) => {
+            const percentile = (i / videos.length) * 100;
+            let group: string;
+            if (percentile <= 1) group = 'Top 1%';
+            else if (percentile <= 5) group = 'Top 5%';
+            else if (percentile <= 20) group = 'Top 20%';
+            else if (percentile <= 80) group = 'Middle 60%';
+            else group = 'Bottom 20%';
+            map.set(v.id, group);
+        });
+        return map;
+    }, [videos]);
+
+    // 2. Calculate Global Stats (for 'Global' environment mode)
+    const globalStats = useMemo(() => {
+        if (videos.length === 0) return undefined;
+        const viewCounts = videos.map(v => v.viewCount);
+        const dates = videos.map(v => v.publishedAtTimestamp);
+        const buffer = 1000 * 60 * 60 * 12; // 12h buffer
+        return {
+            minViews: Math.max(1, Math.min(...viewCounts)),
+            maxViews: Math.max(1, Math.max(...viewCounts)),
+            minDate: Math.min(...dates) - buffer,
+            maxDate: Math.max(...dates) + buffer
+        };
+    }, [videos]);
+
+    // 3. Apply Filters
     const filteredVideos = useMemo(() => {
         if (trendsFilters.length === 0) return videos;
 
@@ -105,17 +136,23 @@ export const TrendsPage: React.FC = () => {
                 if (filter.type === 'views') {
                     return applyNumericFilter(video.viewCount, filter.operator, filter.value);
                 }
+                if (filter.type === 'percentile') {
+                    const videoGroup = globalPercentileMap.get(video.id);
+                    const excludedGroups: string[] = filter.value;
+                    // Return true if video's group is NOT in the excluded list
+                    return !excludedGroups.includes(videoGroup || '');
+                }
                 return true;
             });
         });
-    }, [videos, trendsFilters]);
+    }, [videos, trendsFilters, globalPercentileMap]);
 
     return (
         <div className="flex flex-col h-full bg-bg-primary">
             <TrendsHeader
-                title={activeChannel ? activeChannel.title : 'All Channels'}
+                title={selectedChannelId ? channels.find(c => c.id === selectedChannelId)?.title || 'Unknown Channel' : 'All Channels'}
                 videoCount={filteredVideos.length}
-                channelCount={channels.length}
+                channelCount={selectedChannelId ? 1 : channels.length}
                 showChannelCount={!selectedChannelId}
                 timelineConfig={timelineConfig}
                 setTimelineConfig={setTimelineConfig}
@@ -124,9 +161,11 @@ export const TrendsPage: React.FC = () => {
 
             {/* Timeline Area (pass filtered videos) */}
             <TimelineCanvas
-                key={`${selectedChannelId || 'global'}-${trendsFilters.length}`}
+                key={selectedChannelId || 'all'}
                 videos={filteredVideos}
                 isLoading={isLoading || channels.length === 0}
+                percentileMap={globalPercentileMap}
+                forcedStats={filterMode === 'global' ? globalStats : undefined}
             />
         </div>
     );

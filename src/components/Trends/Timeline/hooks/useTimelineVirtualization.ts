@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-import type { VideoPosition } from './useTimelineData';
+import type { VideoPosition } from '../../../../types/trends';
 
 interface UseTimelineVirtualizationProps {
     videoPositions: VideoPosition[];

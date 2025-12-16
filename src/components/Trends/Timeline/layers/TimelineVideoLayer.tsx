@@ -1,9 +1,8 @@
 import React, { useState, useRef, forwardRef, useImperativeHandle } from 'react';
-import type { TrendVideo } from '../../../../types/trends';
+import type { TrendVideo, VideoPosition } from '../../../../types/trends';
 import { useTimelineVirtualization } from '../hooks/useTimelineVirtualization';
 import { VideoDot } from '../nodes/VideoDot';
 import { VideoNode } from '../nodes/VideoNode';
-import type { VideoPosition } from '../hooks/useTimelineData';
 
 interface TimelineVideoLayerProps {
     videoPositions: VideoPosition[];

@@ -69,6 +69,7 @@ export interface PreservedTransformParams {
     };
     anchor?: {
         time: number;
+        xNorm?: number; // Direct X position (preferred over time-based calculation)
         yNorm?: number; // Optional vertical anchor
         screenX?: number; // Visual locking point
         screenY?: number;
@@ -108,9 +109,25 @@ export const calculatePreservedTransform = ({
 
     // --- X-AXIS CALCULATION ---
     if (anchor) {
-        // Mode 1: Anchor specific timestamp
+        // Mode 1: Anchor to specific position
         const { time, monthLayouts, stats, screenX } = anchor;
-        const normX = getWorldXAtTime(time, monthLayouts, stats);
+
+        // Always recalculate position using day-snap (like useTimelinePositions)
+        // This ensures correct anchoring when timeLinearity changes
+        const d = new Date(time);
+        const monthKey = `${d.getFullYear()}-${d.getMonth()}`;
+        const layout = monthLayouts.find(l => l.monthKey === monthKey);
+
+        let normX: number;
+        if (layout) {
+            const dayOfMonth = d.getDate();
+            const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+            const dayProgress = (dayOfMonth - 0.5) / daysInMonth;
+            normX = layout.startX + dayProgress * layout.width;
+        } else {
+            normX = getWorldXAtTime(time, monthLayouts, stats);
+        }
+
         const targetWorldX = normX * currWidth;
 
         // Anchor Point: Use provided screenX or default to Center
@@ -163,15 +180,7 @@ interface SmartAnchorParams {
     stats: TimelineStats;
 }
 
-/**
- * Finds the "Smart Anchor" time.
- * Logic:
- * 1. Filter videos currently visible in the viewport (both X and Y).
- * 2. Score them based on:
- *    - View Count (Higher is better)
- *    - Distance from Center (Closer is better)
- * 3. Return the timestamp of the winner.
- */
+
 export const findSmartAnchorTime = ({
     videoPositions,
     currentTransform,
@@ -180,7 +189,7 @@ export const findSmartAnchorTime = ({
     viewportWidth,
     viewportHeight,
     stats
-}: SmartAnchorParams): { time: number; yNorm: number; screenX: number; screenY: number } | null => {
+}: SmartAnchorParams): { time: number; xNorm: number; yNorm: number; screenX: number; screenY: number; videoId: string } | null => {
     // Safety
     if (currentTransform.scale <= 0) return null;
 
@@ -253,10 +262,12 @@ export const findSmartAnchorTime = ({
             const screenY = (worldY * currentTransform.scale) + currentTransform.offsetY;
 
             return {
-                time: v.video.publishedAtTimestamp,
+                time: v.video.publishedAtTimestamp, // kept for compatibility
+                xNorm: v.xNorm, // use actual video position
                 yNorm: v.yNorm,
                 screenX: screenX,
-                screenY: screenY
+                screenY: screenY,
+                videoId: v.video.id
             };
         }
     }
@@ -288,9 +299,11 @@ export const findSmartAnchorTime = ({
 
         return {
             time: v.video.publishedAtTimestamp,
+            xNorm: v.xNorm,
             yNorm: v.yNorm,
             screenX: screenX,
-            screenY: screenY
+            screenY: screenY,
+            videoId: v.video.id
         };
     }
 

@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Filter, ChevronRight, X, Calendar, Eye, ChevronLeft } from 'lucide-react';
+import { Filter, ChevronRight, X, Calendar, Eye, ChevronLeft, BarChart3 } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { useTrendStore } from '../../../stores/trendStore';
+import { useTrendStore, type PercentileGroup } from '../../../stores/trendStore';
 import { FilterInputDate } from '../../Shared/FilterInputs/FilterInputDate';
 import { FilterInputNumeric } from '../../Shared/FilterInputs/FilterInputNumeric';
+import { FilterInputPercentile } from '../../Shared/FilterInputs/FilterInputPercentile';
 import type { FilterOperator } from '../../../stores/filterStore';
 
-type TrendsFilterType = 'date' | 'views';
+type TrendsFilterType = 'date' | 'views' | 'percentile';
 
 export const TrendsFilterButton: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -17,7 +18,7 @@ export const TrendsFilterButton: React.FC = () => {
     // State for Navigation (Main vs Submenu)
     const [activeView, setActiveView] = useState<TrendsFilterType | 'main'>('main');
 
-    const { addTrendsFilter, trendsFilters } = useTrendStore();
+    const { addTrendsFilter, removeTrendsFilter, trendsFilters, filterMode, setFilterMode } = useTrendStore();
 
     useEffect(() => {
         if (isOpen && buttonRef.current) {
@@ -69,6 +70,7 @@ export const TrendsFilterButton: React.FC = () => {
     const filterTypes: { type: TrendsFilterType; label: string; icon: React.FC<any> }[] = [
         { type: 'date', label: 'Publish Date', icon: Calendar },
         { type: 'views', label: 'Views', icon: Eye },
+        { type: 'percentile', label: 'Percentile', icon: BarChart3 },
     ];
 
     const getTitleForView = (view: TrendsFilterType) => {
@@ -123,6 +125,46 @@ export const TrendsFilterButton: React.FC = () => {
                     <div className="flex flex-col">
                         {activeView === 'main' ? (
                             <div className="py-2">
+                                <div className="px-4 py-3 mb-1 border-b border-[#2a2a2a]">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider">Context</span>
+                                    </div>
+                                    {/* Segmented Toggle */}
+                                    <div className="relative flex bg-[#1a1a1a] rounded-lg p-0.5">
+                                        {/* Sliding Indicator */}
+                                        <div
+                                            className="absolute top-0.5 bottom-0.5 w-[calc(50%-2px)] bg-gradient-to-r from-[#2d2d2d] to-[#333333] rounded-md shadow-sm transition-all duration-200 ease-out"
+                                            style={{ left: filterMode === 'global' ? '2px' : 'calc(50% + 0px)' }}
+                                        />
+                                        <button
+                                            onClick={() => setFilterMode('global')}
+                                            className={`relative z-10 flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs font-medium transition-colors duration-200 border-none cursor-pointer bg-transparent ${filterMode === 'global'
+                                                ? 'text-text-primary'
+                                                : 'text-text-tertiary hover:text-text-secondary'
+                                                }`}
+                                        >
+                                            Global
+                                        </button>
+                                        <button
+                                            onClick={() => setFilterMode('filtered')}
+                                            className={`relative z-10 flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs font-medium transition-colors duration-200 border-none cursor-pointer bg-transparent ${filterMode === 'filtered'
+                                                ? 'text-text-primary'
+                                                : 'text-text-tertiary hover:text-text-secondary'
+                                                }`}
+                                        >
+                                            Filtered
+                                        </button>
+                                    </div>
+                                    <div className="mt-2 text-[10px] text-text-tertiary leading-relaxed grid">
+                                        <span className={`col-start-1 row-start-1 transition-opacity duration-150 ${filterMode === 'global' ? 'opacity-100' : 'opacity-0'}`}>
+                                            Maintain original scale when filtering
+                                        </span>
+                                        <span className={`col-start-1 row-start-1 transition-opacity duration-150 ${filterMode === 'filtered' ? 'opacity-100' : 'opacity-0'}`}>
+                                            Rescale to fit visible data
+                                        </span>
+                                    </div>
+                                </div>
+
                                 {filterTypes.map(({ type, label, icon: Icon }) => (
                                     <button
                                         key={type}
@@ -156,6 +198,26 @@ export const TrendsFilterButton: React.FC = () => {
                                             handleAddFilter('date', 'between', [start, end], label);
                                         }}
                                         onClose={() => setIsOpen(false)}
+                                    />
+                                )}
+                                {activeView === 'percentile' && (
+                                    <FilterInputPercentile
+                                        initialExcluded={trendsFilters.find(f => f.type === 'percentile')?.value || []}
+                                        onApply={(excluded: PercentileGroup[]) => {
+                                            // Remove existing percentile filter first
+                                            const existingFilter = trendsFilters.find(f => f.type === 'percentile');
+                                            if (existingFilter) {
+                                                removeTrendsFilter(existingFilter.id);
+                                            }
+                                            // Add new filter with updated exclusions (if any)
+                                            if (excluded.length > 0) {
+                                                const label = excluded.length === 1
+                                                    ? `Hide: ${excluded[0]}`
+                                                    : `Hide: ${excluded.length} groups`;
+                                                addTrendsFilter({ type: 'percentile', operator: 'equals', value: excluded, label });
+                                            }
+                                            setIsOpen(false);
+                                        }}
                                     />
                                 )}
                             </div>
