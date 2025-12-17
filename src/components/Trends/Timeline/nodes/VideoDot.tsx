@@ -8,6 +8,7 @@ interface VideoDotProps {
     percentileGroup: string | undefined;
     isFocused: boolean;
     isElevated: boolean;
+    isActive: boolean;
     onMouseEnter: (e: React.MouseEvent, vid: TrendVideo) => void;
     onMouseLeave: () => void;
     onDoubleClick: (video: TrendVideo, worldX: number, worldY: number) => void;
@@ -39,6 +40,7 @@ export const VideoDot = memo(({
     percentileGroup,
     isFocused,
     isElevated,
+    isActive,
     onMouseEnter,
     onMouseLeave,
     onDoubleClick,
@@ -49,8 +51,10 @@ export const VideoDot = memo(({
     const y = yNorm * worldHeight;
     const { color, size: baseSize } = getPercentileStyle(percentileGroup);
 
+    // Unified highlight state: active OR focused
+    const isHighlighted = isFocused || isActive;
+
     // Minimum screen size for interaction (in world units at scale 1)
-    // This ensures even the smallest dots are clickable when zoomed out
     const MIN_INTERACTION_SIZE = 12;
     const effectiveSize = Math.max(baseSize, MIN_INTERACTION_SIZE);
 
@@ -62,12 +66,9 @@ export const VideoDot = memo(({
                 top: y,
                 width: effectiveSize,
                 height: effectiveSize,
-                // Proportional Scaling with Minimum Visibility Clamp
-                // Above zoom 0.20: Scale is 1 (Natural world size)
-                // Below zoom 0.20: Scale increases to maintain min visual size
-                // This makes dots easier to click when fully zoomed out
                 transform: `translate(-50%, -50%) scale(max(1, calc(0.20 / var(--timeline-scale, 0.20))))`,
-                zIndex: isElevated ? 1000 : 10,
+                // Elevated z-index when highlighted or was recently hovered
+                zIndex: isHighlighted || isElevated ? 1000 : 10,
                 willChange: 'transform'
             }}
             onMouseDown={(e) => e.stopPropagation()}
@@ -80,17 +81,22 @@ export const VideoDot = memo(({
             }}
         >
             <div
-                className={`rounded-full cursor-pointer ${color} ${isFocused ? 'shadow-lg shadow-white/30' : 'shadow-sm'}`}
+                className={`rounded-full cursor-pointer ${color} ${isHighlighted ? 'shadow-lg shadow-white/30' : 'shadow-sm'}`}
                 style={{
-                    // Center the visual dot within the larger hitbox
                     position: 'absolute',
                     left: '50%',
                     top: '50%',
-                    transform: `translate(-50%, -50%) ${isFocused ? 'scale(1.4)' : 'scale(1)'}`,
+                    transform: `translate(-50%, -50%) ${isHighlighted ? 'scale(1.4)' : 'scale(1)'}`,
                     width: baseSize,
                     height: baseSize,
-                    filter: isFocused ? 'brightness(1.2)' : 'brightness(1)',
+                    filter: isHighlighted ? 'brightness(1.2)' : 'brightness(1)',
                     transition: 'transform 200ms ease-out, filter 200ms ease-out, box-shadow 200ms ease-out',
+                    // Premium ring only for active state (on top of hover glow)
+                    boxShadow: isActive
+                        ? '0 0 0 3px rgba(255,255,255,0.9), 0 0 24px rgba(255,255,255,0.5)'
+                        : isHighlighted
+                            ? '0 4px 20px rgba(255,255,255,0.3)'
+                            : undefined,
                 }}
             />
         </div>

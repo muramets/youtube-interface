@@ -23,8 +23,7 @@ const applyNumericFilter = (value: number, operator: FilterOperator, filterValue
 };
 
 export const TrendsPage: React.FC = () => {
-    const { channels, selectedChannelId, timelineConfig, setTimelineConfig, trendsFilters, filterMode } = useTrendStore();
-    const [videos, setVideos] = useState<TrendVideo[]>([]);
+    const { channels, selectedChannelId, timelineConfig, setTimelineConfig, trendsFilters, filterMode, setVideos, videos } = useTrendStore();
     const [isLoading, setIsLoading] = useState(true);
 
     // Reset state immediately when channel switches (Derived State pattern)
@@ -32,7 +31,7 @@ export const TrendsPage: React.FC = () => {
     const [prevChannelForReset, setPrevChannelForReset] = useState(selectedChannelId);
     if (selectedChannelId !== prevChannelForReset) {
         setPrevChannelForReset(selectedChannelId);
-        setVideos([]);
+        setVideos([]); // Reset store videos
         setIsLoading(true);
     }
 

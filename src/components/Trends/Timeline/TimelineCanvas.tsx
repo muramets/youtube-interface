@@ -211,6 +211,10 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         clampTransform,
         onHoverVideo: (active: boolean) => {
             if (!active) closeTooltipSmoothly();
+        },
+        onInteractionStart: () => {
+            // Close floating bar during any zoom/pan/selection interaction
+            setSelectedVideoState(null);
         }
     });
 
@@ -295,6 +299,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                 transform={transformState}
                 worldWidth={worldWidth}
                 worldHeight={dynamicWorldHeight}
+                activeVideoId={selectedVideoState?.video.id || null}
                 style={{
                     opacity: isLoading ? 0 : 1,
                     transition: 'opacity 0.3s ease'
@@ -422,11 +427,18 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                 />
             )}
             {selectedVideoState && (
-                <TrendsFloatingBar
-                    video={selectedVideoState.video}
-                    position={floatingBarPosition}
-                    onClose={() => setSelectedVideoState(null)}
-                />
+                <>
+                    {/* Invisible backdrop to close floating bar on click outside */}
+                    <div
+                        className="fixed inset-0 z-[999]"
+                        onClick={() => setSelectedVideoState(null)}
+                    />
+                    <TrendsFloatingBar
+                        video={selectedVideoState.video}
+                        position={floatingBarPosition}
+                        onClose={() => setSelectedVideoState(null)}
+                    />
+                </>
             )}
         </div>
     );

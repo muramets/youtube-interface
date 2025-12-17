@@ -38,6 +38,7 @@ const DEFAULT_TIMELINE_CONFIG: TimelineConfig = {
 
 interface TrendStore {
     // Data
+    videos: TrendVideo[];
     channels: TrendChannel[];
     niches: TrendNiche[];
     videoNicheAssignments: Record<string, string>; // videoId -> nicheId assignment overrides
@@ -55,6 +56,7 @@ interface TrendStore {
     trendsFilters: TrendsFilterItem[]; // Filters for trends page
 
     // Actions
+    setVideos: (videos: TrendVideo[]) => void;
     setChannels: (channels: TrendChannel[]) => void;
     updateChannel: (id: string, updates: Partial<TrendChannel>) => void;
     setNiches: (niches: TrendNiche[]) => void;
@@ -86,6 +88,7 @@ interface TrendStore {
 export const useTrendStore = create<TrendStore>()(
     persist(
         (set) => ({
+            videos: [],
             channels: [],
             niches: [],
             videoNicheAssignments: {},
@@ -101,6 +104,8 @@ export const useTrendStore = create<TrendStore>()(
             isAddChannelModalOpen: false,
             isLoadingChannels: true, // Start as loading
             trendsFilters: [],
+
+            setVideos: (videos) => set({ videos }),
 
             setChannels: (channels) => set({ channels }),
 
@@ -215,28 +220,47 @@ export const useTrendStore = create<TrendStore>()(
     )
 );
 
+// Manual Palette for user selection (10 distinct colors)
+// These should NOT be used for auto-generation to avoid confusion/clashes if possible,
+// but ensuring style consistency is key.
+export const MANUAL_NICHE_PALETTE = [
+    '#EF4444', // Red 500
+    '#F97316', // Orange 500
+    '#F59E0B', // Amber 500
+    '#84CC16', // Lime 500
+    '#10B981', // Emerald 500
+    '#06B6D4', // Cyan 500
+    '#3B82F6', // Blue 500
+    '#6366F1', // Indigo 500
+    '#8B5CF6', // Violet 500
+    '#EC4899', // Pink 500
+];
+
+// Auto Palette - Extended set of premium colors, avoiding the exact codes above if possible.
+const AUTO_NICHE_PALETTE = [
+    '#F87171', '#FB923C', '#FBBF24', '#A3E635', '#34D399', '#22D3EE', '#60A5FA', '#818CF8', '#A78BFA', '#F472B6', // 400s
+    '#B91C1C', '#C2410C', '#B45309', '#4D7C0F', '#047857', '#0E7490', '#1D4ED8', '#4338CA', '#5B21B6', '#BE185D', // 700s
+    '#991B1B', '#9A3412', '#92400E', '#3F6212', '#065F46', '#155E75', '#1E40AF', '#3730A3', '#4C1D95', '#9D174D', // 800s
+];
+
 // Helper to generate premium colors
 export const generateNicheColor = (existingColors: string[]): string => {
-    const PREMIUM_PALETTE = [
-        '#6366F1', // Indigo
-        '#8B5CF6', // Violet
-        '#EC4899', // Pink
-        '#F43F5E', // Rose
-        '#F97316', // Orange
-        '#F59E0B', // Amber
-        '#10B981', // Emerald
-        '#06B6D4', // Cyan
-        '#3B82F6', // Blue
-        '#A855F7', // Purple
-    ];
+    // We try to pick from AUTO palette that isn't recently used
+    const available = AUTO_NICHE_PALETTE.filter(c => !existingColors.includes(c));
 
-    // Simple round-robin or random avoiding recent
-    const lastColor = existingColors[existingColors.length - 1];
-    let candidate = PREMIUM_PALETTE[existingColors.length % PREMIUM_PALETTE.length];
-
-    if (candidate === lastColor) {
-        candidate = PREMIUM_PALETTE[(existingColors.length + 1) % PREMIUM_PALETTE.length];
+    if (available.length > 0) {
+        // Pick random from available
+        return available[Math.floor(Math.random() * available.length)];
     }
 
-    return candidate;
+    // Fallback: Pick one that wasn't used RECENTLY (last 5)
+    // If we run out of unique colors, we recycle but try to avoid the most recent ones
+    const recent = new Set(existingColors.slice(-5));
+    const candidates = AUTO_NICHE_PALETTE.filter(c => !recent.has(c));
+
+    if (candidates.length > 0) {
+        return candidates[Math.floor(Math.random() * candidates.length)];
+    }
+
+    return AUTO_NICHE_PALETTE[Math.floor(Math.random() * AUTO_NICHE_PALETTE.length)];
 };

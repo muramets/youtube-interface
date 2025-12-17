@@ -9,6 +9,7 @@ interface TimelineVideoLayerProps {
     transform: { scale: number; offsetX: number; offsetY: number };
     worldWidth: number;
     worldHeight: number;
+    activeVideoId: string | null;
     onHoverVideo: (data: { video: TrendVideo; x: number; y: number; width: number; height: number } | null) => void;
     onDoubleClickVideo: (video: TrendVideo, worldX: number, worldY: number) => void;
     onClickVideo: (video: TrendVideo, clientX: number, clientY: number) => void;
@@ -31,6 +32,7 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
     transform,
     worldWidth,
     worldHeight,
+    activeVideoId,
     style,
     getPercentileGroup,
     setAddChannelModalOpen,
@@ -132,6 +134,7 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
                             worldHeight={worldHeight}
                             isFocused={focusedVideoId === position.video.id}
                             isElevated={elevatedVideoId === position.video.id}
+                            isActive={activeVideoId === position.video.id}
                             showLabel={showLabels}
                             onMouseEnter={handleMouseEnter}
                             onMouseLeave={handleMouseLeave}
@@ -152,6 +155,7 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
                             percentileGroup={getPercentileGroup(position.video.id)}
                             isFocused={focusedVideoId === position.video.id}
                             isElevated={elevatedVideoId === position.video.id}
+                            isActive={activeVideoId === position.video.id}
                             onMouseEnter={handleMouseEnter}
                             onMouseLeave={handleMouseLeave}
                             onDoubleClick={onDoubleClickVideo}

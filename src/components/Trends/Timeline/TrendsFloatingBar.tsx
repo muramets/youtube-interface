@@ -8,12 +8,59 @@ import { useChannelStore } from '../../../stores/channelStore';
 import { usePlaylists } from '../../../hooks/usePlaylists';
 import { VideoService } from '../../../services/videoService';
 import { PlaylistService } from '../../../services/playlistService';
+import { useSmartPosition } from './hooks/useSmartPosition';
 
 interface TrendsFloatingBarProps {
     video: TrendVideo;
     position: { x: number; y: number };
     onClose: () => void;
 }
+
+// Internal reusable portal dropdown
+const FloatingDropdownPortal: React.FC<{
+    isOpen: boolean;
+    anchorRect: DOMRect | null;
+    openAbove: boolean;
+    width?: number;
+    children: React.ReactNode;
+}> = ({ isOpen, anchorRect, openAbove, width = 288, children }) => {
+    if (!isOpen || !anchorRect) return null;
+
+    const GAP = 8;
+    const PADDING = 16;
+    const screenWidth = window.innerWidth;
+
+    // Horizontal: center or clamp
+    let left = anchorRect.left;
+    if (width === 256) { // Special case for smaller playlist dropdown to center it
+        left = anchorRect.left + anchorRect.width / 2 - width / 2;
+    }
+
+    if (left + width > screenWidth - PADDING) {
+        left = screenWidth - PADDING - width;
+    }
+    if (left < PADDING) {
+        left = PADDING;
+    }
+
+    const top = openAbove ? anchorRect.top - GAP : anchorRect.bottom + GAP;
+
+    return createPortal(
+        <div
+            className="fixed bg-bg-secondary/90 backdrop-blur-md border border-border rounded-xl shadow-lg overflow-hidden flex flex-col animate-fade-in z-[9999]"
+            style={{
+                left,
+                top,
+                width,
+                transform: openAbove ? 'translateY(-100%)' : 'none',
+                maxHeight: 280,
+            }}
+        >
+            {children}
+        </div>,
+        document.body
+    );
+};
 
 export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
     video,
@@ -25,225 +72,42 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
     const { currentChannel } = useChannelStore();
     const { playlists, createPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
 
-    // Determine effective niche
-    // 1. Check local override
-    // 2. Check video.nicheId (not yet in real data, but good for future)
-    const assignedNicheId = videoNicheAssignments[video.id] || video.nicheId;
+    // Resolve assigned niche
+    const assignedNicheId = videoNicheAssignments[video.id]; // Prioritize local assignment
     const assignedNiche = niches.find(n => n.id === assignedNicheId);
 
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isPlaylistDropdownOpen, setIsPlaylistDropdownOpen] = useState(false);
     const [newNicheName, setNewNicheName] = useState('');
     const [newPlaylistName, setNewPlaylistName] = useState('');
-    const [isGlobal, setIsGlobal] = useState(false); // Toggle for Global vs Local niche creation
+    const [isGlobal, setIsGlobal] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
 
-    const dropdownRef = useRef<HTMLDivElement>(null);
-    const playlistDropdownRef = useRef<HTMLDivElement>(null);
+    const barRef = useRef<HTMLDivElement>(null);
     const nicheButtonRef = useRef<HTMLButtonElement>(null);
     const playlistButtonRef = useRef<HTMLButtonElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const playlistInputRef = useRef<HTMLInputElement>(null);
-    const barRef = useRef<HTMLDivElement>(null);
 
-    // Dropdown position states for portal rendering
-    const [nicheDropdownPos, setNicheDropdownPos] = useState({ left: 0, top: 0 });
-    const [playlistDropdownPos, setPlaylistDropdownPos] = useState({ left: 0, top: 0 });
+    // Smart Positioning Hook
+    const { coords } = useSmartPosition({
+        targetPos: position,
+        elementRef: barRef,
+        width: 300, // Approx
+        offsetY: 60
+    });
 
-    // Unified dropdown direction based on bar position (all dropdowns open same way)
-    const [dropdownsOpenAbove, setDropdownsOpenAbove] = useState(true);
+    // Unified Dropdown Direction
+    const dropdownsOpenAbove = coords.y > window.innerHeight / 2;
 
-    // Smart Positioning
-    const [coords, setCoords] = useState(position);
-
-    // Use useLayoutEffect to prevent visual jump and ensure measurements are correct before paint
-    React.useLayoutEffect(() => {
-        if (!barRef.current) return;
-
-        // Use offsetWidth/Height to get the layout size, ignoring transform scaling (e.g. animate-scale-in)
-        // This prevents the bar from jumping if a re-render happens during animation
-        const width = barRef.current.offsetWidth;
-        const height = barRef.current.offsetHeight;
-        const PADDING = 16;
-        let { x, y } = position; // Initial viewport coords (x is center of click, y is top of click)
-
-        const screenWidth = window.innerWidth;
-        const screenHeight = window.innerHeight;
-
-        // X Axis:
-        // We want CENTER of bar to be at `x`.
-        // So ideal Left = x - width/2.
-        let left = x - width / 2;
-
-        // Clamp Left
-        // 1. Minimum PADDING from left edge
-        if (left < PADDING) {
-            left = PADDING;
-        }
-        // 2. Maximum PADDING from right edge
-        // Right edge of bar = left + width. Must be <= screenWidth - PADDING
-        else if (left + width > screenWidth - PADDING) {
-            left = screenWidth - PADDING - width;
-        }
-
-        // Y Axis:
-        // Ideal Top: Above the video (y - 60).
-        let top = y - 60;
-
-        // Check if top is clipped (above screen top)
-        if (top < PADDING) {
-            // Not enough space above? Try below.
-            // y + buffer. Let's assume click was at Top of dot.
-            // Dot is ~20-40px. Let's start 40px below y.
-            const belowTop = y + 40;
-            // Does it fit below?
-            if (belowTop + height < screenHeight - PADDING) {
-                top = belowTop;
-            } else {
-                // If it fits neither, prefer the one with MORE space visible or keep top clamped?
-                // Default to clamped top if forced?
-                top = Math.max(PADDING, top);
-            }
-        }
-
-        setCoords({ x: left, y: top });
-
-        // Unified dropdown direction: if bar is in top half of screen, open dropdowns below
-        const barCenterY = top + height / 2;
-        setDropdownsOpenAbove(barCenterY > screenHeight / 2);
-    }, [position, isDropdownOpen, isPlaylistDropdownOpen]); // Re-run if size changes due to dropdowns
-
-    // Close on click outside
+    // Auto-focus inputs
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (
-                barRef.current &&
-                !barRef.current.contains(event.target as Node) &&
-                dropdownRef.current &&
-                !dropdownRef.current.contains(event.target as Node) &&
-                playlistDropdownRef.current &&
-                !playlistDropdownRef.current.contains(event.target as Node)
-            ) {
-                onClose();
-            }
-        };
+        if (isDropdownOpen) setTimeout(() => inputRef.current?.focus(), 50);
+    }, [isDropdownOpen]);
 
-        if (true) { // Always listen when mounted
-            document.addEventListener('mousedown', handleClickOutside); // mousedown for faster feel than click
-        }
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, [onClose]);
-
-    // Focus input on dropdown open + calculate position for portal
     useEffect(() => {
-        if (isDropdownOpen && nicheButtonRef.current) {
-            const rect = nicheButtonRef.current.getBoundingClientRect();
-            const DROPDOWN_WIDTH = 288; // w-72 = 18rem = 288px
-            const GAP = 8;
-            const PADDING = 16;
-
-            // Horizontal: clamp to screen edges
-            let left = rect.left;
-            if (left + DROPDOWN_WIDTH > window.innerWidth - PADDING) {
-                left = window.innerWidth - PADDING - DROPDOWN_WIDTH;
-            }
-            if (left < PADDING) {
-                left = PADDING;
-            }
-
-            // Vertical: use unified direction from bar position
-            const top = dropdownsOpenAbove ? rect.top - GAP : rect.bottom + GAP;
-
-            setNicheDropdownPos({ left, top });
-            setTimeout(() => inputRef.current?.focus(), 50);
-        }
-    }, [isDropdownOpen, dropdownsOpenAbove]);
-
-    // Focus playlist input + calculate position for portal
-    useEffect(() => {
-        if (isPlaylistDropdownOpen && playlistButtonRef.current) {
-            const rect = playlistButtonRef.current.getBoundingClientRect();
-            const DROPDOWN_WIDTH = 256; // w-64 = 16rem = 256px
-            const GAP = 8;
-            const PADDING = 16;
-
-            // Horizontal: center on button, then clamp to screen edges  
-            let left = rect.left + rect.width / 2 - DROPDOWN_WIDTH / 2;
-            if (left + DROPDOWN_WIDTH > window.innerWidth - PADDING) {
-                left = window.innerWidth - PADDING - DROPDOWN_WIDTH;
-            }
-            if (left < PADDING) {
-                left = PADDING;
-            }
-
-            // Vertical: use unified direction from bar position
-            const top = dropdownsOpenAbove ? rect.top - GAP : rect.bottom + GAP;
-
-            setPlaylistDropdownPos({ left, top });
-            setTimeout(() => playlistInputRef.current?.focus(), 50);
-        }
-    }, [isPlaylistDropdownOpen, dropdownsOpenAbove]);
-
-    const handleAddToHome = async () => {
-        if (!user || !currentChannel) return;
-        setIsProcessing(true);
-        try {
-            // Convert TrendVideo to Video format if needed, or pass subset
-            // Assuming TrendVideo matches compatible shape or we map it
-            const videoData = {
-                ...video,
-                createdAt: Date.now(),
-                isPlaylistOnly: false
-            };
-            // @ts-ignore - Assuming compatibility or ignoring minor mismatches for now
-            await VideoService.addVideo(user.uid, currentChannel.id, videoData);
-            // Close after success? Or show toast?
-            onClose();
-        } catch (error) {
-            console.error("Failed to add to home", error);
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    const handleAddToPlaylist = async (playlistId: string) => {
-        if (!user || !currentChannel) return;
-        setIsProcessing(true);
-        try {
-            // Ensure video is in library first (hidden)
-            const videoData = {
-                ...video,
-                createdAt: Date.now(),
-                isPlaylistOnly: true
-            };
-            // @ts-ignore
-            await VideoService.addVideo(user.uid, currentChannel.id, videoData);
-            await PlaylistService.addVideoToPlaylist(user.uid, currentChannel.id, playlistId, video.id);
-            setIsPlaylistDropdownOpen(false);
-        } catch (error) {
-            console.error("Failed to add to playlist", error);
-            setIsProcessing(false); // Ensure processing state is reset on error
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    const handleCreatePlaylist = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (newPlaylistName.trim() && user && currentChannel) {
-            setIsProcessing(true);
-            try {
-                const newId = await createPlaylist({ name: newPlaylistName, videoIds: [] });
-                await handleAddToPlaylist(newId);
-                setNewPlaylistName('');
-            } catch (error) {
-                console.error("Failed to create playlist", error);
-                setIsProcessing(false);
-            }
-        }
-    };
+        if (isPlaylistDropdownOpen) setTimeout(() => playlistInputRef.current?.focus(), 50);
+    }, [isPlaylistDropdownOpen]);
 
     const handleCreateSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -260,33 +124,32 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
             };
 
             addNiche(newNiche);
-            assignVideoToNiche(video.id, newNiche.id); // Auto-assign to newly created niche
+            assignVideoToNiche(video.id, newNiche.id);
 
             setNewNicheName('');
             setIsDropdownOpen(false);
         }
     };
 
-    // Filter niches for suggestion
+    const handleQuickAction = async (action: () => Promise<void>) => {
+        setIsProcessing(true);
+        try {
+            await action();
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
     const filteredNiches = niches.filter(n => {
         if (!newNicheName) return true;
         return n.name.toLowerCase().includes(newNicheName.toLowerCase());
     });
 
-    // Positioning: coords are now used instead of raw position props
-    const style: React.CSSProperties = {
-        position: 'fixed',
-        left: coords.x,
-        top: coords.y, // Computed y includes offset
-        // Removed translate(-50%) because we calculated 'left' manually
-        zIndex: 1000,
-    };
-
     return (
         <div
             ref={barRef}
-            className="flex items-center gap-2 bg-bg-secondary/90 backdrop-blur-md border border-border shadow-lg rounded-full px-4 py-2 animate-scale-in"
-            style={style}
+            className="flex items-center gap-2 bg-bg-secondary/90 backdrop-blur-md border border-border shadow-lg rounded-full px-4 py-2 animate-fade-in fixed z-[1000]"
+            style={{ left: coords.x, top: coords.y }}
         >
             <div className="flex items-center gap-3 pr-3 border-r border-white/10">
                 <span className="text-sm font-medium text-white whitespace-nowrap max-w-[150px] truncate">
@@ -300,11 +163,14 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                 </button>
             </div>
 
-            {/* Assign Niche Dropdown */}
-            <div className="relative" ref={dropdownRef}>
+            {/* Niche Dropdown */}
+            <div className="relative">
                 <button
                     ref={nicheButtonRef}
-                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    onClick={() => {
+                        setIsDropdownOpen(!isDropdownOpen);
+                        setIsPlaylistDropdownOpen(false);
+                    }}
                     className={`
                         flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap
                         ${assignedNiche ? 'bg-white/10 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}
@@ -314,10 +180,8 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                 >
                     {assignedNiche ? (
                         <>
-                            <>
-                                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: assignedNiche.color }} />
-                                <span className="truncate max-w-[120px]">{assignedNiche.name}</span>
-                            </>
+                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: assignedNiche.color }} />
+                            <span className="truncate max-w-[120px]">{assignedNiche.name}</span>
                         </>
                     ) : (
                         <>
@@ -328,17 +192,13 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                     <ChevronDown size={14} className={`transition-transform ${isDropdownOpen ? '' : 'rotate-180'}`} />
                 </button>
 
-                {isDropdownOpen && createPortal(
-                    <div
-                        className="fixed w-72 bg-bg-secondary/90 backdrop-blur-md border border-border rounded-xl shadow-lg overflow-hidden flex flex-col animate-fade-in z-[9999] max-h-[280px]"
-                        style={{
-                            left: nicheDropdownPos.left,
-                            top: nicheDropdownPos.top,
-                            transform: dropdownsOpenAbove ? 'translateY(-100%)' : 'none'
-                        }}
-                    >
-
-                        {/* Create New Header */}
+                <FloatingDropdownPortal
+                    isOpen={isDropdownOpen}
+                    anchorRect={nicheButtonRef.current?.getBoundingClientRect() || null}
+                    openAbove={dropdownsOpenAbove}
+                >
+                    <div data-portal-wrapper className="flex flex-col h-full">
+                        {/* Header / Create */}
                         <div className="p-2 border-b border-white/10 bg-white/5">
                             <form onSubmit={handleCreateSubmit} className="relative flex flex-col gap-2">
                                 <div className="relative">
@@ -352,7 +212,6 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                                     />
                                     <Plus size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary" />
                                 </div>
-
                                 {newNicheName && (
                                     <div className="flex items-center justify-between px-1">
                                         <div className="flex items-center gap-2">
@@ -384,17 +243,13 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                                 )}
                             </form>
                         </div>
-
                         {/* List */}
-                        <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
+                        <div className="overflow-y-auto custom-scrollbar p-1 flex-1">
                             {filteredNiches.map(niche => (
                                 <button
                                     key={niche.id}
                                     onClick={() => {
-                                        if (assignedNicheId === niche.id) {
-                                            // Handle unassignment or ignore
-                                            // Maybe we want to unassign?
-                                        } else {
+                                        if (assignedNicheId !== niche.id) {
                                             assignVideoToNiche(video.id, niche.id);
                                         }
                                         setIsDropdownOpen(false);
@@ -410,51 +265,63 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                                 </button>
                             ))}
                             {filteredNiches.length === 0 && !newNicheName && (
-                                <div className="text-center py-3 text-xs text-text-tertiary">
-                                    No niches found
-                                </div>
+                                <div className="text-center py-3 text-xs text-text-tertiary">No niches found</div>
                             )}
                         </div>
-                    </div>,
-                    document.body
-                )}
+                    </div>
+                </FloatingDropdownPortal>
             </div>
 
-            {/* Quick Actions based on SuggestedTraffic */}
+            {/* Actions */}
             <div className="flex items-center gap-1 border-l border-white/10 pl-2 ml-1">
                 <button
-                    onClick={handleAddToHome}
+                    onClick={() => handleQuickAction(async () => {
+                        if (!user || !currentChannel) return;
+                        // @ts-ignore
+                        await VideoService.addVideo(user.uid, currentChannel.id, { ...video, isPlaylistOnly: false });
+                        onClose();
+                    })}
                     disabled={isProcessing}
                     className={`p-1.5 rounded-full text-text-secondary hover:text-white hover:bg-white/10 transition-colors ${isProcessing ? 'opacity-50' : ''}`}
                     title="Add to Home"
                 >
-                    <Home size={16} className="flex-shrink-0" />
+                    <Home size={16} />
                 </button>
 
-                <div className="relative" ref={playlistDropdownRef}>
+                <div className="relative">
                     <button
                         ref={playlistButtonRef}
-                        onClick={() => setIsPlaylistDropdownOpen(!isPlaylistDropdownOpen)}
+                        onClick={() => {
+                            setIsPlaylistDropdownOpen(!isPlaylistDropdownOpen);
+                            setIsDropdownOpen(false);
+                        }}
                         disabled={isProcessing}
                         className={`p-1.5 rounded-full transition-colors ${isPlaylistDropdownOpen ? 'bg-white text-black' : 'text-text-secondary hover:text-white hover:bg-white/10'} ${isProcessing ? 'opacity-50' : ''}`}
                         title="Add to Playlist"
                     >
-                        <ListVideo size={16} className="flex-shrink-0" />
+                        <ListVideo size={16} />
                     </button>
 
-                    {isPlaylistDropdownOpen && createPortal(
-                        <div
-                            className="fixed w-64 bg-bg-secondary/90 backdrop-blur-md border border-border rounded-xl shadow-lg overflow-hidden flex flex-col animate-fade-in z-[9999] max-h-[200px]"
-                            style={{
-                                left: playlistDropdownPos.left,
-                                top: playlistDropdownPos.top,
-                                transform: dropdownsOpenAbove ? 'translateY(-100%)' : 'none'
-                            }}
-                        >
-
-                            {/* Create Playlist */}
+                    <FloatingDropdownPortal
+                        isOpen={isPlaylistDropdownOpen}
+                        anchorRect={playlistButtonRef.current?.getBoundingClientRect() || null}
+                        openAbove={dropdownsOpenAbove}
+                        width={256}
+                    >
+                        <div data-portal-wrapper className="flex flex-col h-full">
                             <div className="p-2 border-b border-white/10">
-                                <form onSubmit={handleCreatePlaylist} className="relative">
+                                <form onSubmit={(e) => {
+                                    e.preventDefault();
+                                    handleQuickAction(async () => {
+                                        if (newPlaylistName.trim() && user) {
+                                            const newId = await createPlaylist({ name: newPlaylistName, videoIds: [] });
+                                            // @ts-ignore
+                                            await VideoService.addVideo(user.uid, currentChannel!.id, { ...video, isPlaylistOnly: true });
+                                            await PlaylistService.addVideoToPlaylist(user.uid, currentChannel!.id, newId, video.id);
+                                            setIsPlaylistDropdownOpen(false);
+                                        }
+                                    });
+                                }} className="relative">
                                     <input
                                         ref={playlistInputRef}
                                         type="text"
@@ -466,12 +333,16 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                                     <Plus size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary" />
                                 </form>
                             </div>
-
-                            <div className="max-h-[200px] overflow-y-auto custom-scrollbar p-1">
+                            <div className="overflow-y-auto custom-scrollbar p-1 flex-1">
                                 {playlists.map(playlist => (
                                     <button
                                         key={playlist.id}
-                                        onClick={() => handleAddToPlaylist(playlist.id)}
+                                        onClick={() => handleQuickAction(async () => {
+                                            // @ts-ignore
+                                            await VideoService.addVideo(user!.uid, currentChannel!.id, { ...video, isPlaylistOnly: true });
+                                            await PlaylistService.addVideoToPlaylist(user!.uid, currentChannel!.id, playlist.id, video.id);
+                                            setIsPlaylistDropdownOpen(false);
+                                        })}
                                         className="w-full text-left px-3 py-2 text-xs text-text-secondary hover:text-white hover:bg-white/5 rounded-lg flex items-center gap-2 transition-colors"
                                     >
                                         <ListVideo size={14} />
@@ -482,13 +353,11 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                                     <div className="text-center py-3 text-xs text-text-tertiary">No playlists</div>
                                 )}
                             </div>
-                        </div>,
-                        document.body
-                    )}
+                        </div>
+                    </FloatingDropdownPortal>
                 </div>
             </div>
 
-            {/* Remove Niche Action */}
             {assignedNicheId && (
                 <button
                     onClick={() => removeVideoFromNiche(video.id)}
@@ -498,7 +367,6 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                     <Trash2 size={14} />
                 </button>
             )}
-
         </div>
     );
 };

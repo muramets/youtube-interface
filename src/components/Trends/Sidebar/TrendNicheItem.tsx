@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MoreVertical, Check } from 'lucide-react';
 import type { TrendNiche } from '../../../types/trends';
-import { useTrendStore } from '../../../stores/trendStore';
+import { useTrendStore, MANUAL_NICHE_PALETTE } from '../../../stores/trendStore';
 
 interface TrendNicheItemProps {
     niche: TrendNiche;
@@ -26,10 +26,8 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
 
-    const PRESET_COLORS = [
-        '#6366F1', '#8B5CF6', '#EC4899', '#F43F5E', '#F97316',
-        '#F59E0B', '#10B981', '#06B6D4', '#3B82F6', '#A855F7'
-    ];
+    // Use manually exported palette for user picker
+    const PRESET_COLORS = MANUAL_NICHE_PALETTE;
 
     return (
         <li className="relative group/niche">

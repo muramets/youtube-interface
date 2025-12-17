@@ -18,6 +18,7 @@ interface UseTimelineInteractionProps {
     setTransformState: (t: Transform) => void;
     clampTransform: (t: Transform, w: number, h: number) => Transform;
     onHoverVideo?: (hovered: boolean) => void;
+    onInteractionStart?: () => void; // Called when zoom/pan/selection starts
 }
 
 
@@ -31,7 +32,8 @@ export const useTimelineInteraction = ({
     containerSizeRef,
     setTransformState,
     clampTransform,
-    onHoverVideo
+    onHoverVideo,
+    onInteractionStart
 }: UseTimelineInteractionProps) => {
 
     const [isPanning, setIsPanning] = useState(false);
@@ -130,6 +132,7 @@ export const useTimelineInteraction = ({
         if (e.ctrlKey || e.metaKey) {
             // Zooming
             if (onHoverVideo) onHoverVideo(false);
+            if (onInteractionStart) onInteractionStart();
 
             const container = containerRef.current;
             if (!container) return;
@@ -194,8 +197,9 @@ export const useTimelineInteraction = ({
                 // START SELECTION
                 isSelectingRef.current = true;
                 selectionStartRef.current = { x: localX, y: localY };
-                // Hide tooltip during selection
+                // Hide tooltip and floating bar during selection
                 if (onHoverVideo) onHoverVideo(false);
+                if (onInteractionStart) onInteractionStart();
             } else {
                 // START PANNING
                 setIsPanning(true);
@@ -211,6 +215,7 @@ export const useTimelineInteraction = ({
     const handleMouseMove = useCallback((e: React.MouseEvent) => {
         if (isPanningRef.current) {
             if (onHoverVideo) onHoverVideo(false);
+            if (onInteractionStart) onInteractionStart();
 
             const { width: viewportWidth, height: viewportHeight } = containerSizeRef.current;
             if (viewportWidth === 0) return;

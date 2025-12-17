@@ -28,10 +28,27 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
         handleSyncChannel
     } = useTrendsSidebar();
 
-    const { niches, activeNicheId, setActiveNicheId } = useTrendStore();
+    const { niches, activeNicheId, setActiveNicheId, videos, videoNicheAssignments } = useTrendStore();
 
-    const globalNiches = niches.filter(n => n.type === 'global');
-    const getLocalNiches = (channelId: string) => niches.filter(n => n.type === 'local' && n.channelId === channelId);
+    // Compute view counts dynamically based on currently loaded videos
+    const nicheViewCounts = React.useMemo(() => {
+        const counts = new Map<string, number>();
+        videos.forEach(v => {
+            const nicheId = videoNicheAssignments[v.id] || v.nicheId;
+            if (nicheId) {
+                counts.set(nicheId, (counts.get(nicheId) || 0) + v.viewCount);
+            }
+        });
+        return counts;
+    }, [videos, videoNicheAssignments]);
+
+    const globalNiches = niches
+        .filter(n => n.type === 'global')
+        .map(n => ({ ...n, viewCount: nicheViewCounts.get(n.id) || 0 }));
+
+    const getLocalNiches = (channelId: string) => niches
+        .filter(n => n.type === 'local' && n.channelId === channelId)
+        .map(n => ({ ...n, viewCount: nicheViewCounts.get(n.id) || 0 }));
 
     return (
         <>
