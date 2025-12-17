@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreVertical, Check, Home, Globe, Pencil, Trash2 } from 'lucide-react';
+import { MoreVertical, Check } from 'lucide-react';
 import type { TrendNiche } from '../../../types/trends';
 import { useTrendStore, MANUAL_NICHE_PALETTE } from '../../../stores/trendStore';
 import { ConfirmationModal } from '../../Shared/ConfirmationModal';
+import { NicheContextMenu } from '../Shared/NicheContextMenu';
 
 interface TrendNicheItemProps {
     niche: TrendNiche;
@@ -32,11 +33,13 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
     const menuRef = useRef<HTMLDivElement>(null);
+    const menuButtonRef = useRef<HTMLButtonElement>(null);
     const colorPickerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const nameRef = useRef<HTMLSpanElement>(null);
     const [isNameHovered, setIsNameHovered] = useState(false);
     const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+    const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
 
     // Use manually exported palette for user picker
     const PRESET_COLORS = MANUAL_NICHE_PALETTE;
@@ -86,7 +89,7 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
     const isInteracting = isMenuOpen || isColorPickerOpen;
 
     return (
-        <li className={`relative group/niche ${isInteracting ? 'z-20' : ''}`}>
+        <div className={`relative group/niche ${isInteracting ? 'z-20' : ''}`}>
             <div
                 onClick={() => !isEditing && onClick(niche.id)}
                 className={`
@@ -194,8 +197,17 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                 {/* Actions Trigger (Hidden unless hovered/active) */}
                 <div ref={menuRef} className="relative">
                     <button
+                        ref={menuButtonRef}
                         onClick={(e) => {
                             e.stopPropagation();
+                            if (!isMenuOpen) {
+                                // Calculate position for portal
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setMenuPosition({
+                                    x: rect.right + 5, // Open to the right slightly
+                                    y: rect.top
+                                });
+                            }
                             setIsMenuOpen(!isMenuOpen);
                             setIsColorPickerOpen(false);
                         }}
@@ -208,56 +220,22 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                         <MoreVertical size={12} />
                     </button>
 
-                    {/* Context Menu */}
-                    {isMenuOpen && (
-                        <div
-                            className="absolute right-0 top-6 z-50 bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl animate-fade-in min-w-[140px]"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            {/* Toggle Global/Local */}
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    const newType = niche.type === 'global' ? 'local' : 'global';
-                                    // Only allow converting to local if we know the channel (origin)
-                                    if (newType === 'local' && !niche.channelId) {
-                                        alert("Cannot convert to local: Origin channel unknown.");
-                                        return;
-                                    }
-                                    updateNiche(niche.id, { type: newType });
-                                    setIsMenuOpen(false);
-                                }}
-                                className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2 whitespace-nowrap"
-                            >
-                                {niche.type === 'global' ? <Home size={10} /> : <Globe size={10} />}
-                                {niche.type === 'global' ? 'Make local' : 'Make global'}
-                            </button>
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setIsEditing(true);
-                                    setEditName(niche.name);
-                                    setIsMenuOpen(false);
-                                }}
-                                className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2"
-                            >
-                                <Pencil size={10} />
-                                Rename
-                            </button>
-
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setIsDeleteConfirmOpen(true);
-                                    setIsMenuOpen(false);
-                                }}
-                                className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-white/5 transition-colors flex items-center gap-2"
-                            >
-                                <Trash2 size={10} />
-                                Delete
-                            </button>
-                        </div>
-                    )}
+                    {/* Shared Context Menu */}
+                    <NicheContextMenu
+                        niche={niche}
+                        isOpen={isMenuOpen}
+                        onClose={() => setIsMenuOpen(false)}
+                        position={menuPosition}
+                        onRename={() => {
+                            setIsEditing(true);
+                            setEditName(niche.name);
+                            setIsMenuOpen(false);
+                        }}
+                        onDelete={() => {
+                            setIsDeleteConfirmOpen(true);
+                            setIsMenuOpen(false);
+                        }}
+                    />
                 </div>
             </div>
 
@@ -272,6 +250,6 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                 message={`Are you sure you want to delete "${niche.name}"? This will remove all video assignments.`}
                 confirmLabel="Delete"
             />
-        </li >
+        </div >
     );
 };

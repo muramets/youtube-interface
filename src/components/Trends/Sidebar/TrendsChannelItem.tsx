@@ -87,13 +87,13 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                 </div>
             </li>
             {isExpanded && niches.length > 0 && (
-                <div className="mb-1">
+                <li className="mb-1">
                     <CollapsibleNicheList
                         niches={niches}
                         activeNicheIds={activeNicheIds}
                         onNicheClick={(id) => id && onNicheClick?.(id)}
                     />
-                </div>
+                </li>
             )}
         </React.Fragment>
     );

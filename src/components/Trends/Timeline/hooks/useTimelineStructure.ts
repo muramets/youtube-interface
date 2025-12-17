@@ -94,8 +94,8 @@ export const useTimelineStructure = ({
         let totalWidth = 0;
         const start = new Date(effectiveStats.minDate);
         const end = new Date(effectiveStats.maxDate);
-        start.setMonth(start.getMonth() - 1);
-        end.setMonth(end.getMonth() + 1);
+        //start.setMonth(start.getMonth() - 1);
+        //end.setMonth(end.getMonth() + 1);
 
         const current = new Date(start);
         current.setDate(1);

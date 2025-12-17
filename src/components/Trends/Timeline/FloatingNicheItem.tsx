@@ -1,9 +1,10 @@
 import React, { useState, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreVertical, Check, Globe, Home, Pencil, Trash2 } from 'lucide-react';
+import { MoreVertical, Check, Globe } from 'lucide-react';
 import type { TrendNiche } from '../../../types/trends';
 import { useTrendStore, MANUAL_NICHE_PALETTE } from '../../../stores/trendStore';
 import { ConfirmationModal } from '../../Shared/ConfirmationModal';
+import { NicheContextMenu } from '../../Trends/Shared/NicheContextMenu';
 
 interface FloatingNicheItemProps {
     niche: TrendNiche;
@@ -195,66 +196,21 @@ export const FloatingNicheItem: React.FC<FloatingNicheItemProps> = ({
                         <MoreVertical size={12} />
                     </button>
 
-                    {isActive && createPortal(
-                        <>
-                            {/* Backdrop to close menu */}
-                            <div
-                                className="fixed inset-0 z-[9998] cursor-default"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onCloseMenu();
-                                }}
-                            />
-                            <div
-                                className="fixed z-[9999] bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl animate-fade-in min-w-[140px]"
-                                style={{
-                                    left: menuPosition.x,
-                                    top: menuPosition.y,
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <button
-                                    onClick={() => {
-                                        const newType = niche.type === 'global' ? 'local' : 'global';
-                                        if (newType === 'local' && !niche.channelId) {
-                                            alert("Cannot convert to local: Origin channel unknown.");
-                                            return;
-                                        }
-                                        updateNiche(niche.id, { type: newType });
-                                        onCloseMenu();
-                                    }}
-                                    className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2 whitespace-nowrap"
-                                >
-                                    {niche.type === 'global' ? <Home size={10} /> : <Globe size={10} />}
-                                    {niche.type === 'global' ? 'Make local' : 'Make global'}
-                                </button>
-
-                                <button
-                                    onClick={() => {
-                                        setIsEditing(true);
-                                        setEditName(niche.name);
-                                        onCloseMenu();
-                                    }}
-                                    className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2"
-                                >
-                                    <Pencil size={10} />
-                                    Rename
-                                </button>
-
-                                <button
-                                    onClick={() => {
-                                        setIsDeleteConfirmOpen(true);
-                                        onCloseMenu();
-                                    }}
-                                    className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-white/5 transition-colors flex items-center gap-2"
-                                >
-                                    <Trash2 size={10} />
-                                    Delete
-                                </button>
-                            </div>
-                        </>,
-                        document.body
-                    )}
+                    <NicheContextMenu
+                        niche={niche}
+                        isOpen={isActive}
+                        onClose={onCloseMenu}
+                        position={menuPosition}
+                        onRename={() => {
+                            setIsEditing(true);
+                            setEditName(niche.name);
+                            onCloseMenu();
+                        }}
+                        onDelete={() => {
+                            setIsDeleteConfirmOpen(true);
+                            onCloseMenu();
+                        }}
+                    />
                 </div>
             </div>
 
