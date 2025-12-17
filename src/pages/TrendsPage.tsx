@@ -23,7 +23,7 @@ const applyNumericFilter = (value: number, operator: FilterOperator, filterValue
 };
 
 export const TrendsPage: React.FC = () => {
-    const { channels, selectedChannelId, timelineConfig, setTimelineConfig, trendsFilters, filterMode, setVideos, videos } = useTrendStore();
+    const { channels, selectedChannelId, timelineConfig, setTimelineConfig, trendsFilters, filterMode, setVideos, videos, videoNicheAssignments } = useTrendStore();
     const [isLoading, setIsLoading] = useState(true);
 
     // Reset state immediately when channel switches (Derived State pattern)
@@ -140,6 +140,16 @@ export const TrendsPage: React.FC = () => {
                     const excludedGroups: string[] = filter.value;
                     // Return true if video's group is NOT in the excluded list
                     return !excludedGroups.includes(videoGroup || '');
+                }
+                if (filter.type === 'niche') {
+                    const selectedNicheIds: string[] = filter.value;
+                    const assignments = videoNicheAssignments[video.id] || [];
+                    const assignedNicheIds = assignments.length > 0
+                        ? assignments.map(a => a.nicheId)
+                        : (video.nicheId ? [video.nicheId] : []);
+
+                    // Show video if it belongs to AT LEAST ONE of the selected niches
+                    return selectedNicheIds.some(id => assignedNicheIds.includes(id));
                 }
                 return true;
             });

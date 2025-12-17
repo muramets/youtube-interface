@@ -28,7 +28,56 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
         handleSyncChannel
     } = useTrendsSidebar();
 
-    const { niches, activeNicheId, setActiveNicheId, videos, videoNicheAssignments } = useTrendStore();
+    const { niches, videos, videoNicheAssignments, trendsFilters, addTrendsFilter, removeTrendsFilter } = useTrendStore();
+
+    // Derived active niche state from filters
+    const activeNicheIds = React.useMemo(() => {
+        const nicheFilter = trendsFilters.find(f => f.type === 'niche');
+        return nicheFilter ? (nicheFilter.value as string[]) : [];
+    }, [trendsFilters]);
+
+    const handleNicheClick = (id: string | null) => {
+        if (!id) return;
+
+        const existingFilter = trendsFilters.find(f => f.type === 'niche');
+        if (existingFilter) {
+            removeTrendsFilter(existingFilter.id);
+            const currentlySelected = (existingFilter.value as string[]) || [];
+
+            let nextSelection = [];
+            if (currentlySelected.includes(id)) {
+                // Remove it
+                nextSelection = currentlySelected.filter(sid => sid !== id);
+            } else {
+                // Add it
+                nextSelection = [...currentlySelected, id];
+            }
+
+            // Apply update only if we still have selections
+            if (nextSelection.length > 0) {
+                const nicheNames = niches
+                    .filter(n => nextSelection.includes(n.id))
+                    .map(n => n.name)
+                    .join(', ');
+
+                addTrendsFilter({
+                    type: 'niche',
+                    operator: 'contains',
+                    value: nextSelection,
+                    label: nextSelection.length > 3 ? `${nextSelection.length} niches` : `Niche: ${nicheNames}`
+                });
+            }
+        } else {
+            // No filter exists, create new one with this niche
+            const nicheName = niches.find(n => n.id === id)?.name || 'Niche';
+            addTrendsFilter({
+                type: 'niche',
+                operator: 'contains',
+                value: [id],
+                label: `Niche: ${nicheName}`
+            });
+        }
+    };
 
     // Compute view counts dynamically based on currently loaded videos
     const nicheViewCounts = React.useMemo(() => {
@@ -113,8 +162,8 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                                 <div className="mb-3">
                                     <CollapsibleNicheList
                                         niches={globalNiches}
-                                        activeNicheId={activeNicheId}
-                                        onNicheClick={setActiveNicheId}
+                                        activeNicheIds={activeNicheIds}
+                                        onNicheClick={handleNicheClick}
                                     />
                                 </div>
                             )}
@@ -137,8 +186,8 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                                             onToggleVisibility={handleToggleVisibility}
                                             onOpenMenu={(e, channelId) => setMenuState({ anchorEl: e.currentTarget as HTMLElement, channelId })}
                                             niches={getLocalNiches(channel.id)}
-                                            activeNicheId={activeNicheId}
-                                            onNicheClick={setActiveNicheId}
+                                            activeNicheIds={activeNicheIds}
+                                            onNicheClick={handleNicheClick}
                                         />
                                     ))}
                                 </ul>

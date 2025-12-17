@@ -6,7 +6,7 @@ import type { FilterOperator } from './filterStore';
 // Trends-specific filter item (date, views, percentile)
 export interface TrendsFilterItem {
     id: string;
-    type: 'date' | 'views' | 'percentile';
+    type: 'date' | 'views' | 'percentile' | 'niche';
     operator: FilterOperator;
     value: any;
     label: string;
@@ -47,7 +47,6 @@ interface TrendStore {
     timelineConfig: TimelineConfig;
     filterMode: 'global' | 'filtered';
     savedConfigs: Record<string, TimelineConfig>; // Keyed by channelId or 'global'
-    activeNicheId: string | null; // Filter by niche
     selectedChannelId: string | null; // null = Trends Overview, else = Single Channel View
     selectedVideo: TrendVideo | null; // For floating bar
     hoveredVideo: TrendVideo | null; // For tooltip
@@ -61,7 +60,6 @@ interface TrendStore {
     updateChannel: (id: string, updates: Partial<TrendChannel>) => void;
     setNiches: (niches: TrendNiche[]) => void;
     setTimelineConfig: (config: Partial<TimelineConfig>) => void;
-    setActiveNicheId: (id: string | null) => void;
     setSelectedChannelId: (id: string | null) => void;
     setSelectedVideo: (video: TrendVideo | null) => void;
     setHoveredVideo: (video: TrendVideo | null) => void;
@@ -97,7 +95,6 @@ export const useTrendStore = create<TrendStore>()(
             filterMode: 'global', // Default to global Scaling
             savedConfigs: {},
 
-            activeNicheId: null,
             selectedChannelId: null,
             selectedVideo: null,
             hoveredVideo: null,
@@ -118,8 +115,6 @@ export const useTrendStore = create<TrendStore>()(
             setTimelineConfig: (config) => set((state) => ({
                 timelineConfig: { ...state.timelineConfig, ...config }
             })),
-
-            setActiveNicheId: (id) => set({ activeNicheId: id }),
 
             setSelectedChannelId: (id) => set((state) => {
                 // Save current config

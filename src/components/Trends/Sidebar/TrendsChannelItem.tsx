@@ -10,7 +10,7 @@ interface TrendsChannelItemProps {
     onToggleVisibility: (e: React.MouseEvent, id: string, isVisible: boolean) => void;
     onOpenMenu: (e: React.MouseEvent, channelId: string) => void;
     niches?: TrendNiche[];
-    activeNicheId?: string | null;
+    activeNicheIds?: string[];
     onNicheClick?: (id: string) => void;
 }
 
@@ -21,7 +21,7 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
     onToggleVisibility,
     onOpenMenu,
     niches = [],
-    activeNicheId,
+    activeNicheIds = [],
     onNicheClick
 }) => {
     const [isExpanded, setIsExpanded] = React.useState(true); // Default expanded if it has niches?
@@ -90,7 +90,7 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                 <div className="mb-1">
                     <CollapsibleNicheList
                         niches={niches}
-                        activeNicheId={activeNicheId || null}
+                        activeNicheIds={activeNicheIds}
                         onNicheClick={(id) => id && onNicheClick?.(id)}
                     />
                 </div>

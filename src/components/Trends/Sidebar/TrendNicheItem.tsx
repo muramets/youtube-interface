@@ -33,7 +33,6 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
     const colorPickerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const nameRef = useRef<HTMLSpanElement>(null);
-    const lastClickTime = useRef<number>(0);
     const [isNameHovered, setIsNameHovered] = useState(false);
     const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
 
@@ -64,18 +63,6 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
             inputRef.current.select();
         }
     }, [isEditing]);
-
-    // Handle double-click to edit
-    const handleNameClick = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        const now = Date.now();
-        if (now - lastClickTime.current < 300) {
-            // Double click detected
-            setIsEditing(true);
-            setEditName(niche.name);
-        }
-        lastClickTime.current = now;
-    };
 
     const handleNameSubmit = () => {
         const trimmedName = editName.trim();
@@ -161,7 +148,6 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                     <span
                         ref={nameRef}
                         className="text-xs truncate block"
-                        onClick={handleNameClick}
                         onMouseEnter={() => {
                             if (nameRef.current) {
                                 const rect = nameRef.current.getBoundingClientRect();

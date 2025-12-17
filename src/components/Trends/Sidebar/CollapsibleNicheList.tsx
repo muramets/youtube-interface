@@ -5,14 +5,14 @@ import { TrendNicheItem } from './TrendNicheItem';
 
 interface CollapsibleNicheListProps {
     niches: TrendNiche[];
-    activeNicheId: string | null;
+    activeNicheIds: string[];
     onNicheClick: (id: string | null) => void;
     initialVisibleCount?: number;
 }
 
 export const CollapsibleNicheList: React.FC<CollapsibleNicheListProps> = ({
     niches,
-    activeNicheId,
+    activeNicheIds,
     onNicheClick,
     initialVisibleCount = 5
 }) => {
@@ -32,7 +32,7 @@ export const CollapsibleNicheList: React.FC<CollapsibleNicheListProps> = ({
                     <li key={niche.id} className={isLastVisible ? 'relative' : ''}>
                         <TrendNicheItem
                             niche={niche}
-                            isActive={activeNicheId === niche.id}
+                            isActive={activeNicheIds.includes(niche.id)}
                             onClick={onNicheClick}
                         />
                         {/* Fade overlay on last item when collapsed */}

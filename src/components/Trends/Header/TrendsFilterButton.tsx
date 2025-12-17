@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Filter, ChevronRight, X, Calendar, Eye, ChevronLeft, BarChart3 } from 'lucide-react';
+import { Filter, ChevronRight, X, Calendar, Eye, ChevronLeft, BarChart3, Layers } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useTrendStore, type PercentileGroup } from '../../../stores/trendStore';
 import { FilterInputDate } from '../../Shared/FilterInputs/FilterInputDate';
 import { FilterInputNumeric } from '../../Shared/FilterInputs/FilterInputNumeric';
 import { FilterInputPercentile } from '../../Shared/FilterInputs/FilterInputPercentile';
 import type { FilterOperator } from '../../../stores/filterStore';
+import { FilterInputNiche } from './FilterInputNiche';
 
-type TrendsFilterType = 'date' | 'views' | 'percentile';
+type TrendsFilterType = 'date' | 'views' | 'percentile' | 'niche';
 
 interface TrendsFilterButtonProps {
     availableMinDate?: number;
@@ -23,7 +24,7 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
     // State for Navigation (Main vs Submenu)
     const [activeView, setActiveView] = useState<TrendsFilterType | 'main'>('main');
 
-    const { addTrendsFilter, removeTrendsFilter, trendsFilters, filterMode, setFilterMode } = useTrendStore();
+    const { addTrendsFilter, removeTrendsFilter, trendsFilters, filterMode, setFilterMode, niches } = useTrendStore();
 
     useEffect(() => {
         if (isOpen && buttonRef.current) {
@@ -76,6 +77,7 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
         { type: 'date', label: 'Publish Date', icon: Calendar },
         { type: 'views', label: 'Views', icon: Eye },
         { type: 'percentile', label: 'Percentile', icon: BarChart3 },
+        { type: 'niche', label: 'Niche', icon: Layers },
     ];
 
     const getTitleForView = (view: TrendsFilterType) => {
@@ -270,6 +272,43 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
                                                 addTrendsFilter({ type: 'percentile', operator: 'equals', value: excluded, label });
                                             }
                                             setIsOpen(false);
+                                        }}
+                                    />
+                                )}
+                                {activeView === 'niche' && (
+                                    <FilterInputNiche
+                                        initialSelected={trendsFilters.find(f => f.type === 'niche')?.value || []}
+                                        onApply={(selectedIds) => {
+                                            const existingFilter = trendsFilters.find(f => f.type === 'niche');
+                                            if (existingFilter) {
+                                                removeTrendsFilter(existingFilter.id);
+                                            }
+                                            if (selectedIds.length > 0) {
+                                                // Format label
+                                                const names = niches
+                                                    .filter(n => selectedIds.includes(n.id))
+                                                    .map(n => n.name);
+
+                                                const label = names.length === 1
+                                                    ? `Niche: ${names[0]}`
+                                                    : `Niche: ${names.length} selected`; // Simple label
+
+                                                addTrendsFilter({
+                                                    type: 'niche',
+                                                    operator: 'contains', // Logic is "Video niches CONTAINS one of selectedIds" effectively
+                                                    value: selectedIds,
+                                                    label
+                                                });
+                                            }
+                                            // If selectedIds is empty, we effectively removed the filter above.
+                                            // We usually close the dropdown if we applied something?
+                                            // But for multi-select (niche), maybe keeping it open is better?
+                                            // FilterInputPercentile closes on apply.
+                                            // FilterInputNiche calls onApply on every toggle.
+                                            // We probably want to keep it open until user manually closes header?
+                                            // But this function is inside `onApply`.
+                                            // Wait, if FilterInputNiche calls onApply on every toggle, then we shouldn't close it here.
+                                            // We rely on the generic close button in header.
                                         }}
                                     />
                                 )}
