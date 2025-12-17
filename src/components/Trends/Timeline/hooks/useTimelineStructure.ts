@@ -114,41 +114,121 @@ export const useTimelineStructure = ({
         };
     }, [effectiveStats]);
 
-    // 3. Calculate World Width (uses shared timelineRange)
-    const currentWorldWidth = useMemo(() => {
-        if (videos.length === 0) return 2000;
+    // ============================================================
+    // PHASE 1: Base Grid Calculation (Static - No timeLinearity dependency)
+    // ============================================================
+    // This part does all the heavy lifting: Date operations, counting, etc.
+    // It only re-runs if videos or strict dependencies change, NOT when slider moves.
+    const baseTimelineGrid = useMemo(() => {
+        if (videos.length === 0 && !forcedStatsOverride) return [];
 
         const { counts, dynamicLinearPixelsPerDay } = densityStats;
         const VIDEO_DENSITY_MULTIPLIER = 80;
 
-        let totalWidth = 0;
+        const grid: any[] = [];
         const current = new Date(timelineRange.startDate);
-
-        // Safety break
         let loops = 0;
+
         while (current < timelineRange.endDate && loops < 1000) {
             const year = current.getFullYear();
             const month = current.getMonth();
             const key = `${year}-${month}`;
             const count = counts.get(key) || 0;
 
-            const densityWidth = Math.max(200, count * VIDEO_DENSITY_MULTIPLIER);
             const daysInMonth = getDaysInMonth(year, month);
             const linearWidth = daysInMonth * dynamicLinearPixelsPerDay;
-            let width = linearWidth + (densityWidth - linearWidth) * timeLinearity;
+            const densityWidth = Math.max(200, count * VIDEO_DENSITY_MULTIPLIER);
 
-            // Clip the last month to the last video's day
-            if (key === timelineRange.lastMonthKey) {
-                width *= timelineRange.lastMonthClipFactor;
-            }
+            const isLastMonth = key === timelineRange.lastMonthKey;
 
-            totalWidth += width;
+            // Calculate timestamps locally to avoid Date usage later
+            const nextMonth = new Date(current);
+            nextMonth.setMonth(current.getMonth() + 1);
+
+            grid.push({
+                year,
+                month,
+                monthKey: key,
+                label: current.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
+                count,
+                linearWidth,
+                densityWidth,
+                startTs: current.getTime(),
+                endTs: isLastMonth ? new Date(effectiveStats.maxDate).getTime() : nextMonth.getTime(),
+                daysInMonth: isLastMonth
+                    ? Math.ceil(daysInMonth * timelineRange.lastMonthClipFactor)
+                    : daysInMonth,
+                isLastMonth,
+                clipFactor: isLastMonth ? timelineRange.lastMonthClipFactor : 1.0
+            });
+
             current.setMonth(current.getMonth() + 1);
             loops++;
         }
 
-        return Math.max(2000, totalWidth);
-    }, [videos, timeLinearity, densityStats, timelineRange]);
+        return grid;
+    }, [videos, effectiveStats, densityStats, timelineRange, forcedStatsOverride]);
+
+    // ============================================================
+    // PHASE 2: Dynamic Interpolation (Light - Depends on timeLinearity)
+    // ============================================================
+    // This part runs every frame during animation. It MUST be fast.
+    // No Date objects, no heavy loops, just basic math.
+    const { currentWorldWidth, currentMonthLayouts } = useMemo(() => {
+        if (baseTimelineGrid.length === 0) {
+            return { currentWorldWidth: 2000, currentMonthLayouts: [] };
+        }
+
+        const layouts: MonthLayout[] = [];
+        let totalAbsWidth = 0;
+
+        // Fast loop over pre-calculated grid
+        for (let i = 0; i < baseTimelineGrid.length; i++) {
+            const node = baseTimelineGrid[i];
+
+            // MATH ONLY: Linear Interpolation
+            // width = linear + (density - linear) * t
+            let absWidth = node.linearWidth + (node.densityWidth - node.linearWidth) * timeLinearity;
+
+            // Apply clip factor for last month
+            if (node.isLastMonth) {
+                absWidth *= node.clipFactor;
+            }
+
+            layouts.push({
+                year: node.year,
+                month: node.month,
+                monthKey: node.monthKey,
+                label: node.label,
+                count: node.count,
+                startTs: node.startTs,
+                endTs: node.endTs,
+                daysInMonth: node.daysInMonth,
+                // Temporary absolute positions
+                startX: totalAbsWidth,
+                endX: totalAbsWidth + absWidth,
+                width: absWidth
+            });
+
+            totalAbsWidth += absWidth;
+        }
+
+        const finalWorldWidth = Math.max(2000, totalAbsWidth);
+
+        // Normalize positions (0-1)
+        const normalizedLayouts = layouts.map(l => ({
+            ...l,
+            startX: l.startX / Math.max(1, totalAbsWidth),
+            endX: l.endX / Math.max(1, totalAbsWidth),
+            width: l.width / Math.max(1, totalAbsWidth)
+        }));
+
+        return {
+            currentWorldWidth: finalWorldWidth,
+            currentMonthLayouts: normalizedLayouts
+        };
+
+    }, [baseTimelineGrid, timeLinearity]);
 
     // Freeze World Width
     const worldWidth = useFrozenValue({
@@ -157,66 +237,6 @@ export const useTimelineStructure = ({
         dependencies: [timeLinearity, videos.length > 0],
         shouldUpdate: shouldStrictUpdate
     });
-
-    // 4. Calculate Layouts (uses shared timelineRange)
-    const currentMonthLayouts = useMemo(() => {
-        if (videos.length === 0 && !forcedStatsOverride) return [];
-
-        const { counts, dynamicLinearPixelsPerDay } = densityStats;
-        const current = new Date(timelineRange.startDate);
-
-        const layouts: any[] = [];
-        let totalAbsWidth = 0;
-        let loops = 0;
-
-        while (current < timelineRange.endDate && loops < 1000) {
-            const year = current.getFullYear();
-            const month = current.getMonth();
-            const key = `${year}-${month}`;
-            const count = counts.get(key) || 0;
-
-            const densityWidth = Math.max(200, count * 80);
-            const daysInMonth = getDaysInMonth(year, month);
-            const linearWidth = daysInMonth * dynamicLinearPixelsPerDay;
-            let absWidth = linearWidth + (densityWidth - linearWidth) * timeLinearity;
-
-            // Clip the last month to the last video's day
-            const isLastMonth = key === timelineRange.lastMonthKey;
-            if (isLastMonth) {
-                absWidth *= timelineRange.lastMonthClipFactor;
-            }
-
-            const nextMonth = new Date(current);
-            nextMonth.setMonth(current.getMonth() + 1);
-
-            layouts.push({
-                year,
-                month,
-                monthKey: key,
-                label: current.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
-                count,
-                startX: totalAbsWidth,
-                endX: totalAbsWidth + absWidth,
-                width: absWidth,
-                startTs: current.getTime(),
-                endTs: isLastMonth ? new Date(effectiveStats.maxDate).getTime() : nextMonth.getTime(),
-                daysInMonth: isLastMonth
-                    ? Math.ceil(daysInMonth * timelineRange.lastMonthClipFactor)
-                    : daysInMonth
-            });
-
-            totalAbsWidth += absWidth;
-            current.setMonth(current.getMonth() + 1);
-            loops++;
-        }
-
-        return layouts.map(l => ({
-            ...l,
-            startX: l.startX / Math.max(1, totalAbsWidth),
-            endX: l.endX / Math.max(1, totalAbsWidth),
-            width: l.width / Math.max(1, totalAbsWidth)
-        })) as MonthLayout[];
-    }, [videos, effectiveStats, timeLinearity, densityStats, timelineRange, forcedStatsOverride]);
 
     // Freeze Layouts
     const monthLayouts = useFrozenValue({

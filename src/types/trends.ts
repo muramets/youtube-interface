@@ -84,6 +84,7 @@ export interface MonthLayout {
     width: number;
     startTs: number;
     endTs: number;
+    daysInMonth?: number; // Added for timeline grid calculations (optional as it wasn't there before)
 }
 
 export interface TimelineStats {
