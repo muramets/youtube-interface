@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { MoreVertical, Check, Globe, Home, Pencil, Trash2 } from 'lucide-react';
 import type { TrendNiche } from '../../../types/trends';
 import { useTrendStore, MANUAL_NICHE_PALETTE } from '../../../stores/trendStore';
+import { ConfirmationModal } from '../../Shared/ConfirmationModal';
 
 interface FloatingNicheItemProps {
     niche: TrendNiche;
@@ -26,6 +27,7 @@ export const FloatingNicheItem: React.FC<FloatingNicheItemProps> = ({
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(niche.name);
     const [menuPosition, setMenuPosition] = useState<{ x: number, y: number }>({ x: 0, y: 0 });
+    const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
     const menuButtonRef = useRef<HTMLButtonElement>(null);
     const colorPickerRef = useRef<HTMLDivElement>(null);
@@ -241,9 +243,7 @@ export const FloatingNicheItem: React.FC<FloatingNicheItemProps> = ({
 
                                 <button
                                     onClick={() => {
-                                        if (confirm(`Delete niche "${niche.name}"?`)) {
-                                            deleteNiche(niche.id);
-                                        }
+                                        setIsDeleteConfirmOpen(true);
                                         onCloseMenu();
                                     }}
                                     className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-white/5 transition-colors flex items-center gap-2"
@@ -257,6 +257,18 @@ export const FloatingNicheItem: React.FC<FloatingNicheItemProps> = ({
                     )}
                 </div>
             </div>
+
+            <ConfirmationModal
+                isOpen={isDeleteConfirmOpen}
+                onClose={() => setIsDeleteConfirmOpen(false)}
+                onConfirm={() => {
+                    deleteNiche(niche.id);
+                    setIsDeleteConfirmOpen(false);
+                }}
+                title="Delete Niche"
+                message={`Are you sure you want to delete "${niche.name}"? This will remove all video assignments.`}
+                confirmLabel="Delete"
+            />
         </div>
     );
 };

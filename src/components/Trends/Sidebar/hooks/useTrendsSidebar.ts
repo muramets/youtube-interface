@@ -73,12 +73,13 @@ export const useTrendsSidebar = () => {
             return;
         }
 
-        showToast(`Syncing videos for ${channel.title}...`, 'success');
+        showToast(`Syncing all videos for ${channel.title}...`, 'success');
 
         try {
-            const { totalNewVideos, totalQuotaUsed } = await TrendService.syncChannelVideos(user.uid, currentChannel.id, channel, apiKey);
+            // Force full sync (true) to update view counts for existing videos
+            const { totalNewVideos, totalQuotaUsed } = await TrendService.syncChannelVideos(user.uid, currentChannel.id, channel, apiKey, true);
 
-            const message = `Sync complete. Added ${totalNewVideos} new videos. Quota used: ${totalQuotaUsed}`;
+            const message = `Full sync complete. Processed ${totalNewVideos} videos. Quota used: ${totalQuotaUsed}`;
             showToast(message, 'success');
 
             await addNotification({

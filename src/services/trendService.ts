@@ -46,22 +46,51 @@ export const TrendService = {
     },
 
     addTrendChannel: async (userId: string, userChannelId: string, channelUrl: string, apiKey: string) => {
-        // 1. Resolve Channel ID from URL (naive implementation, assumes channel ID or handle for now)
-
+        // Smart Channel URL/Handle/ID Parser
         let channelId = '';
         let handle = '';
 
-        // Simple parser: check if it's a handle (@name) or ID (UC...)
-        const urlParts = channelUrl.split('/').filter(p => p.length > 0);
-        const lastPart = urlParts[urlParts.length - 1];
+        const input = channelUrl.trim();
 
-        if (lastPart.startsWith('@')) {
-            handle = lastPart;
-        } else if (lastPart.startsWith('UC')) {
-            channelId = lastPart;
-        } else {
-            // Fallback or error - assume it's a handle without @ if not UC
-            handle = '@' + lastPart;
+        // Try to parse as URL first
+        try {
+            const url = new URL(input.startsWith('http') ? input : `https://${input}`);
+            const pathname = url.pathname;
+
+            // Handle format: youtube.com/@handle or youtube.com/@handle/videos
+            const handleMatch = pathname.match(/\/@([^/]+)/);
+            if (handleMatch) {
+                handle = '@' + handleMatch[1];
+            }
+            // Channel ID format: youtube.com/channel/UC...
+            else if (pathname.includes('/channel/')) {
+                const idMatch = pathname.match(/\/channel\/(UC[a-zA-Z0-9_-]+)/);
+                if (idMatch) channelId = idMatch[1];
+            }
+            // Custom URL format: youtube.com/c/ChannelName
+            else if (pathname.includes('/c/')) {
+                const customMatch = pathname.match(/\/c\/([^/]+)/);
+                if (customMatch) handle = '@' + customMatch[1];
+            }
+            // User format: youtube.com/user/Username
+            else if (pathname.includes('/user/')) {
+                const userMatch = pathname.match(/\/user\/([^/]+)/);
+                if (userMatch) handle = '@' + userMatch[1];
+            }
+        } catch {
+            // Not a valid URL, try direct parsing
+        }
+
+        // If URL parsing didn't yield results, try direct input
+        if (!channelId && !handle) {
+            if (input.startsWith('@')) {
+                handle = input;
+            } else if (input.startsWith('UC') && input.length >= 20) {
+                channelId = input;
+            } else {
+                // Assume it's a handle without @
+                handle = '@' + input;
+            }
         }
 
         // 2. Fetch Metadata from YouTube
@@ -130,11 +159,11 @@ export const TrendService = {
 
     // --- Video Fetching & Caching (IndexedDB) ---
 
-    syncChannelVideos: async (userId: string, userChannelId: string, channel: TrendChannel, apiKey: string) => {
-        console.log(`[TrendService] Starting full sync for channel: ${channel.title}`);
+    syncChannelVideos: async (userId: string, userChannelId: string, channel: TrendChannel, apiKey: string, forceFullSync: boolean = false) => {
+        console.log(`[TrendService] Starting sync for channel: ${channel.title} (Full Sync: ${forceFullSync})`);
 
         let nextPageToken: string | undefined = undefined;
-        let totalNewVideos = 0;
+        let totalProcessedVideos = 0;
         let totalQuotaUsed = 0;
 
         const idb = await getDB();
@@ -160,24 +189,27 @@ export const TrendService = {
                 break;
             }
 
-            // Optimization: Filter out videos we already have in DB
-            // For now, we'll check against IDB for each batch.
-            const newVideoIds: string[] = [];
+            // Determine which videos to fetch details for
+            const videosToFetch: string[] = [];
 
             for (const item of data.items) {
                 const videoId = item.contentDetails.videoId;
-                // Check if video exists in IDB. 
-                // idb.get returns undefined if not found.
-                const existing = await idb.get('videos', videoId);
 
-                if (!existing) {
-                    newVideoIds.push(videoId);
+                if (forceFullSync) {
+                    // In full sync, we update everything encountered
+                    videosToFetch.push(videoId);
+                } else {
+                    // In incremental sync, check against DB
+                    const existing = await idb.get('videos', videoId);
+                    if (!existing) {
+                        videosToFetch.push(videoId);
+                    }
                 }
             }
 
-            if (newVideoIds.length > 0) {
-                // Fetch details ONLY for new videos
-                const videoIdsChunk = newVideoIds.join(',');
+            if (videosToFetch.length > 0) {
+                // Fetch details for the chunk
+                const videoIdsChunk = videosToFetch.join(',');
                 const statsParams = new URLSearchParams({
                     part: 'statistics,contentDetails,snippet',
                     id: videoIdsChunk,
@@ -206,19 +238,17 @@ export const TrendService = {
                     await Promise.all(videos.map(v => tx.store.put(v)));
                     await tx.done;
 
-                    totalNewVideos += videos.length;
+                    totalProcessedVideos += videos.length;
                 }
             } else {
                 console.log('[TrendService] All videos in this page already exist. Skipping details fetch.');
             }
 
             nextPageToken = data.nextPageToken;
-            nextPageToken = data.nextPageToken;
-
 
         } while (nextPageToken);
 
-        console.log(`[TrendService] Sync complete. Added ${totalNewVideos} new videos. Quota used: ${totalQuotaUsed}`);
+        console.log(`[TrendService] Sync complete. Processed ${totalProcessedVideos} videos. Quota used: ${totalQuotaUsed}`);
 
         // Update stats
         const allVideos = await idb.getAllFromIndex('videos', 'by-channel', channel.id);
@@ -230,7 +260,7 @@ export const TrendService = {
             averageViews
         });
 
-        return { totalNewVideos, totalQuotaUsed };
+        return { totalNewVideos: totalProcessedVideos, totalQuotaUsed };
     },
 
     getChannelVideosFromCache: async (channelId: string) => {
