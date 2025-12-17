@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { FolderPlus, Plus, X, ChevronDown, Check, Trash2, Globe, Home, ListVideo } from 'lucide-react';
 import type { TrendNiche, TrendVideo } from '../../../types/trends';
@@ -6,6 +6,8 @@ import { useTrendStore, generateNicheColor } from '../../../stores/trendStore';
 import { useAuth } from '../../../hooks/useAuth';
 import { useChannelStore } from '../../../stores/channelStore';
 import { usePlaylists } from '../../../hooks/usePlaylists';
+import { useVideos } from '../../../hooks/useVideos';
+import { useUIStore } from '../../../stores/uiStore';
 import { VideoService } from '../../../services/videoService';
 import { PlaylistService } from '../../../services/playlistService';
 import { useSmartPosition } from './hooks/useSmartPosition';
@@ -55,6 +57,8 @@ const FloatingDropdownPortal: React.FC<{
                 transform: openAbove ? 'translateY(-100%)' : 'none',
                 maxHeight: 280,
             }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
         >
             {children}
         </div>,
@@ -70,11 +74,18 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
     const { niches, addNiche, assignVideoToNiche, removeVideoFromNiche, videoNicheAssignments } = useTrendStore();
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { playlists, createPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+    const { playlists, addVideoToPlaylist, removeVideoFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+    const { videos: homeVideos } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const { showToast } = useUIStore();
 
     // Resolve assigned niche
-    const assignedNicheId = videoNicheAssignments[video.id]; // Prioritize local assignment
+    const assignedNicheId = videoNicheAssignments[video.id];
     const assignedNiche = niches.find(n => n.id === assignedNicheId);
+
+    // Check if video is already in home
+    const isAddedToHome = useMemo(() => {
+        return homeVideos.some(v => v.id === video.id && !v.isPlaylistOnly);
+    }, [homeVideos, video.id]);
 
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isPlaylistDropdownOpen, setIsPlaylistDropdownOpen] = useState(false);
@@ -93,7 +104,7 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
     const { coords } = useSmartPosition({
         targetPos: position,
         elementRef: barRef,
-        width: 300, // Approx
+        width: 300,
         offsetY: 60
     });
 
@@ -140,16 +151,109 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
         }
     };
 
+    const handleAddToHome = async () => {
+        if (!user || !currentChannel || isAddedToHome) return;
+
+        await handleQuickAction(async () => {
+            // @ts-ignore - TrendVideo may not have all VideoDetails fields
+            await VideoService.addVideo(user.uid, currentChannel.id, {
+                ...video,
+                isPlaylistOnly: false,
+                createdAt: Date.now()
+            });
+            showToast('Added to Home', 'success');
+        });
+    };
+
+    const handleRemoveFromHome = async () => {
+        if (!user || !currentChannel || !isAddedToHome) return;
+
+        await handleQuickAction(async () => {
+            await VideoService.deleteVideo(user.uid, currentChannel.id, video.id);
+            showToast('Removed from Home', 'success');
+        });
+    };
+
+    const handleHomeToggle = async () => {
+        if (isAddedToHome) {
+            await handleRemoveFromHome();
+        } else {
+            await handleAddToHome();
+        }
+    };
+
+    const handlePlaylistToggle = async (playlistId: string, playlistName: string, isInPlaylist: boolean) => {
+        if (!user || !currentChannel) return;
+
+        await handleQuickAction(async () => {
+            if (isInPlaylist) {
+                // Remove from playlist
+                await removeVideoFromPlaylist({ playlistId, videoId: video.id });
+                showToast(`Removed from "${playlistName}"`, 'success');
+            } else {
+                // Add to playlist - ensure video exists in DB first
+                const videoExists = homeVideos.some(v => v.id === video.id);
+                if (!videoExists) {
+                    // @ts-ignore
+                    await VideoService.addVideo(user.uid, currentChannel.id, {
+                        ...video,
+                        isPlaylistOnly: true,
+                        createdAt: Date.now()
+                    });
+                }
+                await addVideoToPlaylist({ playlistId, videoId: video.id });
+                showToast(`Added to "${playlistName}"`, 'success');
+            }
+        });
+    };
+
+    const handleCreatePlaylist = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newPlaylistName.trim() || !user || !currentChannel) return;
+
+        await handleQuickAction(async () => {
+            // Ensure video exists
+            const videoExists = homeVideos.some(v => v.id === video.id);
+            if (!videoExists) {
+                // @ts-ignore
+                await VideoService.addVideo(user.uid, currentChannel.id, {
+                    ...video,
+                    isPlaylistOnly: true,
+                    createdAt: Date.now()
+                });
+            }
+
+            const playlistId = `playlist-${Date.now()}`;
+            await PlaylistService.createPlaylist(user.uid, currentChannel.id, {
+                id: playlistId,
+                name: newPlaylistName.trim(),
+                videoIds: [video.id],
+                createdAt: Date.now()
+            });
+
+            showToast(`Created "${newPlaylistName}"`, 'success');
+            setNewPlaylistName('');
+            setIsPlaylistDropdownOpen(false);
+        });
+    };
+
     const filteredNiches = niches.filter(n => {
         if (!newNicheName) return true;
         return n.name.toLowerCase().includes(newNicheName.toLowerCase());
     });
+
+    // Check which playlists contain this video
+    const getPlaylistContainsVideo = (playlist: { videoIds?: string[] }) => {
+        return playlist.videoIds?.includes(video.id) || false;
+    };
 
     return (
         <div
             ref={barRef}
             className="flex items-center gap-2 bg-bg-secondary/90 backdrop-blur-md border border-border shadow-lg rounded-full px-4 py-2 animate-fade-in fixed z-[1000]"
             style={{ left: coords.x, top: coords.y }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
         >
             <div className="flex items-center gap-3 pr-3 border-r border-white/10">
                 <span className="text-sm font-medium text-white whitespace-nowrap max-w-[150px] truncate">
@@ -157,6 +261,7 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                 </span>
                 <button
                     onClick={onClose}
+                    onMouseDown={(e) => e.stopPropagation()}
                     className="text-text-secondary hover:text-white transition-colors"
                 >
                     <X size={16} />
@@ -167,6 +272,7 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
             <div className="relative">
                 <button
                     ref={nicheButtonRef}
+                    onMouseDown={(e) => e.stopPropagation()}
                     onClick={() => {
                         setIsDropdownOpen(!isDropdownOpen);
                         setIsPlaylistDropdownOpen(false);
@@ -274,23 +380,30 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
 
             {/* Actions */}
             <div className="flex items-center gap-1 border-l border-white/10 pl-2 ml-1">
+                {/* Home Button with Premium Badge */}
                 <button
-                    onClick={() => handleQuickAction(async () => {
-                        if (!user || !currentChannel) return;
-                        // @ts-ignore
-                        await VideoService.addVideo(user.uid, currentChannel.id, { ...video, isPlaylistOnly: false });
-                        onClose();
-                    })}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={handleHomeToggle}
                     disabled={isProcessing}
-                    className={`p-1.5 rounded-full text-text-secondary hover:text-white hover:bg-white/10 transition-colors ${isProcessing ? 'opacity-50' : ''}`}
-                    title="Add to Home"
+                    className={`relative p-1.5 rounded-full transition-all ${isAddedToHome
+                            ? 'text-white hover:bg-red-500/20 hover:text-red-300'
+                            : 'text-text-secondary hover:text-white hover:bg-white/10'
+                        } ${isProcessing ? 'opacity-50' : ''}`}
+                    title={isAddedToHome ? 'Remove from Home' : 'Add to Home'}
                 >
                     <Home size={16} />
+                    {/* Checkmark Badge */}
+                    {isAddedToHome && (
+                        <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full flex items-center justify-center shadow-sm">
+                            <Check size={8} className="text-white" strokeWidth={3} />
+                        </div>
+                    )}
                 </button>
 
                 <div className="relative">
                     <button
                         ref={playlistButtonRef}
+                        onMouseDown={(e) => e.stopPropagation()}
                         onClick={() => {
                             setIsPlaylistDropdownOpen(!isPlaylistDropdownOpen);
                             setIsDropdownOpen(false);
@@ -310,18 +423,7 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                     >
                         <div data-portal-wrapper className="flex flex-col h-full">
                             <div className="p-2 border-b border-white/10">
-                                <form onSubmit={(e) => {
-                                    e.preventDefault();
-                                    handleQuickAction(async () => {
-                                        if (newPlaylistName.trim() && user) {
-                                            const newId = await createPlaylist({ name: newPlaylistName, videoIds: [] });
-                                            // @ts-ignore
-                                            await VideoService.addVideo(user.uid, currentChannel!.id, { ...video, isPlaylistOnly: true });
-                                            await PlaylistService.addVideoToPlaylist(user.uid, currentChannel!.id, newId, video.id);
-                                            setIsPlaylistDropdownOpen(false);
-                                        }
-                                    });
-                                }} className="relative">
+                                <form onSubmit={handleCreatePlaylist} className="relative">
                                     <input
                                         ref={playlistInputRef}
                                         type="text"
@@ -334,21 +436,23 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                                 </form>
                             </div>
                             <div className="overflow-y-auto custom-scrollbar p-1 flex-1">
-                                {playlists.map(playlist => (
-                                    <button
-                                        key={playlist.id}
-                                        onClick={() => handleQuickAction(async () => {
-                                            // @ts-ignore
-                                            await VideoService.addVideo(user!.uid, currentChannel!.id, { ...video, isPlaylistOnly: true });
-                                            await PlaylistService.addVideoToPlaylist(user!.uid, currentChannel!.id, playlist.id, video.id);
-                                            setIsPlaylistDropdownOpen(false);
-                                        })}
-                                        className="w-full text-left px-3 py-2 text-xs text-text-secondary hover:text-white hover:bg-white/5 rounded-lg flex items-center gap-2 transition-colors"
-                                    >
-                                        <ListVideo size={14} />
-                                        <span className="truncate">{playlist.name}</span>
-                                    </button>
-                                ))}
+                                {playlists.map(playlist => {
+                                    const isInPlaylist = getPlaylistContainsVideo(playlist);
+                                    return (
+                                        <button
+                                            key={playlist.id}
+                                            onClick={() => handlePlaylistToggle(playlist.id, playlist.name, isInPlaylist)}
+                                            className={`w-full text-left px-3 py-2 text-xs hover:bg-white/5 rounded-lg flex items-center gap-2 transition-colors justify-between ${isInPlaylist ? 'text-white' : 'text-text-secondary hover:text-white'
+                                                }`}
+                                        >
+                                            <div className="flex items-center gap-2 truncate">
+                                                <ListVideo size={14} />
+                                                <span className="truncate">{playlist.name}</span>
+                                            </div>
+                                            {isInPlaylist && <Check size={12} className="text-green-400 flex-shrink-0" />}
+                                        </button>
+                                    );
+                                })}
                                 {playlists.length === 0 && (
                                     <div className="text-center py-3 text-xs text-text-tertiary">No playlists</div>
                                 )}
@@ -360,6 +464,7 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
 
             {assignedNicheId && (
                 <button
+                    onMouseDown={(e) => e.stopPropagation()}
                     onClick={() => removeVideoFromNiche(video.id)}
                     className="p-1.5 text-text-secondary hover:text-red-400 hover:bg-red-500/10 rounded-full transition-colors ml-1"
                     title="Remove from niche"

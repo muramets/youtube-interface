@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { PlaySquare, MoreVertical } from 'lucide-react';
 import type { Playlist } from '../../services/playlistService';
 import { PlaylistMenu } from './PlaylistMenu';
+import { useVideos } from '../../hooks/useVideos';
+import { useAuth } from '../../hooks/useAuth';
+import { useChannelStore } from '../../stores/channelStore';
 
 
 interface PlaylistCardProps {
@@ -26,6 +29,41 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
     handleDeleteClick
 }) => {
     const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
+    const { user } = useAuth();
+    const { currentChannel } = useChannelStore();
+    const { videos } = useVideos(user?.uid || '', currentChannel?.id || '');
+
+    // Compute effective cover image:
+    // 1. If playlist has a custom coverImage that is NOT a YouTube thumbnail, use it
+    // 2. Otherwise, use the thumbnail of the last video in the playlist that still exists
+    const effectiveCoverImage = useMemo(() => {
+        // If playlist has an explicit cover that isn't a youtube thumbnail, keep it
+        if (playlist.coverImage && !playlist.coverImage.includes('ytimg.com')) {
+            return playlist.coverImage;
+        }
+
+        // Find videos that are still in the playlist
+        const validVideos = playlist.videoIds
+            .map(vid => videos.find(v => v.id === vid))
+            .filter(Boolean);
+
+        if (validVideos.length === 0) return playlist.coverImage || '';
+
+        // If the current cover is from a video no longer in the playlist, update it
+        const lastVideo = validVideos[validVideos.length - 1];
+        if (lastVideo && playlist.coverImage !== lastVideo.thumbnail && playlist.coverImage !== lastVideo.customImage) {
+            // Check if current cover belongs to any video in playlist
+            const coverBelongsToPlaylist = validVideos.some(v =>
+                v && (v.thumbnail === playlist.coverImage || v.customImage === playlist.coverImage)
+            );
+            if (!coverBelongsToPlaylist) {
+                // Cover is from a removed video, use last video's thumbnail
+                return lastVideo.customImage || lastVideo.thumbnail;
+            }
+        }
+
+        return playlist.coverImage || lastVideo?.customImage || lastVideo?.thumbnail || '';
+    }, [playlist.coverImage, playlist.videoIds, videos]);
 
     return (
         <div
@@ -38,8 +76,8 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
             <div className="flex flex-col relative h-full rounded-xl">
                 {/* Cover Image Area */}
                 <div className="aspect-video bg-bg-secondary flex items-center justify-center relative rounded-t-xl overflow-hidden">
-                    {playlist.coverImage ? (
-                        <img src={playlist.coverImage} alt={playlist.name} className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                    {effectiveCoverImage ? (
+                        <img src={effectiveCoverImage} alt={playlist.name} className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" />
                     ) : (
                         <PlaySquare size={48} className="text-text-secondary" />
                     )}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useVideos } from '../../hooks/useVideos';
 
@@ -18,6 +18,40 @@ export const PlaylistDetailPage: React.FC = () => {
     const navigate = useNavigate();
 
     const playlist = playlists.find(p => p.id === id);
+
+    // Filter videos that are in the playlist
+    // We map over playlist.videoIds to preserve order
+    const playlistVideos = useMemo(() => {
+        if (!playlist) return [];
+        return playlist.videoIds
+            .map(videoId => videos.find(v => v.id === videoId))
+            .filter((v): v is NonNullable<typeof v> => v !== undefined);
+    }, [playlist, videos]);
+
+    // Compute effective cover image (same logic as PlaylistCard)
+    const effectiveCoverImage = useMemo(() => {
+        if (!playlist) return '';
+
+        // If playlist has an explicit cover that isn't a youtube thumbnail, keep it
+        if (playlist.coverImage && !playlist.coverImage.includes('ytimg.com')) {
+            return playlist.coverImage;
+        }
+
+        if (playlistVideos.length === 0) return playlist.coverImage || '';
+
+        const lastVideo = playlistVideos[playlistVideos.length - 1];
+        if (lastVideo && playlist.coverImage !== lastVideo.thumbnail && playlist.coverImage !== lastVideo.customImage) {
+            // Check if current cover belongs to any video in playlist
+            const coverBelongsToPlaylist = playlistVideos.some(v =>
+                v.thumbnail === playlist.coverImage || v.customImage === playlist.coverImage
+            );
+            if (!coverBelongsToPlaylist) {
+                return lastVideo.customImage || lastVideo.thumbnail;
+            }
+        }
+
+        return playlist.coverImage || lastVideo?.customImage || lastVideo?.thumbnail || '';
+    }, [playlist, playlistVideos]);
 
     if (isPlaylistsLoading) {
         return (
@@ -42,12 +76,6 @@ export const PlaylistDetailPage: React.FC = () => {
             </div>
         );
     }
-
-    // Filter videos that are in the playlist
-    // We map over playlist.videoIds to preserve order
-    const playlistVideos = playlist.videoIds
-        .map(videoId => videos.find(v => v.id === videoId))
-        .filter((v): v is NonNullable<typeof v> => v !== undefined);
 
     const handlePlaylistReorder = (movedVideoId: string, targetVideoId: string) => {
         // Find these IDs in the original playlist.videoIds list to handle the move safely
@@ -74,8 +102,8 @@ export const PlaylistDetailPage: React.FC = () => {
                 </button>
                 <div className="flex items-center gap-4">
                     <div className="w-20 h-[45px] bg-bg-secondary rounded-lg flex items-center justify-center overflow-hidden">
-                        {playlist.coverImage ? (
-                            <img src={playlist.coverImage} alt="" className="w-full h-full object-cover" />
+                        {effectiveCoverImage ? (
+                            <img src={effectiveCoverImage} alt="" className="w-full h-full object-cover" />
                         ) : (
                             <PlaySquare size={24} className="text-text-secondary" />
                         )}
