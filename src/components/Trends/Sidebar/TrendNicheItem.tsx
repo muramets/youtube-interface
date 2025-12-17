@@ -47,9 +47,10 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
     // Close dropdowns on outside click
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
-            if (isMenuOpen && menuRef.current && !menuRef.current.contains(e.target as Node)) {
-                setIsMenuOpen(false);
-            }
+            // NOTE: isMenuOpen check removed here because NicheContextMenu uses a portal with a backdrop
+            // which handles closing on click outside. The old check on 'mousedown' was causing the menu
+            // to close before the click event could propagate to the portal buttons.
+
             if (isColorPickerOpen && colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
                 setIsColorPickerOpen(false);
             }
