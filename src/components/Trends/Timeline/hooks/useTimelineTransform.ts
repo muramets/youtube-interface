@@ -15,6 +15,8 @@ interface UseTimelineTransformProps {
     headerHeight: number;
     paddingLeft: number;
     paddingRight: number;
+    paddingTop: number;
+    paddingBottom: number;
     videosLength: number;
     // New props for timestamp anchoring
     monthLayouts: MonthLayout[];
@@ -26,12 +28,15 @@ export const useTimelineTransform = ({
     headerHeight,
     paddingLeft,
     paddingRight,
+    paddingTop,
+    paddingBottom,
     videosLength,
     monthLayouts,
     stats
 }: UseTimelineTransformProps) => {
     // Total padding for calculations that need both
     const totalPadding = paddingLeft + paddingRight;
+    const totalVerticalPadding = paddingTop + paddingBottom;
     const { timelineConfig, setTimelineConfig, channels } = useTrendStore();
     const { zoomLevel, offsetX, offsetY, isCustomView, contentHash: savedContentHash } = timelineConfig;
 
@@ -87,15 +92,18 @@ export const useTimelineTransform = ({
     }, [viewportSize.width, totalPadding, worldWidth]);
 
     // 2. Derive Dynamic World Height (with stability)
+    // Account for vertical padding to create safe zones at top and bottom
     const lastValidWorldHeightRef = useRef(1000);
     const dynamicWorldHeight = useMemo(() => {
         if (viewportSize.height <= 0 || fitScale <= 0) {
             return lastValidWorldHeightRef.current; // Use last valid instead of fallback
         }
-        const calculated = (viewportSize.height - headerHeight) / fitScale;
+        // Subtract vertical padding from available height
+        const availableHeight = viewportSize.height - headerHeight - totalVerticalPadding;
+        const calculated = availableHeight / fitScale;
         lastValidWorldHeightRef.current = calculated; // Update ref
         return calculated;
-    }, [viewportSize.height, headerHeight, fitScale]);
+    }, [viewportSize.height, headerHeight, fitScale, totalVerticalPadding]);
 
     // 3. Min Scale
     const minScale = fitScale;
@@ -146,17 +154,15 @@ export const useTimelineTransform = ({
 
         // Y-Axis clamping
         let constrainedOffsetY: number;
-        const availableHeight = viewportHeight - headerHeight;
+        const availableHeight = viewportHeight - headerHeight - totalVerticalPadding;
 
         if (scaledHeight <= availableHeight) {
-            // Content matches or is smaller than viewport: Center it vertically (or top-align if preferred)
-            constrainedOffsetY = headerHeight + (availableHeight - scaledHeight) / 2;
+            // Content fits: align to top padding (similar to left padding for X)
+            constrainedOffsetY = headerHeight + paddingTop;
         } else {
-            // Content is larger: Clamp strict bounds (No overscroll padding)
-            // Top limit: Header Bottom (headerHeight)
-            // Bottom limit: Viewport Bottom (viewportHeight - scaledHeight)
-            const maxOffsetY = headerHeight;
-            const minOffsetY = viewportHeight - scaledHeight;
+            // Content is larger: Clamp with padding bounds
+            const maxOffsetY = headerHeight + paddingTop;
+            const minOffsetY = viewportHeight - paddingBottom - scaledHeight;
             constrainedOffsetY = Math.max(minOffsetY, Math.min(maxOffsetY, t.offsetY));
         }
 
@@ -165,7 +171,7 @@ export const useTimelineTransform = ({
             offsetX: constrainedOffsetX,
             offsetY: constrainedOffsetY
         };
-    }, [worldWidth, dynamicWorldHeight, headerHeight, paddingLeft, paddingRight, minScale]);
+    }, [worldWidth, dynamicWorldHeight, headerHeight, paddingLeft, paddingRight, paddingTop, paddingBottom, totalVerticalPadding, minScale]);
 
     // Calculate Auto Fit Transform (Pure Calculation)
     const calculateAutoFitTransform = useCallback(() => {
@@ -175,12 +181,12 @@ export const useTimelineTransform = ({
         const contentWidth = worldWidth * currentFitScale;
         const contentHeight = dynamicWorldHeight * currentFitScale;
 
-        // Position content with left padding offset
+        // Position content with padding offsets
         const newOffsetX = paddingLeft;
-        const newOffsetY = headerHeight + ((viewportSize.height - headerHeight) - contentHeight) / 2;
+        const newOffsetY = headerHeight + paddingTop;
 
         return { scale: currentFitScale, offsetX: newOffsetX, offsetY: newOffsetY };
-    }, [videosLength, viewportSize, totalPadding, paddingLeft, worldWidth, dynamicWorldHeight, headerHeight]);
+    }, [videosLength, viewportSize, totalPadding, paddingLeft, paddingTop, worldWidth, dynamicWorldHeight, headerHeight]);
 
     // Handle Auto Fit (Instant)
     const handleAutoFit = useCallback(() => {

@@ -94,12 +94,24 @@ export const useTimelineStructure = ({
         startDate.setHours(0, 0, 0, 0);
         // No buffer - start from the month of the first video
 
+        // End exactly at the day of the last video (not rounded up to month end)
         const endDate = new Date(effectiveStats.maxDate);
-        // Round up to the end of the current month (first day of next month)
-        // This ensures the month containing the last video is fully rendered
+        const lastVideoDay = endDate.getDate();
+        const lastVideoDaysInMonth = getDaysInMonth(endDate.getFullYear(), endDate.getMonth());
+
+        // Calculate clip factor for the last month (how much of the month to show)
+        // e.g., if last video is on day 5 of 31, clipFactor = 5/31 ≈ 0.16
+        const lastMonthClipFactor = (lastVideoDay + 0.5) / lastVideoDaysInMonth; // +0.5 to include the full day
+
+        // For the loop condition, we still need to include the last month
         const safeEndDate = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 1);
 
-        return { startDate, endDate: safeEndDate };
+        return {
+            startDate,
+            endDate: safeEndDate,
+            lastMonthKey: `${endDate.getFullYear()}-${endDate.getMonth()}`,
+            lastMonthClipFactor
+        };
     }, [effectiveStats]);
 
     // 3. Calculate World Width (uses shared timelineRange)
@@ -123,7 +135,12 @@ export const useTimelineStructure = ({
             const densityWidth = Math.max(200, count * VIDEO_DENSITY_MULTIPLIER);
             const daysInMonth = getDaysInMonth(year, month);
             const linearWidth = daysInMonth * dynamicLinearPixelsPerDay;
-            const width = linearWidth + (densityWidth - linearWidth) * timeLinearity;
+            let width = linearWidth + (densityWidth - linearWidth) * timeLinearity;
+
+            // Clip the last month to the last video's day
+            if (key === timelineRange.lastMonthKey) {
+                width *= timelineRange.lastMonthClipFactor;
+            }
 
             totalWidth += width;
             current.setMonth(current.getMonth() + 1);
@@ -161,7 +178,13 @@ export const useTimelineStructure = ({
             const densityWidth = Math.max(200, count * 80);
             const daysInMonth = getDaysInMonth(year, month);
             const linearWidth = daysInMonth * dynamicLinearPixelsPerDay;
-            const absWidth = linearWidth + (densityWidth - linearWidth) * timeLinearity;
+            let absWidth = linearWidth + (densityWidth - linearWidth) * timeLinearity;
+
+            // Clip the last month to the last video's day
+            const isLastMonth = key === timelineRange.lastMonthKey;
+            if (isLastMonth) {
+                absWidth *= timelineRange.lastMonthClipFactor;
+            }
 
             const nextMonth = new Date(current);
             nextMonth.setMonth(current.getMonth() + 1);
@@ -176,7 +199,10 @@ export const useTimelineStructure = ({
                 endX: totalAbsWidth + absWidth,
                 width: absWidth,
                 startTs: current.getTime(),
-                endTs: nextMonth.getTime()
+                endTs: isLastMonth ? new Date(effectiveStats.maxDate).getTime() : nextMonth.getTime(),
+                daysInMonth: isLastMonth
+                    ? Math.ceil(daysInMonth * timelineRange.lastMonthClipFactor)
+                    : daysInMonth
             });
 
             totalAbsWidth += absWidth;
@@ -190,7 +216,7 @@ export const useTimelineStructure = ({
             endX: l.endX / Math.max(1, totalAbsWidth),
             width: l.width / Math.max(1, totalAbsWidth)
         })) as MonthLayout[];
-    }, [videos, timeLinearity, densityStats, timelineRange, forcedStatsOverride]);
+    }, [videos, effectiveStats, timeLinearity, densityStats, timelineRange, forcedStatsOverride]);
 
     // Freeze Layouts
     const monthLayouts = useFrozenValue({

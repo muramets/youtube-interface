@@ -102,9 +102,13 @@ export const useTimelinePositions = ({
             const baseSize = MIN_THUMBNAIL_SIZE + sizeRatio * (BASE_THUMBNAIL_SIZE - MIN_THUMBNAIL_SIZE);
             const radius = baseSize / 2;
 
-            // Dynamic Radius Position
-            // y = Radius + yNorm * (WorldHeight - Diameter)
-            const expandedY = radius + effectiveYNorm * (dynamicWorldHeight - baseSize);
+            // Vertical buffer to prevent clipping at edges
+            const verticalBuffer = 12; // pixels
+
+            // Dynamic Radius Position with buffer
+            // y = Radius + Buffer + yNorm * (WorldHeight - Diameter - 2*Buffer)
+            const availableHeight = dynamicWorldHeight - baseSize - 2 * verticalBuffer;
+            const expandedY = radius + verticalBuffer + effectiveYNorm * Math.max(0, availableHeight);
 
             // Return normalized Y relative to dynamicWorldHeight
             return { video, xNorm, yNorm: expandedY / dynamicWorldHeight, baseSize };
