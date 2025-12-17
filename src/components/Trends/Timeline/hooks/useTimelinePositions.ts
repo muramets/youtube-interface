@@ -29,7 +29,7 @@ export const useTimelinePositions = ({
 
         const { minViews, maxViews } = stats;
         const viewRangeLinear = maxViews - minViews || 1;
-        const viewRangeLog = Math.log(maxViews) - Math.log(minViews) || 1;
+        const viewRangeLog = Math.log(Math.max(1, maxViews)) - Math.log(Math.max(1, minViews)) || 1;
         const viewRangeSqrt = Math.sqrt(maxViews) - Math.sqrt(minViews) || 1;
 
         // Effective Spread
@@ -61,33 +61,38 @@ export const useTimelinePositions = ({
             let yNorm: number;
             let sizeRatio: number;
 
-            switch (scalingMode) {
-                case 'linear':
-                    yNorm = 1 - (video.viewCount - stats.minViews) / viewRangeLinear;
-                    sizeRatio = (video.viewCount - stats.minViews) / (stats.maxViews - stats.minViews);
-                    break;
-                case 'log':
-                    const viewLog = Math.log(Math.max(1, video.viewCount));
-                    const minLog = Math.log(Math.max(1, stats.minViews));
-                    const maxLog = Math.log(Math.max(1, stats.maxViews));
-                    yNorm = 1 - (viewLog - minLog) / viewRangeLog;
-                    sizeRatio = (viewLog - minLog) / (maxLog - minLog);
-                    break;
-                case 'sqrt':
-                    const viewSqrt = Math.sqrt(video.viewCount);
-                    const minSqrt = Math.sqrt(stats.minViews);
-                    const maxSqrt = Math.sqrt(stats.maxViews);
-                    yNorm = 1 - (viewSqrt - minSqrt) / viewRangeSqrt;
-                    sizeRatio = (viewSqrt - minSqrt) / (maxSqrt - minSqrt);
-                    break;
-                case 'percentile':
-                    const percentileRank = rankMap.get(video.id) ?? 0.5;
-                    yNorm = 1 - percentileRank;
-                    sizeRatio = percentileRank;
-                    break;
-                default:
-                    yNorm = 0.5;
-                    sizeRatio = 0.5;
+            const isSingleValue = Math.abs(stats.maxViews - stats.minViews) < 0.001;
+
+            if (isSingleValue) {
+                yNorm = 0.5; // Center vertically
+                sizeRatio = 0.5; // Default to mid-size for single value
+            } else {
+                switch (scalingMode) {
+                    case 'linear':
+                        yNorm = 1 - (video.viewCount - stats.minViews) / viewRangeLinear;
+                        sizeRatio = (video.viewCount - stats.minViews) / viewRangeLinear;
+                        break;
+                    case 'log':
+                        const viewLog = Math.log(Math.max(1, video.viewCount));
+                        const minLog = Math.log(Math.max(1, stats.minViews));
+                        yNorm = 1 - (viewLog - minLog) / viewRangeLog;
+                        sizeRatio = (viewLog - minLog) / viewRangeLog;
+                        break;
+                    case 'sqrt':
+                        const viewSqrt = Math.sqrt(video.viewCount);
+                        const minSqrt = Math.sqrt(stats.minViews);
+                        yNorm = 1 - (viewSqrt - minSqrt) / viewRangeSqrt;
+                        sizeRatio = (viewSqrt - minSqrt) / viewRangeSqrt;
+                        break;
+                    case 'percentile':
+                        const percentileRank = rankMap.get(video.id) ?? 0.5;
+                        yNorm = 1 - percentileRank;
+                        sizeRatio = percentileRank;
+                        break;
+                    default:
+                        yNorm = 0.5;
+                        sizeRatio = 0.5;
+                }
             }
 
             // Squash Logic
