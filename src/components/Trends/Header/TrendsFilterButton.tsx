@@ -181,14 +181,44 @@ export const TrendsFilterButton: React.FC = () => {
                             </div>
                         ) : (
                             <div className="animate-fade-in">
-                                {activeView === 'views' && (
-                                    <FilterInputNumeric
-                                        onApply={(op, val, max) => {
-                                            const opLabel = op === 'between' ? `${val}-${max}` : `${op === 'gte' ? '>=' : op === 'lte' ? '<=' : op === 'gt' ? '>' : op === 'lt' ? '<' : '='} ${val}`;
-                                            handleAddFilter('views', op, op === 'between' ? [val, max] : val, `Views ${opLabel}`);
-                                        }}
-                                    />
-                                )}
+                                {activeView === 'views' && (() => {
+                                    const existingFilter = trendsFilters.find(f => f.type === 'views');
+                                    const initialVal = existingFilter?.value;
+                                    const isRange = Array.isArray(initialVal);
+
+                                    return (
+                                        <FilterInputNumeric
+                                            initialOperator={existingFilter?.operator || 'gte'}
+                                            initialValue={isRange ? initialVal[0] : initialVal}
+                                            initialMaxValue={isRange ? initialVal[1] : undefined}
+                                            onApply={(op, val, max) => {
+                                                // Check for removal (empty/invalid) - though FilterInputNumeric handles validation, 
+                                                // we might want to allow explicit clearing if value is empty?
+                                                // Actually FilterInputNumeric controls validation.
+                                                // Let's modify FilterInputNumeric to allow passing undefined to signal removal?
+                                                // Start with simple add/replace.
+
+                                                // Remove existing first
+                                                if (existingFilter) {
+                                                    removeTrendsFilter(existingFilter.id);
+                                                }
+
+                                                // If we have valid value (FilterInputNumeric enforces valid numbers before calling onApply), add it.
+                                                // Wait, we need a way to clear. 
+                                                // Let's rely on FilterInputNumeric sending us data.
+
+                                                const opLabel = op === 'between' ? `${val}-${max}` : `${op === 'gte' ? '>=' : op === 'lte' ? '<=' : op === 'gt' ? '>' : op === 'lt' ? '<' : '='} ${val}`;
+                                                handleAddFilter('views', op, op === 'between' ? [val, max] : val, `Views ${opLabel}`);
+                                            }}
+                                            onRemove={() => {
+                                                if (existingFilter) {
+                                                    removeTrendsFilter(existingFilter.id);
+                                                    setIsOpen(false);
+                                                }
+                                            }}
+                                        />
+                                    );
+                                })()}
                                 {activeView === 'date' && (
                                     <FilterInputDate
                                         onApply={(start, end) => {

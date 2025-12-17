@@ -112,14 +112,9 @@ export const useAxisTicks = ({
             const v5 = base * 5;
             if (v5 >= minViews && v5 <= maxViews) result.push({ value: v5, priority: 1 });
 
-            // Tenths (2x, 8x? No just 2x usually provides the bridge between 1 and 5)
-            // Actually standard sequence is usually: 1, 2, 5.
+            // Tenths (2x)
             const v2 = base * 2;
             if (v2 >= minViews && v2 <= maxViews) result.push({ value: v2, priority: 2 });
-
-            // 8x is rarely needed but sometimes helpful for linear gap filling? 
-            // Let's stick to 1-2-5 for cleanliness. 
-            // If we need more density, we can add 0.5 steps later.
         }
 
         return result.sort((a, b) => a.value - b.value);

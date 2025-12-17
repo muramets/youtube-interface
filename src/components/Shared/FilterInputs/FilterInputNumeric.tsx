@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import type { FilterOperator } from '../../../stores/filterStore';
 import { CustomSelect } from '../CustomSelect';
 import { SmartDurationInput } from './SmartDurationInput';
+import { SmartNumericInput } from './SmartNumericInput';
 
 interface FilterInputNumericProps {
     initialOperator?: FilterOperator;
     initialValue?: number;
     initialMaxValue?: number;
     onApply: (operator: FilterOperator, value: number, maxValue?: number) => void;
+    onRemove?: () => void;
     isDuration?: boolean;
 }
 
@@ -16,6 +18,7 @@ export const FilterInputNumeric: React.FC<FilterInputNumericProps> = ({
     initialValue,
     initialMaxValue,
     onApply,
+    onRemove,
     isDuration
 }) => {
     const [operator, setOperator] = useState<FilterOperator>(initialOperator);
@@ -35,6 +38,12 @@ export const FilterInputNumeric: React.FC<FilterInputNumericProps> = ({
     ];
 
     const handleApply = () => {
+        // If empty and onRemove exists, trigger remove
+        if (value === '' && onRemove) {
+            onRemove();
+            return;
+        }
+
         const numValue = Number(value);
         if (isNaN(numValue) || value === '') return;
 
@@ -74,13 +83,12 @@ export const FilterInputNumeric: React.FC<FilterInputNumericProps> = ({
                                 className="text-center w-full"
                             />
                         ) : (
-                            <input
-                                type="number"
-                                className="w-full bg-transparent border-b border-[#737373] focus:border-[#111111] py-1 text-white outline-none transition-colors text-base text-center placeholder-[#555555] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                placeholder="Value"
+                            <SmartNumericInput
                                 value={value}
-                                onChange={(e) => setValue(e.target.value)}
+                                onChange={(val) => setValue(val)}
+                                placeholder="Value"
                                 autoFocus
+                                className="w-full text-center"
                             />
                         )}
                     </div>
@@ -98,12 +106,11 @@ export const FilterInputNumeric: React.FC<FilterInputNumericProps> = ({
                                         className="text-center w-full"
                                     />
                                 ) : (
-                                    <input
-                                        type="number"
-                                        className="w-full bg-transparent border-b border-[#737373] focus:border-[#111111] py-1 text-white outline-none transition-colors text-base text-center placeholder-[#555555] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                        placeholder="Max"
+                                    <SmartNumericInput
                                         value={maxValue}
-                                        onChange={(e) => setMaxValue(e.target.value)}
+                                        onChange={(val) => setMaxValue(val)}
+                                        placeholder="Max"
+                                        className="w-full text-center"
                                     />
                                 )}
                             </div>
@@ -115,9 +122,12 @@ export const FilterInputNumeric: React.FC<FilterInputNumericProps> = ({
             <div className="flex justify-end mt-2">
                 <button
                     onClick={handleApply}
-                    className="bg-[#333333] text-white font-medium px-4 py-2 rounded-full text-sm hover:bg-[#444444] transition-colors"
+                    // Disable if invalid AND (no remove handler OR value is not empty)
+                    // Basically: Enable if valid OR (empty and hasRemove)
+                    disabled={!onRemove && (value === '' || (operator === 'between' && maxValue === ''))}
+                    className="bg-[#333333] text-white font-medium px-4 py-2 rounded-full text-sm hover:bg-[#444444] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    Apply
+                    {value === '' && onRemove ? 'Remove' : 'Apply'}
                 </button>
             </div>
         </div>

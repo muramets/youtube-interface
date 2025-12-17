@@ -11,11 +11,13 @@ import { TimelineSelectionOverlay } from './TimelineSelectionOverlay';
 import type { TrendVideo, TimelineStats } from '../../../types/trends';
 
 // Hooks
-import { useTimelineStructure, useTimelinePositions } from './hooks/useTimelineData';
+// Hooks
+import { useTimelineStructure } from './hooks/useTimelineStructure';
+import { useTimelinePositions } from './hooks/useTimelinePositions';
+import { useTimelineControlHandlers } from './hooks/useTimelineControlHandlers';
 import { useTimelineTransform } from './hooks/useTimelineTransform';
 import { useTimelineInteraction } from './hooks/useTimelineInteraction';
 import { useTimelineHotkeys } from './hooks/useTimelineHotkeys';
-import { getTimeAtWorldX, findSmartAnchorTime } from './utils/timelineMath';
 
 // Constants
 const HEADER_HEIGHT = 48;
@@ -39,6 +41,53 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
 
     // State to control structure updates ('Z' key forces update)
     const [structureVersion, setStructureVersion] = useState(0);
+
+    // Smart Structure Updates:
+    // We want the timeline to re-calculate structure (Fit) automatically in specific cases,
+    // but stay "Frozen" in others (to preserve context).
+    const prevVideoCountRef = useRef(videos.length);
+    const prevForcedStatsRef = useRef(forcedStats);
+
+    useEffect(() => {
+        const currentCount = videos.length;
+        const prevCount = prevVideoCountRef.current;
+        const prevStats = prevForcedStatsRef.current;
+        const hasStatsChanged = prevStats !== forcedStats;
+
+        // Update refs
+        prevVideoCountRef.current = currentCount;
+        prevForcedStatsRef.current = forcedStats;
+
+        // Skip initial mount check (though refs init with values, so it handles itself)
+
+        // 1. Significance Check: If count didn't change and stats didn't change, do nothing.
+        if (currentCount === prevCount && !hasStatsChanged) return;
+
+        // 2. Context Switch (Global <-> Local OR Global stats update)
+        // If the context defining the "World" changes, we MUST update.
+        if (hasStatsChanged) {
+            setStructureVersion(v => v + 1);
+            return;
+        }
+
+        // 3. Filter Changes (Count Changed)
+        if (currentCount !== prevCount) {
+            if (currentCount > prevCount) {
+                // Case A: Removing Filters (Adding Videos)
+                // Always re-calculate to ensure new videos fit and are visible.
+                setStructureVersion(v => v + 1);
+            } else {
+                // Case B: Adding Filters (Removing Videos)
+                if (forcedStats) {
+                    // Global Mode: KEEP current structure (Freeze).
+                    // This allows seeing the filtered subset of videos in their original "Global" positions.
+                } else {
+                    // Local Mode: Re-calculate to focus on the remaining subset.
+                    setStructureVersion(v => v + 1);
+                }
+            }
+        }
+    }, [videos.length, forcedStats]);
 
     // 1. Structure (independent of viewport)
     // forcedStats override internal calculation if provided (e.g. for global context in filtered mode)
@@ -95,9 +144,28 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     const isTooltipHoveredRef = useRef(false);
     const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Smart Focus: Persist anchor video during drag to prevent jumping between videos
-    const spreadDragAnchorRef = useRef<string | null>(null);
-    const timeDragAnchorRef = useRef<string | null>(null);
+    // Smart Focus Logic (Extracted)
+    const {
+        handleSpreadChange,
+        handleSpreadDragStart,
+        handleSpreadDragEnd,
+        handleTimeLinearityChange,
+        handleTimeDragStart,
+        handleTimeDragEnd
+    } = useTimelineControlHandlers({
+        transformState,
+        containerSizeRef,
+        minScale,
+        videoPositions,
+        worldWidth,
+        dynamicWorldHeight,
+        stats,
+        monthLayouts,
+        setTimelineConfig,
+        setTransformState,
+        anchorToTime,
+        verticalSpread: verticalSpread ?? 1.0
+    });
 
     const [isTooltipClosing, setIsTooltipClosing] = useState(false);
     const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -265,195 +333,13 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                 minScale={minScale}
                 onReset={handleSmoothFit}
                 verticalSpread={verticalSpread ?? 1.0}
-                onSpreadChange={(newSpread) => {
-                    const oldSpread = verticalSpread ?? 1.0;
-                    if (Math.abs(oldSpread - newSpread) < 0.001) return;
-
-                    const currentScale = transformState.scale;
-                    const viewportWidth = containerSizeRef.current.width;
-                    const viewportHeight = containerSizeRef.current.height;
-
-                    // Check if roughly fitted (zoomed out)
-                    const isRoughlyFitted = Math.abs(currentScale - minScale) < 0.0001 || (Math.abs(currentScale - minScale) / minScale) < 0.01;
-
-                    if (!isRoughlyFitted && videoPositions.length > 0) {
-                        // Try to use persisted anchor, or find new one
-                        const hadPersisted = !!spreadDragAnchorRef.current;
-                        let anchorVideoPos = spreadDragAnchorRef.current
-                            ? videoPositions.find(v => v.video.id === spreadDragAnchorRef.current)
-                            : null;
-
-                        // If no persisted anchor, find best one and save it
-                        if (!anchorVideoPos) {
-                            const foundAnchor = findSmartAnchorTime({
-                                videoPositions,
-                                currentTransform: transformState,
-                                worldWidth,
-                                worldHeight: dynamicWorldHeight,
-                                viewportWidth,
-                                viewportHeight,
-                                stats
-                            });
-                            if (foundAnchor) {
-                                spreadDragAnchorRef.current = foundAnchor.videoId;
-                                // Find the actual VideoPosition for this video
-                                anchorVideoPos = videoPositions.find(v => v.video.id === foundAnchor.videoId) ?? null;
-                            }
-                        }
-
-                        if (anchorVideoPos) {
-                            // Get video's current screen position
-                            const worldX = anchorVideoPos.xNorm * worldWidth;
-                            const worldY = anchorVideoPos.yNorm * dynamicWorldHeight;
-                            const screenX = worldX * currentScale + transformState.offsetX;
-                            const screenY = worldY * currentScale + transformState.offsetY;
-
-                            // Calculate viewport center
-                            const centerScreenX = viewportWidth / 2;
-                            const centerScreenY = HEADER_HEIGHT + (viewportHeight - HEADER_HEIGHT) / 2;
-
-                            // Only apply pull if we had a persisted anchor (not first onChange)
-                            // This prevents the initial "jerk" when starting drag
-                            let targetScreenX = screenX;
-                            let targetScreenY = screenY;
-
-                            if (hadPersisted) {
-                                // 2D pull towards center: the further from center, the more pull
-                                const distFromCenterX = Math.abs(screenX - centerScreenX);
-                                const distFromCenterY = Math.abs(screenY - centerScreenY);
-                                const maxDistX = viewportWidth / 2;
-                                const maxDistY = viewportHeight / 2;
-
-                                const pullStrengthX = Math.min(0.3, (distFromCenterX / maxDistX) * 0.3);
-                                const pullStrengthY = Math.min(0.3, (distFromCenterY / maxDistY) * 0.3);
-
-                                // Target screen position: blend towards center
-                                targetScreenX = screenX + (centerScreenX - screenX) * pullStrengthX;
-                                targetScreenY = screenY + (centerScreenY - screenY) * pullStrengthY;
-                            }
-
-                            // De-spread the yNorm to get base position (relative to 0.5 center)
-                            const distFromCenter = anchorVideoPos.yNorm - 0.5;
-                            const safeOldSpread = Math.max(0.001, oldSpread);
-                            let baseDist = distFromCenter / safeOldSpread;
-                            // Clamp to prevent extreme values
-                            baseDist = Math.max(-0.5, Math.min(0.5, baseDist));
-
-                            // Re-spread with new spread
-                            const newYNorm = 0.5 + baseDist * newSpread;
-                            const newWorldY = newYNorm * dynamicWorldHeight;
-
-                            // Calculate new offsets for 2D positioning
-                            const newOffsetX = targetScreenX - (worldX * currentScale);
-                            const newOffsetY = targetScreenY - (newWorldY * currentScale);
-
-                            setTimelineConfig({ verticalSpread: newSpread });
-                            setTransformState({
-                                ...transformState,
-                                offsetX: newOffsetX,
-                                offsetY: newOffsetY
-                            });
-                            return;
-                        }
-                    }
-
-                    // Fallback: just update spread without offset change
-                    setTimelineConfig({ verticalSpread: newSpread });
-                }}
-                onSpreadDragStart={() => {
-                    // Will be populated on first onChange call
-                    spreadDragAnchorRef.current = null;
-                }}
-                onSpreadDragEnd={() => {
-                    spreadDragAnchorRef.current = null;
-                }}
+                onSpreadChange={handleSpreadChange}
+                onSpreadDragStart={handleSpreadDragStart}
+                onSpreadDragEnd={handleSpreadDragEnd}
                 timeLinearity={timeLinearity ?? 1.0}
-                onTimeLinearityChange={(level) => {
-                    const currentScale = transformState.scale;
-                    const viewportWidth = containerSizeRef.current.width;
-                    const viewportHeight = containerSizeRef.current.height;
-
-                    // 1. Check if we are currently "Fitted" (Zoomed out to see everything)
-                    const isRoughlyFitted = Math.abs(currentScale - minScale) < 0.0001 || (Math.abs(currentScale - minScale) / minScale) < 0.01;
-
-                    if (!isRoughlyFitted && videoPositions.length > 0) {
-                        // Try to use persisted anchor, or find new one
-                        const hadPersisted = !!timeDragAnchorRef.current;
-                        let anchorVideoPos = timeDragAnchorRef.current
-                            ? videoPositions.find(v => v.video.id === timeDragAnchorRef.current)
-                            : null;
-
-                        // If no persisted anchor, find best one and save it
-                        if (!anchorVideoPos) {
-                            const foundAnchor = findSmartAnchorTime({
-                                videoPositions,
-                                currentTransform: transformState,
-                                worldWidth,
-                                worldHeight: dynamicWorldHeight,
-                                viewportWidth,
-                                viewportHeight,
-                                stats
-                            });
-                            if (foundAnchor) {
-                                timeDragAnchorRef.current = foundAnchor.videoId;
-                                anchorVideoPos = videoPositions.find(v => v.video.id === foundAnchor.videoId) ?? null;
-                            }
-                        }
-
-                        if (anchorVideoPos) {
-                            // Get video's current screen position
-                            const worldX = anchorVideoPos.xNorm * worldWidth;
-                            const worldY = anchorVideoPos.yNorm * dynamicWorldHeight;
-                            const screenX = worldX * currentScale + transformState.offsetX;
-                            const screenY = worldY * currentScale + transformState.offsetY;
-
-                            // Only apply pull if we had a persisted anchor (not first onChange)
-                            let targetScreenX = screenX;
-                            let targetScreenY = screenY;
-
-                            if (hadPersisted) {
-                                // 2D pull towards center
-                                const centerScreenX = viewportWidth / 2;
-                                const centerScreenY = HEADER_HEIGHT + (viewportHeight - HEADER_HEIGHT) / 2;
-
-                                const distFromCenterX = Math.abs(screenX - centerScreenX);
-                                const distFromCenterY = Math.abs(screenY - centerScreenY);
-                                const maxDistX = viewportWidth / 2;
-                                const maxDistY = viewportHeight / 2;
-
-                                const pullStrengthX = Math.min(0.3, (distFromCenterX / maxDistX) * 0.3);
-                                const pullStrengthY = Math.min(0.3, (distFromCenterY / maxDistY) * 0.3);
-
-                                // Target screen position: blend towards center
-                                targetScreenX = screenX + (centerScreenX - screenX) * pullStrengthX;
-                                targetScreenY = screenY + (centerScreenY - screenY) * pullStrengthY;
-                            }
-
-                            anchorToTime({
-                                time: anchorVideoPos.video.publishedAtTimestamp,
-                                xNorm: anchorVideoPos.xNorm,
-                                yNorm: anchorVideoPos.yNorm,
-                                screenX: targetScreenX,
-                                screenY: targetScreenY
-                            });
-                        } else {
-                            // 3. Fallback: Center Time
-                            const centerX = viewportWidth / 2;
-                            const worldX = (centerX - transformState.offsetX) / currentScale;
-                            const normX = worldX / worldWidth;
-                            const centerTime = getTimeAtWorldX(normX, monthLayouts, stats);
-                            anchorToTime(centerTime);
-                        }
-                    }
-
-                    setTimelineConfig({ timeLinearity: level });
-                }}
-                onTimeDragStart={() => {
-                    timeDragAnchorRef.current = null;
-                }}
-                onTimeDragEnd={() => {
-                    timeDragAnchorRef.current = null;
-                }}
+                onTimeLinearityChange={handleTimeLinearityChange}
+                onTimeDragStart={handleTimeDragStart}
+                onTimeDragEnd={handleTimeDragEnd}
                 isLoading={isLoading}
             />
 

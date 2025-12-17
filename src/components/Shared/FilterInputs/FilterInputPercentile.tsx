@@ -22,10 +22,16 @@ export const FilterInputPercentile: React.FC<FilterInputPercentileProps> = ({
     };
 
     const handleApply = () => {
-        if (excludedGroups.length > 0) {
-            onApply(excludedGroups);
-        }
+        onApply(excludedGroups);
     };
+
+    // Check if selection changed from initial
+    const hasChanged = React.useMemo(() => {
+        if (excludedGroups.length !== initialExcluded.length) return true;
+        const sortedCurrent = [...excludedGroups].sort();
+        const sortedInitial = [...initialExcluded].sort();
+        return JSON.stringify(sortedCurrent) !== JSON.stringify(sortedInitial);
+    }, [excludedGroups, initialExcluded]);
 
     return (
         <div className="p-3 w-full bg-[#1F1F1F]">
@@ -60,7 +66,7 @@ export const FilterInputPercentile: React.FC<FilterInputPercentileProps> = ({
             <div className="flex justify-end mt-3 pt-2 border-t border-[#333333]">
                 <button
                     onClick={handleApply}
-                    disabled={excludedGroups.length === 0}
+                    disabled={!hasChanged}
                     className="bg-[#333333] text-white font-medium px-4 py-2 rounded-full text-sm hover:bg-[#444444] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     Apply

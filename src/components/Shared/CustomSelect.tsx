@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Check } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 
 export interface Option<T extends string | number> {
     label: string;
@@ -116,7 +116,6 @@ export const CustomSelect = <T extends string | number>({
                             `}
                         >
                             <span className="text-sm">{option.label}</span>
-                            {option.value === value && <Check size={14} className="absolute right-3 text-[#3EA6FF]" />}
                         </div>
                     ))}
                 </div>,

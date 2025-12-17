@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TimelineVideoLayerHandle } from '../layers/TimelineVideoLayer';
 
+import { calculateSelectionZoomTransform } from '../utils/timelineMath';
+
 interface Transform {
     scale: number;
     offsetX: number;
@@ -179,16 +181,8 @@ export const useTimelineInteraction = ({
 
         // Prevent default to stop text selection or native drag
         if (e.button === 0) {
-            // e.preventDefault(); // CAREFUL: This prevents focus?
-            // Usually fine for canvas.
-        }
-
-        if (e.button === 0) {
             // Prevent text selection/native drag
-            // We use standard DOM event preventDefault if possible, but this is React event.
-            // e.preventDefault(); 
-            // Note: Preventing default on MouseDown prevents input focus blur usually, 
-            // but here we are on a div. It helps stop text selection significantly.
+            // Note: Preventing default on MouseDown helps stop text selection significantly.
 
             const container = containerRef.current;
             if (!container) return;
@@ -285,53 +279,19 @@ export const useTimelineInteraction = ({
                 const width = Math.abs(localX - startX);
                 const height = Math.abs(localY - startY);
 
-                // Ignore tiny accidental selections
-                if (width < 10 || height < 10) return;
+                // Calculate positive width/height rect for logic
+                const x = Math.min(startX, localX);
+                const y = Math.min(startY, localY);
 
-                // Center of Selection (Viewport Space)
-                const selectionCenterX = (startX + localX) / 2;
-                const selectionCenterY = (startY + localY) / 2;
-
-                // Calculate required scale to fit
-                const scaleX = viewportWidth / width;
-                const scaleY = viewportHeight / height;
-                // Use the smaller scale to ensure it fits entirely (contain)
-
-                // Also multiply by current scale? NO.
-                // The selection was drawn on the screen. 
-                // We want that screen region to fill the screen.
-                // Screen -> Scale -> New Screen.
-                // If I select "half the screen", I want to zoom in 2x.
-                // So newScale = currentScale * (viewport / selection)
-                const zoomFactor = Math.min(scaleX, scaleY);
-
-                // Cap the zoom factor per step if desired, but here we want to direct fit.
-                // Apply constraints
-                let targetScale = transformRef.current.scale * zoomFactor;
-                targetScale = Math.max(minScale, Math.min(10, targetScale));
-
-                // Now, we want the Selection Center (currently at selectionCenterX/Y)
-                // to move to the Viewport Center (viewportWidth/2, viewportHeight/2).
-
-                // Convert Selection Center to World Space (using CURRENT transform)
-                const worldCenterX = (selectionCenterX - transformRef.current.offsetX) / transformRef.current.scale;
-                const worldCenterY = (selectionCenterY - transformRef.current.offsetY) / transformRef.current.scale;
-
-                // Calculate New Offset (using NEW target scale)
-                // ViewportCenter = WorldCenter * TargetScale + NewOffset
-                // NewOffset = ViewportCenter - WorldCenter * TargetScale
-                const newOffsetX = (viewportWidth / 2) - (worldCenterX * targetScale);
-                const newOffsetY = (viewportHeight / 2) - (worldCenterY * targetScale);
-
-                // Clamp final result
-                const clamped = clampTransform({
-                    scale: targetScale,
-                    offsetX: newOffsetX,
-                    offsetY: newOffsetY
-                }, viewportWidth, viewportHeight);
+                const newTransform = calculateSelectionZoomTransform(
+                    { x, y, width, height },
+                    { width: viewportWidth, height: viewportHeight },
+                    transformRef.current,
+                    minScale
+                );
 
                 // Animate to it
-                targetTransformRef.current = clamped;
+                targetTransformRef.current = newTransform;
                 startAnimation();
             }
         }
