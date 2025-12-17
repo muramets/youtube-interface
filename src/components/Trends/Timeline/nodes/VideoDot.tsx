@@ -47,18 +47,24 @@ export const VideoDot = memo(({
     const y = yNorm * worldHeight;
     const { color, size: baseSize } = getPercentileStyle(percentileGroup);
 
+    // Minimum screen size for interaction (in world units at scale 1)
+    // This ensures even the smallest dots are clickable when zoomed out
+    const MIN_INTERACTION_SIZE = 12;
+    const effectiveSize = Math.max(baseSize, MIN_INTERACTION_SIZE);
+
     return (
         <div
             className="absolute"
             style={{
                 left: x,
                 top: y,
-                width: baseSize,
-                height: baseSize,
+                width: effectiveSize,
+                height: effectiveSize,
                 // Proportional Scaling with Minimum Visibility Clamp
-                // Above zoom 0.13: Scale is 1 (Natural world size, grows with container)
-                // Below zoom 0.13: Scale increases to maintain approx min visual size
-                transform: `translate(-50%, -50%) scale(max(1, calc(0.13 / var(--timeline-scale, 0.13))))`,
+                // Above zoom 0.20: Scale is 1 (Natural world size)
+                // Below zoom 0.20: Scale increases to maintain min visual size
+                // This makes dots easier to click when fully zoomed out
+                transform: `translate(-50%, -50%) scale(max(1, calc(0.20 / var(--timeline-scale, 0.20))))`,
                 zIndex: isElevated ? 1000 : 10,
                 willChange: 'transform'
             }}
@@ -71,10 +77,15 @@ export const VideoDot = memo(({
             }}
         >
             <div
-                className={`w-full h-full rounded-full cursor-pointer ${color} ${isFocused ? 'shadow-lg shadow-white/30' : 'shadow-sm'}`}
+                className={`rounded-full cursor-pointer ${color} ${isFocused ? 'shadow-lg shadow-white/30' : 'shadow-sm'}`}
                 style={{
-                    // Interaction Scaling (Animated)
-                    transform: isFocused ? 'scale(1.4)' : 'scale(1)',
+                    // Center the visual dot within the larger hitbox
+                    position: 'absolute',
+                    left: '50%',
+                    top: '50%',
+                    transform: `translate(-50%, -50%) ${isFocused ? 'scale(1.4)' : 'scale(1)'}`,
+                    width: baseSize,
+                    height: baseSize,
                     filter: isFocused ? 'brightness(1.2)' : 'brightness(1)',
                     transition: 'transform 200ms ease-out, filter 200ms ease-out, box-shadow 200ms ease-out',
                 }}
