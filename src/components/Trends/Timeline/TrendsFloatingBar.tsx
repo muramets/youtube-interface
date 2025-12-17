@@ -11,6 +11,7 @@ import { useUIStore } from '../../../stores/uiStore';
 import { VideoService } from '../../../services/videoService';
 import { PlaylistService } from '../../../services/playlistService';
 import { useSmartPosition } from './hooks/useSmartPosition';
+import { FloatingNicheItem } from './FloatingNicheItem';
 
 interface TrendsFloatingBarProps {
     video: TrendVideo;
@@ -112,6 +113,7 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
     }, [homeVideos, video.id]);
 
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [activeNicheMenuId, setActiveNicheMenuId] = useState<string | null>(null);
     const [isPlaylistDropdownOpen, setIsPlaylistDropdownOpen] = useState(false);
     const [newNicheName, setNewNicheName] = useState('');
     const [newPlaylistName, setNewPlaylistName] = useState('');
@@ -269,9 +271,26 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
         });
     };
 
+    // Compute last used timestamp for each niche
+    const nicheLastUsed = useMemo(() => {
+        const lastUsed = new Map<string, number>();
+        // Iterate all assignments to find latest addedAt for each niche
+        Object.values(videoNicheAssignments).flat().forEach(assignment => {
+            const current = lastUsed.get(assignment.nicheId) || 0;
+            if (assignment.addedAt > current) {
+                lastUsed.set(assignment.nicheId, assignment.addedAt);
+            }
+        });
+        return lastUsed;
+    }, [videoNicheAssignments]);
+
     const filteredNiches = niches.filter(n => {
         if (!newNicheName) return true;
         return n.name.toLowerCase().includes(newNicheName.toLowerCase());
+    }).sort((a, b) => {
+        const timeA = nicheLastUsed.get(a.id) || 0;
+        const timeB = nicheLastUsed.get(b.id) || 0;
+        return timeB - timeA; // Most recently used first
     });
 
     // Check which playlists contain this video
@@ -396,18 +415,15 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                             {filteredNiches.map(niche => {
                                 const isAssigned = assignedNicheIds.has(niche.id);
                                 return (
-                                    <button
+                                    <FloatingNicheItem
                                         key={niche.id}
-                                        onClick={() => handleNicheToggle(niche.id, isAssigned)}
-                                        className={`w-full text-left px-3 py-2 text-xs hover:bg-white/5 rounded-lg flex items-center gap-2 transition-colors justify-between group ${isAssigned ? 'text-white' : 'text-text-secondary hover:text-white'}`}
-                                    >
-                                        <div className="flex items-center gap-2 truncate">
-                                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: niche.color }} />
-                                            <span className="truncate">{niche.name}</span>
-                                            {niche.type === 'global' && <Globe size={10} className="text-text-tertiary flex-shrink-0" />}
-                                        </div>
-                                        {isAssigned && <Check size={12} className="text-green-400 flex-shrink-0" />}
-                                    </button>
+                                        niche={niche}
+                                        isAssigned={isAssigned}
+                                        isActive={activeNicheMenuId === niche.id}
+                                        onToggle={() => handleNicheToggle(niche.id, isAssigned)}
+                                        onToggleMenu={() => setActiveNicheMenuId(current => current === niche.id ? null : niche.id)}
+                                        onCloseMenu={() => setActiveNicheMenuId(null)}
+                                    />
                                 );
                             })}
                             {filteredNiches.length === 0 && !newNicheName && (
