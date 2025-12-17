@@ -119,36 +119,35 @@ export const useTimelineTransform = ({
         // X-Axis clamping
         let constrainedOffsetX: number;
 
-        // Calculate the safe bounds (with padding)
-        // Upper bound (Leftmost position): Left Padding
-        const maxOffsetX = paddingLeft;
+        // Dynamic Overscroll:
+        // When at minScale (Fit), we want rigid boundaries (overscroll = 0).
+        // Dynamic Overscroll:
+        // Ultra-tight growth: (zoomFactor - 1) * 0.1 * viewportWidth.
+        // Cap at 12% of viewport. This is enough to center small/medium items at edges, 
+        // but prevents large voids.
+        const zoomFactor = t.scale / Math.max(minScale, 0.000001);
+        const dynamicOverscroll = Math.max(0, (zoomFactor - 1) * 0.1 * viewportWidth);
 
-        // Simplification: The math is identical in both cases if we just use Min/Max correctly!
-        // When Small: minOffset (Right Edge) > maxOffset (Left Edge).
-        // We want constraint: between Left(40) and Right(800).
-        // When Large: minOffset (Left Limit) < maxOffset (Left Edge).
+        // Cap overscroll at 12% of viewport
+        const overscrollX = Math.min(viewportWidth * 0.12, dynamicOverscroll);
+
+        // Calculate the safe bounds (with padding + overscroll)
+        // Upper bound (Leftmost position): Left Padding + Overscroll
+        const maxOffsetX = paddingLeft + overscrollX;
 
         const maxScale = Math.max(t.scale, minScale); // Ensure we don't clamp below minScale logic
         const effectiveWorldWidth = worldWidth * maxScale;
 
-        // If content is smaller than viewport (at fit scale or below)
-        if (effectiveWorldWidth <= viewportWidth) {
-            // Align to left padding (not center) - this prevents unwanted panning
-            constrainedOffsetX = paddingLeft;
-        } else {
-            const minOffsetX = viewportWidth - (effectiveWorldWidth + paddingRight);
+        // Lower bound (Rightmost position): Viewport - World - Padding - Overscroll
+        const minOffsetX = viewportWidth - (effectiveWorldWidth + paddingRight) - overscrollX;
 
-            // Bounds:
-            // maxOffsetX = 40.
-            // Range [-1040, 40].
-            // Numerical min = -1040. Numerical max = 40.
+        // Bounds:
+        // We simply clamp between min and max.
+        // Note: minOffsetX will be very negative for large worlds.
+        const lowerBound = Math.min(maxOffsetX, minOffsetX);
+        const upperBound = Math.max(maxOffsetX, minOffsetX);
 
-            // Same logic works: Math.min/max of the two bounds.
-            const lowerBound = Math.min(maxOffsetX, minOffsetX);
-            const upperBound = Math.max(maxOffsetX, minOffsetX);
-
-            constrainedOffsetX = Math.max(lowerBound, Math.min(upperBound, t.offsetX));
-        }
+        constrainedOffsetX = Math.max(lowerBound, Math.min(upperBound, t.offsetX));
 
 
 
@@ -178,8 +177,6 @@ export const useTimelineTransform = ({
         if (videosLength === 0 || viewportSize.width <= 0) return null;
 
         const currentFitScale = (viewportSize.width - totalPadding) / Math.max(1, worldWidth);
-        const contentWidth = worldWidth * currentFitScale;
-        const contentHeight = dynamicWorldHeight * currentFitScale;
 
         // Position content with padding offsets
         const newOffsetX = paddingLeft;
