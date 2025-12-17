@@ -155,7 +155,7 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                 name: newNicheName.trim(),
                 color: newColor,
                 type: isGlobal ? 'global' : 'local',
-                channelId: isGlobal ? undefined : video.channelId
+                channelId: video.channelId // Always save origin channel
             };
 
             addNiche(newNiche);

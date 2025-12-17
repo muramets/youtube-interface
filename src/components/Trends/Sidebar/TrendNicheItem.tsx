@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreVertical, Check } from 'lucide-react';
+import { MoreVertical, Check, Home, Globe } from 'lucide-react';
 import type { TrendNiche } from '../../../types/trends';
 import { useTrendStore, MANUAL_NICHE_PALETTE } from '../../../stores/trendStore';
 
@@ -216,9 +216,28 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                     {/* Context Menu */}
                     {isMenuOpen && (
                         <div
-                            className="absolute right-0 top-6 z-50 bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl animate-fade-in min-w-[100px]"
+                            className="absolute right-0 top-6 z-50 bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl animate-fade-in min-w-[140px]"
                             onClick={(e) => e.stopPropagation()}
                         >
+                            {/* Toggle Global/Local */}
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    const newType = niche.type === 'global' ? 'local' : 'global';
+                                    // Only allow converting to local if we know the channel (origin)
+                                    if (newType === 'local' && !niche.channelId) {
+                                        alert("Cannot convert to local: Origin channel unknown.");
+                                        return;
+                                    }
+                                    updateNiche(niche.id, { type: newType });
+                                    setIsMenuOpen(false);
+                                }}
+                                className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2 whitespace-nowrap"
+                            >
+                                {niche.type === 'global' ? <Home size={10} /> : <Globe size={10} />}
+                                {niche.type === 'global' ? 'Make local' : 'Make global'}
+                            </button>
+                            <div className="h-px bg-white/10 my-1" />
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -230,6 +249,11 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                             >
                                 Rename
                             </button>
+
+
+
+                            <div className="h-px bg-white/10 my-1" />
+
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -246,6 +270,6 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                     )}
                 </div>
             </div>
-        </li>
+        </li >
     );
 };

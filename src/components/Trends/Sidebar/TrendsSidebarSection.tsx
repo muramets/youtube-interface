@@ -2,12 +2,12 @@ import React from 'react';
 import { Plus, TrendingUp, Trash2, RefreshCw } from 'lucide-react';
 import { TrendsChannelItem } from './TrendsChannelItem';
 import { TrendsChannelSkeleton } from './TrendsChannelSkeleton';
+import { CollapsibleNicheList } from './CollapsibleNicheList';
 import { SidebarDivider } from '../../Layout/Sidebar';
 import { Dropdown } from '../../Shared/Dropdown';
 import { ConfirmationModal } from '../../Shared/ConfirmationModal';
 import { useTrendsSidebar } from './hooks/useTrendsSidebar';
 import { useTrendStore } from '../../../stores/trendStore';
-import { TrendNicheItem } from './TrendNicheItem';
 import type { TrendChannel } from '../../../types/trends';
 
 export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded }) => {
@@ -102,16 +102,13 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
 
                         {/* Global Niches */}
                         {globalNiches.length > 0 && (
-                            <ul className="mb-3 space-y-0.5">
-                                {globalNiches.map(niche => (
-                                    <TrendNicheItem
-                                        key={niche.id}
-                                        niche={niche}
-                                        isActive={activeNicheId === niche.id}
-                                        onClick={setActiveNicheId}
-                                    />
-                                ))}
-                            </ul>
+                            <div className="mb-3">
+                                <CollapsibleNicheList
+                                    niches={globalNiches}
+                                    activeNicheId={activeNicheId}
+                                    onNicheClick={setActiveNicheId}
+                                />
+                            </div>
                         )}
 
                         {/* Channel List */}

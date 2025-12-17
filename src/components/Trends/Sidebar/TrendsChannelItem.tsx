@@ -1,7 +1,7 @@
 import React from 'react';
 import { Eye, EyeOff, MoreVertical, ChevronDown, ChevronRight } from 'lucide-react';
 import type { TrendChannel, TrendNiche } from '../../../types/trends';
-import { TrendNicheItem } from './TrendNicheItem';
+import { CollapsibleNicheList } from './CollapsibleNicheList';
 
 interface TrendsChannelItemProps {
     channel: TrendChannel;
@@ -87,16 +87,13 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                 </div>
             </li>
             {isExpanded && niches.length > 0 && (
-                <ul className="space-y-0.5 mb-1">
-                    {niches.map(niche => (
-                        <TrendNicheItem
-                            key={niche.id}
-                            niche={niche}
-                            isActive={activeNicheId === niche.id}
-                            onClick={onNicheClick || (() => { })}
-                        />
-                    ))}
-                </ul>
+                <div className="mb-1">
+                    <CollapsibleNicheList
+                        niches={niches}
+                        activeNicheId={activeNicheId || null}
+                        onNicheClick={(id) => id && onNicheClick?.(id)}
+                    />
+                </div>
             )}
         </React.Fragment>
     );

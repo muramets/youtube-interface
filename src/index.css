@@ -8,6 +8,7 @@
   --bg-secondary: #f9f9f9;
   --text-primary: #0f0f0f;
   --text-secondary: #606060;
+  --text-tertiary: #909090;
   --accent: #ff0000;
   --border: #e5e5e5;
   --hover: #f2f2f2;
@@ -44,6 +45,7 @@
   --bg-secondary: #272727;
   --text-primary: #ffffff;
   --text-secondary: #aaaaaa;
+  --text-tertiary: #666666;
   --accent: #ff0000;
   --border: #3f3f3f;
   --hover: #3f3f3f;
@@ -148,4 +150,14 @@ input:-webkit-autofill:active {
 
 .modal-input::placeholder {
   color: var(--modal-placeholder);
+}
+
+/* Interactive text: gray by default, white on hover */
+.interactive-text {
+  color: var(--text-tertiary);
+  transition: color 150ms ease;
+}
+
+.interactive-text:hover {
+  color: var(--text-primary);
 }

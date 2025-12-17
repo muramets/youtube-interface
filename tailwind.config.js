@@ -12,6 +12,7 @@ export default {
                 'bg-secondary': 'var(--bg-secondary)',
                 'text-primary': 'var(--text-primary)',
                 'text-secondary': 'var(--text-secondary)',
+                'text-tertiary': 'var(--text-tertiary)',
                 'accent': 'var(--accent)',
                 'border': 'var(--border)',
                 'hover': 'var(--hover)',
