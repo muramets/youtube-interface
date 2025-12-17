@@ -41,7 +41,7 @@ interface TrendStore {
     videos: TrendVideo[];
     channels: TrendChannel[];
     niches: TrendNiche[];
-    videoNicheAssignments: Record<string, string>; // videoId -> nicheId assignment overrides
+    videoNicheAssignments: Record<string, { nicheId: string; addedAt: number }[]>; // videoId -> array of niche assignments with timestamps
 
     // UI State
     timelineConfig: TimelineConfig;
@@ -79,7 +79,7 @@ interface TrendStore {
     updateNiche: (id: string, updates: Partial<TrendNiche>) => void;
     deleteNiche: (id: string) => void;
     assignVideoToNiche: (videoId: string, nicheId: string) => void;
-    removeVideoFromNiche: (videoId: string) => void;
+    removeVideoFromNiche: (videoId: string, nicheId: string) => void;
 
     // Helpers
     toggleChannelVisibility: (id: string) => void;
@@ -181,10 +181,11 @@ export const useTrendStore = create<TrendStore>()(
             })),
 
             deleteNiche: (id) => set((state) => {
-                // Also remove assignments for this niche
+                // Also remove this niche from all video assignments
                 const newAssignments = { ...state.videoNicheAssignments };
                 Object.keys(newAssignments).forEach(vid => {
-                    if (newAssignments[vid] === id) {
+                    newAssignments[vid] = newAssignments[vid].filter(a => a.nicheId !== id);
+                    if (newAssignments[vid].length === 0) {
                         delete newAssignments[vid];
                     }
                 });
@@ -194,16 +195,29 @@ export const useTrendStore = create<TrendStore>()(
                 };
             }),
 
-            assignVideoToNiche: (videoId, nicheId) => set((state) => ({
-                videoNicheAssignments: {
-                    ...state.videoNicheAssignments,
-                    [videoId]: nicheId
+            assignVideoToNiche: (videoId, nicheId) => set((state) => {
+                const current = state.videoNicheAssignments[videoId] || [];
+                // Check if already assigned
+                if (current.some(a => a.nicheId === nicheId)) {
+                    return state; // Already assigned, no change
                 }
-            })),
+                return {
+                    videoNicheAssignments: {
+                        ...state.videoNicheAssignments,
+                        [videoId]: [...current, { nicheId, addedAt: Date.now() }]
+                    }
+                };
+            }),
 
-            removeVideoFromNiche: (videoId) => set((state) => {
+            removeVideoFromNiche: (videoId, nicheId) => set((state) => {
+                const current = state.videoNicheAssignments[videoId] || [];
+                const filtered = current.filter(a => a.nicheId !== nicheId);
                 const newAssignments = { ...state.videoNicheAssignments };
-                delete newAssignments[videoId];
+                if (filtered.length === 0) {
+                    delete newAssignments[videoId];
+                } else {
+                    newAssignments[videoId] = filtered;
+                }
                 return { videoNicheAssignments: newAssignments };
             }),
         }),

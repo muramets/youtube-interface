@@ -34,10 +34,15 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
     const nicheViewCounts = React.useMemo(() => {
         const counts = new Map<string, number>();
         videos.forEach(v => {
-            const nicheId = videoNicheAssignments[v.id] || v.nicheId;
-            if (nicheId) {
+            // Get all niche assignments for this video (array-based)
+            const assignments = videoNicheAssignments[v.id] || [];
+            const nicheIds = assignments.length > 0
+                ? assignments.map(a => a.nicheId)
+                : (v.nicheId ? [v.nicheId] : []);
+
+            nicheIds.forEach(nicheId => {
                 counts.set(nicheId, (counts.get(nicheId) || 0) + v.viewCount);
-            }
+            });
         });
         return counts;
     }, [videos, videoNicheAssignments]);

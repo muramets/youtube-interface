@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { FolderPlus, Plus, X, ChevronDown, Check, Trash2, Globe, Home, ListVideo } from 'lucide-react';
+import { FolderPlus, Plus, X, ChevronDown, Check, Globe, Home, ListVideo } from 'lucide-react';
 import type { TrendNiche, TrendVideo } from '../../../types/trends';
 import { useTrendStore, generateNicheColor } from '../../../stores/trendStore';
 import { useAuth } from '../../../hooks/useAuth';
@@ -78,9 +78,33 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
     const { videos: homeVideos } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { showToast } = useUIStore();
 
-    // Resolve assigned niche
-    const assignedNicheId = videoNicheAssignments[video.id];
-    const assignedNiche = niches.find(n => n.id === assignedNicheId);
+    // Resolve assigned niches (now array-based)
+    const videoAssignments = videoNicheAssignments[video.id] || [];
+    const assignedNicheIds = new Set(videoAssignments.map(a => a.nicheId));
+
+    // Find display niche: highest view count, or earliest added if tied
+    const displayNiche = useMemo(() => {
+        if (videoAssignments.length === 0) return null;
+
+        // Get niches with their view counts
+        const nichesWithStats = videoAssignments
+            .map(a => {
+                const niche = niches.find(n => n.id === a.nicheId);
+                return niche ? { niche, addedAt: a.addedAt } : null;
+            })
+            .filter((n): n is { niche: typeof niches[0], addedAt: number } => n !== null);
+
+        if (nichesWithStats.length === 0) return null;
+
+        // Sort by viewCount desc, then by addedAt asc (earliest first)
+        nichesWithStats.sort((a, b) => {
+            const viewDiff = (b.niche.viewCount || 0) - (a.niche.viewCount || 0);
+            if (viewDiff !== 0) return viewDiff;
+            return a.addedAt - b.addedAt; // Earlier added first
+        });
+
+        return nichesWithStats[0].niche;
+    }, [videoAssignments, niches]);
 
     // Check if video is already in home
     const isAddedToHome = useMemo(() => {
@@ -139,6 +163,14 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
 
             setNewNicheName('');
             setIsDropdownOpen(false);
+        }
+    };
+
+    const handleNicheToggle = (nicheId: string, isAssigned: boolean) => {
+        if (isAssigned) {
+            removeVideoFromNiche(video.id, nicheId);
+        } else {
+            assignVideoToNiche(video.id, nicheId);
         }
     };
 
@@ -279,15 +311,18 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                     }}
                     className={`
                         flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap
-                        ${assignedNiche ? 'bg-white/10 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}
+                        ${displayNiche ? 'bg-white/10 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}
                         ${isDropdownOpen ? 'ring-1 ring-white/30' : ''}
                     `}
-                    style={{ backgroundColor: assignedNiche?.color ? `${assignedNiche.color}20` : undefined }}
+                    style={{ backgroundColor: displayNiche?.color ? `${displayNiche.color}20` : undefined }}
                 >
-                    {assignedNiche ? (
+                    {displayNiche ? (
                         <>
-                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: assignedNiche.color }} />
-                            <span className="truncate max-w-[120px]">{assignedNiche.name}</span>
+                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: displayNiche.color }} />
+                            <span className="truncate max-w-[120px]">{displayNiche.name}</span>
+                            {assignedNicheIds.size > 1 && (
+                                <span className="text-[10px] text-text-secondary">+{assignedNicheIds.size - 1}</span>
+                            )}
                         </>
                     ) : (
                         <>
@@ -319,31 +354,38 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                                     <Plus size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary" />
                                 </div>
                                 {newNicheName && (
-                                    <div className="flex items-center justify-between px-1">
-                                        <div className="flex items-center gap-2">
+                                    <div className="flex items-center justify-between px-1 gap-3">
+                                        {/* Premium Sliding Pill Toggle */}
+                                        <div className="relative flex bg-white/5 rounded-full p-0.5 border border-white/10 backdrop-blur-sm">
+                                            {/* Sliding Indicator */}
+                                            <div
+                                                className="absolute top-0.5 h-[calc(100%-4px)] w-[calc(50%-2px)] bg-gradient-to-r from-white/25 to-white/15 rounded-full transition-all duration-300 ease-out shadow-sm"
+                                                style={{
+                                                    left: isGlobal ? 'calc(50% + 1px)' : '2px',
+                                                }}
+                                            />
                                             <button
                                                 type="button"
                                                 onClick={() => setIsGlobal(false)}
-                                                className={`text-[10px] px-2 py-1 rounded transition-colors ${!isGlobal ? 'bg-white/20 text-white' : 'text-text-secondary hover:text-white'}`}
+                                                className={`relative z-10 flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full transition-all duration-200 ${!isGlobal ? 'text-white font-medium' : 'text-text-secondary hover:text-white/70'}`}
                                             >
-                                                Local
+                                                <Home size={9} className="flex-shrink-0" />
+                                                <span>Local</span>
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setIsGlobal(true)}
-                                                className={`text-[10px] px-2 py-1 rounded transition-colors ${isGlobal ? 'bg-white/20 text-white' : 'text-text-secondary hover:text-white'}`}
+                                                className={`relative z-10 flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full transition-all duration-200 ${isGlobal ? 'text-white font-medium' : 'text-text-secondary hover:text-white/70'}`}
                                             >
-                                                <div className="flex items-center gap-1">
-                                                    <Globe size={10} />
-                                                    Global
-                                                </div>
+                                                <Globe size={9} className="flex-shrink-0" />
+                                                <span>Global</span>
                                             </button>
                                         </div>
                                         <button
                                             type="submit"
-                                            className="text-[10px] font-medium text-blue-400 hover:text-blue-300 transition-colors"
+                                            className="text-[10px] font-medium px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 hover:text-blue-300 transition-all border border-blue-500/20"
                                         >
-                                            Create "{newNicheName}"
+                                            Create
                                         </button>
                                     </div>
                                 )}
@@ -351,25 +393,23 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                         </div>
                         {/* List */}
                         <div className="overflow-y-auto custom-scrollbar p-1 flex-1">
-                            {filteredNiches.map(niche => (
-                                <button
-                                    key={niche.id}
-                                    onClick={() => {
-                                        if (assignedNicheId !== niche.id) {
-                                            assignVideoToNiche(video.id, niche.id);
-                                        }
-                                        setIsDropdownOpen(false);
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-xs text-text-secondary hover:text-white hover:bg-white/5 rounded-lg flex items-center gap-2 transition-colors justify-between group"
-                                >
-                                    <div className="flex items-center gap-2 truncate">
-                                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: niche.color }} />
-                                        <span className="truncate">{niche.name}</span>
-                                        {niche.type === 'global' && <Globe size={10} className="text-text-tertiary" />}
-                                    </div>
-                                    {assignedNicheId === niche.id && <Check size={12} className="text-white flex-shrink-0" />}
-                                </button>
-                            ))}
+                            {filteredNiches.map(niche => {
+                                const isAssigned = assignedNicheIds.has(niche.id);
+                                return (
+                                    <button
+                                        key={niche.id}
+                                        onClick={() => handleNicheToggle(niche.id, isAssigned)}
+                                        className={`w-full text-left px-3 py-2 text-xs hover:bg-white/5 rounded-lg flex items-center gap-2 transition-colors justify-between group ${isAssigned ? 'text-white' : 'text-text-secondary hover:text-white'}`}
+                                    >
+                                        <div className="flex items-center gap-2 truncate">
+                                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: niche.color }} />
+                                            <span className="truncate">{niche.name}</span>
+                                            {niche.type === 'global' && <Globe size={10} className="text-text-tertiary flex-shrink-0" />}
+                                        </div>
+                                        {isAssigned && <Check size={12} className="text-green-400 flex-shrink-0" />}
+                                    </button>
+                                );
+                            })}
                             {filteredNiches.length === 0 && !newNicheName && (
                                 <div className="text-center py-3 text-xs text-text-tertiary">No niches found</div>
                             )}
@@ -386,8 +426,8 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                     onClick={handleHomeToggle}
                     disabled={isProcessing}
                     className={`relative p-1.5 rounded-full transition-all ${isAddedToHome
-                            ? 'text-white hover:bg-red-500/20 hover:text-red-300'
-                            : 'text-text-secondary hover:text-white hover:bg-white/10'
+                        ? 'text-white hover:bg-red-500/20 hover:text-red-300'
+                        : 'text-text-secondary hover:text-white hover:bg-white/10'
                         } ${isProcessing ? 'opacity-50' : ''}`}
                     title={isAddedToHome ? 'Remove from Home' : 'Add to Home'}
                 >
@@ -462,16 +502,7 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                 </div>
             </div>
 
-            {assignedNicheId && (
-                <button
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={() => removeVideoFromNiche(video.id)}
-                    className="p-1.5 text-text-secondary hover:text-red-400 hover:bg-red-500/10 rounded-full transition-colors ml-1"
-                    title="Remove from niche"
-                >
-                    <Trash2 size={14} />
-                </button>
-            )}
+
         </div>
     );
 };
