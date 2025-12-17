@@ -19,6 +19,7 @@ interface VideoNodeProps {
     onMouseEnter: (e: React.MouseEvent, vid: TrendVideo) => void;
     onMouseLeave: () => void;
     onDoubleClick: (video: TrendVideo, worldX: number, worldY: number) => void;
+    onClick: (e: React.MouseEvent) => void;
 }
 
 export const VideoNode = memo(({
@@ -30,7 +31,8 @@ export const VideoNode = memo(({
     showLabel,
     onMouseEnter,
     onMouseLeave,
-    onDoubleClick
+    onDoubleClick,
+    onClick
 }: VideoNodeProps) => {
     const { video, xNorm, yNorm, baseSize } = position;
     const x = xNorm * worldWidth;
@@ -58,6 +60,7 @@ export const VideoNode = memo(({
             }}
             onMouseDown={(e) => e.stopPropagation()}
             onMouseEnter={(e) => onMouseEnter(e, video)}
+            onClick={onClick}
             onMouseLeave={onMouseLeave}
             onDoubleClick={(e) => {
                 e.stopPropagation();

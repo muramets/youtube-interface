@@ -11,6 +11,7 @@ interface VideoDotProps {
     onMouseEnter: (e: React.MouseEvent, vid: TrendVideo) => void;
     onMouseLeave: () => void;
     onDoubleClick: (video: TrendVideo, worldX: number, worldY: number) => void;
+    onClick: (e: React.MouseEvent) => void;
 }
 
 // Helper for percentile styles
@@ -40,7 +41,8 @@ export const VideoDot = memo(({
     isElevated,
     onMouseEnter,
     onMouseLeave,
-    onDoubleClick
+    onDoubleClick,
+    onClick
 }: VideoDotProps) => {
     const { video, xNorm, yNorm } = position;
     const x = xNorm * worldWidth;
@@ -70,6 +72,7 @@ export const VideoDot = memo(({
             }}
             onMouseDown={(e) => e.stopPropagation()}
             onMouseEnter={(e) => onMouseEnter(e, video)}
+            onClick={onClick}
             onMouseLeave={onMouseLeave}
             onDoubleClick={(e) => {
                 e.stopPropagation();

@@ -6,6 +6,8 @@ import { SidebarDivider } from '../../Layout/Sidebar';
 import { Dropdown } from '../../Shared/Dropdown';
 import { ConfirmationModal } from '../../Shared/ConfirmationModal';
 import { useTrendsSidebar } from './hooks/useTrendsSidebar';
+import { useTrendStore } from '../../../stores/trendStore';
+import { TrendNicheItem } from './TrendNicheItem';
 import type { TrendChannel } from '../../../types/trends';
 
 export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded }) => {
@@ -25,6 +27,11 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
         handleRemoveChannel,
         handleSyncChannel
     } = useTrendsSidebar();
+
+    const { niches, activeNicheId, setActiveNicheId } = useTrendStore();
+
+    const globalNiches = niches.filter(n => n.type === 'global');
+    const getLocalNiches = (channelId: string) => niches.filter(n => n.type === 'local' && n.channelId === channelId);
 
     return (
         <>
@@ -71,6 +78,20 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                             </div>
                         </div>
 
+                        {/* Global Niches */}
+                        {globalNiches.length > 0 && (
+                            <ul className="mb-3 space-y-0.5">
+                                {globalNiches.map(niche => (
+                                    <TrendNicheItem
+                                        key={niche.id}
+                                        niche={niche}
+                                        isActive={activeNicheId === niche.id}
+                                        onClick={setActiveNicheId}
+                                    />
+                                ))}
+                            </ul>
+                        )}
+
                         {/* Channel List */}
                         {isLoadingChannels ? (
                             <TrendsChannelSkeleton />
@@ -88,6 +109,9 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                                         onChannelClick={handleChannelClick}
                                         onToggleVisibility={handleToggleVisibility}
                                         onOpenMenu={(e, channelId) => setMenuState({ anchorEl: e.currentTarget as HTMLElement, channelId })}
+                                        niches={getLocalNiches(channel.id)}
+                                        activeNicheId={activeNicheId}
+                                        onNicheClick={setActiveNicheId}
                                     />
                                 ))}
                             </ul>

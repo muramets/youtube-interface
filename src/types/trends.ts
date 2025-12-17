@@ -9,7 +9,7 @@ export interface TrendNiche {
     color: string;
     type: 'global' | 'local'; // Global = available for all channels, Local = specific to a channel
     channelId?: string; // If local
-    hitCriteria: HitCriteria;
+    viewCount?: number; // Cached total view count
     createdAt: number;
 }
 

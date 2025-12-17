@@ -40,6 +40,7 @@ interface TrendStore {
     // Data
     channels: TrendChannel[];
     niches: TrendNiche[];
+    videoNicheAssignments: Record<string, string>; // videoId -> nicheId assignment overrides
 
     // UI State
     timelineConfig: TimelineConfig;
@@ -71,6 +72,13 @@ interface TrendStore {
     removeTrendsFilter: (id: string) => void;
     clearTrendsFilters: () => void;
 
+    // Niche Actions
+    addNiche: (niche: Omit<TrendNiche, 'createdAt' | 'viewCount'>) => void;
+    updateNiche: (id: string, updates: Partial<TrendNiche>) => void;
+    deleteNiche: (id: string) => void;
+    assignVideoToNiche: (videoId: string, nicheId: string) => void;
+    removeVideoFromNiche: (videoId: string) => void;
+
     // Helpers
     toggleChannelVisibility: (id: string) => void;
 }
@@ -80,6 +88,7 @@ export const useTrendStore = create<TrendStore>()(
         (set) => ({
             channels: [],
             niches: [],
+            videoNicheAssignments: {},
 
             timelineConfig: { ...DEFAULT_TIMELINE_CONFIG },
             filterMode: 'global', // Default to global Scaling
@@ -151,15 +160,83 @@ export const useTrendStore = create<TrendStore>()(
                 channels: state.channels.map(c =>
                     c.id === id ? { ...c, isVisible: !c.isVisible } : c
                 )
-            }))
+            })),
+
+            // Niche Actions
+            addNiche: (niche) => set((state) => ({
+                niches: [...state.niches, {
+                    ...niche,
+                    viewCount: 0,
+                    createdAt: Date.now()
+                }]
+            })),
+
+            updateNiche: (id, updates) => set((state) => ({
+                niches: state.niches.map(n => n.id === id ? { ...n, ...updates } : n)
+            })),
+
+            deleteNiche: (id) => set((state) => {
+                // Also remove assignments for this niche
+                const newAssignments = { ...state.videoNicheAssignments };
+                Object.keys(newAssignments).forEach(vid => {
+                    if (newAssignments[vid] === id) {
+                        delete newAssignments[vid];
+                    }
+                });
+                return {
+                    niches: state.niches.filter(n => n.id !== id),
+                    videoNicheAssignments: newAssignments
+                };
+            }),
+
+            assignVideoToNiche: (videoId, nicheId) => set((state) => ({
+                videoNicheAssignments: {
+                    ...state.videoNicheAssignments,
+                    [videoId]: nicheId
+                }
+            })),
+
+            removeVideoFromNiche: (videoId) => set((state) => {
+                const newAssignments = { ...state.videoNicheAssignments };
+                delete newAssignments[videoId];
+                return { videoNicheAssignments: newAssignments };
+            }),
         }),
         {
             name: 'trend-store',
             partialize: (state) => ({
                 timelineConfig: state.timelineConfig,
                 savedConfigs: state.savedConfigs,
-                selectedChannelId: state.selectedChannelId
+                selectedChannelId: state.selectedChannelId,
+                niches: state.niches,
+                videoNicheAssignments: state.videoNicheAssignments
             }),
         }
     )
 );
+
+// Helper to generate premium colors
+export const generateNicheColor = (existingColors: string[]): string => {
+    const PREMIUM_PALETTE = [
+        '#6366F1', // Indigo
+        '#8B5CF6', // Violet
+        '#EC4899', // Pink
+        '#F43F5E', // Rose
+        '#F97316', // Orange
+        '#F59E0B', // Amber
+        '#10B981', // Emerald
+        '#06B6D4', // Cyan
+        '#3B82F6', // Blue
+        '#A855F7', // Purple
+    ];
+
+    // Simple round-robin or random avoiding recent
+    const lastColor = existingColors[existingColors.length - 1];
+    let candidate = PREMIUM_PALETTE[existingColors.length % PREMIUM_PALETTE.length];
+
+    if (candidate === lastColor) {
+        candidate = PREMIUM_PALETTE[(existingColors.length + 1) % PREMIUM_PALETTE.length];
+    }
+
+    return candidate;
+};

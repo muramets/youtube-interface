@@ -1,6 +1,7 @@
 import React from 'react';
-import { Eye, EyeOff, MoreVertical } from 'lucide-react';
-import type { TrendChannel } from '../../../types/trends';
+import { Eye, EyeOff, MoreVertical, ChevronDown, ChevronRight } from 'lucide-react';
+import type { TrendChannel, TrendNiche } from '../../../types/trends';
+import { TrendNicheItem } from './TrendNicheItem';
 
 interface TrendsChannelItemProps {
     channel: TrendChannel;
@@ -8,6 +9,9 @@ interface TrendsChannelItemProps {
     onChannelClick: (id: string) => void;
     onToggleVisibility: (e: React.MouseEvent, id: string, isVisible: boolean) => void;
     onOpenMenu: (e: React.MouseEvent, channelId: string) => void;
+    niches?: TrendNiche[];
+    activeNicheId?: string | null;
+    onNicheClick?: (id: string) => void;
 }
 
 export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
@@ -15,52 +19,85 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
     isActive,
     onChannelClick,
     onToggleVisibility,
-    onOpenMenu
+    onOpenMenu,
+    niches = [],
+    activeNicheId,
+    onNicheClick
 }) => {
+    const [isExpanded, setIsExpanded] = React.useState(true); // Default expanded if it has niches?
+
     return (
-        <li
-            onClick={() => onChannelClick(channel.id)}
-            className={`flex items-center group cursor-pointer p-2 rounded-lg transition-all duration-200 ${isActive
-                ? 'bg-white/10'
-                : 'hover:bg-white/5'
-                }`}
-        >
-            <img
-                src={channel.avatarUrl}
-                alt={channel.title}
-                referrerPolicy="no-referrer"
-                className={`w-6 h-6 rounded-full mr-3 ring-2 transition-all ${!channel.isVisible ? 'grayscale opacity-50' : ''
-                    } ${isActive ? 'ring-white/30' : 'ring-transparent'}`}
-            />
-            <span className={`text-sm truncate flex-1 transition-colors ${isActive ? 'text-text-primary font-medium' : 'text-text-secondary'
-                }`}>
-                {channel.title}
-            </span>
-            <div className={`flex items-center gap-1 transition-opacity ${!channel.isVisible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onToggleVisibility(e, channel.id, channel.isVisible);
-                    }}
-                    className={`p-1.5 rounded-full transition-all ${channel.isVisible
-                        ? 'text-text-secondary hover:text-text-primary hover:bg-white/10'
-                        : 'text-text-tertiary bg-white/5 hover:bg-white/10'
-                        }`}
-                    title={channel.isVisible ? "Hide channel" : "Show channel"}
-                >
-                    {channel.isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
-                </button>
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenMenu(e, channel.id);
-                    }}
-                    className="p-1 text-text-secondary hover:text-white hover:bg-white/10 rounded-full transition-colors"
-                    title="More options"
-                >
-                    <MoreVertical size={14} />
-                </button>
-            </div>
-        </li>
+        <React.Fragment>
+            <li
+                onClick={() => onChannelClick(channel.id)}
+                className={`flex items-center group cursor-pointer p-2 rounded-lg transition-all duration-200 ${isActive
+                    ? 'bg-white/10'
+                    : 'hover:bg-white/5'
+                    }`}
+            >
+                <img
+                    src={channel.avatarUrl}
+                    alt={channel.title}
+                    referrerPolicy="no-referrer"
+                    className={`w-6 h-6 rounded-full mr-3 ring-2 transition-all ${!channel.isVisible ? 'grayscale opacity-50' : ''
+                        } ${isActive ? 'ring-white/30' : 'ring-transparent'}`}
+                />
+
+                {/* Expand Toggle */}
+                {niches.length > 0 && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setIsExpanded(!isExpanded);
+                        }}
+                        className="p-0.5 mr-1 text-text-tertiary hover:text-white transition-colors"
+                    >
+                        {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                    </button>
+                )}
+
+                <span className={`text-sm truncate flex-1 transition-colors ${isActive ? 'text-text-primary font-medium' : 'text-text-secondary'
+                    }`}>
+                    {channel.title}
+                </span>
+                <div className={`flex items-center gap-1 transition-opacity ${!channel.isVisible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleVisibility(e, channel.id, channel.isVisible);
+                        }}
+                        className={`p-1.5 rounded-full transition-all ${channel.isVisible
+                            ? 'text-text-secondary hover:text-text-primary hover:bg-white/10'
+                            : 'text-text-tertiary bg-white/5 hover:bg-white/10'
+                            }`}
+                        title={channel.isVisible ? "Hide channel" : "Show channel"}
+                    >
+                        {channel.isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
+                    </button>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenMenu(e, channel.id);
+                        }}
+                        className="p-1 text-text-secondary hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                        title="More options"
+                    >
+                        <MoreVertical size={14} />
+                    </button>
+                </div>
+            </li>
+            {isExpanded && niches.length > 0 && (
+                <ul className="space-y-0.5 mb-1">
+                    {niches.map(niche => (
+                        <TrendNicheItem
+                            key={niche.id}
+                            niche={niche}
+                            isActive={activeNicheId === niche.id}
+                            onClick={onNicheClick || (() => { })}
+                        />
+                    ))}
+                </ul>
+            )}
+        </React.Fragment>
     );
 };

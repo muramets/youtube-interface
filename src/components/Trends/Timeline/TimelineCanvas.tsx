@@ -23,6 +23,8 @@ import { useTimelineHotkeys } from './hooks/useTimelineHotkeys';
 const HEADER_HEIGHT = 48;
 const PADDING = 40;
 
+import { TrendsFloatingBar } from './TrendsFloatingBar';
+
 interface TimelineCanvasProps {
     videos: TrendVideo[];
     isLoading?: boolean;
@@ -143,6 +145,26 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     const [hoveredVideo, setHoveredVideo] = useState<{ video: TrendVideo; x: number; y: number; width: number; height: number } | null>(null);
     const isTooltipHoveredRef = useRef(false);
     const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null); // For handling single vs double click
+
+    // Selected Video for Floating Bar
+    const [selectedVideoState, setSelectedVideoState] = useState<{ video: TrendVideo; x: number; y: number } | null>(null);
+
+    const floatingBarPosition = React.useMemo(() => {
+        if (!selectedVideoState) return { x: 0, y: 0 };
+        return {
+            x: selectedVideoState.x,
+            y: selectedVideoState.y
+        };
+    }, [selectedVideoState?.x, selectedVideoState?.y]);
+
+    // Tooltip State (hovered video)
+
+    // Background Interaction:
+    // We handle single click on background to clear selection.
+    // Note: `handleSmoothFit` is used for `onDoubleClick` on container.
+    // Note: `handleSmoothFit` is used for `onDoubleClick` on container. 
+    // We need a separate `onClick` for container that checks if target is background.
 
     // Smart Focus Logic (Extracted)
     const {
@@ -247,6 +269,11 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
             onMouseUp={interaction.handleMouseUp}
             onMouseLeave={interaction.handleMouseUp}
             onDoubleClick={handleSmoothFit} // Double click empty space to fit
+            onClick={(e) => {
+                if (e.target === containerRef.current) {
+                    setSelectedVideoState(null);
+                }
+            }}
         >
             {/* Subtle Vertical Gradient Overlay */}
             <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-text-primary/[0.02] to-transparent" />
@@ -290,9 +317,35 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                     }
                 }}
                 onDoubleClickVideo={(_video, worldX, worldY) => {
+                    // Clear any pending single click action
+                    if (clickTimeoutRef.current) {
+                        clearTimeout(clickTimeoutRef.current);
+                        clickTimeoutRef.current = null;
+                    }
+
                     closeTooltipSmoothly(); // Close tooltip on zoom in
                     // Smoothly animate to center the video
                     interaction.zoomToPoint(worldX, worldY, 1.0); // 1.0 = 100% scale
+                }}
+                onClickVideo={(video, clientX, clientY) => {
+                    // Debounce single click to allow double click to happen first
+                    if (clickTimeoutRef.current) {
+                        clearTimeout(clickTimeoutRef.current);
+                    }
+
+                    clickTimeoutRef.current = setTimeout(() => {
+                        // Toggle logic: If clicking the same video, close it.
+                        if (selectedVideoState?.video.id === video.id) {
+                            setSelectedVideoState(null);
+                        } else {
+                            setSelectedVideoState({
+                                video,
+                                x: clientX,
+                                y: clientY
+                            });
+                        }
+                        clickTimeoutRef.current = null;
+                    }, 250); // 250ms wait for potential double click
                 }}
             />
 
@@ -343,7 +396,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                 isLoading={isLoading}
             />
 
-            {hoveredVideo && (
+            {/* Hide tooltip when floating bar is visible to avoid z-index artifact */}
+            {hoveredVideo && !selectedVideoState && (
                 <TrendTooltip
                     key={hoveredVideo.video.id}
                     video={hoveredVideo.video}
@@ -365,6 +419,13 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                         setHoveredVideo(null);
                     }}
                     percentileGroup={getPercentileGroup(hoveredVideo.video.id)}
+                />
+            )}
+            {selectedVideoState && (
+                <TrendsFloatingBar
+                    video={selectedVideoState.video}
+                    position={floatingBarPosition}
+                    onClose={() => setSelectedVideoState(null)}
                 />
             )}
         </div>

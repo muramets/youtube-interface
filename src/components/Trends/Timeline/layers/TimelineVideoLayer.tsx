@@ -11,6 +11,7 @@ interface TimelineVideoLayerProps {
     worldHeight: number;
     onHoverVideo: (data: { video: TrendVideo; x: number; y: number; width: number; height: number } | null) => void;
     onDoubleClickVideo: (video: TrendVideo, worldX: number, worldY: number) => void;
+    onClickVideo: (video: TrendVideo, clientX: number, clientY: number) => void;
     setAddChannelModalOpen: (isOpen: boolean) => void;
     getPercentileGroup: (videoId: string) => string | undefined;
     style?: React.CSSProperties;
@@ -35,6 +36,7 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
     setAddChannelModalOpen,
     onHoverVideo,
     onDoubleClickVideo,
+    onClickVideo,
     isLoading = false
 }, ref) => {
 
@@ -134,6 +136,10 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
                             onMouseEnter={handleMouseEnter}
                             onMouseLeave={handleMouseLeave}
                             onDoubleClick={onDoubleClickVideo}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onClickVideo(position.video, e.clientX, e.clientY);
+                            }}
                         />
                     ))
                 ) : (
@@ -149,6 +155,10 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
                             onMouseEnter={handleMouseEnter}
                             onMouseLeave={handleMouseLeave}
                             onDoubleClick={onDoubleClickVideo}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onClickVideo(position.video, e.clientX, e.clientY);
+                            }}
                         />
                     ))
                 ))}
