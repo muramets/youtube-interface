@@ -32,16 +32,18 @@ export const useTimelineStructure = ({
         // 1. Version Change triggers update (Always)
         if (prev.version !== next.version) return true;
 
-        // 2. If strictly frozen and already initialized, REJECT all other updates
-        if (isFrozen && hasInitializedRef.current) return false;
-
-        // 3. Fallback to standard dependency check
+        // 2. Check dependencies FIRST - certain changes like timeLinearity should always update
         const prevDeps = prev.dependencies;
         const nextDeps = next.dependencies;
         if (prevDeps.length !== nextDeps.length) return true;
         for (let i = 0; i < prevDeps.length; i++) {
             if (prevDeps[i] !== nextDeps[i]) return true;
         }
+
+        // 3. If strictly frozen and already initialized, reject non-dependency updates
+        // (This check comes AFTER dependency check to ensure slider controls work)
+        if (isFrozen && hasInitializedRef.current) return false;
+
         return false;
     }, [isFrozen]);
 
