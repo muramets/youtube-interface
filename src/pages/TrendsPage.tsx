@@ -157,6 +157,8 @@ export const TrendsPage: React.FC = () => {
                 timelineConfig={timelineConfig}
                 setTimelineConfig={setTimelineConfig}
                 isLoading={isLoading || channels.length === 0}
+                availableMinDate={globalStats?.minDate}
+                availableMaxDate={globalStats?.maxDate}
             />
 
             {/* Timeline Area (pass filtered videos) */}

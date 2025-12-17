@@ -13,6 +13,8 @@ interface TrendsHeaderProps {
     timelineConfig: TimelineConfig;
     setTimelineConfig: (config: Partial<TimelineConfig>) => void;
     isLoading: boolean;
+    availableMinDate?: number;
+    availableMaxDate?: number;
 }
 
 export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
@@ -22,7 +24,9 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
     showChannelCount = true,
     timelineConfig,
     setTimelineConfig,
-    isLoading
+    isLoading,
+    availableMinDate,
+    availableMaxDate
 }) => {
     return (
         <div className="h-14 border-b border-border flex items-center px-4 justify-between flex-shrink-0 bg-bg-primary sticky top-0 z-sticky">
@@ -42,7 +46,7 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
                 />
                 {/* Icons aligned with main header (gap-2) */}
                 <div className="flex items-center gap-2 mr-2">
-                    <TrendsFilterButton />
+                    <TrendsFilterButton availableMinDate={availableMinDate} availableMaxDate={availableMaxDate} />
                     <TrendsSettings timelineConfig={timelineConfig} setTimelineConfig={setTimelineConfig} />
                 </div>
             </div>

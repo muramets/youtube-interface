@@ -9,7 +9,12 @@ import type { FilterOperator } from '../../../stores/filterStore';
 
 type TrendsFilterType = 'date' | 'views' | 'percentile';
 
-export const TrendsFilterButton: React.FC = () => {
+interface TrendsFilterButtonProps {
+    availableMinDate?: number;
+    availableMaxDate?: number;
+}
+
+export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availableMinDate, availableMaxDate }) => {
     const [isOpen, setIsOpen] = useState(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -219,17 +224,35 @@ export const TrendsFilterButton: React.FC = () => {
                                         />
                                     );
                                 })()}
-                                {activeView === 'date' && (
-                                    <FilterInputDate
-                                        onApply={(start, end) => {
-                                            const startStr = new Date(start).toLocaleDateString();
-                                            const endStr = new Date(end).toLocaleDateString();
-                                            const label = start === end ? `Date: ${startStr}` : `Date: ${startStr} - ${endStr}`;
-                                            handleAddFilter('date', 'between', [start, end], label);
-                                        }}
-                                        onClose={() => setIsOpen(false)}
-                                    />
-                                )}
+                                {activeView === 'date' && (() => {
+                                    const existingFilter = trendsFilters.find(f => f.type === 'date');
+                                    const initialVal = existingFilter?.value; // [start, end]
+
+                                    return (
+                                        <FilterInputDate
+                                            availableMinDate={availableMinDate}
+                                            availableMaxDate={availableMaxDate}
+                                            initialStartDate={initialVal ? initialVal[0] : undefined}
+                                            initialEndDate={initialVal ? initialVal[1] : undefined}
+                                            onApply={(start, end) => {
+                                                if (existingFilter) {
+                                                    removeTrendsFilter(existingFilter.id);
+                                                }
+                                                const startStr = new Date(start).toLocaleDateString();
+                                                const endStr = new Date(end).toLocaleDateString();
+                                                const label = start === end ? `Date: ${startStr}` : `Date: ${startStr} - ${endStr}`;
+                                                handleAddFilter('date', 'between', [start, end], label);
+                                            }}
+                                            onRemove={() => {
+                                                if (existingFilter) {
+                                                    removeTrendsFilter(existingFilter.id);
+                                                    setIsOpen(false);
+                                                }
+                                            }}
+                                            onClose={() => setIsOpen(false)}
+                                        />
+                                    );
+                                })()}
                                 {activeView === 'percentile' && (
                                     <FilterInputPercentile
                                         initialExcluded={trendsFilters.find(f => f.type === 'percentile')?.value || []}
