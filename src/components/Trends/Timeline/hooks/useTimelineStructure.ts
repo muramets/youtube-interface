@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useCallback } from 'react';
 import type { TrendVideo, MonthRegion, YearMarker, TimelineStats, MonthLayout } from '../../../../types/trends';
 import { useFrozenValue } from './useFrozenValue';
 
@@ -10,14 +10,40 @@ interface UseTimelineStructureProps {
     timeLinearity?: number;
     structureVersion?: number;
     stats?: TimelineStats;
+    isFrozen?: boolean;
 }
 
 export const useTimelineStructure = ({
     videos,
     timeLinearity = 1.0, // Default to Density (1.0)
     structureVersion = 0, // Version to force structure recalculation
-    stats: forcedStatsOverride // Optional forced stats
+    stats: forcedStatsOverride, // Optional forced stats
+    isFrozen = false // Strict freeze flag
 }: UseTimelineStructureProps) => {
+
+    // Trace initialization
+    const hasInitializedRef = useRef(false);
+    if (videos.length > 0) {
+        hasInitializedRef.current = true;
+    }
+
+    // Custom update logic for strict freezing
+    const shouldStrictUpdate = useCallback((prev: any, next: any) => {
+        // 1. Version Change triggers update (Always)
+        if (prev.version !== next.version) return true;
+
+        // 2. If strictly frozen and already initialized, REJECT all other updates
+        if (isFrozen && hasInitializedRef.current) return false;
+
+        // 3. Fallback to standard dependency check
+        const prevDeps = prev.dependencies;
+        const nextDeps = next.dependencies;
+        if (prevDeps.length !== nextDeps.length) return true;
+        for (let i = 0; i < prevDeps.length; i++) {
+            if (prevDeps[i] !== nextDeps[i]) return true;
+        }
+        return false;
+    }, [isFrozen]);
 
     // 1. Calculate Stats (Memoized)
     const currentStats = useMemo((): TimelineStats => {
@@ -37,11 +63,11 @@ export const useTimelineStructure = ({
     const calculatedEffectiveStats = forcedStatsOverride || currentStats;
 
     // Freeze Stats
-    // Updates if structureVersion changes OR if we transition from empty to having videos
     const effectiveStats = useFrozenValue({
         value: calculatedEffectiveStats,
         version: structureVersion,
-        dependencies: [videos.length > 0]
+        dependencies: [videos.length > 0],
+        shouldUpdate: shouldStrictUpdate
     });
 
     // 2. Density Analysis (Independent of time linearity)
@@ -94,11 +120,11 @@ export const useTimelineStructure = ({
     }, [videos, timeLinearity, effectiveStats, densityStats]);
 
     // Freeze World Width
-    // Updates if version changes, linearity changes, or data presence changes
     const worldWidth = useFrozenValue({
         value: currentWorldWidth,
         version: structureVersion,
-        dependencies: [timeLinearity, videos.length > 0]
+        dependencies: [timeLinearity, videos.length > 0],
+        shouldUpdate: shouldStrictUpdate
     });
 
     // 4. Calculate Layouts
@@ -161,7 +187,8 @@ export const useTimelineStructure = ({
     const monthLayouts = useFrozenValue({
         value: currentMonthLayouts,
         version: structureVersion,
-        dependencies: [timeLinearity, videos.length > 0]
+        dependencies: [timeLinearity, videos.length > 0],
+        shouldUpdate: shouldStrictUpdate
     });
 
     // Derived regions

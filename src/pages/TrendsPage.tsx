@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useTrendStore } from '../stores/trendStore';
 import { TimelineCanvas } from '../components/Trends/Timeline/TimelineCanvas';
 import { TrendService } from '../services/trendService';
 import { TrendsHeader } from '../components/Trends/Header/TrendsHeader';
-import type { TrendVideo } from '../types/trends';
+import type { TrendVideo, TimelineStats } from '../types/trends';
 import type { FilterOperator } from '../stores/filterStore';
 
 // Helper function to apply numeric filter
@@ -26,16 +26,29 @@ export const TrendsPage: React.FC = () => {
     const { channels, selectedChannelId, timelineConfig, setTimelineConfig, trendsFilters, filterMode, setVideos, videos, videoNicheAssignments } = useTrendStore();
     const [isLoading, setIsLoading] = useState(true);
 
+    // === FROZEN STATS LOGIC ===
+    // Stats are "frozen" and only update on explicit triggers:
+    // - Initial page load
+    // - Z key / revert (via onRequestStatsRefresh callback)
+    // - Channel add/remove (not visibility toggle!)
+    const frozenStatsRef = useRef<TimelineStats | undefined>(undefined);
+    const [statsVersion, setStatsVersion] = useState(0);
+
+    // Track channel IDs for detecting add/remove (not visibility changes)
+    const channelIdsKey = useMemo(() => channels.map(c => c.id).sort().join(','), [channels]);
+    const prevChannelIdsKeyRef = useRef(channelIdsKey);
+
     // Reset state immediately when channel switches (Derived State pattern)
-    // This prevents stale data from being passed to new TimelineCanvas instance
     const [prevChannelForReset, setPrevChannelForReset] = useState(selectedChannelId);
     if (selectedChannelId !== prevChannelForReset) {
         setPrevChannelForReset(selectedChannelId);
-        setVideos([]); // Reset store videos
+        setVideos([]);
         setIsLoading(true);
+        // Reset frozen stats on channel context switch
+        frozenStatsRef.current = undefined;
     }
 
-    // Computed visible channels (lifted from TimelineCanvas)
+    // Computed visible channels
     const visibleChannels = useMemo(() => {
         if (selectedChannelId) {
             return channels.filter(c => c.id === selectedChannelId);
@@ -43,22 +56,15 @@ export const TrendsPage: React.FC = () => {
         return channels.filter(c => c.isVisible);
     }, [channels, selectedChannelId]);
 
-    // Load videos (lifted from TimelineCanvas)
-    // Track if this is initial load vs channel visibility toggle
+    // Load videos for visible channels
     const hasLoadedOnceRef = useRef(false);
     const prevSelectedChannelRef = useRef(selectedChannelId);
 
     useEffect(() => {
         const loadVideos = async () => {
-            // Only show skeleton on initial load or when switching between channels
-            // Don't show skeleton when just toggling visibility on "All Channels" view
             const isChannelSwitch = prevSelectedChannelRef.current !== selectedChannelId;
             const isInitialLoad = !hasLoadedOnceRef.current;
 
-            // Show loading if:
-            // 1. First load
-            // 2. Switching channels
-            // 3. We have 0 videos currently (prevents 0 -> N flicker during updates)
             if (isInitialLoad || isChannelSwitch || videos.length === 0) {
                 setIsLoading(true);
             }
@@ -90,7 +96,45 @@ export const TrendsPage: React.FC = () => {
         loadVideos();
     }, [visibleChannels, selectedChannelId]);
 
-    // 1. Calculate Global Percentile Map (always based on full dataset)
+    // Calculate current stats from visible videos (always fresh)
+    const currentStats = useMemo((): TimelineStats | undefined => {
+        if (videos.length === 0) return undefined;
+        const viewCounts = videos.map(v => v.viewCount);
+        const dates = videos.map(v => v.publishedAtTimestamp);
+        const buffer = 1000 * 60 * 60 * 12; // 12h buffer
+        return {
+            minViews: Math.max(1, Math.min(...viewCounts)),
+            maxViews: Math.max(1, Math.max(...viewCounts)),
+            minDate: Math.min(...dates) - buffer,
+            maxDate: Math.max(...dates) + buffer
+        };
+    }, [videos]);
+
+    // Update frozen stats on:
+    // 1. Initial load (frozenStatsRef is undefined)
+    // 2. statsVersion change (Z key pressed)
+    // 3. Channel list change (add/remove, not visibility)
+    useEffect(() => {
+        const channelListChanged = prevChannelIdsKeyRef.current !== channelIdsKey;
+        prevChannelIdsKeyRef.current = channelIdsKey;
+
+        // Strict Freeze: Only update if explicitly requested or context changes.
+        // We do NOT update on visibility toggles (neither shrink nor expand).
+        if (!frozenStatsRef.current || channelListChanged) {
+            frozenStatsRef.current = currentStats;
+        }
+    }, [currentStats, statsVersion, channelIdsKey]);
+
+    // Callback for TimelineCanvas to request stats refresh (on Z key)
+    const handleStatsRefresh = useCallback(() => {
+        frozenStatsRef.current = currentStats;
+        setStatsVersion(v => v + 1);
+    }, [currentStats]);
+
+    // For global mode, use frozen stats. For filtered mode, use current stats.
+    const effectiveStats = filterMode === 'global' ? frozenStatsRef.current : undefined;
+
+    // Calculate Global Percentile Map
     const globalPercentileMap = useMemo(() => {
         if (videos.length === 0) return new Map<string, string>();
         const sortedByViews = [...videos].sort((a, b) => b.viewCount - a.viewCount);
@@ -108,21 +152,7 @@ export const TrendsPage: React.FC = () => {
         return map;
     }, [videos]);
 
-    // 2. Calculate Global Stats (for 'Global' environment mode)
-    const globalStats = useMemo(() => {
-        if (videos.length === 0) return undefined;
-        const viewCounts = videos.map(v => v.viewCount);
-        const dates = videos.map(v => v.publishedAtTimestamp);
-        const buffer = 1000 * 60 * 60 * 12; // 12h buffer
-        return {
-            minViews: Math.max(1, Math.min(...viewCounts)),
-            maxViews: Math.max(1, Math.max(...viewCounts)),
-            minDate: Math.min(...dates) - buffer,
-            maxDate: Math.max(...dates) + buffer
-        };
-    }, [videos]);
-
-    // 3. Apply Filters
+    // Apply Filters
     const filteredVideos = useMemo(() => {
         if (trendsFilters.length === 0) return videos;
 
@@ -138,7 +168,6 @@ export const TrendsPage: React.FC = () => {
                 if (filter.type === 'percentile') {
                     const videoGroup = globalPercentileMap.get(video.id);
                     const excludedGroups: string[] = filter.value;
-                    // Return true if video's group is NOT in the excluded list
                     return !excludedGroups.includes(videoGroup || '');
                 }
                 if (filter.type === 'niche') {
@@ -147,8 +176,6 @@ export const TrendsPage: React.FC = () => {
                     const assignedNicheIds = assignments.length > 0
                         ? assignments.map(a => a.nicheId)
                         : (video.nicheId ? [video.nicheId] : []);
-
-                    // Show video if it belongs to AT LEAST ONE of the selected niches
                     return selectedNicheIds.some(id => assignedNicheIds.includes(id));
                 }
                 return true;
@@ -166,17 +193,17 @@ export const TrendsPage: React.FC = () => {
                 timelineConfig={timelineConfig}
                 setTimelineConfig={setTimelineConfig}
                 isLoading={isLoading || channels.length === 0}
-                availableMinDate={globalStats?.minDate}
-                availableMaxDate={globalStats?.maxDate}
+                availableMinDate={currentStats?.minDate}
+                availableMaxDate={currentStats?.maxDate}
             />
 
-            {/* Timeline Area (pass filtered videos) */}
             <TimelineCanvas
                 key={selectedChannelId || 'all'}
                 videos={filteredVideos}
                 isLoading={isLoading || channels.length === 0}
                 percentileMap={globalPercentileMap}
-                forcedStats={filterMode === 'global' ? globalStats : undefined}
+                forcedStats={effectiveStats}
+                onRequestStatsRefresh={handleStatsRefresh}
             />
         </div>
     );

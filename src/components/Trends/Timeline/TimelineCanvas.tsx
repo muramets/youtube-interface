@@ -30,13 +30,15 @@ interface TimelineCanvasProps {
     isLoading?: boolean;
     percentileMap?: Map<string, string>;
     forcedStats?: TimelineStats;
+    onRequestStatsRefresh?: () => void;
 }
 
 export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     videos,
     isLoading = false,
     percentileMap,
-    forcedStats
+    forcedStats,
+    onRequestStatsRefresh
 }) => {
     const { timelineConfig, setTimelineConfig, setAddChannelModalOpen } = useTrendStore();
     const { scalingMode, verticalSpread, timeLinearity } = timelineConfig;
@@ -74,46 +76,45 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
 
         // 3. Filter Changes (Count Changed)
         if (currentCount !== prevCount) {
-            if (currentCount > prevCount) {
-                // Case A: Removing Filters (Adding Videos)
-                // Always re-calculate to ensure new videos fit and are visible.
-                setStructureVersion(v => v + 1);
-            } else {
-                // Case B: Adding Filters (Removing Videos)
-                if (forcedStats) {
-                    // Global Mode: KEEP current structure (Freeze).
-                    // This allows seeing the filtered subset of videos in their original "Global" positions.
-                } else {
-                    // Local Mode: Re-calculate to focus on the remaining subset.
-                    setStructureVersion(v => v + 1);
-                }
+            // STRICT FREEZE:
+            // If we are in Global Mode (forcedStats provided), we NEVER update structure
+            // regardless of whether videos are being added or removed.
+            // User must press Z to refit.
+            if (forcedStats) {
+                return;
             }
+
+            // Local Mode: Always re-calculate structure
+            setStructureVersion(v => v + 1);
         }
     }, [videos.length, forcedStats]);
 
-    // 1. Structure (independent of viewport)
-    // forcedStats override internal calculation if provided (e.g. for global context in filtered mode)
+    // 1. Structure Logic
     const {
         worldWidth,
         stats,
         monthLayouts,
         monthRegions,
         yearMarkers
-    } = useTimelineStructure({ videos, timeLinearity, structureVersion, stats: forcedStats });
+    } = useTimelineStructure({
+        videos,
+        stats: forcedStats,
+        structureVersion,
+        timeLinearity,
+        isFrozen: !!forcedStats // Freezes internal dependencies when in global mode
+    });
 
 
-
-    // 2. Transform & Viewport Logic
+    // 4. Interaction
     const {
         containerRef,
         containerSizeRef,
-        // viewportSize removed (unused)
         transformState,
         transformRef,
         setTransformState,
         clampTransform,
         minScale,
-        dynamicWorldHeight, // Now derived inside the hook
+        dynamicWorldHeight,
         anchorToTime,
         calculateAutoFitTransform,
         currentContentHash
@@ -125,6 +126,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         monthLayouts,
         stats
     });
+
+    // ... (omitted hook calls to maintain structure)
 
     // 3. Data Positions (needs dynamicWorldHeight)
     const {
@@ -157,14 +160,6 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
             y: selectedVideoState.y
         };
     }, [selectedVideoState?.x, selectedVideoState?.y]);
-
-    // Tooltip State (hovered video)
-
-    // Background Interaction:
-    // We handle single click on background to clear selection.
-    // Note: `handleSmoothFit` is used for `onDoubleClick` on container.
-    // Note: `handleSmoothFit` is used for `onDoubleClick` on container. 
-    // We need a separate `onClick` for container that checks if target is background.
 
     // Smart Focus Logic (Extracted)
     const {
@@ -225,39 +220,51 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     const handleSmoothFit = () => {
         closeTooltipSmoothly();
 
-        // Force structure recalculation first
-        setStructureVersion(v => v + 1);
+        // Request stats refresh from parent (updates frozen stats to current)
+        onRequestStatsRefresh?.();
 
-        // The actual auto-fit will happen in the effect below once the structure updates
-        // We delay it slightly to ensure the new worldWidth is available
+        // Force structure recalculation
+        setStructureVersion(v => v + 1);
+        shouldAutoFitRef.current = true; // Explicit request -> Auto Fit
     };
 
     // Effect to trigger Auto-Fit when structure updates explicitly
     const appliedStructureVersionRef = useRef(0);
+    const shouldAutoFitRef = useRef(true); // Default to true for initial load
 
-    const { smoothToTransform } = interaction;
+    const { smoothToTransform } = interaction; // Interaction hook result
 
     useEffect(() => {
         if (structureVersion > 0 && structureVersion > appliedStructureVersionRef.current) {
             appliedStructureVersionRef.current = structureVersion;
 
-            // Verify if we can fit immediately? 
-            // useTimelineTransform handles auto-fit logic, but we need to trigger it *after* 
-            // the render cycle where worldWidth updated.
-
-            const fitTransform = calculateAutoFitTransform();
-            if (fitTransform) {
-                smoothToTransform(fitTransform);
-                setTimelineConfig({
-                    zoomLevel: fitTransform.scale,
-                    offsetX: fitTransform.offsetX,
-                    offsetY: fitTransform.offsetY,
-                    isCustomView: false,
-                    contentHash: currentContentHash
-                });
+            if (shouldAutoFitRef.current) {
+                // EXPLICIT FIT (Z Key / Initial Load)
+                const fitTransform = calculateAutoFitTransform();
+                if (fitTransform) {
+                    smoothToTransform(fitTransform);
+                    setTimelineConfig({
+                        zoomLevel: fitTransform.scale,
+                        offsetX: fitTransform.offsetX,
+                        offsetY: fitTransform.offsetY,
+                        isCustomView: false,
+                        contentHash: currentContentHash
+                    });
+                }
+            } else {
+                // IMPLICIT UPDATE (Data Added / Visibility Toggle)
+                // We do NOT auto-fit. Instead, we rely on `useTimelineTransform`'s pending anchor logic.
+                // Note: We already queued the anchor in the render/effect that triggered the update.
             }
+
+            // Reset flag
+            shouldAutoFitRef.current = false;
         }
     }, [structureVersion, calculateAutoFitTransform, smoothToTransform, setTimelineConfig, currentContentHash]);
+
+
+    // NOTE: The main structure update logic is in the first useEffect near the top.
+    // This section previously had duplicate logic that has been consolidated.
 
 
     // Hotkey: 'Z' to Auto Fit (Smooth)

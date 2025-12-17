@@ -402,6 +402,30 @@ export const useTimelineTransform = ({
         }
     }, [debouncedTransform, setTimelineConfig, currentContentHash]);
 
+    // Helper to get time at center of viewport
+    const getCenterTime = useCallback(() => {
+        const { width } = viewportSize;
+        if (width <= 0) return Date.now();
+
+        const { scale, offsetX } = transformState;
+        const centerX = width / 2;
+        const worldX = (centerX - offsetX) / scale;
+        const xNorm = worldX / Math.max(1, worldWidth);
+
+        // Inverse mapping: xNorm -> Time
+        // Check month layouts first
+        for (const layout of monthLayouts) {
+            if (xNorm >= layout.startX && xNorm <= layout.endX) {
+                const localProgress = (xNorm - layout.startX) / layout.width;
+                return layout.startTs + localProgress * (layout.endTs - layout.startTs);
+            }
+        }
+
+        // Fallback to global linear interpolation
+        const range = stats.maxDate - stats.minDate;
+        return stats.minDate + xNorm * range;
+    }, [viewportSize, transformState, worldWidth, monthLayouts, stats]);
+
     return {
         containerRef,
         containerSizeRef,
@@ -416,6 +440,7 @@ export const useTimelineTransform = ({
         fitScale,
         anchorToTime,
         calculateAutoFitTransform,
-        currentContentHash // Expose hash for manual updates
+        currentContentHash, // Expose hash for manual updates
+        getCenterTime
     };
 };
