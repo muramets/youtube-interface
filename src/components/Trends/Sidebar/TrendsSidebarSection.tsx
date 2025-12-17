@@ -49,11 +49,13 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
 
     const globalNiches = niches
         .filter(n => n.type === 'global')
-        .map(n => ({ ...n, viewCount: nicheViewCounts.get(n.id) || 0 }));
+        .map(n => ({ ...n, viewCount: nicheViewCounts.get(n.id) || 0 }))
+        .sort((a, b) => b.viewCount - a.viewCount);
 
     const getLocalNiches = (channelId: string) => niches
         .filter(n => n.type === 'local' && n.channelId === channelId)
-        .map(n => ({ ...n, viewCount: nicheViewCounts.get(n.id) || 0 }));
+        .map(n => ({ ...n, viewCount: nicheViewCounts.get(n.id) || 0 }))
+        .sort((a, b) => b.viewCount - a.viewCount);
 
     return (
         <>

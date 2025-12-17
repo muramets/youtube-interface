@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreVertical, Check, Home, Globe } from 'lucide-react';
+import { MoreVertical, Check, Home, Globe, Pencil, Trash2 } from 'lucide-react';
 import type { TrendNiche } from '../../../types/trends';
 import { useTrendStore, MANUAL_NICHE_PALETTE } from '../../../stores/trendStore';
 
@@ -94,19 +94,25 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
         }
     };
 
+    const isInteracting = isMenuOpen || isColorPickerOpen;
+
     return (
-        <li className="relative group/niche">
+        <li className={`relative group/niche ${isInteracting ? 'z-20' : ''}`}>
             <div
                 onClick={() => !isEditing && onClick(niche.id)}
                 className={`
                     flex items-center pl-8 pr-2 py-1.5 cursor-pointer transition-colors rounded-lg mx-1
-                    ${isActive ? 'bg-white/10 text-white' : 'text-text-secondary hover:text-white hover:bg-white/5'}
+                    ${isActive
+                        ? 'bg-white/10 text-white'
+                        : isInteracting
+                            ? 'bg-white/5 text-white'
+                            : 'text-text-secondary hover:text-white hover:bg-white/5'
+                    }
                 `}
             >
                 {/* Color Dot (Clickable) */}
                 <div
                     ref={colorPickerRef}
-                    className="relative"
                 >
                     <div
                         role="button"
@@ -206,7 +212,8 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                             setIsColorPickerOpen(false);
                         }}
                         className={`
-                            p-0.5 rounded ml-1 opacity-0 group-hover/niche:opacity-100 transition-opacity
+                            p-0.5 rounded ml-1 transition-opacity
+                            ${isInteracting ? 'opacity-100' : 'opacity-0 group-hover/niche:opacity-100'}
                             ${isMenuOpen ? 'opacity-100 bg-white/10' : 'hover:bg-white/10'}
                         `}
                     >
@@ -237,7 +244,6 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                                 {niche.type === 'global' ? <Home size={10} /> : <Globe size={10} />}
                                 {niche.type === 'global' ? 'Make local' : 'Make global'}
                             </button>
-                            <div className="h-px bg-white/10 my-1" />
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -245,14 +251,11 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                                     setEditName(niche.name);
                                     setIsMenuOpen(false);
                                 }}
-                                className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-white/5 transition-colors"
+                                className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2"
                             >
+                                <Pencil size={10} />
                                 Rename
                             </button>
-
-
-
-                            <div className="h-px bg-white/10 my-1" />
 
                             <button
                                 onClick={(e) => {
@@ -262,8 +265,9 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                                     }
                                     setIsMenuOpen(false);
                                 }}
-                                className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-white/5 transition-colors"
+                                className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-white/5 transition-colors flex items-center gap-2"
                             >
+                                <Trash2 size={10} />
                                 Delete
                             </button>
                         </div>
