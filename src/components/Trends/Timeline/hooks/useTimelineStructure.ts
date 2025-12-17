@@ -84,7 +84,25 @@ export const useTimelineStructure = ({
         return { counts, dynamicLinearPixelsPerDay };
     }, [videos, effectiveStats]);
 
-    // 3. Calculate World Width
+    // ============================================================
+    // SINGLE SOURCE OF TRUTH: Timeline Date Range
+    // Both worldWidth and monthLayouts use this shared calculation
+    // ============================================================
+    const timelineRange = useMemo(() => {
+        const startDate = new Date(effectiveStats.minDate);
+        startDate.setDate(1);
+        startDate.setHours(0, 0, 0, 0);
+        // No buffer - start from the month of the first video
+
+        const endDate = new Date(effectiveStats.maxDate);
+        // Round up to the end of the current month (first day of next month)
+        // This ensures the month containing the last video is fully rendered
+        const safeEndDate = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 1);
+
+        return { startDate, endDate: safeEndDate };
+    }, [effectiveStats]);
+
+    // 3. Calculate World Width (uses shared timelineRange)
     const currentWorldWidth = useMemo(() => {
         if (videos.length === 0) return 2000;
 
@@ -92,17 +110,11 @@ export const useTimelineStructure = ({
         const VIDEO_DENSITY_MULTIPLIER = 80;
 
         let totalWidth = 0;
-        const start = new Date(effectiveStats.minDate);
-        const end = new Date(effectiveStats.maxDate);
-        //start.setMonth(start.getMonth() - 1);
-        //end.setMonth(end.getMonth() + 1);
-
-        const current = new Date(start);
-        current.setDate(1);
+        const current = new Date(timelineRange.startDate);
 
         // Safety break
         let loops = 0;
-        while (current <= end && loops < 1000) {
+        while (current < timelineRange.endDate && loops < 1000) {
             const year = current.getFullYear();
             const month = current.getMonth();
             const key = `${year}-${month}`;
@@ -119,7 +131,7 @@ export const useTimelineStructure = ({
         }
 
         return Math.max(2000, totalWidth);
-    }, [videos, timeLinearity, effectiveStats, densityStats]);
+    }, [videos, timeLinearity, densityStats, timelineRange]);
 
     // Freeze World Width
     const worldWidth = useFrozenValue({
@@ -129,23 +141,18 @@ export const useTimelineStructure = ({
         shouldUpdate: shouldStrictUpdate
     });
 
-    // 4. Calculate Layouts
+    // 4. Calculate Layouts (uses shared timelineRange)
     const currentMonthLayouts = useMemo(() => {
         if (videos.length === 0 && !forcedStatsOverride) return [];
 
         const { counts, dynamicLinearPixelsPerDay } = densityStats;
-        let current = new Date(effectiveStats.minDate);
-        current.setDate(1);
-        current.setHours(0, 0, 0, 0);
-
-        const endDate = new Date(effectiveStats.maxDate);
-        const safeEndDate = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 1);
+        const current = new Date(timelineRange.startDate);
 
         const layouts: any[] = [];
         let totalAbsWidth = 0;
         let loops = 0;
 
-        while (current < safeEndDate && loops < 1000) {
+        while (current < timelineRange.endDate && loops < 1000) {
             const year = current.getFullYear();
             const month = current.getMonth();
             const key = `${year}-${month}`;
@@ -173,7 +180,7 @@ export const useTimelineStructure = ({
             });
 
             totalAbsWidth += absWidth;
-            current = nextMonth;
+            current.setMonth(current.getMonth() + 1);
             loops++;
         }
 
@@ -183,7 +190,7 @@ export const useTimelineStructure = ({
             endX: l.endX / Math.max(1, totalAbsWidth),
             width: l.width / Math.max(1, totalAbsWidth)
         })) as MonthLayout[];
-    }, [videos, effectiveStats, timeLinearity, densityStats, forcedStatsOverride]);
+    }, [videos, timeLinearity, densityStats, timelineRange, forcedStatsOverride]);
 
     // Freeze Layouts
     const monthLayouts = useFrozenValue({

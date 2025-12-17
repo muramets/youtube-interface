@@ -22,7 +22,8 @@ import { useTimelineTooltip } from './hooks/useTimelineTooltip';
 
 // Constants
 const HEADER_HEIGHT = 48;
-const PADDING = 40;
+const PADDING_LEFT = 64;
+const PADDING_RIGHT = 0;
 
 import { TrendsFloatingBar } from './TrendsFloatingBar';
 
@@ -88,7 +89,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     } = useTimelineTransform({
         worldWidth,
         headerHeight: HEADER_HEIGHT,
-        padding: PADDING,
+        paddingLeft: PADDING_LEFT,
+        paddingRight: PADDING_RIGHT,
         videosLength: videos.length,
         monthLayouts,
         stats
