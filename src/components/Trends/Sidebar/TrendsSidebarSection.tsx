@@ -1,5 +1,5 @@
-import React from 'react';
-import { Plus, TrendingUp, Trash2, RefreshCw } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, TrendingUp, Trash2, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
 import { TrendsChannelItem } from './TrendsChannelItem';
 import { TrendsChannelSkeleton } from './TrendsChannelSkeleton';
 import { CollapsibleNicheList } from './CollapsibleNicheList';
@@ -29,6 +29,7 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
     } = useTrendsSidebar();
 
     const { niches, videos, videoNicheAssignments, trendsFilters, addTrendsFilter, removeTrendsFilter } = useTrendStore();
+    const [isContentExpanded, setIsContentExpanded] = useState(true);
 
     // Derived active niche state from filters
     const activeNicheIds = React.useMemo(() => {
@@ -114,20 +115,16 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                     <div className="">
                         {/* Trends Header - Clickable */}
                         <div
-                            role="button"
-                            tabIndex={0}
-                            onClick={handleTrendsClick}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                    handleTrendsClick();
-                                }
-                            }}
-                            className={`w-full flex items-center justify-between py-2.5 px-3 mb-2 rounded-lg transition-all duration-200 cursor-pointer ${isOnTrendsPage && selectedChannelId === null
+                            className={`w-full flex items-center justify-between py-2.5 px-3 mb-2 rounded-lg transition-all duration-200 group ${isOnTrendsPage && selectedChannelId === null
                                 ? 'bg-sidebar-active text-text-primary'
                                 : 'text-text-secondary hover:bg-sidebar-hover hover:text-text-primary'
                                 }`}
                         >
-                            <div className="flex items-center gap-6">
+                            {/* Main Click Target */}
+                            <div
+                                className="flex items-center gap-6 flex-1 cursor-pointer"
+                                onClick={handleTrendsClick}
+                            >
                                 <TrendingUp
                                     size={24}
                                     strokeWidth={isOnTrendsPage && selectedChannelId === null ? 2.5 : 1.5}
@@ -135,64 +132,74 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                                 />
                                 <span className={`text-sm ${isOnTrendsPage && selectedChannelId === null ? 'font-medium' : 'font-normal'}`}>Trends</span>
                             </div>
-                            <div
-                                role="button"
-                                tabIndex={0}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setAddChannelModalOpen(true);
-                                }}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
+
+                            {/* Actions */}
+                            <div className="flex items-center gap-1">
+                                {/* Toggle Collapse */}
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setIsContentExpanded(!isContentExpanded);
+                                    }}
+                                    className="p-1 hover:bg-white/10 rounded-full transition-colors cursor-pointer text-text-secondary hover:text-text-primary"
+                                >
+                                    {isContentExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                </button>
+
+                                {/* Add Channel */}
+                                <button
+                                    onClick={(e) => {
                                         e.stopPropagation();
                                         setAddChannelModalOpen(true);
-                                    }
-                                }}
-                                className="p-1 hover:bg-white/10 rounded-full transition-colors cursor-pointer text-text-secondary hover:text-text-primary"
-                                title="Add channel"
-                            >
-                                <Plus size={16} />
+                                    }}
+                                    className="p-1 hover:bg-white/10 rounded-full transition-colors cursor-pointer text-text-secondary hover:text-text-primary"
+                                    title="Add channel"
+                                >
+                                    <Plus size={16} />
+                                </button>
                             </div>
                         </div>
 
                         {/* Content Wrapper */}
-                        <div className="px-3 pb-2">
-                            {/* Global Niches */}
-                            {globalNiches.length > 0 && (
-                                <div className="mb-3">
-                                    <CollapsibleNicheList
-                                        niches={globalNiches}
-                                        activeNicheIds={activeNicheIds}
-                                        onNicheClick={handleNicheClick}
-                                    />
-                                </div>
-                            )}
-
-                            {/* Channel List */}
-                            {isLoadingChannels ? (
-                                <TrendsChannelSkeleton />
-                            ) : channels.length === 0 ? (
-                                <div className="text-text-tertiary text-xs px-2 py-1">
-                                    No channels tracked
-                                </div>
-                            ) : (
-                                <ul className="space-y-0.5">
-                                    {channels.map((channel: TrendChannel) => (
-                                        <TrendsChannelItem
-                                            key={channel.id}
-                                            channel={channel}
-                                            isActive={isOnTrendsPage && selectedChannelId === channel.id}
-                                            onChannelClick={handleChannelClick}
-                                            onToggleVisibility={handleToggleVisibility}
-                                            onOpenMenu={(e, channelId) => setMenuState({ anchorEl: e.currentTarget as HTMLElement, channelId })}
-                                            niches={getLocalNiches(channel.id)}
+                        {isContentExpanded && (
+                            <div className="px-3 pb-2">
+                                {/* Global Niches */}
+                                {globalNiches.length > 0 && (
+                                    <div className="mb-3">
+                                        <CollapsibleNicheList
+                                            niches={globalNiches}
                                             activeNicheIds={activeNicheIds}
                                             onNicheClick={handleNicheClick}
                                         />
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
+                                    </div>
+                                )}
+
+                                {/* Channel List */}
+                                {isLoadingChannels ? (
+                                    <TrendsChannelSkeleton />
+                                ) : channels.length === 0 ? (
+                                    <div className="text-text-tertiary text-xs px-2 py-1">
+                                        No channels tracked
+                                    </div>
+                                ) : (
+                                    <ul className="space-y-0.5">
+                                        {channels.map((channel: TrendChannel) => (
+                                            <TrendsChannelItem
+                                                key={channel.id}
+                                                channel={channel}
+                                                isActive={isOnTrendsPage && selectedChannelId === channel.id}
+                                                onChannelClick={handleChannelClick}
+                                                onToggleVisibility={handleToggleVisibility}
+                                                onOpenMenu={(e, channelId) => setMenuState({ anchorEl: e.currentTarget as HTMLElement, channelId })}
+                                                niches={getLocalNiches(channel.id)}
+                                                activeNicheIds={activeNicheIds}
+                                                onNicheClick={handleNicheClick}
+                                            />
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <Dropdown
