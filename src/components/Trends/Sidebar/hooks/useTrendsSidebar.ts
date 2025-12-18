@@ -83,16 +83,17 @@ export const useTrendsSidebar = () => {
 
         try {
             // Force full sync (true) to update view counts for existing videos
-            const { totalNewVideos, totalQuotaUsed } = await TrendService.syncChannelVideos(user.uid, currentChannel.id, channel, apiKey, true);
+            const { totalNewVideos, totalQuotaUsed, quotaBreakdown } = await TrendService.syncChannelVideos(user.uid, currentChannel.id, channel, apiKey, true);
 
-            const message = `Full sync complete. Processed ${totalNewVideos} videos. Quota used: ${totalQuotaUsed}`;
-            showToast(message, 'success');
+            showToast(`${channel.title} sync complete. Processed ${totalNewVideos} videos.`, 'success');
 
             await addNotification({
-                title: 'Channel Synced',
-                message: `${message} for ${channel.title}`,
+                title: `${channel.title} Visual Data Updated`,
+                message: `Updated ${totalNewVideos} videos.`,
                 type: 'success',
-                meta: 'Quota',
+                meta: totalQuotaUsed.toString(),
+                avatarUrl: channel.avatarUrl,
+                quotaBreakdown
             });
         } catch (error: any) {
             console.error('Sync failed:', error);

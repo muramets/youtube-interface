@@ -128,7 +128,7 @@ export const TrendService = {
         await setDoc(doc(db, `users/${userId}/channels/${userChannelId}/trendChannels`, newChannel.id), newChannel);
 
         // 4. Initial Sync of Videos
-        let initialSyncStats = { totalQuotaUsed: 0 };
+        let initialSyncStats = { totalQuotaUsed: 0, totalNewVideos: 0, quotaBreakdown: { list: 0, details: 0 } };
         try {
             initialSyncStats = await TrendService.syncChannelVideos(userId, userChannelId, newChannel, apiKey);
         } catch (error) {
@@ -136,7 +136,15 @@ export const TrendService = {
             // We still return the channel even if sync fails, it will just be empty initially
         }
 
-        return { channel: newChannel, quotaCost: 1 + initialSyncStats.totalQuotaUsed }; // 1 (channel search) + sync cost
+        return {
+            channel: newChannel,
+            quotaCost: 1 + initialSyncStats.totalQuotaUsed,
+            totalNewVideos: initialSyncStats.totalNewVideos,
+            quotaBreakdown: {
+                search: 1,
+                ...initialSyncStats.quotaBreakdown
+            }
+        }; // 1 (channel search) + sync cost
     },
 
     removeTrendChannel: async (userId: string, userChannelId: string, channelId: string) => {
@@ -159,12 +167,13 @@ export const TrendService = {
 
     // --- Video Fetching & Caching (IndexedDB) ---
 
-    syncChannelVideos: async (userId: string, userChannelId: string, channel: TrendChannel, apiKey: string, forceFullSync: boolean = false) => {
+    syncChannelVideos: async (userId: string, userChannelId: string, channel: TrendChannel, apiKey: string, forceFullSync: boolean = false): Promise<{ totalNewVideos: number; totalQuotaUsed: number; quotaBreakdown: { list: number; details: number } }> => {
         console.log(`[TrendService] Starting sync for channel: ${channel.title} (Full Sync: ${forceFullSync})`);
 
         let nextPageToken: string | undefined = undefined;
         let totalProcessedVideos = 0;
         let totalQuotaUsed = 0;
+        const quotaBreakdown = { list: 0, details: 0 };
 
         const idb = await getDB();
 
@@ -184,6 +193,7 @@ export const TrendService = {
             const res = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${params.toString()}`);
             const data = await res.json();
             totalQuotaUsed += 1; // playlistItems cost
+            quotaBreakdown.list += 1;
 
             if (!data.items || data.items.length === 0) {
                 break;
@@ -219,6 +229,7 @@ export const TrendService = {
                 const statsRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?${statsParams.toString()}`);
                 const statsData = await statsRes.json();
                 totalQuotaUsed += 1; // videos list cost
+                quotaBreakdown.details += 1;
 
                 if (statsData.items) {
                     const videos: TrendVideo[] = statsData.items.map((item: any) => ({
@@ -261,7 +272,7 @@ export const TrendService = {
             totalViewCount: totalViews
         });
 
-        return { totalNewVideos: totalProcessedVideos, totalQuotaUsed };
+        return { totalNewVideos: totalProcessedVideos, totalQuotaUsed, quotaBreakdown };
     },
 
     getChannelVideosFromCache: async (channelId: string) => {

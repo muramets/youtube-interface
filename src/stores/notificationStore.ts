@@ -13,6 +13,12 @@ export interface Notification {
     link?: string;
     meta?: string;
     thumbnail?: string;
+    avatarUrl?: string;
+    quotaBreakdown?: {
+        search?: number;
+        list?: number;
+        details?: number;
+    };
     isPersistent?: boolean;
     internalId?: string;
     customColor?: string;

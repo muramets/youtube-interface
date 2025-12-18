@@ -15,12 +15,9 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
     const { packagingSettings } = useSettings();
 
     const effectiveColor = React.useMemo(() => {
-        if (notification.internalId?.startsWith('checkin-due-')) {
-            const rule = packagingSettings.checkinRules.find(r => notification.internalId?.endsWith(`-${r.id}`));
-            if (rule) return rule.badgeColor;
-        }
+        if (notification.type === 'success') return '#22c55e'; // green-500
         return notification.customColor;
-    }, [notification.internalId, notification.customColor, packagingSettings.checkinRules]);
+    }, [notification.internalId, notification.customColor, notification.type, packagingSettings.checkinRules]);
 
     const getIcon = (size: number = 20) => {
         switch (notification.type) {
@@ -87,14 +84,18 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
                     </div>
                 ) : (
                     <div
-                        className="w-10 h-10 rounded-full bg-bg-secondary flex items-center justify-center border border-border"
+                        className="w-10 h-10 rounded-full bg-bg-secondary flex items-center justify-center border border-border overflow-hidden"
                         style={effectiveColor ? {
                             backgroundColor: `${effectiveColor}15`,
                             borderColor: `${effectiveColor}30`,
                             color: effectiveColor
                         } : undefined}
                     >
-                        {getIcon()}
+                        {notification.avatarUrl ? (
+                            <img src={notification.avatarUrl} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                            getIcon()
+                        )}
                     </div>
                 )}
             </div>
@@ -110,9 +111,42 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
                     {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
                 </p>
                 {notification.meta && (
-                    <p className="text-xs text-text-secondary mt-1 font-mono bg-bg-secondary inline-block px-1 rounded border border-border">
-                        {notification.meta}
-                    </p>
+                    <div className="flex items-center gap-1.5 mt-2 relative group/quota">
+                        <span className="text-[10px] font-bold tracking-wider text-text-tertiary uppercase opacity-50">
+                            Quota used:
+                        </span>
+                        <div className="px-1.5 py-0.5 rounded border border-green-500/20 bg-green-500/10 cursor-help transition-colors hover:bg-green-500/20">
+                            <p className="text-[10px] text-green-400 font-mono">
+                                {notification.meta} units
+                            </p>
+                        </div>
+
+                        {/* Quota Breakdown Tooltip */}
+                        {notification.quotaBreakdown && (
+                            <div className="absolute top-full left-0 mt-1 p-2 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl z-50 opacity-0 group-hover/quota:opacity-100 transition-opacity pointer-events-none min-w-[120px]">
+                                <div className="space-y-1">
+                                    {notification.quotaBreakdown.search && (
+                                        <div className="flex justify-between items-center gap-4">
+                                            <span className="text-[10px] text-text-tertiary">Search:</span>
+                                            <span className="text-[10px] text-white font-mono">{notification.quotaBreakdown.search}</span>
+                                        </div>
+                                    )}
+                                    {notification.quotaBreakdown.list && (
+                                        <div className="flex justify-between items-center gap-4">
+                                            <span className="text-[10px] text-text-tertiary">Video List:</span>
+                                            <span className="text-[10px] text-white font-mono">{notification.quotaBreakdown.list}</span>
+                                        </div>
+                                    )}
+                                    {notification.quotaBreakdown.details && (
+                                        <div className="flex justify-between items-center gap-4">
+                                            <span className="text-[10px] text-text-tertiary">Video Details:</span>
+                                            <span className="text-[10px] text-white font-mono">{notification.quotaBreakdown.details}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 )}
             </div>
 

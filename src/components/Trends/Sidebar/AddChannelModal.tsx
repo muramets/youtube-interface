@@ -62,17 +62,17 @@ export const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClos
         setError('');
 
         try {
-            const { quotaCost } = await TrendService.addTrendChannel(user.uid, currentChannel.id, url.trim(), apiKey);
+            const { channel, quotaCost, totalNewVideos, quotaBreakdown } = await TrendService.addTrendChannel(user.uid, currentChannel.id, url.trim(), apiKey);
 
-            const successMessage = `Channel added successfully. Quota used: ${quotaCost} units`;
-
-            showToast(successMessage, 'success');
+            showToast(`${channel.title} added successfully.`, 'success');
 
             await addNotification({
-                title: 'Channel Tracked',
-                message: `${successMessage}. Initial sync started.`,
+                title: `${channel.title} Visual Data Added`,
+                message: `Initial sync complete. Added ${totalNewVideos} videos.`,
                 type: 'success',
-                meta: 'Quota',
+                meta: quotaCost.toString(),
+                avatarUrl: channel.avatarUrl,
+                quotaBreakdown,
                 link: '/trends'
             });
 
