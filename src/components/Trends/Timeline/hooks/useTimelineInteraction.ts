@@ -39,6 +39,7 @@ export const useTimelineInteraction = ({
     const [isPanning, setIsPanning] = useState(false);
     const isPanningRef = useRef(false);
     const panStartRef = useRef({ x: 0, y: 0 });
+    const mouseDownPosRef = useRef({ x: 0, y: 0 });
 
     // Selection State
     const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
@@ -53,9 +54,6 @@ export const useTimelineInteraction = ({
     useEffect(() => {
         targetTransformRef.current = { ...transformRef.current };
     }, []); // Run once, we trust internal updates mainly. 
-    // Note: If parent force-resets transform (e.g. 'Z' fit), we might need to listen to that. 
-    // But usually 'Z' sets transformRef directly. We should probably sync target to it in the next loop or on event.
-    // For now, let's ensure we sync target on interaction start.
 
     const syncToDom = useCallback(() => {
         // Imperative DOM update for video layer (bypasses React reconciliation)
@@ -174,7 +172,7 @@ export const useTimelineInteraction = ({
             targetTransformRef.current = clamped;
             startAnimation();
         }
-    }, [containerSizeRef, containerRef, transformRef, minScale, clampTransform, onHoverVideo, startAnimation]);
+    }, [containerSizeRef, containerRef, transformRef, minScale, clampTransform, onHoverVideo, startAnimation, onInteractionStart]);
 
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
         // Stop any inertial movement instantly on grab
@@ -184,9 +182,6 @@ export const useTimelineInteraction = ({
 
         // Prevent default to stop text selection or native drag
         if (e.button === 0) {
-            // Prevent text selection/native drag
-            // Note: Preventing default on MouseDown helps stop text selection significantly.
-
             const container = containerRef.current;
             if (!container) return;
             const rect = container.getBoundingClientRect();
@@ -197,40 +192,26 @@ export const useTimelineInteraction = ({
                 // START SELECTION
                 isSelectingRef.current = true;
                 selectionStartRef.current = { x: localX, y: localY };
-                // Hide tooltip and floating bar during selection
                 if (onHoverVideo) onHoverVideo(false);
                 if (onInteractionStart) onInteractionStart();
             } else {
-                // START PANNING
-                setIsPanning(true);
-                isPanningRef.current = true;
+                // PREPARE PANNING (Don't set isPanning state yet)
+                isPanningRef.current = false; // Reset
+                setIsPanning(false);
+                mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
+
+                // Track start offset for when panning eventually starts
                 panStartRef.current = {
                     x: e.clientX - transformRef.current.offsetX,
                     y: e.clientY - transformRef.current.offsetY
                 };
             }
         }
-    }, [transformRef, stopAnimation, containerRef, onHoverVideo]);
+    }, [transformRef, stopAnimation, containerRef, onHoverVideo, onInteractionStart]);
 
     const handleMouseMove = useCallback((e: React.MouseEvent) => {
-        if (isPanningRef.current) {
-            if (onHoverVideo) onHoverVideo(false);
-            if (onInteractionStart) onInteractionStart();
-
-            const { width: viewportWidth, height: viewportHeight } = containerSizeRef.current;
-            if (viewportWidth === 0) return;
-
-            const clamped = clampTransform({
-                ...transformRef.current,
-                offsetX: e.clientX - panStartRef.current.x,
-                offsetY: e.clientY - panStartRef.current.y
-            }, viewportWidth, viewportHeight);
-
-            transformRef.current = clamped;
-            // Sync target so releasing doesn't jump back to old target
-            targetTransformRef.current = clamped;
-            syncToDom();
-        } else if (isSelectingRef.current) {
+        // If selecting, handle selection rect
+        if (isSelectingRef.current) {
             const container = containerRef.current;
             if (!container) return;
             const rect = container.getBoundingClientRect();
@@ -247,14 +228,59 @@ export const useTimelineInteraction = ({
             const height = Math.abs(localY - startY);
 
             setSelectionRect({ x, y, width, height });
+            return;
         }
-    }, [containerSizeRef, transformRef, clampTransform, syncToDom, onHoverVideo, containerRef]);
+
+        // If not panning yet, check threshold
+        if (!isPanningRef.current && e.buttons === 1 && !e.shiftKey) {
+            const dx = Math.abs(e.clientX - mouseDownPosRef.current.x);
+            const dy = Math.abs(e.clientY - mouseDownPosRef.current.y);
+
+            // Threshold of 5px
+            if (dx > 5 || dy > 5) {
+                isPanningRef.current = true;
+                setIsPanning(true);
+                if (onHoverVideo) onHoverVideo(false);
+                if (onInteractionStart) onInteractionStart();
+            }
+        }
+
+        // If panning (either just started or continuing)
+        if (isPanningRef.current) {
+            const { width: viewportWidth, height: viewportHeight } = containerSizeRef.current;
+            if (viewportWidth === 0) return;
+
+            // Note: panStartRef was captured at mousedown. 
+            // Since we didn't update transform in the deadzone, this logic remains valid 
+            // and simply "snaps" to the mouse position, which is fine or we can adjust panStartRef here to smooth the jump.
+            // If we want to avoid jump: adjust panStartRef.current by the deadzone delta?
+            // Actually, `offsetX = clientX - panStart.x`. 
+            // panStart.x = clientX_down - offsetX_down.
+            // So if we move 6px, newOffsetX = (clientX_down+6) - (clientX_down - offsetX_down) = offsetX_down + 6.
+            // So there is NO JUMP in the timeline position. It just starts updating. Perfect.
+
+            const clamped = clampTransform({
+                ...transformRef.current,
+                offsetX: e.clientX - panStartRef.current.x,
+                offsetY: e.clientY - panStartRef.current.y
+            }, viewportWidth, viewportHeight);
+
+            transformRef.current = clamped;
+            targetTransformRef.current = clamped;
+            syncToDom();
+        }
+    }, [containerSizeRef, transformRef, clampTransform, syncToDom, onHoverVideo, containerRef, onInteractionStart]);
+
+    const lastPanEndTimeRef = useRef(0);
 
     const handleMouseUp = useCallback((e?: React.MouseEvent) => {
         // PAN END
         if (isPanningRef.current) {
             setIsPanning(false);
             isPanningRef.current = false;
+            lastPanEndTimeRef.current = Date.now();
+            // Ensure final state is synced to React to prevent re-render jumps
+            syncToDom();
         }
 
         // SELECTION END -> ZOOM
@@ -300,7 +326,7 @@ export const useTimelineInteraction = ({
                 startAnimation();
             }
         }
-    }, [containerSizeRef, containerRef, transformRef, minScale, clampTransform, startAnimation]);
+    }, [containerSizeRef, containerRef, transformRef, minScale, clampTransform, startAnimation, syncToDom]);
 
     // Events attachment
     useEffect(() => {
@@ -356,6 +382,7 @@ export const useTimelineInteraction = ({
         handleMouseUp,
         syncToDom,
         zoomToPoint,
-        smoothToTransform
+        smoothToTransform,
+        lastPanEndTimeRef
     };
 };

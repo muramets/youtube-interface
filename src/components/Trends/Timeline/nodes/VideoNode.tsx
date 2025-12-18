@@ -63,7 +63,6 @@ export const VideoNode = memo(({
                 filter: isHighlighted ? 'brightness(1.1)' : 'brightness(1)',
                 transition: 'transform 200ms ease-out, filter 200ms ease-out, box-shadow 200ms ease-out',
             }}
-            onMouseDown={(e) => e.stopPropagation()}
             onMouseEnter={(e) => onMouseEnter(e, video)}
             onClick={onClick}
             onMouseLeave={onMouseLeave}

@@ -13,14 +13,14 @@ import type { TrendVideo } from '../../../../types/trends';
 import { trendVideoToVideoDetails } from '../../../../utils/videoAdapters';
 
 interface PlaylistSelectorProps {
-    video: TrendVideo;
+    videos: TrendVideo[];
     isOpen: boolean;
     openAbove: boolean;
     onToggle: () => void;
 }
 
 export const PlaylistSelector: React.FC<PlaylistSelectorProps> = ({
-    video,
+    videos,
     isOpen,
     openAbove,
     onToggle
@@ -37,6 +37,8 @@ export const PlaylistSelector: React.FC<PlaylistSelectorProps> = ({
 
     const buttonRef = useRef<HTMLButtonElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    const isMultiSelect = videos.length > 1;
 
     // Auto-focus input when opening
     useEffect(() => {
@@ -61,26 +63,29 @@ export const PlaylistSelector: React.FC<PlaylistSelectorProps> = ({
         if (!newPlaylistName.trim() || !user || !currentChannel) return;
 
         await handleQuickAction(async () => {
-            // Ensure video exists
-            const videoExists = homeVideos.some(v => v.id === video.id);
-            if (!videoExists) {
-                const videoDetails = trendVideoToVideoDetails(video, getChannelAvatar(video.channelId));
-                await VideoService.addVideo(user.uid, currentChannel.id, {
-                    ...videoDetails,
-                    isPlaylistOnly: true,
-                    createdAt: Date.now()
-                });
-            }
+            const videoIdsToAdd = videos.map(v => v.id);
+
+            await Promise.all(videos.map(async (video) => {
+                const videoExists = homeVideos.some(v => v.id === video.id);
+                if (!videoExists) {
+                    const videoDetails = trendVideoToVideoDetails(video, getChannelAvatar(video.channelId));
+                    await VideoService.addVideo(user.uid, currentChannel!.id, {
+                        ...videoDetails,
+                        isPlaylistOnly: true,
+                        createdAt: Date.now()
+                    });
+                }
+            }));
 
             const playlistId = `playlist-${Date.now()}`;
             await PlaylistService.createPlaylist(user.uid, currentChannel.id, {
                 id: playlistId,
                 name: newPlaylistName.trim(),
-                videoIds: [video.id],
+                videoIds: videoIdsToAdd,
                 createdAt: Date.now()
             });
 
-            showToast(`Created "${newPlaylistName}"`, 'success');
+            showToast(`Created "${newPlaylistName}" with ${videos.length} videos`, 'success');
             setNewPlaylistName('');
             onToggle(); // Close after create
         });
@@ -91,28 +96,40 @@ export const PlaylistSelector: React.FC<PlaylistSelectorProps> = ({
 
         await handleQuickAction(async () => {
             if (isInPlaylist) {
-                // Remove from playlist
-                await removeVideoFromPlaylist({ playlistId, videoId: video.id });
-                showToast(`Removed from "${playlistName}"`, 'success');
+                // Remove ALL from playlist
+                await Promise.all(videos.map(v => removeVideoFromPlaylist({ playlistId, videoId: v.id })));
+                showToast(isMultiSelect ? `Removed ${videos.length} videos from "${playlistName}"` : `Removed from "${playlistName}"`, 'success');
             } else {
-                // Add to playlist - ensure video exists in DB first
-                const videoExists = homeVideos.some(v => v.id === video.id);
-                if (!videoExists) {
-                    const videoDetails = trendVideoToVideoDetails(video, getChannelAvatar(video.channelId));
-                    await VideoService.addVideo(user.uid, currentChannel.id, {
-                        ...videoDetails,
-                        isPlaylistOnly: true,
-                        createdAt: Date.now()
-                    });
-                }
-                await addVideoToPlaylist({ playlistId, videoId: video.id });
-                showToast(`Added to "${playlistName}"`, 'success');
+                // Add to playlist
+                await Promise.all(videos.map(async (video) => {
+                    const videoExists = homeVideos.some(v => v.id === video.id);
+                    if (!videoExists) {
+                        const videoDetails = trendVideoToVideoDetails(video, getChannelAvatar(video.channelId));
+                        await VideoService.addVideo(user.uid, currentChannel!.id, {
+                            ...videoDetails,
+                            isPlaylistOnly: true,
+                            createdAt: Date.now()
+                        });
+                    }
+                    await addVideoToPlaylist({ playlistId, videoId: video.id });
+                }));
+                showToast(isMultiSelect ? `Added ${videos.length} videos to "${playlistName}"` : `Added to "${playlistName}"`, 'success');
             }
         });
     };
 
-    const getPlaylistContainsVideo = (playlist: { videoIds?: string[] }) => {
-        return playlist.videoIds?.includes(video.id) || false;
+    const getPlaylistStatus = (playlist: { videoIds?: string[] }) => {
+        // Return 'all', 'some', 'none'
+        if (!playlist.videoIds) return 'none';
+
+        let count = 0;
+        videos.forEach(v => {
+            if (playlist.videoIds!.includes(v.id)) count++;
+        });
+
+        if (count === videos.length) return 'all';
+        if (count > 0) return 'some';
+        return 'none';
     };
 
     return (
@@ -150,19 +167,22 @@ export const PlaylistSelector: React.FC<PlaylistSelectorProps> = ({
                     </div>
                     <div className="overflow-y-auto custom-scrollbar p-1 flex-1">
                         {playlists.map(playlist => {
-                            const isInPlaylist = getPlaylistContainsVideo(playlist);
+                            const status = getPlaylistStatus(playlist);
+                            const isChecked = status === 'all';
+                            // We treat 'some' as unchecked for toggle action (add remaining)
+
                             return (
                                 <button
                                     key={playlist.id}
-                                    onClick={() => handlePlaylistToggle(playlist.id, playlist.name, isInPlaylist)}
-                                    className={`w-full text-left px-3 py-2 text-xs hover:bg-white/5 rounded-lg flex items-center gap-2 transition-colors justify-between ${isInPlaylist ? 'text-white' : 'text-text-secondary hover:text-white'
+                                    onClick={() => handlePlaylistToggle(playlist.id, playlist.name, isChecked)}
+                                    className={`w-full text-left px-3 py-2 text-xs hover:bg-white/5 rounded-lg flex items-center gap-2 transition-colors justify-between ${isChecked ? 'text-white' : 'text-text-secondary hover:text-white'
                                         }`}
                                 >
                                     <div className="flex items-center gap-2 truncate">
                                         <ListVideo size={14} />
                                         <span className="truncate">{playlist.name}</span>
                                     </div>
-                                    {isInPlaylist && <Check size={12} className="text-green-400 flex-shrink-0" />}
+                                    {isChecked && <Check size={12} className="text-green-400 flex-shrink-0" />}
                                 </button>
                             );
                         })}

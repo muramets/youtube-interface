@@ -13,7 +13,7 @@ export const trendVideoToVideoDetails = (video: TrendVideo, channelAvatar: strin
         viewCount: video.viewCount.toString(),
         duration: video.duration,
         description: video.description,
-        tags: video.tags,
+        tags: video.tags || [],
         // Default/Empty values for required fields missing in TrendVideo
         isCustom: false,
         createdAt: Date.now()

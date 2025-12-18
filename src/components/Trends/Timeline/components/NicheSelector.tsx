@@ -6,7 +6,7 @@ import { FloatingNicheItem } from '../FloatingNicheItem';
 import { FloatingDropdownPortal } from '../../../Shared/FloatingDropdownPortal';
 
 interface NicheSelectorProps {
-    video: TrendVideo;
+    videos: TrendVideo[];
     isOpen: boolean;
     openAbove: boolean;
     onToggle: () => void;
@@ -14,7 +14,7 @@ interface NicheSelectorProps {
 }
 
 export const NicheSelector: React.FC<NicheSelectorProps> = ({
-    video,
+    videos,
     isOpen,
     openAbove,
     onToggle
@@ -28,12 +28,49 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
     const [isGlobal, setIsGlobal] = useState(false);
     const [activeNicheMenuId, setActiveNicheMenuId] = useState<string | null>(null);
 
-    // Resolve assigned niches (now array-based)
-    const videoAssignments = videoNicheAssignments[video.id] || [];
-    const assignedNicheIds = new Set(videoAssignments.map(a => a.nicheId));
+    const isMultiSelect = videos.length > 1;
 
-    // Find display niche: highest view count, or earliest added if tied
+    // Resolve assigned niches
+    // For single video: show its niches
+    // For multi: show intersection? or just show state in dropdown?
+    // Let's resolve "common" niches for the button label, but track individual for the list.
+    const allAssignedIds = useMemo(() => {
+        const set = new Set<string>();
+        videos.forEach(v => {
+            const assignments = videoNicheAssignments[v.id] || [];
+            assignments.forEach(a => set.add(a.nicheId));
+        });
+        return set;
+    }, [videos, videoNicheAssignments]);
+
+    // Check which niches are assigned to ALL selected videos (for checkbox state 'checked')
+    // And which are partial (for 'indeterminate' - though custom UI just checking if assigned to specific video in loop)
+    // For the UI list:
+    // We need to know if a niche is assigned to ALL, SOME, or NONE.
+    const nicheAssignmentStatus = useMemo(() => {
+        const status = new Map<string, 'all' | 'some' | 'none'>();
+        niches.forEach(niche => {
+            let count = 0;
+            videos.forEach(v => {
+                const assignments = videoNicheAssignments[v.id] || [];
+                if (assignments.some(a => a.nicheId === niche.id)) {
+                    count++;
+                }
+            });
+
+            if (count === videos.length) status.set(niche.id, 'all');
+            else if (count > 0) status.set(niche.id, 'some');
+            else status.set(niche.id, 'none');
+        });
+        return status;
+    }, [niches, videos, videoNicheAssignments]);
+
+    // Display Niche Logic (Button Label)
     const displayNiche = useMemo(() => {
+        if (isMultiSelect) return null; // Don't show specific niche color for mixed selection
+
+        const video = videos[0];
+        const videoAssignments = videoNicheAssignments[video.id] || [];
         if (videoAssignments.length === 0) return null;
 
         // Get niches with their view counts
@@ -50,16 +87,16 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
         nichesWithStats.sort((a, b) => {
             const viewDiff = (b.niche.viewCount || 0) - (a.niche.viewCount || 0);
             if (viewDiff !== 0) return viewDiff;
-            return a.addedAt - b.addedAt; // Earlier added first
+            return a.addedAt - b.addedAt;
         });
 
         return nichesWithStats[0].niche;
-    }, [videoAssignments, niches]);
+    }, [videos, videoNicheAssignments, niches, isMultiSelect]);
 
-    // Compute last used timestamp for each niche
+    // Compute last used timestamp for each niche (from all videos context?)
+    // Using global stats is better for ordering
     const nicheLastUsed = useMemo(() => {
         const lastUsed = new Map<string, number>();
-        // Iterate all assignments to find latest addedAt for each niche
         Object.values(videoNicheAssignments).flat().forEach(assignment => {
             const current = lastUsed.get(assignment.nicheId) || 0;
             if (assignment.addedAt > current) {
@@ -76,7 +113,7 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
         }).sort((a, b) => {
             const timeA = nicheLastUsed.get(a.id) || 0;
             const timeB = nicheLastUsed.get(b.id) || 0;
-            return timeB - timeA; // Most recently used first
+            return timeB - timeA;
         });
     }, [niches, newNicheName, nicheLastUsed]);
 
@@ -96,23 +133,35 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                 name: newNicheName.trim(),
                 color: newColor,
                 type: isGlobal ? 'global' : 'local',
-                channelId: video.channelId // Always save origin channel
+                channelId: videos[0].channelId // Use first video's channel as origin
             };
 
             addNiche(newNiche);
-            assignVideoToNiche(video.id, newNiche.id);
+            // Assign to ALL selected videos
+            videos.forEach(v => assignVideoToNiche(v.id, newNiche.id));
 
             setNewNicheName('');
-            onToggle(); // Close after create
+            onToggle();
         }
     };
 
-    const handleNicheToggle = (nicheId: string, isAssigned: boolean) => {
-        if (isAssigned) {
-            removeVideoFromNiche(video.id, nicheId);
-        } else {
-            assignVideoToNiche(video.id, nicheId);
-        }
+    const handleNicheToggle = (nicheId: string, currentStatus: 'all' | 'some' | 'none') => {
+        // Behavior: 
+        // If 'all' -> remove from all
+        // If 'some' -> add to remaining (make all)
+        // If 'none' -> add to all
+
+        const shouldAdd = currentStatus !== 'all';
+
+        videos.forEach(v => {
+            if (shouldAdd) {
+                // Prevent duplicate assignment if already assigned
+                const assigned = (videoNicheAssignments[v.id] || []).some(a => a.nicheId === nicheId);
+                if (!assigned) assignVideoToNiche(v.id, nicheId);
+            } else {
+                removeVideoFromNiche(v.id, nicheId);
+            }
+        });
     };
 
     return (
@@ -132,14 +181,18 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                     <>
                         <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: displayNiche.color }} />
                         <span className="truncate max-w-[120px]">{displayNiche.name}</span>
-                        {assignedNicheIds.size > 1 && (
-                            <span className="text-[10px] text-text-secondary">+{assignedNicheIds.size - 1}</span>
+                        {/* If single video and has multiple niches, show count */}
+                        {/* If multi select, we didn't enter this block */}
+                        {((videoNicheAssignments[videos[0].id] || []).length > 1) && (
+                            <span className="text-[10px] text-text-secondary">
+                                +{(videoNicheAssignments[videos[0].id] || []).length - 1}
+                            </span>
                         )}
                     </>
                 ) : (
                     <>
                         <FolderPlus size={16} />
-                        Assign Niche
+                        {isMultiSelect ? 'Assign Niches' : 'Assign Niche'}
                     </>
                 )}
                 <ChevronDown size={14} className={`transition-transform ${isOpen ? '' : 'rotate-180'}`} />
@@ -151,7 +204,6 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                 openAbove={openAbove}
             >
                 <div data-portal-wrapper className="flex flex-col h-full">
-                    {/* Header / Create */}
                     <div className="p-2 border-b border-white/10 bg-white/5">
                         <form onSubmit={handleCreateSubmit} className="relative flex flex-col gap-2">
                             <div className="relative">
@@ -167,9 +219,7 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                             </div>
                             {newNicheName && (
                                 <div className="flex items-center justify-between px-1 gap-3">
-                                    {/* Premium Sliding Pill Toggle */}
                                     <div className="relative flex bg-white/5 rounded-full p-0.5 border border-white/10 backdrop-blur-sm">
-                                        {/* Sliding Indicator */}
                                         <div
                                             className="absolute top-0.5 h-[calc(100%-4px)] w-[calc(50%-2px)] bg-gradient-to-r from-white/25 to-white/15 rounded-full transition-all duration-300 ease-out shadow-sm"
                                             style={{
@@ -203,17 +253,24 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                             )}
                         </form>
                     </div>
-                    {/* List */}
                     <div className="overflow-y-auto custom-scrollbar p-1 flex-1">
                         {filteredNiches.map(niche => {
-                            const isAssigned = assignedNicheIds.has(niche.id);
+                            const status = nicheAssignmentStatus.get(niche.id) || 'none';
+                            const isAssigned = status === 'all';
+                            // Optional: Distinct visual for 'some' (partial) if FloatingNicheItem supports it.
+                            // If not, we'll just treat 'all' as checked and 'some'/'none' as unchecked for now, 
+                            // or maybe force 'some' to look different? 
+                            // Since I can't easily change FloatingNicheItem props right now without seeing it, I'll stick to simple boolean 'isAssigned' = status === 'all'. 
+                            // Wait, if status is 'some', users might want to know.
+                            // But FloatingNicheItem prop is 'isAssigned'. I'll pass true only if ALL are assigned.
+
                             return (
                                 <FloatingNicheItem
                                     key={niche.id}
                                     niche={niche}
                                     isAssigned={isAssigned}
                                     isActive={activeNicheMenuId === niche.id}
-                                    onToggle={() => handleNicheToggle(niche.id, isAssigned)}
+                                    onToggle={() => handleNicheToggle(niche.id, status)}
                                     onToggleMenu={() => setActiveNicheMenuId(current => current === niche.id ? null : niche.id)}
                                     onCloseMenu={() => setActiveNicheMenuId(null)}
                                 />

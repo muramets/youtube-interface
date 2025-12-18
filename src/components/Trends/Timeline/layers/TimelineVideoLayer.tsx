@@ -9,10 +9,10 @@ interface TimelineVideoLayerProps {
     transform: { scale: number; offsetX: number; offsetY: number };
     worldWidth: number;
     worldHeight: number;
-    activeVideoId: string | null;
+    activeVideoIds: Set<string>;
     onHoverVideo: (data: { video: TrendVideo; x: number; y: number; width: number; height: number } | null) => void;
     onDoubleClickVideo: (video: TrendVideo, worldX: number, worldY: number) => void;
-    onClickVideo: (video: TrendVideo, clientX: number, clientY: number) => void;
+    onClickVideo: (video: TrendVideo, e: React.MouseEvent) => void;
     setAddChannelModalOpen: (isOpen: boolean) => void;
     getPercentileGroup: (videoId: string) => string | undefined;
     style?: React.CSSProperties;
@@ -32,7 +32,7 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
     transform,
     worldWidth,
     worldHeight,
-    activeVideoId,
+    activeVideoIds,
     style,
     getPercentileGroup,
     setAddChannelModalOpen,
@@ -134,14 +134,14 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
                             worldHeight={worldHeight}
                             isFocused={focusedVideoId === position.video.id}
                             isElevated={elevatedVideoId === position.video.id}
-                            isActive={activeVideoId === position.video.id}
+                            isActive={activeVideoIds.has(position.video.id)}
                             showLabel={showLabels}
                             onMouseEnter={handleMouseEnter}
                             onMouseLeave={handleMouseLeave}
                             onDoubleClick={onDoubleClickVideo}
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onClickVideo(position.video, e.clientX, e.clientY);
+                                onClickVideo(position.video, e);
                             }}
                         />
                     ))
@@ -155,13 +155,13 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
                             percentileGroup={getPercentileGroup(position.video.id)}
                             isFocused={focusedVideoId === position.video.id}
                             isElevated={elevatedVideoId === position.video.id}
-                            isActive={activeVideoId === position.video.id}
+                            isActive={activeVideoIds.has(position.video.id)}
                             onMouseEnter={handleMouseEnter}
                             onMouseLeave={handleMouseLeave}
                             onDoubleClick={onDoubleClickVideo}
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onClickVideo(position.video, e.clientX, e.clientY);
+                                onClickVideo(position.video, e);
                             }}
                         />
                     ))

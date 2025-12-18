@@ -115,12 +115,20 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     });
 
     // 6. Selected Video for Floating Bar
-    const [selectedVideoState, setSelectedVideoState] = useState<{ video: TrendVideo; x: number; y: number } | null>(null);
+    const [selectionState, setSelectionState] = useState<{
+        selectedIds: Set<string>;
+        lastAnchor: { x: number; y: number } | null;
+        hasDocked: boolean;
+    }>({ selectedIds: new Set(), lastAnchor: null, hasDocked: false });
+
+    const selectedVideos = React.useMemo(() => {
+        return videos.filter(v => selectionState.selectedIds.has(v.id));
+    }, [videos, selectionState.selectedIds]);
 
     const floatingBarPosition = React.useMemo(() => {
-        if (!selectedVideoState) return { x: 0, y: 0 };
-        return { x: selectedVideoState.x, y: selectedVideoState.y };
-    }, [selectedVideoState?.x, selectedVideoState?.y]);
+        if (selectionState.selectedIds.size === 0 || !selectionState.lastAnchor) return { x: 0, y: 0 };
+        return selectionState.lastAnchor;
+    }, [selectionState.lastAnchor, selectionState.selectedIds.size]);
 
     // 7. Control Handlers (Smart Focus)
     const {
@@ -157,12 +165,18 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         containerSizeRef,
         setTransformState,
         clampTransform,
-        onHoverVideo: (active: boolean) => {
+        onHoverVideo: React.useCallback((active: boolean) => {
             if (!active) forceCloseTooltip();
-        },
-        onInteractionStart: () => {
-            setSelectedVideoState(null);
-        }
+        }, [forceCloseTooltip]),
+        onInteractionStart: React.useCallback(() => {
+            // Dock the floating bar on any interaction (zoom/pan) if we have a selection
+            setSelectionState(prev => {
+                if (prev.selectedIds.size > 0 && !prev.hasDocked) {
+                    return { ...prev, hasDocked: true };
+                }
+                return prev;
+            });
+        }, [])
     });
 
     const { isPanning, selectionRect, smoothToTransform } = interaction;
@@ -200,8 +214,27 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         }
     }, [structureVersion, calculateAutoFitTransform, smoothToTransform, setTimelineConfig, currentContentHash]);
 
-    // Hotkeys
+    // Hotkeys (Standard)
     useTimelineHotkeys({ onAutoFit: handleSmoothFit });
+
+    // 10. Global Hotkeys (Cmd+Shift+L to clear)
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const isCmdShiftL = (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'l';
+            const isEsc = e.key === 'Escape';
+
+            if (isCmdShiftL || isEsc) {
+                e.preventDefault();
+                setSelectionState({ selectedIds: new Set(), lastAnchor: null, hasDocked: false });
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
+    // Determine visibility logic
+    // isMultiSelect logic is handled internally
 
     return (
         <div
@@ -213,11 +246,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
             onMouseUp={interaction.handleMouseUp}
             onMouseLeave={interaction.handleMouseUp}
             onDoubleClick={handleSmoothFit}
-            onClick={(e) => {
-                if (e.target === containerRef.current) {
-                    setSelectedVideoState(null);
-                }
-            }}
+        // onClick removed for background clearing. Selection persists until explicitly cleared (X or Cmd+L).
         >
             {/* Subtle Vertical Gradient Overlay */}
             <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-text-primary/[0.02] to-transparent" />
@@ -239,7 +268,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                 transform={transformState}
                 worldWidth={worldWidth}
                 worldHeight={dynamicWorldHeight}
-                activeVideoId={selectedVideoState?.video.id || null}
+                activeVideoIds={selectionState.selectedIds}
                 style={{
                     opacity: isLoading ? 0 : 1,
                     transition: 'opacity 0.3s ease'
@@ -256,16 +285,48 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                     forceCloseTooltip();
                     interaction.zoomToPoint(worldX, worldY, 1.0);
                 }}
-                onClickVideo={(video, clientX, clientY) => {
+                onClickVideo={(video, e) => {
+                    const PAN_COOLDOWN_MS = 200;
+                    if (Date.now() - interaction.lastPanEndTimeRef.current < PAN_COOLDOWN_MS) {
+                        return; // Ignore click if we just finished panning
+                    }
+
                     if (clickTimeoutRef.current) {
                         clearTimeout(clickTimeoutRef.current);
                     }
+
+                    const isModifier = e.metaKey || e.ctrlKey;
+                    const clientX = e.clientX;
+                    const clientY = e.clientY;
+
                     clickTimeoutRef.current = setTimeout(() => {
-                        if (selectedVideoState?.video.id === video.id) {
-                            setSelectedVideoState(null);
-                        } else {
-                            setSelectedVideoState({ video, x: clientX, y: clientY });
-                        }
+                        setSelectionState(prev => {
+                            const newSet = new Set(prev.selectedIds);
+
+                            // Multi-select toggle
+                            if (isModifier) {
+                                if (newSet.has(video.id)) {
+                                    newSet.delete(video.id);
+                                } else {
+                                    newSet.add(video.id);
+                                }
+                                return {
+                                    selectedIds: newSet,
+                                    lastAnchor: { x: clientX, y: clientY },
+                                    hasDocked: prev.hasDocked // Maintain docked state during multi-select operations
+                                };
+                            }
+                            // Single select -> Only update if not already selected or if we want to switch selection
+                            else {
+                                // Logic: If clicking a different video, select it. 
+                                // And RESET docked state (start anchored near video).
+                                return {
+                                    selectedIds: new Set([video.id]),
+                                    lastAnchor: { x: clientX, y: clientY },
+                                    hasDocked: false
+                                };
+                            }
+                        });
                         clickTimeoutRef.current = null;
                     }, 250);
                 }}
@@ -315,8 +376,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                 isLoading={isLoading}
             />
 
-            {/* Check hoveredVideo vs selectedVideoState to avoid tooltip overlap */}
-            {hoveredVideo && !selectedVideoState && (
+            {/* Check hoveredVideo vs selectedVideos to avoid tooltip overlap */}
+            {hoveredVideo && !selectionState.selectedIds.has(hoveredVideo.video.id) && (
                 <TrendTooltip
                     key={hoveredVideo.video.id}
                     video={hoveredVideo.video}
@@ -333,16 +394,18 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                 />
             )}
 
-            {selectedVideoState && (
-                <>
-                    <div className="fixed inset-0 z-[999]" onClick={() => setSelectedVideoState(null)} />
+            {/* Floating Bar with Smart Positioning */}
+            <div className="transition-opacity duration-200 opacity-100">
+                {selectionState.selectedIds.size > 0 && (
                     <TrendsFloatingBar
-                        video={selectedVideoState.video}
+                        videos={selectedVideos}
                         position={floatingBarPosition}
-                        onClose={() => setSelectedVideoState(null)}
+                        onClose={() => setSelectionState({ selectedIds: new Set(), lastAnchor: null, hasDocked: false })}
+                        isDocked={selectionState.hasDocked}
                     />
-                </>
-            )}
+                )}
+            </div>
         </div>
     );
 };
+

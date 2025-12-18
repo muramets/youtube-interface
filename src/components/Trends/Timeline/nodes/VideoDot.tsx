@@ -71,7 +71,6 @@ export const VideoDot = memo(({
                 zIndex: isHighlighted || isElevated ? 1000 : 10,
                 willChange: 'transform'
             }}
-            onMouseDown={(e) => e.stopPropagation()}
             onMouseEnter={(e) => onMouseEnter(e, video)}
             onClick={onClick}
             onMouseLeave={onMouseLeave}

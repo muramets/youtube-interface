@@ -13,15 +13,17 @@ import { PlaylistSelector } from './components/PlaylistSelector';
 import { trendVideoToVideoDetails } from '../../../utils/videoAdapters';
 
 interface TrendsFloatingBarProps {
-    video: TrendVideo;
+    videos: TrendVideo[];
     position: { x: number; y: number };
     onClose: () => void;
+    isDocked?: boolean;
 }
 
 export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
-    video,
+    videos,
     position,
-    onClose
+    onClose,
+    isDocked = false
 }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
@@ -34,22 +36,27 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
     const [isProcessing, setIsProcessing] = useState(false);
 
     const barRef = useRef<HTMLDivElement>(null);
+    const isMultiSelect = videos.length > 1;
+    const shouldDock = isMultiSelect || isDocked;
 
-    // Smart Positioning Hook
+    // Smart Positioning Hook (only used for single selection or anchor)
+    // We still run it to have coords ready for when we undock
     const { coords } = useSmartPosition({
-        targetPos: position,
+        targetPos: position, // Should be the anchor position (click point)
         elementRef: barRef,
         width: 300,
         offsetY: 60
     });
 
     // Unified Dropdown Direction
-    const dropdownsOpenAbove = coords.y > window.innerHeight / 2;
+    // For docked (bottom fixed), always open above
+    // For floating (single), depend on position
+    const dropdownsOpenAbove = shouldDock ? true : coords.y > window.innerHeight / 2;
 
-    // Check if video is already in home
-    const isAddedToHome = useMemo(() => {
-        return homeVideos.some(v => v.id === video.id && !v.isPlaylistOnly);
-    }, [homeVideos, video.id]);
+    // Check if ALL videos are already in home
+    const areAllAddedToHome = useMemo(() => {
+        return videos.every(v => homeVideos.some(hv => hv.id === v.id && !hv.isPlaylistOnly));
+    }, [homeVideos, videos]);
 
     const getChannelAvatar = (channelId: string) => {
         return channels.find(c => c.id === channelId)?.avatarUrl || '';
@@ -68,32 +75,62 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
         if (!user || !currentChannel) return;
 
         await handleQuickAction(async () => {
-            if (isAddedToHome) {
-                await VideoService.deleteVideo(user.uid, currentChannel.id, video.id);
-                showToast('Removed from Home', 'success');
+            // Logic: If ANY are missing from home, add those missing.
+            // If ALL are in home, remove ALL.
+            const shouldAdd = !areAllAddedToHome;
+
+            if (shouldAdd) {
+                await Promise.all(videos.map(async (video) => {
+                    const isAdded = homeVideos.some(v => v.id === video.id && !v.isPlaylistOnly);
+                    if (!isAdded) {
+                        const videoDetails = trendVideoToVideoDetails(video, getChannelAvatar(video.channelId));
+                        await VideoService.addVideo(user.uid, currentChannel!.id, {
+                            ...videoDetails,
+                            isPlaylistOnly: false,
+                            createdAt: Date.now()
+                        });
+                    }
+                }));
+                showToast(isMultiSelect ? `${videos.length} videos added to Home` : 'Added to Home', 'success');
             } else {
-                const videoDetails = trendVideoToVideoDetails(video, getChannelAvatar(video.channelId));
-                await VideoService.addVideo(user.uid, currentChannel.id, {
-                    ...videoDetails,
-                    isPlaylistOnly: false,
-                    createdAt: Date.now()
-                });
-                showToast('Added to Home', 'success');
+                await Promise.all(videos.map(async (video) => {
+                    await VideoService.deleteVideo(user.uid, currentChannel!.id, video.id);
+                }));
+                showToast(isMultiSelect ? `${videos.length} videos removed from Home` : 'Removed from Home', 'success');
             }
         });
     };
 
+    // Style for fixed positioning vs smart positioning
+    // We use transition-all to smooth the jump if possible.
+    // Note: switching between left/top and left/bottom might be jerky without calc.
+    // But fixed bottom is robust for UI.
+    const style: React.CSSProperties = shouldDock
+        ? {
+            left: '50%',
+            bottom: '40px',
+            transform: 'translateX(-50%)',
+            position: 'absolute'
+        }
+        : {
+            left: coords.x,
+            top: coords.y,
+            position: 'fixed'
+        };
+
+    const title = isMultiSelect ? `${videos.length} selected` : videos[0]?.title;
+
     return (
         <div
             ref={barRef}
-            className="flex items-center gap-2 bg-bg-secondary/90 backdrop-blur-md border border-border shadow-lg rounded-full px-4 py-2 animate-fade-in fixed z-[1000]"
-            style={{ left: coords.x, top: coords.y }}
+            className="flex items-center gap-2 bg-bg-secondary/90 backdrop-blur-md border border-border shadow-lg rounded-full px-4 py-2 z-[1000]"
+            style={style}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
         >
             <div className="flex items-center gap-3 pr-3 border-r border-white/10">
                 <span className="text-sm font-medium text-white whitespace-nowrap max-w-[150px] truncate">
-                    {video.title}
+                    {title}
                 </span>
                 <button
                     onClick={onClose}
@@ -106,7 +143,7 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
 
             {/* Niche Dropdown */}
             <NicheSelector
-                video={video}
+                videos={videos}
                 isOpen={activeMenu === 'niche'}
                 openAbove={dropdownsOpenAbove}
                 onToggle={() => setActiveMenu(activeMenu === 'niche' ? null : 'niche')}
@@ -120,15 +157,15 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                     onMouseDown={(e) => e.stopPropagation()}
                     onClick={handleHomeToggle}
                     disabled={isProcessing}
-                    className={`relative p-1.5 rounded-full transition-all ${isAddedToHome
+                    className={`relative p-1.5 rounded-full transition-all ${areAllAddedToHome
                         ? 'text-white hover:bg-red-500/20 hover:text-red-300'
                         : 'text-text-secondary hover:text-white hover:bg-white/10'
                         } ${isProcessing ? 'opacity-50' : ''}`}
-                    title={isAddedToHome ? 'Remove from Home' : 'Add to Home'}
+                    title={areAllAddedToHome ? 'Remove from Home' : 'Add to Home'}
                 >
                     <Home size={16} />
                     {/* Checkmark Badge */}
-                    {isAddedToHome && (
+                    {areAllAddedToHome && (
                         <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full flex items-center justify-center shadow-sm">
                             <Check size={8} className="text-white" strokeWidth={3} />
                         </div>
@@ -136,7 +173,7 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                 </button>
 
                 <PlaylistSelector
-                    video={video}
+                    videos={videos}
                     isOpen={activeMenu === 'playlist'}
                     openAbove={dropdownsOpenAbove}
                     onToggle={() => setActiveMenu(activeMenu === 'playlist' ? null : 'playlist')}
