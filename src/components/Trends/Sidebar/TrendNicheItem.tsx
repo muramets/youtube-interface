@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreVertical, Check } from 'lucide-react';
+import { MoreVertical, Check, Trash2 } from 'lucide-react';
 import type { TrendNiche } from '../../../types/trends';
 import { useTrendStore, MANUAL_NICHE_PALETTE } from '../../../stores/trendStore';
 import { ConfirmationModal } from '../../Shared/ConfirmationModal';
@@ -10,6 +10,7 @@ interface TrendNicheItemProps {
     niche: TrendNiche;
     isActive: boolean;
     onClick: (id: string) => void;
+    isTrash?: boolean;
 }
 
 const formatViewCount = (num?: number) => {
@@ -23,7 +24,8 @@ const formatViewCount = (num?: number) => {
 export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
     niche,
     isActive,
-    onClick
+    onClick,
+    isTrash = false
 }) => {
     const { updateNiche, deleteNiche } = useTrendStore();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -103,48 +105,55 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                     }
                 `}
             >
-                {/* Color Dot (Clickable) */}
-                <div
-                    ref={colorPickerRef}
-                >
-                    <div
-                        role="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setIsColorPickerOpen(!isColorPickerOpen);
-                            setIsMenuOpen(false);
-                        }}
-                        className="w-2.5 h-2.5 rounded-full mr-3 shrink-0 transition-all hover:scale-125 hover:ring-2 hover:ring-white/20 cursor-pointer"
-                        style={{ backgroundColor: niche.color }}
-                    />
-
-                    {/* Color Picker */}
-                    {isColorPickerOpen && (
+                {/* Icon Wrapper */}
+                <div className="mr-3 shrink-0 flex items-center justify-center w-4">
+                    {isTrash ? (
+                        <Trash2 size={14} className={isActive ? 'text-white' : 'text-gray-400'} />
+                    ) : (
                         <div
-                            className="absolute left-0 top-6 z-50 bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-fade-in"
-                            onClick={(e) => e.stopPropagation()}
+                            ref={colorPickerRef}
+                            className="relative"
                         >
                             <div
-                                className="grid gap-2"
-                                style={{ gridTemplateColumns: 'repeat(5, min-content)' }}
-                            >
-                                {PRESET_COLORS.map(color => (
-                                    <button
-                                        key={color}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            updateNiche(niche.id, { color });
-                                            setIsColorPickerOpen(false);
-                                        }}
-                                        className="w-6 h-6 rounded-full transition-shadow relative hover:ring-2 hover:ring-white/50 ring-offset-1 ring-offset-[#1a1a1a]"
-                                        style={{ backgroundColor: color }}
+                                role="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsColorPickerOpen(!isColorPickerOpen);
+                                    setIsMenuOpen(false);
+                                }}
+                                className="w-2.5 h-2.5 rounded-full transition-all hover:scale-125 hover:ring-2 hover:ring-white/20 cursor-pointer"
+                                style={{ backgroundColor: niche.color }}
+                            />
+
+                            {/* Color Picker */}
+                            {isColorPickerOpen && (
+                                <div
+                                    className="absolute left-0 top-6 z-50 bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-fade-in"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <div
+                                        className="grid gap-2"
+                                        style={{ gridTemplateColumns: 'repeat(5, min-content)' }}
                                     >
-                                        {niche.color === color && (
-                                            <Check size={12} className="absolute inset-0 m-auto text-white drop-shadow-sm" strokeWidth={3} />
-                                        )}
-                                    </button>
-                                ))}
-                            </div>
+                                        {PRESET_COLORS.map(color => (
+                                            <button
+                                                key={color}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    updateNiche(niche.id, { color });
+                                                    setIsColorPickerOpen(false);
+                                                }}
+                                                className="w-6 h-6 rounded-full transition-shadow relative hover:ring-2 hover:ring-white/50 ring-offset-1 ring-offset-[#1a1a1a]"
+                                                style={{ backgroundColor: color }}
+                                            >
+                                                {niche.color === color && (
+                                                    <Check size={12} className="absolute inset-0 m-auto text-white drop-shadow-sm" strokeWidth={3} />
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -165,7 +174,7 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                     >
                         {niche.name}
                     </span>
-                    {isEditing && (
+                    {isEditing && !isTrash && (
                         <input
                             ref={inputRef}
                             type="text"
@@ -196,48 +205,50 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                 </span>
 
                 {/* Actions Trigger (Hidden unless hovered/active) */}
-                <div ref={menuRef} className="relative">
-                    <button
-                        ref={menuButtonRef}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            if (!isMenuOpen) {
-                                // Calculate position for portal
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                setMenuPosition({
-                                    x: rect.right + 5, // Open to the right slightly
-                                    y: rect.top
-                                });
-                            }
-                            setIsMenuOpen(!isMenuOpen);
-                            setIsColorPickerOpen(false);
-                        }}
-                        className={`
-                            p-0.5 rounded ml-1 transition-opacity
-                            ${isInteracting ? 'opacity-100' : 'opacity-0 group-hover/niche:opacity-100'}
-                            ${isMenuOpen ? 'opacity-100 bg-white/10' : 'hover:bg-white/10'}
-                        `}
-                    >
-                        <MoreVertical size={12} />
-                    </button>
+                {!isTrash && (
+                    <div ref={menuRef} className="relative">
+                        <button
+                            ref={menuButtonRef}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (!isMenuOpen) {
+                                    // Calculate position for portal
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setMenuPosition({
+                                        x: rect.right + 5, // Open to the right slightly
+                                        y: rect.top
+                                    });
+                                }
+                                setIsMenuOpen(!isMenuOpen);
+                                setIsColorPickerOpen(false);
+                            }}
+                            className={`
+                                p-0.5 rounded ml-1 transition-opacity
+                                ${isInteracting ? 'opacity-100' : 'opacity-0 group-hover/niche:opacity-100'}
+                                ${isMenuOpen ? 'opacity-100 bg-white/10' : 'hover:bg-white/10'}
+                            `}
+                        >
+                            <MoreVertical size={12} />
+                        </button>
 
-                    {/* Shared Context Menu */}
-                    <NicheContextMenu
-                        niche={niche}
-                        isOpen={isMenuOpen}
-                        onClose={() => setIsMenuOpen(false)}
-                        position={menuPosition}
-                        onRename={() => {
-                            setIsEditing(true);
-                            setEditName(niche.name);
-                            setIsMenuOpen(false);
-                        }}
-                        onDelete={() => {
-                            setIsDeleteConfirmOpen(true);
-                            setIsMenuOpen(false);
-                        }}
-                    />
-                </div>
+                        {/* Shared Context Menu */}
+                        <NicheContextMenu
+                            niche={niche}
+                            isOpen={isMenuOpen}
+                            onClose={() => setIsMenuOpen(false)}
+                            position={menuPosition}
+                            onRename={() => {
+                                setIsEditing(true);
+                                setEditName(niche.name);
+                                setIsMenuOpen(false);
+                            }}
+                            onDelete={() => {
+                                setIsDeleteConfirmOpen(true);
+                                setIsMenuOpen(false);
+                            }}
+                        />
+                    </div>
+                )}
             </div>
 
             <ConfirmationModal

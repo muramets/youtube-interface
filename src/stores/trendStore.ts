@@ -36,6 +36,12 @@ const DEFAULT_TIMELINE_CONFIG: TimelineConfig = {
     timeLinearity: 1.0 // Default 1.0 (Compact)
 };
 
+export interface HiddenVideo {
+    id: string;
+    channelId: string;
+    hiddenAt: number;
+}
+
 interface TrendStore {
     // Data
     userId: string | null;
@@ -44,6 +50,7 @@ interface TrendStore {
     niches: TrendNiche[];
     videoNicheAssignments: Record<string, { nicheId: string; addedAt: number }[]>; // videoId -> array of niche assignments with timestamps
     channelFilters: Record<string, TrendsFilterItem[]>;
+    hiddenVideos: HiddenVideo[]; // Videos moved to trash
 
     // UI State
     timelineConfig: TimelineConfig;
@@ -82,6 +89,10 @@ interface TrendStore {
     assignVideoToNiche: (videoId: string, nicheId: string) => void;
     removeVideoFromNiche: (videoId: string, nicheId: string) => void;
 
+    // Hidden Videos Actions
+    hideVideos: (videos: { id: string; channelId: string }[]) => void;
+    restoreVideos: (ids: string[]) => void;
+
     // Helpers
     toggleChannelVisibility: (id: string) => void;
 }
@@ -95,6 +106,7 @@ export const useTrendStore = create<TrendStore>()(
             niches: [],
             videoNicheAssignments: {},
             channelFilters: {},
+            hiddenVideos: [],
 
             timelineConfig: { ...DEFAULT_TIMELINE_CONFIG },
             filterMode: 'global', // Default to global Scaling
@@ -115,6 +127,7 @@ export const useTrendStore = create<TrendStore>()(
                     userId: id,
                     trendsFilters: [],
                     channelFilters: {},
+                    hiddenVideos: [], // Reset hidden videos too
                     filterMode: 'global',
                     savedConfigs: {},
                     selectedChannelId: null,
@@ -246,6 +259,27 @@ export const useTrendStore = create<TrendStore>()(
                 }
                 return { videoNicheAssignments: newAssignments };
             }),
+
+            // Hidden Videos Actions
+            hideVideos: (videos) => set((state) => {
+                const newEntries = videos.map(v => ({
+                    id: v.id,
+                    channelId: v.channelId,
+                    hiddenAt: Date.now()
+                }));
+
+                // Filter out already existing ids to avoid duplicates (though minimal risk)
+                const existingIds = new Set(state.hiddenVideos.map(hv => hv.id));
+                const uniqueNewEntries = newEntries.filter(e => !existingIds.has(e.id));
+
+                return {
+                    hiddenVideos: [...state.hiddenVideos, ...uniqueNewEntries]
+                };
+            }),
+
+            restoreVideos: (ids) => set((state) => ({
+                hiddenVideos: state.hiddenVideos.filter(hv => !ids.includes(hv.id))
+            })),
         }),
         {
             name: 'trend-store',
@@ -257,6 +291,7 @@ export const useTrendStore = create<TrendStore>()(
                 videoNicheAssignments: state.videoNicheAssignments,
                 channelFilters: state.channelFilters,
                 trendsFilters: state.trendsFilters,
+                hiddenVideos: state.hiddenVideos,
                 filterMode: state.filterMode,
                 userId: state.userId
             }),

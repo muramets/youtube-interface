@@ -25,6 +25,11 @@ export const TrendsFilterChips: React.FC = () => {
     const chips: { key: string; label: string; onRemove: () => void }[] = [];
 
     trendsFilters.forEach(filter => {
+        // Skip display for Untracked (Trash Mode) niche filter
+        if (filter.type === 'niche' && Array.isArray(filter.value) && filter.value.includes('TRASH')) {
+            return;
+        }
+
         if (filter.type === 'percentile' && Array.isArray(filter.value)) {
             // Create a chip for each excluded group
             filter.value.forEach((group: string) => {
@@ -43,6 +48,8 @@ export const TrendsFilterChips: React.FC = () => {
             });
         }
     });
+
+    if (chips.length === 0) return null;
 
     return (
         <div className="flex items-center gap-2 flex-wrap">

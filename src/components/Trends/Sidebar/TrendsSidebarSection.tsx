@@ -28,7 +28,7 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
         handleSyncChannel
     } = useTrendsSidebar();
 
-    const { niches, videos, videoNicheAssignments, trendsFilters, addTrendsFilter, removeTrendsFilter } = useTrendStore();
+    const { niches, videos, videoNicheAssignments, trendsFilters, addTrendsFilter, removeTrendsFilter, hiddenVideos } = useTrendStore();
     const [isContentExpanded, setIsContentExpanded] = useState(true);
 
     // Derived active niche state from filters
@@ -40,18 +40,45 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
     const handleNicheClick = (id: string | null) => {
         if (!id) return;
 
+        // "Untracked" (TRASH) mode is exclusive.
+        // If clicking TRASH, clear everything else.
+        // If clicking something else, clear TRASH.
+
         const existingFilter = trendsFilters.find(f => f.type === 'niche');
+
+        // Case 1: Clicking TRASH
+        if (id === 'TRASH') {
+            if (existingFilter) {
+                removeTrendsFilter(existingFilter.id);
+            }
+            // Add TRASH filter solely
+            addTrendsFilter({
+                type: 'niche',
+                operator: 'contains',
+                value: ['TRASH'],
+                label: 'Niche: Untracked'
+            });
+            return;
+        }
+
+        // Case 2: Clicking a regular niche
         if (existingFilter) {
             removeTrendsFilter(existingFilter.id);
             const currentlySelected = (existingFilter.value as string[]) || [];
 
-            let nextSelection = [];
-            if (currentlySelected.includes(id)) {
-                // Remove it
-                nextSelection = currentlySelected.filter(sid => sid !== id);
+            let nextSelection = [...currentlySelected];
+
+            // Ensure TRASH is removed if it was present
+            if (nextSelection.includes('TRASH')) {
+                nextSelection = nextSelection.filter(sid => sid !== 'TRASH');
+            }
+
+            if (nextSelection.includes(id)) {
+                // Toggle off
+                nextSelection = nextSelection.filter(sid => sid !== id);
             } else {
-                // Add it
-                nextSelection = [...currentlySelected, id];
+                // Toggle on
+                nextSelection = [...nextSelection, id];
             }
 
             // Apply update only if we still have selections
@@ -69,7 +96,7 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                 });
             }
         } else {
-            // No filter exists, create new one with this niche
+            // No previous filter, simple add
             const nicheName = niches.find(n => n.id === id)?.name || 'Niche';
             addTrendsFilter({
                 type: 'niche',
@@ -79,6 +106,17 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
             });
         }
     };
+
+    // Compute set of channels that have hidden videos
+    const trashCounts = React.useMemo(() => {
+        const counts = new Map<string, number>();
+        hiddenVideos.forEach(hv => {
+            if (hv.channelId) {
+                counts.set(hv.channelId, (counts.get(hv.channelId) || 0) + 1);
+            }
+        });
+        return counts;
+    }, [hiddenVideos]);
 
     // Compute view counts dynamically based on currently loaded videos
     const nicheViewCounts = React.useMemo(() => {
@@ -183,19 +221,23 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                                     </div>
                                 ) : (
                                     <ul className="space-y-0.5">
-                                        {channels.map((channel: TrendChannel) => (
-                                            <TrendsChannelItem
-                                                key={channel.id}
-                                                channel={channel}
-                                                isActive={isOnTrendsPage && selectedChannelId === channel.id}
-                                                onChannelClick={handleChannelClick}
-                                                onToggleVisibility={handleToggleVisibility}
-                                                onOpenMenu={(e, channelId) => setMenuState({ anchorEl: e.currentTarget as HTMLElement, channelId })}
-                                                niches={getLocalNiches(channel.id)}
-                                                activeNicheIds={activeNicheIds}
-                                                onNicheClick={handleNicheClick}
-                                            />
-                                        ))}
+                                        {channels.map((channel: TrendChannel) => {
+                                            const trashCount = trashCounts.get(channel.id) || 0;
+                                            return (
+                                                <TrendsChannelItem
+                                                    key={channel.id}
+                                                    channel={channel}
+                                                    isActive={isOnTrendsPage && selectedChannelId === channel.id}
+                                                    onChannelClick={handleChannelClick}
+                                                    onToggleVisibility={handleToggleVisibility}
+                                                    onOpenMenu={(e, channelId) => setMenuState({ anchorEl: e.currentTarget as HTMLElement, channelId })}
+                                                    niches={getLocalNiches(channel.id)}
+                                                    activeNicheIds={activeNicheIds}
+                                                    onNicheClick={handleNicheClick}
+                                                    trashCount={trashCount}
+                                                />
+                                            );
+                                        })}
                                     </ul>
                                 )}
                             </div>

@@ -16,7 +16,7 @@ interface MenuState {
 }
 
 export const useTrendsSidebar = () => {
-    const { channels, selectedChannelId, setSelectedChannelId, setAddChannelModalOpen, isLoadingChannels } = useTrendStore();
+    const { channels, selectedChannelId, setSelectedChannelId, setAddChannelModalOpen, isLoadingChannels, trendsFilters, removeTrendsFilter } = useTrendStore();
     const { user, isLoading: isAuthLoading } = useAuth();
     const { currentChannel } = useChannelStore();
     const { isLoading: isChannelsLoading } = useChannels(user?.uid || '');
@@ -37,6 +37,12 @@ export const useTrendsSidebar = () => {
     };
 
     const handleChannelClick = (channelId: string) => {
+        // Clear any active niche filters (including TRASH) when switching channels
+        // so the user sees the full channel content by default
+        const nicheFilter = trendsFilters.find(f => f.type === 'niche');
+        if (nicheFilter) {
+            removeTrendsFilter(nicheFilter.id);
+        }
         setSelectedChannelId(channelId);
         navigate('/trends');
     };

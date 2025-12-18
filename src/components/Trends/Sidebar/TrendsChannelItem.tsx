@@ -12,6 +12,7 @@ interface TrendsChannelItemProps {
     niches?: TrendNiche[];
     activeNicheIds?: string[];
     onNicheClick?: (id: string) => void;
+    trashCount?: number;
 }
 
 export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
@@ -22,9 +23,13 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
     onOpenMenu,
     niches = [],
     activeNicheIds = [],
-    onNicheClick
+    onNicheClick,
+    trashCount = 0
 }) => {
-    const [isExpanded, setIsExpanded] = React.useState(true); // Default expanded if it has niches?
+    // Default expanded if it has niches or trash content
+    const [isExpanded, setIsExpanded] = React.useState(true);
+
+    const hasContent = niches.length > 0 || trashCount > 0;
 
     return (
         <React.Fragment>
@@ -44,7 +49,7 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                 />
 
                 {/* Expand Toggle */}
-                {niches.length > 0 && (
+                {hasContent && (
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
@@ -86,12 +91,13 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                     </button>
                 </div>
             </li>
-            {isExpanded && niches.length > 0 && (
+            {isExpanded && hasContent && (
                 <li className="mb-1">
                     <CollapsibleNicheList
                         niches={niches}
                         activeNicheIds={activeNicheIds}
                         onNicheClick={(id) => id && onNicheClick?.(id)}
+                        trashCount={trashCount}
                     />
                 </li>
             )}

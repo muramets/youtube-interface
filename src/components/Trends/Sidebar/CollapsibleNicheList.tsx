@@ -8,32 +8,54 @@ interface CollapsibleNicheListProps {
     activeNicheIds: string[];
     onNicheClick: (id: string | null) => void;
     initialVisibleCount?: number;
+    trashCount?: number;
 }
 
 export const CollapsibleNicheList: React.FC<CollapsibleNicheListProps> = ({
     niches,
     activeNicheIds,
     onNicheClick,
-    initialVisibleCount = 5
+    initialVisibleCount = 5,
+    trashCount = 0
 }) => {
     const [isExpanded, setIsExpanded] = useState(false);
 
-    const hasMore = niches.length > initialVisibleCount;
-    const visibleNiches = isExpanded ? niches : niches.slice(0, initialVisibleCount);
-    const hiddenCount = niches.length - initialVisibleCount;
+    // Create a unified list including the virtual "Trash" niche if needed
+    const allNiches = [...niches];
+    if (trashCount > 0) {
+        allNiches.push({
+            id: 'TRASH',
+            name: 'Untracked',
+            color: '#6B7280', // Gray
+            viewCount: trashCount,
+            createdAt: 0
+        } as unknown as TrendNiche);
+    }
 
-    if (niches.length === 0) return null;
+    if (allNiches.length === 0) return null;
+
+    const hasMore = allNiches.length > initialVisibleCount;
+    const visibleNiches = isExpanded ? allNiches : allNiches.slice(0, initialVisibleCount);
+    const hiddenCount = allNiches.length - initialVisibleCount;
 
     return (
         <ul className="space-y-0.5 relative">
             {visibleNiches.map((niche, index) => {
                 const isLastVisible = !isExpanded && hasMore && index === initialVisibleCount - 1;
+                const isTrash = niche.id === 'TRASH';
+
                 return (
                     <li key={niche.id} className={isLastVisible ? 'relative' : ''}>
+                        {/* Add separator if this is the Trash item and it's not the only item */}
+                        {isTrash && index > 0 && (
+                            <div className="h-px bg-border mx-2 my-1" />
+                        )}
+
                         <TrendNicheItem
                             niche={niche}
                             isActive={activeNicheIds.includes(niche.id)}
-                            onClick={onNicheClick}
+                            onClick={() => onNicheClick(isTrash ? 'TRASH' : niche.id)}
+                            isTrash={isTrash}
                         />
                         {/* Fade overlay on last item when collapsed */}
                         {isLastVisible && (

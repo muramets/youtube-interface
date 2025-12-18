@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { X, Check, Home } from 'lucide-react';
+import { X, Check, Home, Trash2, RotateCcw } from 'lucide-react';
 import type { TrendVideo } from '../../../types/trends';
 import { useAuth } from '../../../hooks/useAuth';
 import { useChannelStore } from '../../../stores/channelStore';
@@ -11,6 +11,7 @@ import { useSmartPosition } from './hooks/useSmartPosition';
 import { NicheSelector } from './components/NicheSelector';
 import { PlaylistSelector } from './components/PlaylistSelector';
 import { trendVideoToVideoDetails } from '../../../utils/videoAdapters';
+import { ConfirmationModal } from '../../Shared/ConfirmationModal';
 
 interface TrendsFloatingBarProps {
     videos: TrendVideo[];
@@ -27,13 +28,23 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
 }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { channels } = useTrendStore();
+    const { channels, hideVideos, restoreVideos, trendsFilters } = useTrendStore();
     const { videos: homeVideos } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { showToast } = useUIStore();
 
     // State to coordinate which menu is open (mutually exclusive)
     const [activeMenu, setActiveMenu] = useState<'niche' | 'playlist' | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+
+    // Trash / Restore State
+    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+
+    // Detect if we are in Trash Mode
+    const isTrashMode = useMemo(() => {
+        const nicheFilter = trendsFilters.find(f => f.type === 'niche');
+        const selectedNicheIds = (nicheFilter?.value as string[]) || [];
+        return selectedNicheIds.includes('TRASH');
+    }, [trendsFilters]);
 
     const barRef = useRef<HTMLDivElement>(null);
     const isMultiSelect = videos.length > 1;
@@ -101,6 +112,24 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
         });
     };
 
+    const handleTrashAction = () => {
+        if (isTrashMode) {
+            // Restore
+            restoreVideos(videos.map(v => v.id));
+            showToast(isMultiSelect ? 'Videos restored' : 'Video restored', 'success');
+        } else {
+            // Hide
+            const videosToHide = videos.map(v => ({
+                id: v.id,
+                channelId: v.channelId
+            }));
+            hideVideos(videosToHide);
+            showToast(isMultiSelect ? 'Videos moved to Untracked' : 'Video moved to Untracked', 'success');
+        }
+        setIsConfirmOpen(false);
+        onClose(); // Close bar after action
+    };
+
     // Style for fixed positioning vs smart positioning
     // We use transition-all to smooth the jump if possible.
     // Note: switching between left/top and left/bottom might be jerky without calc.
@@ -141,7 +170,7 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                 </button>
             </div>
 
-            {/* Niche Dropdown */}
+            {/* Niche Dropdown (Disable in Trash Mode?) -> Maybe user wants to assign niche before restoring? Let's keep enabled */}
             <NicheSelector
                 videos={videos}
                 isOpen={activeMenu === 'niche'}
@@ -178,7 +207,29 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                     openAbove={dropdownsOpenAbove}
                     onToggle={() => setActiveMenu(activeMenu === 'playlist' ? null : 'playlist')}
                 />
+
+                {/* Trash / Restore Button */}
+                <button
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={() => setIsConfirmOpen(true)}
+                    className="p-1.5 rounded-full transition-all text-text-secondary hover:text-white hover:bg-white/10 ml-1"
+                    title={isTrashMode ? 'Restore to timeline' : 'Move to Untracked'}
+                >
+                    {isTrashMode ? <RotateCcw size={16} /> : <Trash2 size={16} />}
+                </button>
             </div>
+
+            <ConfirmationModal
+                isOpen={isConfirmOpen}
+                onClose={() => setIsConfirmOpen(false)}
+                onConfirm={handleTrashAction}
+                title={isTrashMode ? 'Restore Videos' : 'Hide Videos'}
+                message={isTrashMode
+                    ? `Restore ${videos.length} video${videos.length > 1 ? 's' : ''} to the timeline?`
+                    : `Move ${videos.length} video${videos.length > 1 ? 's' : ''} to Untracked? They will be hidden from the timeline.`
+                }
+                confirmLabel={isTrashMode ? 'Restore' : 'Hide'}
+            />
         </div>
     );
 };

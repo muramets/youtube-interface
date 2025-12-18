@@ -8,7 +8,7 @@ import { applyNumericFilter } from '../utils/filterUtils';
 import { useFrozenStats } from '../components/Trends/Timeline/hooks/useFrozenStats';
 
 export const TrendsPage: React.FC = () => {
-    const { channels, selectedChannelId, timelineConfig, setTimelineConfig, trendsFilters, filterMode, setVideos, videos, videoNicheAssignments } = useTrendStore();
+    const { channels, selectedChannelId, timelineConfig, setTimelineConfig, trendsFilters, filterMode, setVideos, videos, videoNicheAssignments, hiddenVideos } = useTrendStore();
     const [isLoading, setIsLoading] = useState(true);
 
     // Reset state immediately when channel switches (Derived State pattern)
@@ -68,14 +68,6 @@ export const TrendsPage: React.FC = () => {
         loadVideos();
     }, [visibleChannels, selectedChannelId]);
 
-    // Managed Stats Logic (Frozen/Effective Stats)
-    const { currentStats, effectiveStats, refreshStats } = useFrozenStats({
-        videos,
-        channels,
-        selectedChannelId,
-        filterMode
-    });
-
     // Calculate Global Percentile Map
     const globalPercentileMap = useMemo(() => {
         if (videos.length === 0) return new Map<string, string>();
@@ -96,9 +88,22 @@ export const TrendsPage: React.FC = () => {
 
     // Apply Filters
     const filteredVideos = useMemo(() => {
-        if (trendsFilters.length === 0) return videos;
+        // First check if we are in "Trash Mode"
+        const nicheFilter = trendsFilters.find(f => f.type === 'niche');
+        const selectedNicheIds = (nicheFilter?.value as string[]) || [];
+        const isTrashMode = selectedNicheIds.includes('TRASH');
 
-        return videos.filter(video => {
+        // Create Set of hidden IDs for fast lookup
+        const hiddenIds = new Set(hiddenVideos.map(hv => hv.id));
+
+        // Base pool of videos: Either Hidden videos OR Visible videos
+        let candidateVideos = isTrashMode
+            ? videos.filter(v => hiddenIds.has(v.id))
+            : videos.filter(v => !hiddenIds.has(v.id));
+
+        if (trendsFilters.length === 0 && !isTrashMode) return candidateVideos;
+
+        return candidateVideos.filter(video => {
             return trendsFilters.every(filter => {
                 if (filter.type === 'date') {
                     const [start, end] = filter.value;
@@ -113,17 +118,38 @@ export const TrendsPage: React.FC = () => {
                     return !excludedGroups.includes(videoGroup || '');
                 }
                 if (filter.type === 'niche') {
-                    const selectedNicheIds: string[] = filter.value;
+                    const selectedIds = filter.value as string[];
+
+                    if (isTrashMode) return true; // Already filtered by candidateVideos
+
                     const assignments = videoNicheAssignments[video.id] || [];
                     const assignedNicheIds = assignments.length > 0
                         ? assignments.map(a => a.nicheId)
                         : (video.nicheId ? [video.nicheId] : []);
-                    return selectedNicheIds.some(id => assignedNicheIds.includes(id));
+                    return selectedIds.some(id => assignedNicheIds.includes(id));
                 }
                 return true;
             });
         });
-    }, [videos, trendsFilters, globalPercentileMap]);
+    }, [videos, trendsFilters, globalPercentileMap, hiddenVideos, videoNicheAssignments]);
+
+    // Managed Stats Logic (Frozen/Effective Stats)
+    const { currentStats, effectiveStats, refreshStats } = useFrozenStats({
+        videos: filteredVideos, // Use filtered videos so stats reflect reality (Trash vs Normal)
+        channels,
+        selectedChannelId,
+        filterMode
+    });
+
+    // Auto-refresh stats ONLY when hiddenVideos changes (to unfreeze layout immediately)
+    // We use a ref to prevent running this when refreshStats identity changes (which happens on every video update)
+    const prevHiddenVideosRef = useRef(hiddenVideos);
+    useEffect(() => {
+        if (prevHiddenVideosRef.current !== hiddenVideos) {
+            prevHiddenVideosRef.current = hiddenVideos;
+            refreshStats();
+        }
+    }, [hiddenVideos, refreshStats]);
 
     return (
         <div className="flex flex-col h-full bg-bg-primary">
