@@ -42,6 +42,7 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
 
     // Tooltip State
     const [showTooltip, setShowTooltip] = useState(false);
+    const [isHovered, setIsHovered] = useState(false);
     const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const nameRef = useRef<HTMLSpanElement>(null);
@@ -61,6 +62,7 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
     const handleMouseLeave = () => {
         if (timerRef.current) clearTimeout(timerRef.current);
         setShowTooltip(false);
+        setIsHovered(false);
     };
 
     // Detect text truncation
@@ -79,6 +81,8 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
         <React.Fragment>
             <li
                 onClick={() => onChannelClick(channel.id)}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={handleMouseLeave}
                 className={`flex items-center group cursor-pointer p-2 rounded-lg transition-all duration-200 select-none ${isActive
                     ? 'bg-white/10'
                     : 'hover:bg-white/5'
@@ -112,8 +116,8 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                     className={`text-sm flex-1 overflow-hidden whitespace-nowrap transition-colors ${isActive ? 'text-text-primary font-medium' : 'text-text-secondary'
                         }`}
                     style={isTruncated ? {
-                        maskImage: 'linear-gradient(to right, black 50%, transparent 100%)',
-                        WebkitMaskImage: 'linear-gradient(to right, black 50%, transparent 100%)'
+                        maskImage: `linear-gradient(to right, black ${isActive || isHovered ? '60%' : '80%'}, transparent 100%)`,
+                        WebkitMaskImage: `linear-gradient(to right, black ${isActive || isHovered ? '60%' : '80%'}, transparent 100%)`
                     } : undefined}>
                     {channel.title}
                 </span>
@@ -129,38 +133,41 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                     document.body
                 )}
 
-                {/* View Count */}
-                {/* Right-aligned actions block: view count + visibility + menu */}
-                <div className={`ml-1 flex items-center gap-0.5 shrink-0 transition-opacity`}>
-                    <span className="text-[10px] text-text-tertiary shrink-0 leading-none">
-                        {formatViewCount(viewCount)}
-                    </span>
-                    <div className={`flex items-center gap-0.5 ${!channel.isVisible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onToggleVisibility(e, channel.id, channel.isVisible);
-                            }}
-                            className={`p-0.5 rounded-full transition-all ${channel.isVisible
-                                ? 'text-text-secondary hover:text-text-primary hover:bg-white/10'
-                                : 'text-text-tertiary bg-white/5 hover:text-red-400 hover:bg-red-500/10'
-                                }`}
-                            title={channel.isVisible ? "Hide channel" : "Show channel"}
-                        >
-                            {channel.isVisible ? <Eye size={14} /> : <EyeOff size={14} />}
-                        </button>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onOpenMenu(e, channel.id);
-                            }}
-                            className="p-0.5 text-text-secondary hover:text-white hover:bg-white/10 rounded-full transition-colors"
-                            title="More options"
-                        >
-                            <MoreVertical size={14} />
-                        </button>
+                {/* View Count & Actions block */}
+                {(isActive || isHovered || !channel.isVisible) && (
+                    <div className={`ml-1 flex items-center gap-0.5 shrink-0 transition-opacity animate-fade-in`}>
+                        {(isActive || isHovered) && (
+                            <span className={`text-[10px] text-text-tertiary shrink-0 leading-none transition-opacity duration-200`}>
+                                {formatViewCount(viewCount)}
+                            </span>
+                        )}
+                        <div className={`flex items-center gap-0.5 ${!channel.isVisible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onToggleVisibility(e, channel.id, channel.isVisible);
+                                }}
+                                className={`p-0.5 rounded-full transition-all ${channel.isVisible
+                                    ? 'text-text-secondary hover:text-text-primary hover:bg-white/10'
+                                    : 'text-text-tertiary bg-white/5 hover:text-red-400 hover:bg-red-500/10'
+                                    }`}
+                                title={channel.isVisible ? "Hide channel" : "Show channel"}
+                            >
+                                {channel.isVisible ? <Eye size={14} /> : <EyeOff size={14} />}
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onOpenMenu(e, channel.id);
+                                }}
+                                className="p-0.5 text-text-secondary hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                                title="More options"
+                            >
+                                <MoreVertical size={14} />
+                            </button>
+                        </div>
                     </div>
-                </div>
+                )}
             </li>
             {isExpanded && hasContent && (
                 <li className="mb-1">
