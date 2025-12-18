@@ -11,13 +11,15 @@ interface NicheSelectorProps {
     openAbove: boolean;
     onToggle: () => void;
     onClose: () => void;
+    onSelectionClear?: () => void;
 }
 
 export const NicheSelector: React.FC<NicheSelectorProps> = ({
     videos,
     isOpen,
     openAbove,
-    onToggle
+    onToggle,
+    onSelectionClear
 }) => {
     const { niches, addNiche, assignVideoToNiche, removeVideoFromNiche, videoNicheAssignments } = useTrendStore();
     const buttonRef = useRef<HTMLButtonElement>(null);
@@ -27,17 +29,11 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
     const [newNicheName, setNewNicheName] = useState('');
     const [isGlobal, setIsGlobal] = useState(false);
     const [activeNicheMenuId, setActiveNicheMenuId] = useState<string | null>(null);
+    const [stableNiches, setStableNiches] = useState<TrendNiche[]>([]);
 
     const isMultiSelect = videos.length > 1;
 
     // Resolve assigned niches
-    // For single video: show its niches
-    // For multi: show intersection? or just show state in dropdown?
-    // Let's resolve "common" niches for the button label, but track individual for the list.
-    // Check which niches are assigned to ALL selected videos (for checkbox state 'checked')
-    // And which are partial (for 'indeterminate' - though custom UI just checking if assigned to specific video in loop)
-    // For the UI list:
-    // We need to know if a niche is assigned to ALL, SOME, or NONE.
     const nicheAssignmentStatus = useMemo(() => {
         const status = new Map<string, 'all' | 'some' | 'none'>();
         niches.forEach(niche => {
@@ -58,14 +54,12 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
 
     // Display Niche Logic (Button Label)
     const displayNiche = useMemo(() => {
-        if (isMultiSelect) return null; // Don't show specific niche color for mixed selection
-
+        if (isMultiSelect) return null;
         const video = videos[0];
         if (!video) return null;
         const videoAssignments = videoNicheAssignments[video.id] || [];
         if (videoAssignments.length === 0) return null;
 
-        // Get niches with their view counts
         const nichesWithStats = videoAssignments
             .map(a => {
                 const niche = niches.find(n => n.id === a.nicheId);
@@ -75,7 +69,6 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
 
         if (nichesWithStats.length === 0) return null;
 
-        // Sort by viewCount desc, then by addedAt asc (earliest first)
         nichesWithStats.sort((a, b) => {
             const viewDiff = (b.niche.viewCount || 0) - (a.niche.viewCount || 0);
             if (viewDiff !== 0) return viewDiff;
@@ -85,8 +78,7 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
         return nichesWithStats[0].niche;
     }, [videos, videoNicheAssignments, niches, isMultiSelect]);
 
-    // Compute last used timestamp for each niche (from all videos context?)
-    // Using global stats is better for ordering
+    // Compute last used timestamp for each niche
     const nicheLastUsed = useMemo(() => {
         const lastUsed = new Map<string, number>();
         Object.values(videoNicheAssignments).flat().forEach(assignment => {
@@ -98,16 +90,29 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
         return lastUsed;
     }, [videoNicheAssignments]);
 
-    const filteredNiches = useMemo(() => {
-        return niches.filter(n => {
-            if (!newNicheName) return true;
-            return n.name.toLowerCase().includes(newNicheName.toLowerCase());
-        }).sort((a, b) => {
+    // Compute the 'ideal' sorted niches from store
+    const currentSortedNiches = useMemo(() => {
+        return [...niches].sort((a, b) => {
             const timeA = nicheLastUsed.get(a.id) || 0;
             const timeB = nicheLastUsed.get(b.id) || 0;
             return timeB - timeA;
         });
-    }, [niches, newNicheName, nicheLastUsed]);
+    }, [niches, nicheLastUsed]);
+
+    // Stabilize niche order: only update stableNiches when NOT open
+    // This ensures they don't jump around when toggling during an active session
+    React.useEffect(() => {
+        if (!isOpen) {
+            setStableNiches(currentSortedNiches);
+        }
+    }, [isOpen, currentSortedNiches]);
+
+    const filteredNiches = useMemo(() => {
+        return stableNiches.filter(n => {
+            if (!newNicheName) return true;
+            return n.name.toLowerCase().includes(newNicheName.toLowerCase());
+        });
+    }, [stableNiches, newNicheName]);
 
     // Auto-focus input when opening
     React.useEffect(() => {
@@ -128,34 +133,32 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                 channelId: videos[0]?.channelId || '' // Use first video's channel as origin
             };
 
-            // Wait for niche to be created in Firestore before assigning videos
-            await addNiche(newNiche);
+            // Perform UI actions immediately (optimistic)
+            onToggle();
+            onSelectionClear?.();
 
-            // Assign to ALL selected videos (wait for all to complete)
+            // Perform backend actions in background
+            await addNiche(newNiche);
             await Promise.all(videos.map(v => assignVideoToNiche(v.id, newNiche.id, v.viewCount)));
 
             setNewNicheName('');
-            onToggle();
         }
     };
 
-    const handleNicheToggle = (nicheId: string, currentStatus: 'all' | 'some' | 'none') => {
-        // Behavior: 
-        // If 'all' -> remove from all
-        // If 'some' -> add to remaining (make all)
-        // If 'none' -> add to all
+    const handleNicheToggle = async (nicheId: string, currentStatus: 'all' | 'some' | 'none') => {
+        // ... (behavior comment remains)
 
         const shouldAdd = currentStatus !== 'all';
 
-        videos.forEach(v => {
+        await Promise.all(videos.map(async (v) => {
             if (shouldAdd) {
                 // Prevent duplicate assignment if already assigned
                 const assigned = (videoNicheAssignments[v.id] || []).some(a => a.nicheId === nicheId);
-                if (!assigned) assignVideoToNiche(v.id, nicheId, v.viewCount);
+                if (!assigned) await assignVideoToNiche(v.id, nicheId, v.viewCount);
             } else {
-                removeVideoFromNiche(v.id, nicheId, v.viewCount);
+                await removeVideoFromNiche(v.id, nicheId, v.viewCount);
             }
-        });
+        }));
     };
 
     return (

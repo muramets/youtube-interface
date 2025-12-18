@@ -57,6 +57,26 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
     const isMultiSelect = videos.length > 1;
     const shouldDock = isMultiSelect || isDocked;
 
+    // Handle clicks outside for single selection
+    React.useEffect(() => {
+        if (isConfirmOpen) return;
+
+        const handleOutsideClick = () => {
+            // Dropdown portals and the bar itself stop propagation of clicks,
+            // so if this listener fires, it's truly outside.
+            if (activeMenu) {
+                setActiveMenu(null);
+            } else if (!isMultiSelect) {
+                onClose();
+            }
+        };
+
+        document.addEventListener('click', handleOutsideClick);
+        return () => {
+            document.removeEventListener('click', handleOutsideClick);
+        };
+    }, [isMultiSelect, isConfirmOpen, activeMenu, onClose]);
+
     // Smart Positioning Hook (only used for single selection or anchor)
     // We still run it to have coords ready for when we undock
     const { coords } = useSmartPosition({
@@ -189,6 +209,7 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                 openAbove={dropdownsOpenAbove}
                 onToggle={() => setActiveMenu(activeMenu === 'niche' ? null : 'niche')}
                 onClose={() => setActiveMenu(null)}
+                onSelectionClear={onClose}
             />
 
             {/* Actions */}

@@ -314,6 +314,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                     const clientY = e.clientY;
 
                     clickTimeoutRef.current = setTimeout(() => {
+                        forceCloseTooltip(); // Kill tooltip immediately on selection
                         setSelectionState(prev => {
                             const newSet = new Set(prev.selectedIds);
 

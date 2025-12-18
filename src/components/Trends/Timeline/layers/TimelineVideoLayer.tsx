@@ -82,6 +82,9 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
 
         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
 
+        // Don't show tooltip if video is already selected
+        if (activeVideoIds.has(video.id)) return;
+
         const rect = e.currentTarget.getBoundingClientRect();
 
         showTimeoutRef.current = setTimeout(() => {

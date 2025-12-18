@@ -213,39 +213,85 @@ export const useTrendStore = create<TrendStore>()(
                 )
             })),
 
-            // Niche Actions (now calling service)
+            // Niche Actions (now with optimistic updates)
             addNiche: async (niche) => {
-                const { userId } = get();
+                const { userId, niches } = get();
                 const userChannelId = useChannelStore.getState().currentChannel?.id;
                 if (!userId || !userChannelId) return;
+
+                // Optimistic Update
+                const fullNiche: TrendNiche = {
+                    ...niche,
+                    id: niche.id || crypto.randomUUID(),
+                    viewCount: 0,
+                    createdAt: Date.now()
+                };
+                set({ niches: [...niches, fullNiche] });
+
                 await TrendService.addNiche(userId, userChannelId, niche);
             },
 
             updateNiche: async (id, updates) => {
-                const { userId } = get();
+                const { userId, niches } = get();
                 const userChannelId = useChannelStore.getState().currentChannel?.id;
                 if (!userId || !userChannelId) return;
+
+                // Optimistic Update
+                set({
+                    niches: niches.map(n => n.id === id ? { ...n, ...updates } : n)
+                });
+
                 await TrendService.updateNiche(userId, userChannelId, id, updates);
             },
 
             deleteNiche: async (id) => {
-                const { userId } = get();
+                const { userId, niches } = get();
                 const userChannelId = useChannelStore.getState().currentChannel?.id;
                 if (!userId || !userChannelId) return;
+
+                // Optimistic Update
+                set({
+                    niches: niches.filter(n => n.id !== id)
+                });
+
                 await TrendService.deleteNiche(userId, userChannelId, id);
             },
 
             assignVideoToNiche: async (videoId, nicheId, viewCount) => {
-                const { userId } = get();
+                const { userId, videoNicheAssignments } = get();
                 const userChannelId = useChannelStore.getState().currentChannel?.id;
                 if (!userId || !userChannelId) return;
+
+                // Optimistic Update
+                const current = videoNicheAssignments[videoId] || [];
+                if (!current.some(a => a.nicheId === nicheId)) {
+                    set({
+                        videoNicheAssignments: {
+                            ...videoNicheAssignments,
+                            [videoId]: [...current, { nicheId, addedAt: Date.now() }]
+                        }
+                    });
+                }
+
                 await TrendService.assignVideoToNiche(userId, userChannelId, videoId, nicheId, viewCount);
             },
 
             removeVideoFromNiche: async (videoId, nicheId, viewCount) => {
-                const { userId } = get();
+                const { userId, videoNicheAssignments } = get();
                 const userChannelId = useChannelStore.getState().currentChannel?.id;
                 if (!userId || !userChannelId) return;
+
+                // Optimistic Update
+                const current = videoNicheAssignments[videoId] || [];
+                const filtered = current.filter(a => a.nicheId !== nicheId);
+
+                set({
+                    videoNicheAssignments: {
+                        ...videoNicheAssignments,
+                        [videoId]: filtered
+                    }
+                });
+
                 await TrendService.removeVideoFromNiche(userId, userChannelId, videoId, nicheId, viewCount);
             },
 
