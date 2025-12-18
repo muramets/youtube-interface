@@ -188,12 +188,18 @@ export const useTimelineStructure = ({
 
             // MATH ONLY: Linear Interpolation
             // width = linear + (density - linear) * t
-            let absWidth = node.linearWidth + (node.densityWidth - node.linearWidth) * timeLinearity;
 
-            // Apply clip factor for last month
-            if (node.isLastMonth) {
-                absWidth *= node.clipFactor;
-            }
+            // CORRECT: Apply clip factor ONLY to linear (time) component.
+            // Density component (content) handles its own "size" by count of items.
+            // If we clip density, we squeeze videos into tiny space.
+            const effectiveLinearWidth = node.linearWidth * node.clipFactor;
+
+            // For Density: Use FULL width. Do NOT clip. 
+            // The content is the content. It needs X pixels. It shouldn't be cut off.
+            const effectiveDensityWidth = node.densityWidth;
+
+            // Interpolate
+            const absWidth = effectiveLinearWidth + (effectiveDensityWidth - effectiveLinearWidth) * timeLinearity;
 
             layouts.push({
                 year: node.year,
