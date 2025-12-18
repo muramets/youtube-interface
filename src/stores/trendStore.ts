@@ -38,10 +38,12 @@ const DEFAULT_TIMELINE_CONFIG: TimelineConfig = {
 
 interface TrendStore {
     // Data
+    userId: string | null;
     videos: TrendVideo[];
     channels: TrendChannel[];
     niches: TrendNiche[];
     videoNicheAssignments: Record<string, { nicheId: string; addedAt: number }[]>; // videoId -> array of niche assignments with timestamps
+    channelFilters: Record<string, TrendsFilterItem[]>;
 
     // UI State
     timelineConfig: TimelineConfig;
@@ -55,6 +57,7 @@ interface TrendStore {
     trendsFilters: TrendsFilterItem[]; // Filters for trends page
 
     // Actions
+    setUserId: (id: string | null) => void;
     setVideos: (videos: TrendVideo[]) => void;
     setChannels: (channels: TrendChannel[]) => void;
     updateChannel: (id: string, updates: Partial<TrendChannel>) => void;
@@ -86,10 +89,12 @@ interface TrendStore {
 export const useTrendStore = create<TrendStore>()(
     persist(
         (set) => ({
+            userId: null,
             videos: [],
             channels: [],
             niches: [],
             videoNicheAssignments: {},
+            channelFilters: {},
 
             timelineConfig: { ...DEFAULT_TIMELINE_CONFIG },
             filterMode: 'global', // Default to global Scaling
@@ -101,6 +106,21 @@ export const useTrendStore = create<TrendStore>()(
             isAddChannelModalOpen: false,
             isLoadingChannels: true, // Start as loading
             trendsFilters: [],
+
+            setUserId: (id) => set((state) => {
+                if (state.userId === id) return {};
+
+                // User changed! Reset sensitive state to default
+                return {
+                    userId: id,
+                    trendsFilters: [],
+                    channelFilters: {},
+                    filterMode: 'global',
+                    savedConfigs: {},
+                    selectedChannelId: null,
+                    timelineConfig: { ...DEFAULT_TIMELINE_CONFIG }
+                };
+            }),
 
             setVideos: (videos) => set({ videos }),
 
@@ -126,14 +146,25 @@ export const useTrendStore = create<TrendStore>()(
                     [currentKey]: state.timelineConfig
                 };
 
+                // Save current filters
+                const updatedChannelFilters = {
+                    ...state.channelFilters,
+                    [currentKey]: state.trendsFilters
+                };
+
                 // Load next config or default
                 // Ensure we clone the default to avoid mutation issues
                 const nextConfig = updatedSavedConfigs[nextKey] || { ...DEFAULT_TIMELINE_CONFIG };
 
+                // Load next filters or default
+                const nextFilters = updatedChannelFilters[nextKey] || [];
+
                 return {
                     selectedChannelId: id,
                     savedConfigs: updatedSavedConfigs,
-                    timelineConfig: nextConfig
+                    channelFilters: updatedChannelFilters,
+                    timelineConfig: nextConfig,
+                    trendsFilters: nextFilters
                 };
             }),
 
@@ -223,47 +254,45 @@ export const useTrendStore = create<TrendStore>()(
                 savedConfigs: state.savedConfigs,
                 selectedChannelId: state.selectedChannelId,
                 niches: state.niches,
-                videoNicheAssignments: state.videoNicheAssignments
+                videoNicheAssignments: state.videoNicheAssignments,
+                channelFilters: state.channelFilters,
+                trendsFilters: state.trendsFilters,
+                filterMode: state.filterMode,
+                userId: state.userId
             }),
         }
     )
 );
 
 // Manual Palette for user selection (10 distinct colors)
-// These should NOT be used for auto-generation to avoid confusion/clashes if possible,
-// but ensuring style consistency is key.
 export const MANUAL_NICHE_PALETTE = [
-    '#EF4444', // Red 500
-    '#F97316', // Orange 500
-    '#F59E0B', // Amber 500
-    '#84CC16', // Lime 500
-    '#10B981', // Emerald 500
-    '#06B6D4', // Cyan 500
-    '#3B82F6', // Blue 500
-    '#6366F1', // Indigo 500
-    '#8B5CF6', // Violet 500
-    '#EC4899', // Pink 500
+    '#EF4444',
+    '#F97316',
+    '#F59E0B',
+    '#84CC16',
+    '#10B981',
+    '#06B6D4',
+    '#3B82F6',
+    '#6366F1',
+    '#8B5CF6',
+    '#EC4899',
 ];
 
-// Auto Palette - Extended set of premium colors, avoiding the exact codes above if possible.
+// Auto Palette
 const AUTO_NICHE_PALETTE = [
-    '#F87171', '#FB923C', '#FBBF24', '#A3E635', '#34D399', '#22D3EE', '#60A5FA', '#818CF8', '#A78BFA', '#F472B6', // 400s
-    '#B91C1C', '#C2410C', '#B45309', '#4D7C0F', '#047857', '#0E7490', '#1D4ED8', '#4338CA', '#5B21B6', '#BE185D', // 700s
-    '#991B1B', '#9A3412', '#92400E', '#3F6212', '#065F46', '#155E75', '#1E40AF', '#3730A3', '#4C1D95', '#9D174D', // 800s
+    '#F87171', '#FB923C', '#FBBF24', '#A3E635', '#34D399', '#22D3EE', '#60A5FA', '#818CF8', '#A78BFA', '#F472B6',
+    '#B91C1C', '#C2410C', '#B45309', '#4D7C0F', '#047857', '#0E7490', '#1D4ED8', '#4338CA', '#5B21B6', '#BE185D',
+    '#991B1B', '#9A3412', '#92400E', '#3F6212', '#065F46', '#155E75', '#1E40AF', '#3730A3', '#4C1D95', '#9D174D',
 ];
 
 // Helper to generate premium colors
 export const generateNicheColor = (existingColors: string[]): string => {
-    // We try to pick from AUTO palette that isn't recently used
     const available = AUTO_NICHE_PALETTE.filter(c => !existingColors.includes(c));
 
     if (available.length > 0) {
-        // Pick random from available
         return available[Math.floor(Math.random() * available.length)];
     }
 
-    // Fallback: Pick one that wasn't used RECENTLY (last 5)
-    // If we run out of unique colors, we recycle but try to avoid the most recent ones
     const recent = new Set(existingColors.slice(-5));
     const candidates = AUTO_NICHE_PALETTE.filter(c => !recent.has(c));
 

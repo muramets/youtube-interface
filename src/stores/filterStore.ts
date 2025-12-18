@@ -31,7 +31,12 @@ interface FilterState {
     clearFilters: () => void;
 
     // New action to handle channel switching
+    // New action to handle channel switching
     switchChannel: (channelId: string | null) => void;
+
+    // Auth State
+    userId: string | null;
+    setUserId: (id: string | null) => void;
 }
 
 import { persist } from 'zustand/middleware';
@@ -45,6 +50,21 @@ export const useFilterStore = create<FilterState>()(
             activeFilters: [],
             channelFilters: {},
             currentChannelId: null,
+            userId: null,
+
+            setUserId: (id) => set((state) => {
+                if (state.userId === id) return {};
+
+                // User changed! Reset ALL filters
+                return {
+                    userId: id,
+                    activeFilters: [],
+                    channelFilters: {}, // Clear all channel presets
+                    currentChannelId: null,
+                    selectedChannel: null,
+                    searchQuery: ''
+                };
+            }),
 
             setSearchQuery: (query) => set({ searchQuery: query }),
             setSelectedChannel: (channel) => set({ selectedChannel: channel }),
@@ -126,7 +146,8 @@ export const useFilterStore = create<FilterState>()(
                 activeFilters: state.activeFilters, // Persist current active filters too
                 channelFilters: state.channelFilters, // Persist all channel filters
                 selectedChannel: state.selectedChannel,
-                currentChannelId: state.currentChannelId
+                currentChannelId: state.currentChannelId,
+                userId: state.userId
             })
         }
     )

@@ -26,11 +26,13 @@ import { useVideoFetchRetry } from './hooks/useVideoFetchRetry';
 import { useAutoCleanup } from './hooks/useAutoCleanup';
 import { useFilterChannelSync } from './hooks/useFilterChannelSync';
 import { useTrendSubscription } from './hooks/useTrendSubscription';
+import { useUserPersistence } from './hooks/useUserPersistence';
 
 function AppContent() {
   useCheckinScheduler();
   useVideoFetchRetry();
   useAutoCleanup();
+  useUserPersistence(); // Sync user ID with stores for robust filter persistence
   useFilterChannelSync();
   useTrendSubscription();
   const { user } = useAuth();
