@@ -165,23 +165,32 @@ export const TrendsPage: React.FC = () => {
         });
     }, [videos, trendsFilters, globalPercentileMap, hiddenVideos, videoNicheAssignments]);
 
+    // All videos without hidden (global context for the current channel/view)
+    const allVideos = useMemo(() => {
+        const hiddenIds = new Set(hiddenVideos.map(hv => hv.id));
+        return videos.filter(v => !hiddenIds.has(v.id));
+    }, [videos, hiddenVideos]);
+
+    // List of active niche IDs (excluding TRASH)
+    const activeNicheIds = useMemo(() => {
+        const nicheFilter = trendsFilters.find(f => f.type === 'niche');
+        if (!nicheFilter) return [];
+        const nicheIds = (nicheFilter.value as string[]) || [];
+        // TRASH is a special mode, not a real niche filter for context purposes
+        return nicheIds.filter(id => id !== 'TRASH');
+    }, [trendsFilters]);
+
     // Managed Stats Logic (Frozen/Effective Stats)
-    const { currentStats, effectiveStats, refreshStats } = useFrozenStats({
-        videos: filteredVideos, // Use filtered videos so stats reflect reality (Trash vs Normal)
+    const { currentStats, effectiveStats, refreshStats, skipAutoFitRef } = useFrozenStats({
+        allVideos,
+        filteredVideos,
         channels,
         selectedChannelId,
-        filterMode
+        filterMode,
+        activeNicheIds
     });
 
-    // Auto-refresh stats ONLY when hiddenVideos changes (to unfreeze layout immediately)
-    // We use a ref to prevent running this when refreshStats identity changes (which happens on every video update)
-    const prevHiddenVideosRef = useRef(hiddenVideos);
-    useEffect(() => {
-        if (prevHiddenVideosRef.current !== hiddenVideos) {
-            prevHiddenVideosRef.current = hiddenVideos;
-            refreshStats();
-        }
-    }, [hiddenVideos, refreshStats]);
+
 
     return (
         <div className="flex flex-col h-full bg-bg-primary">
@@ -200,10 +209,12 @@ export const TrendsPage: React.FC = () => {
             <TimelineCanvas
                 key={selectedChannelId || 'all'}
                 videos={filteredVideos}
+                allVideos={allVideos}
                 isLoading={isLoading || channels.length === 0}
                 percentileMap={globalPercentileMap}
                 forcedStats={effectiveStats}
                 onRequestStatsRefresh={refreshStats}
+                skipAutoFitRef={skipAutoFitRef}
             />
         </div>
     );

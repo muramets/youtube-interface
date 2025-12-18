@@ -4,11 +4,14 @@ import type { TrendVideo, TimelineStats } from '../../../../types/trends';
 interface UseTimelineAutoUpdateProps {
     videos: TrendVideo[];
     forcedStats?: TimelineStats;
+    skipAutoFitRef?: React.RefObject<boolean>;
 }
 
-export const useTimelineAutoUpdate = ({ videos, forcedStats }: UseTimelineAutoUpdateProps) => {
+export const useTimelineAutoUpdate = ({ videos, forcedStats, skipAutoFitRef }: UseTimelineAutoUpdateProps) => {
     // State to control structure updates ('Z' key forces update)
     const [structureVersion, setStructureVersion] = useState(0);
+    // Track whether the current structure version update should trigger an auto-fit
+    const [shouldAutoFit, setShouldAutoFit] = useState(false);
 
     // Smart Structure Updates:
     // We want the timeline to re-calculate structure (Fit) automatically in specific cases,
@@ -29,9 +32,13 @@ export const useTimelineAutoUpdate = ({ videos, forcedStats }: UseTimelineAutoUp
         // 1. Significance Check: If count didn't change and stats didn't change, do nothing.
         if (currentCount === prevCount && !hasStatsChanged) return;
 
+        // Determine if we should fit on this update
+        const isSkipRequested = skipAutoFitRef?.current === true;
+
         // 2. Context Switch (Global <-> Local OR Global stats update)
         // If the context defining the "World" changes, we MUST update.
         if (hasStatsChanged) {
+            setShouldAutoFit(!isSkipRequested);
             setStructureVersion(v => v + 1);
             return;
         }
@@ -46,17 +53,20 @@ export const useTimelineAutoUpdate = ({ videos, forcedStats }: UseTimelineAutoUp
                 return;
             }
 
-            // Local Mode: Always re-calculate structure
+            // Local Mode: Always re-calculate structure and fit
+            setShouldAutoFit(!isSkipRequested);
             setStructureVersion(v => v + 1);
         }
-    }, [videos.length, forcedStats]);
+    }, [videos.length, forcedStats, skipAutoFitRef]);
 
-    const forceStructureUpdate = useCallback(() => {
+    const forceStructureUpdate = useCallback((fit: boolean = true) => {
+        setShouldAutoFit(fit);
         setStructureVersion(v => v + 1);
     }, []);
 
     return {
         structureVersion,
+        shouldAutoFit,
         forceStructureUpdate
     };
 };

@@ -31,24 +31,34 @@ import { TrendsFloatingBar } from './TrendsFloatingBar';
 
 interface TimelineCanvasProps {
     videos: TrendVideo[];
+    /** Full set of videos for the current context (used for consistent density) */
+    allVideos?: TrendVideo[];
     isLoading?: boolean;
     percentileMap?: Map<string, string>;
     forcedStats?: TimelineStats;
     onRequestStatsRefresh?: () => void;
+    /** If true, skip auto-fit on next structure update (for filterMode toggle) */
+    skipAutoFitRef?: React.RefObject<boolean>;
 }
 
 export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     videos,
+    allVideos = [],
     isLoading = false,
     percentileMap,
     forcedStats,
-    onRequestStatsRefresh
+    onRequestStatsRefresh,
+    skipAutoFitRef
 }) => {
     const { timelineConfig, setTimelineConfig, setAddChannelModalOpen } = useTrendStore();
     const { scalingMode, verticalSpread, timeLinearity } = timelineConfig;
 
     // 1. Structure Auto-Update Logic
-    const { structureVersion, forceStructureUpdate } = useTimelineAutoUpdate({ videos, forcedStats });
+    const { structureVersion, shouldAutoFit, forceStructureUpdate } = useTimelineAutoUpdate({
+        videos,
+        forcedStats,
+        skipAutoFitRef
+    });
 
     // 2. Structure Logic
     const {
@@ -59,6 +69,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         yearMarkers
     } = useTimelineStructure({
         videos,
+        allVideos,
         stats: forcedStats,
         structureVersion,
         timeLinearity,
@@ -188,7 +199,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     const handleSmoothFit = () => {
         forceCloseTooltip();
         onRequestStatsRefresh?.();
-        forceStructureUpdate();
+        forceStructureUpdate(true); // Explicitly request fit
         shouldAutoFitRef.current = true;
     };
 
@@ -197,7 +208,10 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         if (structureVersion > 0 && structureVersion > appliedStructureVersionRef.current) {
             appliedStructureVersionRef.current = structureVersion;
 
-            if (shouldAutoFitRef.current) {
+            // Use declarative flag from hook OR manual override
+            const canFit = shouldAutoFit || shouldAutoFitRef.current;
+
+            if (canFit) {
                 const fitTransform = calculateAutoFitTransform();
                 if (fitTransform) {
                     smoothToTransform(fitTransform);
@@ -212,7 +226,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
             }
             shouldAutoFitRef.current = false;
         }
-    }, [structureVersion, calculateAutoFitTransform, smoothToTransform, setTimelineConfig, currentContentHash]);
+    }, [structureVersion, shouldAutoFit, calculateAutoFitTransform, smoothToTransform, setTimelineConfig, currentContentHash]);
 
     // Hotkeys (Standard)
     useTimelineHotkeys({ onAutoFit: handleSmoothFit });

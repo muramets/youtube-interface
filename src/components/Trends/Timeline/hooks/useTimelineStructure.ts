@@ -7,6 +7,8 @@ const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1
 
 interface UseTimelineStructureProps {
     videos: TrendVideo[];
+    /** Full set of videos for the current context (used for consistent density) */
+    allVideos?: TrendVideo[];
     timeLinearity?: number;
     structureVersion?: number;
     stats?: TimelineStats;
@@ -15,15 +17,18 @@ interface UseTimelineStructureProps {
 
 export const useTimelineStructure = ({
     videos,
+    allVideos = [],
     timeLinearity = 1.0, // Default to Density (1.0)
     structureVersion = 0, // Version to force structure recalculation
     stats: forcedStatsOverride, // Optional forced stats
     isFrozen = false // Strict freeze flag
 }: UseTimelineStructureProps) => {
 
+    const densitySourceVideos = allVideos.length > 0 ? allVideos : videos;
+
     // Trace initialization
     const hasInitializedRef = useRef(false);
-    if (videos.length > 0) {
+    if (densitySourceVideos.length > 0) {
         hasInitializedRef.current = true;
     }
 
@@ -76,13 +81,13 @@ export const useTimelineStructure = ({
     const densityStats = useMemo(() => {
         const dynamicLinearPixelsPerDay = 120;
         const counts = new Map<string, number>();
-        videos.forEach(v => {
+        densitySourceVideos.forEach(v => {
             const d = new Date(v.publishedAtTimestamp);
             const key = `${d.getFullYear()}-${d.getMonth()}`;
             counts.set(key, (counts.get(key) || 0) + 1);
         });
         return { counts, dynamicLinearPixelsPerDay };
-    }, [videos, effectiveStats]);
+    }, [densitySourceVideos, effectiveStats]);
 
     // ============================================================
     // SINGLE SOURCE OF TRUTH: Timeline Date Range
