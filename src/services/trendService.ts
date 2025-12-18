@@ -257,7 +257,8 @@ export const TrendService = {
 
         await updateDoc(doc(db, `users/${userId}/channels/${userChannelId}/trendChannels`, channel.id), {
             lastUpdated: Date.now(),
-            averageViews
+            averageViews,
+            totalViewCount: totalViews
         });
 
         return { totalNewVideos: totalProcessedVideos, totalQuotaUsed };
@@ -266,5 +267,21 @@ export const TrendService = {
     getChannelVideosFromCache: async (channelId: string) => {
         const idb = await getDB();
         return idb.getAllFromIndex('videos', 'by-channel', channelId);
+    },
+
+    // Migration helper: Recalculate stats from local DB if missing in Firestore
+    recalcChannelStats: async (userId: string, userChannelId: string, channelId: string) => {
+        const idb = await getDB();
+        const allVideos = await idb.getAllFromIndex('videos', 'by-channel', channelId);
+
+        const totalViews = allVideos.reduce((sum, v) => sum + v.viewCount, 0);
+        const averageViews = allVideos.length > 0 ? totalViews / allVideos.length : 0;
+
+        await updateDoc(doc(db, `users/${userId}/channels/${userChannelId}/trendChannels`, channelId), {
+            totalViewCount: totalViews,
+            averageViews
+        });
+
+        return totalViews;
     }
 };

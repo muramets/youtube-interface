@@ -41,6 +41,7 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
     const nameRef = useRef<HTMLSpanElement>(null);
     const [isNameHovered, setIsNameHovered] = useState(false);
     const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+    const [isTruncated, setIsTruncated] = useState(false);
     const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
 
     // Use manually exported palette for user picker
@@ -71,6 +72,17 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
             inputRef.current.select();
         }
     }, [isEditing]);
+
+    // Detect text truncation for fade effect
+    useEffect(() => {
+        const el = nameRef.current;
+        if (!el) return;
+        const check = () => setIsTruncated(el.scrollWidth > el.clientWidth);
+        check();
+        const ro = new ResizeObserver(check);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [niche.name]);
 
     const handleNameSubmit = () => {
         const trimmedName = editName.trim();
@@ -106,7 +118,7 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                 `}
             >
                 {/* Icon Wrapper */}
-                <div className="mr-3 shrink-0 flex items-center justify-center w-4">
+                <div className="mr-1 shrink-0 flex items-center justify-center w-4">
                     {isTrash ? (
                         <Trash2 size={14} className={isActive ? 'text-white' : 'text-gray-400'} />
                     ) : (
@@ -159,10 +171,14 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                 </div>
 
                 {/* Name (Editable on double-click) */}
-                <div className="flex-1 min-w-0 relative">
+                <div className="flex-1 min-w-0 relative flex items-center">
                     <span
                         ref={nameRef}
-                        className="text-xs truncate block"
+                        className="text-xs overflow-hidden whitespace-nowrap transition-colors leading-none translate-y-[-1px]"
+                        style={isTruncated ? {
+                            maskImage: 'linear-gradient(to right, black 50%, transparent 100%)',
+                            WebkitMaskImage: 'linear-gradient(to right, black 50%, transparent 100%)'
+                        } : undefined}
                         onMouseEnter={() => {
                             if (nameRef.current) {
                                 const rect = nameRef.current.getBoundingClientRect();
@@ -199,56 +215,59 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                     document.body
                 )}
 
-                {/* View Count */}
-                <span className="text-[10px] text-text-tertiary ml-2">
-                    {formatViewCount(niche.viewCount)}
-                </span>
+                {/* View Count & Actions block */}
+                <div className="ml-2 flex items-center gap-1.5 shrink-0">
+                    {/* View Count */}
+                    <span className="text-[10px] text-text-tertiary leading-none">
+                        {formatViewCount(niche.viewCount)}
+                    </span>
 
-                {/* Actions Trigger (Hidden unless hovered/active) */}
-                {!isTrash && (
-                    <div ref={menuRef} className="relative">
-                        <button
-                            ref={menuButtonRef}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (!isMenuOpen) {
-                                    // Calculate position for portal
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    setMenuPosition({
-                                        x: rect.right + 5, // Open to the right slightly
-                                        y: rect.top
-                                    });
-                                }
-                                setIsMenuOpen(!isMenuOpen);
-                                setIsColorPickerOpen(false);
-                            }}
-                            className={`
-                                p-0.5 rounded ml-1 transition-opacity
-                                ${isInteracting ? 'opacity-100' : 'opacity-0 group-hover/niche:opacity-100'}
-                                ${isMenuOpen ? 'opacity-100 bg-white/10' : 'hover:bg-white/10'}
-                            `}
-                        >
-                            <MoreVertical size={12} />
-                        </button>
+                    {/* Actions Trigger (Hidden unless hovered/active) */}
+                    {!isTrash && (
+                        <div ref={menuRef} className="relative">
+                            <button
+                                ref={menuButtonRef}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!isMenuOpen) {
+                                        // Calculate position for portal
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        setMenuPosition({
+                                            x: rect.right + 5, // Open to the right slightly
+                                            y: rect.top
+                                        });
+                                    }
+                                    setIsMenuOpen(!isMenuOpen);
+                                    setIsColorPickerOpen(false);
+                                }}
+                                className={`
+                                    p-0.5 rounded-full transition-opacity
+                                    ${isInteracting ? 'opacity-100' : 'opacity-0 group-hover/niche:opacity-100'}
+                                    ${isMenuOpen ? 'opacity-100 bg-white/10' : 'hover:bg-white/10'}
+                                `}
+                            >
+                                <MoreVertical size={12} />
+                            </button>
 
-                        {/* Shared Context Menu */}
-                        <NicheContextMenu
-                            niche={niche}
-                            isOpen={isMenuOpen}
-                            onClose={() => setIsMenuOpen(false)}
-                            position={menuPosition}
-                            onRename={() => {
-                                setIsEditing(true);
-                                setEditName(niche.name);
-                                setIsMenuOpen(false);
-                            }}
-                            onDelete={() => {
-                                setIsDeleteConfirmOpen(true);
-                                setIsMenuOpen(false);
-                            }}
-                        />
-                    </div>
-                )}
+                            {/* Shared Context Menu */}
+                            <NicheContextMenu
+                                niche={niche}
+                                isOpen={isMenuOpen}
+                                onClose={() => setIsMenuOpen(false)}
+                                position={menuPosition}
+                                onRename={() => {
+                                    setIsEditing(true);
+                                    setEditName(niche.name);
+                                    setIsMenuOpen(false);
+                                }}
+                                onDelete={() => {
+                                    setIsDeleteConfirmOpen(true);
+                                    setIsMenuOpen(false);
+                                }}
+                            />
+                        </div>
+                    )}
+                </div>
             </div>
 
             <ConfirmationModal

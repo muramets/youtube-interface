@@ -147,15 +147,29 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
         return counts;
     }, [videos, videoNicheAssignments]);
 
-    // Use computed view count if available (videos loaded), otherwise fall back to stored count
+    // Compute total view counts per channel
+    const channelViewCounts = React.useMemo(() => {
+        const counts = new Map<string, number>();
+        videos.forEach(v => {
+            counts.set(v.channelId, (counts.get(v.channelId) || 0) + v.viewCount);
+        });
+        return counts;
+    }, [videos]);
+
+    // Sort channels by total view count 
+    // Priorities: 
+    // 1. Channel's persisted totalViewCount (global stats)
+    // 2. Computed view count from currently loaded videos (fallback)
+    const sortedChannels = React.useMemo(() => {
+        return [...channels].sort((a, b) => {
+            const viewsA = a.totalViewCount ?? (channelViewCounts.get(a.id) || 0);
+            const viewsB = b.totalViewCount ?? (channelViewCounts.get(b.id) || 0);
+            return viewsB - viewsA;
+        });
+    }, [channels, channelViewCounts]);
+
     const getNicheViewCount = (niche: { id: string, viewCount?: number }) => {
         const computed = nicheViewCounts.get(niche.id);
-        // If computed is > 0, use it (we have data). 
-        // If 0, it might mean we have data but 0 views, OR we have no data.
-        // If we have videos loaded for this channel, 0 is real. 
-        // If we don't have videos loaded, fallback to stored.
-        // Simplified: Use computed if present (even if 0, implicitly), fallback to stored.
-        // Iterate: If map has key? existing map logic sets undefined if missing.
         return computed !== undefined ? computed : (niche.viewCount || 0);
     };
 
@@ -245,8 +259,10 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                                     </div>
                                 ) : (
                                     <ul className="space-y-0.5">
-                                        {channels.map((channel: TrendChannel) => {
+                                        {sortedChannels.map((channel: TrendChannel) => {
                                             const trashCount = trashCounts.get(channel.id) || 0;
+                                            // Prefer persisted total, fallback to loaded total
+                                            const viewCount = channel.totalViewCount ?? (channelViewCounts.get(channel.id) || 0);
                                             return (
                                                 <TrendsChannelItem
                                                     key={channel.id}
@@ -259,6 +275,7 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                                                     activeNicheIds={activeNicheIds}
                                                     onNicheClick={handleNicheClick}
                                                     trashCount={trashCount}
+                                                    viewCount={viewCount}
                                                 />
                                             );
                                         })}

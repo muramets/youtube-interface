@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTrendStore } from '../../../../stores/trendStore';
 import { TrendService } from '../../../../services/trendService';
@@ -103,6 +103,23 @@ export const useTrendsSidebar = () => {
     // Show skeleton while any loading is in progress
     // Same pattern as Header: auth loading OR (user exists AND channels still loading)
     const isLoading = isAuthLoading || (!!user && isChannelsLoading && !currentChannel) || isLoadingChannels;
+
+    // Background Migration: Ensure all channels have totalViewCount
+    useEffect(() => {
+        if (!user || !currentChannel || channels.length === 0) return;
+
+        channels.forEach(channel => {
+            if (channel.totalViewCount === undefined) {
+                // Determine if we should trigger migration
+                // We fire-and-forget this async task. 
+                // It updates Firestore, which will push a new update to 'channels', 
+                // causing this effect to re-run (but then totalViewCount will be defined).
+                console.log(`[useTrendsSidebar] Migrating stats for ${channel.title}...`);
+                TrendService.recalcChannelStats(user.uid, currentChannel.id, channel.id)
+                    .catch(err => console.error('Migration failed:', err));
+            }
+        });
+    }, [channels, user, currentChannel]);
 
     return {
         // State

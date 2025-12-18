@@ -22,6 +22,7 @@ export interface TrendChannel {
     isVisible: boolean;
     subscriberCount?: number; // Optional context
     averageViews?: number; // Cached average for relative hit calc
+    totalViewCount?: number; // Total accumulated views from synced videos
     lastUpdated: number;
 }
 
