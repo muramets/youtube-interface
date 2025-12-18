@@ -31,11 +31,14 @@ import { TrendsFloatingBar } from './TrendsFloatingBar';
 
 interface TimelineCanvasProps {
     videos: TrendVideo[];
-    /** Full set of videos for the current context (used for consistent density) */
+    /** Full set of videos for current context (used for consistent density) */
     allVideos?: TrendVideo[];
     isLoading?: boolean;
     percentileMap?: Map<string, string>;
-    forcedStats?: TimelineStats;
+    /** Frozen stats from parent (used when shouldAutoFit is false) */
+    frozenStats?: TimelineStats;
+    /** If true, calculate stats from videos; if false, use frozenStats */
+    shouldAutoFit?: boolean;
     onRequestStatsRefresh?: () => void;
     /** If true, skip auto-fit on next structure update (for filterMode toggle) */
     skipAutoFitRef?: React.RefObject<boolean>;
@@ -46,17 +49,21 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     allVideos = [],
     isLoading = false,
     percentileMap,
-    forcedStats,
+    frozenStats,
+    shouldAutoFit = false,
     onRequestStatsRefresh,
     skipAutoFitRef
 }) => {
     const { timelineConfig, setTimelineConfig, setAddChannelModalOpen } = useTrendStore();
     const { scalingMode, verticalSpread, timeLinearity } = timelineConfig;
 
+    // Determine effective stats: use frozenStats if not auto-fitting
+    const effectiveStats = shouldAutoFit ? undefined : frozenStats;
+
     // 1. Structure Auto-Update Logic
-    const { structureVersion, shouldAutoFit, forceStructureUpdate } = useTimelineAutoUpdate({
+    const { structureVersion, forceStructureUpdate } = useTimelineAutoUpdate({
         videos,
-        forcedStats,
+        forcedStats: effectiveStats,
         skipAutoFitRef
     });
 
@@ -70,10 +77,10 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     } = useTimelineStructure({
         videos,
         allVideos,
-        stats: forcedStats,
+        stats: effectiveStats,
         structureVersion,
         timeLinearity,
-        isFrozen: !!forcedStats
+        isFrozen: !shouldAutoFit
     });
 
     // 3. Tooltip Logic
@@ -194,7 +201,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
 
     // 9. Manual Fit / Auto Fit Logic
     const appliedStructureVersionRef = useRef(0);
-    const shouldAutoFitRef = useRef(true);
+    const shouldAutoFitRef = useRef(false);
 
     const handleSmoothFit = () => {
         forceCloseTooltip();

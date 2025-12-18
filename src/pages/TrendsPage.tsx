@@ -123,6 +123,11 @@ export const TrendsPage: React.FC = () => {
             ? videos.filter(v => hiddenIds.has(v.id))
             : videos.filter(v => !hiddenIds.has(v.id));
 
+        // Filter by Channel if selected
+        if (selectedChannelId) {
+            candidateVideos = candidateVideos.filter(v => v.channelId === selectedChannelId);
+        }
+
         if (trendsFilters.length === 0 && !isTrashMode) return candidateVideos;
 
         return candidateVideos.filter(video => {
@@ -153,13 +158,18 @@ export const TrendsPage: React.FC = () => {
                 return true;
             });
         });
-    }, [videos, trendsFilters, globalPercentileMap, hiddenVideos, videoNicheAssignments]);
+    }, [videos, trendsFilters, globalPercentileMap, hiddenVideos, videoNicheAssignments, selectedChannelId]);
 
     // All videos without hidden (global context for the current channel/view)
     const allVideos = useMemo(() => {
         const hiddenIds = new Set(hiddenVideos.map(hv => hv.id));
-        return videos.filter(v => !hiddenIds.has(v.id));
-    }, [videos, hiddenVideos]);
+        return videos.filter(v => {
+            if (hiddenIds.has(v.id)) return false;
+            // Crucial: Limit context to the currently selected channel!
+            if (selectedChannelId && v.channelId !== selectedChannelId) return false;
+            return true;
+        });
+    }, [videos, hiddenVideos, selectedChannelId]);
 
     // List of active niche IDs (excluding TRASH)
     const activeNicheIds = useMemo(() => {
@@ -170,8 +180,8 @@ export const TrendsPage: React.FC = () => {
         return nicheIds.filter(id => id !== 'TRASH');
     }, [trendsFilters]);
 
-    // Managed Stats Logic (Frozen/Effective Stats)
-    const { currentStats, effectiveStats, refreshStats, skipAutoFitRef } = useFrozenStats({
+    // Managed Stats Logic
+    const { currentStats, frozenStats, shouldAutoFit, refreshStats, skipAutoFitRef } = useFrozenStats({
         allVideos,
         filteredVideos,
         channels,
@@ -179,8 +189,6 @@ export const TrendsPage: React.FC = () => {
         filterMode,
         activeNicheIds
     });
-
-
 
     return (
         <div className="flex flex-col h-full bg-bg-primary">
@@ -202,7 +210,8 @@ export const TrendsPage: React.FC = () => {
                 allVideos={allVideos}
                 isLoading={isLoading || channels.length === 0}
                 percentileMap={globalPercentileMap}
-                forcedStats={effectiveStats}
+                frozenStats={frozenStats}
+                shouldAutoFit={shouldAutoFit}
                 onRequestStatsRefresh={refreshStats}
                 skipAutoFitRef={skipAutoFitRef}
             />

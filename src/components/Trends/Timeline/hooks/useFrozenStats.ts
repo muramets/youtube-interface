@@ -6,20 +6,17 @@ interface ChannelBasic {
 }
 
 interface UseFrozenStatsProps {
-    /** All videos for the current context (used for Global mode stats) */
+    /** All videos for current context (Global mode stats source) */
     allVideos: TrendVideo[];
-    /** Filtered videos (used for Filtered mode stats and always for display) */
+    /** Filtered videos (Filtered mode stats source, always used for display) */
     filteredVideos: TrendVideo[];
     channels: ChannelBasic[];
     selectedChannelId: string | null;
     filterMode: 'global' | 'filtered';
-    /** List of active niche IDs */
     activeNicheIds: string[];
 }
 
-/**
- * Computes stats for the timeline world from a set of videos.
- */
+/** Computes min/max stats from a set of videos */
 const computeStats = (videos: TrendVideo[]): TimelineStats | undefined => {
     if (videos.length === 0) return undefined;
     const viewCounts = videos.map(v => v.viewCount);
@@ -33,6 +30,14 @@ const computeStats = (videos: TrendVideo[]): TimelineStats | undefined => {
     };
 };
 
+/**
+ * Manages "frozen" timeline stats that only update on explicit triggers:
+ * - Initial page load
+ * - Z key / revert
+ * - Channel add/remove
+ * - Filter mode change
+ * - Niche selection change
+ */
 export const useFrozenStats = ({
     allVideos,
     filteredVideos,
@@ -41,63 +46,48 @@ export const useFrozenStats = ({
     filterMode,
     activeNicheIds
 }: UseFrozenStatsProps) => {
-    // Stats are "frozen" and only update on explicit triggers:
-    // - Initial page load
-    // - Z key / revert (via onRequestStatsRefresh callback)
-    // - Channel add/remove (not visibility toggle!)
-
     const frozenStatsRef = useRef<TimelineStats | undefined>(undefined);
     const [statsVersion, setStatsVersion] = useState(0);
 
-    // Track state for change detection
     const hasNicheFilter = activeNicheIds.length > 0;
     const nicheIdsKey = useMemo(() => activeNicheIds.sort().join(','), [activeNicheIds]);
-
-    // Track channel IDs for detecting add/remove (not visibility changes)
     const channelIdsKey = useMemo(() => channels.map(c => c.id).sort().join(','), [channels]);
-    const prevChannelIdsKeyRef = useRef(channelIdsKey);
 
-    // Reset state immediately when channel switches (Derived State pattern)
-    // We track this locally to control the ref reset
+    const prevChannelIdsKeyRef = useRef(channelIdsKey);
+    const prevFilterModeRef = useRef(filterMode);
+    const prevNicheIdsKeyRef = useRef(nicheIdsKey);
+    const prevAllCountRef = useRef(allVideos.length);
+    const skipAutoFitRef = useRef(false);
+    const skipNextFreezeRef = useRef(false);
+
+    // Channel switch reset (derived state pattern)
     const [prevChannelForReset, setPrevChannelForReset] = useState(selectedChannelId);
     if (selectedChannelId !== prevChannelForReset) {
         setPrevChannelForReset(selectedChannelId);
-        // Reset frozen stats on channel context switch
         frozenStatsRef.current = undefined;
+        // Skip first freeze when switching to main Trends (first render has stale data)
+        if (selectedChannelId === null) {
+            skipNextFreezeRef.current = true;
+        }
     }
 
-    // Determine source videos based on context:
-    // - Main Trends page (no selectedChannelId): Use filteredVideos (visible channels)
-    // - Channel view without niche filter: Use allVideos (full channel = global)
-    // - Channel view with niche filter + Global mode: Use allVideos (global context)
-    // - Channel view with niche filter + Filtered mode: Use filteredVideos
+    // Stats source selection based on context
     const statsSourceVideos = useMemo(() => {
-        // Main Trends page: always use filtered (visible channels only)
+        // Main Trends page: use allVideos (visible channels)
         if (!selectedChannelId) {
-            return filteredVideos;
+            return allVideos;
         }
-        // Channel view without niche filter: always global
+        // Channel view without niche: always global
         if (!hasNicheFilter) {
             return allVideos;
         }
-        // Channel view with niche filter: respect filterMode setting
+        // Channel view with niche: respect filterMode
         return filterMode === 'global' ? allVideos : filteredVideos;
     }, [selectedChannelId, hasNicheFilter, filterMode, allVideos, filteredVideos]);
 
-    // Calculate current stats from the appropriate source
     const currentStats = useMemo(() => computeStats(statsSourceVideos), [statsSourceVideos]);
 
-    // Track filterMode and niche changes for auto-refresh
-    const prevFilterModeRef = useRef(filterMode);
-    const prevNicheIdsKeyRef = useRef(nicheIdsKey);
-    const skipAutoFitRef = useRef(false);
-
-    // Update frozen stats on:
-    // 1. Initial load (frozenStatsRef is undefined)
-    // 2. statsVersion change (Z key pressed)
-    // 3. Channel list change (add/remove, not visibility)
-    // 4. filterMode change
-    // 5. Niche selection change (adding/removing niches)
+    // Auto-refresh logic
     useEffect(() => {
         const channelListChanged = prevChannelIdsKeyRef.current !== channelIdsKey;
         prevChannelIdsKeyRef.current = channelIdsKey;
@@ -108,50 +98,43 @@ export const useFrozenStats = ({
         const nicheSelectionChanged = prevNicheIdsKeyRef.current !== nicheIdsKey;
         prevNicheIdsKeyRef.current = nicheIdsKey;
 
-        // Auto-refresh conditions:
-        // - Initial load (no frozen stats yet)
-        // - Channel list changed
-        // - filterMode changed
-        // - Niche selection changed (this ensures adding/removing niches triggers a rebuilt)
+        prevAllCountRef.current = allVideos.length;
+
         const shouldAutoRefresh =
             !frozenStatsRef.current ||
             channelListChanged ||
             filterModeChanged ||
             nicheSelectionChanged;
 
-        // Track whether this is just a filterMode toggle (shouldn't trigger auto-fit)
-        // We only skip auto-fit if NOTHING else changed except filterMode
-        const isFilterModeToggleOnly = !!(filterModeChanged && !channelListChanged && !nicheSelectionChanged);
+        const isFilterModeToggleOnly = filterModeChanged && !channelListChanged && !nicheSelectionChanged;
 
         if (shouldAutoRefresh) {
-            frozenStatsRef.current = currentStats;
-            setStatsVersion(v => v + 1); // Force re-render to propagate new stats
+            if (skipNextFreezeRef.current) {
+                skipNextFreezeRef.current = false;
+            } else {
+                frozenStatsRef.current = currentStats;
+                setStatsVersion(v => v + 1);
+            }
         }
 
-        // Update the skip flag for consumers
         skipAutoFitRef.current = isFilterModeToggleOnly;
-    }, [currentStats, channelIdsKey, filterMode, nicheIdsKey, selectedChannelId, hasNicheFilter]);
+    }, [currentStats, channelIdsKey, filterMode, nicheIdsKey, allVideos.length]);
 
-    // Callback for TimelineCanvas to request stats refresh (on Z key)
+    // Manual refresh callback (Z key)
     const refreshStats = useCallback(() => {
         frozenStatsRef.current = currentStats;
-        skipAutoFitRef.current = false; // Manual refresh should allow auto-fit
+        skipAutoFitRef.current = false;
         setStatsVersion(v => v + 1);
     }, [currentStats]);
 
-    // Effective Stats Logic:
-    // If FilterMode is 'filtered', we return UNDEFINED. 
-    // This removes the "forcedStats" in TimelineCanvas, allowing it to naturally 
-    // fit to whatever videos are passed, including automatically adjusting 
-    // when niche filters change (as requested by user).
-    // If FilterMode is 'global', we return the frozen stats to maintain context.
-    const effectiveStats = filterMode === 'global' ? frozenStatsRef.current : undefined;
+    // Explicit flag: filtered mode should auto-fit, global mode uses frozen stats
+    const shouldAutoFit = filterMode !== 'global';
 
-    // Memoize the return object to prevent stable-value-but-new-reference jerks
     return useMemo(() => ({
         currentStats,
-        effectiveStats,
+        frozenStats: frozenStatsRef.current,
+        shouldAutoFit,
         refreshStats,
         skipAutoFitRef
-    }), [currentStats, effectiveStats, refreshStats]);
+    }), [currentStats, shouldAutoFit, refreshStats, statsVersion]);
 };

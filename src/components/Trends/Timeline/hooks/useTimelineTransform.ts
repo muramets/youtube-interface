@@ -37,17 +37,18 @@ export const useTimelineTransform = ({
     // Total padding for calculations that need both
     const totalPadding = paddingLeft + paddingRight;
     const totalVerticalPadding = paddingTop + paddingBottom;
-    const { timelineConfig, setTimelineConfig, channels } = useTrendStore();
+    const { timelineConfig, setTimelineConfig, channels, selectedChannelId } = useTrendStore();
     const { zoomLevel, offsetX, offsetY, isCustomView, contentHash: savedContentHash } = timelineConfig;
 
-    // Calculate current content hash based on VISIBLE channels
+    // Calculate current content hash based on context (Channel ID + Visible channels)
     const currentContentHash = useMemo(() => {
         const visibleIds = channels
             .filter(c => c.isVisible)
             .map(c => c.id)
             .sort();
-        return visibleIds.join(',');
-    }, [channels]);
+        // Include selectedChannelId to distinguish Global view from Specific Channel view
+        return `${selectedChannelId || 'global'}:${visibleIds.join(',')}`;
+    }, [channels, selectedChannelId]);
 
     // Transform state
     const transformRef = useRef<Transform>({
