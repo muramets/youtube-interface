@@ -125,14 +125,23 @@ export const extractVideoId = (url: string): string | null => {
 
 export const fetchVideoDetails = async (videoId: string, apiKey: string): Promise<VideoDetails | null> => {
     try {
-        // Fetch video details
         const videoResponse = await fetch(
             `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&id=${videoId}&key=${apiKey}`
         );
+
+        if (videoResponse.status === 404) {
+            throw new Error('VIDEO_NOT_FOUND');
+        }
+
         const videoData = await videoResponse.json();
 
+        if (videoData.error) {
+            if (videoData.error.code === 403) throw new Error('VIDEO_PRIVATE');
+            throw new Error(videoData.error.message || 'API_ERROR');
+        }
+
         if (!videoData.items || videoData.items.length === 0) {
-            throw new Error('Video not found');
+            throw new Error('VIDEO_NOT_FOUND');
         }
 
         const videoItem = videoData.items[0];
@@ -140,7 +149,7 @@ export const fetchVideoDetails = async (videoId: string, apiKey: string): Promis
         const contentDetails = videoItem.contentDetails;
         const statistics = videoItem.statistics;
 
-        // Fetch channel details for avatar and subscriber count
+        // Fetch channel details
         const channelResponse = await fetch(
             `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${snippet.channelId}&key=${apiKey}`
         );
@@ -163,10 +172,12 @@ export const fetchVideoDetails = async (videoId: string, apiKey: string): Promis
             likeCount: statistics.likeCount,
             subscriberCount: subscriberCount,
             tags: snippet.tags || [],
+            fetchStatus: 'success',
+            lastFetchAttempt: Date.now()
         };
     } catch (error) {
         console.error('Error fetching video details:', error);
-        return null;
+        throw error;
     }
 };
 

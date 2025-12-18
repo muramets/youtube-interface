@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MoreVertical, Info, Trash2 } from 'lucide-react';
+import { MoreVertical, Info, Trash2, AlertTriangle } from 'lucide-react';
 import { type VideoDetails, type CoverVersion } from '../../utils/youtubeApi';
 import { formatDuration, formatViewCount } from '../../utils/formatUtils';
 import { useVideos } from '../../hooks/useVideos';
@@ -51,6 +51,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [showToast, setShowToast] = useState(false);
+  const [hasSyncError, setHasSyncError] = useState(false);
+  const [attemptedAutoSync, setAttemptedAutoSync] = useState(false);
 
   // Global Modal Control
   React.useEffect(() => {
@@ -221,6 +223,35 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     if (shouldClose) setShowEditModal(false);
   };
 
+  const handleThumbnailError = async () => {
+    // Set local error state immediately to show placeholder
+    setHasSyncError(true);
+
+    if (video.isCustom && !video.publishedVideoId) {
+      return;
+    }
+
+    if (!attemptedAutoSync && apiKey && user && currentChannel) {
+      setAttemptedAutoSync(true);
+      try {
+        await syncVideo(video.id, apiKey, { silent: true });
+        // Restore error state if sync confirms failure (it will be driven by fetchStatus prop anyway)
+        // If sync succeeds, fetchStatus becomes 'success' and isUnavailable will become false.
+      } catch (e) {
+        console.error('[VideoCard] Silent sync failed:', e);
+      }
+    }
+  };
+
+  // Determine if we should show the unavailable placeholder
+  // For custom videos with their own thumbnail: only show placeholder in YouTube View
+  // For regular YouTube videos or custom videos without thumbnail: always show if unavailable
+  const hasCustomThumbnail = video.isCustom && (video.customImage || video.thumbnail);
+  const isYouTubeLinkUnavailable = video.fetchStatus === 'failed' || hasSyncError;
+  // In YouTube View, also show unavailable if we have a publishedVideoId but no mergedVideoData (fetch pending/failed)
+  const isMissingYouTubeData = viewMode === 'youtube' && video.publishedVideoId && !video.mergedVideoData;
+  const isUnavailable = (isYouTubeLinkUnavailable || isMissingYouTubeData) && (viewMode === 'youtube' || !hasCustomThumbnail);
+
   return (
     <>
       <div
@@ -245,12 +276,40 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
 
         {/* Thumbnail Container */}
         <div className="relative aspect-video rounded-xl overflow-hidden bg-bg-secondary">
-          <img
-            src={displayVideo.isCustom ? (displayVideo.customImage || displayVideo.thumbnail) : displayVideo.thumbnail}
-            alt={displayVideo.title}
-            className={`w-full h-full object-cover transition-transform duration-200 ${isOverlay || isMenuOpen || isTooltipOpen ? 'scale-105' : 'group-hover:scale-105'}`}
-            loading="lazy"
-          />
+          {!isUnavailable ? (
+            <img
+              src={displayVideo.isCustom ? (displayVideo.customImage || displayVideo.thumbnail) : displayVideo.thumbnail}
+              alt={displayVideo.title}
+              className={`w-full h-full object-cover transition-transform duration-200 ${isOverlay || isMenuOpen || isTooltipOpen ? 'scale-105' : 'group-hover:scale-105'}`}
+              loading="lazy"
+              onLoad={(e) => {
+                const img = e.target as HTMLImageElement;
+                // YouTube returns a tiny placeholder (120x90) when maxres doesn't exist
+                // Normal thumbnails are at least 480px wide, so anything smaller is a fallback
+                if (img.naturalWidth < 480) {
+                  handleThumbnailError();
+                }
+              }}
+              onError={handleThumbnailError}
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-bg-secondary to-bg-tertiary flex items-center justify-center flex-col gap-2 relative">
+              <div className="text-text-secondary/20">
+                <AlertTriangle size={48} />
+              </div>
+              <span className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.2em] opacity-40">Video Unavailable</span>
+            </div>
+          )}
+
+          {/* Unavailable Overlay Badge */}
+          {isUnavailable && (
+            <div className="absolute inset-0 z-20 bg-black/40 backdrop-blur-[1px] flex items-center justify-center p-4">
+              <div className="bg-red-600 text-white px-3 py-1.5 rounded-full text-[10px] font-black shadow-2xl flex items-center gap-1.5 border border-red-400/30 animate-in fade-in zoom-in duration-300">
+                <AlertTriangle size={14} className="fill-white/20" />
+                OFFLINE / PRIVATE
+              </div>
+            </div>
+          )}
 
           {/* Cloned Timer Overlay */}
           {video.isCloned && (

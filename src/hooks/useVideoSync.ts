@@ -10,7 +10,7 @@ export const useVideoSync = (userId: string, channelId: string) => {
     const queryClient = useQueryClient();
     const queryKey = ['videos', userId, channelId];
 
-    const syncVideo = async (videoId: string, apiKey: string) => {
+    const syncVideo = async (videoId: string, apiKey: string, options: { silent?: boolean } = {}) => {
         const videos = queryClient.getQueryData<VideoDetails[]>(queryKey) || [];
         const video = videos.find(v => v.id === videoId);
         if (!video) return;
@@ -18,21 +18,46 @@ export const useVideoSync = (userId: string, channelId: string) => {
         const targetId = video.publishedVideoId || videoId;
         if (video.isCustom && !video.publishedVideoId) return;
 
-        const details = await fetchVideoDetails(targetId, apiKey);
+        try {
+            const details = await fetchVideoDetails(targetId, apiKey);
 
-        if (details) {
-            if (video.publishedVideoId) {
-                await VideoService.updateVideo(userId, channelId, videoId, {
+            if (details) {
+                const updates = video.publishedVideoId ? {
                     mergedVideoData: details,
-                    lastUpdated: Date.now()
-                });
-            } else {
-                await VideoService.updateVideo(userId, channelId, videoId, {
+                    lastUpdated: Date.now(),
+                    fetchStatus: 'success' as const,
+                    lastFetchAttempt: Date.now()
+                } : {
                     ...details,
-                    lastUpdated: Date.now()
-                });
+                    lastUpdated: Date.now(),
+                    fetchStatus: 'success' as const,
+                    lastFetchAttempt: Date.now()
+                };
+
+                await VideoService.updateVideo(userId, channelId, videoId, updates);
+
+                if (!options.silent) {
+                    useUIStore.getState().showToast('Video synced successfully', 'success');
+                }
             }
-            useUIStore.getState().showToast('Video synced successfully (quota used: 1 unit)', 'success');
+        } catch (error: any) {
+            console.error('[useVideoSync] Sync failed for video:', videoId, error);
+            const isUnavailable = error.message === 'VIDEO_NOT_FOUND' || error.message === 'VIDEO_PRIVATE';
+
+            if (isUnavailable) {
+                await VideoService.updateVideo(userId, channelId, videoId, {
+                    fetchStatus: 'failed',
+                    lastFetchAttempt: Date.now()
+                    // Note: Do NOT set isPlaylistOnly here - that would hide the video from Home page
+                    // The video should still appear with an "Unavailable" placeholder
+                });
+
+                if (!options.silent) {
+                    useUIStore.getState().showToast('Video is no longer available on YouTube', 'error');
+                }
+            } else if (!options.silent) {
+                useUIStore.getState().showToast('Failed to sync video', 'error');
+            }
         }
     };
 
@@ -55,14 +80,30 @@ export const useVideoSync = (userId: string, channelId: string) => {
 
                 try {
                     const updatedDetails = await fetchVideosBatch(videoIds, apiKey);
+                    const returnedIds = new Set(updatedDetails.map(d => d.id));
 
-                    const updates = updatedDetails.map(details => ({
+                    const updates: { videoId: string; data: Partial<VideoDetails> }[] = updatedDetails.map(details => ({
                         videoId: details.id,
                         data: {
                             ...details,
-                            lastUpdated: now
+                            lastUpdated: now,
+                            fetchStatus: 'success',
+                            lastFetchAttempt: now
                         }
                     }));
+
+                    // Handle missing videos (likely deleted or private)
+                    videoIds.forEach(id => {
+                        if (!returnedIds.has(id)) {
+                            updates.push({
+                                videoId: id,
+                                data: {
+                                    fetchStatus: 'failed',
+                                    lastFetchAttempt: now
+                                }
+                            });
+                        }
+                    });
 
                     if (updates.length > 0) {
                         await VideoService.batchUpdateVideos(userId, channelId, updates);
@@ -127,8 +168,12 @@ export const useVideoSync = (userId: string, channelId: string) => {
                         try {
                             const details = await fetchVideoDetails(video.id, apiKey);
                             return details ? { videoId: video.id, details } : null;
-                        } catch (e) {
+                        } catch (e: any) {
                             console.error(`Failed to fetch details for ${video.id}`, e);
+                            const isUnavailable = e.message === 'VIDEO_NOT_FOUND' || e.message === 'VIDEO_PRIVATE';
+                            if (isUnavailable) {
+                                return { videoId: video.id, unavailable: true };
+                            }
                             return null;
                         }
                     })
@@ -136,13 +181,25 @@ export const useVideoSync = (userId: string, channelId: string) => {
 
                 results.forEach(result => {
                     if (result) {
-                        updates.push({
-                            videoId: result.videoId,
-                            data: {
-                                ...result.details,
-                                lastUpdated: now
-                            }
-                        });
+                        if ('unavailable' in result) {
+                            updates.push({
+                                videoId: result.videoId,
+                                data: {
+                                    fetchStatus: 'failed',
+                                    lastFetchAttempt: now
+                                }
+                            });
+                        } else {
+                            updates.push({
+                                videoId: result.videoId,
+                                data: {
+                                    ...result.details,
+                                    lastUpdated: now,
+                                    fetchStatus: 'success',
+                                    lastFetchAttempt: now
+                                }
+                            });
+                        }
                     }
                 });
 
