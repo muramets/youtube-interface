@@ -131,7 +131,7 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
 
                 {/* View Count */}
                 {/* Right-aligned actions block: view count + visibility + menu */}
-                <div className={`ml-1 flex items-center gap-1.5 shrink-0 transition-opacity`}>
+                <div className={`ml-1 flex items-center gap-0.5 shrink-0 transition-opacity`}>
                     <span className="text-[10px] text-text-tertiary shrink-0 leading-none">
                         {formatViewCount(viewCount)}
                     </span>

@@ -120,7 +120,7 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                 {/* Icon Wrapper */}
                 <div className="mr-1 shrink-0 flex items-center justify-center w-4">
                     {isTrash ? (
-                        <Trash2 size={14} className={isActive ? 'text-white' : 'text-gray-400'} />
+                        <Trash2 size={14} className={`${isActive ? 'text-white' : 'text-gray-400'} translate-y-[-2px]`} />
                     ) : (
                         <div
                             ref={colorPickerRef}
@@ -216,7 +216,7 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                 )}
 
                 {/* View Count & Actions block */}
-                <div className="ml-2 flex items-center gap-1.5 shrink-0">
+                <div className="ml-2 flex items-center gap-0.5 shrink-0">
                     {/* View Count */}
                     <span className="text-[10px] text-text-tertiary leading-none">
                         {formatViewCount(niche.viewCount)}
