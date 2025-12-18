@@ -115,6 +115,12 @@ export const useTimelineInteraction = ({
         }
     }, []);
 
+    const areTransformsDifferent = (a: Transform, b: Transform) => {
+        return Math.abs(a.scale - b.scale) > 0.0001 ||
+            Math.abs(a.offsetX - b.offsetX) > 0.1 ||
+            Math.abs(a.offsetY - b.offsetY) > 0.1;
+    };
+
     // Wheel Handler
     const handleWheel = useCallback((e: WheelEvent) => {
         e.preventDefault();
@@ -130,7 +136,6 @@ export const useTimelineInteraction = ({
         if (e.ctrlKey || e.metaKey) {
             // Zooming
             if (onHoverVideo) onHoverVideo(false);
-            if (onInteractionStart) onInteractionStart();
 
             const container = containerRef.current;
             if (!container) return;
@@ -158,8 +163,11 @@ export const useTimelineInteraction = ({
             }, viewportWidth, viewportHeight);
 
             // Update Target & Animate
-            targetTransformRef.current = clamped;
-            startAnimation();
+            if (areTransformsDifferent(clamped, targetTransformRef.current)) {
+                if (onInteractionStart) onInteractionStart();
+                targetTransformRef.current = clamped;
+                startAnimation();
+            }
         } else {
             // Panning
             const clamped = clampTransform({
@@ -169,8 +177,11 @@ export const useTimelineInteraction = ({
             }, viewportWidth, viewportHeight);
 
             // Update Target & Animate (Consolidated smooth feeling)
-            targetTransformRef.current = clamped;
-            startAnimation();
+            if (areTransformsDifferent(clamped, targetTransformRef.current)) {
+                if (onInteractionStart) onInteractionStart();
+                targetTransformRef.current = clamped;
+                startAnimation();
+            }
         }
     }, [containerSizeRef, containerRef, transformRef, minScale, clampTransform, onHoverVideo, startAnimation, onInteractionStart]);
 
@@ -241,7 +252,6 @@ export const useTimelineInteraction = ({
                 isPanningRef.current = true;
                 setIsPanning(true);
                 if (onHoverVideo) onHoverVideo(false);
-                if (onInteractionStart) onInteractionStart();
             }
         }
 
@@ -265,9 +275,13 @@ export const useTimelineInteraction = ({
                 offsetY: e.clientY - panStartRef.current.y
             }, viewportWidth, viewportHeight);
 
-            transformRef.current = clamped;
-            targetTransformRef.current = clamped;
-            syncToDom();
+            // Only trigger interaction start if we actually moved significantly
+            if (areTransformsDifferent(clamped, targetTransformRef.current)) {
+                if (onInteractionStart) onInteractionStart();
+                transformRef.current = clamped;
+                targetTransformRef.current = clamped;
+                syncToDom();
+            }
         }
     }, [containerSizeRef, transformRef, clampTransform, syncToDom, onHoverVideo, containerRef, onInteractionStart]);
 

@@ -46,6 +46,13 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
         return selectedNicheIds.includes('TRASH');
     }, [trendsFilters]);
 
+    // Close menus when docking
+    React.useEffect(() => {
+        if (isDocked) {
+            setActiveMenu(null);
+        }
+    }, [isDocked]);
+
     const barRef = useRef<HTMLDivElement>(null);
     const isMultiSelect = videos.length > 1;
     const shouldDock = isMultiSelect || isDocked;
@@ -155,7 +162,12 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
             className="flex items-center gap-2 bg-bg-secondary/90 backdrop-blur-md border border-border shadow-lg rounded-full px-4 py-2 z-[1000]"
             style={style}
             onMouseDown={(e) => e.stopPropagation()}
+            onMouseMove={(e) => e.stopPropagation()}
+            onMouseUp={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
         >
             <div className="flex items-center gap-3 pr-3 border-r border-white/10">
                 <span className="text-sm font-medium text-white whitespace-nowrap max-w-[150px] truncate">
