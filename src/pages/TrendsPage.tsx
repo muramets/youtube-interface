@@ -7,18 +7,26 @@ import type { TrendVideo } from '../types/trends';
 import { applyNumericFilter } from '../utils/filterUtils';
 import { useFrozenStats } from '../components/Trends/Timeline/hooks/useFrozenStats';
 
+import { useAuth } from '../hooks/useAuth';
+import { useChannelStore } from '../stores/channelStore';
+import { useApiKey } from '../hooks/useApiKey';
+
 export const TrendsPage: React.FC = () => {
+    const { user } = useAuth();
+    const { currentChannel } = useChannelStore();
+    const { apiKey } = useApiKey();
     const { channels, selectedChannelId, timelineConfig, setTimelineConfig, trendsFilters, filterMode, setVideos, videos, videoNicheAssignments, hiddenVideos } = useTrendStore();
     const [isLoading, setIsLoading] = useState(true);
 
-    // Reset state immediately when channel switches (Derived State pattern)
-    // This handles video data/loading resets. The hook handles stats resets.
-    const [prevChannelForReset, setPrevChannelForReset] = useState(selectedChannelId);
-    if (selectedChannelId !== prevChannelForReset) {
-        setPrevChannelForReset(selectedChannelId);
-        setVideos([]);
-        setIsLoading(true);
-    }
+    // Reset state when channel switches
+    const prevChannelForReset = useRef(selectedChannelId);
+    useEffect(() => {
+        if (selectedChannelId !== prevChannelForReset.current) {
+            prevChannelForReset.current = selectedChannelId;
+            setVideos([]);
+            setIsLoading(true);
+        }
+    }, [selectedChannelId, setVideos]);
 
     // Computed visible channels
     const visibleChannels = useMemo(() => {
@@ -34,6 +42,8 @@ export const TrendsPage: React.FC = () => {
 
     useEffect(() => {
         const loadVideos = async () => {
+            if (!user?.uid || !currentChannel?.id) return;
+
             const isChannelSwitch = prevSelectedChannelRef.current !== selectedChannelId;
             const isInitialLoad = !hasLoadedOnceRef.current;
 
@@ -44,61 +54,41 @@ export const TrendsPage: React.FC = () => {
             prevSelectedChannelRef.current = selectedChannelId;
 
             const allVideos: TrendVideo[] = [];
-            const minLoadTime = (isInitialLoad || isChannelSwitch) && visibleChannels.length > 0 ? 500 : 0;
-            const startStr = Date.now();
 
             for (const channel of visibleChannels) {
-                const channelVideos = await TrendService.getChannelVideosFromCache(channel.id);
+                // 1. Try local cache
+                let channelVideos = await TrendService.getChannelVideosFromCache(channel.id);
+
+                // 2. If empty, try Firestore (sync layer)
+                if (channelVideos.length === 0) {
+                    console.log(`[TrendsPage] Local cache empty for ${channel.title}, loading from Firestore...`);
+                    channelVideos = await TrendService.getChannelVideosFromFirestore(user.uid, currentChannel.id, channel.id);
+                }
+
                 allVideos.push(...channelVideos.map(v => ({
                     ...v,
                     channelTitle: channel.title
                 })));
+
+                // 3. Check for staleness/completeness and background sync if needed
+                const isStale = Date.now() - (channel.lastUpdated || 0) > 12 * 60 * 60 * 1000; // 12 hours
+                const needsInitialSync = channel.lastUpdated === 0 || channelVideos.length === 0;
+
+                if ((isStale || needsInitialSync) && apiKey) {
+                    console.log(`[TrendsPage] Triggering background sync for ${channel.title}...`);
+                    // We don't await this as it's background
+                    TrendService.syncChannelVideos(user.uid, currentChannel.id, channel, apiKey).catch(console.error);
+                }
             }
             allVideos.sort((a, b) => a.publishedAtTimestamp - b.publishedAtTimestamp);
-
-            const elapsed = Date.now() - startStr;
-            if (elapsed < minLoadTime) {
-                await new Promise(resolve => setTimeout(resolve, minLoadTime - elapsed));
-            }
 
             setVideos(allVideos);
             setIsLoading(false);
             hasLoadedOnceRef.current = true;
         };
         loadVideos();
-    }, [visibleChannels, selectedChannelId]);
+    }, [visibleChannels, selectedChannelId, user?.uid, currentChannel?.id, apiKey]);
 
-    // Added: Update persistent niche view counts when channel data is fully loaded
-    const { niches, updateNiche } = useTrendStore();
-    useEffect(() => {
-        if (!selectedChannelId || videos.length === 0) return;
-
-        // Calculate counts
-        const computedCounts = new Map<string, number>();
-        videos.forEach(v => {
-            const assignments = videoNicheAssignments[v.id] || [];
-            const nicheIds = assignments.length > 0
-                ? assignments.map(a => a.nicheId)
-                : (v.nicheId ? [v.nicheId] : []);
-
-            nicheIds.forEach(nid => {
-                computedCounts.set(nid, (computedCounts.get(nid) || 0) + v.viewCount);
-            });
-        });
-
-        // Batch updates to avoid too many re-renders (though zustand is usually fine)
-        // We only check LOCAL niches for the CURRENT channel to avoid mixing data
-        const channelNiches = niches.filter(n => n.type === 'local' && n.channelId === selectedChannelId);
-
-        channelNiches.forEach(niche => {
-            const newCount = computedCounts.get(niche.id) || 0;
-            // Only update if changed to avoid loops/unnecessary writes
-            if (niche.viewCount !== newCount) {
-                updateNiche(niche.id, { viewCount: newCount });
-            }
-        });
-
-    }, [videos, videoNicheAssignments, selectedChannelId, niches, updateNiche]);
 
     // Calculate Global Percentile Map
     const globalPercentileMap = useMemo(() => {

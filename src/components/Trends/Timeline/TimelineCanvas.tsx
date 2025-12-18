@@ -410,7 +410,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
 
             {/* Floating Bar with Smart Positioning */}
             <div className="transition-opacity duration-200 opacity-100">
-                {selectionState.selectedIds.size > 0 && (
+                {selectedVideos.length > 0 && (
                     <TrendsFloatingBar
                         videos={selectedVideos}
                         position={floatingBarPosition}

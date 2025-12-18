@@ -34,15 +34,6 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
     // For single video: show its niches
     // For multi: show intersection? or just show state in dropdown?
     // Let's resolve "common" niches for the button label, but track individual for the list.
-    const allAssignedIds = useMemo(() => {
-        const set = new Set<string>();
-        videos.forEach(v => {
-            const assignments = videoNicheAssignments[v.id] || [];
-            assignments.forEach(a => set.add(a.nicheId));
-        });
-        return set;
-    }, [videos, videoNicheAssignments]);
-
     // Check which niches are assigned to ALL selected videos (for checkbox state 'checked')
     // And which are partial (for 'indeterminate' - though custom UI just checking if assigned to specific video in loop)
     // For the UI list:
@@ -70,6 +61,7 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
         if (isMultiSelect) return null; // Don't show specific niche color for mixed selection
 
         const video = videos[0];
+        if (!video) return null;
         const videoAssignments = videoNicheAssignments[video.id] || [];
         if (videoAssignments.length === 0) return null;
 
@@ -122,7 +114,7 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
         if (isOpen) setTimeout(() => inputRef.current?.focus(), 50);
     }, [isOpen]);
 
-    const handleCreateSubmit = (e: React.FormEvent) => {
+    const handleCreateSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (newNicheName.trim()) {
             const existingColors = niches.map(n => n.color);
@@ -133,12 +125,14 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                 name: newNicheName.trim(),
                 color: newColor,
                 type: isGlobal ? 'global' : 'local',
-                channelId: videos[0].channelId // Use first video's channel as origin
+                channelId: videos[0]?.channelId || '' // Use first video's channel as origin
             };
 
-            addNiche(newNiche);
-            // Assign to ALL selected videos
-            videos.forEach(v => assignVideoToNiche(v.id, newNiche.id));
+            // Wait for niche to be created in Firestore before assigning videos
+            await addNiche(newNiche);
+
+            // Assign to ALL selected videos (wait for all to complete)
+            await Promise.all(videos.map(v => assignVideoToNiche(v.id, newNiche.id, v.viewCount)));
 
             setNewNicheName('');
             onToggle();
@@ -157,9 +151,9 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
             if (shouldAdd) {
                 // Prevent duplicate assignment if already assigned
                 const assigned = (videoNicheAssignments[v.id] || []).some(a => a.nicheId === nicheId);
-                if (!assigned) assignVideoToNiche(v.id, nicheId);
+                if (!assigned) assignVideoToNiche(v.id, nicheId, v.viewCount);
             } else {
-                removeVideoFromNiche(v.id, nicheId);
+                removeVideoFromNiche(v.id, nicheId, v.viewCount);
             }
         });
     };
@@ -183,7 +177,7 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                         <span className="truncate max-w-[120px]">{displayNiche.name}</span>
                         {/* If single video and has multiple niches, show count */}
                         {/* If multi select, we didn't enter this block */}
-                        {((videoNicheAssignments[videos[0].id] || []).length > 1) && (
+                        {videos[0] && (videoNicheAssignments[videos[0].id] || []).length > 1 && (
                             <span className="text-[10px] text-text-secondary">
                                 +{(videoNicheAssignments[videos[0].id] || []).length - 1}
                             </span>

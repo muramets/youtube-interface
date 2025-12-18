@@ -101,3 +101,9 @@ export interface VideoPosition {
     yNorm: number;
     baseSize: number;
 }
+
+export interface HiddenVideo {
+    id: string;
+    channelId: string;
+    hiddenAt: number;
+}

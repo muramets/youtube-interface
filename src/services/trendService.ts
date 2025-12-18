@@ -3,12 +3,16 @@ import {
     collection,
     doc,
     setDoc,
+    getDoc,
     deleteDoc,
     onSnapshot,
-    updateDoc
+    updateDoc,
+    writeBatch,
+    getDocs,
+    increment
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import type { TrendChannel, TrendVideo } from '../types/trends';
+import type { TrendChannel, TrendVideo, TrendNiche, HiddenVideo } from '../types/trends';
 
 // IndexedDB Schema
 interface TrendsDB extends DBSchema {
@@ -43,6 +47,153 @@ export const TrendService = {
             const channels = snapshot.docs.map(doc => doc.data() as TrendChannel);
             callback(channels);
         });
+    },
+
+    // --- Niche Management (Firestore) ---
+
+    subscribeToNiches: (userId: string, userChannelId: string, callback: (niches: TrendNiche[]) => void) => {
+        const ref = collection(db, `users/${userId}/channels/${userChannelId}/trendNiches`);
+        return onSnapshot(ref, (snapshot) => {
+            const niches = snapshot.docs.map(doc => doc.data() as TrendNiche);
+            callback(niches);
+        });
+    },
+
+    addNiche: async (userId: string, userChannelId: string, niche: Omit<TrendNiche, 'createdAt' | 'viewCount'>) => {
+        const id = niche.id || crypto.randomUUID();
+        const fullNiche: TrendNiche = {
+            ...niche,
+            id,
+            viewCount: 0,
+            createdAt: Date.now()
+        };
+        await setDoc(doc(db, `users/${userId}/channels/${userChannelId}/trendNiches`, id), fullNiche);
+        return fullNiche;
+    },
+
+    updateNiche: async (userId: string, userChannelId: string, nicheId: string, updates: Partial<TrendNiche>) => {
+        const ref = doc(db, `users/${userId}/channels/${userChannelId}/trendNiches`, nicheId);
+        await updateDoc(ref, updates);
+    },
+
+    deleteNiche: async (userId: string, userChannelId: string, nicheId: string) => {
+        // Just delete the niche document. 
+        // We leave the assignments as "orphaned" references - the UI naturally filters them out
+        // because it only renders/counts based on the implementation of the 'niches' list.
+        await deleteDoc(doc(db, `users/${userId}/channels/${userChannelId}/trendNiches`, nicheId));
+    },
+
+    // --- Niche View Count Recalculation (Global) ---
+
+
+    // --- Niche Assignment (Firestore) ---
+
+    subscribeToNicheAssignments: (userId: string, userChannelId: string, callback: (assignments: Record<string, { nicheId: string; addedAt: number }[]>) => void) => {
+        const ref = collection(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`);
+        return onSnapshot(ref, (snapshot) => {
+            const data: Record<string, { nicheId: string; addedAt: number }[]> = {};
+            snapshot.docs.forEach(doc => {
+                data[doc.id] = doc.data().assignments || [];
+            });
+            callback(data);
+        });
+    },
+
+    assignVideoToNiche: async (userId: string, userChannelId: string, videoId: string, nicheId: string, videoViewCount: number) => {
+        const ref = doc(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`, videoId);
+        const snapshot = await getDoc(ref);
+        const current = snapshot.exists() ? (snapshot.data().assignments || []) : [];
+
+        if (current.some((a: any) => a.nicheId === nicheId)) return;
+
+        await setDoc(ref, {
+            assignments: [...current, { nicheId, addedAt: Date.now() }]
+        }, { merge: true });
+
+        // Atomic incremental update for niche viewCount
+        const nicheRef = doc(db, `users/${userId}/channels/${userChannelId}/trendNiches`, nicheId);
+        await updateDoc(nicheRef, {
+            viewCount: increment(videoViewCount)
+        });
+    },
+
+    removeVideoFromNiche: async (userId: string, userChannelId: string, videoId: string, nicheId: string, videoViewCount: number) => {
+        const ref = doc(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`, videoId);
+        const snapshot = await getDoc(ref);
+        if (!snapshot.exists()) return;
+
+        const current = snapshot.data().assignments || [];
+        const filtered = current.filter((a: any) => a.nicheId !== nicheId);
+
+        if (filtered.length === 0) {
+            await deleteDoc(ref);
+        } else {
+            await setDoc(ref, { assignments: filtered });
+        }
+
+        // Atomic incremental update for niche viewCount (decrement)
+        const nicheRef = doc(db, `users/${userId}/channels/${userChannelId}/trendNiches`, nicheId);
+        await updateDoc(nicheRef, {
+            viewCount: increment(-videoViewCount)
+        });
+    },
+
+    migrateLocalDataToFirestore: async (
+        userId: string,
+        userChannelId: string,
+        niches: TrendNiche[],
+        assignments: Record<string, { nicheId: string; addedAt: number }[]>,
+        hiddenVideos: HiddenVideo[] = []
+    ) => {
+        const nicheBatch = writeBatch(db);
+        niches.forEach(n => {
+            const ref = doc(db, `users/${userId}/channels/${userChannelId}/trendNiches`, n.id);
+            nicheBatch.set(ref, n);
+        });
+        await nicheBatch.commit();
+
+        const assignmentBatch = writeBatch(db);
+        Object.entries(assignments).forEach(([videoId, videoAssignments]) => {
+            const ref = doc(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`, videoId);
+            assignmentBatch.set(ref, { assignments: videoAssignments });
+        });
+        await assignmentBatch.commit();
+
+        if (hiddenVideos.length > 0) {
+            const hiddenBatch = writeBatch(db);
+            hiddenVideos.forEach(hv => {
+                const ref = doc(db, `users/${userId}/channels/${userChannelId}/hiddenVideos`, hv.id);
+                hiddenBatch.set(ref, hv);
+            });
+            await hiddenBatch.commit();
+        }
+    },
+
+    // --- Hidden Videos (Firestore) ---
+
+    subscribeToHiddenVideos: (userId: string, userChannelId: string, callback: (hidden: HiddenVideo[]) => void) => {
+        const ref = collection(db, `users/${userId}/channels/${userChannelId}/hiddenVideos`);
+        return onSnapshot(ref, (snapshot) => {
+            callback(snapshot.docs.map(d => d.data() as HiddenVideo));
+        });
+    },
+
+    hideVideos: async (userId: string, userChannelId: string, videos: { id: string; channelId: string }[]) => {
+        const batch = writeBatch(db);
+        videos.forEach(v => {
+            const ref = doc(db, `users/${userId}/channels/${userChannelId}/hiddenVideos`, v.id);
+            batch.set(ref, { id: v.id, channelId: v.channelId, hiddenAt: Date.now() });
+        });
+        await batch.commit();
+    },
+
+    restoreVideos: async (userId: string, userChannelId: string, ids: string[]) => {
+        const batch = writeBatch(db);
+        ids.forEach(id => {
+            const ref = doc(db, `users/${userId}/channels/${userChannelId}/hiddenVideos`, id);
+            batch.delete(ref);
+        });
+        await batch.commit();
     },
 
     addTrendChannel: async (userId: string, userChannelId: string, channelUrl: string, apiKey: string) => {
@@ -245,9 +396,18 @@ export const TrendService = {
                         description: item.snippet.description,
                     }));
 
+                    // 1. Save to IndexedDB (speed layer)
                     const tx = idb.transaction('videos', 'readwrite');
                     await Promise.all(videos.map(v => tx.store.put(v)));
                     await tx.done;
+
+                    // 2. Save to Firestore (sync layer)
+                    const videoBatch = writeBatch(db);
+                    videos.forEach(v => {
+                        const vRef = doc(db, `users/${userId}/channels/${userChannelId}/trendChannels/${channel.id}/videos`, v.id);
+                        videoBatch.set(vRef, v);
+                    });
+                    await videoBatch.commit();
 
                     totalProcessedVideos += videos.length;
                 }
@@ -280,17 +440,23 @@ export const TrendService = {
         return idb.getAllFromIndex('videos', 'by-channel', channelId);
     },
 
-    // Migration helper: Recalculate stats from local DB if missing in Firestore
+    getChannelVideosFromFirestore: async (userId: string, userChannelId: string, channelId: string) => {
+        const ref = collection(db, `users/${userId}/channels/${userChannelId}/trendChannels/${channelId}/videos`);
+        const snapshot = await getDocs(ref);
+        return snapshot.docs.map(d => d.data() as TrendVideo);
+    },
+
+    // Migration helper: Recalculate stats from Firestore to ensure consistency across devices
     recalcChannelStats: async (userId: string, userChannelId: string, channelId: string) => {
-        const idb = await getDB();
-        const allVideos = await idb.getAllFromIndex('videos', 'by-channel', channelId);
+        const allVideos = await TrendService.getChannelVideosFromFirestore(userId, userChannelId, channelId);
 
         const totalViews = allVideos.reduce((sum, v) => sum + v.viewCount, 0);
         const averageViews = allVideos.length > 0 ? totalViews / allVideos.length : 0;
 
         await updateDoc(doc(db, `users/${userId}/channels/${userChannelId}/trendChannels`, channelId), {
             totalViewCount: totalViews,
-            averageViews
+            averageViews,
+            lastUpdated: Date.now() // Also mark as updated to prevent immediate sync if they were just migrated
         });
 
         return totalViews;

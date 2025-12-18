@@ -133,7 +133,11 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
     // Compute view counts dynamically based on currently loaded videos
     const nicheViewCounts = React.useMemo(() => {
         const counts = new Map<string, number>();
+        const hiddenIds = new Set(hiddenVideos.map(hv => hv.id));
+
         videos.forEach(v => {
+            if (hiddenIds.has(v.id)) return;
+
             // Get all niche assignments for this video (array-based)
             const assignments = videoNicheAssignments[v.id] || [];
             const nicheIds = assignments.length > 0
@@ -145,7 +149,7 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
             });
         });
         return counts;
-    }, [videos, videoNicheAssignments]);
+    }, [videos, videoNicheAssignments, hiddenVideos]);
 
     // Compute total view counts per channel
     const channelViewCounts = React.useMemo(() => {

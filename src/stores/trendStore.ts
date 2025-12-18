@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { TrendChannel, TrendNiche, TimelineConfig, TrendVideo } from '../types/trends';
 import type { FilterOperator } from './filterStore';
+import { TrendService } from '../services/trendService';
+import { useChannelStore } from './channelStore';
 
 // Trends-specific filter item (date, views, percentile)
 export interface TrendsFilterItem {
@@ -69,7 +71,9 @@ interface TrendStore {
     setChannels: (channels: TrendChannel[]) => void;
     updateChannel: (id: string, updates: Partial<TrendChannel>) => void;
     setNiches: (niches: TrendNiche[]) => void;
+    setVideoNicheAssignments: (assignments: Record<string, { nicheId: string; addedAt: number }[]>) => void;
     setTimelineConfig: (config: Partial<TimelineConfig>) => void;
+    setHiddenVideos: (hidden: HiddenVideo[]) => void;
     setSelectedChannelId: (id: string | null) => void;
     setSelectedVideo: (video: TrendVideo | null) => void;
     setHoveredVideo: (video: TrendVideo | null) => void;
@@ -83,11 +87,11 @@ interface TrendStore {
     clearTrendsFilters: () => void;
 
     // Niche Actions
-    addNiche: (niche: Omit<TrendNiche, 'createdAt' | 'viewCount'>) => void;
-    updateNiche: (id: string, updates: Partial<TrendNiche>) => void;
-    deleteNiche: (id: string) => void;
-    assignVideoToNiche: (videoId: string, nicheId: string) => void;
-    removeVideoFromNiche: (videoId: string, nicheId: string) => void;
+    addNiche: (niche: Omit<TrendNiche, 'createdAt' | 'viewCount'>) => Promise<void>;
+    updateNiche: (id: string, updates: Partial<TrendNiche>) => Promise<void>;
+    deleteNiche: (id: string) => Promise<void>;
+    assignVideoToNiche: (videoId: string, nicheId: string, viewCount: number) => Promise<void>;
+    removeVideoFromNiche: (videoId: string, nicheId: string, viewCount: number) => Promise<void>;
 
     // Hidden Videos Actions
     hideVideos: (videos: { id: string; channelId: string }[]) => void;
@@ -99,7 +103,7 @@ interface TrendStore {
 
 export const useTrendStore = create<TrendStore>()(
     persist(
-        (set) => ({
+        (set, get) => ({
             userId: null,
             videos: [],
             channels: [],
@@ -145,10 +149,13 @@ export const useTrendStore = create<TrendStore>()(
 
             setNiches: (niches) => set({ niches }),
 
+            setVideoNicheAssignments: (videoNicheAssignments) => set({ videoNicheAssignments }),
+
             setTimelineConfig: (config) => set((state) => ({
                 timelineConfig: { ...state.timelineConfig, ...config }
             })),
 
+            setHiddenVideos: (hiddenVideos) => set({ hiddenVideos }),
             setSelectedChannelId: (id) => set((state) => {
                 // Save current config
                 const currentKey = state.selectedChannelId || 'global';
@@ -206,80 +213,56 @@ export const useTrendStore = create<TrendStore>()(
                 )
             })),
 
-            // Niche Actions
-            addNiche: (niche) => set((state) => ({
-                niches: [...state.niches, {
-                    ...niche,
-                    viewCount: 0,
-                    createdAt: Date.now()
-                }]
-            })),
+            // Niche Actions (now calling service)
+            addNiche: async (niche) => {
+                const { userId } = get();
+                const userChannelId = useChannelStore.getState().currentChannel?.id;
+                if (!userId || !userChannelId) return;
+                await TrendService.addNiche(userId, userChannelId, niche);
+            },
 
-            updateNiche: (id, updates) => set((state) => ({
-                niches: state.niches.map(n => n.id === id ? { ...n, ...updates } : n)
-            })),
+            updateNiche: async (id, updates) => {
+                const { userId } = get();
+                const userChannelId = useChannelStore.getState().currentChannel?.id;
+                if (!userId || !userChannelId) return;
+                await TrendService.updateNiche(userId, userChannelId, id, updates);
+            },
 
-            deleteNiche: (id) => set((state) => {
-                // Also remove this niche from all video assignments
-                const newAssignments = { ...state.videoNicheAssignments };
-                Object.keys(newAssignments).forEach(vid => {
-                    newAssignments[vid] = newAssignments[vid].filter(a => a.nicheId !== id);
-                    if (newAssignments[vid].length === 0) {
-                        delete newAssignments[vid];
-                    }
-                });
-                return {
-                    niches: state.niches.filter(n => n.id !== id),
-                    videoNicheAssignments: newAssignments
-                };
-            }),
+            deleteNiche: async (id) => {
+                const { userId } = get();
+                const userChannelId = useChannelStore.getState().currentChannel?.id;
+                if (!userId || !userChannelId) return;
+                await TrendService.deleteNiche(userId, userChannelId, id);
+            },
 
-            assignVideoToNiche: (videoId, nicheId) => set((state) => {
-                const current = state.videoNicheAssignments[videoId] || [];
-                // Check if already assigned
-                if (current.some(a => a.nicheId === nicheId)) {
-                    return state; // Already assigned, no change
-                }
-                return {
-                    videoNicheAssignments: {
-                        ...state.videoNicheAssignments,
-                        [videoId]: [...current, { nicheId, addedAt: Date.now() }]
-                    }
-                };
-            }),
+            assignVideoToNiche: async (videoId, nicheId, viewCount) => {
+                const { userId } = get();
+                const userChannelId = useChannelStore.getState().currentChannel?.id;
+                if (!userId || !userChannelId) return;
+                await TrendService.assignVideoToNiche(userId, userChannelId, videoId, nicheId, viewCount);
+            },
 
-            removeVideoFromNiche: (videoId, nicheId) => set((state) => {
-                const current = state.videoNicheAssignments[videoId] || [];
-                const filtered = current.filter(a => a.nicheId !== nicheId);
-                const newAssignments = { ...state.videoNicheAssignments };
-                if (filtered.length === 0) {
-                    delete newAssignments[videoId];
-                } else {
-                    newAssignments[videoId] = filtered;
-                }
-                return { videoNicheAssignments: newAssignments };
-            }),
+            removeVideoFromNiche: async (videoId, nicheId, viewCount) => {
+                const { userId } = get();
+                const userChannelId = useChannelStore.getState().currentChannel?.id;
+                if (!userId || !userChannelId) return;
+                await TrendService.removeVideoFromNiche(userId, userChannelId, videoId, nicheId, viewCount);
+            },
 
             // Hidden Videos Actions
-            hideVideos: (videos) => set((state) => {
-                const newEntries = videos.map(v => ({
-                    id: v.id,
-                    channelId: v.channelId,
-                    hiddenAt: Date.now()
-                }));
+            hideVideos: async (videos) => {
+                const { userId } = get();
+                const userChannelId = useChannelStore.getState().currentChannel?.id;
+                if (!userId || !userChannelId) return;
+                await TrendService.hideVideos(userId, userChannelId, videos);
+            },
 
-                // Filter out already existing ids to avoid duplicates (though minimal risk)
-                const existingIds = new Set(state.hiddenVideos.map(hv => hv.id));
-                const uniqueNewEntries = newEntries.filter(e => !existingIds.has(e.id));
-
-                return {
-                    hiddenVideos: [...state.hiddenVideos, ...uniqueNewEntries]
-                };
-            }),
-
-            restoreVideos: (ids) => set((state) => ({
-                hiddenVideos: state.hiddenVideos.filter(hv => !ids.includes(hv.id))
-            })),
+            restoreVideos: async (ids) => {
+                const { userId } = get();
+                const userChannelId = useChannelStore.getState().currentChannel?.id;
+                if (!userId || !userChannelId) return;
+                await TrendService.restoreVideos(userId, userChannelId, ids);
+            },
         }),
         {
             name: 'trend-store',
@@ -287,11 +270,11 @@ export const useTrendStore = create<TrendStore>()(
                 timelineConfig: state.timelineConfig,
                 savedConfigs: state.savedConfigs,
                 selectedChannelId: state.selectedChannelId,
-                niches: state.niches,
-                videoNicheAssignments: state.videoNicheAssignments,
+                // niches: state.niches, // Moved to Firestore
+                // videoNicheAssignments: state.videoNicheAssignments, // Moved to Firestore
                 channelFilters: state.channelFilters,
                 trendsFilters: state.trendsFilters,
-                hiddenVideos: state.hiddenVideos,
+                // hiddenVideos: state.hiddenVideos, // Moved to Firestore
                 filterMode: state.filterMode,
                 userId: state.userId
             }),
