@@ -41,17 +41,11 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
         if (!id) return;
 
         // "Untracked" (TRASH) mode is exclusive.
-        // If clicking TRASH, clear everything else.
-        // If clicking something else, clear TRASH.
-
-        const existingFilter = trendsFilters.find(f => f.type === 'niche');
-
-        // Case 1: Clicking TRASH
         if (id === 'TRASH') {
+            const existingFilter = trendsFilters.find(f => f.type === 'niche');
             if (existingFilter) {
                 removeTrendsFilter(existingFilter.id);
             }
-            // Add TRASH filter solely
             addTrendsFilter({
                 type: 'niche',
                 operator: 'contains',
@@ -61,7 +55,25 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
             return;
         }
 
-        // Case 2: Clicking a regular niche
+        // Find the niche to check if it's local and needs channel switching
+        const targetNiche = niches.find(n => n.id === id);
+
+        // If clicking a local niche for a channel that isn't selected, switch to that channel
+        if (targetNiche?.type === 'local' && targetNiche.channelId && selectedChannelId !== targetNiche.channelId) {
+            handleChannelClick(targetNiche.channelId);
+            // We just switched channels, any previous niche filters were cleared by handleChannelClick.
+            // Now apply the new niche filter.
+            addTrendsFilter({
+                type: 'niche',
+                operator: 'contains',
+                value: [id],
+                label: `Niche: ${targetNiche.name}`
+            });
+            return;
+        }
+
+        // Standard toggle logic for existing context
+        const existingFilter = trendsFilters.find(f => f.type === 'niche');
         if (existingFilter) {
             removeTrendsFilter(existingFilter.id);
             const currentlySelected = (existingFilter.value as string[]) || [];
@@ -135,14 +147,26 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
         return counts;
     }, [videos, videoNicheAssignments]);
 
+    // Use computed view count if available (videos loaded), otherwise fall back to stored count
+    const getNicheViewCount = (niche: { id: string, viewCount?: number }) => {
+        const computed = nicheViewCounts.get(niche.id);
+        // If computed is > 0, use it (we have data). 
+        // If 0, it might mean we have data but 0 views, OR we have no data.
+        // If we have videos loaded for this channel, 0 is real. 
+        // If we don't have videos loaded, fallback to stored.
+        // Simplified: Use computed if present (even if 0, implicitly), fallback to stored.
+        // Iterate: If map has key? existing map logic sets undefined if missing.
+        return computed !== undefined ? computed : (niche.viewCount || 0);
+    };
+
     const globalNiches = niches
         .filter(n => n.type === 'global')
-        .map(n => ({ ...n, viewCount: nicheViewCounts.get(n.id) || 0 }))
+        .map(n => ({ ...n, viewCount: getNicheViewCount(n) }))
         .sort((a, b) => b.viewCount - a.viewCount);
 
     const getLocalNiches = (channelId: string) => niches
         .filter(n => n.type === 'local' && n.channelId === channelId)
-        .map(n => ({ ...n, viewCount: nicheViewCounts.get(n.id) || 0 }))
+        .map(n => ({ ...n, viewCount: getNicheViewCount(n) }))
         .sort((a, b) => b.viewCount - a.viewCount);
 
     return (

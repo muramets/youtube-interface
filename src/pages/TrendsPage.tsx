@@ -68,6 +68,38 @@ export const TrendsPage: React.FC = () => {
         loadVideos();
     }, [visibleChannels, selectedChannelId]);
 
+    // Added: Update persistent niche view counts when channel data is fully loaded
+    const { niches, updateNiche } = useTrendStore();
+    useEffect(() => {
+        if (!selectedChannelId || videos.length === 0) return;
+
+        // Calculate counts
+        const computedCounts = new Map<string, number>();
+        videos.forEach(v => {
+            const assignments = videoNicheAssignments[v.id] || [];
+            const nicheIds = assignments.length > 0
+                ? assignments.map(a => a.nicheId)
+                : (v.nicheId ? [v.nicheId] : []);
+
+            nicheIds.forEach(nid => {
+                computedCounts.set(nid, (computedCounts.get(nid) || 0) + v.viewCount);
+            });
+        });
+
+        // Batch updates to avoid too many re-renders (though zustand is usually fine)
+        // We only check LOCAL niches for the CURRENT channel to avoid mixing data
+        const channelNiches = niches.filter(n => n.type === 'local' && n.channelId === selectedChannelId);
+
+        channelNiches.forEach(niche => {
+            const newCount = computedCounts.get(niche.id) || 0;
+            // Only update if changed to avoid loops/unnecessary writes
+            if (niche.viewCount !== newCount) {
+                updateNiche(niche.id, { viewCount: newCount });
+            }
+        });
+
+    }, [videos, videoNicheAssignments, selectedChannelId, niches, updateNiche]);
+
     // Calculate Global Percentile Map
     const globalPercentileMap = useMemo(() => {
         if (videos.length === 0) return new Map<string, string>();
