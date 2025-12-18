@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, TrendingUp, Trash2, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
 import { TrendsChannelItem } from './TrendsChannelItem';
 import { TrendsChannelSkeleton } from './TrendsChannelSkeleton';
@@ -29,7 +29,15 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
     } = useTrendsSidebar();
 
     const { niches, videos, videoNicheAssignments, trendsFilters, addTrendsFilter, removeTrendsFilter, hiddenVideos } = useTrendStore();
-    const [isContentExpanded, setIsContentExpanded] = useState(true);
+
+    // Persist Trends section collapse state
+    const [isContentExpanded, setIsContentExpanded] = useState(() => {
+        const saved = localStorage.getItem('trends-section-expanded');
+        return saved !== null ? saved === 'true' : true;
+    });
+    useEffect(() => {
+        localStorage.setItem('trends-section-expanded', String(isContentExpanded));
+    }, [isContentExpanded]);
 
     // Derived active niche state from filters
     const activeNicheIds = React.useMemo(() => {
@@ -250,6 +258,7 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                                             niches={globalNiches}
                                             activeNicheIds={activeNicheIds}
                                             onNicheClick={handleNicheClick}
+                                            storageKey="global"
                                         />
                                     </div>
                                 )}

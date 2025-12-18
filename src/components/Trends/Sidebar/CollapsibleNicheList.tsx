@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { TrendNiche } from '../../../types/trends';
 import { TrendNicheItem } from './TrendNicheItem';
@@ -9,6 +9,7 @@ interface CollapsibleNicheListProps {
     onNicheClick: (id: string | null) => void;
     initialVisibleCount?: number;
     trashCount?: number;
+    storageKey?: string; // Optional key for localStorage persistence (e.g. 'global' or channelId)
 }
 
 export const CollapsibleNicheList: React.FC<CollapsibleNicheListProps> = ({
@@ -16,9 +17,22 @@ export const CollapsibleNicheList: React.FC<CollapsibleNicheListProps> = ({
     activeNicheIds,
     onNicheClick,
     initialVisibleCount = 5,
-    trashCount = 0
+    trashCount = 0,
+    storageKey
 }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
+    const lsKey = storageKey ? `trends-niche-list-expanded-${storageKey}` : null;
+
+    const [isExpanded, setIsExpanded] = useState(() => {
+        if (!lsKey) return false;
+        const saved = localStorage.getItem(lsKey);
+        return saved !== null ? saved === 'true' : false; // Default collapsed
+    });
+
+    useEffect(() => {
+        if (lsKey) {
+            localStorage.setItem(lsKey, String(isExpanded));
+        }
+    }, [isExpanded, lsKey]);
 
     // Create a unified list including the virtual "Trash" niche if needed
     const allNiches = [...niches];

@@ -25,6 +25,9 @@ const formatViewCount = (num?: number) => {
     }).format(num);
 };
 
+// LocalStorage key prefix for channel collapse state
+const CHANNEL_EXPANDED_KEY = 'trends-channel-expanded-';
+
 export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
     channel,
     isActive,
@@ -37,8 +40,14 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
     trashCount = 0,
     viewCount = 0
 }) => {
-    // Default expanded if it has niches or trash content
-    const [isExpanded, setIsExpanded] = useState(true);
+    // Persist channel niche section collapse state per-channel
+    const [isExpanded, setIsExpanded] = useState(() => {
+        const saved = localStorage.getItem(CHANNEL_EXPANDED_KEY + channel.id);
+        return saved !== null ? saved === 'true' : true; // Default expanded
+    });
+    useEffect(() => {
+        localStorage.setItem(CHANNEL_EXPANDED_KEY + channel.id, String(isExpanded));
+    }, [isExpanded, channel.id]);
 
     // Tooltip State
     const [showTooltip, setShowTooltip] = useState(false);
@@ -176,6 +185,7 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                         activeNicheIds={activeNicheIds}
                         onNicheClick={(id) => id && onNicheClick?.(id)}
                         trashCount={trashCount}
+                        storageKey={channel.id}
                     />
                 </li>
             )}
