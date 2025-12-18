@@ -104,11 +104,11 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
     const isInteracting = isMenuOpen || isColorPickerOpen;
 
     return (
-        <div className={`relative group/niche ${isInteracting ? 'z-20' : ''}`}>
+        <div className={`relative group/niche ml-8 ${isInteracting ? 'z-20' : ''}`}>
             <div
                 onClick={() => !isEditing && onClick(niche.id)}
                 className={`
-                    flex items-center pl-8 pr-2 py-1.5 cursor-pointer transition-colors rounded-lg mx-1
+                    flex items-center pl-2 pr-2 py-1.5 cursor-pointer transition-colors rounded-lg
                     ${isActive
                         ? 'bg-white/10 text-white'
                         : isInteracting
@@ -174,7 +174,7 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                 <div className="flex-1 min-w-0 relative flex items-center">
                     <span
                         ref={nameRef}
-                        className="text-xs overflow-hidden whitespace-nowrap transition-colors leading-none translate-y-[-1px]"
+                        className={`text-xs overflow-hidden whitespace-nowrap transition-colors leading-none translate-y-[-1px] ${isEditing ? 'opacity-0' : ''}`}
                         style={isTruncated ? {
                             maskImage: 'linear-gradient(to right, black 50%, transparent 100%)',
                             WebkitMaskImage: 'linear-gradient(to right, black 50%, transparent 100%)'
@@ -199,7 +199,7 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                             onBlur={handleNameSubmit}
                             onKeyDown={handleKeyDown}
                             onClick={(e) => e.stopPropagation()}
-                            className="absolute inset-0 text-xs bg-transparent border-0 border-b border-white/40 outline-none text-white"
+                            className="absolute inset-y-0 left-0 right-0 text-xs bg-[#1a1a1a] border-0 border-b border-white/40 outline-none text-white z-10"
                         />
                     )}
                 </div>
