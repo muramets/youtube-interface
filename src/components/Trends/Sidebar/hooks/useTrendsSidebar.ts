@@ -45,13 +45,10 @@ export const useTrendsSidebar = () => {
      * Handle channel click in sidebar.
      * 
      * BEHAVIORS:
-     * - Click different channel: Switch to that channel, load its last state
-     * - Click same channel from niche: Return to ROOT, restore channelRootFilters
+     * - Click any channel: ALWAYS go to ROOT (from channelRootFilters)
      * - Click same channel from ROOT: Reset to empty (clear all filters)
      * 
-     * FILTER STORAGE:
-     * - UNASSIGNED is treated as ROOT (stored in channelRootFilters)
-     * - Real niches and TRASH are stored in nicheFilters
+     * TRASH is ONLY accessible via clicking "Untracked" niche.
      */
     const handleChannelClick = (channelId: string) => {
         // Step 1: Save current state before switching
@@ -59,7 +56,7 @@ export const useTrendsSidebar = () => {
         const isUnassigned = currentNicheFilter && (currentNicheFilter.value as string[]).includes('UNASSIGNED');
 
         if (currentNicheFilter && !isUnassigned) {
-            // In a real niche → save to nicheFilters
+            // In a real niche (including TRASH) → save to nicheFilters
             const activeIds = currentNicheFilter.value as string[];
             if (activeIds.length === 1) {
                 setNicheFilters(activeIds[0], trendsFilters);
@@ -72,10 +69,10 @@ export const useTrendsSidebar = () => {
         // Step 2: Switch channel
         setSelectedChannelId(channelId);
 
-        // Step 3: Handle same channel click
+        // Step 3: ALWAYS restore ROOT for target channel
         if (selectedChannelId === channelId) {
+            // Same channel: check if coming from niche or already in ROOT
             const wasInRealNiche = currentNicheFilter && !isUnassigned;
-
             if (wasInRealNiche) {
                 // Coming from niche → restore ROOT filters
                 const rootFilters = useTrendStore.getState().channelRootFilters[channelId];
@@ -84,6 +81,10 @@ export const useTrendsSidebar = () => {
                 // Already in ROOT → reset to empty
                 setTrendsFilters([]);
             }
+        } else {
+            // Different channel: restore ROOT filters for target channel
+            const rootFilters = useTrendStore.getState().channelRootFilters[channelId];
+            setTrendsFilters(rootFilters?.length > 0 ? rootFilters : []);
         }
 
         navigate('/trends');
