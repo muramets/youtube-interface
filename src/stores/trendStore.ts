@@ -52,6 +52,8 @@ interface TrendStore {
     niches: TrendNiche[];
     videoNicheAssignments: Record<string, { nicheId: string; addedAt: number }[]>; // videoId -> array of niche assignments with timestamps
     channelFilters: Record<string, TrendsFilterItem[]>;
+    channelRootFilters: Record<string, TrendsFilterItem[]>; // Stashed filters for channel root
+    nicheFilters: Record<string, TrendsFilterItem[]>; // Stashed filters for specific niches (nicheId -> filters)
     hiddenVideos: HiddenVideo[]; // Videos moved to trash
 
     // UI State
@@ -85,6 +87,9 @@ interface TrendStore {
     addTrendsFilter: (filter: Omit<TrendsFilterItem, 'id'>) => void;
     removeTrendsFilter: (id: string) => void;
     clearTrendsFilters: () => void;
+    setTrendsFilters: (filters: TrendsFilterItem[]) => void;
+    setChannelRootFilters: (channelId: string, filters: TrendsFilterItem[]) => void;
+    setNicheFilters: (nicheId: string, filters: TrendsFilterItem[]) => void;
 
     // Niche Actions
     addNiche: (niche: Omit<TrendNiche, 'createdAt' | 'viewCount'>) => Promise<void>;
@@ -110,6 +115,8 @@ export const useTrendStore = create<TrendStore>()(
             niches: [],
             videoNicheAssignments: {},
             channelFilters: {},
+            channelRootFilters: {},
+            nicheFilters: {},
             hiddenVideos: [],
 
             timelineConfig: { ...DEFAULT_TIMELINE_CONFIG },
@@ -131,6 +138,8 @@ export const useTrendStore = create<TrendStore>()(
                     userId: id,
                     trendsFilters: [],
                     channelFilters: {},
+                    channelRootFilters: {},
+                    nicheFilters: {},
                     hiddenVideos: [], // Reset hidden videos too
                     filterMode: 'global',
                     savedConfigs: {},
@@ -206,6 +215,22 @@ export const useTrendStore = create<TrendStore>()(
             })),
 
             clearTrendsFilters: () => set({ trendsFilters: [] }),
+
+            setTrendsFilters: (filters) => set({ trendsFilters: filters }),
+
+            setChannelRootFilters: (channelId, filters) => set((state) => ({
+                channelRootFilters: {
+                    ...state.channelRootFilters,
+                    [channelId]: filters
+                }
+            })),
+
+            setNicheFilters: (nicheId, filters) => set((state) => ({
+                nicheFilters: {
+                    ...state.nicheFilters,
+                    [nicheId]: filters
+                }
+            })),
 
             toggleChannelVisibility: (id) => set((state) => ({
                 channels: state.channels.map(c =>
@@ -319,6 +344,8 @@ export const useTrendStore = create<TrendStore>()(
                 // niches: state.niches, // Moved to Firestore
                 // videoNicheAssignments: state.videoNicheAssignments, // Moved to Firestore
                 channelFilters: state.channelFilters,
+                channelRootFilters: state.channelRootFilters,
+                nicheFilters: state.nicheFilters,
                 trendsFilters: state.trendsFilters,
                 // hiddenVideos: state.hiddenVideos, // Moved to Firestore
                 filterMode: state.filterMode,

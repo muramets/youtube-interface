@@ -28,7 +28,7 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
         handleSyncChannel
     } = useTrendsSidebar();
 
-    const { niches, videos, videoNicheAssignments, trendsFilters, addTrendsFilter, removeTrendsFilter, hiddenVideos, setFilterMode } = useTrendStore();
+    const { niches, videos, videoNicheAssignments, trendsFilters, channelFilters, addTrendsFilter, removeTrendsFilter, clearTrendsFilters, setTrendsFilters, setChannelRootFilters, nicheFilters, setNicheFilters, hiddenVideos, setFilterMode } = useTrendStore();
 
     // Persist Trends section collapse state
     const [isContentExpanded, setIsContentExpanded] = useState(() => {
@@ -48,62 +48,83 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
     const handleNicheClick = (id: string | null, channelId?: string) => {
         if (!id) return;
 
-        // If clicking a niche (including TRASH) for a different channel, switch context first
-        let effectiveFilters = trendsFilters;
+        const targetChannelId = channelId || selectedChannelId;
+        if (!targetChannelId) return; // Should not happen
 
-        // If clicking a niche (including TRASH) for a different channel, switch context first
-        if (channelId && selectedChannelId !== channelId) {
-            handleChannelClick(channelId);
-            effectiveFilters = []; // Start fresh for the new channel
+        // 1. Save Current State before switching
+        // We need to know if we are currently in a Niche or in Root
+        const currentNicheFilter = trendsFilters.find(f => f.type === 'niche');
+        if (currentNicheFilter) {
+            // We are currently in a Niche (or TRASH)
+            // Save to nicheFilters
+            // The value is an array of strings, but usually one niche ID
+            const activeIds = currentNicheFilter.value as string[];
+            if (activeIds.length === 1) {
+                setNicheFilters(activeIds[0], trendsFilters);
+            }
+        } else if (selectedChannelId) {
+            // We are in Channel Root -> Save to channelRootFilters
+            setChannelRootFilters(selectedChannelId, trendsFilters);
         }
 
-        // "Untracked" (TRASH) mode is exclusive.
+        // 2. Prepare Context Switch
+        // If switching channel, we need to activate it
+        if (selectedChannelId !== targetChannelId) {
+            handleChannelClick(targetChannelId);
+            // Note: handleChannelClick loads the last state of that channel. 
+            // Ideally we should override it immediately if we are going straight to a niche.
+            // But let's let it settle, then we overwrite below.
+        }
+
+        // 3. Load Target Niche State
         if (id === 'TRASH') {
-            const existingFilter = effectiveFilters.find(f => f.type === 'niche');
-            if (existingFilter) {
-                removeTrendsFilter(existingFilter.id);
+            // Special handling for TRASH (treat as a unique niche ID 'TRASH')
+            const savedTrash = nicheFilters['TRASH'] || [];
+            if (savedTrash.length > 0) {
+                setTrendsFilters(savedTrash);
+            } else {
+                setTrendsFilters([]); // Clean plate
+                addTrendsFilter({
+                    type: 'niche',
+                    operator: 'contains',
+                    value: ['TRASH'],
+                    label: 'Niche: Untracked'
+                });
+                setFilterMode('filtered');
             }
-            addTrendsFilter({
-                type: 'niche',
-                operator: 'contains',
-                value: ['TRASH'],
-                label: 'Niche: Untracked'
-            });
-            setFilterMode('filtered');
             return;
         }
 
-        // Find the niche to check if it's local (Fallback only, logic above handles switching generally)
-        // But since we already switched above, we might just proceed to add filter.
-        // Wait, handleChannelClick clears filters.
-        // So we need to add the filter AFTER switching.
-        // But handleChannelClick is synchronous? 
-        // handleChannelClick only calls setSelectedChannelId and navigate.
-        // But inside handleChannelClick we removed all niche filters.
-        // So we are clean. We can just add the filter now.
+        // Normal Niche
+        const savedFilters = nicheFilters[id];
 
-        // One caveat: if we switched channels, 'trendsFilters' from store might not update immediately in this closure?
-        // No, zustand actions are synchronous usually, but reading 'trendsFilters' from closure might be stale?
-        // Actually handleChannelClick calls removeTrendsFilter.
-        // So we are effectively starting fresh for this channel.
+        // Standard exclusive toggle logic (simplified for persistence)
+        // If clicking the SAME niche that is active, we toggle OFF.
+        const currentActiveNiche = trendsFilters.find(f => f.type === 'niche');
+        const isActive = currentActiveNiche && (currentActiveNiche.value as string[]).includes(id);
 
-        // Standard exclusive toggle logic
-        // NOTE: If we just switched channels, filters are empty (effectiveFilters = []).
+        if (isActive && selectedChannelId === targetChannelId) {
+            // Toggle OFF -> Return to Root
+            // Save current niche state first (we typically do this at top, but just in case)
+            setNicheFilters(id, trendsFilters);
 
-        const existingFilter = effectiveFilters.find(f => f.type === 'niche');
-        const currentlySelected = (existingFilter?.value as string[]) || [];
-
-        // Check if the clicked niche is already the ONLY one selected
-        const isOnlySelected = currentlySelected.length === 1 && currentlySelected[0] === id;
-
-        // Always remove the existing niche filter first (we are either clearing or replacing)
-        if (existingFilter) {
-            removeTrendsFilter(existingFilter.id);
+            // Restore Root
+            const rootFilters = channelRootFilters[targetChannelId];
+            if (rootFilters) {
+                setTrendsFilters(rootFilters);
+            } else {
+                // Fallback clean
+                setTrendsFilters([]);
+            }
+            return;
         }
 
-        // If it was the only one selected, we just toggled it off (filter removed above).
-        // If it wasn't selected (or was part of a multi-select), we select ONLY it.
-        if (!isOnlySelected) {
+        if (savedFilters && savedFilters.length > 0) {
+            // Restore saved state
+            setTrendsFilters(savedFilters);
+        } else {
+            // Fresh Start: Clean plate + Niche Filter
+            setTrendsFilters([]);
             const nicheName = niches.find(n => n.id === id)?.name || 'Niche';
             addTrendsFilter({
                 type: 'niche',

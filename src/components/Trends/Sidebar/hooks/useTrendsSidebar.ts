@@ -16,7 +16,7 @@ interface MenuState {
 }
 
 export const useTrendsSidebar = () => {
-    const { channels, selectedChannelId, setSelectedChannelId, setAddChannelModalOpen, isLoadingChannels, trendsFilters, removeTrendsFilter } = useTrendStore();
+    const { channels, selectedChannelId, setSelectedChannelId, setAddChannelModalOpen, isLoadingChannels, trendsFilters, removeTrendsFilter, channelRootFilters, setChannelRootFilters, setTrendsFilters, setNicheFilters } = useTrendStore();
     const { user, isLoading: isAuthLoading } = useAuth();
     const { currentChannel } = useChannelStore();
     const { isLoading: isChannelsLoading } = useChannels(user?.uid || '');
@@ -42,13 +42,44 @@ export const useTrendsSidebar = () => {
     };
 
     const handleChannelClick = (channelId: string) => {
-        // Clear any active niche filters (including TRASH) when switching channels
-        // so the user sees the full channel content by default
-        const nicheFilter = trendsFilters.find(f => f.type === 'niche');
-        if (nicheFilter) {
-            removeTrendsFilter(nicheFilter.id);
+        // 1. Save Current Niche State (if active)
+        // We do this REGARDLESS of whether we stay or switch, to ensure state is persisted.
+        const currentNicheFilter = trendsFilters.find(f => f.type === 'niche');
+        if (currentNicheFilter) {
+            const activeIds = currentNicheFilter.value as string[];
+            if (activeIds.length === 1) {
+                setNicheFilters(activeIds[0], trendsFilters);
+            }
+        } else if (selectedChannelId) {
+            // Save Root State as well (if we are in Root and switching/refreshing)
+            setChannelRootFilters(selectedChannelId, trendsFilters);
         }
+
+        // 2. Switch Channel (Loads last state from store)
         setSelectedChannelId(channelId);
+
+        // 3. Force Target to Root View
+        // The store might have auto-loaded a Niche view for this channel.
+        // We want to override that because clicking the Channel Name implies "Go to Root".
+
+        // Check if the loaded state (now current) has a Niche filter
+        // We need to access the FRESH state from store, but we can't easily do it inside the hook synchronously 
+        // without getting it from the store directly or assuming `trendsFilters` here is stale.
+        // ACTUALLY, we can just blindly restore the Root Filters for this channel.
+
+        const rootFilters = useTrendStore.getState().channelRootFilters[channelId];
+        if (rootFilters) {
+            setTrendsFilters(rootFilters);
+        } else {
+            // If no root filters saved, verify if we need to clean up a potential Niche filter
+            // that might have been loaded.
+            const freshFilters = useTrendStore.getState().trendsFilters;
+            const hasNiche = freshFilters.some(f => f.type === 'niche');
+            if (hasNiche) {
+                setTrendsFilters([]);
+            }
+        }
+
         navigate('/trends');
     };
 
