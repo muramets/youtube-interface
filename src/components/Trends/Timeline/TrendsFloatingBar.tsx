@@ -18,13 +18,15 @@ interface TrendsFloatingBarProps {
     position: { x: number; y: number };
     onClose: () => void;
     isDocked?: boolean;
+    onActiveMenuChange?: (hasActiveMenu: boolean) => void;
 }
 
 export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
     videos,
     position,
     onClose,
-    isDocked = false
+    isDocked = false,
+    onActiveMenuChange
 }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
@@ -53,6 +55,11 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
         }
     }, [isDocked]);
 
+    // Notify parent when activeMenu changes
+    React.useEffect(() => {
+        onActiveMenuChange?.(activeMenu !== null);
+    }, [activeMenu, onActiveMenuChange]);
+
     const barRef = useRef<HTMLDivElement>(null);
     const isMultiSelect = videos.length > 1;
     const shouldDock = isMultiSelect || isDocked;
@@ -76,6 +83,31 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
             document.removeEventListener('click', handleOutsideClick);
         };
     }, [isMultiSelect, isConfirmOpen, activeMenu, onClose]);
+
+    // Handle Esc key: first close dropdown, then close floating bar
+    React.useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                if (isConfirmOpen) {
+                    // Let confirmation modal handle its own Esc
+                    return;
+                }
+                if (activeMenu) {
+                    // First Esc: close the dropdown
+                    e.stopPropagation();
+                    setActiveMenu(null);
+                } else {
+                    // Second Esc: close floating bar (clear selection)
+                    onClose();
+                }
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [activeMenu, isConfirmOpen, onClose]);
 
     // Smart Positioning Hook (only used for single selection or anchor)
     // We still run it to have coords ready for when we undock

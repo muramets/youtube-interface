@@ -243,6 +243,12 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                                     className="w-full bg-bg-primary text-white text-xs px-3 py-2 pl-8 rounded-lg focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-text-secondary"
                                     value={newNicheName}
                                     onChange={(e) => setNewNicheName(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Escape') {
+                                            e.preventDefault();
+                                            onToggle(); // Close dropdown
+                                        }
+                                    }}
                                 />
                                 <Plus size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary" />
                             </div>

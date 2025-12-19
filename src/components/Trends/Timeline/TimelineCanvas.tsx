@@ -154,6 +154,9 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         return selectionState.lastAnchor;
     }, [selectionState.lastAnchor, selectionState.selectedIds.size]);
 
+    // Track if FloatingBar has an active dropdown (for hotkey handling)
+    const [hasActiveDropdown, setHasActiveDropdown] = React.useState(false);
+
     // 7. Control Handlers (Smart Focus)
     const {
         handleSpreadChange,
@@ -238,7 +241,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     // Hotkeys (Standard)
     useTimelineHotkeys({
         onAutoFit: handleSmoothFit,
-        onEscape: clearSelection
+        onEscape: clearSelection,
+        hasActiveDropdown
     });
 
     // 10. Global Hotkeys (Cmd+Shift+L to clear)
@@ -423,6 +427,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                         position={floatingBarPosition}
                         onClose={clearSelection}
                         isDocked={selectionState.hasDocked}
+                        onActiveMenuChange={setHasActiveDropdown}
                     />
                 )}
             </div>
