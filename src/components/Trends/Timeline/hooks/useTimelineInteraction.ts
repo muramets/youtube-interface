@@ -40,6 +40,7 @@ export const useTimelineInteraction = ({
     const isPanningRef = useRef(false);
     const panStartRef = useRef({ x: 0, y: 0 });
     const mouseDownPosRef = useRef({ x: 0, y: 0 });
+    const hasSeenMouseDownRef = useRef(false);
 
     // Selection State
     const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
@@ -216,6 +217,7 @@ export const useTimelineInteraction = ({
                     x: e.clientX - transformRef.current.offsetX,
                     y: e.clientY - transformRef.current.offsetY
                 };
+                hasSeenMouseDownRef.current = true;
             }
         }
     }, [transformRef, stopAnimation, containerRef, onHoverVideo, onInteractionStart]);
@@ -243,7 +245,7 @@ export const useTimelineInteraction = ({
         }
 
         // If not panning yet, check threshold
-        if (!isPanningRef.current && e.buttons === 1 && !e.shiftKey) {
+        if (!isPanningRef.current && e.buttons === 1 && !e.shiftKey && hasSeenMouseDownRef.current) {
             const dx = Math.abs(e.clientX - mouseDownPosRef.current.x);
             const dy = Math.abs(e.clientY - mouseDownPosRef.current.y);
 
@@ -295,6 +297,7 @@ export const useTimelineInteraction = ({
             // Ensure final state is synced to React to prevent re-render jumps
             syncToDom();
         }
+        hasSeenMouseDownRef.current = false;
 
         // SELECTION END -> ZOOM
         if (isSelectingRef.current) {

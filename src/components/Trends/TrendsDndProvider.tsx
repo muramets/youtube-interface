@@ -1,5 +1,5 @@
 import React from 'react';
-import { DndContext, DragOverlay, useSensor, useSensors, PointerSensor } from '@dnd-kit/core';
+import { DndContext, DragOverlay, useSensor, useSensors, PointerSensor, pointerWithin } from '@dnd-kit/core';
 import { useTrendsDragDrop } from './hooks/useTrendsDragDrop';
 import { VideoNodeGhost } from './Timeline/nodes/DraggableVideoNode';
 
@@ -30,6 +30,7 @@ export const TrendsDndProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return (
         <DndContext
             sensors={sensors}
+            collisionDetection={pointerWithin} // Use pointer precision: ghost geometry won't trigger unwanted targets
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}

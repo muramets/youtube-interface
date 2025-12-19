@@ -38,7 +38,7 @@ export interface UseTrendsDragDropReturn extends DragDropState {
 }
 
 export const useTrendsDragDrop = (): UseTrendsDragDropReturn => {
-    const { assignVideoToNiche } = useTrendStore();
+    const { assignVideoToNiche, setIsDragging: setIsDraggingStore, setDraggedBaseSize } = useTrendStore();
 
     // Drag state
     const [draggedVideo, setDraggedVideo] = useState<TrendVideo | null>(null);
@@ -52,10 +52,13 @@ export const useTrendsDragDrop = (): UseTrendsDragDropReturn => {
      */
     const handleDragStart = useCallback((event: DragStartEvent) => {
         const video = event.active.data.current?.video as TrendVideo | undefined;
+        const baseSize = event.active.data.current?.baseSize as number | undefined;
         if (video) {
             setDraggedVideo(video);
+            setIsDraggingStore(true);
+            if (baseSize) setDraggedBaseSize(baseSize);
         }
-    }, []);
+    }, [setIsDraggingStore, setDraggedBaseSize]);
 
     /**
      * Handle drag over - track which drop zone is under cursor
@@ -86,7 +89,9 @@ export const useTrendsDragDrop = (): UseTrendsDragDropReturn => {
         // Reset state
         setDraggedVideo(null);
         setOverId(null);
-    }, [draggedVideo, assignVideoToNiche]);
+        setIsDraggingStore(false);
+        setDraggedBaseSize(null);
+    }, [draggedVideo, assignVideoToNiche, setIsDraggingStore, setDraggedBaseSize]);
 
     /**
      * Handle drag cancel - reset state without performing action
@@ -94,7 +99,9 @@ export const useTrendsDragDrop = (): UseTrendsDragDropReturn => {
     const handleDragCancel = useCallback(() => {
         setDraggedVideo(null);
         setOverId(null);
-    }, []);
+        setIsDraggingStore(false);
+        setDraggedBaseSize(null);
+    }, [setIsDraggingStore, setDraggedBaseSize]);
 
     return useMemo(() => ({
         draggedVideo,

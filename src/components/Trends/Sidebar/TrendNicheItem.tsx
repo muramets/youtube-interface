@@ -28,7 +28,7 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
     onClick,
     isTrash = false
 }) => {
-    const { updateNiche, deleteNiche } = useTrendStore();
+    const { updateNiche, deleteNiche, isDragging } = useTrendStore();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
@@ -113,19 +113,25 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
     // Premium: When dragging video over this niche, show highlight
     const isDragTarget = isOver && !isTrash;
 
+    // Ensure tooltip position is set when drag target becomes active
+    useEffect(() => {
+        if (isDragTarget && nameRef.current) {
+            const rect = nameRef.current.getBoundingClientRect();
+            setTooltipPos({ x: rect.left, y: rect.top - 4 });
+        }
+    }, [isDragTarget]);
+
+    // Ensure tooltip is hidden if drag starts while hovering
+    useEffect(() => {
+        if (isDragging) {
+            setIsNameHovered(false);
+        }
+    }, [isDragging]);
+
     return (
         <div
             ref={setNodeRef}
             className={`relative group/niche ml-8 ${isDragTarget ? 'z-[10001]' : isInteracting ? 'z-20' : ''}`}
-            // When drag target, show tooltip on hover over entire item
-            onMouseEnter={isDragTarget ? () => {
-                if (nameRef.current) {
-                    const rect = nameRef.current.getBoundingClientRect();
-                    setTooltipPos({ x: rect.left, y: rect.top - 4 });
-                }
-                setIsNameHovered(true);
-            } : undefined}
-            onMouseLeave={isDragTarget ? () => setIsNameHovered(false) : undefined}
         >
             <div
                 onClick={() => !isEditing && onClick(niche.id)}
@@ -205,6 +211,7 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                             WebkitMaskImage: 'linear-gradient(to right, black 50%, transparent 100%)'
                         } : undefined}
                         onMouseEnter={() => {
+                            if (isDragging) return; // Prevent normal tooltip during drag
                             if (nameRef.current) {
                                 const rect = nameRef.current.getBoundingClientRect();
                                 setTooltipPos({ x: rect.left, y: rect.top - 4 });
@@ -230,7 +237,7 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                 </div>
 
                 {/* Portal Tooltip */}
-                {isNameHovered && !isEditing && createPortal(
+                {((isNameHovered && !isDragging) || isDragTarget) && !isEditing && createPortal(
                     <div
                         className="fixed z-[9999] px-2 py-1 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl text-xs text-white whitespace-nowrap pointer-events-none animate-fade-in"
                         style={{ left: tooltipPos.x, top: tooltipPos.y, transform: 'translateY(-100%)' }}

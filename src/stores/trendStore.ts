@@ -66,6 +66,9 @@ interface TrendStore {
     isAddChannelModalOpen: boolean;
     isLoadingChannels: boolean; // Loading state for channels list
     trendsFilters: TrendsFilterItem[]; // Filters for trends page
+    isDragging: boolean;
+    visualScale: number;
+    draggedBaseSize: number | null;
 
     // Actions
     setUserId: (id: string | null) => void;
@@ -90,6 +93,9 @@ interface TrendStore {
     setTrendsFilters: (filters: TrendsFilterItem[]) => void;
     setChannelRootFilters: (channelId: string, filters: TrendsFilterItem[]) => void;
     setNicheFilters: (nicheId: string, filters: TrendsFilterItem[]) => void;
+    setIsDragging: (isDragging: boolean) => void;
+    setVisualScale: (scale: number) => void;
+    setDraggedBaseSize: (size: number | null) => void;
 
     // Niche Actions
     addNiche: (niche: Omit<TrendNiche, 'createdAt' | 'viewCount'>) => Promise<void>;
@@ -129,6 +135,9 @@ export const useTrendStore = create<TrendStore>()(
             isAddChannelModalOpen: false,
             isLoadingChannels: true, // Start as loading
             trendsFilters: [],
+            isDragging: false,
+            visualScale: 1,
+            draggedBaseSize: null,
 
             setUserId: (id) => set((state) => {
                 if (state.userId === id) return {};
@@ -231,6 +240,9 @@ export const useTrendStore = create<TrendStore>()(
                     [nicheId]: filters
                 }
             })),
+            setIsDragging: (isDragging) => set({ isDragging }),
+            setVisualScale: (visualScale) => set({ visualScale }),
+            setDraggedBaseSize: (draggedBaseSize) => set({ draggedBaseSize }),
 
             toggleChannelVisibility: (id) => set((state) => ({
                 channels: state.channels.map(c =>

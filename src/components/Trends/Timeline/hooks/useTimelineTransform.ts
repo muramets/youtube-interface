@@ -417,6 +417,13 @@ export const useTimelineTransform = ({
 
     // Persist to store (Debounced)
     const debouncedTransform = useDebounce(transformState, 500);
+    const { setVisualScale } = useTrendStore();
+
+    // Sync current scale to store for external consumers (like DnD ghost)
+    useEffect(() => {
+        setVisualScale(transformState.scale);
+    }, [transformState.scale, setVisualScale]);
+
     useEffect(() => {
         const { zoomLevel: sZoom, offsetX: sX, offsetY: sY } = latestConfigRef.current;
 

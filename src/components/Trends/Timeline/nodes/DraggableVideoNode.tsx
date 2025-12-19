@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import type { TrendVideo, VideoPosition } from '../../../../types/trends';
+import { useTrendStore } from '../../../../stores/trendStore';
 
 // Helper for formatting
 const formatCompactNumber = (num: number) => {
@@ -54,7 +55,10 @@ export const DraggableVideoNode = memo(({
     // DnD setup - video data is passed for use in drag handlers
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: `video-${video.id}`,
-        data: { video }
+        data: {
+            video,
+            baseSize // Explicitly pass baseSize for ghost sizing
+        }
     });
 
     // Standard 16:9 Aspect Ratio
@@ -92,7 +96,21 @@ export const DraggableVideoNode = memo(({
                 ...dragStyle
             }}
             // DnD listeners for drag initiation
+            // DnD listeners for drag initiation - Intercept to stop bubbling to timeline
             {...listeners}
+            onPointerDown={(e) => {
+                listeners?.onPointerDown?.(e);
+                // Stop propagation to prevent timeline from starting pan/zoom logic
+                e.stopPropagation();
+            }}
+            onMouseDown={(e) => {
+                // Also stop mousedown propagation for legacy/compat handling in timeline
+                e.stopPropagation();
+            }}
+            onMouseMove={(e) => {
+                // Stop mousemove to prevent timeline from detecting "pan threshold" on videos
+                e.stopPropagation();
+            }}
             {...attributes}
             // Original event handlers
             onMouseEnter={(e) => !isDragging && onMouseEnter(e, video)}
@@ -146,17 +164,21 @@ interface VideoNodeGhostProps {
 }
 
 export const VideoNodeGhost: React.FC<VideoNodeGhostProps> = ({ video }) => {
-    const SIZE = 120; // Fixed ghost size for consistency
-    const height = SIZE / (16 / 9);
-    const borderRadius = 8;
+    const { visualScale, draggedBaseSize } = useTrendStore();
+
+    // Use the actual baseSize of the video if available, fallback to 120
+    const baseWidth = draggedBaseSize || 120;
+    const height = baseWidth / (16 / 9);
+    const borderRadius = Math.max(2, Math.min(12, baseWidth * 0.04));
 
     return (
         <div
-            className="flex flex-col items-center pointer-events-none"
+            className="flex flex-col items-center pointer-events-none animate-ghost-in"
             style={{
-                width: SIZE,
-                // Center ghost under cursor
-                transform: 'translate(-50%, -50%)',
+                width: baseWidth,
+                // Center ghost under cursor AND apply current timeline scale
+                // This ensures the ghost matches the size of the video on the timeline
+                transform: `translate(-50%, -50%) scale(${visualScale})`,
                 // Smooth interpolation for faster feel while remaining fluid
                 transition: 'transform 50ms ease-out',
                 // Premium glow effect during drag
@@ -173,6 +195,17 @@ export const VideoNodeGhost: React.FC<VideoNodeGhostProps> = ({ video }) => {
                     backgroundPosition: 'center',
                 }}
             />
+            {/* Animation Keyframes */}
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                @keyframes ghost-in {
+                    from { opacity: 0; transform: translate(-50%, -50%) scale(${visualScale * 0.8}); }
+                    to { opacity: 1; transform: translate(-50%, -50%) scale(${visualScale}); }
+                }
+                .animate-ghost-in {
+                    animation: ghost-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+                }
+            `}} />
         </div>
     );
 };

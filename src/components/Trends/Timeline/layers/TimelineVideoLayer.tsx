@@ -87,7 +87,10 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
     // Track global drag state to suppress tooltips during drag
     const [isAnyDragging, setIsAnyDragging] = useState(false);
     useDndMonitor({
-        onDragStart: () => setIsAnyDragging(true),
+        onDragStart: () => {
+            setIsAnyDragging(true);
+            onHoverVideo(null); // Instantly hide tooltip when drag starts
+        },
         onDragEnd: () => setIsAnyDragging(false),
         onDragCancel: () => setIsAnyDragging(false),
     });
