@@ -32,6 +32,7 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
     const [stableNiches, setStableNiches] = useState<TrendNiche[]>([]);
 
     const isMultiSelect = videos.length > 1;
+    const isMultiChannel = new Set(videos.map(v => v.channelId)).size > 1;
 
     // Resolve assigned niches
     const nicheAssignmentStatus = useMemo(() => {
@@ -90,14 +91,38 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
         return lastUsed;
     }, [videoNicheAssignments]);
 
-    // Compute the 'ideal' sorted niches from store
+    // Determine unique channel IDs from selected videos
+    const selectedChannelIds = useMemo(() => {
+        return new Set(videos.map(v => v.channelId));
+    }, [videos]);
+
+    // Filter niches based on channel context:
+    // - If multiple channels selected → only global niches
+    // - If single channel selected → global niches + local niches for that channel
+    const availableNiches = useMemo(() => {
+        const isMultiChannel = selectedChannelIds.size > 1;
+
+        return niches.filter(niche => {
+            // Global niches are always available
+            if (niche.type === 'global') return true;
+
+            // Local niches only available if all videos are from the same channel
+            if (!isMultiChannel && niche.type === 'local' && niche.channelId) {
+                return selectedChannelIds.has(niche.channelId);
+            }
+
+            return false;
+        });
+    }, [niches, selectedChannelIds]);
+
+    // Compute the 'ideal' sorted niches from available niches
     const currentSortedNiches = useMemo(() => {
-        return [...niches].sort((a, b) => {
+        return [...availableNiches].sort((a, b) => {
             const timeA = nicheLastUsed.get(a.id) || 0;
             const timeB = nicheLastUsed.get(b.id) || 0;
             return timeB - timeA;
         });
-    }, [niches, nicheLastUsed]);
+    }, [availableNiches, nicheLastUsed]);
 
     // Stabilize niche order: only update stableNiches when NOT open
     // This ensures they don't jump around when toggling during an active session
@@ -118,6 +143,13 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
     React.useEffect(() => {
         if (isOpen) setTimeout(() => inputRef.current?.focus(), 50);
     }, [isOpen]);
+
+    // Force global mode when multiple channels are selected
+    React.useEffect(() => {
+        if (isMultiChannel) {
+            setIsGlobal(true);
+        }
+    }, [isMultiChannel]);
 
     const handleCreateSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -225,8 +257,10 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                                         />
                                         <button
                                             type="button"
-                                            onClick={() => setIsGlobal(false)}
-                                            className={`relative z-10 flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full transition-all duration-200 ${!isGlobal ? 'text-white font-medium' : 'text-text-secondary hover:text-white/70'}`}
+                                            onClick={() => !isMultiChannel && setIsGlobal(false)}
+                                            disabled={isMultiChannel}
+                                            className={`relative z-10 flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full transition-all duration-200 ${isMultiChannel ? 'text-text-tertiary cursor-not-allowed opacity-50' : (!isGlobal ? 'text-white font-medium' : 'text-text-secondary hover:text-white/70')}`}
+                                            title={isMultiChannel ? 'Local niches not available for multi-channel selection' : undefined}
                                         >
                                             <Home size={9} className="flex-shrink-0" />
                                             <span>Local</span>
