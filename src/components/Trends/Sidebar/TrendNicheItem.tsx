@@ -244,6 +244,7 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                                     p-0.5 rounded-full transition-opacity
                                     ${isInteracting ? 'opacity-100' : 'opacity-0 group-hover/niche:opacity-100'}
                                     ${isMenuOpen ? 'opacity-100 bg-white/10' : 'hover:bg-white/10'}
+                                    relative after:absolute after:-inset-2 after:content-['']
                                 `}
                             >
                                 <MoreVertical size={12} />

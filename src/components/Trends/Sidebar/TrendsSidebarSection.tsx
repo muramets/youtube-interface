@@ -292,12 +292,19 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                                                     isActive={isOnTrendsPage && selectedChannelId === channel.id}
                                                     onChannelClick={handleChannelClick}
                                                     onToggleVisibility={handleToggleVisibility}
-                                                    onOpenMenu={(e, channelId) => setMenuState({ anchorEl: e.currentTarget as HTMLElement, channelId })}
+                                                    onOpenMenu={(e, channelId) => {
+                                                        if (menuState.channelId === channelId) {
+                                                            setMenuState({ anchorEl: null, channelId: null });
+                                                        } else {
+                                                            setMenuState({ anchorEl: e.currentTarget as HTMLElement, channelId });
+                                                        }
+                                                    }}
                                                     niches={getLocalNiches(channel.id)}
                                                     activeNicheIds={activeNicheIds}
                                                     onNicheClick={handleNicheClick}
                                                     trashCount={trashCount}
                                                     viewCount={viewCount}
+                                                    isMenuOpen={menuState.channelId === channel.id}
                                                 />
                                             );
                                         })}

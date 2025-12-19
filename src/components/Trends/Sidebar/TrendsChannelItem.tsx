@@ -15,6 +15,7 @@ interface TrendsChannelItemProps {
     onNicheClick?: (id: string, channelId?: string) => void;
     trashCount?: number;
     viewCount?: number;
+    isMenuOpen?: boolean;
 }
 
 const formatViewCount = (num?: number) => {
@@ -38,7 +39,8 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
     activeNicheIds = [],
     onNicheClick,
     trashCount = 0,
-    viewCount = 0
+    viewCount = 0,
+    isMenuOpen = false
 }) => {
     // Persist channel niche section collapse state per-channel
     const [isExpanded, setIsExpanded] = useState(() => {
@@ -74,6 +76,11 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
         setIsHovered(false);
     };
 
+    const handleSpanMouseLeave = () => {
+        if (timerRef.current) clearTimeout(timerRef.current);
+        setShowTooltip(false);
+    };
+
     // Detect text truncation
     const [isTruncated, setIsTruncated] = useState(false);
     useEffect(() => {
@@ -94,7 +101,7 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                 onMouseLeave={handleMouseLeave}
                 className={`flex items-center group cursor-pointer p-2 rounded-lg transition-all duration-200 select-none ${isActive
                     ? 'bg-white/10'
-                    : 'hover:bg-white/5'
+                    : isMenuOpen ? 'bg-white/5' : 'hover:bg-white/5'
                     }`}
             >
                 <img
@@ -112,7 +119,7 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                             e.stopPropagation();
                             setIsExpanded(!isExpanded);
                         }}
-                        className="p-0.5 mr-1 text-text-tertiary hover:text-white transition-colors"
+                        className="p-2 -m-1.5 mr-0 text-text-tertiary hover:text-white transition-colors"
                     >
                         {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                     </button>
@@ -121,7 +128,7 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                 <span
                     ref={nameRef}
                     onMouseEnter={handleMouseEnter}
-                    onMouseLeave={handleMouseLeave}
+                    onMouseLeave={handleSpanMouseLeave}
                     className={`text-sm flex-1 overflow-hidden whitespace-nowrap transition-colors ${isActive ? 'text-text-primary font-medium' : 'text-text-secondary'
                         }`}
                     style={isTruncated ? {
@@ -143,14 +150,14 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                 )}
 
                 {/* View Count & Actions block */}
-                {(isActive || isHovered || !channel.isVisible) && (
+                {(isActive || isHovered || isMenuOpen || !channel.isVisible) && (
                     <div className={`ml-1 flex items-center gap-0.5 shrink-0 transition-opacity animate-fade-in`}>
                         {(isActive || isHovered) && (
                             <span className={`text-[10px] text-text-tertiary shrink-0 leading-none transition-opacity duration-200`}>
                                 {formatViewCount(viewCount)}
                             </span>
                         )}
-                        <div className={`flex items-center gap-0.5 ${!channel.isVisible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
+                        <div className={`flex items-center gap-0.5 ${!channel.isVisible || isMenuOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -159,7 +166,7 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                                 className={`p-0.5 rounded-full transition-all ${channel.isVisible
                                     ? 'text-text-secondary hover:text-text-primary hover:bg-white/10'
                                     : 'text-text-tertiary bg-white/5 hover:text-red-400 hover:bg-red-500/10'
-                                    }`}
+                                    } relative after:absolute after:-inset-2 after:content-['']`}
                                 title={channel.isVisible ? "Hide channel" : "Show channel"}
                             >
                                 {channel.isVisible ? <Eye size={14} /> : <EyeOff size={14} />}
@@ -169,7 +176,7 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                                     e.stopPropagation();
                                     onOpenMenu(e, channel.id);
                                 }}
-                                className="p-0.5 text-text-secondary hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                                className="p-0.5 text-text-secondary hover:text-white hover:bg-white/10 rounded-full transition-colors relative after:absolute after:-inset-2 after:content-['']"
                                 title="More options"
                             >
                                 <MoreVertical size={14} />
