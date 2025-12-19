@@ -51,27 +51,19 @@ interface TrendStore {
     channels: TrendChannel[];
     niches: TrendNiche[];
     videoNicheAssignments: Record<string, { nicheId: string; addedAt: number }[]>; // videoId -> array of niche assignments with timestamps
-
     /**
      * FILTER STORAGE ARCHITECTURE:
      * 
-     * channelFilters[channelId]:
-     *   Auto-saved by setSelectedChannelId when switching channels.
-     *   Contains the "last visited state" (could be ROOT, niche, or TRASH).
-     *   Used for quick restore when switching between channels.
-     * 
      * channelRootFilters[channelId]:
-     *   Manually saved by handleChannelClick/handleNicheClick.
-     *   Contains only ROOT state (empty filters or UNASSIGNED filter).
-     *   Used when returning from a niche to the channel's root view.
+     *   Contains ROOT state (empty filters or UNASSIGNED filter).
      *   Auto-synced when modifying filters while in ROOT/UNASSIGNED mode.
+     *   Used when clicking channel name to return to ROOT.
      * 
      * nicheFilters[nicheId]:
-     *   Manually saved by handleNicheClick.
      *   Contains per-niche state (including TRASH at nicheFilters['TRASH']).
-     *   Used when switching between niches to preserve each niche's filters.
+     *   Manually saved when switching between niches.
+     *   TRASH is ONLY accessible via clicking "Untracked" niche.
      */
-    channelFilters: Record<string, TrendsFilterItem[]>;
     channelRootFilters: Record<string, TrendsFilterItem[]>;
     nicheFilters: Record<string, TrendsFilterItem[]>;
     hiddenVideos: HiddenVideo[]; // Videos moved to trash
@@ -140,7 +132,6 @@ export const useTrendStore = create<TrendStore>()(
             channels: [],
             niches: [],
             videoNicheAssignments: {},
-            channelFilters: {},
             channelRootFilters: {},
             nicheFilters: {},
             hiddenVideos: [],
@@ -166,7 +157,6 @@ export const useTrendStore = create<TrendStore>()(
                 return {
                     userId: id,
                     trendsFilters: [],
-                    channelFilters: {},
                     channelRootFilters: {},
                     nicheFilters: {},
                     hiddenVideos: [], // Reset hidden videos too
@@ -204,25 +194,16 @@ export const useTrendStore = create<TrendStore>()(
                     [currentKey]: state.timelineConfig
                 };
 
-                // Save current filters
-                const updatedChannelFilters = {
-                    ...state.channelFilters,
-                    [currentKey]: state.trendsFilters
-                };
-
                 // Load next config or default
-                // Ensure we clone the default to avoid mutation issues
                 const nextConfig = updatedSavedConfigs[nextKey] || { ...DEFAULT_TIMELINE_CONFIG };
 
-                // Load next filters or default
-                const nextFilters = updatedChannelFilters[nextKey] || [];
+                // Note: We do NOT restore trendsFilters here.
+                // handleChannelClick explicitly calls setTrendsFilters with channelRootFilters.
 
                 return {
                     selectedChannelId: id,
                     savedConfigs: updatedSavedConfigs,
-                    channelFilters: updatedChannelFilters,
-                    timelineConfig: nextConfig,
-                    trendsFilters: nextFilters
+                    timelineConfig: nextConfig
                 };
             }),
 
@@ -449,9 +430,6 @@ export const useTrendStore = create<TrendStore>()(
                 timelineConfig: state.timelineConfig,
                 savedConfigs: state.savedConfigs,
                 selectedChannelId: state.selectedChannelId,
-                // niches: state.niches, // Moved to Firestore
-                // videoNicheAssignments: state.videoNicheAssignments, // Moved to Firestore
-                channelFilters: state.channelFilters,
                 channelRootFilters: state.channelRootFilters,
                 nicheFilters: state.nicheFilters,
                 trendsFilters: state.trendsFilters,
