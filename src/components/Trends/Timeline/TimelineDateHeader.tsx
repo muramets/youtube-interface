@@ -49,20 +49,34 @@ export const TimelineDateHeader: React.FC<TimelineDateHeaderProps> = ({ yearMark
             {/* LAYER 3: Text Labels (top layer) */}
             <div style={containerStyle}>
                 {/* Year Row */}
-                {yearMarkers.map((yearMarker) => (
-                    <div
-                        key={`year-${yearMarker.year}`}
-                        className="absolute h-5 top-0 flex items-center justify-center pointer-events-none"
-                        style={{
-                            left: `${yearMarker.startX * 100}%`,
-                            width: `${(yearMarker.endX - yearMarker.startX) * 100}%`
-                        }}
-                    >
-                        <span className="text-xs font-bold text-text-secondary tracking-widest whitespace-nowrap">
-                            {yearMarker.year}
-                        </span>
-                    </div>
-                ))}
+                {/* Year Row */}
+                {yearMarkers.map((yearMarker) => {
+                    // Check visibility based on pixel width
+                    const widthPx = (yearMarker.endX - yearMarker.startX) * effectiveWidth;
+
+                    // Smooth opacity transition thresholds (years need more space than months)
+                    const MIN_WIDTH = 40;
+                    const MAX_WIDTH = 70;
+                    const opacity = Math.min(1, Math.max(0, (widthPx - MIN_WIDTH) / (MAX_WIDTH - MIN_WIDTH)));
+
+                    if (opacity < 0.01) return null;
+
+                    return (
+                        <div
+                            key={`year-${yearMarker.year}`}
+                            className="absolute h-5 top-0 flex items-center justify-center pointer-events-none"
+                            style={{
+                                left: `${yearMarker.startX * 100}%`,
+                                width: `${(yearMarker.endX - yearMarker.startX) * 100}%`,
+                                opacity
+                            }}
+                        >
+                            <span className="text-xs font-bold text-text-secondary tracking-widest whitespace-nowrap">
+                                {yearMarker.year}
+                            </span>
+                        </div>
+                    )
+                })}
 
                 {/* Month Row */}
                 {monthRegions.map((region) => {
