@@ -20,10 +20,11 @@ export interface SelectionState {
  * Provides unified selection logic for both Canvas (dots) and DOM (thumbnails) layers,
  * eliminating code duplication and ensuring consistent behavior.
  * 
- * Selection Behavior (Figma-style):
- * - Single click: Select/deselect single video
- * - Cmd/Ctrl + click (with existing selection): Toggle multi-select
- * - Cmd/Ctrl + click (no selection): Ignored (allows double-click zoom)
+ * Selection Behavior (accumulative):
+ * - Click: Add video to selection (or remove if already selected)
+ * - Click only selected video: Deselect all
+ * - Cmd/Ctrl + click: Toggle in multi-select (same as regular click)
+ * - Cmd/Ctrl + double-click: Zoom to video
  */
 export const useSelectionState = () => {
     const [selectionState, setSelectionState] = useState<SelectionState>({
@@ -67,21 +68,34 @@ export const useSelectionState = () => {
                     hasDocked: prev.hasDocked
                 };
             } else {
-                // No modifier: single-select behavior
-                if (newSet.has(video.id) && newSet.size === 1) {
-                    // Clicking already-selected single video = deselect
+                // No modifier: accumulative selection
+                if (newSet.has(video.id)) {
+                    // Clicking already-selected video: 
+                    if (newSet.size === 1) {
+                        // It's the only one selected = deselect all
+                        return {
+                            selectedIds: new Set(),
+                            lastAnchor: null,
+                            hasDocked: false
+                        };
+                    } else {
+                        // Multiple selected = remove this one from selection
+                        newSet.delete(video.id);
+                        return {
+                            selectedIds: newSet,
+                            lastAnchor: { x: clientX, y: clientY },
+                            hasDocked: prev.hasDocked
+                        };
+                    }
+                } else {
+                    // Clicking new video = add to selection
+                    newSet.add(video.id);
                     return {
-                        selectedIds: new Set(),
-                        lastAnchor: null,
-                        hasDocked: false
+                        selectedIds: newSet,
+                        lastAnchor: { x: clientX, y: clientY },
+                        hasDocked: prev.selectedIds.size > 0 ? prev.hasDocked : false
                     };
                 }
-                // Select only this video
-                return {
-                    selectedIds: new Set([video.id]),
-                    lastAnchor: { x: clientX, y: clientY },
-                    hasDocked: false
-                };
             }
         });
     }, []);
