@@ -3,6 +3,13 @@ import type { TrendVideo, VideoPosition } from '../../../../types/trends';
 import { useTimelineVirtualization } from '../hooks/useTimelineVirtualization';
 import { VideoDot } from '../nodes/VideoDot';
 import { VideoNode } from '../nodes/VideoNode';
+import {
+    LOD_SHOW_LABEL,
+    LOD_SHOW_THUMBNAIL,
+    TOOLTIP_SHOW_DELAY_MS,
+    ELEVATION_TIMEOUT_MS,
+    HOVER_DEBOUNCE_MS
+} from '../utils/timelineConstants';
 
 interface TimelineVideoLayerProps {
     videoPositions: VideoPosition[];
@@ -24,9 +31,7 @@ export interface TimelineVideoLayerHandle {
     updateTransform: (transform: { scale: number; offsetX: number; offsetY: number }) => void;
 }
 
-// LOD Thresholds
-const LOD_SHOW_THUMBNAIL = 0.25;
-const LOD_SHOW_LABEL = 0.4;
+
 
 export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineVideoLayerProps>(({
     videoPositions,
@@ -99,7 +104,7 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
                 width: rect.width,
                 height: rect.height
             });
-        }, 500);
+        }, TOOLTIP_SHOW_DELAY_MS);
     };
 
     const handleMouseLeave = () => {
@@ -107,13 +112,13 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
 
         elevationTimeoutRef.current = setTimeout(() => {
             setElevatedVideoId(null);
-        }, 200);
+        }, ELEVATION_TIMEOUT_MS);
 
         if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
 
         hoverTimeoutRef.current = setTimeout(() => {
             onHoverVideo(null);
-        }, 200);
+        }, HOVER_DEBOUNCE_MS);
     };
 
     return (

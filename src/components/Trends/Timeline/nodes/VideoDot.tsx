@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import type { TrendVideo, VideoPosition } from '../../../../types/trends';
+import { MIN_INTERACTION_SIZE_PX } from '../utils/timelineConstants';
 
 interface VideoDotProps {
     position: VideoPosition;
@@ -40,9 +41,7 @@ export const VideoDot = memo(({
     // Unified highlight state: active OR focused
     const isHighlighted = isFocused || isActive;
 
-    // Minimum screen size for interaction (in world units at scale 1)
-    const MIN_INTERACTION_SIZE = 12;
-    const effectiveSize = Math.max(baseSize, MIN_INTERACTION_SIZE);
+    const effectiveSize = Math.max(baseSize, MIN_INTERACTION_SIZE_PX);
 
     return (
         <div

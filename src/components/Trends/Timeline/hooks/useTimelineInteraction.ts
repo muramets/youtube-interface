@@ -260,14 +260,13 @@ export const useTimelineInteraction = ({
             const { width: viewportWidth, height: viewportHeight } = containerSizeRef.current;
             if (viewportWidth === 0) return;
 
-            // Note: panStartRef was captured at mousedown. 
-            // Since we didn't update transform in the deadzone, this logic remains valid 
-            // and simply "snaps" to the mouse position, which is fine or we can adjust panStartRef here to smooth the jump.
-            // If we want to avoid jump: adjust panStartRef.current by the deadzone delta?
-            // Actually, `offsetX = clientX - panStart.x`. 
-            // panStart.x = clientX_down - offsetX_down.
-            // So if we move 6px, newOffsetX = (clientX_down+6) - (clientX_down - offsetX_down) = offsetX_down + 6.
-            // So there is NO JUMP in the timeline position. It just starts updating. Perfect.
+            /**
+             * Pan Logic:
+             * 'panStartRef' captures the relationship between mouse position and timeline offset.
+             * Even though we wait for a threshold (deadzone), applying this formula
+             * results in a seamless transition once panning starts, effectively 
+             * "picking up" the timeline exactly where it was grabbed.
+             */
 
             const clamped = clampTransform({
                 ...transformRef.current,

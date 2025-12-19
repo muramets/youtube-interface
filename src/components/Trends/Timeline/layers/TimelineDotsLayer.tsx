@@ -1,6 +1,13 @@
 import React, { useRef, useLayoutEffect, useEffect, useState } from 'react';
 import type { TrendVideo, VideoPosition } from '../../../../types/trends';
 import { getDotStyle } from '../../../../utils/trendStyles';
+import {
+    ANIMATION_DURATION_MS,
+    DOT_HIT_BUFFER_PX,
+    HOVER_DEBOUNCE_MS,
+    MIN_INTERACTION_SIZE_PX,
+    TOOLTIP_SHOW_DELAY_MS
+} from '../utils/timelineConstants';
 
 interface TimelineDotsLayerProps {
     videoPositions: VideoPosition[];
@@ -8,7 +15,6 @@ interface TimelineDotsLayerProps {
     worldWidth: number;
     worldHeight: number;
     activeVideoIds: Set<string>;
-    hoveredVideoId: string | null;
     getPercentileGroup: (videoId: string) => string | undefined;
     onHoverVideo: (data: { video: TrendVideo; x: number; y: number; width: number; height: number } | null) => void;
     onClickVideo: (video: TrendVideo, e: React.MouseEvent) => void;
@@ -22,7 +28,6 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
     worldWidth,
     worldHeight,
     activeVideoIds,
-    hoveredVideoId: _hoveredVideoId,
     getPercentileGroup,
     onHoverVideo,
     onClickVideo,
@@ -54,6 +59,14 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
     const showTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const lastFoundIdRef = useRef<string | null>(null);
 
+    // Cleanup timeouts on unmount
+    useEffect(() => {
+        return () => {
+            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+            if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
+        };
+    }, []);
+
     // Initialize DPR
     useEffect(() => {
         setDpr(window.devicePixelRatio || 1);
@@ -64,7 +77,6 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
 
     // ANIMATION LOOP - Premium bidirectional animation
     useEffect(() => {
-        const ANIM_DURATION = 200; // ms (matching VideoNode's 200ms transition)
 
         if (internalFocusedId) {
             // Animate IN
@@ -75,7 +87,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
 
             const animateIn = (time: number) => {
                 const elapsed = time - animStartTimeRef.current;
-                const rawProgress = Math.min(elapsed / ANIM_DURATION, 1);
+                const rawProgress = Math.min(elapsed / ANIMATION_DURATION_MS, 1);
                 const easedProgress = easeOutCubic(rawProgress);
                 const newValue = animStartRef.current + (1 - animStartRef.current) * easedProgress;
                 setAnimProgress(newValue);
@@ -94,7 +106,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
 
             const animateOut = (time: number) => {
                 const elapsed = time - animStartTimeRef.current;
-                const rawProgress = Math.min(elapsed / ANIM_DURATION, 1);
+                const rawProgress = Math.min(elapsed / ANIMATION_DURATION_MS, 1);
                 const easedProgress = easeOutCubic(rawProgress);
                 const newValue = animStartRef.current * (1 - easedProgress);
                 setAnimProgress(newValue);
@@ -115,7 +127,6 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
 
     // Selection Animation - animate dots when they become selected/deselected
     useEffect(() => {
-        const ANIM_DURATION = 200;
         const prevIds = prevActiveIdsRef.current;
         const currentIds = activeVideoIds;
 
@@ -162,7 +173,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
 
         const animate = (time: number) => {
             const elapsed = time - startTime;
-            const rawProgress = Math.min(elapsed / ANIM_DURATION, 1);
+            const rawProgress = Math.min(elapsed / ANIMATION_DURATION_MS, 1);
             const easedProgress = easeOutCubic(rawProgress);
 
             setSelectionAnimProgress(prev => {
@@ -211,7 +222,10 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
         if (!canvas || !containerRef.current) return;
 
         const ctx = canvas.getContext('2d', { alpha: true });
-        if (!ctx) return;
+        if (!ctx) {
+            console.warn('[TimelineDotsLayer] Failed to get 2D canvas context');
+            return;
+        }
 
         const { width, height } = containerRef.current.getBoundingClientRect();
 
@@ -239,7 +253,15 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
         };
 
         let activeHoverItem: { pos: VideoPosition, x: number, y: number, r: number } | null = null;
-
+        /**
+         * RENDERING STRATEGY: Two-pass approach for correct z-ordering
+         *
+         * Pass 1: Draw all non-hovered dots as background layer
+         * Pass 2: Draw hovered dot on top with glow effect
+         *
+         * This ensures the hovered element always renders above others
+         * without managing z-index in canvas context.
+         */
         // Pass 1: Draw Non-Hovered
         for (const pos of videoPositions) {
             const worldX = pos.xNorm * worldWidth;
@@ -377,14 +399,14 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
         const { start, end } = getVisibleWorldBounds();
         const currentScale = transform.scale || 0.001;
         const dotScaleFactor = Math.max(1, 0.20 / currentScale);
-        const MIN_INTERACTION_SIZE = 12;
+
 
         const getVisualRadius = (baseSize: number) => {
-            const effectiveSize = Math.max(baseSize, MIN_INTERACTION_SIZE);
+            const effectiveSize = Math.max(baseSize, MIN_INTERACTION_SIZE_PX);
             return (effectiveSize / 2) * dotScaleFactor * currentScale;
         };
 
-        const HIT_BUFFER = 8;
+
 
         for (let i = videoPositions.length - 1; i >= 0; i--) {
             const pos = videoPositions[i];
@@ -403,7 +425,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
             const dy = y - screenY;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
-            if (dist <= visualRadius + HIT_BUFFER) {
+            if (dist <= visualRadius + DOT_HIT_BUFFER_PX) {
                 found = pos;
                 break;
             }
@@ -447,7 +469,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
                             width: dotDiameter,
                             height: dotDiameter
                         });
-                    }, 500);
+                    }, TOOLTIP_SHOW_DELAY_MS);
 
                 } else {
                     setInternalFocusedId(null);
@@ -455,7 +477,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
 
                     hoverTimeoutRef.current = setTimeout(() => {
                         onHoverVideo(null);
-                    }, 200);
+                    }, HOVER_DEBOUNCE_MS);
                 }
             }
         } else if (type === 'click') {

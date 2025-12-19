@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useTrendStore } from '../../../stores/trendStore';
 import { TrendTooltip } from './TrendTooltip';
 import { TimelineDateHeader } from './TimelineDateHeader';
@@ -20,6 +20,8 @@ import { useTimelineInteraction } from './hooks/useTimelineInteraction';
 import { useTimelineHotkeys } from './hooks/useTimelineHotkeys';
 import { useTimelineAutoUpdate } from './hooks/useTimelineAutoUpdate';
 import { useTimelineTooltip } from './hooks/useTimelineTooltip';
+import { useSelectionState } from './hooks/useSelectionState';
+import { LOD_SHOW_THUMBNAIL } from './utils/timelineConstants';
 
 // Constants
 const HEADER_HEIGHT = 48;
@@ -28,8 +30,7 @@ const PADDING_RIGHT = 12;
 const PADDING_TOP = 12;
 const PADDING_BOTTOM = 12;
 
-// LOD Thresholds
-const LOD_SHOW_THUMBNAIL = 0.25;
+
 
 import { TrendsFloatingBar } from './TrendsFloatingBar';
 
@@ -136,12 +137,13 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         percentileMap
     });
 
-    // 6. Selected Video for Floating Bar
-    const [selectionState, setSelectionState] = useState<{
-        selectedIds: Set<string>;
-        lastAnchor: { x: number; y: number } | null;
-        hasDocked: boolean;
-    }>({ selectedIds: new Set(), lastAnchor: null, hasDocked: false });
+    // 6. Selection State (unified via hook)
+    const {
+        selectionState,
+        handleVideoClick,
+        clearSelection,
+        dockFloatingBar
+    } = useSelectionState();
 
     const selectedVideos = React.useMemo(() => {
         return videos.filter(v => selectionState.selectedIds.has(v.id));
@@ -191,12 +193,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         }, [forceCloseTooltip]),
         onInteractionStart: React.useCallback(() => {
             // Dock the floating bar on any interaction (zoom/pan) if we have a selection
-            setSelectionState(prev => {
-                if (prev.selectedIds.size > 0 && !prev.hasDocked) {
-                    return { ...prev, hasDocked: true };
-                }
-                return prev;
-            });
+            dockFloatingBar();
         }, [])
     });
 
@@ -298,51 +295,11 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                     worldWidth={worldWidth}
                     worldHeight={dynamicWorldHeight}
                     activeVideoIds={selectionState.selectedIds}
-                    hoveredVideoId={hoveredVideo?.video.id || null}
                     getPercentileGroup={getPercentileGroup}
                     onHoverVideo={handleHoverVideo}
                     onClickVideo={(video, e) => {
-                        const isModifier = e.metaKey || e.ctrlKey;
-                        const clientX = e.clientX;
-                        const clientY = e.clientY;
-
                         forceCloseTooltip();
-                        setSelectionState(prev => {
-                            const newSet = new Set(prev.selectedIds);
-
-                            if (isModifier) {
-                                // With Cmd: if selection is empty, ignore click (allow double-click zoom)
-                                if (prev.selectedIds.size === 0) {
-                                    return prev; // Do nothing
-                                }
-                                // With Cmd + existing selection: toggle multi-select
-                                if (newSet.has(video.id)) {
-                                    newSet.delete(video.id);
-                                } else {
-                                    newSet.add(video.id);
-                                }
-                                return {
-                                    selectedIds: newSet,
-                                    lastAnchor: { x: clientX, y: clientY },
-                                    hasDocked: prev.hasDocked
-                                };
-                            } else {
-                                // Without Cmd: toggle single select
-                                // If clicking on already-selected single video, deselect it
-                                if (newSet.has(video.id) && newSet.size === 1) {
-                                    return {
-                                        selectedIds: new Set(),
-                                        lastAnchor: null,
-                                        hasDocked: false
-                                    };
-                                }
-                                return {
-                                    selectedIds: new Set([video.id]),
-                                    lastAnchor: { x: clientX, y: clientY },
-                                    hasDocked: false
-                                };
-                            }
-                        });
+                        handleVideoClick(video, e.clientX, e.clientY, e.metaKey || e.ctrlKey);
                     }}
                     onDoubleClickVideo={(_video, worldX, worldY, e) => {
                         // Only zoom on Cmd/Ctrl + Double-Click (Figma-style)
@@ -353,7 +310,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                         }
                     }}
                     onClickEmpty={() => {
-                        setSelectionState({ selectedIds: new Set(), lastAnchor: null, hasDocked: false });
+                        clearSelection();
                     }}
                 />
             )}
@@ -389,47 +346,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                         return; // Ignore click if we just finished panning
                     }
 
-                    const isModifier = e.metaKey || e.ctrlKey;
-                    const clientX = e.clientX;
-                    const clientY = e.clientY;
-
                     forceCloseTooltip();
-                    setSelectionState(prev => {
-                        const newSet = new Set(prev.selectedIds);
-
-                        if (isModifier) {
-                            // With Cmd: if selection is empty, ignore click (allow double-click zoom)
-                            if (prev.selectedIds.size === 0) {
-                                return prev; // Do nothing
-                            }
-                            // With Cmd + existing selection: toggle multi-select
-                            if (newSet.has(video.id)) {
-                                newSet.delete(video.id);
-                            } else {
-                                newSet.add(video.id);
-                            }
-                            return {
-                                selectedIds: newSet,
-                                lastAnchor: { x: clientX, y: clientY },
-                                hasDocked: prev.hasDocked
-                            };
-                        } else {
-                            // Without Cmd: toggle single select
-                            // If clicking on already-selected single video, deselect it
-                            if (newSet.has(video.id) && newSet.size === 1) {
-                                return {
-                                    selectedIds: new Set(),
-                                    lastAnchor: null,
-                                    hasDocked: false
-                                };
-                            }
-                            return {
-                                selectedIds: new Set([video.id]),
-                                lastAnchor: { x: clientX, y: clientY },
-                                hasDocked: false
-                            };
-                        }
-                    });
+                    handleVideoClick(video, e.clientX, e.clientY, e.metaKey || e.ctrlKey);
                 }}
             />
 
@@ -501,7 +419,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                     <TrendsFloatingBar
                         videos={selectedVideos}
                         position={floatingBarPosition}
-                        onClose={() => setSelectionState({ selectedIds: new Set(), lastAnchor: null, hasDocked: false })}
+                        onClose={clearSelection}
                         isDocked={selectionState.hasDocked}
                     />
                 )}

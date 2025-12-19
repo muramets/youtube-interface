@@ -302,9 +302,7 @@ export const useTimelineTransform = ({
     useLayoutEffect(() => {
         // We already have the boolean flags (widthChanged, heightChanged) 
         // calculated in the render scope, but effect scope is different.
-        // We need to re-check refs vs props here or use the render-scoped check if stable.
-        // Let's re-read refs to be safe.
-
+        // We need to re-check refs vs props here to be safe.
         const pWidth = prevWorldWidthRef.current;
         const pHeight = prevWorldHeightRef.current;
         const cWidth = worldWidth;
@@ -313,10 +311,14 @@ export const useTimelineTransform = ({
         const wChanged = Math.abs(cWidth - pWidth) >= 1;
         const hChanged = Math.abs(cHeight - pHeight) >= 1;
 
+        // Update refs immediately if changed
         if (wChanged) prevWorldWidthRef.current = cWidth;
         if (hChanged) prevWorldHeightRef.current = cHeight;
 
-        // 1. Commit Synchronous Anchor
+        /**
+         * PRIORITY 1: Pending Anchor (User Action / Internal Request)
+         * Highest priority: explicit request to anchor to a specific time/position.
+         */
         if (pendingAnchorRef.current !== null) {
             const newTransform = calculatePreservedTransform({
                 currentTransform: transformState,
@@ -344,44 +346,52 @@ export const useTimelineTransform = ({
             return;
         }
 
-        if (wChanged || hChanged) {
-            // Priority 0: Auto-Fit Maintenance
-            const prevFitScale = (viewportSize.width - totalPadding) / Math.max(1, pWidth);
-            const scaleDiff = Math.abs(transformState.scale - prevFitScale);
-            const isRoughlyFitted = scaleDiff < 0.001 || (scaleDiff / prevFitScale) < 0.05;
+        // Only proceed if dimensions actually changed
+        if (!wChanged && !hChanged) return;
 
-            if (isRoughlyFitted && wChanged) {
-                handleAutoFit();
-                prevWorldWidthRef.current = cWidth;
-                prevWorldHeightRef.current = cHeight;
-                return;
-            }
+        /**
+         * PRIORITY 2: Auto-Fit Maintenance
+         * If the view was roughly fitted before the resize (within 5% tolerance),
+         * maintain the "fitted" state by re-running auto-fit on the new dimensions.
+         */
+        const prevFitScale = (viewportSize.width - totalPadding) / Math.max(1, pWidth);
+        const scaleDiff = Math.abs(transformState.scale - prevFitScale);
+        const isRoughlyFitted = scaleDiff < 0.001 || (scaleDiff / prevFitScale) < 0.05;
 
-            // Priority 1: Initialization / Placeholder Transition
-            const isTransitionFromPlaceholder = pWidth <= 2500 && Math.abs(transformState.offsetX) > 1;
-
-            if (isTransitionFromPlaceholder) {
-                prevWorldWidthRef.current = cWidth;
-                prevWorldHeightRef.current = cHeight;
-                return;
-            }
-
-            // Priority 2: Standard Ratio Preservation
-            const newTransform = calculatePreservedTransform({
-                currentTransform: transformState,
-                viewportSize,
-                headerHeight,
-                worldDimensions: {
-                    prevWidth: pWidth,
-                    currWidth: cWidth,
-                    prevHeight: pHeight,
-                    currHeight: cHeight
-                }
-                // No anchor -> implies ratio mode
-            });
-
-            setTransformState(newTransform);
+        if (isRoughlyFitted && wChanged) {
+            handleAutoFit();
+            return;
         }
+
+        /**
+         * PRIORITY 3: Initialization / Placeholder Transition
+         * If transitioning from a placeholder state (small width), do not attempt
+         * ratio preservation as it leads to incorrect jumps. Just accept the new size.
+         */
+        const isTransitionFromPlaceholder = pWidth <= 2500 && Math.abs(transformState.offsetX) > 1;
+        if (isTransitionFromPlaceholder) {
+            return;
+        }
+
+        /**
+         * PRIORITY 4: Standard Ratio Preservation
+         * Default behavior: Adjust transform to keep the same relative time range
+         * visible on screen despite the world content growing/shrinking.
+         */
+        const newTransform = calculatePreservedTransform({
+            currentTransform: transformState,
+            viewportSize,
+            headerHeight,
+            worldDimensions: {
+                prevWidth: pWidth,
+                currWidth: cWidth,
+                prevHeight: pHeight,
+                currHeight: cHeight
+            }
+            // No anchor implies standard center-ratio preservation
+        });
+
+        setTransformState(newTransform);
 
     }, [worldWidth, dynamicWorldHeight, videosLength, viewportSize, headerHeight, isCustomView, handleAutoFit, transformState, setTransformState, monthLayouts, stats, totalPadding]); // Dependencies
 
