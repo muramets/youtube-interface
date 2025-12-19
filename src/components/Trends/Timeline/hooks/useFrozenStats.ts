@@ -14,6 +14,8 @@ interface UseFrozenStatsProps {
     selectedChannelId: string | null;
     filterMode: 'global' | 'filtered';
     activeNicheIds: string[];
+    /** True when UNASSIGNED filter is active */
+    hasUnassignedFilter?: boolean;
 }
 
 /** Computes min/max stats from a set of videos */
@@ -37,6 +39,9 @@ const computeStats = (videos: TrendVideo[]): TimelineStats | undefined => {
  * - Channel add/remove
  * - Filter mode change
  * - Niche selection change
+ * 
+ * Also stays frozen when UNASSIGNED filter is active, so videos can be
+ * assigned to niches without the timeline jumping.
  */
 export const useFrozenStats = ({
     allVideos,
@@ -44,7 +49,8 @@ export const useFrozenStats = ({
     channels,
     selectedChannelId,
     filterMode,
-    activeNicheIds
+    activeNicheIds,
+    hasUnassignedFilter = false
 }: UseFrozenStatsProps) => {
     const frozenStatsRef = useRef<TimelineStats | undefined>(undefined);
     const [statsVersion, setStatsVersion] = useState(0);
@@ -128,7 +134,8 @@ export const useFrozenStats = ({
     }, [currentStats]);
 
     // Explicit flag: filtered mode should auto-fit, global mode uses frozen stats
-    const shouldAutoFit = filterMode !== 'global';
+    // Exception: UNASSIGNED filter should stay frozen (видео пропадают при assign, мир стабилен)
+    const shouldAutoFit = filterMode !== 'global' && !hasUnassignedFilter;
 
     return useMemo(() => ({
         currentStats,

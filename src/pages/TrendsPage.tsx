@@ -181,12 +181,15 @@ export const TrendsPage: React.FC = () => {
     }, [videos, hiddenVideos, selectedChannelId]);
 
     // List of active niche IDs (excluding TRASH and UNASSIGNED)
-    const activeNicheIds = useMemo(() => {
+    const { activeNicheIds, hasUnassignedFilter } = useMemo(() => {
         const nicheFilter = trendsFilters.find(f => f.type === 'niche');
-        if (!nicheFilter) return [];
+        if (!nicheFilter) return { activeNicheIds: [], hasUnassignedFilter: false };
         const nicheIds = (nicheFilter.value as string[]) || [];
         // TRASH and UNASSIGNED are special modes, not real niche filters
-        return nicheIds.filter(id => id !== 'TRASH' && id !== 'UNASSIGNED');
+        return {
+            activeNicheIds: nicheIds.filter(id => id !== 'TRASH' && id !== 'UNASSIGNED'),
+            hasUnassignedFilter: nicheIds.includes('UNASSIGNED')
+        };
     }, [trendsFilters]);
 
     // Managed Stats Logic
@@ -196,7 +199,8 @@ export const TrendsPage: React.FC = () => {
         channels,
         selectedChannelId,
         filterMode,
-        activeNicheIds
+        activeNicheIds,
+        hasUnassignedFilter
     });
 
     return (
