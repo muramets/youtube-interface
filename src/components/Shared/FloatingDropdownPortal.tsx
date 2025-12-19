@@ -45,7 +45,7 @@ export const FloatingDropdownPortal: React.FC<FloatingDropdownPortalProps> = ({
                 top,
                 width,
                 transform: openAbove ? 'translateY(-100%)' : 'none',
-                maxHeight: 280,
+                maxHeight: 320,
             }}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}

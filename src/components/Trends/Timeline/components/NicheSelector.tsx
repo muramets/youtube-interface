@@ -120,17 +120,48 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
         return [...availableNiches].sort((a, b) => {
             const timeA = nicheLastUsed.get(a.id) || 0;
             const timeB = nicheLastUsed.get(b.id) || 0;
-            return timeB - timeA;
+
+            // 1. Sort by Last Used (Most recent first)
+            if (timeA !== timeB) return timeB - timeA;
+
+            // 2. If never used (or equal time), prioritize Global over Local
+            if (a.type !== b.type) {
+                return a.type === 'global' ? -1 : 1;
+            }
+
+            // 3. Alphabetical fallback
+            return a.name.localeCompare(b.name);
         });
     }, [availableNiches, nicheLastUsed]);
 
-    // Stabilize niche order: only update stableNiches when NOT open
-    // This ensures they don't jump around when toggling during an active session
+    // Stabilize niche order: only update stableNiches when NOT open,
+    // unless the list of available niches actually changed (new data loaded).
     React.useEffect(() => {
         if (!isOpen) {
             setStableNiches(currentSortedNiches);
+            return;
         }
-    }, [isOpen, currentSortedNiches]);
+
+        // If open, only update if the composition (ids) changed
+        const stableIds = new Set(stableNiches.map(n => n.id));
+        const currentIds = new Set(currentSortedNiches.map(n => n.id));
+
+        let hasStructuralChanges = false;
+        if (stableNiches.length !== currentSortedNiches.length) {
+            hasStructuralChanges = true;
+        } else {
+            for (const id of currentIds) {
+                if (!stableIds.has(id)) {
+                    hasStructuralChanges = true;
+                    break;
+                }
+            }
+        }
+
+        if (hasStructuralChanges) {
+            setStableNiches(currentSortedNiches);
+        }
+    }, [isOpen, currentSortedNiches, stableNiches]);
 
     const filteredNiches = useMemo(() => {
         return stableNiches.filter(n => {
@@ -233,7 +264,7 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                 anchorRect={buttonRef.current?.getBoundingClientRect() || null}
                 openAbove={openAbove}
             >
-                <div data-portal-wrapper className="flex flex-col h-full">
+                <div data-portal-wrapper className="flex flex-col h-full min-h-0">
                     <div className="p-2 border-b border-white/10 bg-white/5">
                         <form onSubmit={handleCreateSubmit} className="relative flex flex-col gap-2">
                             <div className="relative">

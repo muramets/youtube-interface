@@ -151,7 +151,7 @@ export const PlaylistSelector: React.FC<PlaylistSelectorProps> = ({
                 openAbove={openAbove}
                 width={256}
             >
-                <div data-portal-wrapper className="flex flex-col h-full">
+                <div data-portal-wrapper className="flex flex-col h-full min-h-0">
                     <div className="p-2 border-b border-white/10">
                         <form onSubmit={handleCreatePlaylist} className="relative">
                             <input
