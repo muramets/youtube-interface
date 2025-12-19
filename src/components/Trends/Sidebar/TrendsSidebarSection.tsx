@@ -28,7 +28,7 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
         handleSyncChannel
     } = useTrendsSidebar();
 
-    const { niches, videos, videoNicheAssignments, trendsFilters, addTrendsFilter, removeTrendsFilter, hiddenVideos } = useTrendStore();
+    const { niches, videos, videoNicheAssignments, trendsFilters, addTrendsFilter, removeTrendsFilter, hiddenVideos, setFilterMode } = useTrendStore();
 
     // Persist Trends section collapse state
     const [isContentExpanded, setIsContentExpanded] = useState(() => {
@@ -45,12 +45,21 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
         return nicheFilter ? (nicheFilter.value as string[]) : [];
     }, [trendsFilters]);
 
-    const handleNicheClick = (id: string | null) => {
+    const handleNicheClick = (id: string | null, channelId?: string) => {
         if (!id) return;
+
+        // If clicking a niche (including TRASH) for a different channel, switch context first
+        let effectiveFilters = trendsFilters;
+
+        // If clicking a niche (including TRASH) for a different channel, switch context first
+        if (channelId && selectedChannelId !== channelId) {
+            handleChannelClick(channelId);
+            effectiveFilters = []; // Start fresh for the new channel
+        }
 
         // "Untracked" (TRASH) mode is exclusive.
         if (id === 'TRASH') {
-            const existingFilter = trendsFilters.find(f => f.type === 'niche');
+            const existingFilter = effectiveFilters.find(f => f.type === 'niche');
             if (existingFilter) {
                 removeTrendsFilter(existingFilter.id);
             }
@@ -60,28 +69,28 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                 value: ['TRASH'],
                 label: 'Niche: Untracked'
             });
+            setFilterMode('filtered');
             return;
         }
 
-        // Find the niche to check if it's local and needs channel switching
-        const targetNiche = niches.find(n => n.id === id);
+        // Find the niche to check if it's local (Fallback only, logic above handles switching generally)
+        // But since we already switched above, we might just proceed to add filter.
+        // Wait, handleChannelClick clears filters.
+        // So we need to add the filter AFTER switching.
+        // But handleChannelClick is synchronous? 
+        // handleChannelClick only calls setSelectedChannelId and navigate.
+        // But inside handleChannelClick we removed all niche filters.
+        // So we are clean. We can just add the filter now.
 
-        // If clicking a local niche for a channel that isn't selected, switch to that channel
-        if (targetNiche?.type === 'local' && targetNiche.channelId && selectedChannelId !== targetNiche.channelId) {
-            handleChannelClick(targetNiche.channelId);
-            // We just switched channels, any previous niche filters were cleared by handleChannelClick.
-            // Now apply the new niche filter.
-            addTrendsFilter({
-                type: 'niche',
-                operator: 'contains',
-                value: [id],
-                label: `Niche: ${targetNiche.name}`
-            });
-            return;
-        }
+        // One caveat: if we switched channels, 'trendsFilters' from store might not update immediately in this closure?
+        // No, zustand actions are synchronous usually, but reading 'trendsFilters' from closure might be stale?
+        // Actually handleChannelClick calls removeTrendsFilter.
+        // So we are effectively starting fresh for this channel.
 
         // Standard toggle logic for existing context
-        const existingFilter = trendsFilters.find(f => f.type === 'niche');
+        // NOTE: If we just switched channels, filters are empty (effectiveFilters = []).
+
+        const existingFilter = effectiveFilters.find(f => f.type === 'niche');
         if (existingFilter) {
             removeTrendsFilter(existingFilter.id);
             const currentlySelected = (existingFilter.value as string[]) || [];

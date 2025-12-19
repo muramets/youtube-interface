@@ -26,6 +26,12 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
 
     const { addTrendsFilter, removeTrendsFilter, trendsFilters, filterMode, setFilterMode, niches } = useTrendStore();
 
+    // Check if "Untracked" (TRASH) niche is active
+    const isTrashMode = React.useMemo(() => {
+        const nicheFilter = trendsFilters.find(f => f.type === 'niche');
+        return nicheFilter && Array.isArray(nicheFilter.value) && nicheFilter.value.includes('TRASH');
+    }, [trendsFilters]);
+
     useEffect(() => {
         if (isOpen && buttonRef.current) {
             const rect = buttonRef.current.getBoundingClientRect();
@@ -136,16 +142,17 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider">Context</span>
                                     </div>
-                                    {/* Segmented Toggle */}
-                                    <div className="relative flex bg-[#1a1a1a] rounded-lg p-0.5">
+                                    {/* Segmented Toggle - Disabled in Trash Mode */}
+                                    <div className={`relative flex bg-[#1a1a1a] rounded-lg p-0.5 ${isTrashMode ? 'opacity-50 cursor-not-allowed' : ''}`}>
                                         {/* Sliding Indicator */}
                                         <div
                                             className="absolute top-0.5 bottom-0.5 w-[calc(50%-2px)] bg-gradient-to-r from-[#2d2d2d] to-[#333333] rounded-md shadow-sm transition-all duration-200 ease-out"
                                             style={{ left: filterMode === 'global' ? '2px' : 'calc(50% + 0px)' }}
                                         />
                                         <button
-                                            onClick={() => setFilterMode('global')}
-                                            className={`relative z-10 flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs font-medium transition-colors duration-200 border-none cursor-pointer bg-transparent ${filterMode === 'global'
+                                            onClick={() => !isTrashMode && setFilterMode('global')}
+                                            disabled={!!isTrashMode}
+                                            className={`relative z-10 flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs font-medium transition-colors duration-200 border-none bg-transparent ${isTrashMode ? 'cursor-not-allowed' : 'cursor-pointer'} ${filterMode === 'global'
                                                 ? 'text-text-primary'
                                                 : 'text-text-tertiary hover:text-text-secondary'
                                                 }`}
@@ -153,8 +160,9 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
                                             Global
                                         </button>
                                         <button
-                                            onClick={() => setFilterMode('filtered')}
-                                            className={`relative z-10 flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs font-medium transition-colors duration-200 border-none cursor-pointer bg-transparent ${filterMode === 'filtered'
+                                            onClick={() => !isTrashMode && setFilterMode('filtered')}
+                                            disabled={!!isTrashMode}
+                                            className={`relative z-10 flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs font-medium transition-colors duration-200 border-none bg-transparent ${isTrashMode ? 'cursor-not-allowed' : 'cursor-pointer'} ${filterMode === 'filtered'
                                                 ? 'text-text-primary'
                                                 : 'text-text-tertiary hover:text-text-secondary'
                                                 }`}

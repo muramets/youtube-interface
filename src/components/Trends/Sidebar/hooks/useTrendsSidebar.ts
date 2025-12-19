@@ -32,6 +32,11 @@ export const useTrendsSidebar = () => {
     const isOnTrendsPage = location.pathname === '/trends';
 
     const handleTrendsClick = () => {
+        // Clear any active niche filters when going to main trends
+        const nicheFilter = trendsFilters.find(f => f.type === 'niche');
+        if (nicheFilter) {
+            removeTrendsFilter(nicheFilter.id);
+        }
         setSelectedChannelId(null);
         navigate('/trends');
     };

@@ -12,7 +12,7 @@ interface TrendsChannelItemProps {
     onOpenMenu: (e: React.MouseEvent, channelId: string) => void;
     niches?: TrendNiche[];
     activeNicheIds?: string[];
-    onNicheClick?: (id: string) => void;
+    onNicheClick?: (id: string, channelId?: string) => void;
     trashCount?: number;
     viewCount?: number;
 }
@@ -183,7 +183,7 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                     <CollapsibleNicheList
                         niches={niches}
                         activeNicheIds={activeNicheIds}
-                        onNicheClick={(id) => id && onNicheClick?.(id)}
+                        onNicheClick={(id) => id && onNicheClick?.(id, channel.id)}
                         trashCount={trashCount}
                         storageKey={channel.id}
                     />
