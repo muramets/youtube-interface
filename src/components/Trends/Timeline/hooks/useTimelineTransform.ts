@@ -37,18 +37,22 @@ export const useTimelineTransform = ({
     // Total padding for calculations that need both
     const totalPadding = paddingLeft + paddingRight;
     const totalVerticalPadding = paddingTop + paddingBottom;
-    const { timelineConfig, setTimelineConfig, channels, selectedChannelId } = useTrendStore();
+    const { timelineConfig, setTimelineConfig, selectedChannelId, trendsFilters } = useTrendStore();
     const { zoomLevel, offsetX, offsetY, isCustomView, contentHash: savedContentHash } = timelineConfig;
 
-    // Calculate current content hash based on context (Channel ID + Visible channels)
+    // Calculate current content hash based on context (Channel ID + Filters)
     const currentContentHash = useMemo(() => {
-        const visibleIds = channels
-            .filter(c => c.isVisible)
-            .map(c => c.id)
-            .sort();
+        // NOTE: We deliberately EXCLUDE visibleIds (channel visibility) from this hash.
+        // Changing channel visibility (eye icon) should NOT trigger a view reset.
+        // Only switching channels or changing filters/niches should reset the view.
+
+        // Include Niche ID in hash to trigger auto-fit when switching niches
+        const nicheFilter = trendsFilters.find(f => f.type === 'niche');
+        const nicheKey = nicheFilter ? (nicheFilter.value as string[]).sort().join(',') : 'all';
+
         // Include selectedChannelId to distinguish Global view from Specific Channel view
-        return `${selectedChannelId || 'global'}:${visibleIds.join(',')}`;
-    }, [channels, selectedChannelId]);
+        return `${selectedChannelId || 'global'}:${nicheKey}`;
+    }, [selectedChannelId, trendsFilters]);
 
     // Transform state
     const transformRef = useRef<Transform>({
@@ -222,6 +226,16 @@ export const useTimelineTransform = ({
             handleAutoFit();
         }
     }, [handleAutoFit, isCustomView, videosLength, viewportSize, savedContentHash, currentContentHash]);
+
+    // Continuous Auto-fit on Hash Change (e.g. Filter Switch)
+    useEffect(() => {
+        if (!hasInitializedRef.current) return;
+
+        // If the hash changes while we are already running, we MUST auto-fit to show new data.
+        if (savedContentHash !== currentContentHash) {
+            handleAutoFit();
+        }
+    }, [savedContentHash, currentContentHash, handleAutoFit]);
 
     // Resize Auto-fit
     useEffect(() => {

@@ -70,6 +70,9 @@ export const useTimelineStructure = ({
     const calculatedEffectiveStats = forcedStatsOverride || currentStats;
 
     // Freeze Stats
+    // NOTE: We depend on `videos.length > 0` (Video Presence) rather than `videos` (Video Content).
+    // This allows `structureVersion` (controlled by useTimelineAutoUpdate) to be the sole
+    // arbiter of WHEN to update the structure, supporting the "Manual Update" workflow.
     const effectiveStats = useFrozenValue({
         value: calculatedEffectiveStats,
         version: structureVersion,

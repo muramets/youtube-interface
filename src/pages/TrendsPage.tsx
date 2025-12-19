@@ -203,6 +203,21 @@ export const TrendsPage: React.FC = () => {
         hasUnassignedFilter
     });
 
+    // Generate Filter Hash for Smart Auto-Updates
+    // This allows us to distinguish between "Filter/Niche Switch" (Auto-Update) 
+    // and "Global Visibility Toggle" (Manual Update)
+    const filterHash = useMemo(() => {
+        const nicheKey = activeNicheIds.sort().join(',');
+        const otherFiltersKey = trendsFilters
+            .filter(f => f.type !== 'niche')
+            .map(f => `${f.type}:${f.operator}:${f.value}`)
+            .sort()
+            .join('|');
+
+        // Include selectedChannelId so switching channels triggers auto-fit
+        return `${selectedChannelId || 'global'}:${nicheKey}:${otherFiltersKey}`;
+    }, [activeNicheIds, trendsFilters, selectedChannelId]);
+
     return (
         <div className="flex flex-col h-full bg-bg-primary">
             <TrendsHeader
@@ -227,6 +242,7 @@ export const TrendsPage: React.FC = () => {
                 shouldAutoFit={shouldAutoFit}
                 onRequestStatsRefresh={refreshStats}
                 skipAutoFitRef={skipAutoFitRef}
+                filterHash={filterHash}
             />
         </div>
     );

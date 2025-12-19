@@ -87,45 +87,23 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
         // Actually handleChannelClick calls removeTrendsFilter.
         // So we are effectively starting fresh for this channel.
 
-        // Standard toggle logic for existing context
+        // Standard exclusive toggle logic
         // NOTE: If we just switched channels, filters are empty (effectiveFilters = []).
 
         const existingFilter = effectiveFilters.find(f => f.type === 'niche');
+        const currentlySelected = (existingFilter?.value as string[]) || [];
+
+        // Check if the clicked niche is already the ONLY one selected
+        const isOnlySelected = currentlySelected.length === 1 && currentlySelected[0] === id;
+
+        // Always remove the existing niche filter first (we are either clearing or replacing)
         if (existingFilter) {
             removeTrendsFilter(existingFilter.id);
-            const currentlySelected = (existingFilter.value as string[]) || [];
+        }
 
-            let nextSelection = [...currentlySelected];
-
-            // Ensure TRASH is removed if it was present
-            if (nextSelection.includes('TRASH')) {
-                nextSelection = nextSelection.filter(sid => sid !== 'TRASH');
-            }
-
-            if (nextSelection.includes(id)) {
-                // Toggle off
-                nextSelection = nextSelection.filter(sid => sid !== id);
-            } else {
-                // Toggle on
-                nextSelection = [...nextSelection, id];
-            }
-
-            // Apply update only if we still have selections
-            if (nextSelection.length > 0) {
-                const nicheNames = niches
-                    .filter(n => nextSelection.includes(n.id))
-                    .map(n => n.name)
-                    .join(', ');
-
-                addTrendsFilter({
-                    type: 'niche',
-                    operator: 'contains',
-                    value: nextSelection,
-                    label: nextSelection.length > 3 ? `${nextSelection.length} niches` : `Niche: ${nicheNames}`
-                });
-            }
-        } else {
-            // No previous filter, simple add
+        // If it was the only one selected, we just toggled it off (filter removed above).
+        // If it wasn't selected (or was part of a multi-select), we select ONLY it.
+        if (!isOnlySelected) {
             const nicheName = niches.find(n => n.id === id)?.name || 'Niche';
             addTrendsFilter({
                 type: 'niche',

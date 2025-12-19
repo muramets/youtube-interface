@@ -5,9 +5,10 @@ interface UseTimelineAutoUpdateProps {
     videos: TrendVideo[];
     forcedStats?: TimelineStats;
     skipAutoFitRef?: React.RefObject<boolean>;
+    filterHash?: string;
 }
 
-export const useTimelineAutoUpdate = ({ videos, forcedStats, skipAutoFitRef }: UseTimelineAutoUpdateProps) => {
+export const useTimelineAutoUpdate = ({ videos, forcedStats, skipAutoFitRef, filterHash }: UseTimelineAutoUpdateProps) => {
     // State to control structure updates ('Z' key forces update)
     const [structureVersion, setStructureVersion] = useState(0);
     // Track whether the current structure version update should trigger an auto-fit
@@ -18,46 +19,53 @@ export const useTimelineAutoUpdate = ({ videos, forcedStats, skipAutoFitRef }: U
     // but stay "Frozen" in others (to preserve context).
     const prevVideoCountRef = useRef(videos.length);
     const prevForcedStatsRef = useRef(forcedStats);
+    const prevFilterHashRef = useRef(filterHash);
 
     useEffect(() => {
         const currentCount = videos.length;
         const prevCount = prevVideoCountRef.current;
         const prevStats = prevForcedStatsRef.current;
+        const prevHash = prevFilterHashRef.current;
+
         const hasStatsChanged = prevStats !== forcedStats;
+        const hasHashChanged = filterHash !== prevHash;
 
         // Update refs
         prevVideoCountRef.current = currentCount;
         prevForcedStatsRef.current = forcedStats;
+        prevFilterHashRef.current = filterHash;
 
-        // 1. Significance Check: If count didn't change and stats didn't change, do nothing.
-        if (currentCount === prevCount && !hasStatsChanged) return;
+        // 1. Significance Check: If nothing significant changed, do nothing.
+        if (currentCount === prevCount && !hasStatsChanged && !hasHashChanged) return;
 
         // Determine if we should fit on this update
         const isSkipRequested = skipAutoFitRef?.current === true;
 
-        // 2. Context Switch (Global <-> Local OR Global stats update)
+        // 2. Filter/Context Switch (Global <-> Local OR Filter Hash Change)
         // If the context defining the "World" changes, we MUST update.
-        if (hasStatsChanged) {
+        // This includes Niche Filters changing (Hash Change).
+        if (hasStatsChanged || hasHashChanged) {
             setShouldAutoFit(!isSkipRequested);
             setStructureVersion(v => v + 1);
             return;
         }
 
-        // 3. Filter Changes (Count Changed)
+        // 3. Filter Changes (Count Changed) BUT Hash Same (e.g. Visibility Toggle)
         if (currentCount !== prevCount) {
-            // STRICT FREEZE:
-            // If we are in Global Mode (forcedStats provided), we NEVER update structure
-            // regardless of whether videos are being added or removed.
-            // User must press Z to refit.
+            // STRICT FREEZE (Business Logic):
+            // If we are in Global Mode (forcedStats provided) AND the Filter Hash hasn't changed,
+            // we assume this is a "Visibility Toggle" of channels (e.g. clicking eye icon).
+            // User REQ: Visibility toggles should be MANUAL updates only to avoid disorienting jumps.
+            // We DO NOT update structure here. User must press 'Z' (manual fit) to refit/update.
             if (forcedStats) {
                 return;
             }
 
-            // Local Mode: Always re-calculate structure and fit
+            // Local Mode: Always re-calculate structure and fit for any change
             setShouldAutoFit(!isSkipRequested);
             setStructureVersion(v => v + 1);
         }
-    }, [videos.length, forcedStats, skipAutoFitRef]);
+    }, [videos.length, forcedStats, skipAutoFitRef, filterHash]);
 
     const forceStructureUpdate = useCallback((fit: boolean = true) => {
         setShouldAutoFit(fit);

@@ -47,6 +47,7 @@ interface TimelineCanvasProps {
     onRequestStatsRefresh?: () => void;
     /** If true, skip auto-fit on next structure update (for filterMode toggle) */
     skipAutoFitRef?: React.RefObject<boolean>;
+    filterHash?: string;
 }
 
 export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
@@ -57,7 +58,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     frozenStats,
     shouldAutoFit = false,
     onRequestStatsRefresh,
-    skipAutoFitRef
+    skipAutoFitRef,
+    filterHash
 }) => {
     const { timelineConfig, setTimelineConfig, setAddChannelModalOpen } = useTrendStore();
     const { scalingMode, verticalSpread, timeLinearity } = timelineConfig;
@@ -69,7 +71,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     const { structureVersion, forceStructureUpdate } = useTimelineAutoUpdate({
         videos,
         forcedStats: effectiveStats,
-        skipAutoFitRef
+        skipAutoFitRef,
+        filterHash
     });
 
     // 2. Structure Logic
