@@ -16,7 +16,7 @@ interface MenuState {
 }
 
 export const useTrendsSidebar = () => {
-    const { channels, selectedChannelId, setSelectedChannelId, setAddChannelModalOpen, isLoadingChannels, trendsFilters, removeTrendsFilter, channelRootFilters, setChannelRootFilters, setTrendsFilters, setNicheFilters } = useTrendStore();
+    const { channels, selectedChannelId, setSelectedChannelId, setAddChannelModalOpen, isLoadingChannels, trendsFilters, removeTrendsFilter, setChannelRootFilters, setTrendsFilters, setNicheFilters } = useTrendStore();
     const { user, isLoading: isAuthLoading } = useAuth();
     const { currentChannel } = useChannelStore();
     const { isLoading: isChannelsLoading } = useChannels(user?.uid || '');
