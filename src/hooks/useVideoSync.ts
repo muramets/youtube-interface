@@ -128,7 +128,10 @@ export const useVideoSync = (userId: string, channelId: string) => {
                 title: 'Sync Completed',
                 message: `Successfully synced ${syncableVideos.length} videos.`,
                 type: 'success',
-                meta: `Quota used: ${totalQuota} units`
+                meta: `${totalQuota}`,
+                quotaBreakdown: {
+                    details: `${totalQuota} units`
+                }
             });
 
         } catch (error) {

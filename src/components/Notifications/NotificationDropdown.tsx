@@ -109,7 +109,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onCl
             )}
 
             {/* List */}
-            <div className="overflow-y-auto flex-1 min-h-0">
+            <div className="overflow-y-auto min-h-0">
                 {filteredNotifications.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 text-text-secondary">
                         <CheckCheck size={48} className="mb-2 opacity-20" />

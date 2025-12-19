@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Trash2, Info, AlertCircle, CheckCircle } from 'lucide-react';
 import { useNotificationStore, type Notification } from '../../stores/notificationStore';
 import { formatDistanceToNow } from 'date-fns';
@@ -33,6 +34,25 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
             markAsRead(notification.id);
         }
         onAction?.(notification);
+    };
+
+    const [showTooltip, setShowTooltip] = useState(false);
+    const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 });
+    const badgeRef = useRef<HTMLDivElement>(null);
+
+    const handleMouseEnter = () => {
+        if (badgeRef.current) {
+            const rect = badgeRef.current.getBoundingClientRect();
+            setTooltipPos({
+                top: rect.bottom + window.scrollY + 5,
+                left: rect.left + window.scrollX
+            });
+            setShowTooltip(true);
+        }
+    };
+
+    const handleMouseLeave = () => {
+        setShowTooltip(false);
     };
 
     return (
@@ -115,15 +135,26 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
                         <span className="text-[10px] font-bold tracking-wider text-text-tertiary uppercase opacity-50">
                             Quota used:
                         </span>
-                        <div className="px-1.5 py-0.5 rounded border border-green-500/20 bg-green-500/10 cursor-help transition-colors hover:bg-green-500/20">
+                        <div
+                            ref={badgeRef}
+                            onMouseEnter={handleMouseEnter}
+                            onMouseLeave={handleMouseLeave}
+                            className="px-1.5 py-0.5 rounded border border-green-500/20 bg-green-500/10 cursor-help transition-colors hover:bg-green-500/20"
+                        >
                             <p className="text-[10px] text-green-400 font-mono">
                                 {notification.meta} units
                             </p>
                         </div>
 
-                        {/* Quota Breakdown Tooltip */}
-                        {notification.quotaBreakdown && (
-                            <div className="absolute top-full left-0 mt-1 p-2 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl z-50 opacity-0 group-hover/quota:opacity-100 transition-opacity pointer-events-none min-w-[120px]">
+                        {/* Quota Breakdown Tooltip - Portal */}
+                        {notification.quotaBreakdown && showTooltip && createPortal(
+                            <div
+                                className="fixed z-[9999] p-2 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl pointer-events-none min-w-[120px] animate-in fade-in zoom-in-95 duration-100"
+                                style={{
+                                    top: tooltipPos.top,
+                                    left: tooltipPos.left,
+                                }}
+                            >
                                 <div className="space-y-1">
                                     {notification.quotaBreakdown.search && (
                                         <div className="flex justify-between items-center gap-4">
@@ -144,7 +175,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
                                         </div>
                                     )}
                                 </div>
-                            </div>
+                            </div>,
+                            document.body
                         )}
                     </div>
                 )}
