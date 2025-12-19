@@ -292,10 +292,15 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
                                                 removeTrendsFilter(existingFilter.id);
                                             }
                                             if (selectedIds.length > 0) {
-                                                // Format label
-                                                const names = niches
+                                                // Format label - include Unassigned if selected
+                                                const nicheNames = niches
                                                     .filter(n => selectedIds.includes(n.id))
                                                     .map(n => n.name);
+
+                                                const hasUnassigned = selectedIds.includes('UNASSIGNED');
+                                                const names = hasUnassigned
+                                                    ? [...nicheNames, 'Unassigned']
+                                                    : nicheNames;
 
                                                 const label = names.length === 1
                                                     ? `Niche: ${names[0]}`

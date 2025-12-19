@@ -153,7 +153,16 @@ export const TrendsPage: React.FC = () => {
                     const assignedNicheIds = assignments.length > 0
                         ? assignments.map(a => a.nicheId)
                         : (video.nicheId ? [video.nicheId] : []);
-                    return selectedIds.some(id => assignedNicheIds.includes(id));
+
+                    // Handle UNASSIGNED special case
+                    const hasUnassignedFilter = selectedIds.includes('UNASSIGNED');
+                    const isUnassigned = assignedNicheIds.length === 0;
+
+                    if (hasUnassignedFilter && isUnassigned) return true;
+
+                    // Regular niche matching
+                    const regularNicheIds = selectedIds.filter(id => id !== 'UNASSIGNED');
+                    return regularNicheIds.some(id => assignedNicheIds.includes(id));
                 }
                 return true;
             });
@@ -171,13 +180,13 @@ export const TrendsPage: React.FC = () => {
         });
     }, [videos, hiddenVideos, selectedChannelId]);
 
-    // List of active niche IDs (excluding TRASH)
+    // List of active niche IDs (excluding TRASH and UNASSIGNED)
     const activeNicheIds = useMemo(() => {
         const nicheFilter = trendsFilters.find(f => f.type === 'niche');
         if (!nicheFilter) return [];
         const nicheIds = (nicheFilter.value as string[]) || [];
-        // TRASH is a special mode, not a real niche filter for context purposes
-        return nicheIds.filter(id => id !== 'TRASH');
+        // TRASH and UNASSIGNED are special modes, not real niche filters
+        return nicheIds.filter(id => id !== 'TRASH' && id !== 'UNASSIGNED');
     }, [trendsFilters]);
 
     // Managed Stats Logic

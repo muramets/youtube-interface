@@ -200,7 +200,8 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={onToggle}
                 className={`
-                    flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap
+                    relative flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap
+                    before:absolute before:inset-[-8px] before:content-['']
                     ${displayNiche ? 'bg-white/10 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}
                     ${isOpen ? 'ring-1 ring-white/30' : ''}
                 `}

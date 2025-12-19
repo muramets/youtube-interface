@@ -1,6 +1,9 @@
 import React, { useMemo, useLayoutEffect, useRef, useState } from 'react';
-import { Check, Globe, Home, Search, CheckCheck } from 'lucide-react';
+import { Check, Globe, Home, Search, CheckCheck, CircleOff } from 'lucide-react';
 import { useTrendStore } from '../../../stores/trendStore';
+
+// Special ID for "Unassigned" filter option
+export const UNASSIGNED_NICHE_ID = 'UNASSIGNED';
 
 interface FilterInputNicheProps {
     initialSelected: string[];
@@ -19,7 +22,7 @@ export const FilterInputNiche: React.FC<FilterInputNicheProps> = ({
     initialSelected,
     onApply
 }) => {
-    const { niches, videos, videoNicheAssignments } = useTrendStore();
+    const { niches, videos, videoNicheAssignments, selectedChannelId } = useTrendStore();
     const [selectedIds, setSelectedIds] = useState<string[]>(initialSelected);
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -45,6 +48,24 @@ export const FilterInputNiche: React.FC<FilterInputNicheProps> = ({
         onApply(newSelection);
     };
 
+    // Filter niches by channel: global + local matching current channel
+    const channelFilteredNiches = useMemo(() => {
+        return niches.filter(niche => {
+            // Global niches are always available
+            if (niche.type === 'global') return true;
+
+            // Local niches are available if they match the selected channel
+            if (niche.type === 'local' && niche.channelId && selectedChannelId) {
+                return niche.channelId === selectedChannelId;
+            }
+
+            // If no channel selected (main trends), show all local niches
+            if (!selectedChannelId && niche.type === 'local') return true;
+
+            return false;
+        });
+    }, [niches, selectedChannelId]);
+
     // 1. Calculate View Counts dynamically
     const nicheViewCounts = useMemo(() => {
         const counts = new Map<string, number>();
@@ -61,15 +82,27 @@ export const FilterInputNiche: React.FC<FilterInputNicheProps> = ({
         return counts;
     }, [videos, videoNicheAssignments]);
 
+    // Calculate unassigned video count (videos with no niche)
+    const unassignedViewCount = useMemo(() => {
+        let count = 0;
+        videos.forEach(v => {
+            const assignments = videoNicheAssignments[v.id] || [];
+            if (assignments.length === 0 && !v.nicheId) {
+                count += v.viewCount;
+            }
+        });
+        return count;
+    }, [videos, videoNicheAssignments]);
+
     // 2. Sort niches: View Count (desc), then Name (asc)
     const sortedNiches = useMemo(() => {
-        return [...niches].sort((a, b) => {
+        return [...channelFilteredNiches].sort((a, b) => {
             const countA = nicheViewCounts.get(a.id) || 0;
             const countB = nicheViewCounts.get(b.id) || 0;
             if (countA !== countB) return countB - countA;
             return a.name.localeCompare(b.name);
         });
-    }, [niches, nicheViewCounts]);
+    }, [channelFilteredNiches, nicheViewCounts]);
 
     // 3. Filter by search query
     const filteredNiches = useMemo(() => {
@@ -77,6 +110,12 @@ export const FilterInputNiche: React.FC<FilterInputNicheProps> = ({
         const lowerQuery = searchQuery.toLowerCase();
         return sortedNiches.filter(n => n.name.toLowerCase().includes(lowerQuery));
     }, [sortedNiches, searchQuery]);
+
+    // Check if "Unassigned" matches search query
+    const showUnassigned = useMemo(() => {
+        if (!searchQuery.trim()) return true;
+        return 'unassigned'.includes(searchQuery.toLowerCase());
+    }, [searchQuery]);
 
     const handleSelectAll = () => {
         // Select all CURRENTLY VISIBLE (filtered) niches
@@ -131,7 +170,38 @@ export const FilterInputNiche: React.FC<FilterInputNicheProps> = ({
             </div>
 
             <div className="overflow-y-auto flex-1 p-1">
-                {filteredNiches.length === 0 ? (
+                {/* Unassigned option */}
+                {showUnassigned && (
+                    <div
+                        onClick={() => toggleNiche(UNASSIGNED_NICHE_ID)}
+                        className="px-3 py-2 flex items-center gap-3 cursor-pointer transition-colors rounded-lg text-text-primary text-sm hover:bg-hover-bg group border-b border-white/20 mb-1"
+                    >
+                        {/* Checkbox */}
+                        <div
+                            className={`w-[16px] h-[16px] rounded border flex items-center justify-center flex-shrink-0 transition-colors ${selectedIds.includes(UNASSIGNED_NICHE_ID)
+                                ? 'bg-text-primary border-text-primary'
+                                : 'bg-transparent border-text-secondary group-hover:border-text-primary'
+                                }`}
+                        >
+                            {selectedIds.includes(UNASSIGNED_NICHE_ID) && <Check size={10} className="text-bg-primary" strokeWidth={3} />}
+                        </div>
+
+                        {/* Icon */}
+                        <CircleOff size={12} className="text-text-tertiary flex-shrink-0" />
+
+                        {/* Name */}
+                        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs">
+                            Unassigned
+                        </span>
+
+                        {/* View Count */}
+                        <span className="text-[10px] text-text-tertiary font-medium opacity-60">
+                            {formatViewCount(unassignedViewCount)}
+                        </span>
+                    </div>
+                )}
+
+                {filteredNiches.length === 0 && !showUnassigned ? (
                     <div className="px-4 py-8 text-center text-text-tertiary text-xs">
                         No niches found
                     </div>
@@ -150,8 +220,8 @@ export const FilterInputNiche: React.FC<FilterInputNicheProps> = ({
                                 {/* Checkbox */}
                                 <div
                                     className={`w-[16px] h-[16px] rounded border flex items-center justify-center flex-shrink-0 transition-colors ${isSelected
-                                            ? 'bg-text-primary border-text-primary'
-                                            : 'bg-transparent border-text-secondary group-hover:border-text-primary'
+                                        ? 'bg-text-primary border-text-primary'
+                                        : 'bg-transparent border-text-secondary group-hover:border-text-primary'
                                         }`}
                                 >
                                     {isSelected && <Check size={10} className="text-bg-primary" strokeWidth={3} />}
