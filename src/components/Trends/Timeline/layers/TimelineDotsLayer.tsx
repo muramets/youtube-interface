@@ -451,7 +451,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
 
                 } else {
                     setInternalFocusedId(null);
-                    if (containerRef.current) containerRef.current.style.cursor = 'grab';
+                    if (containerRef.current) containerRef.current.style.cursor = ''; // Reset to inherit from parent
 
                     hoverTimeoutRef.current = setTimeout(() => {
                         onHoverVideo(null);

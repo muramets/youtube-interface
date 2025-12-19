@@ -260,11 +260,14 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     // Determine visibility logic
     const showThumbnails = transformState.scale >= LOD_SHOW_THUMBNAIL;
 
+    // Determine if pan is available (not at fit-in state)
+    const canPan = transformState.scale > minScale * 1.01; // Small buffer for floating point comparison
+
     return (
         <div
             ref={containerRef}
             className="w-full h-[calc(100vh-56px)] flex flex-col bg-bg-primary overflow-hidden relative select-none"
-            style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
+            style={{ cursor: isPanning ? 'grabbing' : (canPan ? 'grab' : 'default') }}
             onMouseDown={interaction.handleMouseDown}
             onMouseMove={interaction.handleMouseMove}
             onMouseUp={interaction.handleMouseUp}
@@ -299,8 +302,6 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                     getPercentileGroup={getPercentileGroup}
                     onHoverVideo={handleHoverVideo}
                     onClickVideo={(video, e) => {
-                        // Copy-paste logic from TimelineVideoLayer or extract to handler
-                        // Reusing the same interaction logic is best.
                         const isModifier = e.metaKey || e.ctrlKey;
                         const clientX = e.clientX;
                         const clientY = e.clientY;
@@ -308,17 +309,35 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                         forceCloseTooltip();
                         setSelectionState(prev => {
                             const newSet = new Set(prev.selectedIds);
+
                             if (isModifier) {
-                                if (newSet.has(video.id)) newSet.delete(video.id);
-                                else newSet.add(video.id);
+                                // With Cmd: if selection is empty, ignore click (allow double-click zoom)
+                                if (prev.selectedIds.size === 0) {
+                                    return prev; // Do nothing
+                                }
+                                // With Cmd + existing selection: toggle multi-select
+                                if (newSet.has(video.id)) {
+                                    newSet.delete(video.id);
+                                } else {
+                                    newSet.add(video.id);
+                                }
                                 return {
                                     selectedIds: newSet,
                                     lastAnchor: { x: clientX, y: clientY },
                                     hasDocked: prev.hasDocked
                                 };
                             } else {
+                                // Without Cmd: toggle single select
+                                // If clicking on already-selected single video, deselect it
+                                if (newSet.has(video.id) && newSet.size === 1) {
+                                    return {
+                                        selectedIds: new Set(),
+                                        lastAnchor: null,
+                                        hasDocked: false
+                                    };
+                                }
                                 return {
-                                    selectedIds: newSet.has(video.id) ? newSet : new Set([video.id]),
+                                    selectedIds: new Set([video.id]),
                                     lastAnchor: { x: clientX, y: clientY },
                                     hasDocked: false
                                 };
@@ -374,13 +393,16 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                     const clientX = e.clientX;
                     const clientY = e.clientY;
 
-                    // Instant selection (Figma-style) - no delay
                     forceCloseTooltip();
                     setSelectionState(prev => {
                         const newSet = new Set(prev.selectedIds);
 
-                        // Multi-select toggle
                         if (isModifier) {
+                            // With Cmd: if selection is empty, ignore click (allow double-click zoom)
+                            if (prev.selectedIds.size === 0) {
+                                return prev; // Do nothing
+                            }
+                            // With Cmd + existing selection: toggle multi-select
                             if (newSet.has(video.id)) {
                                 newSet.delete(video.id);
                             } else {
@@ -391,9 +413,16 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                                 lastAnchor: { x: clientX, y: clientY },
                                 hasDocked: prev.hasDocked
                             };
-                        }
-                        // Single select
-                        else {
+                        } else {
+                            // Without Cmd: toggle single select
+                            // If clicking on already-selected single video, deselect it
+                            if (newSet.has(video.id) && newSet.size === 1) {
+                                return {
+                                    selectedIds: new Set(),
+                                    lastAnchor: null,
+                                    hasDocked: false
+                                };
+                            }
                             return {
                                 selectedIds: new Set([video.id]),
                                 lastAnchor: { x: clientX, y: clientY },
