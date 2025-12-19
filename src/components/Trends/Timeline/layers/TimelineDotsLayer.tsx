@@ -12,7 +12,7 @@ interface TimelineDotsLayerProps {
     getPercentileGroup: (videoId: string) => string | undefined;
     onHoverVideo: (data: { video: TrendVideo; x: number; y: number; width: number; height: number } | null) => void;
     onClickVideo: (video: TrendVideo, e: React.MouseEvent) => void;
-    onDoubleClickVideo: (video: TrendVideo, worldX: number, worldY: number) => void;
+    onDoubleClickVideo: (video: TrendVideo, worldX: number, worldY: number, e: React.MouseEvent) => void;
     onClickEmpty?: () => void;
 }
 
@@ -53,7 +53,6 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
     const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const showTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const lastFoundIdRef = useRef<string | null>(null);
-    const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Initialize DPR
     useEffect(() => {
@@ -462,38 +461,24 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
         } else if (type === 'click') {
             e.stopPropagation(); // ALWAYS stop propagation to prevent pan logic
 
-            // Clear any pending click timeout
-            if (clickTimeoutRef.current) {
-                clearTimeout(clickTimeoutRef.current);
-                clickTimeoutRef.current = null;
-            }
-
             if (found) {
-                // Delay click to allow double-click detection
-                const videoToSelect = found.video;
-                const eventCopy = { ...e, metaKey: e.metaKey, ctrlKey: e.ctrlKey, clientX: e.clientX, clientY: e.clientY };
-                clickTimeoutRef.current = setTimeout(() => {
-                    onClickVideo(videoToSelect, eventCopy as React.MouseEvent);
-                    clickTimeoutRef.current = null;
-                }, 250);
+                // Instant selection (Figma-style) - no delay
+                onClickVideo(found.video, e);
             } else {
                 // Click on empty space - clear selection immediately
                 onClickEmpty?.();
             }
         } else if (type === 'dblclick') {
-            // Clear pending click timeout to prevent selection
-            if (clickTimeoutRef.current) {
-                clearTimeout(clickTimeoutRef.current);
-                clickTimeoutRef.current = null;
-            }
+            // Only zoom on Cmd/Ctrl + Double-Click (Figma-style)
+            const isModifier = e.metaKey || e.ctrlKey;
 
-            if (found) {
-                e.stopPropagation(); // Only stop propagation if we hit a dot
+            if (found && isModifier) {
+                e.stopPropagation(); // Only stop propagation if we hit a dot with modifier
                 const worldX = found.xNorm * worldWidth;
                 const worldY = found.yNorm * worldHeight;
-                onDoubleClickVideo(found.video, worldX, worldY);
+                onDoubleClickVideo(found.video, worldX, worldY, e);
             }
-            // If no dot found, let the event propagate to container for "fit in" behavior
+            // If no modifier or no dot found, let the event propagate to container for "fit in" behavior
         }
     };
 

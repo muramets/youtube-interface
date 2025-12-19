@@ -11,7 +11,7 @@ interface TimelineVideoLayerProps {
     worldHeight: number;
     activeVideoIds: Set<string>;
     onHoverVideo: (data: { video: TrendVideo; x: number; y: number; width: number; height: number } | null) => void;
-    onDoubleClickVideo: (video: TrendVideo, worldX: number, worldY: number) => void;
+    onDoubleClickVideo: (video: TrendVideo, worldX: number, worldY: number, e: React.MouseEvent) => void;
     onClickVideo: (video: TrendVideo, e: React.MouseEvent) => void;
     setAddChannelModalOpen: (isOpen: boolean) => void;
     getPercentileGroup: (videoId: string) => string | undefined;

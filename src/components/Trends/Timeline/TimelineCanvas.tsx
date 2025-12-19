@@ -176,7 +176,6 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     });
 
     const videoLayerRef = useRef<TimelineVideoLayerHandle>(null);
-    const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // 8. Main Interaction Hook
     const interaction = useTimelineInteraction({
@@ -326,9 +325,13 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                             }
                         });
                     }}
-                    onDoubleClickVideo={(_video, worldX, worldY) => {
-                        forceCloseTooltip();
-                        interaction.zoomToPoint(worldX, worldY, 1.0);
+                    onDoubleClickVideo={(_video, worldX, worldY, e) => {
+                        // Only zoom on Cmd/Ctrl + Double-Click (Figma-style)
+                        const isModifier = e.metaKey || e.ctrlKey;
+                        if (isModifier) {
+                            forceCloseTooltip();
+                            interaction.zoomToPoint(worldX, worldY, 1.0);
+                        }
                     }}
                     onClickEmpty={() => {
                         setSelectionState({ selectedIds: new Set(), lastAnchor: null, hasDocked: false });
@@ -353,13 +356,13 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                 isLoading={isLoading}
                 isHidden={!showThumbnails} // Unmounts the heavy DOM when zoomed out
                 onHoverVideo={handleHoverVideo}
-                onDoubleClickVideo={(_video, worldX, worldY) => {
-                    if (clickTimeoutRef.current) {
-                        clearTimeout(clickTimeoutRef.current);
-                        clickTimeoutRef.current = null;
+                onDoubleClickVideo={(_video, worldX, worldY, e) => {
+                    // Only zoom on Cmd/Ctrl + Double-Click (Figma-style)
+                    const isModifier = e.metaKey || e.ctrlKey;
+                    if (isModifier) {
+                        forceCloseTooltip();
+                        interaction.zoomToPoint(worldX, worldY, 1.0);
                     }
-                    forceCloseTooltip();
-                    interaction.zoomToPoint(worldX, worldY, 1.0);
                 }}
                 onClickVideo={(video, e) => {
                     const PAN_COOLDOWN_MS = 200;
@@ -367,45 +370,37 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                         return; // Ignore click if we just finished panning
                     }
 
-                    if (clickTimeoutRef.current) {
-                        clearTimeout(clickTimeoutRef.current);
-                    }
-
                     const isModifier = e.metaKey || e.ctrlKey;
                     const clientX = e.clientX;
                     const clientY = e.clientY;
 
-                    clickTimeoutRef.current = setTimeout(() => {
-                        forceCloseTooltip(); // Kill tooltip immediately on selection
-                        setSelectionState(prev => {
-                            const newSet = new Set(prev.selectedIds);
+                    // Instant selection (Figma-style) - no delay
+                    forceCloseTooltip();
+                    setSelectionState(prev => {
+                        const newSet = new Set(prev.selectedIds);
 
-                            // Multi-select toggle
-                            if (isModifier) {
-                                if (newSet.has(video.id)) {
-                                    newSet.delete(video.id);
-                                } else {
-                                    newSet.add(video.id);
-                                }
-                                return {
-                                    selectedIds: newSet,
-                                    lastAnchor: { x: clientX, y: clientY },
-                                    hasDocked: prev.hasDocked // Maintain docked state during multi-select operations
-                                };
+                        // Multi-select toggle
+                        if (isModifier) {
+                            if (newSet.has(video.id)) {
+                                newSet.delete(video.id);
+                            } else {
+                                newSet.add(video.id);
                             }
-                            // Single select -> Only update if not already selected or if we want to switch selection
-                            else {
-                                // Logic: If clicking a different video, select it. 
-                                // And RESET docked state (start anchored near video).
-                                return {
-                                    selectedIds: new Set([video.id]),
-                                    lastAnchor: { x: clientX, y: clientY },
-                                    hasDocked: false
-                                };
-                            }
-                        });
-                        clickTimeoutRef.current = null;
-                    }, 250);
+                            return {
+                                selectedIds: newSet,
+                                lastAnchor: { x: clientX, y: clientY },
+                                hasDocked: prev.hasDocked
+                            };
+                        }
+                        // Single select
+                        else {
+                            return {
+                                selectedIds: new Set([video.id]),
+                                lastAnchor: { x: clientX, y: clientY },
+                                hasDocked: false
+                            };
+                        }
+                    });
                 }}
             />
 

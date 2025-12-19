@@ -11,7 +11,7 @@ interface VideoDotProps {
     isActive: boolean;
     onMouseEnter: (e: React.MouseEvent, vid: TrendVideo) => void;
     onMouseLeave: () => void;
-    onDoubleClick: (video: TrendVideo, worldX: number, worldY: number) => void;
+    onDoubleClick: (video: TrendVideo, worldX: number, worldY: number, e: React.MouseEvent) => void;
     onClick: (e: React.MouseEvent) => void;
 }
 
@@ -62,7 +62,7 @@ export const VideoDot = memo(({
             onMouseLeave={onMouseLeave}
             onDoubleClick={(e) => {
                 e.stopPropagation();
-                onDoubleClick(video, x, y);
+                onDoubleClick(video, x, y, e);
             }}
         >
             <div
