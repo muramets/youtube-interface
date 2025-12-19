@@ -18,13 +18,13 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onCl
 
     const [activeFilter, setActiveFilter] = React.useState<'All' | 'Sync'>('All');
 
-    const hasSyncNotifications = notifications.some(n => n.title.includes('Sync'));
+    const hasSyncNotifications = notifications.some(n => n.title.includes('Sync') || n.title.includes('Visual Data'));
     const showFilters = hasSyncNotifications;
     const effectiveFilter = showFilters ? activeFilter : 'All';
 
     const filteredNotifications = notifications.filter(n => {
         if (effectiveFilter === 'All') return true;
-        if (effectiveFilter === 'Sync') return n.title.includes('Sync');
+        if (effectiveFilter === 'Sync') return n.title.includes('Sync') || n.title.includes('Visual Data');
         return true;
     });
 
