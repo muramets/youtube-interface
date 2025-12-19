@@ -236,23 +236,25 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     }, [structureVersion, shouldAutoFit, calculateAutoFitTransform, smoothToTransform, setTimelineConfig, currentContentHash]);
 
     // Hotkeys (Standard)
-    useTimelineHotkeys({ onAutoFit: handleSmoothFit });
+    useTimelineHotkeys({
+        onAutoFit: handleSmoothFit,
+        onEscape: clearSelection
+    });
 
     // 10. Global Hotkeys (Cmd+Shift+L to clear)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             const isCmdShiftL = (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'l';
-            const isEsc = e.key === 'Escape';
 
-            if (isCmdShiftL || isEsc) {
+            if (isCmdShiftL) {
                 e.preventDefault();
-                setSelectionState({ selectedIds: new Set(), lastAnchor: null, hasDocked: false });
+                clearSelection();
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, []);
+    }, [clearSelection]);
 
     // Determine visibility logic
     const showThumbnails = transformState.scale >= LOD_SHOW_THUMBNAIL;

@@ -2,15 +2,18 @@ import { useEffect, useRef } from 'react';
 
 interface UseTimelineHotkeysProps {
     onAutoFit: () => void;
+    onEscape: () => void;
 }
 
-export const useTimelineHotkeys = ({ onAutoFit }: UseTimelineHotkeysProps) => {
-    // Use a ref to avoid re-binding the event listener when onAutoFit changes
+export const useTimelineHotkeys = ({ onAutoFit, onEscape }: UseTimelineHotkeysProps) => {
+    // Use a ref to avoid re-binding the event listener when callbacks change
     const onAutoFitRef = useRef(onAutoFit);
+    const onEscapeRef = useRef(onEscape);
 
     useEffect(() => {
         onAutoFitRef.current = onAutoFit;
-    }, [onAutoFit]);
+        onEscapeRef.current = onEscape;
+    }, [onAutoFit, onEscape]);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -19,6 +22,10 @@ export const useTimelineHotkeys = ({ onAutoFit }: UseTimelineHotkeysProps) => {
             if (key === 'z' || key === 'я') {
                 e.preventDefault();
                 onAutoFitRef.current();
+            }
+            if (key === 'escape') {
+                e.preventDefault();
+                onEscapeRef.current();
             }
         };
         document.addEventListener('keydown', handleKeyDown);
