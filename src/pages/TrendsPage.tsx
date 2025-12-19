@@ -192,17 +192,9 @@ export const TrendsPage: React.FC = () => {
         };
     }, [trendsFilters]);
 
-    // Managed Stats Logic
-    const { currentStats, frozenStats, shouldAutoFit, refreshStats, skipAutoFitRef } = useFrozenStats({
-        allVideos,
-        filteredVideos,
-        channels,
-        selectedChannelId,
-        filterMode,
-        activeNicheIds,
-        hasUnassignedFilter
-    });
-
+    // Generate Filter Hash for Smart Auto-Updates
+    // This allows us to distinguish between "Filter/Niche Switch" (Auto-Update) 
+    // and "Global Visibility Toggle" (Manual Update)
     // Generate Filter Hash for Smart Auto-Updates
     // This allows us to distinguish between "Filter/Niche Switch" (Auto-Update) 
     // and "Global Visibility Toggle" (Manual Update)
@@ -215,8 +207,20 @@ export const TrendsPage: React.FC = () => {
             .join('|');
 
         // Include selectedChannelId so switching channels triggers auto-fit
-        return `${selectedChannelId || 'global'}:${nicheKey}:${otherFiltersKey}`;
-    }, [activeNicheIds, trendsFilters, selectedChannelId]);
+        // AND include hasUnassignedFilter so toggling it triggers a hash change (and thus auto-fit)
+        return `${selectedChannelId || 'global'}:${nicheKey}:${hasUnassignedFilter ? 'unassigned' : ''}:${otherFiltersKey}`;
+    }, [activeNicheIds, trendsFilters, selectedChannelId, hasUnassignedFilter]);
+
+    // Managed Stats Logic
+    const { currentStats, frozenStats, shouldAutoFit, refreshStats, skipAutoFitRef } = useFrozenStats({
+        allVideos,
+        filteredVideos,
+        channels,
+        selectedChannelId,
+        filterMode,
+        hasUnassignedFilter,
+        filterHash
+    });
 
     return (
         <div className="flex flex-col h-full bg-bg-primary">
@@ -239,6 +243,7 @@ export const TrendsPage: React.FC = () => {
                 isLoading={isLoading || channels.length === 0}
                 percentileMap={globalPercentileMap}
                 frozenStats={frozenStats}
+                currentStats={currentStats}
                 shouldAutoFit={shouldAutoFit}
                 onRequestStatsRefresh={refreshStats}
                 skipAutoFitRef={skipAutoFitRef}

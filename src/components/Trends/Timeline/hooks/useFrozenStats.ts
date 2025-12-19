@@ -13,9 +13,10 @@ interface UseFrozenStatsProps {
     channels: ChannelBasic[];
     selectedChannelId: string | null;
     filterMode: 'global' | 'filtered';
-    activeNicheIds: string[];
     /** True when UNASSIGNED filter is active */
     hasUnassignedFilter?: boolean;
+    /** Current combined filter hash (to detect all filter changes) */
+    filterHash?: string;
 }
 
 /** Computes min/max stats from a set of videos */
@@ -38,7 +39,7 @@ const computeStats = (videos: TrendVideo[]): TimelineStats | undefined => {
  * - Z key / revert
  * - Channel add/remove
  * - Filter mode change
- * - Niche selection change
+ * - Filter hash change (applying any filter)
  * 
  * Also stays frozen when UNASSIGNED filter is active, so videos can be
  * assigned to niches without the timeline jumping.
@@ -49,19 +50,17 @@ export const useFrozenStats = ({
     channels,
     selectedChannelId,
     filterMode,
-    activeNicheIds,
-    hasUnassignedFilter = false
+    hasUnassignedFilter = false,
+    filterHash
 }: UseFrozenStatsProps) => {
     const frozenStatsRef = useRef<TimelineStats | undefined>(undefined);
     const [statsVersion, setStatsVersion] = useState(0);
 
-    const hasNicheFilter = activeNicheIds.length > 0;
-    const nicheIdsKey = useMemo(() => activeNicheIds.sort().join(','), [activeNicheIds]);
     const channelIdsKey = useMemo(() => channels.map(c => c.id).sort().join(','), [channels]);
 
     const prevChannelIdsKeyRef = useRef(channelIdsKey);
     const prevFilterModeRef = useRef(filterMode);
-    const prevNicheIdsKeyRef = useRef(nicheIdsKey);
+    const prevFilterHashRef = useRef(filterHash);
     const prevAllCountRef = useRef(allVideos.length);
     const skipAutoFitRef = useRef(false);
     const skipNextFreezeRef = useRef(false);
@@ -78,22 +77,15 @@ export const useFrozenStats = ({
     }
 
     // Stats source selection based on context
+    // Any filter (niche, dates, views) in "Filtered" mode should cause timeline to fit filtered set.
+    // In "Global" mode, we always use the full set (allVideos, which is already scoped to selected channel).
     const statsSourceVideos = useMemo(() => {
-        // Main Trends page: use allVideos (visible channels)
-        if (!selectedChannelId) {
-            return allVideos;
-        }
-        // Channel view without niche: always global
-        if (!hasNicheFilter) {
-            return allVideos;
-        }
-        // Channel view with niche: respect filterMode
         return filterMode === 'global' ? allVideos : filteredVideos;
-    }, [selectedChannelId, hasNicheFilter, filterMode, allVideos, filteredVideos]);
+    }, [filterMode, allVideos, filteredVideos]);
 
     const currentStats = useMemo(() => computeStats(statsSourceVideos), [statsSourceVideos]);
 
-    // Auto-refresh logic
+    // Auto-refresh logic (Frozen Stats Management)
     useEffect(() => {
         const channelListChanged = prevChannelIdsKeyRef.current !== channelIdsKey;
         prevChannelIdsKeyRef.current = channelIdsKey;
@@ -101,18 +93,22 @@ export const useFrozenStats = ({
         const filterModeChanged = prevFilterModeRef.current !== filterMode;
         prevFilterModeRef.current = filterMode;
 
-        const nicheSelectionChanged = prevNicheIdsKeyRef.current !== nicheIdsKey;
-        prevNicheIdsKeyRef.current = nicheIdsKey;
+        const filterHashChanged = prevFilterHashRef.current !== filterHash;
+        prevFilterHashRef.current = filterHash;
 
         prevAllCountRef.current = allVideos.length;
 
+        // Auto-refresh frozen stats if:
+        // 1. No stats yet
+        // 2. Fundamental context changed (channel list, filter mode)
+        // 3. ANY filter changed (hash changed - dates, views, niches)
         const shouldAutoRefresh =
             !frozenStatsRef.current ||
             channelListChanged ||
             filterModeChanged ||
-            nicheSelectionChanged;
+            filterHashChanged;
 
-        const isFilterModeToggleOnly = filterModeChanged && !channelListChanged && !nicheSelectionChanged;
+        const isFilterModeToggleOnly = filterModeChanged && !channelListChanged && !filterHashChanged;
 
         if (shouldAutoRefresh) {
             if (skipNextFreezeRef.current) {
@@ -124,7 +120,7 @@ export const useFrozenStats = ({
         }
 
         skipAutoFitRef.current = isFilterModeToggleOnly;
-    }, [currentStats, channelIdsKey, filterMode, nicheIdsKey, allVideos.length]);
+    }, [currentStats, channelIdsKey, filterMode, filterHash, allVideos.length]);
 
     // Manual refresh callback (Z key)
     const refreshStats = useCallback(() => {

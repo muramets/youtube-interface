@@ -42,6 +42,8 @@ interface TimelineCanvasProps {
     percentileMap?: Map<string, string>;
     /** Frozen stats from parent (used when shouldAutoFit is false) */
     frozenStats?: TimelineStats;
+    /** Real-time stats from parent (used for initial fit) */
+    currentStats?: TimelineStats;
     /** If true, calculate stats from videos; if false, use frozenStats */
     shouldAutoFit?: boolean;
     onRequestStatsRefresh?: () => void;
@@ -56,6 +58,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     isLoading = false,
     percentileMap,
     frozenStats,
+    currentStats,
     shouldAutoFit = false,
     onRequestStatsRefresh,
     skipAutoFitRef,
@@ -64,16 +67,23 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     const { timelineConfig, setTimelineConfig, setAddChannelModalOpen } = useTrendStore();
     const { scalingMode, verticalSpread, timeLinearity } = timelineConfig;
 
-    // Determine effective stats: use frozenStats if not auto-fitting
-    const effectiveStats = shouldAutoFit ? undefined : frozenStats;
+    // Determine effective stats for triggering updates. 
+    // In Filtered mode (shouldAutoFit=true), we use undefined to signal real-time Scaling.
+    // In Global/Stable mode, we use frozenStats to detect context shifts.
+    const triggeringStats = shouldAutoFit ? undefined : frozenStats;
 
     // 1. Structure Auto-Update Logic
-    const { structureVersion, forceStructureUpdate } = useTimelineAutoUpdate({
+    const { structureVersion, forceStructureUpdate, shouldAutoFit: hookShouldAutoFit } = useTimelineAutoUpdate({
         videos,
-        forcedStats: effectiveStats,
+        forcedStats: triggeringStats,
         skipAutoFitRef,
         filterHash
     });
+
+    // Determine stats specifically for current structure calculation.
+    // If we are currently triggering a fit (hookShouldAutoFit), we MUST use currentStats 
+    // to ensure the jump is accurate, even if we are in a "frozen" context.
+    const statsForStructure = (shouldAutoFit || hookShouldAutoFit) ? currentStats : frozenStats;
 
     // 2. Structure Logic
     const {
@@ -85,7 +95,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     } = useTimelineStructure({
         videos,
         allVideos,
-        stats: effectiveStats,
+        stats: statsForStructure,
         structureVersion,
         timeLinearity,
         isFrozen: !shouldAutoFit
@@ -207,7 +217,6 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     });
 
     const { isPanning, selectionRect, smoothToTransform } = interaction;
-
     // 9. Manual Fit / Auto Fit Logic
     const appliedStructureVersionRef = useRef(0);
     const shouldAutoFitRef = useRef(false);
@@ -225,7 +234,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
             appliedStructureVersionRef.current = structureVersion;
 
             // Use declarative flag from hook OR manual override
-            const canFit = shouldAutoFit || shouldAutoFitRef.current;
+            const canFit = hookShouldAutoFit || shouldAutoFitRef.current;
 
             if (canFit) {
                 const fitTransform = calculateAutoFitTransform();
@@ -242,7 +251,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
             }
             shouldAutoFitRef.current = false;
         }
-    }, [structureVersion, shouldAutoFit, calculateAutoFitTransform, smoothToTransform, setTimelineConfig, currentContentHash]);
+    }, [structureVersion, hookShouldAutoFit, calculateAutoFitTransform, smoothToTransform, setTimelineConfig, currentContentHash]);
 
     // Hotkeys (Standard)
     useTimelineHotkeys({

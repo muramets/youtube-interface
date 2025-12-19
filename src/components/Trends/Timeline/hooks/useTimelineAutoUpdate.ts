@@ -45,7 +45,11 @@ export const useTimelineAutoUpdate = ({ videos, forcedStats, skipAutoFitRef, fil
         // If the context defining the "World" changes, we MUST update.
         // This includes Niche Filters changing (Hash Change).
         if (hasStatsChanged || hasHashChanged) {
-            setShouldAutoFit(!isSkipRequested);
+            // New logic: If Hash changed (explicit filter change), ALWAYS fit (ignore skip).
+            // If only Stats changed (e.g. Mode toggle Global->Filtered), respect skip.
+            const shouldFit = hasHashChanged ? true : !isSkipRequested;
+
+            setShouldAutoFit(shouldFit);
             setStructureVersion(v => v + 1);
             return;
         }
