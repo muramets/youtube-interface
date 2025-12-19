@@ -27,6 +27,7 @@ import { useAutoCleanup } from './hooks/useAutoCleanup';
 import { useFilterChannelSync } from './hooks/useFilterChannelSync';
 import { useTrendSubscription } from './hooks/useTrendSubscription';
 import { useUserPersistence } from './hooks/useUserPersistence';
+import { TrendsDndProvider } from './components/Trends/TrendsDndProvider';
 
 function AppContent() {
   useCheckinScheduler();
@@ -86,25 +87,28 @@ function AppContent() {
           <ProtectedRoute>
             <>
               <Header />
-              <div className="flex flex-1 overflow-hidden relative">
-                <Sidebar />
-                <main className="flex-1 flex flex-col overflow-y-auto relative">
-                  <Routes>
-                    <Route path="/" element={
-                      <div className="h-full flex flex-col">
-                        <CategoryBar />
-                        <div className="flex-1 min-h-0 relative">
-                          <VideoGrid isLoading={isLoading} onVideoMove={handleVideoMove} />
+              {/* DnD Context for Trends: Video → Niche drag and drop */}
+              <TrendsDndProvider>
+                <div className="flex flex-1 overflow-hidden relative">
+                  <Sidebar />
+                  <main className="flex-1 flex flex-col overflow-y-auto relative">
+                    <Routes>
+                      <Route path="/" element={
+                        <div className="h-full flex flex-col">
+                          <CategoryBar />
+                          <div className="flex-1 min-h-0 relative">
+                            <VideoGrid isLoading={isLoading} onVideoMove={handleVideoMove} />
+                          </div>
                         </div>
-                      </div>
-                    } />
-                    <Route path="/watch/:id" element={<WatchPage />} />
-                    <Route path="/playlists" element={<PlaylistsPage />} />
-                    <Route path="/playlists/:id" element={<PlaylistDetailPage />} />
-                    <Route path="/trends" element={<TrendsPage />} />
-                  </Routes>
-                </main>
-              </div>
+                      } />
+                      <Route path="/watch/:id" element={<WatchPage />} />
+                      <Route path="/playlists" element={<PlaylistsPage />} />
+                      <Route path="/playlists/:id" element={<PlaylistDetailPage />} />
+                      <Route path="/trends" element={<TrendsPage />} />
+                    </Routes>
+                  </main>
+                </div>
+              </TrendsDndProvider>
             </>
           </ProtectedRoute>
         } />

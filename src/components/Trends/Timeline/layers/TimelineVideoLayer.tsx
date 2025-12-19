@@ -1,8 +1,9 @@
 import React, { useState, useRef, forwardRef, useImperativeHandle } from 'react';
+import { useDndMonitor } from '@dnd-kit/core';
 import type { TrendVideo, VideoPosition } from '../../../../types/trends';
 import { useTimelineVirtualization } from '../hooks/useTimelineVirtualization';
 import { VideoDot } from '../nodes/VideoDot';
-import { VideoNode } from '../nodes/VideoNode';
+import { DraggableVideoNode } from '../nodes/DraggableVideoNode';
 import {
     LOD_SHOW_LABEL,
     LOD_SHOW_THUMBNAIL,
@@ -83,7 +84,18 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
     const showThumbnails = transform.scale >= LOD_SHOW_THUMBNAIL;
     const showLabels = transform.scale >= LOD_SHOW_LABEL;
 
+    // Track global drag state to suppress tooltips during drag
+    const [isAnyDragging, setIsAnyDragging] = useState(false);
+    useDndMonitor({
+        onDragStart: () => setIsAnyDragging(true),
+        onDragEnd: () => setIsAnyDragging(false),
+        onDragCancel: () => setIsAnyDragging(false),
+    });
+
     const handleMouseEnter = (e: React.MouseEvent, video: TrendVideo) => {
+        // Don't show tooltip during drag
+        if (isAnyDragging) return;
+
         if (elevationTimeoutRef.current) clearTimeout(elevationTimeoutRef.current);
 
         setFocusedVideoId(video.id);
@@ -139,7 +151,7 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
             >
                 {!isLoading && (showThumbnails ? (
                     visibleVideos.map((position) => (
-                        <VideoNode
+                        <DraggableVideoNode
                             key={position.video.id}
                             position={position}
                             worldWidth={worldWidth}

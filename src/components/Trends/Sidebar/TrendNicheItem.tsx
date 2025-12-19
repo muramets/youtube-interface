@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useDroppable } from '@dnd-kit/core';
 import { MoreVertical, Check, Trash2 } from 'lucide-react';
 import type { TrendNiche } from '../../../types/trends';
 import { useTrendStore, MANUAL_NICHE_PALETTE } from '../../../stores/trendStore';
@@ -33,6 +34,12 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(niche.name);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+
+    // DnD: Make this niche a drop target (only for non-trash items)
+    const { setNodeRef, isOver } = useDroppable({
+        id: niche.id,
+        disabled: isTrash
+    });
 
     const menuRef = useRef<HTMLDivElement>(null);
     const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -103,17 +110,34 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
 
     const isInteracting = isMenuOpen || isColorPickerOpen;
 
+    // Premium: When dragging video over this niche, show highlight
+    const isDragTarget = isOver && !isTrash;
+
     return (
-        <div className={`relative group/niche ml-8 ${isInteracting ? 'z-20' : ''}`}>
+        <div
+            ref={setNodeRef}
+            className={`relative group/niche ml-8 ${isDragTarget ? 'z-[10001]' : isInteracting ? 'z-20' : ''}`}
+            // When drag target, show tooltip on hover over entire item
+            onMouseEnter={isDragTarget ? () => {
+                if (nameRef.current) {
+                    const rect = nameRef.current.getBoundingClientRect();
+                    setTooltipPos({ x: rect.left, y: rect.top - 4 });
+                }
+                setIsNameHovered(true);
+            } : undefined}
+            onMouseLeave={isDragTarget ? () => setIsNameHovered(false) : undefined}
+        >
             <div
                 onClick={() => !isEditing && onClick(niche.id)}
                 className={`
-                    flex items-center pl-2 pr-2 py-1.5 cursor-pointer transition-colors rounded-lg
-                    ${isActive
-                        ? 'bg-white/10 text-white'
-                        : isInteracting
-                            ? 'bg-white/5 text-white'
-                            : 'text-text-secondary hover:text-white hover:bg-white/5'
+                    flex items-center pl-2 pr-2 py-1.5 cursor-pointer transition-all rounded-lg
+                    ${isDragTarget
+                        ? 'bg-white/20 text-white'
+                        : isActive
+                            ? 'bg-white/10 text-white'
+                            : isInteracting
+                                ? 'bg-white/5 text-white'
+                                : 'text-text-secondary hover:text-white hover:bg-white/5'
                     }
                 `}
             >
@@ -176,6 +200,7 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                         ref={nameRef}
                         className={`text-xs overflow-hidden whitespace-nowrap transition-colors leading-none translate-y-[-1px] ${isEditing ? 'opacity-0' : ''}`}
                         style={isTruncated ? {
+                            // Fade truncation always applied (name visible via tooltip when isDragTarget)
                             maskImage: 'linear-gradient(to right, black 50%, transparent 100%)',
                             WebkitMaskImage: 'linear-gradient(to right, black 50%, transparent 100%)'
                         } : undefined}
