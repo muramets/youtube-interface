@@ -60,21 +60,18 @@ export const useTrendsSidebar = () => {
 
         // 3. Force Target to Root View
         // The store might have auto-loaded a Niche view for this channel.
-        // We want to override that because clicking the Channel Name implies "Go to Root".
+        // We override that because clicking the Channel Name explicitly implies "Go to Root".
 
-        // Check if the loaded state (now current) has a Niche filter
-        // We need to access the FRESH state from store, but we can't easily do it inside the hook synchronously 
-        // without getting it from the store directly or assuming `trendsFilters` here is stale.
-        // ACTUALLY, we can just blindly restore the Root Filters for this channel.
-
+        // We access the store state directly to ensure we check the freshest state 
+        // after the setSelectedChannelId update above.
         const rootFilters = useTrendStore.getState().channelRootFilters[channelId];
         if (rootFilters) {
             setTrendsFilters(rootFilters);
         } else {
             // If no root filters saved, verify if we need to clean up a potential Niche filter
-            // that might have been loaded.
-            const freshFilters = useTrendStore.getState().trendsFilters;
-            const hasNiche = freshFilters.some(f => f.type === 'niche');
+            // that might have been loaded by default.
+            const currentStoreFilters = useTrendStore.getState().trendsFilters;
+            const hasNiche = currentStoreFilters.some(f => f.type === 'niche');
             if (hasNiche) {
                 setTrendsFilters([]);
             }

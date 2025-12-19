@@ -56,8 +56,7 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
         const currentNicheFilter = trendsFilters.find(f => f.type === 'niche');
         if (currentNicheFilter) {
             // We are currently in a Niche (or TRASH)
-            // Save to nicheFilters
-            // The value is an array of strings, but usually one niche ID
+            // Save state to nicheFilters: nicheId -> currentFilters
             const activeIds = currentNicheFilter.value as string[];
             if (activeIds.length === 1) {
                 setNicheFilters(activeIds[0], trendsFilters);
@@ -68,12 +67,11 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
         }
 
         // 2. Prepare Context Switch
-        // If switching channel, we need to activate it
+        // If switching channel, we must activate it first.
         if (selectedChannelId !== targetChannelId) {
             handleChannelClick(targetChannelId);
             // Note: handleChannelClick loads the last state of that channel. 
-            // Ideally we should override it immediately if we are going straight to a niche.
-            // But let's let it settle, then we overwrite below.
+            // We let it settle, then overwrite filters below with the target niche state.
         }
 
         // 3. Load Target Niche State
