@@ -5,6 +5,7 @@ import { TimelineDateHeader } from './TimelineDateHeader';
 import { TimelineViewAxis } from './TimelineViewAxis';
 import { TimelineBackground } from './TimelineBackground';
 import { TimelineVideoLayer, type TimelineVideoLayerHandle } from './layers/TimelineVideoLayer';
+import { TimelineDotsLayer } from './layers/TimelineDotsLayer';
 import { TimelineControls } from './TimelineControls';
 import { TimelineSkeleton } from './TimelineSkeleton';
 import { TimelineSelectionOverlay } from './TimelineSelectionOverlay';
@@ -26,6 +27,9 @@ const PADDING_LEFT = 64;
 const PADDING_RIGHT = 12;
 const PADDING_TOP = 12;
 const PADDING_BOTTOM = 12;
+
+// LOD Thresholds
+const LOD_SHOW_THUMBNAIL = 0.25;
 
 import { TrendsFloatingBar } from './TrendsFloatingBar';
 
@@ -255,7 +259,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     }, []);
 
     // Determine visibility logic
-    // isMultiSelect logic is handled internally
+    const showThumbnails = transformState.scale >= LOD_SHOW_THUMBNAIL;
 
     return (
         <div
@@ -283,6 +287,53 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
             )}
 
             {/* 2. Video Content (Middle Layer) */}
+
+            {/* Optimized Canvas Layer for Zoomed Out State */}
+            {!isLoading && !showThumbnails && (
+                <TimelineDotsLayer
+                    videoPositions={videoPositions}
+                    transform={transformState}
+                    worldWidth={worldWidth}
+                    worldHeight={dynamicWorldHeight}
+                    activeVideoIds={selectionState.selectedIds}
+                    hoveredVideoId={hoveredVideo?.video.id || null}
+                    getPercentileGroup={getPercentileGroup}
+                    onHoverVideo={handleHoverVideo}
+                    onClickVideo={(video, e) => {
+                        // Copy-paste logic from TimelineVideoLayer or extract to handler
+                        // Reusing the same interaction logic is best.
+                        const isModifier = e.metaKey || e.ctrlKey;
+                        const clientX = e.clientX;
+                        const clientY = e.clientY;
+
+                        forceCloseTooltip();
+                        setSelectionState(prev => {
+                            const newSet = new Set(prev.selectedIds);
+                            if (isModifier) {
+                                if (newSet.has(video.id)) newSet.delete(video.id);
+                                else newSet.add(video.id);
+                                return {
+                                    selectedIds: newSet,
+                                    lastAnchor: { x: clientX, y: clientY },
+                                    hasDocked: prev.hasDocked
+                                };
+                            } else {
+                                return {
+                                    selectedIds: newSet.has(video.id) ? newSet : new Set([video.id]),
+                                    lastAnchor: { x: clientX, y: clientY },
+                                    hasDocked: false
+                                };
+                            }
+                        });
+                    }}
+                    onDoubleClickVideo={(_video, worldX, worldY) => {
+                        forceCloseTooltip();
+                        interaction.zoomToPoint(worldX, worldY, 1.0);
+                    }}
+                />
+            )}
+
+            {/* DOM Layer for Zoomed In State (Thumbnails) */}
             <TimelineVideoLayer
                 ref={videoLayerRef}
                 videoPositions={videoPositions}
@@ -297,6 +348,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                 getPercentileGroup={getPercentileGroup}
                 setAddChannelModalOpen={setAddChannelModalOpen}
                 isLoading={isLoading}
+                isHidden={!showThumbnails} // Unmounts the heavy DOM when zoomed out
                 onHoverVideo={handleHoverVideo}
                 onDoubleClickVideo={(_video, worldX, worldY) => {
                     if (clickTimeoutRef.current) {

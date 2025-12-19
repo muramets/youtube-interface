@@ -17,6 +17,7 @@ interface TimelineVideoLayerProps {
     getPercentileGroup: (videoId: string) => string | undefined;
     style?: React.CSSProperties;
     isLoading?: boolean;
+    isHidden?: boolean;
 }
 
 export interface TimelineVideoLayerHandle {
@@ -39,8 +40,11 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
     onHoverVideo,
     onDoubleClickVideo,
     onClickVideo,
-    isLoading = false
+    isLoading = false,
+    isHidden = false
 }, ref) => {
+    // Immediate optimization: If hidden, render null to unmount heavy DOM
+    if (isHidden) return null;
 
     // Local state for smooth interactions (hover, pan) -- decoupled from React render if needed
     const layerRef = useRef<HTMLDivElement>(null);

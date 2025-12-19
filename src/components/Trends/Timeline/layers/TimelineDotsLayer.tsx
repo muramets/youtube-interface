@@ -1,0 +1,371 @@
+import React, { useRef, useLayoutEffect, useEffect, useState } from 'react';
+import type { TrendVideo, VideoPosition } from '../../../../types/trends';
+import { getDotStyle } from '../../../../utils/trendStyles';
+
+interface TimelineDotsLayerProps {
+    videoPositions: VideoPosition[];
+    transform: { scale: number; offsetX: number; offsetY: number };
+    worldWidth: number;
+    worldHeight: number;
+    activeVideoIds: Set<string>;
+    hoveredVideoId: string | null;
+    getPercentileGroup: (videoId: string) => string | undefined;
+    onHoverVideo: (data: { video: TrendVideo; x: number; y: number; width: number; height: number } | null) => void;
+    onClickVideo: (video: TrendVideo, e: React.MouseEvent) => void;
+    onDoubleClickVideo: (video: TrendVideo, worldX: number, worldY: number) => void;
+}
+
+export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
+    videoPositions,
+    transform,
+    worldWidth,
+    worldHeight,
+    activeVideoIds,
+    hoveredVideoId,
+    getPercentileGroup,
+    onHoverVideo,
+    onClickVideo,
+    onDoubleClickVideo
+}) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [dpr, setDpr] = useState(1);
+
+    // Internal Interactions
+    const [internalFocusedId, setInternalFocusedId] = useState<string | null>(null);
+    const [lastFocusedId, setLastFocusedId] = useState<string | null>(null);  // For fade-out animation
+
+    // Animation State - target is 1 when focused, 0 when not
+    const animRef = useRef<{ id: number }>({ id: 0 });
+    const [animProgress, setAnimProgress] = useState(0); // 0 to 1
+    const animTargetRef = useRef(0);  // Target value we're animating towards
+    const animStartRef = useRef(0);   // Starting value when animation begins
+    const animStartTimeRef = useRef(0);
+
+    // Timeouts
+    const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const showTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const lastFoundIdRef = useRef<string | null>(null);
+
+    // Initialize DPR
+    useEffect(() => {
+        setDpr(window.devicePixelRatio || 1);
+    }, []);
+
+    // Easing function for smooth animation
+    const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+
+    // ANIMATION LOOP - Premium bidirectional animation
+    useEffect(() => {
+        const ANIM_DURATION = 200; // ms (matching VideoNode's 200ms transition)
+
+        if (internalFocusedId) {
+            // Animate IN
+            setLastFocusedId(internalFocusedId);
+            animTargetRef.current = 1;
+            animStartRef.current = animProgress;
+            animStartTimeRef.current = performance.now();
+
+            const animateIn = (time: number) => {
+                const elapsed = time - animStartTimeRef.current;
+                const rawProgress = Math.min(elapsed / ANIM_DURATION, 1);
+                const easedProgress = easeOutCubic(rawProgress);
+                const newValue = animStartRef.current + (1 - animStartRef.current) * easedProgress;
+                setAnimProgress(newValue);
+
+                if (rawProgress < 1) {
+                    animRef.current.id = requestAnimationFrame(animateIn);
+                }
+            };
+            cancelAnimationFrame(animRef.current.id);
+            animRef.current.id = requestAnimationFrame(animateIn);
+        } else if (lastFocusedId) {
+            // Animate OUT (keep lastFocusedId so we know which dot to fade)
+            animTargetRef.current = 0;
+            animStartRef.current = animProgress;
+            animStartTimeRef.current = performance.now();
+
+            const animateOut = (time: number) => {
+                const elapsed = time - animStartTimeRef.current;
+                const rawProgress = Math.min(elapsed / ANIM_DURATION, 1);
+                const easedProgress = easeOutCubic(rawProgress);
+                const newValue = animStartRef.current * (1 - easedProgress);
+                setAnimProgress(newValue);
+
+                if (rawProgress < 1) {
+                    animRef.current.id = requestAnimationFrame(animateOut);
+                } else {
+                    // Animation complete, clear the last focused id
+                    setLastFocusedId(null);
+                }
+            };
+            cancelAnimationFrame(animRef.current.id);
+            animRef.current.id = requestAnimationFrame(animateOut);
+        }
+
+        return () => cancelAnimationFrame(animRef.current.id);
+    }, [internalFocusedId]);
+
+
+    const getVisibleWorldBounds = () => {
+        if (!containerRef.current) return { start: 0, end: 0 };
+        const { width } = containerRef.current.getBoundingClientRect();
+        const start = (-transform.offsetX - 500) / transform.scale;
+        const end = (width - transform.offsetX + 500) / transform.scale;
+        return { start, end };
+    };
+
+    useLayoutEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas || !containerRef.current) return;
+
+        const ctx = canvas.getContext('2d', { alpha: true });
+        if (!ctx) return;
+
+        const { width, height } = containerRef.current.getBoundingClientRect();
+
+        const displayWidth = Math.floor(width * dpr);
+        const displayHeight = Math.floor(height * dpr);
+
+        if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+            canvas.width = displayWidth;
+            canvas.height = displayHeight;
+        }
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, width, height);
+
+        const { start, end } = getVisibleWorldBounds();
+
+        const currentScale = transform.scale || 0.001;
+        const dotScaleFactor = Math.max(1, 0.20 / currentScale);
+        const MIN_INTERACTION_SIZE = 12;
+
+        const getVisualRadius = (baseSize: number) => {
+            const effectiveSize = Math.max(baseSize, MIN_INTERACTION_SIZE);
+            return (effectiveSize / 2) * dotScaleFactor * currentScale;
+        };
+
+        let activeHoverItem: { pos: VideoPosition, x: number, y: number, r: number } | null = null;
+
+        // Pass 1: Draw Non-Hovered
+        for (const pos of videoPositions) {
+            const worldX = pos.xNorm * worldWidth;
+            if (worldX < start || worldX > end) continue;
+
+            const worldY = pos.yNorm * worldHeight;
+            const screenX = worldX * transform.scale + transform.offsetX;
+            const screenY = worldY * transform.scale + transform.offsetY;
+
+            const percentileGroup = getPercentileGroup(pos.video.id);
+            const style = getDotStyle(percentileGroup);
+            const visualRadius = getVisualRadius(style.size);
+
+            // Capture item for animation (either currently focused OR fading out)
+            const animatingId = internalFocusedId || lastFocusedId;
+            if (pos.video.id === animatingId && animProgress > 0) {
+                activeHoverItem = { pos, x: screenX, y: screenY, r: visualRadius };
+                continue;
+            }
+
+            const isActive = activeVideoIds.has(pos.video.id);
+
+            // Active Ring (Selection)
+            if (isActive) {
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, visualRadius * 1.4, 0, 2 * Math.PI);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'; // Softer fill
+                ctx.fill();
+
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.lineWidth = 2; // Thinner, crisper
+                ctx.stroke();
+            }
+
+            // Main Dot
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, visualRadius, 0, 2 * Math.PI);
+            ctx.fillStyle = style.colorHex;
+
+            if (isActive) ctx.filter = 'brightness(1.5)';
+            ctx.fill();
+            ctx.filter = 'none';
+        }
+
+        // Pass 2: Draw Hovered (Animated) - Match VideoNode hover style (no ring, soft glow)
+        if (activeHoverItem) {
+            const { pos, x: screenX, y: screenY, r: visualRadius } = activeHoverItem;
+            const percentileGroup = getPercentileGroup(pos.video.id);
+            const style = getDotStyle(percentileGroup);
+            const isActive = activeVideoIds.has(pos.video.id);
+
+            // Animate Scale: 1.0 -> 1.25 based on animProgress (matching VideoNode's scale(1.25))
+            const scale = 1.0 + (0.25 * animProgress);
+            const animatedRadius = visualRadius * scale;
+
+            // Soft Outer Glow using radial gradient (matching VideoNode's drop-shadow)
+            if (animProgress > 0) {
+                // Get glow color from CSS variable (supports theme switching)
+                const computedStyle = getComputedStyle(document.documentElement);
+                const glowRgb = computedStyle.getPropertyValue('--dot-glow-rgb').trim() || '255, 255, 255';
+
+                const glowRadius = animatedRadius * 3.5;
+                const gradient = ctx.createRadialGradient(
+                    screenX, screenY, animatedRadius * 0.5,  // Inner circle (start fade from center of dot)
+                    screenX, screenY, glowRadius              // Outer circle (fade out completely)
+                );
+
+                const glowAlpha = 0.3 * animProgress;
+                // More color stops for ultra-smooth gradient transition
+                gradient.addColorStop(0, `rgba(${glowRgb}, ${glowAlpha})`);
+                gradient.addColorStop(0.15, `rgba(${glowRgb}, ${glowAlpha * 0.7})`);
+                gradient.addColorStop(0.3, `rgba(${glowRgb}, ${glowAlpha * 0.45})`);
+                gradient.addColorStop(0.5, `rgba(${glowRgb}, ${glowAlpha * 0.2})`);
+                gradient.addColorStop(0.7, `rgba(${glowRgb}, ${glowAlpha * 0.08})`);
+                gradient.addColorStop(0.85, `rgba(${glowRgb}, ${glowAlpha * 0.02})`);
+                gradient.addColorStop(1, `rgba(${glowRgb}, 0)`);
+
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, glowRadius, 0, 2 * Math.PI);
+                ctx.fillStyle = gradient;
+                ctx.fill();
+            }
+
+            // Main Dot (Color)
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, animatedRadius, 0, 2 * Math.PI);
+            ctx.fillStyle = style.colorHex;
+            ctx.fill();
+        }
+
+    }, [videoPositions, transform, worldWidth, worldHeight, activeVideoIds, internalFocusedId, lastFocusedId, dpr, animProgress]);
+
+
+    const handleInteraction = (e: React.MouseEvent, type: 'hover' | 'click' | 'dblclick') => {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        let found: VideoPosition | null = null;
+        const { start, end } = getVisibleWorldBounds();
+        const currentScale = transform.scale || 0.001;
+        const dotScaleFactor = Math.max(1, 0.20 / currentScale);
+        const MIN_INTERACTION_SIZE = 12;
+
+        const getVisualRadius = (baseSize: number) => {
+            const effectiveSize = Math.max(baseSize, MIN_INTERACTION_SIZE);
+            return (effectiveSize / 2) * dotScaleFactor * currentScale;
+        };
+
+        const HIT_BUFFER = 8;
+
+        for (let i = videoPositions.length - 1; i >= 0; i--) {
+            const pos = videoPositions[i];
+            const worldX = pos.xNorm * worldWidth;
+            if (worldX < start || worldX > end) continue;
+
+            const worldY = pos.yNorm * worldHeight;
+            const screenX = worldX * transform.scale + transform.offsetX;
+            const screenY = worldY * transform.scale + transform.offsetY;
+
+            const percentileGroup = getPercentileGroup(pos.video.id);
+            const style = getDotStyle(percentileGroup);
+            const visualRadius = getVisualRadius(style.size);
+
+            const dx = x - screenX;
+            const dy = y - screenY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist <= visualRadius + HIT_BUFFER) {
+                found = pos;
+                break;
+            }
+        }
+
+        if (type === 'hover') {
+            const foundId = found?.video.id || null;
+
+            if (foundId !== lastFoundIdRef.current) {
+                lastFoundIdRef.current = foundId;
+
+                if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
+                if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+
+                if (found) {
+                    setInternalFocusedId(foundId);  // Use foundId (video.id), not found.id
+                    if (containerRef.current) containerRef.current.style.cursor = 'pointer';
+
+                    showTimeoutRef.current = setTimeout(() => {
+                        const screenX = found.xNorm * worldWidth * transform.scale + transform.offsetX + rect.left;
+                        const dotCenterY = found.yNorm * worldHeight * transform.scale + transform.offsetY + rect.top;
+
+                        const percentileGroup = getPercentileGroup(found.video.id);
+                        const style = getDotStyle(percentileGroup);
+                        const visualRadius = getVisualRadius(style.size);
+
+                        // Dot diameter for positioning (with hover scale 1.25 applied)
+                        const hoverScale = 1.25;
+                        const dotDiameter = visualRadius * 2 * hoverScale;
+
+                        // Position tooltip BELOW the dot (y = top of dot, height = dot diameter)
+                        // TrendTooltip will use smart positioning logic to decide final placement
+                        onHoverVideo({
+                            video: found.video,
+                            x: screenX,
+                            y: dotCenterY - (dotDiameter / 2),  // Top of the dot
+                            width: dotDiameter,
+                            height: dotDiameter
+                        });
+                    }, 500);
+
+                } else {
+                    setInternalFocusedId(null);
+                    if (containerRef.current) containerRef.current.style.cursor = 'default';
+
+                    hoverTimeoutRef.current = setTimeout(() => {
+                        onHoverVideo(null);
+                    }, 200);
+                }
+            }
+        } else if (type === 'click') {
+            e.stopPropagation(); // ALWAYS stop propagation to prevent pan logic
+            if (found) {
+                console.log('[TimelineDotsLayer] Dot Click', { videoId: found.video.id });
+                onClickVideo(found.video, e);
+            }
+        } else if (type === 'dblclick') {
+            e.stopPropagation(); // ALWAYS stop propagation to prevent container double-click
+            if (found) {
+                console.log('[TimelineDotsLayer] Dot Double Click', { videoId: found.video.id });
+                const worldX = found.xNorm * worldWidth;
+                const worldY = found.yNorm * worldHeight;
+                onDoubleClickVideo(found.video, worldX, worldY);
+            }
+            // If no dot found, do nothing - this prevents the "fit in" behavior on dot canvas
+        }
+    };
+
+    return (
+        <div
+            ref={containerRef}
+            className="absolute inset-0 w-full h-full z-10"
+            onMouseMove={(e) => handleInteraction(e, 'hover')}
+            onClick={(e) => handleInteraction(e, 'click')}
+            onDoubleClick={(e) => handleInteraction(e, 'dblclick')}
+            onMouseLeave={() => {
+                lastFoundIdRef.current = null;
+                setInternalFocusedId(null);
+                if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
+                setTimeout(() => onHoverVideo(null), 200);
+            }}
+        >
+            <canvas
+                ref={canvasRef}
+                style={{ width: '100%', height: '100%' }}
+            />
+        </div>
+    );
+};

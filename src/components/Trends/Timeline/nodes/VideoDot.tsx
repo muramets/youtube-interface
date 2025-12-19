@@ -16,22 +16,8 @@ interface VideoDotProps {
 }
 
 // Helper for percentile styles
-const getPercentileStyle = (percentile: string | undefined) => {
-    switch (percentile) {
-        case 'Top 1%':
-            return { color: 'bg-emerald-500', size: 96 }; // Was 24
-        case 'Top 5%':
-            return { color: 'bg-lime-500', size: 80 }; // Was 20
-        case 'Top 20%':
-            return { color: 'bg-blue-500', size: 64 }; // Was 16
-        case 'Middle 60%':
-            return { color: 'bg-purple-400', size: 48 }; // Was 12
-        case 'Bottom 20%':
-            return { color: 'bg-red-400', size: 40 }; // Was 10
-        default:
-            return { color: 'bg-gray-400', size: 40 };
-    }
-};
+import { getDotStyle } from '../../../../utils/trendStyles';
+
 
 export const VideoDot = memo(({
     position,
@@ -49,7 +35,7 @@ export const VideoDot = memo(({
     const { video, xNorm, yNorm } = position;
     const x = xNorm * worldWidth;
     const y = yNorm * worldHeight;
-    const { color, size: baseSize } = getPercentileStyle(percentileGroup);
+    const { tailwindColor: color, size: baseSize } = getDotStyle(percentileGroup);
 
     // Unified highlight state: active OR focused
     const isHighlighted = isFocused || isActive;

@@ -37,6 +37,9 @@
   /* Sidebar Colors */
   --sidebar-active: #f2f2f2;
   --sidebar-hover: #f2f2f2;
+
+  /* Timeline Dot Glow (Light Mode - darker glow) */
+  --dot-glow-rgb: 0, 0, 0;
 }
 
 .dark {
@@ -61,6 +64,9 @@
   /* Sidebar Colors */
   --sidebar-active: #272727;
   --sidebar-hover: #272727;
+
+  /* Timeline Dot Glow (Dark Mode - white glow) */
+  --dot-glow-rgb: 255, 255, 255;
 }
 
 body {
