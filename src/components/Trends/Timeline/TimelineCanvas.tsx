@@ -88,7 +88,15 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         isFrozen: !shouldAutoFit
     });
 
-    // 3. Tooltip Logic
+    // 3. Selection State (Moved up for Tooltip dependency)
+    const {
+        selectionState,
+        handleVideoClick,
+        clearSelection,
+        dockFloatingBar
+    } = useSelectionState();
+
+    // 4. Tooltip Logic
     const {
         hoveredVideo,
         isTooltipClosing,
@@ -96,9 +104,25 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         handleTooltipMouseEnter,
         handleTooltipMouseLeave,
         forceCloseTooltip
-    } = useTimelineTooltip();
+    } = useTimelineTooltip({
+        // If we have selected videos, we delay the tooltip show
+        delayShowCondition: selectionState.selectedIds.size > 0
+    });
 
-    // 4. Transform & Interaction
+    const selectedVideos = React.useMemo(() => {
+        return videos.filter(v => selectionState.selectedIds.has(v.id));
+    }, [videos, selectionState.selectedIds]);
+
+    const floatingBarPosition = React.useMemo(() => {
+        if (selectionState.selectedIds.size === 0 || !selectionState.lastAnchor) return { x: 0, y: 0 };
+        return selectionState.lastAnchor;
+    }, [selectionState.lastAnchor, selectionState.selectedIds.size]);
+
+    // Track if FloatingBar has an active dropdown (for hotkey handling)
+    const [hasActiveDropdown, setHasActiveDropdown] = React.useState(false);
+
+
+    // 5. Transform & Interaction
     const {
         containerRef,
         containerSizeRef,
@@ -123,7 +147,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         stats
     });
 
-    // 5. Data Positions
+    // 6. Data Positions
     const {
         videoPositions,
         getPercentileGroup
@@ -136,26 +160,6 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         dynamicWorldHeight,
         percentileMap
     });
-
-    // 6. Selection State (unified via hook)
-    const {
-        selectionState,
-        handleVideoClick,
-        clearSelection,
-        dockFloatingBar
-    } = useSelectionState();
-
-    const selectedVideos = React.useMemo(() => {
-        return videos.filter(v => selectionState.selectedIds.has(v.id));
-    }, [videos, selectionState.selectedIds]);
-
-    const floatingBarPosition = React.useMemo(() => {
-        if (selectionState.selectedIds.size === 0 || !selectionState.lastAnchor) return { x: 0, y: 0 };
-        return selectionState.lastAnchor;
-    }, [selectionState.lastAnchor, selectionState.selectedIds.size]);
-
-    // Track if FloatingBar has an active dropdown (for hotkey handling)
-    const [hasActiveDropdown, setHasActiveDropdown] = React.useState(false);
 
     // 7. Control Handlers (Smart Focus)
     const {
@@ -179,7 +183,6 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         anchorToTime,
         verticalSpread: verticalSpread ?? 1.0
     });
-
     const videoLayerRef = useRef<TimelineVideoLayerHandle>(null);
 
     // 8. Main Interaction Hook

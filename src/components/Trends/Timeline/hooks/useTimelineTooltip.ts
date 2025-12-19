@@ -9,7 +9,7 @@ export interface TooltipData {
     height: number;
 }
 
-export const useTimelineTooltip = () => {
+export const useTimelineTooltip = ({ delayShowCondition = false }: { delayShowCondition?: boolean } = {}) => {
     const [hoveredVideo, setHoveredVideo] = useState<TooltipData | null>(null);
     const [isTooltipClosing, setIsTooltipClosing] = useState(false);
 
@@ -17,9 +17,17 @@ export const useTimelineTooltip = () => {
     const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+    // New ref for show delay
+    const showTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    // Track delay condition in ref to access fresh value in callbacks if needed
+    const delayShowConditionRef = useRef(delayShowCondition);
+    delayShowConditionRef.current = delayShowCondition;
+
     const closeTooltipSmoothly = useCallback(() => {
         setIsTooltipClosing(true);
         if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+        if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
+
         closeTimeoutRef.current = setTimeout(() => {
             setHoveredVideo(null);
             setIsTooltipClosing(false);
@@ -28,11 +36,34 @@ export const useTimelineTooltip = () => {
 
     const handleHoverVideo = useCallback((data: TooltipData | null) => {
         if (data) {
+            // Clear any pending hide/close/show timers
             if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
             if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+            if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
+
             setIsTooltipClosing(false);
-            setHoveredVideo(data);
+
+            if (delayShowConditionRef.current) {
+                // If we need to delay showing, set a timeout
+                // Only if not already showing a tooltip (optional refinement, but per spec "hover on video")
+                // If we are already showing a tooltip for *another* video, typically we switch instantly or also delay. 
+                // Let's assume simple delay for now: any new hover target -> wait 1000ms.
+
+                // However, if we wanted "instant switch if tooltip is already open", we'd check `hoveredVideo`.
+                // But the request says "time needed to show tooltip... increased to 1000ms".
+                // So we'll force the delay.
+
+                showTimeoutRef.current = setTimeout(() => {
+                    setHoveredVideo(data);
+                }, 1000);
+            } else {
+                // Immediate show
+                setHoveredVideo(data);
+            }
         } else {
+            // Mouse left a video
+            if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
+
             hideTimeoutRef.current = setTimeout(() => {
                 if (!isTooltipHoveredRef.current) {
                     closeTooltipSmoothly();

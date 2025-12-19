@@ -122,7 +122,7 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({
     return createPortal(
         <div
             ref={tooltipRef}
-            className={`fixed z-popover bg-bg-secondary/95 backdrop-blur-xl border border-border rounded-xl shadow-2xl p-4 pointer-events-auto w-[340px] flex flex-col gap-3 transition-opacity duration-150 ${className || ''}`}
+            className={`fixed z-[1050] bg-bg-secondary/95 backdrop-blur-xl border border-border rounded-xl shadow-2xl p-4 pointer-events-auto w-[340px] flex flex-col gap-3 transition-opacity duration-150 ${className || ''}`}
             style={activeStyle}
             // Prevent clicks from propagating logic (scrolling etc)
             onMouseDown={(e) => e.stopPropagation()}
