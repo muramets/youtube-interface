@@ -28,7 +28,7 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
         handleSyncChannel
     } = useTrendsSidebar();
 
-    const { niches, videos, videoNicheAssignments, trendsFilters, channelFilters, addTrendsFilter, removeTrendsFilter, clearTrendsFilters, setTrendsFilters, setChannelRootFilters, nicheFilters, setNicheFilters, hiddenVideos, setFilterMode } = useTrendStore();
+    const { niches, videos, videoNicheAssignments, trendsFilters, setTrendsFilters, setChannelRootFilters, nicheFilters, setNicheFilters, hiddenVideos, setFilterMode } = useTrendStore();
 
     // Persist Trends section collapse state
     const [isContentExpanded, setIsContentExpanded] = useState(() => {
@@ -45,91 +45,94 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
         return nicheFilter ? (nicheFilter.value as string[]) : [];
     }, [trendsFilters]);
 
+    /**
+     * Handle niche click in sidebar.
+     * 
+     * FILTER STORAGE:
+     * - channelRootFilters[channelId]: ROOT state (empty or UNASSIGNED filter)
+     * - nicheFilters[nicheId]: Per-niche state (including TRASH)
+     * 
+     * CLICK BEHAVIORS:
+     * - Click different niche: Save current state, load target niche state
+     * - Click same active niche: Reset to clean niche state (only niche filter)
+     * - Click TRASH: Load from nicheFilters['TRASH']
+     */
     const handleNicheClick = (id: string | null, channelId?: string) => {
         if (!id) return;
 
         const targetChannelId = channelId || selectedChannelId;
-        if (!targetChannelId) return; // Should not happen
+        if (!targetChannelId) return;
 
-        // 1. Save Current State before switching
-        // We need to know if we are currently in a Niche or in Root
+        // Step 1: Save current state before switching
         const currentNicheFilter = trendsFilters.find(f => f.type === 'niche');
-        if (currentNicheFilter) {
-            // We are currently in a Niche (or TRASH)
-            // Save state to nicheFilters: nicheId -> currentFilters
+        const isUnassigned = currentNicheFilter && (currentNicheFilter.value as string[]).includes('UNASSIGNED');
+
+        if (currentNicheFilter && !isUnassigned) {
+            // In a real niche (including TRASH) → save to nicheFilters
             const activeIds = currentNicheFilter.value as string[];
             if (activeIds.length === 1) {
                 setNicheFilters(activeIds[0], trendsFilters);
             }
         } else if (selectedChannelId) {
-            // We are in Channel Root -> Save to channelRootFilters
+            // In ROOT or UNASSIGNED → save to channelRootFilters
             setChannelRootFilters(selectedChannelId, trendsFilters);
         }
 
-        // 2. Prepare Context Switch
-        // If switching channel, we must activate it first.
+        // Step 2: Switch channel if needed
         if (selectedChannelId !== targetChannelId) {
             handleChannelClick(targetChannelId);
-            // Note: handleChannelClick loads the last state of that channel. 
-            // We let it settle, then overwrite filters below with the target niche state.
         }
 
-        // 3. Load Target Niche State
+        // Step 3: Load target niche state
         if (id === 'TRASH') {
-            // Special handling for TRASH (treat as a unique niche ID 'TRASH')
+            // TRASH has dedicated storage
             const savedTrash = nicheFilters['TRASH'] || [];
             if (savedTrash.length > 0) {
                 setTrendsFilters(savedTrash);
             } else {
-                setTrendsFilters([]); // Clean plate
-                addTrendsFilter({
+                setTrendsFilters([{
+                    id: crypto.randomUUID(),
                     type: 'niche',
                     operator: 'contains',
                     value: ['TRASH'],
                     label: 'Niche: Untracked'
-                });
+                }]);
                 setFilterMode('filtered');
             }
             return;
         }
 
-        // Normal Niche
+        // Normal niche handling
         const savedFilters = nicheFilters[id];
-
-        // Standard exclusive toggle logic (simplified for persistence)
-        // If clicking the SAME niche that is active, we toggle OFF.
         const currentActiveNiche = trendsFilters.find(f => f.type === 'niche');
         const isActive = currentActiveNiche && (currentActiveNiche.value as string[]).includes(id);
 
         if (isActive && selectedChannelId === targetChannelId) {
-            // Toggle OFF -> Return to Root
-            // Save current niche state first (we typically do this at top, but just in case)
+            // Clicking same active niche → reset to clean state
             setNicheFilters(id, trendsFilters);
-
-            // Restore Root
-            const rootFilters = channelRootFilters[targetChannelId];
-            if (rootFilters) {
-                setTrendsFilters(rootFilters);
-            } else {
-                // Fallback clean
-                setTrendsFilters([]);
-            }
-            return;
-        }
-
-        if (savedFilters && savedFilters.length > 0) {
-            // Restore saved state
-            setTrendsFilters(savedFilters);
-        } else {
-            // Fresh Start: Clean plate + Niche Filter
-            setTrendsFilters([]);
             const nicheName = niches.find(n => n.id === id)?.name || 'Niche';
-            addTrendsFilter({
+            setTrendsFilters([{
+                id: crypto.randomUUID(),
                 type: 'niche',
                 operator: 'contains',
                 value: [id],
                 label: `Niche: ${nicheName}`
-            });
+            }]);
+            return;
+        }
+
+        // Load saved or create fresh niche filter
+        if (savedFilters && savedFilters.length > 0) {
+            setTrendsFilters(savedFilters);
+        } else {
+            const nicheName = niches.find(n => n.id === id)?.name || 'Niche';
+            setTrendsFilters([{
+                id: crypto.randomUUID(),
+                type: 'niche',
+                operator: 'contains',
+                value: [id],
+                label: `Niche: ${nicheName}`
+            }]);
         }
     };
 

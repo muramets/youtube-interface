@@ -51,9 +51,29 @@ interface TrendStore {
     channels: TrendChannel[];
     niches: TrendNiche[];
     videoNicheAssignments: Record<string, { nicheId: string; addedAt: number }[]>; // videoId -> array of niche assignments with timestamps
+
+    /**
+     * FILTER STORAGE ARCHITECTURE:
+     * 
+     * channelFilters[channelId]:
+     *   Auto-saved by setSelectedChannelId when switching channels.
+     *   Contains the "last visited state" (could be ROOT, niche, or TRASH).
+     *   Used for quick restore when switching between channels.
+     * 
+     * channelRootFilters[channelId]:
+     *   Manually saved by handleChannelClick/handleNicheClick.
+     *   Contains only ROOT state (empty filters or UNASSIGNED filter).
+     *   Used when returning from a niche to the channel's root view.
+     *   Auto-synced when modifying filters while in ROOT/UNASSIGNED mode.
+     * 
+     * nicheFilters[nicheId]:
+     *   Manually saved by handleNicheClick.
+     *   Contains per-niche state (including TRASH at nicheFilters['TRASH']).
+     *   Used when switching between niches to preserve each niche's filters.
+     */
     channelFilters: Record<string, TrendsFilterItem[]>;
-    channelRootFilters: Record<string, TrendsFilterItem[]>; // Stashed filters for channel root
-    nicheFilters: Record<string, TrendsFilterItem[]>; // Stashed filters for specific niches (nicheId -> filters)
+    channelRootFilters: Record<string, TrendsFilterItem[]>;
+    nicheFilters: Record<string, TrendsFilterItem[]>;
     hiddenVideos: HiddenVideo[]; // Videos moved to trash
 
     // UI State
@@ -215,18 +235,90 @@ export const useTrendStore = create<TrendStore>()(
             setIsLoadingChannels: (isLoading) => set({ isLoadingChannels: isLoading }),
             setFilterMode: (mode) => set({ filterMode: mode }),
 
-            addTrendsFilter: (filter) => set((state) => ({
-                trendsFilters: [...state.trendsFilters, { ...filter, id: crypto.randomUUID() }]
-            })),
+            /**
+             * Add a filter to trendsFilters.
+             * 
+             * AUTO-SYNC RULE: If on a channel and NOT in a real niche, 
+             * automatically save to channelRootFilters.
+             * - UNASSIGNED counts as ROOT (syncs)
+             * - TRASH and real niches do NOT sync (have their own storage)
+             */
+            addTrendsFilter: (filter) => set((state) => {
+                const newFilters = [...state.trendsFilters, { ...filter, id: crypto.randomUUID() }];
 
-            removeTrendsFilter: (id) => set((state) => ({
-                trendsFilters: state.trendsFilters.filter((f) => f.id !== id)
-            })),
+                let newRootFilters = state.channelRootFilters;
+                const nicheFilter = newFilters.find(f => f.type === 'niche');
+                const isRealNiche = nicheFilter && !(nicheFilter.value as string[]).includes('UNASSIGNED');
 
-            clearTrendsFilters: () => set({ trendsFilters: [] }),
+                if (state.selectedChannelId && !isRealNiche) {
+                    newRootFilters = {
+                        ...state.channelRootFilters,
+                        [state.selectedChannelId]: newFilters
+                    };
+                }
 
-            setTrendsFilters: (filters) => set({ trendsFilters: filters }),
+                return { trendsFilters: newFilters, channelRootFilters: newRootFilters };
+            }),
 
+            /**
+             * Remove a filter from trendsFilters by ID.
+             * AUTO-SYNC: Same rules as addTrendsFilter.
+             */
+            removeTrendsFilter: (id) => set((state) => {
+                const newFilters = state.trendsFilters.filter((f) => f.id !== id);
+
+                let newRootFilters = state.channelRootFilters;
+                const nicheFilter = newFilters.find(f => f.type === 'niche');
+                const isRealNiche = nicheFilter && !(nicheFilter.value as string[]).includes('UNASSIGNED');
+
+                if (state.selectedChannelId && !isRealNiche) {
+                    newRootFilters = {
+                        ...state.channelRootFilters,
+                        [state.selectedChannelId]: newFilters
+                    };
+                }
+
+                return { trendsFilters: newFilters, channelRootFilters: newRootFilters };
+            }),
+
+            /**
+             * Clear all trendsFilters.
+             * Always syncs to channelRootFilters (empty = no niche = ROOT state).
+             */
+            clearTrendsFilters: () => set((state) => {
+                let newRootFilters = state.channelRootFilters;
+                if (state.selectedChannelId) {
+                    newRootFilters = {
+                        ...state.channelRootFilters,
+                        [state.selectedChannelId]: []
+                    };
+                }
+                return { trendsFilters: [], channelRootFilters: newRootFilters };
+            }),
+
+            /**
+             * Replace all trendsFilters atomically.
+             * AUTO-SYNC: Same rules as addTrendsFilter.
+             */
+            setTrendsFilters: (filters) => set((state) => {
+                let newRootFilters = state.channelRootFilters;
+                const nicheFilter = filters.find(f => f.type === 'niche');
+                const isRealNiche = nicheFilter && !(nicheFilter.value as string[]).includes('UNASSIGNED');
+
+                if (state.selectedChannelId && !isRealNiche) {
+                    newRootFilters = {
+                        ...state.channelRootFilters,
+                        [state.selectedChannelId]: filters
+                    };
+                }
+
+                return { trendsFilters: filters, channelRootFilters: newRootFilters };
+            }),
+
+            /**
+             * Manually save ROOT filters for a specific channel.
+             * Used when navigating away from a channel to preserve its ROOT state.
+             */
             setChannelRootFilters: (channelId, filters) => set((state) => ({
                 channelRootFilters: {
                     ...state.channelRootFilters,
@@ -234,6 +326,10 @@ export const useTrendStore = create<TrendStore>()(
                 }
             })),
 
+            /**
+             * Manually save filters for a specific niche.
+             * Used when navigating away from a niche to preserve its state.
+             */
             setNicheFilters: (nicheId, filters) => set((state) => ({
                 nicheFilters: {
                     ...state.nicheFilters,
