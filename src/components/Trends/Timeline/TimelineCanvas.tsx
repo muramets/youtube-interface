@@ -330,6 +330,9 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                         forceCloseTooltip();
                         interaction.zoomToPoint(worldX, worldY, 1.0);
                     }}
+                    onClickEmpty={() => {
+                        setSelectionState({ selectedIds: new Set(), lastAnchor: null, hasDocked: false });
+                    }}
                 />
             )}
 

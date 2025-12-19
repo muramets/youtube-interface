@@ -13,6 +13,7 @@ interface TimelineDotsLayerProps {
     onHoverVideo: (data: { video: TrendVideo; x: number; y: number; width: number; height: number } | null) => void;
     onClickVideo: (video: TrendVideo, e: React.MouseEvent) => void;
     onDoubleClickVideo: (video: TrendVideo, worldX: number, worldY: number) => void;
+    onClickEmpty?: () => void;
 }
 
 export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
@@ -21,11 +22,12 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
     worldWidth,
     worldHeight,
     activeVideoIds,
-    hoveredVideoId,
+    hoveredVideoId: _hoveredVideoId,
     getPercentileGroup,
     onHoverVideo,
     onClickVideo,
-    onDoubleClickVideo
+    onDoubleClickVideo,
+    onClickEmpty
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -34,6 +36,11 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
     // Internal Interactions
     const [internalFocusedId, setInternalFocusedId] = useState<string | null>(null);
     const [lastFocusedId, setLastFocusedId] = useState<string | null>(null);  // For fade-out animation
+
+    // Selection Animation State - track which dots are animating their selection state
+    const prevActiveIdsRef = useRef<Set<string>>(new Set());
+    const [selectionAnimProgress, setSelectionAnimProgress] = useState<Map<string, number>>(new Map());
+    const selectionAnimRef = useRef<{ id: number }>({ id: 0 });
 
     // Animation State - target is 1 when focused, 0 when not
     const animRef = useRef<{ id: number }>({ id: 0 });
@@ -46,6 +53,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
     const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const showTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const lastFoundIdRef = useRef<string | null>(null);
+    const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Initialize DPR
     useEffect(() => {
@@ -106,6 +114,90 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
         return () => cancelAnimationFrame(animRef.current.id);
     }, [internalFocusedId]);
 
+    // Selection Animation - animate dots when they become selected/deselected
+    useEffect(() => {
+        const ANIM_DURATION = 200;
+        const prevIds = prevActiveIdsRef.current;
+        const currentIds = activeVideoIds;
+
+        // Find newly selected and newly deselected
+        const newlySelected: string[] = [];
+        const newlyDeselected: string[] = [];
+
+        currentIds.forEach(id => {
+            if (!prevIds.has(id)) newlySelected.push(id);
+        });
+        prevIds.forEach(id => {
+            if (!currentIds.has(id)) newlyDeselected.push(id);
+        });
+
+        if (newlySelected.length === 0 && newlyDeselected.length === 0) {
+            prevActiveIdsRef.current = new Set(currentIds);
+            return;
+        }
+
+        // Initialize animation state for new transitions
+        setSelectionAnimProgress(prev => {
+            const next = new Map(prev);
+            newlySelected.forEach(id => {
+                // Inherit hover animation progress if this dot was being hovered
+                const wasHovered = (internalFocusedId === id || lastFocusedId === id);
+                next.set(id, prev.get(id) ?? (wasHovered ? animProgress : 0));
+            });
+            newlyDeselected.forEach(id => next.set(id, prev.get(id) ?? 1));
+            return next;
+        });
+
+        const startTime = performance.now();
+        const startValues = new Map<string, number>();
+        selectionAnimProgress.forEach((v, k) => startValues.set(k, v));
+        // For newly selected dots: inherit hover animation progress if this dot was being hovered
+        newlySelected.forEach(id => {
+            if (!startValues.has(id)) {
+                // If this dot was being hovered, start from hover progress instead of 0
+                const wasHovered = (internalFocusedId === id || lastFocusedId === id);
+                startValues.set(id, wasHovered ? animProgress : 0);
+            }
+        });
+        newlyDeselected.forEach(id => { if (!startValues.has(id)) startValues.set(id, 1); });
+
+        const animate = (time: number) => {
+            const elapsed = time - startTime;
+            const rawProgress = Math.min(elapsed / ANIM_DURATION, 1);
+            const easedProgress = easeOutCubic(rawProgress);
+
+            setSelectionAnimProgress(prev => {
+                const next = new Map(prev);
+                newlySelected.forEach(id => {
+                    const start = startValues.get(id) ?? 0;
+                    next.set(id, start + (1 - start) * easedProgress);
+                });
+                newlyDeselected.forEach(id => {
+                    const start = startValues.get(id) ?? 1;
+                    next.set(id, start * (1 - easedProgress));
+                });
+                return next;
+            });
+
+            if (rawProgress < 1) {
+                selectionAnimRef.current.id = requestAnimationFrame(animate);
+            } else {
+                // Clean up completed animations
+                setSelectionAnimProgress(prev => {
+                    const next = new Map(prev);
+                    newlyDeselected.forEach(id => next.delete(id));
+                    return next;
+                });
+            }
+        };
+
+        cancelAnimationFrame(selectionAnimRef.current.id);
+        selectionAnimRef.current.id = requestAnimationFrame(animate);
+        prevActiveIdsRef.current = new Set(currentIds);
+
+        return () => cancelAnimationFrame(selectionAnimRef.current.id);
+    }, [activeVideoIds]);
+
 
     const getVisibleWorldBounds = () => {
         if (!containerRef.current) return { start: 0, end: 0 };
@@ -162,35 +254,69 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
             const style = getDotStyle(percentileGroup);
             const visualRadius = getVisualRadius(style.size);
 
-            // Capture item for animation (either currently focused OR fading out)
+            // Capture item for HOVER animation (non-selected dots only)
+            // Selected dots should NOT be affected by hover - skip them
+            const isActive = activeVideoIds.has(pos.video.id);
             const animatingId = internalFocusedId || lastFocusedId;
-            if (pos.video.id === animatingId && animProgress > 0) {
+            if (!isActive && pos.video.id === animatingId && animProgress > 0) {
                 activeHoverItem = { pos, x: screenX, y: screenY, r: visualRadius };
                 continue;
             }
 
-            const isActive = activeVideoIds.has(pos.video.id);
+            // Active dots get the full hover treatment (glow + scale + ring) - with animation
+            if (isActive || selectionAnimProgress.has(pos.video.id)) {
+                // Get animation progress (1 = fully selected, 0 = not selected)
+                const selectProgress = selectionAnimProgress.get(pos.video.id) ?? (isActive ? 1 : 0);
+                if (selectProgress <= 0) continue; // Skip if fully deselected
 
-            // Active Ring (Selection)
-            if (isActive) {
+                // Animate Scale: 1.0 -> 1.25 based on selection progress
+                const activeScale = 1.0 + (0.25 * selectProgress);
+                const activeRadius = visualRadius * activeScale;
+
+                // Soft Outer Glow (same as hover glow)
+                const computedStyle = getComputedStyle(document.documentElement);
+                const glowRgb = computedStyle.getPropertyValue('--dot-glow-rgb').trim() || '255, 255, 255';
+                const glowRadius = activeRadius * 3.5;
+                const gradient = ctx.createRadialGradient(
+                    screenX, screenY, activeRadius * 0.5,
+                    screenX, screenY, glowRadius
+                );
+                const glowAlpha = 0.3 * selectProgress;
+                gradient.addColorStop(0, `rgba(${glowRgb}, ${glowAlpha})`);
+                gradient.addColorStop(0.15, `rgba(${glowRgb}, ${glowAlpha * 0.7})`);
+                gradient.addColorStop(0.3, `rgba(${glowRgb}, ${glowAlpha * 0.45})`);
+                gradient.addColorStop(0.5, `rgba(${glowRgb}, ${glowAlpha * 0.2})`);
+                gradient.addColorStop(0.7, `rgba(${glowRgb}, ${glowAlpha * 0.08})`);
+                gradient.addColorStop(0.85, `rgba(${glowRgb}, ${glowAlpha * 0.02})`);
+                gradient.addColorStop(1, `rgba(${glowRgb}, 0)`);
                 ctx.beginPath();
-                ctx.arc(screenX, screenY, visualRadius * 1.4, 0, 2 * Math.PI);
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'; // Softer fill
+                ctx.arc(screenX, screenY, glowRadius, 0, 2 * Math.PI);
+                ctx.fillStyle = gradient;
                 ctx.fill();
 
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-                ctx.lineWidth = 2; // Thinner, crisper
+                // Active Ring (Selection) - on top of glow, with animated opacity
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, activeRadius * 1.1, 0, 2 * Math.PI);
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.9 * selectProgress})`;
+                ctx.lineWidth = 2;
                 ctx.stroke();
+
+                // Main Dot (scaled + brightened)
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, activeRadius, 0, 2 * Math.PI);
+                ctx.fillStyle = style.colorHex;
+                const brightness = 1 + (0.2 * selectProgress);
+                ctx.filter = `brightness(${brightness})`;
+                ctx.fill();
+                ctx.filter = 'none';
+                continue; // Skip normal rendering
             }
 
-            // Main Dot
+            // Main Dot (non-active)
             ctx.beginPath();
             ctx.arc(screenX, screenY, visualRadius, 0, 2 * Math.PI);
             ctx.fillStyle = style.colorHex;
-
-            if (isActive) ctx.filter = 'brightness(1.5)';
             ctx.fill();
-            ctx.filter = 'none';
         }
 
         // Pass 2: Draw Hovered (Animated) - Match VideoNode hover style (no ring, soft glow)
@@ -198,7 +324,6 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
             const { pos, x: screenX, y: screenY, r: visualRadius } = activeHoverItem;
             const percentileGroup = getPercentileGroup(pos.video.id);
             const style = getDotStyle(percentileGroup);
-            const isActive = activeVideoIds.has(pos.video.id);
 
             // Animate Scale: 1.0 -> 1.25 based on animProgress (matching VideoNode's scale(1.25))
             const scale = 1.0 + (0.25 * animProgress);
@@ -239,7 +364,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
             ctx.fill();
         }
 
-    }, [videoPositions, transform, worldWidth, worldHeight, activeVideoIds, internalFocusedId, lastFocusedId, dpr, animProgress]);
+    }, [videoPositions, transform, worldWidth, worldHeight, activeVideoIds, internalFocusedId, lastFocusedId, dpr, animProgress, selectionAnimProgress]);
 
 
     const handleInteraction = (e: React.MouseEvent, type: 'hover' | 'click' | 'dblclick') => {
@@ -295,7 +420,11 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
                 if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
 
                 if (found) {
-                    setInternalFocusedId(foundId);  // Use foundId (video.id), not found.id
+                    // Don't trigger hover animation for selected dots
+                    const isFoundActive = activeVideoIds.has(found.video.id);
+                    if (!isFoundActive) {
+                        setInternalFocusedId(foundId);
+                    }
                     if (containerRef.current) containerRef.current.style.cursor = 'pointer';
 
                     showTimeoutRef.current = setTimeout(() => {
@@ -323,7 +452,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
 
                 } else {
                     setInternalFocusedId(null);
-                    if (containerRef.current) containerRef.current.style.cursor = 'default';
+                    if (containerRef.current) containerRef.current.style.cursor = 'grab';
 
                     hoverTimeoutRef.current = setTimeout(() => {
                         onHoverVideo(null);
@@ -332,19 +461,39 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
             }
         } else if (type === 'click') {
             e.stopPropagation(); // ALWAYS stop propagation to prevent pan logic
+
+            // Clear any pending click timeout
+            if (clickTimeoutRef.current) {
+                clearTimeout(clickTimeoutRef.current);
+                clickTimeoutRef.current = null;
+            }
+
             if (found) {
-                console.log('[TimelineDotsLayer] Dot Click', { videoId: found.video.id });
-                onClickVideo(found.video, e);
+                // Delay click to allow double-click detection
+                const videoToSelect = found.video;
+                const eventCopy = { ...e, metaKey: e.metaKey, ctrlKey: e.ctrlKey, clientX: e.clientX, clientY: e.clientY };
+                clickTimeoutRef.current = setTimeout(() => {
+                    onClickVideo(videoToSelect, eventCopy as React.MouseEvent);
+                    clickTimeoutRef.current = null;
+                }, 250);
+            } else {
+                // Click on empty space - clear selection immediately
+                onClickEmpty?.();
             }
         } else if (type === 'dblclick') {
-            e.stopPropagation(); // ALWAYS stop propagation to prevent container double-click
+            // Clear pending click timeout to prevent selection
+            if (clickTimeoutRef.current) {
+                clearTimeout(clickTimeoutRef.current);
+                clickTimeoutRef.current = null;
+            }
+
             if (found) {
-                console.log('[TimelineDotsLayer] Dot Double Click', { videoId: found.video.id });
+                e.stopPropagation(); // Only stop propagation if we hit a dot
                 const worldX = found.xNorm * worldWidth;
                 const worldY = found.yNorm * worldHeight;
                 onDoubleClickVideo(found.video, worldX, worldY);
             }
-            // If no dot found, do nothing - this prevents the "fit in" behavior on dot canvas
+            // If no dot found, let the event propagate to container for "fit in" behavior
         }
     };
 
