@@ -7,8 +7,8 @@ import { SidebarNavItem } from './SidebarNavItem';
 
 interface VideoEditSidebarProps {
     video: VideoDetails;
-    activeTab: 'details';
-    onTabChange: (tab: 'details') => void;
+    activeTab: 'packaging';
+    onTabChange: (tab: 'packaging') => void;
 }
 
 export const VideoEditSidebar: React.FC<VideoEditSidebarProps> = ({
@@ -39,9 +39,9 @@ export const VideoEditSidebar: React.FC<VideoEditSidebarProps> = ({
             <nav className="flex-1">
                 <SidebarNavItem
                     icon={<Pencil size={24} />}
-                    label="Details"
-                    isActive={activeTab === 'details'}
-                    onClick={() => onTabChange('details')}
+                    label="Packaging"
+                    isActive={activeTab === 'packaging'}
+                    onClick={() => onTabChange('packaging')}
                 />
                 {/* Future tabs will be added here */}
                 {/* <SidebarNavItem icon={<BarChart3 size={24} />} label="Performance" /> */}

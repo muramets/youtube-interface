@@ -91,7 +91,7 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
                     onClick={onDetails}
                 >
                     <FileText size={20} />
-                    <span>Details</span>
+                    <span>Packaging</span>
                 </div>
             )}
 

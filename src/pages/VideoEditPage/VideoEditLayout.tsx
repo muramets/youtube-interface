@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { type VideoDetails } from '../../utils/youtubeApi';
 import { VideoEditSidebar } from './Sidebar/VideoEditSidebar';
-import { DetailsTab } from './DetailsTab/DetailsTab';
+import { PackagingTab } from './PackagingTab/PackagingTab';
 
 interface VideoEditLayoutProps {
     video: VideoDetails;
 }
 
 export const VideoEditLayout: React.FC<VideoEditLayoutProps> = ({ video }) => {
-    const [activeTab, setActiveTab] = useState<'details'>('details');
+    const [activeTab, setActiveTab] = useState<'packaging'>('packaging');
 
     return (
         <div className="flex-1 flex overflow-hidden" style={{ backgroundColor: 'var(--video-edit-bg)' }}>
@@ -21,7 +21,7 @@ export const VideoEditLayout: React.FC<VideoEditLayoutProps> = ({ video }) => {
 
             {/* Main Content Area */}
             <div className="flex-1 overflow-y-auto">
-                {activeTab === 'details' && <DetailsTab video={video} />}
+                {activeTab === 'packaging' && <PackagingTab video={video} />}
             </div>
         </div>
     );

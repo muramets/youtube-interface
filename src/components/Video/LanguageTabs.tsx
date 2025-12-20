@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, Trash2 } from 'lucide-react';
 import { SUPPORTED_LANGUAGES } from '../../constants/languages';
 import { PortalTooltip } from '../Shared/PortalTooltip';
 
@@ -172,9 +172,9 @@ export const LanguageTabs: React.FC<LanguageTabsProps> = ({
                                             return (
                                                 <div
                                                     key={lang.code}
-                                                    className="w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-hover-bg flex items-center justify-between group transition-colors cursor-pointer"
+                                                    className="text-left px-3 py-2 text-sm text-text-primary hover:bg-[#1F1F1F] flex items-center justify-between group transition-colors cursor-pointer"
                                                     onClick={() => {
-                                                        onAddLanguage(lang.code);
+                                                        onAddLanguage(lang.code, lang.name, lang.flag);
                                                         setIsAddOpen(false);
                                                     }}
                                                 >
@@ -190,19 +190,19 @@ export const LanguageTabs: React.FC<LanguageTabsProps> = ({
                                                                 onDeleteCustomLanguage(lang.code);
                                                             }}
                                                         >
-                                                            <X size={14} />
+                                                            <Trash2 size={12} />
                                                         </button>
                                                     )}
                                                 </div>
                                             );
                                         })}
                                     </div>
-                                    <div className="border-t border-border p-2">
+                                    <div className="border-t border-border">
                                         <button
-                                            className="w-full text-left px-2 py-1.5 text-xs text-text-secondary hover:text-text-primary hover:bg-hover-bg rounded flex items-center gap-2 transition-colors"
+                                            className="w-full text-left px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-[#1F1F1F] flex items-center gap-2 transition-colors"
                                             onClick={() => setIsCustomMode(true)}
                                         >
-                                            <Plus size={12} />
+                                            <Plus size={14} />
                                             <span>Add Custom Language</span>
                                         </button>
                                     </div>

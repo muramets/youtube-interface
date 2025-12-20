@@ -6,7 +6,7 @@ import { ThumbnailSection } from './ThumbnailSection';
 import { TagsSection } from './TagsSection';
 import { ShowMoreSection } from './ShowMoreSection';
 
-interface DetailsFormProps {
+interface PackagingFormProps {
     title: string;
     setTitle: (value: string) => void;
     description: string;
@@ -23,7 +23,7 @@ interface DetailsFormProps {
     setAudioRender: (value: string) => void;
 }
 
-export const DetailsForm: React.FC<DetailsFormProps> = ({
+export const PackagingForm: React.FC<PackagingFormProps> = ({
     title,
     setTitle,
     description,
