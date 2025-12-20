@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Home, Globe, Pencil, Trash2 } from 'lucide-react';
 import type { TrendNiche } from '../../../types/trends';
 import { useTrendStore } from '../../../stores/trendStore';
+import { useNicheAnalysis, type ChannelStat, type NicheWithMeta } from '../hooks/useNicheAnalysis';
 import { SplitNicheModal } from './SplitNicheModal';
 import { MergeNichesModal } from './MergeNichesModal';
 
@@ -10,22 +11,10 @@ interface NicheContextMenuProps {
     niche: TrendNiche;
     isOpen: boolean;
     onClose: () => void;
-    position?: { x: number; y: number }; // If not provided, assumed relative parent logic
-    anchorRef?: React.RefObject<HTMLElement>; // For simple dropdowns
+    position?: { x: number; y: number };
+    anchorRef?: React.RefObject<HTMLElement>;
     onRename: () => void;
     onDelete: () => void;
-}
-
-interface ChannelStat {
-    channelId: string;
-    channelTitle: string;
-    videoCount: number;
-}
-
-interface NicheWithMeta {
-    niche: TrendNiche;
-    channelTitle: string;
-    videoCount: number;
 }
 
 export const NicheContextMenu: React.FC<NicheContextMenuProps> = ({
@@ -36,7 +25,8 @@ export const NicheContextMenu: React.FC<NicheContextMenuProps> = ({
     onRename,
     onDelete
 }) => {
-    const { updateNiche, videos, videoNicheAssignments, niches, channels } = useTrendStore();
+    const { updateNiche } = useTrendStore();
+    const { computeChannelStats, findMatchingNiches } = useNicheAnalysis();
 
     // Modal states - managed independently from context menu lifecycle
     // When user triggers split/merge, menu closes but modal stays open
@@ -48,70 +38,6 @@ export const NicheContextMenu: React.FC<NicheContextMenuProps> = ({
     // Component renders if menu is open OR any modal is open
     // This allows modals to persist after context menu is closed
     if (!isOpen && !showSplitModal && !showMergeModal) return null;
-
-    /**
-     * Compute channel stats for a global niche.
-     * Returns list of channels that have videos assigned to this niche.
-     */
-    const computeChannelStats = (): ChannelStat[] => {
-        const statsMap = new Map<string, { channelId: string; channelTitle: string; videoCount: number }>();
-
-        // Find all videos assigned to this niche
-        Object.entries(videoNicheAssignments).forEach(([videoId, assignments]) => {
-            const isAssigned = assignments.some(a => a.nicheId === niche.id);
-            if (isAssigned) {
-                const video = videos.find(v => v.id === videoId);
-                if (video) {
-                    const existing = statsMap.get(video.channelId);
-                    const channel = channels.find(c => c.id === video.channelId);
-                    const channelTitle = channel?.title || video.channelTitle || 'Unknown Channel';
-
-                    if (existing) {
-                        existing.videoCount++;
-                    } else {
-                        statsMap.set(video.channelId, {
-                            channelId: video.channelId,
-                            channelTitle,
-                            videoCount: 1
-                        });
-                    }
-                }
-            }
-        });
-
-        return Array.from(statsMap.values());
-    };
-
-    /**
-     * Find other local niches with the same name (case-insensitive).
-     */
-    const findMatchingNiches = (): NicheWithMeta[] => {
-        const normalizedName = niche.name.toLowerCase().trim();
-
-        return niches
-            .filter(n =>
-                n.id !== niche.id &&
-                n.type === 'local' &&
-                n.name.toLowerCase().trim() === normalizedName
-            )
-            .map(n => {
-                // Count videos for this niche
-                let videoCount = 0;
-                Object.values(videoNicheAssignments).forEach(assignments => {
-                    if (assignments.some(a => a.nicheId === n.id)) {
-                        videoCount++;
-                    }
-                });
-
-                const channel = channels.find(c => c.id === n.channelId);
-
-                return {
-                    niche: n,
-                    channelTitle: channel?.title || 'Unknown Channel',
-                    videoCount
-                };
-            });
-    };
 
     /**
      * GLOBAL vs LOCAL NICHE CONVERSION LOGIC:
@@ -134,7 +60,7 @@ export const NicheContextMenu: React.FC<NicheContextMenuProps> = ({
     const handleToggleType = () => {
         if (niche.type === 'global') {
             // Global → Local: Check if multi-channel scenario
-            const stats = computeChannelStats();
+            const stats = computeChannelStats(niche.id);
 
             if (stats.length > 1) {
                 // Multi-channel: Show split modal for user decision
@@ -155,7 +81,7 @@ export const NicheContextMenu: React.FC<NicheContextMenuProps> = ({
             }
         } else {
             // Local → Global: Check for same-name niches to potentially merge
-            const matching = findMatchingNiches();
+            const matching = findMatchingNiches(niche.name, niche.id);
 
             if (matching.length > 0) {
                 // Found matching niches: show merge modal for user decision
