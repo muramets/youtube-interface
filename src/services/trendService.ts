@@ -169,6 +169,211 @@ export const TrendService = {
         }
     },
 
+    // --- Niche Split/Merge Operations ---
+
+    /**
+     * Batch create multiple niches at once
+     */
+    batchAddNiches: async (userId: string, userChannelId: string, niches: TrendNiche[]) => {
+        const batch = writeBatch(db);
+        niches.forEach(niche => {
+            const ref = doc(db, `users/${userId}/channels/${userChannelId}/trendNiches`, niche.id);
+            batch.set(ref, niche);
+        });
+        await batch.commit();
+    },
+
+    /**
+     * Batch delete multiple niches at once
+     */
+    batchDeleteNiches: async (userId: string, userChannelId: string, nicheIds: string[]) => {
+        const batch = writeBatch(db);
+        nicheIds.forEach(id => {
+            const ref = doc(db, `users/${userId}/channels/${userChannelId}/trendNiches`, id);
+            batch.delete(ref);
+        });
+        await batch.commit();
+    },
+
+    /**
+     * Get all video assignments for a specific niche, with video channel info
+     */
+    getVideoAssignmentsByNiche: async (
+        userId: string,
+        userChannelId: string,
+        nicheId: string,
+        videos: TrendVideo[]
+    ): Promise<{ videoId: string; channelId: string; viewCount: number }[]> => {
+        const ref = collection(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`);
+        const snapshot = await getDocs(ref);
+        
+        const videoMap = new Map(videos.map(v => [v.id, v]));
+        const results: { videoId: string; channelId: string; viewCount: number }[] = [];
+        
+        snapshot.docs.forEach(docSnap => {
+            const videoId = docSnap.id;
+            const assignments = docSnap.data().assignments || [];
+            const isAssigned = assignments.some((a: { nicheId: string }) => a.nicheId === nicheId);
+            
+            if (isAssigned) {
+                const video = videoMap.get(videoId);
+                if (video) {
+                    results.push({
+                        videoId,
+                        channelId: video.channelId,
+                        viewCount: video.viewCount
+                    });
+                }
+            }
+        });
+        
+        return results;
+    },
+
+    /**
+     * Migrate all video assignments from one niche to another
+     */
+    migrateNicheAssignments: async (
+        userId: string,
+        userChannelId: string,
+        fromNicheId: string,
+        toNicheId: string
+    ) => {
+        const ref = collection(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`);
+        const snapshot = await getDocs(ref);
+        
+        const batch = writeBatch(db);
+        let totalViewCount = 0;
+        
+        snapshot.docs.forEach(docSnap => {
+            const videoId = docSnap.id;
+            const assignments: { nicheId: string; addedAt: number }[] = docSnap.data().assignments || [];
+            const hasFromNiche = assignments.some(a => a.nicheId === fromNicheId);
+            const hasToNiche = assignments.some(a => a.nicheId === toNicheId);
+            
+            if (hasFromNiche) {
+                // Remove fromNiche, add toNiche if not already present
+                let newAssignments = assignments.filter(a => a.nicheId !== fromNicheId);
+                if (!hasToNiche) {
+                    newAssignments.push({ nicheId: toNicheId, addedAt: Date.now() });
+                }
+                
+                const docRef = doc(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`, videoId);
+                if (newAssignments.length === 0) {
+                    batch.delete(docRef);
+                } else {
+                    batch.set(docRef, { assignments: newAssignments });
+                }
+            }
+        });
+        
+        await batch.commit();
+    },
+
+    /**
+     * Remove video-niche assignments for videos NOT from the specified channel
+     */
+    removeNonChannelAssignments: async (
+        userId: string,
+        userChannelId: string,
+        nicheId: string,
+        keepChannelId: string,
+        videos: TrendVideo[]
+    ) => {
+        const videoMap = new Map(videos.map(v => [v.id, v]));
+        const ref = collection(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`);
+        const snapshot = await getDocs(ref);
+        
+        const batch = writeBatch(db);
+        let removedViewCount = 0;
+        
+        snapshot.docs.forEach(docSnap => {
+            const videoId = docSnap.id;
+            const video = videoMap.get(videoId);
+            const assignments: { nicheId: string; addedAt: number }[] = docSnap.data().assignments || [];
+            
+            // Only process if video is NOT from keepChannelId and has this niche
+            if (video && video.channelId !== keepChannelId) {
+                const hasNiche = assignments.some(a => a.nicheId === nicheId);
+                if (hasNiche) {
+                    removedViewCount += video.viewCount;
+                    const newAssignments = assignments.filter(a => a.nicheId !== nicheId);
+                    
+                    const docRef = doc(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`, videoId);
+                    if (newAssignments.length === 0) {
+                        batch.delete(docRef);
+                    } else {
+                        batch.set(docRef, { assignments: newAssignments });
+                    }
+                }
+            }
+        });
+        
+        await batch.commit();
+        
+        // Update niche viewCount
+        if (removedViewCount > 0) {
+            const nicheRef = doc(db, `users/${userId}/channels/${userChannelId}/trendNiches`, nicheId);
+            await updateDoc(nicheRef, {
+                viewCount: increment(-removedViewCount)
+            });
+        }
+    },
+
+    /**
+     * Reassign videos from one niche to a new niche, filtered by channel
+     * Used during split operation
+     */
+    reassignVideosByChannel: async (
+        userId: string,
+        userChannelId: string,
+        fromNicheId: string,
+        toNicheId: string,
+        targetChannelId: string,
+        videos: TrendVideo[]
+    ) => {
+        const videoMap = new Map(videos.map(v => [v.id, v]));
+        const ref = collection(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`);
+        const snapshot = await getDocs(ref);
+        
+        const batch = writeBatch(db);
+        let movedViewCount = 0;
+        
+        snapshot.docs.forEach(docSnap => {
+            const videoId = docSnap.id;
+            const video = videoMap.get(videoId);
+            const assignments: { nicheId: string; addedAt: number }[] = docSnap.data().assignments || [];
+            
+            // Only process if video IS from targetChannelId and has fromNiche
+            if (video && video.channelId === targetChannelId) {
+                const hasFromNiche = assignments.some(a => a.nicheId === fromNicheId);
+                if (hasFromNiche) {
+                    movedViewCount += video.viewCount;
+                    
+                    // Replace fromNiche with toNiche
+                    const newAssignments = assignments
+                        .filter(a => a.nicheId !== fromNicheId)
+                        .concat([{ nicheId: toNicheId, addedAt: Date.now() }]);
+                    
+                    const docRef = doc(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`, videoId);
+                    batch.set(docRef, { assignments: newAssignments });
+                }
+            }
+        });
+        
+        await batch.commit();
+        
+        // Update new niche viewCount
+        if (movedViewCount > 0) {
+            const nicheRef = doc(db, `users/${userId}/channels/${userChannelId}/trendNiches`, toNicheId);
+            await updateDoc(nicheRef, {
+                viewCount: increment(movedViewCount)
+            });
+        }
+        
+        return movedViewCount;
+    },
+
     // --- Hidden Videos (Firestore) ---
 
     subscribeToHiddenVideos: (userId: string, userChannelId: string, callback: (hidden: HiddenVideo[]) => void) => {

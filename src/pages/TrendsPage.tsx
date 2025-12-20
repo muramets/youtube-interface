@@ -123,8 +123,25 @@ export const TrendsPage: React.FC = () => {
             ? videos.filter(v => hiddenIds.has(v.id))
             : videos.filter(v => !hiddenIds.has(v.id));
 
-        // Filter by Channel if selected
-        if (selectedChannelId) {
+        /**
+         * GLOBAL NICHE CHANNEL FILTER BYPASS:
+         * 
+         * When viewing a GLOBAL niche, we skip the channel filter because:
+         * - Global niches are cross-channel collections (videos from any channel)
+         * - selectedChannelId is cleared to null when clicking a global niche
+         * - But even if selectedChannelId was somehow set, we still skip the filter
+         * 
+         * LOCAL niches always respect the selectedChannelId filter because:
+         * - They belong to a specific channel
+         * - Their videos should only be visible in that channel's context
+         */
+        const isViewingGlobalNiche = nicheFilter && !selectedNicheIds.includes('TRASH') && !selectedNicheIds.includes('UNASSIGNED') && selectedNicheIds.length > 0;
+        const { niches } = useTrendStore.getState();
+        const activeNiche = isViewingGlobalNiche ? niches.find(n => selectedNicheIds.includes(n.id)) : null;
+        const isGlobalNicheActive = activeNiche?.type === 'global';
+
+        // Apply channel filter only for local niches or non-niche views
+        if (selectedChannelId && !isGlobalNicheActive) {
             candidateVideos = candidateVideos.filter(v => v.channelId === selectedChannelId);
         }
 

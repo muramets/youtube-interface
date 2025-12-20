@@ -116,6 +116,11 @@ interface TrendStore {
     assignVideoToNiche: (videoId: string, nicheId: string, viewCount: number) => Promise<void>;
     removeVideoFromNiche: (videoId: string, nicheId: string, viewCount: number) => Promise<void>;
 
+    // Niche Split/Merge Actions
+    splitNicheToLocal: (nicheId: string, channelDataMap: Map<string, { channelTitle: string; videoCount: number }>) => Promise<void>;
+    mergeNichesToGlobal: (sourceNicheIds: string[], targetNicheId: string) => Promise<void>;
+    removeVideosFromOtherChannels: (nicheId: string, keepChannelId: string) => Promise<void>;
+
     // Hidden Videos Actions
     hideVideos: (videos: { id: string; channelId: string }[]) => void;
     restoreVideos: (ids: string[]) => void;
@@ -407,6 +412,119 @@ export const useTrendStore = create<TrendStore>()(
                 });
 
                 await TrendService.removeVideoFromNiche(userId, userChannelId, videoId, nicheId, viewCount);
+            },
+
+            // Niche Split/Merge Actions
+
+            /**
+             * Split a global niche into multiple local niches, one per channel.
+             * Creates new local niches for each channel that has videos in the original niche.
+             */
+            splitNicheToLocal: async (nicheId, channelDataMap) => {
+                const { userId, niches, videos } = get();
+                const userChannelId = useChannelStore.getState().currentChannel?.id;
+                if (!userId || !userChannelId) return;
+
+                const originalNiche = niches.find(n => n.id === nicheId);
+                if (!originalNiche) return;
+
+                // Create new local niches for each channel
+                const newNiches: TrendNiche[] = [];
+                channelDataMap.forEach((data, channelId) => {
+                    if (data.videoCount > 0) {
+                        newNiches.push({
+                            id: crypto.randomUUID(),
+                            name: originalNiche.name,
+                            color: originalNiche.color,
+                            type: 'local',
+                            channelId: channelId,
+                            viewCount: 0, // Will be updated by reassignVideosByChannel
+                            createdAt: Date.now()
+                        });
+                    }
+                });
+
+                // Optimistic update: add new niches, remove original
+                set({
+                    niches: [...niches.filter(n => n.id !== nicheId), ...newNiches]
+                });
+
+                // Backend operations
+                await TrendService.batchAddNiches(userId, userChannelId, newNiches);
+
+                // Reassign videos to new local niches
+                for (const newNiche of newNiches) {
+                    await TrendService.reassignVideosByChannel(
+                        userId,
+                        userChannelId,
+                        nicheId,
+                        newNiche.id,
+                        newNiche.channelId!,
+                        videos
+                    );
+                }
+
+                // Delete the original global niche
+                await TrendService.deleteNiche(userId, userChannelId, nicheId);
+            },
+
+            /**
+             * Merge multiple local niches (with same name) into a single global niche.
+             * Migrates all video assignments to the target niche and deletes source niches.
+             */
+            mergeNichesToGlobal: async (sourceNicheIds, targetNicheId) => {
+                const { userId, niches } = get();
+                const userChannelId = useChannelStore.getState().currentChannel?.id;
+                if (!userId || !userChannelId) return;
+
+                // Filter out target from sources (it stays, just becomes global)
+                const nichesToMerge = sourceNicheIds.filter(id => id !== targetNicheId);
+
+                // Optimistic update: remove source niches, update target to global
+                set({
+                    niches: niches
+                        .filter(n => !nichesToMerge.includes(n.id))
+                        .map(n => n.id === targetNicheId ? { ...n, type: 'global' as const } : n)
+                });
+
+                // Migrate assignments from each source niche to target
+                for (const sourceId of nichesToMerge) {
+                    await TrendService.migrateNicheAssignments(userId, userChannelId, sourceId, targetNicheId);
+                }
+
+                // Update target niche to global
+                await TrendService.updateNiche(userId, userChannelId, targetNicheId, { type: 'global' });
+
+                // Delete source niches
+                await TrendService.batchDeleteNiches(userId, userChannelId, nichesToMerge);
+            },
+
+            /**
+             * Remove video assignments from channels other than keepChannelId,
+             * then convert the niche to local.
+             */
+            removeVideosFromOtherChannels: async (nicheId, keepChannelId) => {
+                const { userId, niches, videos } = get();
+                const userChannelId = useChannelStore.getState().currentChannel?.id;
+                if (!userId || !userChannelId) return;
+
+                // Optimistic update: convert to local immediately
+                set({
+                    niches: niches.map(n =>
+                        n.id === nicheId
+                            ? { ...n, type: 'local' as const, channelId: keepChannelId }
+                            : n
+                    )
+                });
+
+                // Remove assignments for non-keepChannel videos
+                await TrendService.removeNonChannelAssignments(userId, userChannelId, nicheId, keepChannelId, videos);
+
+                // Update niche to local
+                await TrendService.updateNiche(userId, userChannelId, nicheId, {
+                    type: 'local',
+                    channelId: keepChannelId
+                });
             },
 
             // Hidden Videos Actions

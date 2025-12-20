@@ -28,7 +28,7 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
         handleSyncChannel
     } = useTrendsSidebar();
 
-    const { niches, videos, videoNicheAssignments, trendsFilters, setTrendsFilters, setChannelRootFilters, nicheFilters, setNicheFilters, hiddenVideos, setFilterMode } = useTrendStore();
+    const { niches, videos, videoNicheAssignments, trendsFilters, setTrendsFilters, setChannelRootFilters, nicheFilters, setNicheFilters, hiddenVideos, setFilterMode, setSelectedChannelId } = useTrendStore();
 
     // Persist Trends section collapse state
     const [isContentExpanded, setIsContentExpanded] = useState(() => {
@@ -60,8 +60,9 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
     const handleNicheClick = (id: string | null, channelId?: string) => {
         if (!id) return;
 
-        const targetChannelId = channelId || selectedChannelId;
-        if (!targetChannelId) return;
+        // Check if this is a global niche
+        const clickedNiche = niches.find(n => n.id === id);
+        const isGlobalNiche = clickedNiche?.type === 'global';
 
         // Step 1: Save current state before switching
         const currentNicheFilter = trendsFilters.find(f => f.type === 'niche');
@@ -78,9 +79,30 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
             setChannelRootFilters(selectedChannelId, trendsFilters);
         }
 
-        // Step 2: Switch channel if needed
-        if (selectedChannelId !== targetChannelId) {
-            handleChannelClick(targetChannelId);
+        /**
+         * Step 2: Handle channel selection based on niche type
+         * 
+         * GLOBAL NICHES behave like a "virtual channel" that shows videos from ALL channels:
+         * - Clear selectedChannelId to null (triggers loading all visible channels)
+         * - No channel is highlighted in sidebar
+         * - Videos from all visible channels are displayed
+         * 
+         * LOCAL NICHES require a channel context:
+         * - Set selectedChannelId to the niche's channel
+         * - That channel is highlighted in sidebar
+         * - Only videos from that channel are displayed
+         */
+        if (isGlobalNiche) {
+            // GLOBAL NICHE: Clear channel selection to show videos from ALL visible channels
+            setSelectedChannelId(null);
+        } else {
+            // LOCAL NICHE or TRASH: Requires a channel context
+            const targetChannelId = channelId || selectedChannelId;
+            if (!targetChannelId) return;
+
+            if (selectedChannelId !== targetChannelId) {
+                handleChannelClick(targetChannelId);
+            }
         }
 
         // Step 3: Load target niche state
@@ -107,7 +129,10 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
         const currentActiveNiche = trendsFilters.find(f => f.type === 'niche');
         const isActive = currentActiveNiche && (currentActiveNiche.value as string[]).includes(id);
 
-        if (isActive && selectedChannelId === targetChannelId) {
+        // For global niches, we don't check selectedChannelId match since we cleared it
+        const shouldResetToClean = isActive && (isGlobalNiche || selectedChannelId === channelId);
+
+        if (shouldResetToClean) {
             // Clicking same active niche → reset to clean state
             setNicheFilters(id, trendsFilters);
             const nicheName = niches.find(n => n.id === id)?.name || 'Niche';
