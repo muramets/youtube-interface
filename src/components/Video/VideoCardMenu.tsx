@@ -1,5 +1,5 @@
 import React from 'react';
-import { ListPlus, Edit2, Trash2, RefreshCw, MinusCircle, ArrowLeftRight } from 'lucide-react';
+import { ListPlus, Edit2, Trash2, RefreshCw, MinusCircle, ArrowLeftRight, FileText } from 'lucide-react';
 import { Dropdown } from '../Shared/Dropdown';
 
 interface VideoCardMenuProps {
@@ -15,6 +15,7 @@ interface VideoCardMenuProps {
     onSync?: (e: React.MouseEvent) => void;
     isSyncing?: boolean;
     onSwitchView?: (e: React.MouseEvent) => void;
+    onDetails?: (e: React.MouseEvent) => void;
 }
 
 export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
@@ -29,7 +30,8 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
     onDelete,
     onSync,
     isSyncing,
-    onSwitchView
+    onSwitchView,
+    onDetails
 }) => {
     const showSaveToPlaylist = !playlistId;
     const showEdit = isCustom;
@@ -80,6 +82,16 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
                 >
                     <Edit2 size={20} />
                     <span>Edit</span>
+                </div>
+            )}
+
+            {onDetails && (
+                <div
+                    className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"
+                    onClick={onDetails}
+                >
+                    <FileText size={20} />
+                    <span>Details</span>
                 </div>
             )}
 

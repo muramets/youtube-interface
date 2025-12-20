@@ -216,6 +216,12 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     }
   };
 
+  const handleDetails = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    handleMenuClose();
+    navigate(`/video/${video.id}/edit`);
+  };
+
   const handleSaveCustomVideo = async (updatedVideo: Omit<VideoDetails, 'id'>, shouldClose = true) => {
     if (user && currentChannel) {
       await updateVideo({ videoId: video.id, updates: updatedVideo, apiKey });
@@ -446,6 +452,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                     onSync={(!video.isCustom || video.publishedVideoId) ? handleSync : undefined}
                     isSyncing={isSyncing}
                     onSwitchView={video.publishedVideoId ? handleSwitchView : undefined}
+                    onDetails={handleDetails}
                   />
                 </>
               )

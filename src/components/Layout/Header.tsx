@@ -13,7 +13,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { useAuth } from '../../hooks/useAuth';
 import { useChannels } from '../../hooks/useChannels';
 
-export const Header: React.FC = () => {
+export const Header: React.FC<{ className?: string }> = ({ className }) => {
   const location = useLocation();
   const [isChannelDropdownOpen, setIsChannelDropdownOpen] = React.useState(false);
   const { currentChannel } = useChannelStore();
@@ -34,7 +34,7 @@ export const Header: React.FC = () => {
   const { toggleSidebar } = useUIStore();
 
   return (
-    <header className="flex justify-between items-center px-4 py-2 sticky top-0 bg-bg-primary z-[100]">
+    <header className={`flex justify-between items-center px-4 py-2 sticky top-0 z-[100] ${className || 'bg-bg-primary'}`}>
       <div className="flex items-center gap-4">
         <button
           onClick={toggleSidebar}

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Copy, Trash2 } from 'lucide-react';
+import { X, Copy, Trash2, Check } from 'lucide-react';
 import { PortalTooltip } from './Shared/PortalTooltip';
 
 interface TagsInputProps {
@@ -11,6 +11,7 @@ interface TagsInputProps {
 
 export const TagsInput: React.FC<TagsInputProps> = ({ tags, onChange, onShowToast, readOnly = false }) => {
     const [input, setInput] = useState('');
+    const [copied, setCopied] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -37,6 +38,8 @@ export const TagsInput: React.FC<TagsInputProps> = ({ tags, onChange, onShowToas
     const handleCopyAll = () => {
         const cleanTags = tags.map(tag => tag.replace(/^#/, ''));
         navigator.clipboard.writeText(cleanTags.join(', '));
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1000);
         if (onShowToast) {
             onShowToast('Tags copied to clipboard', 'success');
         }
@@ -71,12 +74,12 @@ export const TagsInput: React.FC<TagsInputProps> = ({ tags, onChange, onShowToas
             <div className="flex justify-between items-center h-5">
                 <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Tags</label>
                 <div className={`flex gap-2 transition-opacity duration-200 ${tags.length > 0 && !readOnly ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                    <PortalTooltip content="Copy all tags" align="center" enterDelay={500}>
+                    <PortalTooltip content={copied ? "Copied!" : "Copy all tags"} align="center" enterDelay={copied ? 0 : 500}>
                         <button
                             onClick={handleCopyAll}
-                            className="text-text-secondary hover:text-text-primary transition-colors p-1 rounded hover:bg-white/10"
+                            className={`transition-colors p-1 rounded hover:bg-white/10 ${copied ? 'text-green-500' : 'text-text-secondary hover:text-text-primary'}`}
                         >
-                            <Copy size={14} />
+                            {copied ? <Check size={14} /> : <Copy size={14} />}
                         </button>
                     </PortalTooltip>
                     <PortalTooltip content="Remove all tags" align="center" enterDelay={500}>

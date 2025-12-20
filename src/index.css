@@ -65,6 +65,9 @@
   --sidebar-active: #272727;
   --sidebar-hover: #272727;
 
+  /* Video Edit Page */
+  --video-edit-bg: #282828;
+
   /* Timeline Dot Glow (Dark Mode - white glow) */
   --dot-glow-rgb: 255, 255, 255;
 }
