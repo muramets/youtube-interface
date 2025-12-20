@@ -317,6 +317,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                     worldHeight={dynamicWorldHeight}
                     activeVideoIds={selectionState.selectedIds}
                     getPercentileGroup={getPercentileGroup}
+                    verticalSpread={verticalSpread}
                     onHoverVideo={handleHoverVideo}
                     onClickVideo={(video, e) => {
                         forceCloseTooltip();

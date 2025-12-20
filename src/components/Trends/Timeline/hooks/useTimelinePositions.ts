@@ -114,7 +114,14 @@ export const useTimelinePositions = ({
             return { video, xNorm, yNorm: expandedY / dynamicWorldHeight, baseSize };
         });
 
-        positions.sort((a, b) => b.baseSize - a.baseSize);
+        /**
+         * Z-ORDER SORTING:
+         * Sort by baseSize ASCENDING so that:
+         * 1. Smaller dots are rendered first (background)
+         * 2. Larger dots are rendered last (foreground / on top)
+         * 3. Hit detection picks largest overlapping dot (matching visual z-order)
+         */
+        positions.sort((a, b) => a.baseSize - b.baseSize);
         return positions;
     }, [videos, stats, scalingMode, monthLayouts, verticalSpread, dynamicWorldHeight]);
 

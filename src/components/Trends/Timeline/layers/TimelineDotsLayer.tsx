@@ -20,6 +20,8 @@ interface TimelineDotsLayerProps {
     onClickVideo: (video: TrendVideo, e: React.MouseEvent) => void;
     onDoubleClickVideo: (video: TrendVideo, worldX: number, worldY: number, e: React.MouseEvent) => void;
     onClickEmpty?: () => void;
+    /** Used to reduce hit buffer when dots are densely packed (0 = no spread, 1 = full spread) */
+    verticalSpread?: number;
 }
 
 export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
@@ -32,7 +34,8 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
     onHoverVideo,
     onClickVideo,
     onDoubleClickVideo,
-    onClickEmpty
+    onClickEmpty,
+    verticalSpread = 1.0
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -407,8 +410,19 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
         };
 
 
+        /**
+         * HIT DETECTION STRATEGY:
+         * When verticalSpread is low, dots overlap. We collect ALL dots under cursor
+         * and pick the one with the LARGEST baseSize (highest z-order / most views).
+         * This matches rendering order where larger dots are drawn last (on top).
+         * 
+         * BUFFER SCALING: Reduce hit buffer when dots are compressed to allow
+         * precise hovering on small dots between large ones.
+         */
+        const scaledHitBuffer = DOT_HIT_BUFFER_PX * Math.max(0.1, verticalSpread);
+        const candidates: Array<{ pos: VideoPosition; dist: number }> = [];
 
-        for (let i = videoPositions.length - 1; i >= 0; i--) {
+        for (let i = 0; i < videoPositions.length; i++) {
             const pos = videoPositions[i];
             const worldX = pos.xNorm * worldWidth;
             if (worldX < start || worldX > end) continue;
@@ -425,10 +439,20 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
             const dy = y - screenY;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
-            if (dist <= visualRadius + DOT_HIT_BUFFER_PX) {
-                found = pos;
-                break;
+            if (dist <= visualRadius + scaledHitBuffer) {
+                candidates.push({ pos, dist });
             }
+        }
+
+        // Pick the candidate with largest baseSize (z-order priority)
+        // If tied on size, pick the closest to cursor
+        if (candidates.length > 0) {
+            candidates.sort((a, b) => {
+                const sizeDiff = b.pos.baseSize - a.pos.baseSize;
+                if (sizeDiff !== 0) return sizeDiff; // Larger first
+                return a.dist - b.dist; // Closer first if same size
+            });
+            found = candidates[0].pos;
         }
 
         if (type === 'hover') {
