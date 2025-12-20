@@ -191,8 +191,8 @@ export const FilterInputDate: React.FC<FilterInputDateProps> = ({
             ) : (
                 /* Days Grid */
                 <div className="grid grid-cols-7 gap-y-2 mb-4">
-                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => (
-                        <div key={d} className="text-center text-xs text-[#AAAAAA] font-medium">{d}</div>
+                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                        <div key={i} className="text-center text-xs text-[#AAAAAA] font-medium">{d}</div>
                     ))}
 
                     {Array.from({ length: firstDay }).map((_, i) => (
