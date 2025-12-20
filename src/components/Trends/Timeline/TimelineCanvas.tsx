@@ -8,6 +8,7 @@ import { TimelineVideoLayer, type TimelineVideoLayerHandle } from './layers/Time
 import { TimelineDotsLayer } from './layers/TimelineDotsLayer';
 import { TimelineControls } from './TimelineControls';
 import { TimelineSkeleton } from './TimelineSkeleton';
+import { TimelineEmptyState } from './TimelineEmptyState';
 import { TimelineSelectionOverlay } from './TimelineSelectionOverlay';
 import type { TrendVideo, TimelineStats } from '../../../types/trends';
 
@@ -50,6 +51,8 @@ interface TimelineCanvasProps {
     /** If true, skip auto-fit on next structure update (for filterMode toggle) */
     skipAutoFitRef?: React.RefObject<boolean>;
     filterHash?: string;
+    /** True when on main page and all channels have visibility toggled off */
+    allChannelsHidden?: boolean;
 }
 
 export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
@@ -62,9 +65,10 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     shouldAutoFit = false,
     onRequestStatsRefresh,
     skipAutoFitRef,
-    filterHash
+    filterHash,
+    allChannelsHidden = false
 }) => {
-    const { timelineConfig, setTimelineConfig, setAddChannelModalOpen } = useTrendStore();
+    const { timelineConfig, setTimelineConfig, setAddChannelModalOpen, clearTrendsFilters } = useTrendStore();
     const { scalingMode, verticalSpread, timeLinearity } = timelineConfig;
 
     // Determine effective stats for triggering updates. 
@@ -297,7 +301,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
             <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-text-primary/[0.02] to-transparent" />
 
             {/* 1. Background (Bottom Layer) */}
-            {!isLoading && (
+            {!isLoading && videos.length > 0 && (
                 <TimelineBackground
                     monthRegions={monthRegions}
                     transform={transformState}
@@ -350,9 +354,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                     transition: 'opacity 0.3s ease'
                 } as React.CSSProperties}
                 getPercentileGroup={getPercentileGroup}
-                setAddChannelModalOpen={setAddChannelModalOpen}
                 isLoading={isLoading}
-                isHidden={!showThumbnails} // Unmounts the heavy DOM when zoomed out
+                isHidden={!showThumbnails}
                 onHoverVideo={handleHoverVideo}
                 onDoubleClickVideo={(_video, worldX, worldY, e) => {
                     // Only zoom on Cmd/Ctrl + Double-Click (Figma-style)
@@ -373,10 +376,19 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                 }}
             />
 
+            {/* Empty State (visible regardless of zoom level) */}
+            {!isLoading && videos.length === 0 && (
+                <TimelineEmptyState
+                    variant={allChannelsHidden ? 'channels-hidden' : (allVideos?.length ?? 0) > 0 ? 'filtered' : 'no-data'}
+                    onAddChannels={() => setAddChannelModalOpen(true)}
+                    onClearFilters={clearTrendsFilters}
+                />
+            )}
+
             {/* 3. Headers & UI Overlays (Top Layer) */}
             {isLoading ? (
                 <TimelineSkeleton />
-            ) : (
+            ) : videos.length > 0 ? (
                 <>
                     <div className="absolute top-0 left-0 right-0 z-10 pointer-events-none">
                         <div className="pointer-events-auto">
@@ -398,7 +410,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                         style={{ top: HEADER_HEIGHT }}
                     />
                 </>
-            )}
+            ) : null}
 
             <TimelineSelectionOverlay selectionRect={selectionRect} />
 

@@ -36,6 +36,9 @@ export const TrendsPage: React.FC = () => {
         return channels.filter(c => c.isVisible);
     }, [channels, selectedChannelId]);
 
+    // Detect when on main page but all channels are hidden
+    const allChannelsHidden = !selectedChannelId && channels.length > 0 && visibleChannels.length === 0;
+
     // Load videos for visible channels
     const hasLoadedOnceRef = useRef(false);
     const prevSelectedChannelRef = useRef(selectedChannelId);
@@ -196,6 +199,7 @@ export const TrendsPage: React.FC = () => {
                 onRequestStatsRefresh={refreshStats}
                 skipAutoFitRef={skipAutoFitRef}
                 filterHash={filterHash}
+                allChannelsHidden={allChannelsHidden}
             />
         </div>
     );

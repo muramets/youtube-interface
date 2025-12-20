@@ -21,7 +21,6 @@ interface TimelineVideoLayerProps {
     onHoverVideo: (data: { video: TrendVideo; x: number; y: number; width: number; height: number } | null) => void;
     onDoubleClickVideo: (video: TrendVideo, worldX: number, worldY: number, e: React.MouseEvent) => void;
     onClickVideo: (video: TrendVideo, e: React.MouseEvent) => void;
-    setAddChannelModalOpen: (isOpen: boolean) => void;
     getPercentileGroup: (videoId: string) => string | undefined;
     style?: React.CSSProperties;
     isLoading?: boolean;
@@ -42,7 +41,6 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
     activeVideoIds,
     style,
     getPercentileGroup,
-    setAddChannelModalOpen,
     onHoverVideo,
     onDoubleClickVideo,
     onClickVideo,
@@ -194,23 +192,6 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
                     ))
                 ))}
             </div>
-
-            {!isLoading && videoPositions.length === 0 && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="text-center pointer-events-auto">
-                        <div className="text-text-secondary text-lg mb-2">No videos to display</div>
-                        <div className="text-text-secondary text-sm">
-                            <span
-                                onClick={() => setAddChannelModalOpen(true)}
-                                className="text-text-secondary hover:text-white transition-colors hover:underline cursor-pointer"
-                            >
-                                Add channels
-                            </span>
-                            {" and sync data"}
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 });
