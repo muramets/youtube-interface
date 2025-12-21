@@ -21,6 +21,7 @@ interface PackagingFormProps {
     setVideoRender: (value: string) => void;
     audioRender: string;
     setAudioRender: (value: string) => void;
+    readOnly?: boolean;
 }
 
 export const PackagingForm: React.FC<PackagingFormProps> = ({
@@ -38,6 +39,7 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
     setVideoRender,
     audioRender,
     setAudioRender,
+    readOnly = false,
 }) => {
     const [showMore, setShowMore] = useState(false);
 
@@ -50,7 +52,7 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
             <DescriptionInput value={description} onChange={setDescription} />
 
             {/* Thumbnail */}
-            <ThumbnailSection value={coverImage} onChange={setCoverImage} />
+            <ThumbnailSection value={coverImage} onChange={setCoverImage} readOnly={readOnly} />
 
             {/* Tags */}
             <TagsSection tags={tags} setTags={setTags} />

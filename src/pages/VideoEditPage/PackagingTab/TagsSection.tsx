@@ -7,12 +7,5 @@ interface TagsSectionProps {
 }
 
 export const TagsSection: React.FC<TagsSectionProps> = ({ tags, setTags }) => {
-    return (
-        <div className="flex flex-col gap-2">
-            <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">
-                Tags
-            </label>
-            <TagsInput tags={tags} onChange={setTags} />
-        </div>
-    );
+    return <TagsInput tags={tags} onChange={setTags} />;
 };

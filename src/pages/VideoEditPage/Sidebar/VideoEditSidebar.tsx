@@ -1,20 +1,30 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Pencil } from 'lucide-react';
-import { type VideoDetails } from '../../../utils/youtubeApi';
+import { ArrowLeft } from 'lucide-react';
+import { type VideoDetails, type PackagingVersion } from '../../../utils/youtubeApi';
 import { SidebarVideoPreview } from './SidebarVideoPreview';
 import { SidebarNavItem } from './SidebarNavItem';
+import { SidebarPackagingNav } from './SidebarPackagingNav';
 
 interface VideoEditSidebarProps {
     video: VideoDetails;
-    activeTab: 'packaging';
-    onTabChange: (tab: 'packaging') => void;
+    // Version props
+    versions: PackagingVersion[];
+    viewingVersion: number | 'draft';
+    activeVersion: number | 'draft';  // The version currently used by the video
+    hasDraft: boolean;
+    onVersionClick: (versionNumber: number | 'draft') => void;
+    onDeleteVersion: (versionNumber: number) => void;
 }
 
 export const VideoEditSidebar: React.FC<VideoEditSidebarProps> = ({
     video,
-    activeTab,
-    onTabChange,
+    versions,
+    viewingVersion,
+    activeVersion,
+    hasDraft,
+    onVersionClick,
+    onDeleteVersion,
 }) => {
     const navigate = useNavigate();
 
@@ -37,11 +47,13 @@ export const VideoEditSidebar: React.FC<VideoEditSidebarProps> = ({
 
             {/* Navigation Items */}
             <nav className="flex-1">
-                <SidebarNavItem
-                    icon={<Pencil size={24} />}
-                    label="Packaging"
-                    isActive={activeTab === 'packaging'}
-                    onClick={() => onTabChange('packaging')}
+                <SidebarPackagingNav
+                    versions={versions}
+                    viewingVersion={viewingVersion}
+                    activeVersion={activeVersion}
+                    hasDraft={hasDraft}
+                    onVersionClick={onVersionClick}
+                    onDeleteVersion={onDeleteVersion}
                 />
                 {/* Future tabs will be added here */}
                 {/* <SidebarNavItem icon={<BarChart3 size={24} />} label="Performance" /> */}

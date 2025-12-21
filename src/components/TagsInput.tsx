@@ -98,7 +98,7 @@ export const TagsInput: React.FC<TagsInputProps> = ({ tags, onChange, onShowToas
                 onClick={() => !readOnly && inputRef.current?.focus()}
             >
                 {tags.map((tag, index) => (
-                    <div key={index} className="bg-[#3F3F3F] text-white text-sm px-3 py-1.5 rounded-full flex items-center gap-1.5 animate-scale-in">
+                    <div key={index} className="bg-[#3F3F3F] hover:bg-[#4a4a4a] text-white text-sm px-3 py-1.5 rounded-full flex items-center gap-1.5 animate-scale-in transition-colors cursor-default">
                         <span>{tag}</span>
                         {!readOnly && (
                             <button

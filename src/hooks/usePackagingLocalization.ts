@@ -180,6 +180,26 @@ export const usePackagingLocalization = ({
         setHasUnsavedChanges(false);
     }, []);
 
+    // Reset all form data from a snapshot (used when switching versions)
+    const resetToSnapshot = useCallback((snapshot: {
+        title: string;
+        description: string;
+        tags: string[];
+        localizations?: Record<string, VideoLocalization>;
+    }) => {
+        setTitle(snapshot.title);
+        setDescription(snapshot.description);
+        setTags(snapshot.tags);
+        setDefaultData({
+            title: snapshot.title,
+            description: snapshot.description,
+            tags: snapshot.tags
+        });
+        setLocalizations(snapshot.localizations || {});
+        setActiveLanguage('default'); // Reset to default language
+        setHasUnsavedChanges(false);
+    }, []);
+
     return {
         // Current form values
         title,
@@ -199,6 +219,7 @@ export const usePackagingLocalization = ({
         // State helpers
         hasUnsavedChanges,
         getFullPayload,
-        resetDirty
+        resetDirty,
+        resetToSnapshot
     };
 };

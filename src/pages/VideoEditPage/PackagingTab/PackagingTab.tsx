@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { type VideoDetails } from '../../../utils/youtubeApi';
+import { type VideoDetails, type PackagingVersion, type VideoLocalization } from '../../../utils/youtubeApi';
 import { PackagingForm } from './PackagingForm';
 import { VideoPreviewCard } from './VideoPreviewCard';
 import { LanguageTabs } from '../../../components/Video/LanguageTabs';
@@ -10,11 +10,52 @@ import { useVideos } from '../../../hooks/useVideos';
 import { useUIStore } from '../../../stores/uiStore';
 import { usePackagingLocalization } from '../../../hooks/usePackagingLocalization';
 
-interface PackagingTabProps {
-    video: VideoDetails;
+// Type for the version state from usePackagingVersions hook
+interface VersionState {
+    packagingHistory: PackagingVersion[];
+    sortedVersions: PackagingVersion[];
+    currentVersionNumber: number;
+    hasDraft: boolean;
+    activeVersion: number | 'draft';  // Version currently used by the video
+    viewingVersion: number | 'draft';  // Version currently displayed in the form
+    switchToVersion: (versionNumber: number | 'draft') => void;
+    restoreVersion: (versionNumber: number) => void;  // Make a version the active one
+    createVersion: (snapshot: {
+        title: string;
+        description: string;
+        tags: string[];
+        coverImage: string | null;
+        abTestVariants: string[];
+        localizations?: Record<string, VideoLocalization>;
+    }) => PackagingVersion;
+    saveDraft: () => void;
+    deleteVersion: (versionNumber: number) => void;
+    markDirty: () => void;
+    getVersionSnapshot: (versionNumber: number) => {
+        title: string;
+        description: string;
+        tags: string[];
+        coverImage: string | null;
+        abTestVariants: string[];
+        localizations?: Record<string, VideoLocalization>;
+    } | null;
+    getVersionsPayload: () => {
+        packagingHistory: PackagingVersion[];
+        currentPackagingVersion: number;
+        isDraft: boolean;
+    };
+    setPackagingHistory: React.Dispatch<React.SetStateAction<PackagingVersion[]>>;
+    setHasDraft: React.Dispatch<React.SetStateAction<boolean>>;
+    setActiveVersion: React.Dispatch<React.SetStateAction<number | 'draft'>>;
 }
 
-export const PackagingTab: React.FC<PackagingTabProps> = ({ video }) => {
+interface PackagingTabProps {
+    video: VideoDetails;
+    versionState: VersionState;
+    onDirtyChange: (isDirty: boolean) => void;
+}
+
+export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState, onDirtyChange }) => {
     const { user } = useAuth();
     const { currentChannel, setCurrentChannel } = useChannelStore();
     const { updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
@@ -37,29 +78,93 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [isDirty, setIsDirty] = useState(false);
 
-    // Track dirty state (includes localization changes)
+    // Reference to the currently loaded data (for dirty state comparison)
+    const [loadedSnapshot, setLoadedSnapshot] = useState({
+        title: video.title || '',
+        description: video.description || '',
+        tags: video.tags || [],
+        customImage: video.customImage || '',
+        localizations: video.localizations || {}
+    });
+
+    // Is the user viewing an old version (read-only)?
+    const isViewingOldVersion = versionState.viewingVersion !== 'draft' &&
+        versionState.viewingVersion !== versionState.activeVersion;
+
+    // Track dirty state - compare against loaded snapshot, not video
     useEffect(() => {
+        // Old versions are read-only, never dirty
+        if (isViewingOldVersion) {
+            setIsDirty(false);
+            return;
+        }
+
         const { title, description, tags, localizations } = localization.getFullPayload();
 
         const hasChanges =
-            title !== (video.title || '') ||
-            description !== (video.description || '') ||
-            JSON.stringify(tags) !== JSON.stringify(video.tags || []) ||
-            customImage !== (video.customImage || '') ||
-            publishedVideoId !== (video.publishedVideoId || '') ||
-            videoRender !== (video.videoRender || '') ||
-            audioRender !== (video.audioRender || '') ||
-            JSON.stringify(localizations) !== JSON.stringify(video.localizations || {});
+            title !== loadedSnapshot.title ||
+            description !== loadedSnapshot.description ||
+            JSON.stringify(tags) !== JSON.stringify(loadedSnapshot.tags) ||
+            customImage !== loadedSnapshot.customImage ||
+            JSON.stringify(localizations) !== JSON.stringify(loadedSnapshot.localizations);
 
         setIsDirty(hasChanges);
     }, [
         localization,
         customImage,
-        publishedVideoId,
-        videoRender,
-        audioRender,
-        video
+        loadedSnapshot,
+        isViewingOldVersion
     ]);
+
+    // Sync dirty state with parent
+    useEffect(() => {
+        onDirtyChange(isDirty);
+    }, [isDirty, onDirtyChange]);
+
+    // Load version snapshot when switching versions
+    useEffect(() => {
+        if (versionState.viewingVersion === 'draft') {
+            // Load from video (current draft state)
+            const snapshot = {
+                title: video.title || '',
+                description: video.description || '',
+                tags: video.tags || [],
+                customImage: video.customImage || '',
+                localizations: video.localizations || {}
+            };
+            localization.resetToSnapshot({
+                title: snapshot.title,
+                description: snapshot.description,
+                tags: snapshot.tags,
+                localizations: snapshot.localizations
+            });
+            setCustomImage(snapshot.customImage);
+            setLoadedSnapshot(snapshot);
+        } else {
+            // Load from version snapshot
+            const versionSnapshot = versionState.getVersionSnapshot(versionState.viewingVersion);
+            if (versionSnapshot) {
+                const snapshot = {
+                    title: versionSnapshot.title,
+                    description: versionSnapshot.description,
+                    tags: versionSnapshot.tags,
+                    customImage: versionSnapshot.coverImage || '',
+                    localizations: versionSnapshot.localizations || {}
+                };
+                localization.resetToSnapshot({
+                    title: snapshot.title,
+                    description: snapshot.description,
+                    tags: snapshot.tags,
+                    localizations: snapshot.localizations
+                });
+                setCustomImage(snapshot.customImage);
+                setLoadedSnapshot(snapshot);
+            }
+        }
+        // Reset dirty state after loading
+        setIsDirty(false);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [versionState.viewingVersion]);
 
     // Beforeunload warning for unsaved changes
     useEffect(() => {
@@ -80,6 +185,13 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video }) => {
         setIsSaving(true);
         try {
             const payload = localization.getFullPayload();
+
+            // Mark as draft (switches sidebar to Draft)
+            versionState.saveDraft();
+
+            // Get updated version payload after marking as draft
+            const versionPayload = versionState.getVersionsPayload();
+
             await updateVideo({
                 videoId: video.id,
                 updates: {
@@ -88,10 +200,24 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video }) => {
                     publishedVideoId,
                     videoRender,
                     audioRender,
+                    // Version data
+                    packagingHistory: versionPayload.packagingHistory,
+                    currentPackagingVersion: versionPayload.currentPackagingVersion,
+                    isDraft: true // Always true when saving as draft
                 }
             });
+
+            // Update loaded snapshot to current values
+            setLoadedSnapshot({
+                title: payload.title,
+                description: payload.description,
+                tags: payload.tags,
+                customImage,
+                localizations: payload.localizations
+            });
+
             localization.resetDirty();
-            showToast('Video saved successfully', 'success');
+            showToast('Saved as draft', 'success');
             setIsDirty(false);
         } catch (error) {
             console.error('Failed to save video:', error);
@@ -102,11 +228,71 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video }) => {
     };
 
     const handleCancel = () => {
-        // TODO: Reset localization state to initial
-        setCustomImage(video.customImage || '');
-        setPublishedVideoId(video.publishedVideoId || '');
-        setVideoRender(video.videoRender || '');
-        setAudioRender(video.audioRender || '');
+        // Reload from loaded snapshot
+        localization.resetToSnapshot({
+            title: loadedSnapshot.title,
+            description: loadedSnapshot.description,
+            tags: loadedSnapshot.tags,
+            localizations: loadedSnapshot.localizations
+        });
+        setCustomImage(loadedSnapshot.customImage);
+        setIsDirty(false);
+    };
+
+    // Save current form state as a new version
+    const handleSaveAsNewVersion = async () => {
+        if (!user || !currentChannel || !video.id) return;
+
+        setIsSaving(true);
+        try {
+            const payload = localization.getFullPayload();
+
+            // Create the new version
+            const newVersion = versionState.createVersion({
+                title: payload.title,
+                description: payload.description,
+                tags: payload.tags,
+                coverImage: customImage || null,
+                abTestVariants: [],
+                localizations: payload.localizations
+            });
+
+            // Get updated version payload
+            const versionPayload = versionState.getVersionsPayload();
+
+            // Save to database
+            await updateVideo({
+                videoId: video.id,
+                updates: {
+                    ...payload,
+                    customImage,
+                    publishedVideoId,
+                    videoRender,
+                    audioRender,
+                    packagingHistory: versionPayload.packagingHistory,
+                    currentPackagingVersion: versionPayload.currentPackagingVersion,
+                    isDraft: versionPayload.isDraft
+                }
+            });
+
+            // Update loaded snapshot
+            setLoadedSnapshot({
+                title: payload.title,
+                description: payload.description,
+                tags: payload.tags,
+                customImage,
+                localizations: payload.localizations
+            });
+
+            localization.resetDirty();
+            showToast(`Saved as v.${newVersion.versionNumber}`, 'success');
+            setIsDirty(false);
+        } catch (error) {
+            console.error('Failed to create version:', error);
+            showToast('Failed to create version', 'error');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     // Handle language switch
@@ -170,10 +356,35 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video }) => {
         }
     }, [user, currentChannel, showToast, setCurrentChannel]);
 
+    // Compute header title and whether to show Restore button
+    const isViewingActiveVersion = versionState.viewingVersion === versionState.activeVersion;
+    const headerTitle = versionState.viewingVersion === 'draft'
+        ? 'Video Packaging (Draft)'
+        : `Video Packaging v.${versionState.viewingVersion}`;
+
+    const handleRestore = useCallback(() => {
+        if (versionState.viewingVersion !== 'draft' && typeof versionState.viewingVersion === 'number') {
+            versionState.restoreVersion(versionState.viewingVersion);
+            showToast(`Restored to v.${versionState.viewingVersion}`, 'success');
+        }
+    }, [versionState, showToast]);
+
     return (
         <div className="flex-1 overflow-y-auto p-6">
             {/* Page Header */}
-            <h1 className="text-2xl font-medium text-white mb-4">Video Packaging</h1>
+            <div className="flex items-center gap-4 mb-4">
+                <h1 className="text-2xl font-medium text-white">{headerTitle}</h1>
+
+                {/* Restore button - show when viewing a non-active version */}
+                {!isViewingActiveVersion && versionState.viewingVersion !== 'draft' && (
+                    <button
+                        onClick={handleRestore}
+                        className="px-4 py-1.5 rounded-full text-sm font-medium bg-[#3ea6ff]/20 text-[#3ea6ff] hover:bg-[#3ea6ff]/30 transition-colors"
+                    >
+                        Restore this version
+                    </button>
+                )}
+            </div>
 
             {/* Language Tabs */}
             <div className="mb-6">
@@ -206,37 +417,60 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video }) => {
                         setVideoRender={setVideoRender}
                         audioRender={audioRender}
                         setAudioRender={setAudioRender}
+                        readOnly={isViewingOldVersion}
                     />
 
-                    {/* Action Buttons */}
-                    <div className="flex gap-3 mt-6 pt-6 border-t border-border">
-                        <button
-                            onClick={handleSave}
-                            disabled={!isDirty || isSaving}
-                            className={`
-                                px-6 py-2 rounded-full font-medium transition-colors
-                                ${isDirty && !isSaving
-                                    ? 'bg-white text-black hover:bg-gray-200'
-                                    : 'bg-white/20 text-text-secondary cursor-not-allowed'
-                                }
-                            `}
-                        >
-                            {isSaving ? 'Saving...' : 'Save'}
-                        </button>
-                        <button
-                            onClick={handleCancel}
-                            disabled={!isDirty}
-                            className={`
-                                px-6 py-2 rounded-full font-medium transition-colors
-                                ${isDirty
-                                    ? 'text-text-primary hover:bg-hover-bg'
-                                    : 'text-text-secondary cursor-not-allowed'
-                                }
-                            `}
-                        >
-                            Cancel
-                        </button>
-                    </div>
+                    {/* Action Buttons - only show when viewing draft or active version */}
+                    {!isViewingOldVersion && (
+                        <div className="flex gap-3 mt-6 pt-6 border-t border-border">
+                            <button
+                                onClick={handleSave}
+                                disabled={!isDirty || isSaving}
+                                className={`
+                                    px-6 py-2 rounded-full font-medium transition-colors
+                                    ${isDirty && !isSaving
+                                        ? 'bg-white text-black hover:bg-gray-200'
+                                        : 'bg-white/20 text-text-secondary cursor-not-allowed'
+                                    }
+                                `}
+                            >
+                                {isSaving ? 'Saving...' : isDirty ? 'Save as draft' : 'Save'}
+                            </button>
+                            <button
+                                onClick={handleCancel}
+                                disabled={!isDirty}
+                                className={`
+                                    px-6 py-2 rounded-full font-medium transition-colors
+                                    ${isDirty
+                                        ? 'text-text-primary hover:bg-hover-bg'
+                                        : 'text-text-secondary cursor-not-allowed'
+                                    }
+                                `}
+                            >
+                                Cancel
+                            </button>
+
+                            {/* Save as new version button - show when changes or viewing draft */}
+                            {(isDirty || versionState.viewingVersion === 'draft') && (
+                                <>
+                                    {/* Spacer */}
+                                    <div className="flex-1" />
+
+                                    <button
+                                        onClick={handleSaveAsNewVersion}
+                                        disabled={isSaving}
+                                        className={`
+                                            px-6 py-2 rounded-full font-medium transition-colors
+                                            border border-[#3ea6ff] text-[#3ea6ff] hover:bg-[#3ea6ff]/10
+                                            ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}
+                                        `}
+                                    >
+                                        Save as v.{versionState.currentVersionNumber}
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Video Preview (Right) */}
