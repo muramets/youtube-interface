@@ -55,7 +55,7 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
     const [showTooltip, setShowTooltip] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
     const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const nameRef = useRef<HTMLSpanElement>(null);
 
     const hasContent = niches.length > 0 || trashCount > 0;

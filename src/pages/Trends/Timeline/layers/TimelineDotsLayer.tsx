@@ -58,8 +58,8 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
     const animStartTimeRef = useRef(0);
 
     // Timeouts
-    const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const showTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const lastFoundIdRef = useRef<string | null>(null);
 
     // Cleanup timeouts on unmount

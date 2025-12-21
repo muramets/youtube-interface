@@ -253,3 +253,5 @@ export const usePackagingLocalization = ({
         resetToSnapshot
     ]);
 };
+
+export type UsePackagingLocalizationResult = ReturnType<typeof usePackagingLocalization>;

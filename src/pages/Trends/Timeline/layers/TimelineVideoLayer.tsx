@@ -67,9 +67,9 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
     const [elevatedVideoId, setElevatedVideoId] = useState<string | null>(null);
 
     // Timeouts
-    const elevationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const showTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const elevationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Use Virtualization Hook
     const { visibleVideos } = useTimelineVirtualization({

@@ -14,11 +14,11 @@ export const useTimelineTooltip = ({ delayShowCondition = false }: { delayShowCo
     const [isTooltipClosing, setIsTooltipClosing] = useState(false);
 
     const isTooltipHoveredRef = useRef(false);
-    const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // New ref for show delay
-    const showTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     // Track delay condition in ref to access fresh value in callbacks if needed
     const delayShowConditionRef = useRef(delayShowCondition);
     delayShowConditionRef.current = delayShowCondition;

@@ -69,3 +69,5 @@ export const useABTesting = ({
         saveChanges: handleSave,
     };
 };
+
+export type UseABTestingResult = ReturnType<typeof useABTesting>;

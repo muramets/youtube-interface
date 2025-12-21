@@ -158,3 +158,5 @@ export const usePackagingFormState = ({
         incomingVideoMatchesSnapshot
     };
 };
+
+export type UsePackagingFormStateResult = ReturnType<typeof usePackagingFormState>;
