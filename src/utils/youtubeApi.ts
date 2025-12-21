@@ -33,7 +33,13 @@ export interface VideoDetails {
     audioRender?: string;
     isDraft?: boolean;
     localizations?: Record<string, VideoLocalization>;
-    abTestVariants?: string[]; // Array of cover URLs or version IDs
+    abTestTitles?: string[];
+    abTestThumbnails?: string[];
+    abTestResults?: {
+        titles: number[];
+        thumbnails: number[];
+    };
+    abTestVariants?: string[]; // Deprecated? Keeping for backward compat if needed, but likely unused in new flow
     packagingHistory?: PackagingVersion[];
     currentPackagingVersion?: number;
     ctrRules?: CTRRule[];
@@ -84,7 +90,13 @@ export interface PackagingVersion {
         description: string;
         tags: string[];
         coverImage: string | null;
-        abTestVariants: string[];
+        abTestTitles?: string[];
+        abTestThumbnails?: string[];
+        abTestResults?: {
+            titles: number[];
+            thumbnails: number[];
+        };
+        abTestVariants?: string[];
         localizations?: Record<string, VideoLocalization>;
     };
 }

@@ -206,15 +206,15 @@ export const TrendService = {
     ): Promise<{ videoId: string; channelId: string; viewCount: number }[]> => {
         const ref = collection(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`);
         const snapshot = await getDocs(ref);
-        
+
         const videoMap = new Map(videos.map(v => [v.id, v]));
         const results: { videoId: string; channelId: string; viewCount: number }[] = [];
-        
+
         snapshot.docs.forEach(docSnap => {
             const videoId = docSnap.id;
             const assignments = docSnap.data().assignments || [];
             const isAssigned = assignments.some((a: { nicheId: string }) => a.nicheId === nicheId);
-            
+
             if (isAssigned) {
                 const video = videoMap.get(videoId);
                 if (video) {
@@ -226,7 +226,7 @@ export const TrendService = {
                 }
             }
         });
-        
+
         return results;
     },
 
@@ -241,23 +241,22 @@ export const TrendService = {
     ) => {
         const ref = collection(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`);
         const snapshot = await getDocs(ref);
-        
+
         const batch = writeBatch(db);
-        let totalViewCount = 0;
-        
+
         snapshot.docs.forEach(docSnap => {
             const videoId = docSnap.id;
             const assignments: { nicheId: string; addedAt: number }[] = docSnap.data().assignments || [];
             const hasFromNiche = assignments.some(a => a.nicheId === fromNicheId);
             const hasToNiche = assignments.some(a => a.nicheId === toNicheId);
-            
+
             if (hasFromNiche) {
                 // Remove fromNiche, add toNiche if not already present
                 let newAssignments = assignments.filter(a => a.nicheId !== fromNicheId);
                 if (!hasToNiche) {
                     newAssignments.push({ nicheId: toNicheId, addedAt: Date.now() });
                 }
-                
+
                 const docRef = doc(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`, videoId);
                 if (newAssignments.length === 0) {
                     batch.delete(docRef);
@@ -266,7 +265,7 @@ export const TrendService = {
                 }
             }
         });
-        
+
         await batch.commit();
     },
 
@@ -283,22 +282,22 @@ export const TrendService = {
         const videoMap = new Map(videos.map(v => [v.id, v]));
         const ref = collection(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`);
         const snapshot = await getDocs(ref);
-        
+
         const batch = writeBatch(db);
         let removedViewCount = 0;
-        
+
         snapshot.docs.forEach(docSnap => {
             const videoId = docSnap.id;
             const video = videoMap.get(videoId);
             const assignments: { nicheId: string; addedAt: number }[] = docSnap.data().assignments || [];
-            
+
             // Only process if video is NOT from keepChannelId and has this niche
             if (video && video.channelId !== keepChannelId) {
                 const hasNiche = assignments.some(a => a.nicheId === nicheId);
                 if (hasNiche) {
                     removedViewCount += video.viewCount;
                     const newAssignments = assignments.filter(a => a.nicheId !== nicheId);
-                    
+
                     const docRef = doc(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`, videoId);
                     if (newAssignments.length === 0) {
                         batch.delete(docRef);
@@ -308,9 +307,9 @@ export const TrendService = {
                 }
             }
         });
-        
+
         await batch.commit();
-        
+
         // Update niche viewCount
         if (removedViewCount > 0) {
             const nicheRef = doc(db, `users/${userId}/channels/${userChannelId}/trendNiches`, nicheId);
@@ -335,34 +334,34 @@ export const TrendService = {
         const videoMap = new Map(videos.map(v => [v.id, v]));
         const ref = collection(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`);
         const snapshot = await getDocs(ref);
-        
+
         const batch = writeBatch(db);
         let movedViewCount = 0;
-        
+
         snapshot.docs.forEach(docSnap => {
             const videoId = docSnap.id;
             const video = videoMap.get(videoId);
             const assignments: { nicheId: string; addedAt: number }[] = docSnap.data().assignments || [];
-            
+
             // Only process if video IS from targetChannelId and has fromNiche
             if (video && video.channelId === targetChannelId) {
                 const hasFromNiche = assignments.some(a => a.nicheId === fromNicheId);
                 if (hasFromNiche) {
                     movedViewCount += video.viewCount;
-                    
+
                     // Replace fromNiche with toNiche
                     const newAssignments = assignments
                         .filter(a => a.nicheId !== fromNicheId)
                         .concat([{ nicheId: toNicheId, addedAt: Date.now() }]);
-                    
+
                     const docRef = doc(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`, videoId);
                     batch.set(docRef, { assignments: newAssignments });
                 }
             }
         });
-        
+
         await batch.commit();
-        
+
         // Update new niche viewCount
         if (movedViewCount > 0) {
             const nicheRef = doc(db, `users/${userId}/channels/${userChannelId}/trendNiches`, toNicheId);
@@ -370,7 +369,7 @@ export const TrendService = {
                 viewCount: increment(movedViewCount)
             });
         }
-        
+
         return movedViewCount;
     },
 

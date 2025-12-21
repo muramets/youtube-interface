@@ -38,7 +38,6 @@ export const SplitNicheModal: React.FC<SplitNicheModalProps> = ({
     const sortedStats = [...channelStats].sort((a, b) => b.videoCount - a.videoCount);
     const primaryChannel = sortedStats[0];
     const totalVideos = sortedStats.reduce((sum, s) => sum + s.videoCount, 0);
-    const otherChannelsCount = sortedStats.length - 1;
 
     const handleRemoveOthers = async () => {
         if (!primaryChannel) return;

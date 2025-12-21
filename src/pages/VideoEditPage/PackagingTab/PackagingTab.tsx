@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { type VideoDetails, type PackagingVersion, type VideoLocalization, type CoverVersion } from '../../../utils/youtubeApi';
 import { PackagingForm } from './PackagingForm';
 import { VideoPreviewCard } from './VideoPreviewCard';
@@ -17,16 +17,17 @@ interface VersionState {
     sortedVersions: PackagingVersion[];
     currentVersionNumber: number;
     hasDraft: boolean;
-    activeVersion: number | 'draft';  // Version currently used by the video
-    viewingVersion: number | 'draft';  // Version currently displayed in the form
+    activeVersion: number | 'draft';
+    viewingVersion: number | 'draft';
     switchToVersion: (versionNumber: number | 'draft') => void;
-    restoreVersion: (versionNumber: number) => void;  // Make a version the active one
+    restoreVersion: (versionNumber: number) => void;
     createVersion: (snapshot: {
         title: string;
         description: string;
         tags: string[];
         coverImage: string | null;
-        abTestVariants: string[];
+        abTestTitles?: string[];
+        abTestThumbnails?: string[];
         abTestResults?: {
             titles: number[];
             thumbnails: number[];
@@ -41,7 +42,8 @@ interface VersionState {
         description: string;
         tags: string[];
         coverImage: string | null;
-        abTestVariants: string[];
+        abTestTitles?: string[];
+        abTestThumbnails?: string[];
         abTestResults?: {
             titles: number[];
             thumbnails: number[];
@@ -64,6 +66,11 @@ interface PackagingTabProps {
     onDirtyChange: (isDirty: boolean) => void;
 }
 
+// Fallback constants to prevent reference changes
+const EMPTY_ARRAY: any[] = [];
+const EMPTY_OBJECT: any = {};
+const DEFAULT_AB_RESULTS = { titles: [], thumbnails: [] };
+
 export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState, onDirtyChange }) => {
     const { user } = useAuth();
     const { currentChannel, setCurrentChannel } = useChannelStore();
@@ -74,8 +81,8 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
     const localization = usePackagingLocalization({
         initialTitle: video.title || '',
         initialDescription: video.description || '',
-        initialTags: video.tags || [],
-        initialLocalizations: video.localizations || {}
+        initialTags: video.tags || EMPTY_ARRAY,
+        initialLocalizations: video.localizations || EMPTY_OBJECT
     });
 
     // Other form state (not localized)
@@ -92,32 +99,37 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
     // A/B Testing state
     const [abTestModalOpen, setAbTestModalOpen] = useState(false);
     const [abTestInitialTab, setAbTestInitialTab] = useState<'title' | 'thumbnail' | 'both'>('title');
-    const [abTestTitles, setAbTestTitles] = useState<string[]>([]);
-    const [abTestThumbnails, setAbTestThumbnails] = useState<string[]>([]);
-    const [abTestResults, setAbTestResults] = useState<{ titles: number[], thumbnails: number[] }>({
-        titles: [],
-        thumbnails: []
-    });
+
+    // Initialize A/B state from video prop (draft state)
+    const [abTestTitles, setAbTestTitles] = useState<string[]>(video.abTestTitles || []);
+    const [abTestThumbnails, setAbTestThumbnails] = useState<string[]>(video.abTestThumbnails || []);
+    const [abTestResults, setAbTestResults] = useState<{ titles: number[], thumbnails: number[] }>(
+        video.abTestResults || DEFAULT_AB_RESULTS
+    );
 
     // Local state for cover history (to allow undo)
-    const [pendingHistory, setPendingHistory] = useState<CoverVersion[]>(video.coverHistory || []);
+    const [pendingHistory, setPendingHistory] = useState<CoverVersion[]>(video.coverHistory || EMPTY_ARRAY);
 
     // Reference to the currently loaded data (for dirty state comparison)
     const [loadedSnapshot, setLoadedSnapshot] = useState({
         title: video.title || '',
         description: video.description || '',
-        tags: video.tags || [],
+        tags: video.tags || EMPTY_ARRAY,
         customImage: video.customImage || '',
-        localizations: video.localizations || {},
-        abTestTitles: [] as string[],
-        abTestThumbnails: [] as string[],
-        abTestResults: { titles: [], thumbnails: [] } as { titles: number[], thumbnails: number[] },
-        coverHistory: video.coverHistory || []
+        localizations: video.localizations || EMPTY_OBJECT,
+        abTestTitles: video.abTestTitles || EMPTY_ARRAY,
+        abTestThumbnails: video.abTestThumbnails || EMPTY_ARRAY,
+        abTestResults: video.abTestResults || DEFAULT_AB_RESULTS as { titles: number[], thumbnails: number[] },
+        coverHistory: video.coverHistory || EMPTY_ARRAY
     });
 
     // Is the user viewing an old version (read-only)?
     const isViewingOldVersion = versionState.viewingVersion !== 'draft' &&
         versionState.viewingVersion !== versionState.activeVersion;
+
+    // Memoize stringified localization values to prevent infinite loops
+    const localizationTagsStr = useMemo(() => JSON.stringify(localization.tags), [localization.tags]);
+    const localizationLocsStr = useMemo(() => JSON.stringify(localization.localizations), [localization.localizations]);
 
     // Track dirty state - compare against loaded snapshot, not video
     useEffect(() => {
@@ -127,29 +139,36 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
             return;
         }
 
-        const { title, description, tags, localizations } = localization.getFullPayload();
+        const { title, description, tags, localizations: locs } = localization.getFullPayload();
 
         const hasChanges =
             title !== loadedSnapshot.title ||
             description !== loadedSnapshot.description ||
             JSON.stringify(tags) !== JSON.stringify(loadedSnapshot.tags) ||
             customImage !== loadedSnapshot.customImage ||
-            JSON.stringify(localizations) !== JSON.stringify(loadedSnapshot.localizations) ||
+            JSON.stringify(locs) !== JSON.stringify(loadedSnapshot.localizations) ||
             JSON.stringify(abTestTitles) !== JSON.stringify(loadedSnapshot.abTestTitles) ||
             JSON.stringify(abTestThumbnails) !== JSON.stringify(loadedSnapshot.abTestThumbnails) ||
             JSON.stringify(abTestResults) !== JSON.stringify(loadedSnapshot.abTestResults) ||
             JSON.stringify(pendingHistory) !== JSON.stringify(loadedSnapshot.coverHistory);
 
-        setIsDirty(hasChanges);
+        // Guard against redundant updates
+        if (hasChanges !== isDirty) {
+            setIsDirty(hasChanges);
+        }
     }, [
-        localization,
+        localization.title,
+        localization.description,
+        localizationTagsStr,
+        localizationLocsStr,
         customImage,
         loadedSnapshot,
         isViewingOldVersion,
         abTestTitles,
         abTestThumbnails,
         abTestResults,
-        pendingHistory
+        pendingHistory,
+        localization.getFullPayload
     ]);
 
     // Detect scroll for sticky header shadow
@@ -173,30 +192,55 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
         onDirtyChange(isDirty);
     }, [isDirty, onDirtyChange]);
 
-    // Load version snapshot when switching versions
+    // Memoize video snapshot to avoid effect re-runs on ref changes
+    const videoFromProps = useMemo(() => ({
+        title: video.title || '',
+        description: video.description || '',
+        tags: video.tags || EMPTY_ARRAY,
+        customImage: video.customImage || '',
+        localizations: video.localizations || EMPTY_OBJECT,
+        abTestTitles: video.abTestTitles || EMPTY_ARRAY,
+        abTestThumbnails: video.abTestThumbnails || EMPTY_ARRAY,
+        abTestResults: video.abTestResults || DEFAULT_AB_RESULTS as { titles: number[], thumbnails: number[] },
+        coverHistory: video.coverHistory || EMPTY_ARRAY
+    }), [
+        video.title,
+        video.description,
+        video.customImage,
+        JSON.stringify(video.tags),
+        JSON.stringify(video.localizations),
+        JSON.stringify(video.abTestTitles),
+        JSON.stringify(video.abTestThumbnails),
+        JSON.stringify(video.abTestResults),
+        JSON.stringify(video.coverHistory)
+    ]);
+
+    // Load version snapshot when switching versions or when video data updates (if not dirty)
     useEffect(() => {
         if (versionState.viewingVersion === 'draft') {
-            // Load from video (current draft state)
-            const snapshot = {
-                title: video.title || '',
-                description: video.description || '',
-                tags: video.tags || [],
-                customImage: video.customImage || '',
-                localizations: video.localizations || {},
-                abTestTitles: [] as string[],
-                abTestThumbnails: [] as string[],
-                abTestResults: { titles: [], thumbnails: [] } as { titles: number[], thumbnails: number[] },
-                coverHistory: video.coverHistory || []
-            };
-            localization.resetToSnapshot({
-                title: snapshot.title,
-                description: snapshot.description,
-                tags: snapshot.tags,
-                localizations: snapshot.localizations
-            });
-            setCustomImage(snapshot.customImage);
-            setPendingHistory(snapshot.coverHistory);
-            setLoadedSnapshot(snapshot);
+            // Only update from video if we don't have unsaved changes
+            // This handles initial load (video data arrives late) and post-save sync
+            if (!isDirty) {
+                const snapshot = videoFromProps;
+
+                // Only update if content actually changed to prevent infinite loops
+                const snapshotChanged = JSON.stringify(snapshot) !== JSON.stringify(loadedSnapshot);
+
+                if (snapshotChanged) {
+                    localization.resetToSnapshot({
+                        title: snapshot.title,
+                        description: snapshot.description,
+                        tags: snapshot.tags,
+                        localizations: snapshot.localizations
+                    });
+                    setCustomImage(snapshot.customImage);
+                    setPendingHistory(snapshot.coverHistory);
+                    setAbTestTitles(snapshot.abTestTitles);
+                    setAbTestThumbnails(snapshot.abTestThumbnails);
+                    setAbTestResults(snapshot.abTestResults);
+                    setLoadedSnapshot(snapshot);
+                }
+            }
         } else {
             // Load from version snapshot
             const versionSnapshot = versionState.getVersionSnapshot(versionState.viewingVersion);
@@ -204,29 +248,46 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                 const snapshot = {
                     title: versionSnapshot.title,
                     description: versionSnapshot.description,
-                    tags: versionSnapshot.tags,
+                    tags: versionSnapshot.tags || EMPTY_ARRAY,
                     customImage: versionSnapshot.coverImage || '',
-                    localizations: versionSnapshot.localizations || {},
-                    abTestTitles: [] as string[],
-                    abTestThumbnails: [] as string[],
-                    abTestResults: { titles: [], thumbnails: [] } as { titles: number[], thumbnails: number[] },
-                    coverHistory: video.coverHistory || [] // History is usually global, but could be versioned if API supported
+                    localizations: versionSnapshot.localizations || EMPTY_OBJECT,
+                    abTestTitles: versionSnapshot.abTestTitles || EMPTY_ARRAY,
+                    abTestThumbnails: versionSnapshot.abTestThumbnails || EMPTY_ARRAY,
+                    abTestResults: versionSnapshot.abTestResults || DEFAULT_AB_RESULTS as { titles: number[], thumbnails: number[] },
+                    coverHistory: video.coverHistory || EMPTY_ARRAY
                 };
-                localization.resetToSnapshot({
-                    title: snapshot.title,
-                    description: snapshot.description,
-                    tags: snapshot.tags,
-                    localizations: snapshot.localizations
-                });
-                setCustomImage(snapshot.customImage);
-                setPendingHistory(snapshot.coverHistory);
-                setLoadedSnapshot(snapshot);
+
+                // Add snapshotChanged check here too
+                const snapshotChanged = JSON.stringify(snapshot) !== JSON.stringify(loadedSnapshot);
+
+                if (snapshotChanged) {
+                    localization.resetToSnapshot({
+                        title: snapshot.title,
+                        description: snapshot.description,
+                        tags: snapshot.tags,
+                        localizations: snapshot.localizations
+                    });
+                    setCustomImage(snapshot.customImage);
+                    setPendingHistory(snapshot.coverHistory);
+                    setAbTestTitles(snapshot.abTestTitles);
+                    setAbTestThumbnails(snapshot.abTestThumbnails);
+                    setAbTestResults(snapshot.abTestResults);
+                    setLoadedSnapshot(snapshot);
+                }
             }
         }
-        // Reset dirty state after loading
-        setIsDirty(false);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [versionState.viewingVersion]);
+        // Reset dirty state after loading? 
+        if (versionState.viewingVersion !== 'draft') {
+            if (isDirty) setIsDirty(false);
+        }
+    }, [
+        versionState.viewingVersion,
+        videoFromProps,
+        isDirty,
+        localization.resetToSnapshot,
+        versionState.getVersionSnapshot,
+        loadedSnapshot
+    ]);
 
     // Beforeunload warning for unsaved changes
     useEffect(() => {
@@ -266,7 +327,11 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                     packagingHistory: versionPayload.packagingHistory,
                     currentPackagingVersion: versionPayload.currentPackagingVersion,
                     isDraft: true, // Always true when saving as draft
-                    coverHistory: pendingHistory
+                    coverHistory: pendingHistory,
+                    // A/B Test Data
+                    abTestTitles,
+                    abTestThumbnails,
+                    abTestResults
                 }
             });
 
@@ -325,7 +390,8 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                 description: payload.description,
                 tags: payload.tags,
                 coverImage: customImage || null,
-                abTestVariants: [],
+                abTestTitles,
+                abTestThumbnails,
                 abTestResults,
                 localizations: payload.localizations
             });
@@ -345,7 +411,11 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                     packagingHistory: versionPayload.packagingHistory,
                     currentPackagingVersion: versionPayload.currentPackagingVersion,
                     isDraft: versionPayload.isDraft,
-                    coverHistory: pendingHistory
+                    coverHistory: pendingHistory,
+                    // A/B Test Data
+                    abTestTitles,
+                    abTestThumbnails,
+                    abTestResults
                 }
             });
 

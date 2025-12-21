@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { type VideoLocalization } from '../utils/youtubeApi';
 
 interface LocalizationState {
@@ -200,14 +200,31 @@ export const usePackagingLocalization = ({
         setHasUnsavedChanges(false);
     }, []);
 
-    return {
+    // Stable setters
+    const setFormTitle = useCallback((val: string) => {
+        setTitle(val);
+        markDirty();
+    }, [markDirty]);
+
+    const setFormDescription = useCallback((val: string) => {
+        setDescription(val);
+        markDirty();
+    }, [markDirty]);
+
+    const setFormTags = useCallback((val: string[]) => {
+        setTags(val);
+        markDirty();
+    }, [markDirty]);
+
+    // Memoize the return object to keep references stable
+    return useMemo(() => ({
         // Current form values
         title,
-        setTitle: (val: string) => { setTitle(val); markDirty(); },
+        setTitle: setFormTitle,
         description,
-        setDescription: (val: string) => { setDescription(val); markDirty(); },
+        setDescription: setFormDescription,
         tags,
-        setTags: (val: string[]) => { setTags(val); markDirty(); },
+        setTags: setFormTags,
 
         // Language management
         activeLanguage,
@@ -221,5 +238,18 @@ export const usePackagingLocalization = ({
         getFullPayload,
         resetDirty,
         resetToSnapshot
-    };
+    }), [
+        title, setFormTitle,
+        description, setFormDescription,
+        tags, setFormTags,
+        activeLanguage,
+        localizations,
+        switchLanguage,
+        addLanguage,
+        removeLanguage,
+        hasUnsavedChanges,
+        getFullPayload,
+        resetDirty,
+        resetToSnapshot
+    ]);
 };

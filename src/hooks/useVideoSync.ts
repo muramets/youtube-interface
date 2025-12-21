@@ -130,7 +130,7 @@ export const useVideoSync = (userId: string, channelId: string) => {
                 type: 'success',
                 meta: `${totalQuota}`,
                 quotaBreakdown: {
-                    details: `${totalQuota} units`
+                    details: totalQuota
                 }
             });
 

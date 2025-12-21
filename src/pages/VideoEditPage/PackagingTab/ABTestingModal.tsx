@@ -146,7 +146,8 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
             const hasResults = (initialResults.titles?.some(v => v > 0)) || (initialResults.thumbnails?.some(v => v > 0));
             setShowResults(!!hasResults);
         }
-    }, [isOpen, initialTab, currentTitle, currentThumbnail, titleVariants, thumbnailVariants]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, initialTab, currentTitle, currentThumbnail, JSON.stringify(titleVariants), JSON.stringify(thumbnailVariants), JSON.stringify(initialResults)]);
 
     const handleTitleChange = (index: number, value: string) => {
         const newTitles = [...titles];
@@ -263,6 +264,40 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
         { id: 'thumbnail', label: 'Thumbnail only' },
         { id: 'both', label: 'Title and thumbnail' }
     ];
+
+    const getSaveButtonText = () => {
+        // If no valid test configured, standard text (though button disabled usually)
+        if (!isValid) return 'Set test';
+
+        // Check if we started with an existing test
+        const isExistingTest = titleVariants.length > 0 || thumbnailVariants.length > 0;
+
+        if (!isExistingTest) return 'Set test';
+
+        // Check if content has changed based on active tab
+        let contentChanged = false;
+
+        // Helper to normalize logic (trim strings, filter empty? The modal state keeps empty strings for slots)
+        // But titleVariants prop likely contains only valid ones? 
+        // Let's assume titleVariants prop has EXACTLY what was saved. 
+        // Modal state `titles` has 3 slots always. We should filter `titles` to compare.
+        const currentValidTitles = titles.filter(t => t.trim());
+        const currentValidThumbnails = thumbnails.filter(t => t);
+
+        if (activeTab === 'title') {
+            contentChanged = JSON.stringify(currentValidTitles) !== JSON.stringify(titleVariants);
+        } else if (activeTab === 'thumbnail') {
+            contentChanged = JSON.stringify(currentValidThumbnails) !== JSON.stringify(thumbnailVariants);
+        } else { // both
+            const titlesChanged = JSON.stringify(currentValidTitles) !== JSON.stringify(titleVariants);
+            const thumbnailsChanged = JSON.stringify(currentValidThumbnails) !== JSON.stringify(thumbnailVariants);
+            contentChanged = titlesChanged || thumbnailsChanged;
+        }
+
+        if (contentChanged) return 'Set test';
+
+        return 'Save';
+    };
 
     return createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center">
@@ -382,7 +417,7 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                                         >
                                             {thumbnails[index] ? (
                                                 <div
-                                                    className="relative rounded-xl border border-dashed border-border group cursor-pointer"
+                                                    className={`relative rounded-xl border border-dashed group cursor-pointer ${getBorderColor(results.thumbnails[index], results.thumbnails, !!thumbnails[index])}`}
                                                     style={{ padding: '4px' }}
                                                     onClick={() => fileInputRefs.current[index]?.click()}
                                                 >
@@ -406,9 +441,9 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                                             ) : (
                                                 <button
                                                     onClick={() => fileInputRefs.current[index]?.click()}
-                                                    className="rounded-xl border border-dashed border-[#5F5F5F] 
+                                                    className={`rounded-xl border border-dashed 
                                                         hover:border-[#AAAAAA] transition-colors flex flex-col items-center justify-center gap-2
-                                                        bg-[#282828] group"
+                                                        bg-[#282828] group ${getBorderColor(results.thumbnails[index], results.thumbnails, !!thumbnails[index])}`}
                                                     style={{ width: '265px', height: '148px' }}
                                                 >
                                                     <Plus size={32} className="text-[#5F5F5F] group-hover:text-[#AAAAAA] transition-colors" />
@@ -461,7 +496,7 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                                         <div className="flex items-center">
                                             {thumbnails[index] ? (
                                                 <div
-                                                    className="relative rounded-xl border border-dashed border-border group cursor-pointer"
+                                                    className={`relative rounded-xl border border-dashed group cursor-pointer ${getBorderColor(results.thumbnails[index], results.thumbnails, !!(titles[index] || thumbnails[index]))}`}
                                                     style={{ padding: '4px' }}
                                                     onClick={() => fileInputRefs.current[index]?.click()}
                                                 >
@@ -485,9 +520,9 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                                             ) : (
                                                 <button
                                                     onClick={() => fileInputRefs.current[index]?.click()}
-                                                    className="rounded-xl border border-dashed border-[#5F5F5F] 
+                                                    className={`rounded-xl border border-dashed 
                                                         hover:border-[#AAAAAA] transition-colors flex flex-col items-center justify-center gap-2
-                                                        bg-[#282828] group"
+                                                        bg-[#282828] group ${getBorderColor(results.thumbnails[index], results.thumbnails, !!(titles[index] || thumbnails[index]))}`}
                                                     style={{ width: '265px', height: '148px' }}
                                                 >
                                                     <Plus size={32} className="text-[#5F5F5F] group-hover:text-[#AAAAAA] transition-colors" />
@@ -565,7 +600,7 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                             }
                         `}
                     >
-                        Set test
+                        {getSaveButtonText()}
                     </button>
                 </div>
             </div>

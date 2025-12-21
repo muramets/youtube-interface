@@ -6,7 +6,13 @@ interface PackagingSnapshot {
     description: string;
     tags: string[];
     coverImage: string | null;
-    abTestVariants: string[];
+    abTestTitles?: string[];
+    abTestThumbnails?: string[];
+    abTestResults?: {
+        titles: number[];
+        thumbnails: number[];
+    };
+    abTestVariants?: string[];
     localizations?: Record<string, VideoLocalization>;
 }
 
@@ -164,7 +170,7 @@ export const usePackagingVersions = ({
         isDraft: hasDraft
     }), [packagingHistory, currentVersionNumber, hasDraft]);
 
-    return {
+    return useMemo(() => ({
         // State
         packagingHistory,
         sortedVersions,
@@ -187,5 +193,23 @@ export const usePackagingVersions = ({
         setPackagingHistory,
         setHasDraft,
         setActiveVersion
-    };
+    }), [
+        packagingHistory,
+        sortedVersions,
+        currentVersionNumber,
+        hasDraft,
+        activeVersion,
+        viewingVersion,
+        switchToVersion,
+        restoreVersion,
+        createVersion,
+        saveDraft,
+        deleteVersion,
+        markDirty,
+        getVersionSnapshot,
+        getVersionsPayload,
+        setPackagingHistory,
+        setHasDraft,
+        setActiveVersion
+    ]);
 };
