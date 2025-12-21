@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { ChannelService, type Channel } from '../services/channelService';
 
 interface ChannelState {
@@ -11,21 +12,29 @@ interface ChannelState {
     removeChannel: (userId: string, channelId: string) => Promise<void>;
 }
 
-export const useChannelStore = create<ChannelState>((set) => ({
-    currentChannel: null,
+export const useChannelStore = create<ChannelState>()(
+    persist(
+        (set) => ({
+            currentChannel: null,
 
-    setCurrentChannel: (channel) => set({ currentChannel: channel }),
+            setCurrentChannel: (channel) => set({ currentChannel: channel }),
 
-    addChannel: async (userId, name, avatarUrl) => {
-        const handle = `@${name.replace(/\s+/g, '').toLowerCase()}${Math.floor(Math.random() * 1000)}`;
-        return await ChannelService.createChannel(userId, { name, handle, avatarUrl });
-    },
+            addChannel: async (userId, name, avatarUrl) => {
+                const handle = `@${name.replace(/\s+/g, '').toLowerCase()}${Math.floor(Math.random() * 1000)}`;
+                return await ChannelService.createChannel(userId, { name, handle, avatarUrl });
+            },
 
-    updateChannel: async (userId, channelId, updates) => {
-        await ChannelService.updateChannel(userId, channelId, updates);
-    },
+            updateChannel: async (userId, channelId, updates) => {
+                await ChannelService.updateChannel(userId, channelId, updates);
+            },
 
-    removeChannel: async (userId, channelId) => {
-        await ChannelService.deleteChannel(userId, channelId);
-    }
-}));
+            removeChannel: async (userId, channelId) => {
+                await ChannelService.deleteChannel(userId, channelId);
+            }
+        }),
+        {
+            name: 'channel-storage', // localStorage key
+            partialize: (state) => ({ currentChannel: state.currentChannel }), // Only persist currentChannel
+        }
+    )
+);

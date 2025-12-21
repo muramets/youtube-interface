@@ -219,7 +219,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const handleDetails = (e: React.MouseEvent) => {
     e.stopPropagation();
     handleMenuClose();
-    navigate(`/video/${video.id}/details`);
+    if (currentChannel) {
+      navigate(`/video/${currentChannel.id}/${video.id}/details`);
+    }
   };
 
   const handleSaveCustomVideo = async (updatedVideo: Omit<VideoDetails, 'id'>, shouldClose = true) => {

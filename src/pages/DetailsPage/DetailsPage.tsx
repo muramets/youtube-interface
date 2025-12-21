@@ -1,19 +1,46 @@
-import React from 'react';
+/**
+ * DetailsPage - Entry point for video details/packaging page
+ * 
+ * Supports full deep linking via URL parameters:
+ *   /video/:channelId/:videoId/details
+ * 
+ * This allows bookmarks and shared links to work on any device,
+ * without relying on localStorage state.
+ */
+
+import React, { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useVideos } from '../../core/hooks/useVideos';
+import { useChannels } from '../../core/hooks/useChannels';
 import { DetailsLayout } from './DetailsLayout';
 import { Loader2 } from 'lucide-react';
 
 export const DetailsPage: React.FC = () => {
-    const { id } = useParams<{ id: string }>();
+    // Extract both channelId and videoId from URL for full deep linking support
+    const { channelId, videoId } = useParams<{ channelId: string; videoId: string }>();
     const navigate = useNavigate();
     const { user } = useAuth();
-    const { currentChannel } = useChannelStore();
-    const { videos, isLoading } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const { currentChannel, setCurrentChannel } = useChannelStore();
+    const channelsQuery = useChannels(user?.uid || '');
+    const channels = channelsQuery.data || [];
 
-    const video = videos.find(v => v.id === id);
+    // Use channelId from URL for fetching videos (enables deep linking)
+    const { videos, isLoading } = useVideos(user?.uid || '', channelId || '');
+
+    // Auto-set currentChannel from URL if not already set or different
+    // This ensures sidebar and other components sync with the URL
+    useEffect(() => {
+        if (channelId && channels.length > 0) {
+            const urlChannel = channels.find((c: { id: string }) => c.id === channelId);
+            if (urlChannel && (!currentChannel || currentChannel.id !== channelId)) {
+                setCurrentChannel(urlChannel);
+            }
+        }
+    }, [channelId, channels, currentChannel, setCurrentChannel]);
+
+    const video = videos.find(v => v.id === videoId);
 
     // Loading state
     if (isLoading) {
@@ -40,5 +67,5 @@ export const DetailsPage: React.FC = () => {
         );
     }
 
-    return <DetailsLayout video={video} />;
+    return <DetailsLayout video={video} channelId={channelId} />;
 };

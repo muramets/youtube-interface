@@ -8,9 +8,10 @@ import { useUIStore } from '../../core/stores/uiStore';
 
 interface DetailsLayoutProps {
     video: VideoDetails;
+    channelId?: string; // From URL for deep linking support
 }
 
-export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
+export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, channelId }) => {
     const { showToast } = useUIStore();
 
     // ============================================================================

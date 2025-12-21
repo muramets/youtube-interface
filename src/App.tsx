@@ -85,7 +85,7 @@ function AppContent() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         {/* VideoEditPage: Full-page layout without main sidebar */}
-        <Route path="/video/:id/details" element={
+        <Route path="/video/:channelId/:videoId/details" element={
           <ProtectedRoute>
             <div className="h-screen flex flex-col" style={{ backgroundColor: 'var(--video-edit-bg)' }}>
               <Header className="bg-video-edit-bg shadow-[0_4px_12px_rgba(0,0,0,0.2)] h-16" />
