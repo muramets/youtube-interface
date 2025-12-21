@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { type VideoDetails, type PackagingVersion, type VideoLocalization } from '../../../utils/youtubeApi';
+import { type VideoDetails, type PackagingVersion, type VideoLocalization, type CoverVersion } from '../../../utils/youtubeApi';
 import { PackagingForm } from './PackagingForm';
 import { VideoPreviewCard } from './VideoPreviewCard';
 import { LanguageTabs } from '../../../components/Video/LanguageTabs';
@@ -59,7 +59,7 @@ interface PackagingTabProps {
 export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState, onDirtyChange }) => {
     const { user } = useAuth();
     const { currentChannel, setCurrentChannel } = useChannelStore();
-    const { updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const { updateVideo, cloneVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { showToast } = useUIStore();
 
     // Localization hook for title/description/tags per language
@@ -420,6 +420,45 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
         }
     }, [user, currentChannel, showToast, setCurrentChannel]);
 
+    // Handle delete history version
+    const handleDeleteHistoryVersion = useCallback(async (timestamp: number) => {
+        if (!video.coverHistory) return;
+
+        const newHistory = video.coverHistory.filter(v => v.timestamp !== timestamp);
+
+        try {
+            await updateVideo({
+                videoId: video.id,
+                updates: { coverHistory: newHistory }
+            });
+            showToast('Version deleted', 'success');
+        } catch (error) {
+            console.error('Failed to delete version:', error);
+            showToast('Failed to delete version', 'error');
+        }
+    }, [video.coverHistory, video.id, updateVideo, showToast]);
+
+    // Handle clone from version
+    const [cloningVersion, setCloningVersion] = useState<number | null>(null);
+    const handleCloneFromVersion = useCallback(async (version: CoverVersion) => {
+        if (cloningVersion !== null) return;
+        setCloningVersion(version.version);
+
+        try {
+            await cloneVideo({
+                originalVideo: video,
+                coverVersion: version,
+                cloneDurationSeconds: 24 * 60 * 60 // Default 24h
+            });
+            showToast(`Cloned version v.${version.version}`, 'success');
+        } catch (error) {
+            console.error('Failed to clone version:', error);
+            showToast('Failed to clone version', 'error');
+        } finally {
+            setCloningVersion(null);
+        }
+    }, [video, cloneVideo, cloningVersion, showToast]);
+
     // Compute header title and whether to show Restore button
     const isViewingActiveVersion = versionState.viewingVersion === versionState.activeVersion;
     const headerTitle = versionState.viewingVersion === 'draft'
@@ -544,7 +583,14 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                             abTestStatus="draft"
                             onTitleABTestClick={handleOpenABTestFromTitle}
                             onThumbnailABTestClick={handleOpenABTestFromThumbnail}
-                            coverHistory={video.coverHistory}
+                            coverHistory={video.coverHistory || []}
+                            onDeleteHistoryVersion={handleDeleteHistoryVersion}
+                            onCloneFromVersion={handleCloneFromVersion}
+                            cloningVersion={cloningVersion}
+                            currentVersionInfo={{
+                                version: video.customImageVersion,
+                                originalName: video.customImageName
+                            }}
                         />
 
 

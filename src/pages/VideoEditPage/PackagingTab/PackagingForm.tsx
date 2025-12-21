@@ -31,6 +31,13 @@ interface PackagingFormProps {
     onThumbnailABTestClick?: () => void;
     abTestThumbnails?: string[];
     coverHistory?: CoverVersion[];
+    onDeleteHistoryVersion?: (timestamp: number) => void;
+    onCloneFromVersion?: (version: CoverVersion) => void;
+    cloningVersion?: number | null;
+    currentVersionInfo?: {
+        version?: number;
+        originalName?: string;
+    };
 }
 
 export const PackagingForm: React.FC<PackagingFormProps> = ({
@@ -54,7 +61,11 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
     onTitleABTestClick,
     onThumbnailABTestClick,
     abTestThumbnails = [],
-    coverHistory = []
+    coverHistory = [],
+    onDeleteHistoryVersion,
+    onCloneFromVersion,
+    cloningVersion,
+    currentVersionInfo
 }) => {
     const [showMore, setShowMore] = useState(false);
 
@@ -90,6 +101,10 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
                 onABTestClick={onThumbnailABTestClick}
                 variants={abTestThumbnails}
                 history={coverHistory}
+                onDelete={onDeleteHistoryVersion}
+                onClone={onCloneFromVersion}
+                cloningVersion={cloningVersion}
+                currentVersionInfo={currentVersionInfo}
             />
 
             {/* Tags */}

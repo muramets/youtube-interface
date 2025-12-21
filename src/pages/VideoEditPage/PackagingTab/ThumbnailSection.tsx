@@ -10,6 +10,13 @@ interface ThumbnailSectionProps {
     onABTestClick?: () => void;
     variants?: string[];
     history?: CoverVersion[];
+    onDelete?: (timestamp: number) => void;
+    onClone?: (version: CoverVersion) => void;
+    cloningVersion?: number | null;
+    currentVersionInfo?: {
+        version?: number;
+        originalName?: string;
+    };
 }
 
 export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
@@ -18,7 +25,11 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
     readOnly = false,
     onABTestClick,
     variants = [],
-    history = []
+    history = [],
+    onDelete,
+    onClone,
+    cloningVersion,
+    currentVersionInfo
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showDropdown, setShowDropdown] = useState(false);
@@ -200,6 +211,10 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
                     onChange(url);
                     setHistoryModalOpen(false);
                 }}
+                onDelete={onDelete}
+                onClone={onClone}
+                cloningVersion={cloningVersion}
+                currentVersionInfo={currentVersionInfo}
             />
         </div >
     );

@@ -1,26 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { X, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { type CoverVersion } from '../../../utils/youtubeApi';
+import { ImageActionOverlay } from './ImageActionOverlay';
 
-interface ThumbnailHistoryModalProps {
+export interface ThumbnailHistoryModalProps {
     isOpen: boolean;
     onClose: () => void;
-    currentThumbnail: string;
+    currentThumbnail: string; // Restored
     history: CoverVersion[];
     onApply: (url: string) => void;
+    onDelete?: (timestamp: number) => void;
+    onClone?: (version: CoverVersion) => void;
+    cloningVersion?: number | null;
+    currentVersionInfo?: {
+        version?: number;
+        originalName?: string;
+    };
 }
 
 export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
     isOpen,
     onClose,
-    currentThumbnail,
+    currentThumbnail, // Restored
     history,
-    onApply
+    onApply,
+    onDelete,
+    onClone,
+    cloningVersion,
+    currentVersionInfo
 }) => {
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [direction, setDirection] = useState(0);
+    const [openTooltipTimestamp, setOpenTooltipTimestamp] = useState<number | null>(null);
+    const [isCurrentTooltipOpen, setIsCurrentTooltipOpen] = useState(false);
+    const [isHistoricalTooltipOpen, setIsHistoricalTooltipOpen] = useState(false);
 
     const variants = {
         enter: (direction: number) => ({
@@ -58,6 +74,9 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
         setDirection(-1);
         setSelectedIndex((prev) => (prev - 1 + history.length) % history.length);
     };
+
+
+
 
     return createPortal(
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
@@ -99,7 +118,8 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-bold uppercase tracking-widest text-text-secondary">Current Version</span>
                             </div>
-                            <div className="aspect-video rounded-xl overflow-hidden border border-white/10 bg-black/40 shadow-inner group relative">
+                            <div className={`aspect-video rounded-xl overflow-hidden border transition-all bg-black/40 shadow-inner group relative
+                                ${isCurrentTooltipOpen ? 'border-white/20 ring-1 ring-white/10' : 'border-white/10'}`}>
                                 {currentThumbnail ? (
                                     <img src={currentThumbnail} alt="Current" className="w-full h-full object-cover" />
                                 ) : (
@@ -108,6 +128,18 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                     </div>
                                 )}
                                 <div className="absolute inset-0 ring-1 ring-inset ring-white/5 pointer-events-none" />
+
+                                {/* Overlay for Current Version */}
+                                <ImageActionOverlay
+                                    version={currentVersionInfo?.version || history.find(v => v.url === currentThumbnail)?.version || 0}
+                                    originalName={currentVersionInfo?.originalName || history.find(v => v.url === currentThumbnail)?.originalName}
+                                    onDelete={() => {
+                                        const current = history.find(v => v.url === currentThumbnail);
+                                        if (current && onDelete) onDelete(current.timestamp);
+                                    }}
+                                    onTooltipOpenChange={setIsCurrentTooltipOpen}
+                                // No clone for current as per request
+                                />
                             </div>
                         </div>
 
@@ -123,7 +155,8 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                             </div>
 
                             <div className="relative group z-20">
-                                <div className="aspect-video rounded-xl overflow-hidden border border-[#3ea6ff]/30 bg-black/40 shadow-2xl relative">
+                                <div className={`aspect-video rounded-xl overflow-hidden border transition-all bg-black/40 shadow-2xl relative
+                                    ${isHistoricalTooltipOpen ? 'border-[#3ea6ff]/60 ring-1 ring-[#3ea6ff]/20' : 'border-[#3ea6ff]/30'}`}>
                                     <AnimatePresence initial={false} custom={direction}>
                                         <motion.img
                                             key={selectedVersion?.url}
@@ -141,6 +174,19 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                         />
                                     </AnimatePresence>
                                     <div className="absolute inset-0 ring-1 ring-inset ring-white/10 pointer-events-none" />
+
+                                    {/* Overlay for Historical Preview */}
+                                    {selectedVersion && (
+                                        <ImageActionOverlay
+                                            version={selectedVersion.version}
+                                            originalName={selectedVersion.originalName}
+                                            onDelete={() => onDelete && onDelete(selectedVersion.timestamp)}
+                                            onClone={() => onClone && onClone(selectedVersion)}
+                                            isCloning={cloningVersion === selectedVersion.version}
+                                            className="z-30" // Ensure above arrows if needed, or manage z-index carefully
+                                            onTooltipOpenChange={setIsHistoricalTooltipOpen}
+                                        />
+                                    )}
                                 </div>
 
                                 {/* Quick Nav Arrows */}
@@ -148,13 +194,15 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                     <>
                                         <button
                                             onClick={handlePrev}
-                                            className="absolute left-[-20px] top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white backdrop-blur-md opacity-0 group-hover:opacity-100 hover:bg-white/10 transition-all z-10"
+                                            className={`absolute left-[-20px] top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white backdrop-blur-md hover:bg-white/10 transition-all z-10
+                                                ${isHistoricalTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
                                         >
                                             <ChevronLeft size={24} />
                                         </button>
                                         <button
                                             onClick={handleNext}
-                                            className="absolute right-[-20px] top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white backdrop-blur-md opacity-0 group-hover:opacity-100 hover:bg-white/10 transition-all z-10"
+                                            className={`absolute right-[-20px] top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white backdrop-blur-md hover:bg-white/10 transition-all z-10
+                                                ${isHistoricalTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
                                         >
                                             <ChevronRight size={24} />
                                         </button>
@@ -178,28 +226,44 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                         <div className="flex items-center justify-between py-4">
                             <div className="flex gap-1.5 overflow-x-auto p-2 scrollbar-hide -mx-2 px-2">
                                 {history.map((version, index) => (
-                                    <button
+                                    <div
                                         key={version.timestamp}
                                         onClick={() => {
                                             setDirection(index > selectedIndex ? 1 : -1);
                                             setSelectedIndex(index);
                                         }}
-                                        className={`flex-shrink-0 w-36 aspect-video rounded-lg overflow-hidden border-2 transition-all relative group/item
+                                        className={`flex-shrink-0 w-36 aspect-video rounded-lg overflow-hidden border-2 transition-all relative group group/item cursor-pointer
                                             ${selectedIndex === index
                                                 ? 'border-[#3ea6ff] scale-105 z-10 shadow-lg shadow-[#3ea6ff]/10'
-                                                : 'border-transparent opacity-60 hover:opacity-100 hover:border-white/20'}`}
+                                                : (openTooltipTimestamp === version.timestamp
+                                                    ? 'opacity-100 border-white/20 ring-1 ring-white/10'
+                                                    : 'border-transparent opacity-60 hover:opacity-100 hover:border-white/20')}`}
                                     >
-                                        <img src={version.url} alt={`v${version.version}`} className="w-full h-full object-cover" />
-                                        <div className="absolute inset-0 bg-black/20 group-hover/item:bg-transparent transition-colors" />
+                                        <img
+                                            src={version.url}
+                                            alt={`v.${version.version}`}
+                                            className="w-full h-full object-cover"
+                                        />
+
+                                        {/* Overlay for Carousel Items - No Clone button requested */}
+                                        <ImageActionOverlay
+                                            version={version.version}
+                                            originalName={version.originalName}
+                                            onDelete={() => onDelete && onDelete(version.timestamp)}
+                                            isCloning={cloningVersion === version.version}
+                                            size="small"
+                                            onTooltipOpenChange={(open) => setOpenTooltipTimestamp(open ? version.timestamp : null)}
+                                        />
+
                                         {selectedIndex === index && (
-                                            <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[#3ea6ff] flex items-center justify-center shadow-lg">
+                                            <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[#3ea6ff] flex items-center justify-center shadow-lg pointer-events-none">
                                                 <Check size={10} strokeWidth={3} className="text-[#1f1f1f]" />
                                             </div>
                                         )}
-                                        <div className="absolute bottom-1 left-1.5 text-[9px] font-bold text-white px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-sm border border-white/10">
+                                        <div className="absolute bottom-1 left-1.5 text-[9px] font-bold text-white px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-sm border border-white/10 pointer-events-none">
                                             v{version.version}
                                         </div>
-                                    </button>
+                                    </div>
                                 ))}
                             </div>
                         </div>
