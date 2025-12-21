@@ -122,7 +122,7 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                 </span>
                             </div>
 
-                            <div className="relative group">
+                            <div className="relative group z-20">
                                 <div className="aspect-video rounded-xl overflow-hidden border border-[#3ea6ff]/30 bg-black/40 shadow-2xl relative">
                                     <AnimatePresence initial={false} custom={direction}>
                                         <motion.img
@@ -173,9 +173,9 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                 </div>
 
                 {/* Version Selector Ribbon (Bottom) */}
-                <div className="px-8 py-6 bg-white/[0.02] border-t border-white/5">
-                    <div className="flex flex-col gap-6">
-                        <div className="flex items-center justify-between">
+                <div className="px-8 bg-white/[0.02] border-t border-white/5">
+                    <div className="flex flex-col">
+                        <div className="flex items-center justify-between py-4">
                             <div className="flex gap-1.5 overflow-x-auto p-2 scrollbar-hide -mx-2 px-2">
                                 {history.map((version, index) => (
                                     <button
@@ -184,7 +184,7 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                             setDirection(index > selectedIndex ? 1 : -1);
                                             setSelectedIndex(index);
                                         }}
-                                        className={`flex-shrink-0 w-28 aspect-video rounded-lg overflow-hidden border-2 transition-all relative group/item
+                                        className={`flex-shrink-0 w-36 aspect-video rounded-lg overflow-hidden border-2 transition-all relative group/item
                                             ${selectedIndex === index
                                                 ? 'border-[#3ea6ff] scale-105 z-10 shadow-lg shadow-[#3ea6ff]/10'
                                                 : 'border-transparent opacity-60 hover:opacity-100 hover:border-white/20'}`}
@@ -204,14 +204,14 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                             </div>
                         </div>
 
-                        <div className="flex items-center justify-between border-t border-white/5 pt-6">
+                        <div className="flex items-center justify-between border-t border-white/5 py-4">
                             <div className="text-sm text-text-secondary font-medium">
                                 {history.length} versions in history
                             </div>
                             <div className="flex gap-3">
                                 <button
                                     onClick={onClose}
-                                    className="px-6 py-2.5 rounded-full text-sm font-semibold text-white hover:bg-white/5 transition-colors"
+                                    className="px-3 py-1.5 rounded-full text-sm font-medium bg-white/10 text-white hover:bg-white/20 transition-colors"
                                 >
                                     Cancel
                                 </button>
@@ -223,7 +223,7 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                         }
                                     }}
                                     disabled={!selectedVersion}
-                                    className={`px-8 py-2.5 rounded-full text-sm font-semibold transition-all
+                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all
                                         ${selectedVersion
                                             ? 'bg-[#3ea6ff] text-[#1f1f1f] hover:bg-[#65b8ff] active:scale-95'
                                             : 'bg-white/10 text-text-secondary cursor-not-allowed'}`}
