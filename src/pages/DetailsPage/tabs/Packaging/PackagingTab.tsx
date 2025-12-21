@@ -4,7 +4,7 @@ import { PackagingForm } from './components/PackagingForm';
 import { VideoPreviewCard } from './components/VideoPreviewCard';
 import { LanguageTabs } from '../../../../features/Video/LanguageTabs';
 import { ABTestingModal } from './modals/ABTestingModal';
-import { Button } from '../../../../components/ui/Button';
+import { Button } from '../../../../components/ui/atoms/Button';
 import { useChannelStore } from '../../../../core/stores/channelStore';
 import { usePackagingLocalization } from './hooks/usePackagingLocalization';
 import { usePackagingFormState } from './hooks/usePackagingFormState';

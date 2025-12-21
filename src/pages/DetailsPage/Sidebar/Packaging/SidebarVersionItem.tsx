@@ -1,5 +1,6 @@
 import React from 'react';
 import { Trash2 } from 'lucide-react';
+import { Badge } from '../../../../components/ui/atoms/Badge';
 
 /**
  * BUSINESS LOGIC: Version Item States
@@ -40,11 +41,9 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
             <div className="flex items-center gap-2">
                 <span className="text-sm">{label}</span>
 
-                {/* ACTIVE badge - green like notification center */}
+                {/* ACTIVE badge - using Badge atom */}
                 {isVideoActive && (
-                    <span className="px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded bg-green-500/20 text-green-400">
-                        Active
-                    </span>
+                    <Badge variant="success">Active</Badge>
                 )}
             </div>
 
