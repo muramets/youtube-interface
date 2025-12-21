@@ -92,8 +92,8 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                 </div>
 
                 {/* Main Comparison Area */}
-                <div className="flex-1 overflow-y-auto p-8 lg:p-12">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative">
+                <div className="flex-1 overflow-y-auto p-5 lg:p-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center relative">
                         {/* Current (Left) */}
                         <div className="space-y-4">
                             <div className="flex items-center justify-between">
