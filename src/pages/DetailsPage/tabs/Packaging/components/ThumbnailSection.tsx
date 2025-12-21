@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Upload, MoreVertical, Trash2, History } from 'lucide-react';
-import { ThumbnailHistoryModal } from './ThumbnailHistoryModal';
-import { type CoverVersion } from '../../../utils/youtubeApi';
+import { ThumbnailHistoryModal } from '../modals/ThumbnailHistoryModal';
+import { type CoverVersion } from '../../../../../utils/youtubeApi';
 
 interface ThumbnailSectionProps {
     value: string;
@@ -106,7 +106,7 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
                                             style={{ width: `${100 / all.length}%` }}
                                         />
                                         {index < all.length - 1 && (
-                                            <div className="w-[1px] h-full bg-[#282828] flex-shrink-0" />
+                                            <div className="w-[1px] h-full bg-border flex-shrink-0" />
                                         )}
                                     </React.Fragment>
                                 ))}
@@ -134,7 +134,7 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
 
                                     {/* Dropdown */}
                                     {showDropdown && (
-                                        <div className="absolute top-8 right-0 bg-modal-surface border border-border rounded-lg shadow-lg py-1 min-w-[160px] z-10">
+                                        <div className="absolute top-8 right-0 bg-bg-secondary border border-border rounded-lg shadow-lg py-1 min-w-[160px] z-10">
                                             {onABTestClick && (
                                                 <button
                                                     onClick={() => {
@@ -215,7 +215,7 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
 
                                     {/* Dropdown for empty state */}
                                     {showDropdown && (
-                                        <div className="absolute top-8 right-0 bg-modal-surface border border-border rounded-lg shadow-lg py-1 min-w-[160px] z-10" onClick={e => e.stopPropagation()}>
+                                        <div className="absolute top-8 right-0 bg-bg-secondary border border-border rounded-lg shadow-lg py-1 min-w-[160px] z-10" onClick={e => e.stopPropagation()}>
                                             {onABTestClick && (
                                                 <button
                                                     onClick={() => {

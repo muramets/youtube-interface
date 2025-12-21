@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom';
 import { X, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { type CoverVersion } from '../../../utils/youtubeApi';
-import { ImageActionOverlay } from './ImageActionOverlay';
+import { type CoverVersion } from '../../../../../utils/youtubeApi';
+import { ImageActionOverlay } from '../components/ImageActionOverlay';
 
 export interface ThumbnailHistoryModalProps {
     isOpen: boolean;
@@ -144,17 +144,17 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="relative bg-[#1f1f1f] border border-white/10 rounded-2xl w-full max-w-7xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
+                className="relative bg-modal-bg border border-modal-border rounded-2xl w-full max-w-7xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
             >
                 {/* Header */}
-                <div className="flex items-center justify-between px-8 py-5 border-b border-white/5">
+                <div className="flex items-center justify-between px-8 py-5 border-b border-modal-border">
                     <div>
-                        <h2 className="text-xl font-semibold text-white">Compare Version History</h2>
-                        <p className="text-sm text-text-secondary mt-0.5">Compare your current thumbnail with previous versions</p>
+                        <h2 className="text-xl font-semibold text-modal-text-primary">Compare Version History</h2>
+                        <p className="text-sm text-modal-text-secondary mt-0.5">Compare your current thumbnail with previous versions</p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/5 transition-colors text-text-secondary hover:text-white"
+                        className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-modal-surface-hover transition-colors text-modal-text-secondary hover:text-modal-text-primary"
                     >
                         <X size={24} />
                     </button>
@@ -168,14 +168,14 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                         {currentThumbnail && (
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold uppercase tracking-widest text-text-secondary">Current Version</span>
+                                    <span className="text-xs font-bold uppercase tracking-widest text-modal-text-secondary">Current Version</span>
                                 </div>
                                 <div className={`aspect-video rounded-xl overflow-hidden border transition-all bg-black/40 shadow-inner group relative
                                 ${isCurrentTooltipOpen ? 'border-white/20 ring-1 ring-white/10' : 'border-white/10'}`}>
                                     {currentThumbnail ? (
                                         <img src={currentThumbnail} alt="Current" className="w-full h-full object-cover" />
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-text-secondary italic">
+                                        <div className="w-full h-full flex items-center justify-center text-modal-text-secondary italic">
                                             No current thumbnail
                                         </div>
                                     )}
@@ -207,7 +207,7 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                 <span className="text-xs font-bold uppercase tracking-widest text-[#3ea6ff]">
                                     Historical
                                 </span>
-                                <span className="text-[10px] text-text-secondary font-medium">
+                                <span className="text-[10px] text-modal-text-secondary font-medium">
                                     {selectedVersion ? new Date(selectedVersion.timestamp).toLocaleDateString() : ''}
                                 </span>
                             </div>
@@ -260,7 +260,7 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                         <div className="absolute left-[-40px] top-0 bottom-0 w-[80px] flex items-center justify-start z-10 group/arrow">
                                             <button
                                                 onClick={handlePrev}
-                                                className={`ml-4 w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white backdrop-blur-md 
+                                                className={`ml-4 w-10 h-10 rounded-full bg-modal-surface border border-modal-border flex items-center justify-center text-modal-text-primary backdrop-blur-md 
                                                     transition-all 
                                                     ${isHistoricalTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
                                                     group-hover/arrow:bg-white/20 group-hover/arrow:scale-110`}
@@ -271,7 +271,7 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                         <div className="absolute right-[-40px] top-0 bottom-0 w-[80px] flex items-center justify-end z-10 group/arrow">
                                             <button
                                                 onClick={handleNext}
-                                                className={`mr-4 w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white backdrop-blur-md 
+                                                className={`mr-4 w-10 h-10 rounded-full bg-modal-surface border border-modal-border flex items-center justify-center text-modal-text-primary backdrop-blur-md 
                                                     transition-all 
                                                     ${isHistoricalTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
                                                     group-hover/arrow:bg-white/20 group-hover/arrow:scale-110`}
@@ -288,7 +288,7 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                         {currentThumbnail && (
                             <div className="hidden lg:flex absolute inset-0 items-center justify-center z-10 pointer-events-none">
                                 <div className="px-3 py-1.5 rounded-full">
-                                    <span className="text-text-secondary font-bold text-xs tracking-widest opacity-80">
+                                    <span className="text-modal-text-secondary font-bold text-xs tracking-widest opacity-80">
                                         VS
                                     </span>
                                 </div>
@@ -297,7 +297,7 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                     </div>
                 </div>
 
-                <div className="px-8 bg-white/[0.02] border-t border-white/5">
+                <div className="px-8 bg-modal-surface/50 border-t border-modal-border">
                     <div className="flex flex-col">
                         <div className="flex items-center justify-between py-4">
                             <motion.div
@@ -357,14 +357,14 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                             </motion.div>
                         </div>
 
-                        <div className="flex items-center justify-between border-t border-white/5 py-4">
-                            <div className="text-sm text-text-secondary font-medium">
+                        <div className="flex items-center justify-between border-t border-modal-border py-4">
+                            <div className="text-sm text-modal-text-secondary font-medium">
                                 {history.length} versions in history
                             </div>
                             <div className="flex gap-3">
                                 <button
                                     onClick={onClose}
-                                    className="px-3 py-1.5 rounded-full text-sm font-medium bg-white/10 text-white hover:bg-white/20 transition-colors"
+                                    className="px-3 py-1.5 rounded-full text-sm font-medium bg-modal-button-bg text-modal-text-primary hover:bg-modal-button-hover transition-colors"
                                 >
                                     Cancel
                                 </button>

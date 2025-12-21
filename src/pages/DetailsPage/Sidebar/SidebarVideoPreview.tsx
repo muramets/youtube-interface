@@ -60,7 +60,7 @@ export const SidebarVideoPreview: React.FC<SidebarVideoPreviewProps> = ({ video 
 
             {/* Video Info */}
             <div className="mt-4 px-1">
-                <p className="text-sm font-medium text-white">Your video</p>
+                <p className="text-sm font-medium text-text-primary">Your video</p>
                 <PortalTooltip
                     content={<span style={{ whiteSpace: 'nowrap' }}>{title}</span>}
                     enterDelay={300}

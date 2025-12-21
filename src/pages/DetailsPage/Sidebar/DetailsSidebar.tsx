@@ -4,9 +4,9 @@ import { ArrowLeft } from 'lucide-react';
 import { type VideoDetails, type PackagingVersion } from '../../../utils/youtubeApi';
 import { SidebarVideoPreview } from './SidebarVideoPreview';
 import { SidebarNavItem } from './SidebarNavItem';
-import { SidebarPackagingNav } from './SidebarPackagingNav';
+import { PackagingNav } from './Packaging/PackagingNav';
 
-interface VideoEditSidebarProps {
+interface DetailsSidebarProps {
     video: VideoDetails;
     // Version props
     versions: PackagingVersion[];
@@ -17,7 +17,7 @@ interface VideoEditSidebarProps {
     onDeleteVersion: (versionNumber: number) => void;
 }
 
-export const VideoEditSidebar: React.FC<VideoEditSidebarProps> = ({
+export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
     video,
     versions,
     viewingVersion,
@@ -30,8 +30,7 @@ export const VideoEditSidebar: React.FC<VideoEditSidebarProps> = ({
 
     return (
         <aside
-            className="w-[255px] flex-shrink-0 border-r border-border flex flex-col"
-            style={{ backgroundColor: 'var(--video-edit-bg)' }}
+            className="w-[255px] flex-shrink-0 border-r border-border flex flex-col bg-video-edit-bg"
         >
             {/* Back Button - uses same styling as nav items */}
             <div className="py-2">
@@ -47,7 +46,7 @@ export const VideoEditSidebar: React.FC<VideoEditSidebarProps> = ({
 
             {/* Navigation Items */}
             <nav className="flex-1">
-                <SidebarPackagingNav
+                <PackagingNav
                     versions={versions}
                     viewingVersion={viewingVersion}
                     activeVersion={activeVersion}

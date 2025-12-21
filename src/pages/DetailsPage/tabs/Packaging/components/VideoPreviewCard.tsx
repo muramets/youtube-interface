@@ -1,5 +1,5 @@
 import React from 'react';
-import { type VideoDetails } from '../../../utils/youtubeApi';
+import { type VideoDetails } from '../../../../../utils/youtubeApi';
 
 interface VideoPreviewCardProps {
     video: VideoDetails;
@@ -59,8 +59,7 @@ export const VideoPreviewCard: React.FC<VideoPreviewCardProps> = ({ video, curre
 
     return (
         <div
-            className="rounded-xl p-4"
-            style={{ backgroundColor: '#1F1F1F' }}
+            className="rounded-xl p-4 bg-card-bg"
         >
             {/* Thumbnail */}
             <div className="relative aspect-video rounded-lg overflow-hidden bg-bg-tertiary">

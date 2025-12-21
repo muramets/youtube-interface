@@ -3,10 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 import { useVideos } from '../../hooks/useVideos';
-import { VideoEditLayout } from './VideoEditLayout';
+import { DetailsLayout } from './DetailsLayout';
 import { Loader2 } from 'lucide-react';
 
-export const VideoEditPage: React.FC = () => {
+export const DetailsPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { user } = useAuth();
@@ -40,5 +40,5 @@ export const VideoEditPage: React.FC = () => {
         );
     }
 
-    return <VideoEditLayout video={video} />;
+    return <DetailsLayout video={video} />;
 };

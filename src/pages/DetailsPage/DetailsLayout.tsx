@@ -1,22 +1,27 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { type VideoDetails } from '../../utils/youtubeApi';
-import { VideoEditSidebar } from './Sidebar/VideoEditSidebar';
-import { PackagingTab } from './PackagingTab/PackagingTab';
-import { usePackagingVersions } from '../../hooks/usePackagingVersions';
+import { DetailsSidebar } from './Sidebar/DetailsSidebar';
+import { PackagingTab } from './tabs/Packaging/PackagingTab';
+import { usePackagingVersions } from './tabs/Packaging/hooks/usePackagingVersions';
 import { ConfirmationModal } from '../../components/Shared/ConfirmationModal';
 import { useUIStore } from '../../stores/uiStore';
 
-interface VideoEditLayoutProps {
+interface DetailsLayoutProps {
     video: VideoDetails;
 }
 
-export const VideoEditLayout: React.FC<VideoEditLayoutProps> = ({ video }) => {
+export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
     const { showToast } = useUIStore();
 
-    // Compute if there's actually a draft by comparing video data to latest version
+    // ============================================================================
+    // BUSINESS LOGIC: Draft Detection
+    // ============================================================================
+    // A "draft" exists when current video data differs from the latest saved version.
+    // - No versions = new video, no draft (nothing to compare against)
+    // - Has versions = compare current title/description/tags/cover to latest snapshot
     const computedHasDraft = useMemo(() => {
         const history = video.packagingHistory || [];
-        if (history.length === 0) return false; // No versions = no draft, just unsaved new video
+        if (history.length === 0) return false;
 
         // Find the latest version
         const latestVersion = history.reduce((max, v) =>
@@ -62,7 +67,13 @@ export const VideoEditLayout: React.FC<VideoEditLayoutProps> = ({ video }) => {
     // Track if form has unsaved changes (will be set by PackagingTab)
     const [isFormDirty, setIsFormDirty] = useState(false);
 
-    // Handle version click from sidebar
+    // ============================================================================
+    // BUSINESS LOGIC: Version Switch with Dirty Check
+    // ============================================================================
+    // When user clicks a version in sidebar:
+    // - If form is dirty → show confirmation modal first
+    // - If form is clean → switch immediately
+    // This prevents accidental data loss.
     const handleVersionClick = useCallback((versionNumber: number | 'draft') => {
         // If already viewing this version, do nothing
         if (versionNumber === versions.viewingVersion) return;
@@ -84,7 +95,11 @@ export const VideoEditLayout: React.FC<VideoEditLayoutProps> = ({ video }) => {
         setSwitchConfirmation({ isOpen: false, targetVersion: null });
     }, [versions, switchConfirmation.targetVersion]);
 
-    // Handle delete version - show confirmation first
+    // ============================================================================
+    // BUSINESS LOGIC: Version Deletion
+    // ============================================================================
+    // Deleting a version is destructive → always show confirmation modal.
+    // Cannot delete the currently active version (business rule enforced in sidebar).
     const handleDeleteVersion = useCallback((versionNumber: number) => {
         setDeleteConfirmation({ isOpen: true, versionNumber });
     }, []);
@@ -99,9 +114,9 @@ export const VideoEditLayout: React.FC<VideoEditLayoutProps> = ({ video }) => {
     }, [versions, deleteConfirmation.versionNumber, showToast]);
 
     return (
-        <div className="flex-1 flex overflow-hidden" style={{ backgroundColor: 'var(--video-edit-bg)' }}>
+        <div className="flex-1 flex overflow-hidden bg-video-edit-bg">
             {/* Left Sidebar */}
-            <VideoEditSidebar
+            <DetailsSidebar
                 video={video}
                 versions={versions.packagingHistory}
                 viewingVersion={versions.viewingVersion}

@@ -172,7 +172,7 @@ export const LanguageTabs: React.FC<LanguageTabsProps> = ({
                                             return (
                                                 <div
                                                     key={lang.code}
-                                                    className="text-left px-3 py-2 text-sm text-text-primary hover:bg-[#1F1F1F] flex items-center justify-between group transition-colors cursor-pointer"
+                                                    className="text-left px-3 py-2 text-sm text-text-primary hover:bg-hover-bg flex items-center justify-between group transition-colors cursor-pointer"
                                                     onClick={() => {
                                                         onAddLanguage(lang.code, lang.name, lang.flag);
                                                         setIsAddOpen(false);
@@ -199,7 +199,7 @@ export const LanguageTabs: React.FC<LanguageTabsProps> = ({
                                     </div>
                                     <div className="border-t border-border">
                                         <button
-                                            className="w-full text-left px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-[#1F1F1F] flex items-center gap-2 transition-colors"
+                                            className="w-full text-left px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-hover-bg flex items-center gap-2 transition-colors"
                                             onClick={() => setIsCustomMode(true)}
                                         >
                                             <Plus size={14} />

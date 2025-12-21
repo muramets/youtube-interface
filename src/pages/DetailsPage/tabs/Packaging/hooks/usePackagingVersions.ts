@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import type { PackagingVersion, VideoLocalization } from '../utils/youtubeApi';
+import type { PackagingVersion, VideoLocalization } from '../../../../../utils/youtubeApi';
 
 interface PackagingSnapshot {
     title: string;

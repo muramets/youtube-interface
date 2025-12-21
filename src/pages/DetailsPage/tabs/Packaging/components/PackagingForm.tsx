@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { type CoverVersion } from '../../../utils/youtubeApi';
+import { type CoverVersion } from '../../../../../utils/youtubeApi';
 import { TitleInput } from './TitleInput';
 import { DescriptionInput } from './DescriptionInput';
 import { ThumbnailSection } from './ThumbnailSection';
@@ -119,7 +119,7 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
             {/* Show More Toggle */}
             <button
                 onClick={() => setShowMore(!showMore)}
-                className="flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary transition-colors"
+                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-button-secondary-bg text-button-secondary-text hover:bg-button-secondary-hover transition-colors"
             >
                 {showMore ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                 <span>{showMore ? 'Show less' : 'Show more'}</span>

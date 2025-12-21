@@ -77,7 +77,7 @@ export const TagsInput: React.FC<TagsInputProps> = ({ tags, onChange, onShowToas
                     <PortalTooltip content={copied ? "Copied!" : "Copy all tags"} align="center" enterDelay={copied ? 0 : 500}>
                         <button
                             onClick={handleCopyAll}
-                            className={`transition-colors p-1 rounded hover:bg-white/10 ${copied ? 'text-green-500' : 'text-text-secondary hover:text-text-primary'}`}
+                            className={`transition-colors p-1 rounded hover:bg-hover-bg ${copied ? 'text-green-500' : 'text-text-secondary hover:text-text-primary'}`}
                         >
                             {copied ? <Check size={14} /> : <Copy size={14} />}
                         </button>
@@ -85,7 +85,7 @@ export const TagsInput: React.FC<TagsInputProps> = ({ tags, onChange, onShowToas
                     <PortalTooltip content="Remove all tags" align="center" enterDelay={500}>
                         <button
                             onClick={handleDeleteAll}
-                            className="text-text-secondary hover:text-red-500 transition-colors p-1 rounded hover:bg-white/10"
+                            className="text-text-secondary hover:text-red-500 transition-colors p-1 rounded hover:bg-hover-bg"
                         >
                             <Trash2 size={14} />
                         </button>
@@ -94,11 +94,13 @@ export const TagsInput: React.FC<TagsInputProps> = ({ tags, onChange, onShowToas
             </div>
 
             <div
-                className={`bg-bg-secondary border border-border rounded-lg p-2 min-h-[46px] flex flex-wrap content-start gap-2 transition-colors ${readOnly ? 'opacity-60 cursor-default' : 'cursor-text hover:border-text-primary focus-within:border-text-primary'}`}
+                className={`bg-input-bg border border-border rounded-lg p-2 min-h-[46px] flex flex-wrap content-start gap-2 transition-colors ${readOnly ? 'opacity-60 cursor-default' : 'cursor-text hover:border-text-primary focus-within:border-text-primary'}`}
                 onClick={() => !readOnly && inputRef.current?.focus()}
             >
                 {tags.map((tag, index) => (
-                    <div key={index} className="bg-[#3F3F3F] hover:bg-[#4a4a4a] text-white text-sm px-3 py-1.5 rounded-full flex items-center gap-1.5 animate-scale-in transition-colors cursor-default">
+                    <div key={index}
+                        className="bg-tag-bg hover:bg-tag-hover text-text-primary text-sm px-3 py-1.5 rounded-full flex items-center gap-1.5 animate-scale-in transition-colors cursor-default"
+                    >
                         <span>{tag}</span>
                         {!readOnly && (
                             <button

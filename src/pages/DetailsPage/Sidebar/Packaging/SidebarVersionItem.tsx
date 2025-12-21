@@ -1,12 +1,21 @@
 import React from 'react';
 import { Trash2 } from 'lucide-react';
 
+/**
+ * BUSINESS LOGIC: Version Item States
+ * 
+ * - isViewing: This version is currently displayed in the form (user clicked it)
+ * - isVideoActive: This version is the "source of truth" for the video
+ * 
+ * Example: User views v.1 while v.2 is active → isViewing=true for v.1, isVideoActive=true for v.2
+ * The "Active" badge shows which version the video is actually using.
+ */
 interface SidebarVersionItemProps {
-    label: string;           // e.g., "v.2" or "Draft"
-    isViewing: boolean;      // Currently viewing this version in the form
-    isVideoActive: boolean;  // This is the version actively used by the video
+    label: string;
+    isViewing: boolean;
+    isVideoActive: boolean;
     onClick: () => void;
-    onDelete?: () => void;   // Only for saved versions, not draft
+    onDelete?: () => void;
 }
 
 export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
@@ -23,8 +32,8 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
                 group flex items-center justify-between pl-[56px] pr-4 py-1.5 cursor-pointer
                 transition-colors rounded-lg mx-3
                 ${isViewing
-                    ? 'text-text-primary font-medium bg-white/5'
-                    : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
+                    ? 'text-text-primary font-medium bg-sidebar-active'
+                    : 'text-text-secondary hover:text-text-primary hover:bg-sidebar-hover'
                 }
             `}
         >

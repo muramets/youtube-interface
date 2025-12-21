@@ -18,10 +18,10 @@ export const SidebarNavItem: React.FC<SidebarNavItemProps> = ({
             <button
                 onClick={onClick}
                 className={`
-          w-full h-12 flex items-center gap-6 px-4 text-sm font-medium transition-colors rounded-lg text-white
+          w-full h-12 flex items-center gap-6 px-4 text-sm font-medium transition-colors rounded-lg text-text-primary
           ${isActive
-                        ? 'bg-modal-surface'
-                        : 'hover:bg-modal-surface'
+                        ? 'bg-sidebar-active'
+                        : 'hover:bg-sidebar-hover'
                     }
         `}
             >

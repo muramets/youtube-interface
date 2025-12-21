@@ -43,7 +43,7 @@ export const TitleInput: React.FC<TitleInputProps> = ({
                 <button
                     onClick={onABTestClick}
                     className="absolute bottom-3 left-3 flex items-center gap-2 px-3 py-1.5 
-                        bg-[#3F3F3F] hover:bg-[#535353] rounded-full text-sm text-text-primary 
+                        bg-button-secondary-bg hover:bg-button-secondary-hover rounded-full text-sm text-text-primary 
                         transition-colors"
                 >
                     {/* YouTube A/B Testing icon */}

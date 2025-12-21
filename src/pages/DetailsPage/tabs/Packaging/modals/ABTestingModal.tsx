@@ -69,7 +69,7 @@ const SmartPercentageInput: React.FC<{
                 inputMode="decimal"
                 value={value > 0 ? value : ''}
                 onChange={handleChange}
-                className={`w-full bg-[#282828] text-white text-right text-sm font-medium p-2 pr-7 rounded-lg border focus:border-[#3ea6ff] outline-none transition-colors ${borderClassName}`}
+                className={`w-full bg-modal-input-bg text-modal-text-primary text-right text-sm font-medium p-2 pr-7 rounded-lg border focus:border-[#3ea6ff] outline-none transition-colors ${borderClassName}`}
                 placeholder="0"
                 style={{ appearance: 'none' }}
                 disabled={max <= 0 && value === 0}
@@ -308,13 +308,13 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
             />
 
             {/* Modal */}
-            <div className="relative bg-[#282828] rounded-xl w-full max-w-[960px] max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="relative bg-[var(--modal-bg)] rounded-xl w-full max-w-[960px] max-h-[90vh] overflow-hidden flex flex-col">
                 {/* Header - 63pt */}
-                <div className="flex items-center justify-between px-6 border-b border-border" style={{ height: '63px' }}>
-                    <h2 className="text-xl font-medium text-text-primary">A/B Testing</h2>
+                <div className="flex items-center justify-between px-6 border-b border-modal-border" style={{ height: '63px' }}>
+                    <h2 className="text-xl font-medium text-modal-text-primary">A/B Testing</h2>
                     <button
                         onClick={onClose}
-                        className="p-2 text-text-secondary hover:text-text-primary transition-colors"
+                        className="p-2 text-modal-text-secondary hover:text-modal-text-primary transition-colors"
                     >
                         <X size={20} />
                     </button>
@@ -324,7 +324,7 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                 <div className="flex-1 overflow-y-auto" style={{ paddingLeft: '40px', paddingRight: '24px', paddingTop: '20px', paddingBottom: '24px' }}>
                     {/* Subtitle */}
                     <div className="mb-5 flex items-center justify-between">
-                        <span className="text-lg text-text-primary">Test and compare your thumbnails and titles</span>
+                        <span className="text-lg text-modal-text-primary">Test and compare your thumbnails and titles</span>
                         {isValid && (
                             <button
                                 onClick={() => setShowResults(!showResults)}
@@ -332,7 +332,7 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                                     flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors
                                     ${showResults
                                         ? 'bg-[#3ea6ff]/10 text-[#3ea6ff] border border-[#3ea6ff]/20'
-                                        : 'bg-[#3F3F3F] text-text-secondary hover:text-text-primary'
+                                        : 'bg-modal-button-bg text-modal-text-secondary hover:text-modal-text-primary'
                                     }
                                 `}
                             >
@@ -351,8 +351,8 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                                 className={`
                                     px-4 h-8 rounded-lg text-sm font-medium transition-colors
                                     ${activeTab === tab.id
-                                        ? 'bg-white text-black'
-                                        : 'bg-[#3F3F3F] text-text-primary hover:bg-[#535353]'
+                                        ? 'bg-modal-button-active-bg text-modal-button-active-text'
+                                        : 'bg-modal-button-bg text-modal-button-text hover:bg-modal-button-hover'
                                     }
                                 `}
                             >
@@ -367,22 +367,22 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                             {[0, 1, 2].map(index => (
                                 <div key={`title-${index}`} className="flex gap-4">
                                     <div
-                                        className="bg-[#1F1F1F] rounded-2xl p-4"
+                                        className="bg-modal-card-bg rounded-2xl p-4"
                                         style={{ width: '553px' }}
                                     >
                                         <div
-                                            className={`relative bg-bg-secondary border rounded-2xl p-4 pt-3
+                                            className={`relative bg-modal-surface border rounded-2xl p-4 pt-3
                                                 hover:border-[#AAAAAA] focus-within:border-[#AAAAAA] transition-colors ${getBorderColor(results.titles[index], results.titles, !!titles[index])}`}
                                             style={{ height: '148px' }}
                                         >
-                                            <div className="text-xs text-text-secondary mb-2">
+                                            <div className="text-xs text-modal-text-secondary mb-2">
                                                 <span>Title{index < 2 ? ' (required)' : ''}</span>
                                             </div>
                                             <textarea
                                                 value={titles[index]}
                                                 onChange={(e) => handleTitleChange(index, e.target.value)}
                                                 placeholder={`Add title ${index + 1}`}
-                                                className="w-full h-[calc(100%-32px)] bg-transparent text-sm text-text-primary placeholder:text-[#717171] 
+                                                className="w-full h-[calc(100%-32px)] bg-transparent text-sm text-modal-text-primary placeholder:text-modal-placeholder 
                                                     resize-none focus:outline-none"
                                             />
                                         </div>
@@ -390,8 +390,8 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
 
                                     {/* Result Input */}
                                     {showResults && isValid && (
-                                        <div className="w-[100px] bg-[#1F1F1F] rounded-2xl p-4 flex flex-col justify-center items-center animate-in fade-in slide-in-from-left-4 duration-200">
-                                            <div className="text-xs text-text-secondary mb-2 text-center w-full">Share</div>
+                                        <div className="w-[100px] bg-modal-card-bg rounded-2xl p-4 flex flex-col justify-center items-center animate-in fade-in slide-in-from-left-4 duration-200">
+                                            <div className="text-xs text-modal-text-secondary mb-2 text-center w-full">Share</div>
                                             <SmartPercentageInput
                                                 value={results.titles[index]}
                                                 onChange={(val) => handleResultChange('titles', index, val)}
@@ -412,7 +412,7 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                                 <div key={`thumb-${index}`} className="flex items-center gap-6">
                                     <div className="flex gap-4">
                                         <div
-                                            className="bg-[#1F1F1F] rounded-2xl flex items-center"
+                                            className="bg-modal-card-bg rounded-2xl flex items-center"
                                             style={{ padding: '16px', height: '180px' }}
                                         >
                                             {thumbnails[index] ? (
@@ -443,7 +443,7 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                                                     onClick={() => fileInputRefs.current[index]?.click()}
                                                     className={`rounded-xl border border-dashed 
                                                         hover:border-[#AAAAAA] transition-colors flex flex-col items-center justify-center gap-2
-                                                        bg-[#282828] group ${getBorderColor(results.thumbnails[index], results.thumbnails, !!thumbnails[index])}`}
+                                                        bg-modal-input-bg group ${getBorderColor(results.thumbnails[index], results.thumbnails, !!thumbnails[index])}`}
                                                     style={{ width: '265px', height: '148px' }}
                                                 >
                                                     <Plus size={32} className="text-[#5F5F5F] group-hover:text-[#AAAAAA] transition-colors" />
@@ -454,8 +454,8 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
 
                                         {/* Result Input */}
                                         {showResults && isValid && (
-                                            <div className="w-[100px] bg-[#1F1F1F] rounded-2xl p-4 flex flex-col justify-center items-center animate-in fade-in slide-in-from-left-4 duration-200" style={{ height: '180px' }}>
-                                                <div className="text-xs text-text-secondary mb-2 text-center w-full">Share</div>
+                                            <div className="w-[100px] bg-modal-card-bg rounded-2xl p-4 flex flex-col justify-center items-center animate-in fade-in slide-in-from-left-4 duration-200" style={{ height: '180px' }}>
+                                                <div className="text-xs text-modal-text-secondary mb-2 text-center w-full">Share</div>
                                                 <SmartPercentageInput
                                                     value={results.thumbnails[index]}
                                                     onChange={(val) => handleResultChange('thumbnails', index, val)}
@@ -466,7 +466,7 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                                         )}
                                     </div>
 
-                                    <span className="text-sm text-text-secondary">
+                                    <span className="text-sm text-modal-text-secondary">
                                         Thumbnail {index + 1}{index < 2 ? ' (required)' : ''}
                                     </span>
                                     <input
@@ -487,7 +487,7 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                             {[0, 1, 2].map(index => (
                                 <div
                                     key={`both-${index}`}
-                                    className="bg-[#1F1F1F] rounded-2xl p-4 flex gap-4"
+                                    className="bg-modal-card-bg rounded-2xl p-4 flex gap-4"
                                     style={{ height: '180px' }}
                                 >
                                     {/* Combined Block: Thumbnail + Title */}
@@ -522,7 +522,7 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                                                     onClick={() => fileInputRefs.current[index]?.click()}
                                                     className={`rounded-xl border border-dashed 
                                                         hover:border-[#AAAAAA] transition-colors flex flex-col items-center justify-center gap-2
-                                                        bg-[#282828] group ${getBorderColor(results.thumbnails[index], results.thumbnails, !!(titles[index] || thumbnails[index]))}`}
+                                                        bg-modal-input-bg group ${getBorderColor(results.thumbnails[index], results.thumbnails, !!(titles[index] || thumbnails[index]))}`}
                                                     style={{ width: '265px', height: '148px' }}
                                                 >
                                                     <Plus size={32} className="text-[#5F5F5F] group-hover:text-[#AAAAAA] transition-colors" />
@@ -533,17 +533,17 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
 
                                         {/* Title */}
                                         <div
-                                            className={`flex-1 relative bg-bg-secondary border rounded-2xl p-4 pt-3
+                                            className={`flex-1 relative bg-modal-surface border rounded-2xl p-4 pt-3
                                                 hover:border-[#AAAAAA] focus-within:border-[#AAAAAA] transition-colors overflow-hidden ${getBorderColor(results.titles[index], results.titles, !!(titles[index] || thumbnails[index]))}`}
                                         >
-                                            <div className="text-xs text-text-secondary mb-2 whitespace-nowrap">
+                                            <div className="text-xs text-modal-text-secondary mb-2 whitespace-nowrap">
                                                 <span>Title {index + 1}{index < 2 ? ' (req.)' : ''}</span>
                                             </div>
                                             <textarea
                                                 value={titles[index]}
                                                 onChange={(e) => handleTitleChange(index, e.target.value)}
                                                 placeholder={`Add title ${index + 1}`}
-                                                className="w-full h-[calc(100%-32px)] bg-transparent text-sm text-text-primary placeholder:text-[#717171] 
+                                                className="w-full h-[calc(100%-32px)] bg-transparent text-sm text-modal-text-primary placeholder:text-modal-placeholder 
                                                     resize-none focus:outline-none"
                                             />
                                         </div>
@@ -552,7 +552,7 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                                     {/* Unified Result Input for Both */}
                                     {showResults && isValid && (
                                         <div className="w-[100px] h-full flex flex-col justify-center animate-in fade-in slide-in-from-left-2 duration-200">
-                                            <div className="text-xs text-text-secondary mb-2 text-center w-full">Share</div>
+                                            <div className="text-xs text-modal-text-secondary mb-2 text-center w-full">Share</div>
                                             <SmartPercentageInput
                                                 value={results.titles[index]}
                                                 onChange={(val) => {
@@ -585,8 +585,8 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                 </div>
 
                 {/* Footer - 67pt */}
-                <div className="flex items-center justify-between px-6 border-t border-border" style={{ height: '67px' }}>
-                    <span className="text-sm text-text-secondary">
+                <div className="flex items-center justify-between px-6 border-t border-modal-border" style={{ height: '67px' }}>
+                    <span className="text-sm text-modal-text-secondary">
                         {validationError || ''}
                     </span>
                     <button
@@ -595,8 +595,8 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                         className={`
                             px-4 h-10 rounded-full text-sm font-medium transition-colors
                             ${isValid
-                                ? 'bg-white text-black hover:bg-gray-200'
-                                : 'bg-[#3F3F3F] text-text-secondary cursor-not-allowed'
+                                ? 'bg-modal-button-active-bg text-modal-button-active-text hover:opacity-90'
+                                : 'bg-modal-button-bg text-modal-text-secondary cursor-not-allowed'
                             }
                         `}
                     >

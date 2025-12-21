@@ -10,7 +10,7 @@ import { PlaylistsPage } from './components/Playlist/PlaylistsPage';
 import { PlaylistDetailPage } from './components/Playlist/PlaylistDetailPage';
 import { CategoryBar } from './components/Video/CategoryBar';
 import { TrendsPage } from './pages/TrendsPage';
-import { VideoEditPage } from './pages/VideoEditPage';
+import { DetailsPage } from './pages/DetailsPage';
 import { useStoreInitialization } from './hooks/useStoreInitialization';
 import { useVideos } from './hooks/useVideos';
 
@@ -85,11 +85,11 @@ function AppContent() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         {/* VideoEditPage: Full-page layout without main sidebar */}
-        <Route path="/video/:id/edit" element={
+        <Route path="/video/:id/details" element={
           <ProtectedRoute>
             <div className="h-screen flex flex-col" style={{ backgroundColor: 'var(--video-edit-bg)' }}>
-              <Header className="bg-[#282828] shadow-[0_4px_12px_rgba(0,0,0,0.2)] h-16" />
-              <VideoEditPage />
+              <Header className="bg-video-edit-bg shadow-[0_4px_12px_rgba(0,0,0,0.2)] h-16" />
+              <DetailsPage />
             </div>
           </ProtectedRoute>
         } />

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Pencil, ChevronDown, ChevronRight } from 'lucide-react';
 import { SidebarVersionItem } from './SidebarVersionItem';
-import type { PackagingVersion } from '../../../utils/youtubeApi';
+import type { PackagingVersion } from '../../../../utils/youtubeApi';
 
-interface SidebarPackagingNavProps {
+interface PackagingNavProps {
     versions: PackagingVersion[];
     viewingVersion: number | 'draft';
     activeVersion: number | 'draft';  // The version currently used by the video
@@ -12,7 +12,7 @@ interface SidebarPackagingNavProps {
     onDeleteVersion: (versionNumber: number) => void;
 }
 
-export const SidebarPackagingNav: React.FC<SidebarPackagingNavProps> = ({
+export const PackagingNav: React.FC<PackagingNavProps> = ({
     versions,
     viewingVersion,
     activeVersion,
@@ -20,10 +20,16 @@ export const SidebarPackagingNav: React.FC<SidebarPackagingNavProps> = ({
     onVersionClick,
     onDeleteVersion,
 }) => {
-    // Always collapsed on initial render
+    // ============================================================================
+    // BUSINESS LOGIC: Collapsible Version List
+    // ============================================================================
+    // Versions are hidden by default to keep sidebar clean.
+    // - First click on header → expands the list
+    // - Second click → navigates to draft or latest version
     const [isExpanded, setIsExpanded] = useState(false);
 
-    // Sort versions by last used date (endDate or startDate as fallback), newest first
+    // BUSINESS LOGIC: Version Ordering
+    // Sort by most recently used (endDate) or created (startDate) - newest first
     const sortedVersions = [...versions].sort((a, b) => {
         const aDate = a.endDate || a.startDate;
         const bDate = b.endDate || b.startDate;
@@ -57,8 +63,8 @@ export const SidebarPackagingNav: React.FC<SidebarPackagingNavProps> = ({
                     }}
                     className={`
                         w-full h-12 flex items-center gap-4 px-4 text-sm font-medium 
-                        transition-colors rounded-lg cursor-pointer
-                        ${isActive ? 'bg-modal-surface text-white' : 'hover:bg-modal-surface text-white'}
+                        transition-colors rounded-lg cursor-pointer text-text-primary
+                        ${isActive ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover'}
                     `}
                 >
                     {/* Icon */}
@@ -76,7 +82,7 @@ export const SidebarPackagingNav: React.FC<SidebarPackagingNavProps> = ({
                                 e.stopPropagation();
                                 setIsExpanded(!isExpanded);
                             }}
-                            className="p-1 text-text-secondary hover:text-white transition-colors"
+                            className="p-1 text-text-secondary hover:text-text-primary transition-colors"
                         >
                             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         </button>

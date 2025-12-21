@@ -2,8 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =============================================================================
+   DESIGN TOKENS - LIGHT THEME
+   Premium color system for consistent theming across all components.
+   ============================================================================= */
+
 :root {
-  /* Base Colors */
+  /* ---------------------------------------------------------------------------
+     Core Palette
+     --------------------------------------------------------------------------- */
   --bg-primary: #ffffff;
   --bg-secondary: #f9f9f9;
   --text-primary: #0f0f0f;
@@ -14,36 +21,74 @@
   --hover: #f2f2f2;
   --hover-bg: #f2f2f2;
 
-  /* Semantic Colors */
+  /* ---------------------------------------------------------------------------
+     Semantic Colors
+     --------------------------------------------------------------------------- */
   --modal-overlay: rgba(0, 0, 0, 0.6);
   --primary-button-bg: #065fd4;
   --primary-button-hover: #0056b3;
   --primary-button-text: #ffffff;
   --danger-color: #cc0000;
 
-  /* Settings Modal Colors (Light Mode Defaults) */
+  /* ---------------------------------------------------------------------------
+     Component: Modals
+     --------------------------------------------------------------------------- */
+  --modal-bg: #FFFFFF;
+  --modal-surface: #F5F5F5;
+  --modal-surface-hover: #E8E8E8;
+  --modal-card-bg: #EEEEEE;
+  --modal-input-bg: #FFFFFF;
+  --modal-button-bg: #F0F0F0;
+  --modal-button-hover: #E9E9E9;
+  --modal-button-text: #0D0D0D;
+  --modal-button-active-bg: #0D0D0D;
+  --modal-button-active-text: #FFFFFF;
+  --modal-text-primary: #0f0f0f;
+  --modal-text-secondary: #606060;
+  --modal-placeholder: #909090;
+  --modal-border: #E0E0E0;
+
+  /* ---------------------------------------------------------------------------
+     Component: Settings Modal
+     --------------------------------------------------------------------------- */
   --settings-menu-active: #e5e5e5;
   --settings-menu-hover: #f2f2f2;
   --settings-input-bg: #ffffff;
   --settings-dropdown-bg: #ffffff;
   --settings-dropdown-hover: #f2f2f2;
 
-  /* Modal Specific Colors (Always Dark) */
-  --modal-surface: #1F1F1F;
-  --modal-button-bg: #3F3F3F;
-  --modal-button-hover: #4F4F4F;
-  --modal-placeholder: #717171;
-
-  /* Sidebar Colors */
+  /* ---------------------------------------------------------------------------
+     Component: Sidebar
+     --------------------------------------------------------------------------- */
   --sidebar-active: #f2f2f2;
   --sidebar-hover: #f2f2f2;
 
-  /* Timeline Dot Glow (Light Mode - darker glow) */
+  /* ---------------------------------------------------------------------------
+     Component: Video Details & Packaging
+     --------------------------------------------------------------------------- */
+  --video-edit-bg: #ffffff;
+  --card-bg: #f9f9f9;
+  --input-bg: #ffffff;
+  --button-secondary-bg: #F2F2F2;
+  --button-secondary-hover: #E5E5E5;
+  --button-secondary-text: #030303;
+  --tag-bg: #e5e5e5;
+  --tag-hover: #d4d4d4;
+
+  /* ---------------------------------------------------------------------------
+     Component: Timeline
+     --------------------------------------------------------------------------- */
   --dot-glow-rgb: 0, 0, 0;
 }
 
+/* =============================================================================
+   DESIGN TOKENS - DARK THEME
+   ============================================================================= */
+
 .dark {
-  /* Base Colors - Premium Dark Theme */
+  /* ---------------------------------------------------------------------------
+     Core Palette
+     --------------------------------------------------------------------------- */
   --bg-primary: #0f0f0f;
   --bg-secondary: #272727;
   --text-primary: #ffffff;
@@ -54,23 +99,60 @@
   --hover: #3f3f3f;
   --hover-bg: #3f3f3f;
 
-  /* Settings Modal Colors */
+  /* ---------------------------------------------------------------------------
+     Component: Modals
+     --------------------------------------------------------------------------- */
+  --modal-bg: #282828;
+  --modal-surface: #1F1F1F;
+  --modal-surface-hover: #2A2A2A;
+  --modal-card-bg: #1F1F1F;
+  --modal-input-bg: #282828;
+  --modal-button-bg: #3F3F3F;
+  --modal-button-hover: #0D0D0D;
+  --modal-button-text: #FFFFFF;
+  --modal-button-active-bg: #FFFFFF;
+  --modal-button-active-text: #0D0D0D;
+  --modal-text-primary: #FFFFFF;
+  --modal-text-secondary: #AAAAAA;
+  --modal-placeholder: #717171;
+  --modal-border: #3F3F3F;
+
+  /* ---------------------------------------------------------------------------
+     Component: Settings Modal
+     --------------------------------------------------------------------------- */
   --settings-menu-active: #1F1F1F;
   --settings-menu-hover: #161616;
   --settings-input-bg: #282828;
   --settings-dropdown-bg: #1F1F1F;
   --settings-dropdown-hover: #161616;
 
-  /* Sidebar Colors */
-  --sidebar-active: #272727;
-  --sidebar-hover: #272727;
+  /* ---------------------------------------------------------------------------
+     Component: Sidebar
+     --------------------------------------------------------------------------- */
+  --sidebar-active: #1F1F1F;
+  --sidebar-hover: #1F1F1F;
 
-  /* Video Edit Page */
+  /* ---------------------------------------------------------------------------
+     Component: Video Details & Packaging
+     --------------------------------------------------------------------------- */
   --video-edit-bg: #282828;
+  --card-bg: #1F1F1F;
+  --input-bg: #282828;
+  --button-secondary-bg: #3E3E3E;
+  --button-secondary-hover: #535353;
+  --button-secondary-text: #FFFFFF;
+  --tag-bg: #3E3E3E;
+  --tag-hover: #0D0D0D;
 
-  /* Timeline Dot Glow (Dark Mode - white glow) */
+  /* ---------------------------------------------------------------------------
+     Component: Timeline
+     --------------------------------------------------------------------------- */
   --dot-glow-rgb: 255, 255, 255;
 }
+
+/* =============================================================================
+   GLOBAL STYLES
+   ============================================================================= */
 
 body {
   background-color: var(--bg-primary);
@@ -86,7 +168,10 @@ body {
   box-sizing: border-box;
 }
 
-/* Scrollbar styling */
+/* =============================================================================
+   SCROLLBAR STYLES
+   ============================================================================= */
+
 ::-webkit-scrollbar {
   width: 8px;
 }
@@ -113,7 +198,10 @@ body {
   scrollbar-width: none;
 }
 
-/* Hide number input arrows */
+/* =============================================================================
+   FORM UTILITIES
+   ============================================================================= */
+
 .no-spinner::-webkit-inner-spin-button,
 .no-spinner::-webkit-outer-spin-button {
   -webkit-appearance: none;
@@ -125,7 +213,6 @@ body {
   -moz-appearance: textfield;
 }
 
-/* Autofill override */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
@@ -161,7 +248,10 @@ input:-webkit-autofill:active {
   color: var(--modal-placeholder);
 }
 
-/* Interactive text: gray by default, white on hover */
+/* =============================================================================
+   INTERACTIVE UTILITIES
+   ============================================================================= */
+
 .interactive-text {
   color: var(--text-tertiary);
   transition: color 150ms ease;
