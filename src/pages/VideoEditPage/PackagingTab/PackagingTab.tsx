@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { type VideoDetails, type PackagingVersion, type VideoLocalization } from '../../../utils/youtubeApi';
 import { PackagingForm } from './PackagingForm';
 import { VideoPreviewCard } from './VideoPreviewCard';
 import { LanguageTabs } from '../../../components/Video/LanguageTabs';
+import { ABTestingModal } from './ABTestingModal';
 import { useAuth } from '../../../hooks/useAuth';
 import { useChannelStore } from '../../../stores/channelStore';
 import { ChannelService } from '../../../services/channelService';
@@ -77,6 +78,14 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
 
     const [isSaving, setIsSaving] = useState(false);
     const [isDirty, setIsDirty] = useState(false);
+    const [isScrolled, setIsScrolled] = useState(false);
+    const sentinelRef = useRef<HTMLDivElement>(null);
+
+    // A/B Testing state
+    const [abTestModalOpen, setAbTestModalOpen] = useState(false);
+    const [abTestInitialTab, setAbTestInitialTab] = useState<'title' | 'thumbnail' | 'both'>('title');
+    const [abTestTitles, setAbTestTitles] = useState<string[]>([]);
+    const [abTestThumbnails, setAbTestThumbnails] = useState<string[]>([]);
 
     // Reference to the currently loaded data (for dirty state comparison)
     const [loadedSnapshot, setLoadedSnapshot] = useState({
@@ -84,7 +93,9 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
         description: video.description || '',
         tags: video.tags || [],
         customImage: video.customImage || '',
-        localizations: video.localizations || {}
+        localizations: video.localizations || {},
+        abTestTitles: [] as string[],
+        abTestThumbnails: [] as string[]
     });
 
     // Is the user viewing an old version (read-only)?
@@ -106,15 +117,35 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
             description !== loadedSnapshot.description ||
             JSON.stringify(tags) !== JSON.stringify(loadedSnapshot.tags) ||
             customImage !== loadedSnapshot.customImage ||
-            JSON.stringify(localizations) !== JSON.stringify(loadedSnapshot.localizations);
+            JSON.stringify(localizations) !== JSON.stringify(loadedSnapshot.localizations) ||
+            JSON.stringify(abTestTitles) !== JSON.stringify(loadedSnapshot.abTestTitles) ||
+            JSON.stringify(abTestThumbnails) !== JSON.stringify(loadedSnapshot.abTestThumbnails);
 
         setIsDirty(hasChanges);
     }, [
         localization,
         customImage,
         loadedSnapshot,
-        isViewingOldVersion
+        isViewingOldVersion,
+        abTestTitles,
+        abTestThumbnails
     ]);
+
+    // Detect scroll for sticky header shadow
+    useEffect(() => {
+        const sentinel = sentinelRef.current;
+        if (!sentinel) return;
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                setIsScrolled(!entry.isIntersecting);
+            },
+            { threshold: 0 }
+        );
+
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, []);
 
     // Sync dirty state with parent
     useEffect(() => {
@@ -130,7 +161,9 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                 description: video.description || '',
                 tags: video.tags || [],
                 customImage: video.customImage || '',
-                localizations: video.localizations || {}
+                localizations: video.localizations || {},
+                abTestTitles: [] as string[],
+                abTestThumbnails: [] as string[]
             };
             localization.resetToSnapshot({
                 title: snapshot.title,
@@ -149,7 +182,9 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                     description: versionSnapshot.description,
                     tags: versionSnapshot.tags,
                     customImage: versionSnapshot.coverImage || '',
-                    localizations: versionSnapshot.localizations || {}
+                    localizations: versionSnapshot.localizations || {},
+                    abTestTitles: [] as string[],
+                    abTestThumbnails: [] as string[]
                 };
                 localization.resetToSnapshot({
                     title: snapshot.title,
@@ -213,7 +248,9 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                 description: payload.description,
                 tags: payload.tags,
                 customImage,
-                localizations: payload.localizations
+                localizations: payload.localizations,
+                abTestTitles,
+                abTestThumbnails
             });
 
             localization.resetDirty();
@@ -236,6 +273,9 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
             localizations: loadedSnapshot.localizations
         });
         setCustomImage(loadedSnapshot.customImage);
+        // Reset A/B test state
+        setAbTestTitles(loadedSnapshot.abTestTitles);
+        setAbTestThumbnails(loadedSnapshot.abTestThumbnails);
         setIsDirty(false);
     };
 
@@ -281,7 +321,9 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                 description: payload.description,
                 tags: payload.tags,
                 customImage,
-                localizations: payload.localizations
+                localizations: payload.localizations,
+                abTestTitles,
+                abTestThumbnails
             });
 
             localization.resetDirty();
@@ -294,6 +336,28 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
             setIsSaving(false);
         }
     };
+
+    // A/B Testing handlers
+    const handleOpenABTestFromTitle = useCallback(() => {
+        setAbTestInitialTab('title');
+        setAbTestModalOpen(true);
+    }, []);
+
+    const handleOpenABTestFromThumbnail = useCallback(() => {
+        setAbTestInitialTab('thumbnail');
+        setAbTestModalOpen(true);
+    }, []);
+
+    const handleABTestSave = useCallback((data: {
+        mode: 'title' | 'thumbnail' | 'both';
+        titles: string[];
+        thumbnails: string[];
+    }) => {
+        setAbTestTitles(data.titles);
+        setAbTestThumbnails(data.thumbnails);
+        setIsDirty(true);
+        showToast('A/B test configured', 'success');
+    }, [showToast]);
 
     // Handle language switch
     const handleSwitchLanguage = useCallback((code: string) => {
@@ -370,113 +434,137 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
     }, [versionState, showToast]);
 
     return (
-        <div className="flex-1 overflow-y-auto p-6">
-            {/* Page Header */}
-            <div className="flex items-center gap-4 mb-4">
-                <h1 className="text-2xl font-medium text-white">{headerTitle}</h1>
+        <div className="flex-1">
+            {/* Scroll detection sentinel */}
+            <div ref={sentinelRef} className="h-0" />
 
-                {/* Restore button - show when viewing a non-active version */}
-                {!isViewingActiveVersion && versionState.viewingVersion !== 'draft' && (
-                    <button
-                        onClick={handleRestore}
-                        className="px-4 py-1.5 rounded-full text-sm font-medium bg-[#3ea6ff]/20 text-[#3ea6ff] hover:bg-[#3ea6ff]/30 transition-colors"
-                    >
-                        Restore this version
-                    </button>
-                )}
-            </div>
+            {/* Page Header - Sticky */}
+            <div className={`sticky top-0 z-10 px-6 py-4 transition-shadow duration-200 ${isScrolled ? 'shadow-[0_2px_8px_rgba(0,0,0,0.3)]' : ''}`} style={{ backgroundColor: 'var(--video-edit-bg)' }}>
+                <div className="flex items-center gap-4 max-w-[1050px]">
+                    <h1 className="text-2xl font-medium text-white">{headerTitle}</h1>
 
-            {/* Language Tabs */}
-            <div className="mb-6">
-                <LanguageTabs
-                    activeLanguage={localization.activeLanguage}
-                    localizations={localization.localizations}
-                    onSwitchLanguage={handleSwitchLanguage}
-                    onAddLanguage={handleAddLanguage}
-                    onRemoveLanguage={localization.removeLanguage}
-                    savedCustomLanguages={currentChannel?.customLanguages || []}
-                    onDeleteCustomLanguage={handleDeleteCustomLanguage}
-                />
-            </div>
+                    {/* Restore button - show when viewing a non-active version */}
+                    {!isViewingActiveVersion && versionState.viewingVersion !== 'draft' && (
+                        <button
+                            onClick={handleRestore}
+                            className="px-4 py-1.5 rounded-full text-sm font-medium bg-[#3ea6ff]/20 text-[#3ea6ff] hover:bg-[#3ea6ff]/30 transition-colors"
+                        >
+                            Restore this version
+                        </button>
+                    )}
 
-            <div className="flex gap-8 max-w-[1050px] items-start">
-                {/* Main Form (Left) */}
-                <div className="flex-1 min-w-0">
-                    <PackagingForm
-                        title={localization.title}
-                        setTitle={localization.setTitle}
-                        description={localization.description}
-                        setDescription={localization.setDescription}
-                        tags={localization.tags}
-                        setTags={localization.setTags}
-                        coverImage={customImage}
-                        setCoverImage={setCustomImage}
-                        publishedUrl={publishedVideoId}
-                        setPublishedUrl={setPublishedVideoId}
-                        videoRender={videoRender}
-                        setVideoRender={setVideoRender}
-                        audioRender={audioRender}
-                        setAudioRender={setAudioRender}
-                        readOnly={isViewingOldVersion}
-                    />
+                    {/* Spacer */}
+                    <div className="flex-1" />
 
                     {/* Action Buttons - only show when viewing draft or active version */}
                     {!isViewingOldVersion && (
-                        <div className="flex gap-3 mt-6 pt-6 border-t border-border">
-                            <button
-                                onClick={handleSave}
-                                disabled={!isDirty || isSaving}
-                                className={`
-                                    px-6 py-2 rounded-full font-medium transition-colors
-                                    ${isDirty && !isSaving
-                                        ? 'bg-white text-black hover:bg-gray-200'
-                                        : 'bg-white/20 text-text-secondary cursor-not-allowed'
-                                    }
-                                `}
-                            >
-                                {isSaving ? 'Saving...' : isDirty ? 'Save as draft' : 'Save'}
-                            </button>
+                        <div className="flex gap-3">
                             <button
                                 onClick={handleCancel}
                                 disabled={!isDirty}
                                 className={`
-                                    px-6 py-2 rounded-full font-medium transition-colors
-                                    ${isDirty
-                                        ? 'text-text-primary hover:bg-hover-bg'
-                                        : 'text-text-secondary cursor-not-allowed'
+                                px-3 py-1.5 rounded-full text-sm font-medium transition-colors
+                                ${isDirty
+                                        ? 'bg-white text-black hover:bg-gray-200'
+                                        : 'bg-white/20 text-text-secondary cursor-not-allowed'
                                     }
-                                `}
+                            `}
                             >
-                                Cancel
+                                Undo changes
+                            </button>
+                            <button
+                                onClick={handleSave}
+                                disabled={!isDirty || isSaving}
+                                className={`
+                                px-3 py-1.5 rounded-full text-sm font-medium transition-colors
+                                ${isDirty && !isSaving
+                                        ? 'bg-white text-black hover:bg-gray-200'
+                                        : 'bg-white/20 text-text-secondary cursor-not-allowed'
+                                    }
+                            `}
+                            >
+                                {isSaving ? 'Saving...' : isDirty ? 'Save as draft' : 'Save'}
                             </button>
 
                             {/* Save as new version button - show when changes or viewing draft */}
                             {(isDirty || versionState.viewingVersion === 'draft') && (
-                                <>
-                                    {/* Spacer */}
-                                    <div className="flex-1" />
-
-                                    <button
-                                        onClick={handleSaveAsNewVersion}
-                                        disabled={isSaving}
-                                        className={`
-                                            px-6 py-2 rounded-full font-medium transition-colors
-                                            border border-[#3ea6ff] text-[#3ea6ff] hover:bg-[#3ea6ff]/10
-                                            ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}
-                                        `}
-                                    >
-                                        Save as v.{versionState.currentVersionNumber}
-                                    </button>
-                                </>
+                                <button
+                                    onClick={handleSaveAsNewVersion}
+                                    disabled={isSaving}
+                                    className={`
+                                    px-3 py-1.5 rounded-full text-sm font-medium transition-colors
+                                    border border-[#3ea6ff] text-[#3ea6ff] hover:bg-[#3ea6ff]/10
+                                    ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}
+                                `}
+                                >
+                                    Save as v.{versionState.currentVersionNumber}
+                                </button>
                             )}
                         </div>
                     )}
                 </div>
+            </div>
 
-                {/* Video Preview (Right) */}
-                <div className="w-80 flex-shrink-0">
-                    <VideoPreviewCard video={video} currentCoverImage={customImage} />
+            {/* Content with padding */}
+            <div className="p-6">
+                {/* Language Tabs */}
+                <div className="mb-6">
+                    <LanguageTabs
+                        activeLanguage={localization.activeLanguage}
+                        localizations={localization.localizations}
+                        onSwitchLanguage={handleSwitchLanguage}
+                        onAddLanguage={handleAddLanguage}
+                        onRemoveLanguage={localization.removeLanguage}
+                        savedCustomLanguages={currentChannel?.customLanguages || []}
+                        onDeleteCustomLanguage={handleDeleteCustomLanguage}
+                    />
                 </div>
+
+                <div className="flex gap-8 max-w-[1050px] items-start">
+                    {/* Main Form (Left) */}
+                    <div className="flex-1 min-w-0">
+                        <PackagingForm
+                            title={localization.title}
+                            setTitle={localization.setTitle}
+                            description={localization.description}
+                            setDescription={localization.setDescription}
+                            tags={localization.tags}
+                            setTags={localization.setTags}
+                            coverImage={customImage}
+                            setCoverImage={setCustomImage}
+                            publishedUrl={publishedVideoId}
+                            setPublishedUrl={setPublishedVideoId}
+                            videoRender={videoRender}
+                            setVideoRender={setVideoRender}
+                            audioRender={audioRender}
+                            setAudioRender={setAudioRender}
+                            readOnly={isViewingOldVersion}
+                            abTestTitles={abTestTitles}
+                            abTestStatus="draft"
+                            onTitleABTestClick={handleOpenABTestFromTitle}
+                            onThumbnailABTestClick={handleOpenABTestFromThumbnail}
+                        />
+
+
+                    </div>
+
+                    {/* Video Preview (Right) */}
+                    <div className="w-80 flex-shrink-0">
+                        <VideoPreviewCard video={video} currentCoverImage={customImage} />
+                    </div>
+                </div>
+
+                {/* A/B Testing Modal */}
+                <ABTestingModal
+                    isOpen={abTestModalOpen}
+                    onClose={() => setAbTestModalOpen(false)}
+                    initialTab={abTestInitialTab}
+                    currentTitle={localization.title}
+                    currentThumbnail={customImage}
+                    titleVariants={abTestTitles}
+                    thumbnailVariants={abTestThumbnails}
+                    onSave={handleABTestSave}
+                />
             </div>
         </div>
     );

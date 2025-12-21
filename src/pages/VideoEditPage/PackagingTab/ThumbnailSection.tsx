@@ -1,13 +1,19 @@
 import React, { useRef, useState } from 'react';
-import { Upload, MoreVertical, Trash2 } from 'lucide-react';
+import { Upload, MoreVertical, Trash2, SplitSquareVertical } from 'lucide-react';
 
 interface ThumbnailSectionProps {
     value: string;
     onChange: (value: string) => void;
     readOnly?: boolean;
+    onABTestClick?: () => void;
 }
 
-export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({ value, onChange, readOnly = false }) => {
+export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
+    value,
+    onChange,
+    readOnly = false,
+    onABTestClick
+}) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showDropdown, setShowDropdown] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -81,7 +87,19 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({ value, onCha
 
                                 {/* Dropdown */}
                                 {showDropdown && (
-                                    <div className="absolute top-12 right-0 bg-modal-surface border border-border rounded-lg shadow-lg py-1 min-w-[140px] z-10">
+                                    <div className="absolute top-12 right-0 bg-modal-surface border border-border rounded-lg shadow-lg py-1 min-w-[160px] z-10">
+                                        {onABTestClick && (
+                                            <button
+                                                onClick={() => {
+                                                    setShowDropdown(false);
+                                                    onABTestClick();
+                                                }}
+                                                className="w-full px-4 py-2 text-left text-sm text-text-primary hover:bg-white/5 flex items-center gap-2"
+                                            >
+                                                <SplitSquareVertical size={16} />
+                                                A/B Testing
+                                            </button>
+                                        )}
                                         <button
                                             onClick={handleRemove}
                                             className="w-full px-4 py-2 text-left text-sm text-text-primary hover:bg-white/5 flex items-center gap-2"

@@ -5,6 +5,7 @@ import { DescriptionInput } from './DescriptionInput';
 import { ThumbnailSection } from './ThumbnailSection';
 import { TagsSection } from './TagsSection';
 import { ShowMoreSection } from './ShowMoreSection';
+import { ABTitlesDisplay } from './ABTitlesDisplay';
 
 interface PackagingFormProps {
     title: string;
@@ -22,6 +23,11 @@ interface PackagingFormProps {
     audioRender: string;
     setAudioRender: (value: string) => void;
     readOnly?: boolean;
+    // A/B Testing props
+    abTestTitles?: string[];
+    abTestStatus?: 'running' | 'completed' | 'draft';
+    onTitleABTestClick?: () => void;
+    onThumbnailABTestClick?: () => void;
 }
 
 export const PackagingForm: React.FC<PackagingFormProps> = ({
@@ -40,19 +46,44 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
     audioRender,
     setAudioRender,
     readOnly = false,
+    abTestTitles = [],
+    abTestStatus = 'draft',
+    onTitleABTestClick,
+    onThumbnailABTestClick,
 }) => {
     const [showMore, setShowMore] = useState(false);
 
+    const hasABTestTitles = abTestTitles.length >= 2;
+
     return (
         <div className="space-y-6">
-            {/* Title */}
-            <TitleInput value={title} onChange={setTitle} />
+            {/* Title - show A/B display if testing is active */}
+            {hasABTestTitles ? (
+                <ABTitlesDisplay
+                    titles={abTestTitles}
+                    status={abTestStatus}
+                    onEditClick={onTitleABTestClick || (() => { })}
+                    readOnly={readOnly}
+                />
+            ) : (
+                <TitleInput
+                    value={title}
+                    onChange={setTitle}
+                    onABTestClick={onTitleABTestClick}
+                    readOnly={readOnly}
+                />
+            )}
 
             {/* Description */}
             <DescriptionInput value={description} onChange={setDescription} />
 
             {/* Thumbnail */}
-            <ThumbnailSection value={coverImage} onChange={setCoverImage} readOnly={readOnly} />
+            <ThumbnailSection
+                value={coverImage}
+                onChange={setCoverImage}
+                readOnly={readOnly}
+                onABTestClick={onThumbnailABTestClick}
+            />
 
             {/* Tags */}
             <TagsSection tags={tags} setTags={setTags} />
