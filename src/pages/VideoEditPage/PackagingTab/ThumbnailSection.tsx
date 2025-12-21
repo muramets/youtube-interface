@@ -54,6 +54,14 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
     };
 
     const handleRemove = () => {
+        // Find if this is a history item to delete it (matching Version History behavior)
+        if (onDelete && history.length > 0) {
+            const item = history.find(v => v.url === value);
+            if (item) {
+                onDelete(item.timestamp);
+            }
+        }
+
         onChange('');
         setShowDropdown(false);
         if (fileInputRef.current) {
@@ -112,7 +120,7 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
 
                             {/* More button with dropdown - hide in read-only mode */}
                             {!readOnly && (
-                                <div ref={dropdownRef} className="absolute top-1.5 right-1.5">
+                                <div ref={dropdownRef} className={`absolute top-1.5 right-1.5 transition-opacity ${showDropdown ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                                     <button
                                         onClick={() => setShowDropdown(!showDropdown)}
                                         className="w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center
@@ -177,15 +185,63 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
                             <span className="text-xs text-text-secondary">No thumbnail</span>
                         </div>
                     ) : (
-                        <button
-                            onClick={() => fileInputRef.current?.click()}
-                            className="w-40 aspect-video rounded-lg border border-dashed border-border 
-                                hover:border-text-primary transition-colors flex flex-col items-center justify-center gap-2
-                                bg-bg-secondary"
-                        >
-                            <Upload size={24} className="text-text-secondary" />
-                            <span className="text-xs text-text-secondary">Upload thumbnail</span>
-                        </button>
+                        <div className="relative group w-40 aspect-video">
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="w-full h-full rounded-lg border border-dashed border-border 
+                                    hover:border-text-primary transition-colors flex flex-col items-center justify-center gap-2
+                                    bg-bg-secondary"
+                            >
+                                <Upload size={24} className="text-text-secondary" />
+                                <span className="text-xs text-text-secondary">Upload thumbnail</span>
+                            </button>
+
+                            {/* More button for empty state - show if history exists */}
+                            {!readOnly && history.length > 0 && (
+                                <div ref={dropdownRef} className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowDropdown(!showDropdown);
+                                        }}
+                                        className="w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center
+                                            hover:bg-black/80 transition-colors"
+                                    >
+                                        <MoreVertical size={16} />
+                                    </button>
+
+                                    {/* Dropdown for empty state */}
+                                    {showDropdown && (
+                                        <div className="absolute top-8 right-0 bg-modal-surface border border-border rounded-lg shadow-lg py-1 min-w-[160px] z-10" onClick={e => e.stopPropagation()}>
+                                            {onABTestClick && (
+                                                <button
+                                                    onClick={() => {
+                                                        setShowDropdown(false);
+                                                        onABTestClick();
+                                                    }}
+                                                    className="w-full px-4 py-2 text-left text-sm text-text-primary hover:bg-white/5 flex items-center gap-2"
+                                                >
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                                        <path d="M12 1a1 1 0 011 1v20a1 1 0 11-2 0V2a1 1 0 011-1Zm-2 4H3v14h7v2H3a2 2 0 01-1.99-1.796L1 19V5a2 2 0 012-2h7v2Zm11-2a2 2 0 012 2v14a2 2 0 01-2 2h-7v-4h4.132a1 1 0 00.832-1.555L14 8V3h7Zm-11 8.604L7.736 15H10v2H5.868a1 1 0 01-.832-1.555L10 8v3.606Z" />
+                                                    </svg>
+                                                    A/B Testing
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => {
+                                                    setShowDropdown(false);
+                                                    setHistoryModalOpen(true);
+                                                }}
+                                                className="w-full px-4 py-2 text-left text-sm text-text-primary hover:bg-white/5 flex items-center gap-2"
+                                            >
+                                                <History size={16} />
+                                                Version History
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     )
                 )}
             </div>
@@ -207,9 +263,9 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
                 onClose={() => setHistoryModalOpen(false)}
                 currentThumbnail={value}
                 history={history}
-                onApply={(url) => {
+                onApply={(url, close = true) => {
                     onChange(url);
-                    setHistoryModalOpen(false);
+                    if (close) setHistoryModalOpen(false);
                 }}
                 onDelete={onDelete}
                 onClone={onClone}

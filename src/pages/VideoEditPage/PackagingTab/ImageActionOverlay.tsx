@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Info, Trash2, Copy, Loader2 } from 'lucide-react';
+import { Info, Trash2, Copy, Loader2, Check, AlertCircle } from 'lucide-react';
 import { PortalTooltip } from '../../../components/Shared/PortalTooltip';
 import { ClonedVideoTooltipContent } from '../../../components/Video/ClonedVideoTooltipContent';
 
@@ -27,10 +27,32 @@ export const ImageActionOverlay: React.FC<ImageActionOverlayProps> = ({
     onTooltipOpenChange
 }) => {
     const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
+    const [showCloneSuccess, setShowCloneSuccess] = useState(false);
 
     const handleTooltipOpenChange = (open: boolean) => {
         setIsTooltipOpen(open);
         onTooltipOpenChange?.(open);
+    };
+
+    const handleDelete = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!confirmDelete) {
+            setConfirmDelete(true);
+            setTimeout(() => setConfirmDelete(false), 3000);
+            return;
+        }
+        onDelete?.();
+        setConfirmDelete(false);
+    };
+
+    const handleClone = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!isCloned && !isCloning && onClone) {
+            onClone();
+            setShowCloneSuccess(true);
+            setTimeout(() => setShowCloneSuccess(false), 2000);
+        }
     };
 
     const buttonSizeClass = size === 'small' ? 'w-6 h-6' : 'w-8 h-8';
@@ -67,14 +89,14 @@ export const ImageActionOverlay: React.FC<ImageActionOverlayProps> = ({
                     {onDelete && (
                         <div className="absolute bottom-1 right-1">
                             <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onDelete();
-                                }}
-                                className={`${buttonSizeClass} rounded-full bg-black/60 hover:bg-red-500 text-white flex items-center justify-center transition-colors border-none cursor-pointer shadow-sm`}
-                                title="Delete Version"
+                                onClick={handleDelete}
+                                className={`${buttonSizeClass} rounded-full flex items-center justify-center transition-all border-none cursor-pointer shadow-sm
+                                    ${confirmDelete
+                                        ? 'bg-red-600 scale-110 shadow-lg shadow-red-500/20'
+                                        : 'bg-black/60 hover:bg-red-500'} text-white`}
+                                title={confirmDelete ? "Click again to confirm delete" : "Delete Version"}
                             >
-                                <Trash2 size={iconSize} />
+                                {confirmDelete ? <AlertCircle size={iconSize} /> : <Trash2 size={iconSize} />}
                             </button>
                         </div>
                     )}
@@ -103,14 +125,18 @@ export const ImageActionOverlay: React.FC<ImageActionOverlayProps> = ({
                         {/* Delete */}
                         {onDelete && (
                             <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onDelete();
-                                }}
-                                className={`${buttonSizeClass} rounded-full bg-black/60 hover:bg-red-500 text-white flex items-center justify-center transition-colors border-none cursor-pointer shadow-md`}
-                                title="Delete Version"
+                                onClick={handleDelete}
+                                className={`${buttonSizeClass} rounded-full flex items-center justify-center transition-all border-none cursor-pointer shadow-md
+                                    ${confirmDelete
+                                        ? 'bg-red-600 scale-110 shadow-lg shadow-red-500/20'
+                                        : 'bg-black/60 hover:bg-red-500'} text-white`}
+                                title={confirmDelete ? "Click again to confirm delete" : "Delete Version"}
                             >
-                                <Trash2 size={iconSize} />
+                                {confirmDelete ? (
+                                    <div className="flex items-center gap-1 px-1">
+                                        <AlertCircle size={iconSize} />
+                                    </div>
+                                ) : <Trash2 size={iconSize} />}
                             </button>
                         )}
                     </div>
@@ -119,19 +145,20 @@ export const ImageActionOverlay: React.FC<ImageActionOverlayProps> = ({
                     <div className="flex justify-center pb-1">
                         {onClone && (
                             <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (!isCloned && !isCloning) onClone();
-                                }}
+                                onClick={handleClone}
                                 disabled={isCloned || isCloning}
                                 className={`${cloneButtonSizeClass} rounded-full flex items-center justify-center transition-all shadow-lg border cursor-pointer
-                                    ${isCloned
-                                        ? 'bg-gray-500/50 text-gray-300 cursor-not-allowed border-transparent'
-                                        : 'bg-black/60 text-white hover:bg-green-500 hover:text-white border-white/10 hover:border-transparent hover:scale-105'
+                                    ${showCloneSuccess
+                                        ? 'bg-green-500 border-green-400 scale-110'
+                                        : isCloned
+                                            ? 'bg-gray-500/50 text-gray-300 cursor-not-allowed border-transparent'
+                                            : 'bg-black/60 text-white hover:bg-green-500 hover:text-white border-white/10 hover:border-transparent hover:scale-105'
                                     }`}
-                                title={isCloned ? "Active clone already exists" : "Clone Video from this version"}
+                                title={showCloneSuccess ? "Done!" : isCloned ? "Active clone already exists" : "Clone Video from this version"}
                             >
-                                {isCloning ? (
+                                {showCloneSuccess ? (
+                                    <Check size={iconSize + 2} className="text-white" />
+                                ) : isCloning ? (
                                     <Loader2 size={loaderSize} className="animate-spin" />
                                 ) : (
                                     <Copy size={iconSize} />

@@ -87,6 +87,9 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
     const [abTestTitles, setAbTestTitles] = useState<string[]>([]);
     const [abTestThumbnails, setAbTestThumbnails] = useState<string[]>([]);
 
+    // Local state for cover history (to allow undo)
+    const [pendingHistory, setPendingHistory] = useState<CoverVersion[]>(video.coverHistory || []);
+
     // Reference to the currently loaded data (for dirty state comparison)
     const [loadedSnapshot, setLoadedSnapshot] = useState({
         title: video.title || '',
@@ -95,7 +98,8 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
         customImage: video.customImage || '',
         localizations: video.localizations || {},
         abTestTitles: [] as string[],
-        abTestThumbnails: [] as string[]
+        abTestThumbnails: [] as string[],
+        coverHistory: video.coverHistory || []
     });
 
     // Is the user viewing an old version (read-only)?
@@ -119,7 +123,8 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
             customImage !== loadedSnapshot.customImage ||
             JSON.stringify(localizations) !== JSON.stringify(loadedSnapshot.localizations) ||
             JSON.stringify(abTestTitles) !== JSON.stringify(loadedSnapshot.abTestTitles) ||
-            JSON.stringify(abTestThumbnails) !== JSON.stringify(loadedSnapshot.abTestThumbnails);
+            JSON.stringify(abTestThumbnails) !== JSON.stringify(loadedSnapshot.abTestThumbnails) ||
+            JSON.stringify(pendingHistory) !== JSON.stringify(loadedSnapshot.coverHistory);
 
         setIsDirty(hasChanges);
     }, [
@@ -128,7 +133,8 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
         loadedSnapshot,
         isViewingOldVersion,
         abTestTitles,
-        abTestThumbnails
+        abTestThumbnails,
+        pendingHistory
     ]);
 
     // Detect scroll for sticky header shadow
@@ -163,7 +169,8 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                 customImage: video.customImage || '',
                 localizations: video.localizations || {},
                 abTestTitles: [] as string[],
-                abTestThumbnails: [] as string[]
+                abTestThumbnails: [] as string[],
+                coverHistory: video.coverHistory || []
             };
             localization.resetToSnapshot({
                 title: snapshot.title,
@@ -172,6 +179,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                 localizations: snapshot.localizations
             });
             setCustomImage(snapshot.customImage);
+            setPendingHistory(snapshot.coverHistory);
             setLoadedSnapshot(snapshot);
         } else {
             // Load from version snapshot
@@ -184,7 +192,8 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                     customImage: versionSnapshot.coverImage || '',
                     localizations: versionSnapshot.localizations || {},
                     abTestTitles: [] as string[],
-                    abTestThumbnails: [] as string[]
+                    abTestThumbnails: [] as string[],
+                    coverHistory: video.coverHistory || [] // History is usually global, but could be versioned if API supported
                 };
                 localization.resetToSnapshot({
                     title: snapshot.title,
@@ -193,6 +202,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                     localizations: snapshot.localizations
                 });
                 setCustomImage(snapshot.customImage);
+                setPendingHistory(snapshot.coverHistory);
                 setLoadedSnapshot(snapshot);
             }
         }
@@ -238,7 +248,8 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                     // Version data
                     packagingHistory: versionPayload.packagingHistory,
                     currentPackagingVersion: versionPayload.currentPackagingVersion,
-                    isDraft: true // Always true when saving as draft
+                    isDraft: true, // Always true when saving as draft
+                    coverHistory: pendingHistory
                 }
             });
 
@@ -250,7 +261,8 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                 customImage,
                 localizations: payload.localizations,
                 abTestTitles,
-                abTestThumbnails
+                abTestThumbnails,
+                coverHistory: pendingHistory
             });
 
             localization.resetDirty();
@@ -273,6 +285,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
             localizations: loadedSnapshot.localizations
         });
         setCustomImage(loadedSnapshot.customImage);
+        setPendingHistory(loadedSnapshot.coverHistory);
         // Reset A/B test state
         setAbTestTitles(loadedSnapshot.abTestTitles);
         setAbTestThumbnails(loadedSnapshot.abTestThumbnails);
@@ -311,7 +324,8 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                     audioRender,
                     packagingHistory: versionPayload.packagingHistory,
                     currentPackagingVersion: versionPayload.currentPackagingVersion,
-                    isDraft: versionPayload.isDraft
+                    isDraft: versionPayload.isDraft,
+                    coverHistory: pendingHistory
                 }
             });
 
@@ -323,7 +337,8 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                 customImage,
                 localizations: payload.localizations,
                 abTestTitles,
-                abTestThumbnails
+                abTestThumbnails,
+                coverHistory: pendingHistory
             });
 
             localization.resetDirty();
@@ -420,23 +435,10 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
         }
     }, [user, currentChannel, showToast, setCurrentChannel]);
 
-    // Handle delete history version
-    const handleDeleteHistoryVersion = useCallback(async (timestamp: number) => {
-        if (!video.coverHistory) return;
-
-        const newHistory = video.coverHistory.filter(v => v.timestamp !== timestamp);
-
-        try {
-            await updateVideo({
-                videoId: video.id,
-                updates: { coverHistory: newHistory }
-            });
-            showToast('Version deleted', 'success');
-        } catch (error) {
-            console.error('Failed to delete version:', error);
-            showToast('Failed to delete version', 'error');
-        }
-    }, [video.coverHistory, video.id, updateVideo, showToast]);
+    // Handle delete history version - now local only!
+    const handleDeleteHistoryVersion = useCallback((timestamp: number) => {
+        setPendingHistory(prev => prev.filter(v => v.timestamp !== timestamp));
+    }, []);
 
     // Handle clone from version
     const [cloningVersion, setCloningVersion] = useState<number | null>(null);
@@ -583,7 +585,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                             abTestStatus="draft"
                             onTitleABTestClick={handleOpenABTestFromTitle}
                             onThumbnailABTestClick={handleOpenABTestFromThumbnail}
-                            coverHistory={video.coverHistory || []}
+                            coverHistory={pendingHistory}
                             onDeleteHistoryVersion={handleDeleteHistoryVersion}
                             onCloneFromVersion={handleCloneFromVersion}
                             cloningVersion={cloningVersion}
