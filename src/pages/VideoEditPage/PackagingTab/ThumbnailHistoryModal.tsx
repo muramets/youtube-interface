@@ -133,7 +133,7 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                             animate="center"
                                             exit="exit"
                                             transition={{
-                                                x: { type: "spring", stiffness: 300, damping: 30 }
+                                                x: { duration: 0.4, ease: [0.32, 0.72, 0, 1] }
                                             }}
                                             src={selectedVersion?.url}
                                             alt={`Version ${selectedVersion?.version}`}
@@ -173,10 +173,10 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                 </div>
 
                 {/* Version Selector Ribbon (Bottom) */}
-                <div className="px-8 pb-8 pt-4 bg-white/[0.02] border-t border-white/5">
+                <div className="px-8 py-6 bg-white/[0.02] border-t border-white/5">
                     <div className="flex flex-col gap-6">
                         <div className="flex items-center justify-between">
-                            <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-hide">
+                            <div className="flex gap-1.5 overflow-x-auto p-2 scrollbar-hide -mx-2 px-2">
                                 {history.map((version, index) => (
                                     <button
                                         key={version.timestamp}
