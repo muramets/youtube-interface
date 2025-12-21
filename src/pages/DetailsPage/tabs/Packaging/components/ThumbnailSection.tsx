@@ -20,6 +20,24 @@ interface ThumbnailSectionProps {
 
 }
 
+/**
+ * ThumbnailSection - Displays and manages thumbnail upload with A/B testing support.
+ * 
+ * BUSINESS LOGIC: A/B Test Mode Detection
+ * ----------------------------------------
+ * The `variants` prop contains thumbnail variants for A/B testing.
+ * We distinguish between three states:
+ * 
+ * 1. variants.length === 0: No A/B test, or only title-based test
+ * 2. variants.length === 1: Single thumbnail (current), not a real test
+ * 3. variants.length >= 2: Active thumbnail A/B test with multiple variants
+ * 
+ * The >= 2 threshold is critical because:
+ * - When user creates a "title only" A/B test, we still initialize modal
+ *   with the current thumbnail in slot 0, but save returns empty array
+ * - Version History should remain accessible during title-only tests
+ * - "Test" badge and split-view should only appear for real thumbnail tests
+ */
 export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
     value,
     onChange,
@@ -96,8 +114,13 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
                 {value ? (
                     <div className="flex flex-col gap-2 w-40">
                         <div className="relative w-40 aspect-video rounded-lg border border-dashed border-border p-1 group hover:border-text-primary transition-colors bg-bg-secondary">
+                            {/* 
+                              Split-view display: Show multiple thumbnails side-by-side
+                              Only activate when there's a real thumbnail A/B test (>= 2 variants).
+                              Single variant (length 1) means title-only test, show normal single image.
+                            */}
                             <div className="flex h-full w-full rounded overflow-hidden">
-                                {(variants.length > 0 ? variants : [value]).map((src, index, all) => (
+                                {(variants.length >= 2 ? variants : [value]).map((src, index, all) => (
                                     <React.Fragment key={index}>
                                         <img
                                             src={src}
@@ -112,8 +135,8 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
                                 ))}
                             </div>
 
-                            {/* "Test" badge on hover - only if A/B testing is active */}
-                            {variants.length > 0 && (
+                            {/* "Test" badge on hover - only if thumbnail A/B testing is active */}
+                            {variants.length >= 2 && (
                                 <div className="absolute top-2 left-2 w-max h-6 px-2 bg-black/60 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none flex items-center justify-center z-10">
                                     <span className="text-white text-xs font-medium">Test</span>
                                 </div>
@@ -150,8 +173,16 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
                                                 </button>
                                             )}
 
-                                            {/* Version History - only if not A/B testing and has history */}
-                                            {variants.length === 0 && history.length > 0 && (
+                                            {/* 
+                                              Version History - Show when NOT in active thumbnail A/B test.
+                                              
+                                              BUSINESS LOGIC: We use < 2 instead of === 0 because:
+                                              - variants.length === 1 can occur during title-only A/B tests
+                                                (modal initializes with current thumbnail but saves empty array)
+                                              - Users should still access thumbnail history while testing titles
+                                              - A real thumbnail test requires minimum 2 variants to compare
+                                            */}
+                                            {variants.length < 2 && history.length > 0 && (
                                                 <button
                                                     onClick={() => {
                                                         setShowDropdown(false);
@@ -176,8 +207,8 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
                             )}
                         </div>
 
-                        {/* A/B testing label below */}
-                        {variants.length > 0 && (
+                        {/* A/B testing label below - only if thumbnail test is active */}
+                        {variants.length >= 2 && (
                             <span className="text-sm text-text-secondary w-full text-center">A/B testing</span>
                         )}
                     </div>

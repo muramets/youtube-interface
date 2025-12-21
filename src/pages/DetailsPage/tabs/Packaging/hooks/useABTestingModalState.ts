@@ -213,13 +213,35 @@ export function useABTestingModalState({
             packagingChanged = titlesChange || thumbnailsChange;
         }
 
+        /**
+         * BUSINESS LOGIC: Mode-Based Data Isolation
+         * ------------------------------------------
+         * When saving, we only include data relevant to the selected test mode:
+         * 
+         * - 'title' mode:     titles populated, thumbnails = []
+         * - 'thumbnail' mode: thumbnails populated, titles = []
+         * - 'both' mode:      both populated
+         * 
+         * This prevents cross-contamination where selecting "title only" test
+         * would inadvertently save the current thumbnail as a test variant.
+         * Without this isolation, ThumbnailSection would incorrectly show
+         * A/B test UI (split view, "Test" badge) for title-only tests.
+         * 
+         * The >= 2 threshold in ThumbnailSection relies on this behavior:
+         * - Empty array (length 0) = no thumbnail test
+         * - Single item (length 1) = would be ambiguous, but we prevent this
+         * - Two+ items (length >= 2) = real thumbnail A/B test
+         */
+        const saveTitles = activeTab === 'thumbnail' ? [] : currentValidTitles;
+        const saveThumbnails = activeTab === 'title' ? [] : currentValidThumbnails;
+
         return {
             mode: activeTab,
-            titles: currentValidTitles,
-            thumbnails: currentValidThumbnails,
+            titles: saveTitles,
+            thumbnails: saveThumbnails,
             results: {
-                titles: showResults ? results.titles.slice(0, currentValidTitles.length) : currentValidTitles.map(() => 0),
-                thumbnails: showResults ? results.thumbnails.slice(0, currentValidThumbnails.length) : currentValidThumbnails.map(() => 0)
+                titles: showResults ? results.titles.slice(0, saveTitles.length) : saveTitles.map(() => 0),
+                thumbnails: showResults ? results.thumbnails.slice(0, saveThumbnails.length) : saveThumbnails.map(() => 0)
             },
             packagingChanged
         };
