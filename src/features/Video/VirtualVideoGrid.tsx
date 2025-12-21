@@ -1,5 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
-// Trigger Rebuild
+import React, { useRef, useState, useEffect, useLayoutEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { VideoCard } from './VideoCard';
 import { SortableVideoCard } from './SortableVideoCard';
@@ -30,42 +29,29 @@ interface VirtualVideoGridProps {
     onVideoMove?: (movedVideoId: string, targetVideoId: string) => void;
 }
 
-export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = ({ videos, playlistId, onRemove, onVideoMove }) => {
+interface InnerGridProps extends VirtualVideoGridProps {
+    containerWidth: number;
+    scrollElement: HTMLElement | null;
+}
+
+const InnerGrid: React.FC<InnerGridProps> = ({
+    videos,
+    playlistId,
+    onRemove,
+    onVideoMove,
+    containerWidth,
+    scrollElement
+}) => {
     const { generalSettings } = useSettings();
     const cardsPerRow = generalSettings.cardsPerRow;
-    const parentRef = useRef<HTMLDivElement>(null);
 
-    // Track container dimensions
-    const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
-
-    useEffect(() => {
-        if (!parentRef.current) return;
-
-        const resizeObserver = new ResizeObserver((entries) => {
-            for (const entry of entries) {
-                // Wrap in requestAnimationFrame to avoid "ResizeObserver loop limit exceeded" errors
-                // and to batch updates slightly
-                requestAnimationFrame(() => {
-                    if (!parentRef.current) return;
-                    setContainerSize({
-                        width: entry.contentRect.width,
-                        height: entry.contentRect.height
-                    });
-                });
-            }
-        });
-
-        resizeObserver.observe(parentRef.current);
-        return () => resizeObserver.disconnect();
-    }, []);
-
-    // Memoize layout calculations to avoid recalculating on every render
+    // Memoize layout calculations
     const { columnCount, safeCardWidth, rowHeight } = React.useMemo(() => {
         const columnCount = cardsPerRow;
-        const availableWidth = containerSize.width - GRID_LAYOUT.PADDING.LEFT - GRID_LAYOUT.PADDING.RIGHT - (GRID_LAYOUT.GAP * (columnCount - 1)) - GRID_LAYOUT.SCROLLBAR_WIDTH;
+        const availableWidth = containerWidth - GRID_LAYOUT.PADDING.LEFT - GRID_LAYOUT.PADDING.RIGHT - (GRID_LAYOUT.GAP * (columnCount - 1));
         const cardWidth = Math.floor(availableWidth / columnCount);
 
-        // Safety check to prevent negative or zero width before layout is ready
+        // Safety check
         const safeCardWidth = Math.max(0, cardWidth);
 
         const thumbnailHeight = safeCardWidth * (9 / 16);
@@ -73,18 +59,18 @@ export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = ({ videos, play
         const rowHeight = cardHeight + GRID_LAYOUT.GAP;
 
         return { columnCount, safeCardWidth, rowHeight };
-    }, [containerSize.width, cardsPerRow]);
+    }, [containerWidth, cardsPerRow]);
 
     const rowCount = Math.ceil(videos.length / columnCount);
 
     const virtualizer = useVirtualizer({
         count: rowCount,
-        getScrollElement: () => parentRef.current,
+        getScrollElement: () => scrollElement,
         estimateSize: () => rowHeight,
         overscan: 5,
     });
 
-    // Recalculate virtualizer measurements when rowHeight changes (e.g. on resize)
+    // Recalculate virtualizer measurements when rowHeight changes
     useEffect(() => {
         virtualizer.measure();
     }, [rowHeight, virtualizer]);
@@ -181,6 +167,77 @@ export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = ({ videos, play
         </div>
     );
 
+    if (isDraggable) {
+        return (
+            <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDragCancel={handleDragCancel}
+            >
+                <SortableContext
+                    items={videos.map(v => v.id)}
+                    strategy={rectSortingStrategy}
+                >
+                    {gridContent}
+                </SortableContext>
+                <DragOverlay dropAnimation={null}>
+                    {activeVideo ? (
+                        <div style={{ width: safeCardWidth, cursor: 'grabbing' }}>
+                            <VideoCard
+                                video={activeVideo}
+                                playlistId={playlistId}
+                                onRemove={onRemove || (() => { })}
+                                isOverlay
+                            />
+                        </div>
+                    ) : null}
+                </DragOverlay>
+            </DndContext>
+        );
+    }
+
+    return gridContent;
+};
+
+export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = (props) => {
+    const parentRef = useRef<HTMLDivElement>(null);
+
+    // Track container dimensions
+    const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+
+    // Use useLayoutEffect for synchronous initial measurement - runs before browser paint
+    // This prevents the "empty frame" where nothing renders while waiting for ResizeObserver
+    useLayoutEffect(() => {
+        if (parentRef.current) {
+            const rect = parentRef.current.getBoundingClientRect();
+            setContainerSize({ width: rect.width, height: rect.height });
+        }
+    }, []);
+
+    // ResizeObserver for subsequent size changes (window resize, etc.)
+    useEffect(() => {
+        if (!parentRef.current) return;
+
+        const resizeObserver = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const width = entry.contentRect.width;
+                const height = entry.contentRect.height;
+
+                setContainerSize(prev => {
+                    if (prev.width === width && prev.height === height) {
+                        return prev;
+                    }
+                    return { width, height };
+                });
+            }
+        });
+
+        resizeObserver.observe(parentRef.current);
+        return () => resizeObserver.disconnect();
+    }, []);
+
     return (
         <div
             ref={parentRef}
@@ -188,43 +245,21 @@ export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = ({ videos, play
             style={{
                 paddingTop: GRID_LAYOUT.PADDING.TOP,
                 paddingBottom: GRID_LAYOUT.PADDING.BOTTOM,
+                scrollbarGutter: 'stable',
             }}
         >
             {/* 
-              Wait for container width to be measured before rendering the grid.
-              This prevents the "crooked" initial render where width is 0.
+              Wait for container width to be measured before mounting the grid.
+              By conditionally mounting InnerGrid only when width > 0, 
+              we ensure useVirtualizer initializes with the correct dimensions immediately,
+              preventing the "crooked" layout glitch caused by starting with 0 width.
             */}
-            {containerSize.width === 0 ? null : (
-                isDraggable ? (
-                    <DndContext
-                        sensors={sensors}
-                        collisionDetection={closestCenter}
-                        onDragStart={handleDragStart}
-                        onDragEnd={handleDragEnd}
-                        onDragCancel={handleDragCancel}
-                    >
-                        <SortableContext
-                            items={videos.map(v => v.id)}
-                            strategy={rectSortingStrategy}
-                        >
-                            {gridContent}
-                        </SortableContext>
-                        <DragOverlay dropAnimation={null}>
-                            {activeVideo ? (
-                                <div style={{ width: safeCardWidth, cursor: 'grabbing' }}>
-                                    <VideoCard
-                                        video={activeVideo}
-                                        playlistId={playlistId}
-                                        onRemove={onRemove || (() => { })}
-                                        isOverlay
-                                    />
-                                </div>
-                            ) : null}
-                        </DragOverlay>
-                    </DndContext>
-                ) : (
-                    gridContent
-                )
+            {containerSize.width > 0 && (
+                <InnerGrid
+                    {...props}
+                    containerWidth={containerSize.width}
+                    scrollElement={parentRef.current}
+                />
             )}
         </div>
     );

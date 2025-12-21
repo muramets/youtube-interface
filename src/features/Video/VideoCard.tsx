@@ -67,10 +67,10 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   // Determine which video data to display
   const displayVideo = viewMode === 'youtube' && video.mergedVideoData ? video.mergedVideoData : video;
 
-  // Hover color logic
-  const hoverBorderColor = viewMode === 'youtube'
-    ? 'border-[#FF0033]/30'
-    : (video.publishedVideoId ? 'border-green-500/30' : (video.isCloned ? 'border-indigo-500/30' : (video.isCustom ? 'border-orange-500/30' : 'border-transparent')));
+  // Hover color logic - no border for colored custom cards for cleaner premium look
+  const hoverBorderColor = video.isCustom || video.isCloned || video.publishedVideoId || viewMode === 'youtube'
+    ? 'border-transparent'
+    : 'border-transparent';
 
   const hoverBgColor = viewMode === 'youtube'
     ? 'bg-[#FF0033]/10 dark:bg-[#FF0033]/20'
