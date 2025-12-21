@@ -20,6 +20,21 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
     onApply
 }) => {
     const [selectedIndex, setSelectedIndex] = useState(0);
+    const [direction, setDirection] = useState(0);
+
+    const variants = {
+        enter: (direction: number) => ({
+            x: direction > 0 ? '100%' : '-100%'
+        }),
+        center: {
+            zIndex: 1,
+            x: 0
+        },
+        exit: (direction: number) => ({
+            zIndex: 0,
+            x: direction < 0 ? '100%' : '-100%'
+        })
+    };
 
     // Filter out current thumbnail from history to avoid redundant comparison if needed
     // But usually history includes everything. Let's keep it simple.
@@ -35,10 +50,12 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
     const selectedVersion = history[selectedIndex];
 
     const handleNext = () => {
+        setDirection(1);
         setSelectedIndex((prev) => (prev + 1) % history.length);
     };
 
     const handlePrev = () => {
+        setDirection(-1);
         setSelectedIndex((prev) => (prev - 1 + history.length) % history.length);
     };
 
@@ -76,7 +93,7 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
 
                 {/* Main Comparison Area */}
                 <div className="flex-1 overflow-y-auto p-8 lg:p-12">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative">
                         {/* Current (Left) */}
                         <div className="space-y-4">
                             <div className="flex items-center justify-between">
@@ -107,16 +124,20 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
 
                             <div className="relative group">
                                 <div className="aspect-video rounded-xl overflow-hidden border border-[#3ea6ff]/30 bg-black/40 shadow-2xl relative">
-                                    <AnimatePresence mode="wait">
+                                    <AnimatePresence initial={false} custom={direction}>
                                         <motion.img
                                             key={selectedVersion?.url}
-                                            initial={{ opacity: 0, x: 20 }}
-                                            animate={{ opacity: 1, x: 0 }}
-                                            exit={{ opacity: 0, x: -20 }}
-                                            transition={{ duration: 0.3, ease: "easeOut" }}
+                                            custom={direction}
+                                            variants={variants}
+                                            initial="enter"
+                                            animate="center"
+                                            exit="exit"
+                                            transition={{
+                                                x: { type: "spring", stiffness: 300, damping: 30 }
+                                            }}
                                             src={selectedVersion?.url}
                                             alt={`Version ${selectedVersion?.version}`}
-                                            className="w-full h-full object-cover"
+                                            className="absolute inset-0 w-full h-full object-cover"
                                         />
                                     </AnimatePresence>
                                     <div className="absolute inset-0 ring-1 ring-inset ring-white/10 pointer-events-none" />
@@ -141,13 +162,13 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                 )}
                             </div>
                         </div>
-                    </div>
 
-                    {/* Comparison Indicator (Middle) */}
-                    <div className="hidden lg:flex absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2 z-10 items-center justify-center">
-                        <span className="text-text-secondary font-bold text-[10px] tracking-widest opacity-50">
-                            VS
-                        </span>
+                        {/* Comparison Indicator (Middle) */}
+                        <div className="hidden lg:flex absolute inset-0 items-center justify-center z-10 pointer-events-none">
+                            <span className="text-text-secondary font-bold text-[10px] tracking-widest opacity-50 mt-6">
+                                VS
+                            </span>
+                        </div>
                     </div>
                 </div>
 
@@ -159,7 +180,10 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                 {history.map((version, index) => (
                                     <button
                                         key={version.timestamp}
-                                        onClick={() => setSelectedIndex(index)}
+                                        onClick={() => {
+                                            setDirection(index > selectedIndex ? 1 : -1);
+                                            setSelectedIndex(index);
+                                        }}
                                         className={`flex-shrink-0 w-28 aspect-video rounded-lg overflow-hidden border-2 transition-all relative group/item
                                             ${selectedIndex === index
                                                 ? 'border-[#3ea6ff] scale-105 z-10 shadow-lg shadow-[#3ea6ff]/10'
