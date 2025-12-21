@@ -27,6 +27,10 @@ interface VersionState {
         tags: string[];
         coverImage: string | null;
         abTestVariants: string[];
+        abTestResults?: {
+            titles: number[];
+            thumbnails: number[];
+        };
         localizations?: Record<string, VideoLocalization>;
     }) => PackagingVersion;
     saveDraft: () => void;
@@ -38,6 +42,10 @@ interface VersionState {
         tags: string[];
         coverImage: string | null;
         abTestVariants: string[];
+        abTestResults?: {
+            titles: number[];
+            thumbnails: number[];
+        };
         localizations?: Record<string, VideoLocalization>;
     } | null;
     getVersionsPayload: () => {
@@ -86,6 +94,10 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
     const [abTestInitialTab, setAbTestInitialTab] = useState<'title' | 'thumbnail' | 'both'>('title');
     const [abTestTitles, setAbTestTitles] = useState<string[]>([]);
     const [abTestThumbnails, setAbTestThumbnails] = useState<string[]>([]);
+    const [abTestResults, setAbTestResults] = useState<{ titles: number[], thumbnails: number[] }>({
+        titles: [],
+        thumbnails: []
+    });
 
     // Local state for cover history (to allow undo)
     const [pendingHistory, setPendingHistory] = useState<CoverVersion[]>(video.coverHistory || []);
@@ -99,6 +111,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
         localizations: video.localizations || {},
         abTestTitles: [] as string[],
         abTestThumbnails: [] as string[],
+        abTestResults: { titles: [], thumbnails: [] } as { titles: number[], thumbnails: number[] },
         coverHistory: video.coverHistory || []
     });
 
@@ -124,6 +137,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
             JSON.stringify(localizations) !== JSON.stringify(loadedSnapshot.localizations) ||
             JSON.stringify(abTestTitles) !== JSON.stringify(loadedSnapshot.abTestTitles) ||
             JSON.stringify(abTestThumbnails) !== JSON.stringify(loadedSnapshot.abTestThumbnails) ||
+            JSON.stringify(abTestResults) !== JSON.stringify(loadedSnapshot.abTestResults) ||
             JSON.stringify(pendingHistory) !== JSON.stringify(loadedSnapshot.coverHistory);
 
         setIsDirty(hasChanges);
@@ -134,6 +148,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
         isViewingOldVersion,
         abTestTitles,
         abTestThumbnails,
+        abTestResults,
         pendingHistory
     ]);
 
@@ -170,6 +185,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                 localizations: video.localizations || {},
                 abTestTitles: [] as string[],
                 abTestThumbnails: [] as string[],
+                abTestResults: { titles: [], thumbnails: [] } as { titles: number[], thumbnails: number[] },
                 coverHistory: video.coverHistory || []
             };
             localization.resetToSnapshot({
@@ -193,6 +209,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                     localizations: versionSnapshot.localizations || {},
                     abTestTitles: [] as string[],
                     abTestThumbnails: [] as string[],
+                    abTestResults: { titles: [], thumbnails: [] } as { titles: number[], thumbnails: number[] },
                     coverHistory: video.coverHistory || [] // History is usually global, but could be versioned if API supported
                 };
                 localization.resetToSnapshot({
@@ -262,6 +279,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                 localizations: payload.localizations,
                 abTestTitles,
                 abTestThumbnails,
+                abTestResults,
                 coverHistory: pendingHistory
             });
 
@@ -289,6 +307,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
         // Reset A/B test state
         setAbTestTitles(loadedSnapshot.abTestTitles);
         setAbTestThumbnails(loadedSnapshot.abTestThumbnails);
+        setAbTestResults(loadedSnapshot.abTestResults);
         setIsDirty(false);
     };
 
@@ -307,6 +326,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                 tags: payload.tags,
                 coverImage: customImage || null,
                 abTestVariants: [],
+                abTestResults,
                 localizations: payload.localizations
             });
 
@@ -338,6 +358,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                 localizations: payload.localizations,
                 abTestTitles,
                 abTestThumbnails,
+                abTestResults,
                 coverHistory: pendingHistory
             });
 
@@ -367,12 +388,16 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
         mode: 'title' | 'thumbnail' | 'both';
         titles: string[];
         thumbnails: string[];
+        results: { titles: number[], thumbnails: number[] };
     }) => {
         setAbTestTitles(data.titles);
         setAbTestThumbnails(data.thumbnails);
+        setAbTestResults(data.results);
         setIsDirty(true);
         showToast('A/B test configured', 'success');
     }, [showToast]);
+
+
 
     // Handle language switch
     const handleSwitchLanguage = useCallback((code: string) => {
@@ -583,6 +608,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                             abTestTitles={abTestTitles}
                             abTestThumbnails={abTestThumbnails}
                             abTestStatus="draft"
+                            abTestResults={abTestResults}
                             onTitleABTestClick={handleOpenABTestFromTitle}
                             onThumbnailABTestClick={handleOpenABTestFromThumbnail}
                             coverHistory={pendingHistory}
@@ -605,16 +631,19 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                 </div>
 
                 {/* A/B Testing Modal */}
-                <ABTestingModal
-                    isOpen={abTestModalOpen}
-                    onClose={() => setAbTestModalOpen(false)}
-                    initialTab={abTestInitialTab}
-                    currentTitle={localization.title}
-                    currentThumbnail={customImage}
-                    titleVariants={abTestTitles}
-                    thumbnailVariants={abTestThumbnails}
-                    onSave={handleABTestSave}
-                />
+                {abTestModalOpen && (
+                    <ABTestingModal
+                        isOpen={abTestModalOpen}
+                        onClose={() => setAbTestModalOpen(false)}
+                        initialTab={abTestInitialTab}
+                        currentTitle={localization.title}
+                        currentThumbnail={customImage}
+                        titleVariants={abTestTitles}
+                        thumbnailVariants={abTestThumbnails}
+                        onSave={handleABTestSave}
+                        initialResults={abTestResults}
+                    />
+                )}
             </div>
         </div>
     );

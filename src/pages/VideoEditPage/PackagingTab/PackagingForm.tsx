@@ -30,6 +30,10 @@ interface PackagingFormProps {
     onTitleABTestClick?: () => void;
     onThumbnailABTestClick?: () => void;
     abTestThumbnails?: string[];
+    abTestResults?: {
+        titles: number[];
+        thumbnails: number[];
+    };
     coverHistory?: CoverVersion[];
     onDeleteHistoryVersion?: (timestamp: number) => void;
     onCloneFromVersion?: (version: CoverVersion) => void;
@@ -61,6 +65,7 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
     onTitleABTestClick,
     onThumbnailABTestClick,
     abTestThumbnails = [],
+    abTestResults = { titles: [], thumbnails: [] },
     coverHistory = [],
     onDeleteHistoryVersion,
     onCloneFromVersion,
@@ -80,6 +85,7 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
                     status={abTestStatus}
                     onEditClick={onTitleABTestClick || (() => { })}
                     readOnly={readOnly}
+                    results={abTestResults.titles}
                 />
             ) : (
                 <TitleInput

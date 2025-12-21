@@ -17,6 +17,7 @@ interface ThumbnailSectionProps {
         version?: number;
         originalName?: string;
     };
+
 }
 
 export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
@@ -113,10 +114,12 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
 
                             {/* "Test" badge on hover - only if A/B testing is active */}
                             {variants.length > 0 && (
-                                <div className="absolute top-2 left-2 w-max h-6 px-2 bg-black/60 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none flex items-center justify-center">
+                                <div className="absolute top-2 left-2 w-max h-6 px-2 bg-black/60 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none flex items-center justify-center z-10">
                                     <span className="text-white text-xs font-medium">Test</span>
                                 </div>
                             )}
+
+
 
                             {/* More button with dropdown - hide in read-only mode */}
                             {!readOnly && (
