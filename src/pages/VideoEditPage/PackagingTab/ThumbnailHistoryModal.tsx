@@ -144,8 +144,8 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                     </div>
 
                     {/* Comparison Indicator (Middle) */}
-                    <div className="hidden lg:flex absolute left-1/2 top-[52%] -translate-x-1/2 -translate-y-1/2 z-10 items-center justify-center">
-                        <span className="text-text-secondary font-bold text-sm tracking-widest italic opacity-50">
+                    <div className="hidden lg:flex absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2 z-10 items-center justify-center">
+                        <span className="text-text-secondary font-bold text-[10px] tracking-widest opacity-50">
                             VS
                         </span>
                     </div>
