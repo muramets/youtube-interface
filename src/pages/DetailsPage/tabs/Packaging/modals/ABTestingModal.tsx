@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Plus } from 'lucide-react';
 import { getABTestRank, getRankBorderClass } from '../utils/abTestRank';
+import { Button } from '../../../../../components/ui/atoms/Button';
 
 type ABTestMode = 'title' | 'thumbnail' | 'both';
 
@@ -201,6 +202,34 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
     const validationError = getValidationError();
     const isValid = !validationError;
 
+    // Check if anything has changed from initial state
+    const hasChanges = (() => {
+        const currentValidTitles = titles.filter(t => t.trim());
+        const currentValidThumbnails = thumbnails.filter(t => t);
+
+        // Check titles changed
+        const titlesChanged = JSON.stringify(currentValidTitles) !== JSON.stringify(titleVariants);
+
+        // Check thumbnails changed
+        const thumbnailsChanged = JSON.stringify(currentValidThumbnails) !== JSON.stringify(thumbnailVariants);
+
+        // Check results changed (only count filled slots)
+        const currentResults = {
+            titles: results.titles.slice(0, currentValidTitles.length),
+            thumbnails: results.thumbnails.slice(0, currentValidThumbnails.length)
+        };
+        const initialResultsNormalized = {
+            titles: (initialResults.titles || []).slice(0, titleVariants.length),
+            thumbnails: (initialResults.thumbnails || []).slice(0, thumbnailVariants.length)
+        };
+        const resultsChanged = JSON.stringify(currentResults) !== JSON.stringify(initialResultsNormalized);
+
+        return titlesChanged || thumbnailsChanged || resultsChanged;
+    })();
+
+    // Can save only if valid AND something changed
+    const canSave = isValid && hasChanges;
+
     const calcMax = (arr: number[], currentIndex: number) => {
         const othersSum = arr.reduce((sum, val, idx) => {
             return idx === currentIndex ? sum : sum + (val || 0);
@@ -302,15 +331,16 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
 
             {/* Modal */}
             <div className="relative bg-[var(--modal-bg)] rounded-xl w-full max-w-[960px] max-h-[90vh] overflow-hidden flex flex-col">
-                {/* Header - 63pt */}
                 <div className="flex items-center justify-between px-6 border-b border-modal-border" style={{ height: '63px' }}>
                     <h2 className="text-xl font-medium text-modal-text-primary">A/B Testing</h2>
-                    <button
+                    <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={onClose}
-                        className="p-2 text-modal-text-secondary hover:text-modal-text-primary transition-colors"
+                        className="!p-2 !rounded-full text-modal-text-secondary hover:text-modal-text-primary"
                     >
                         <X size={20} />
-                    </button>
+                    </Button>
                 </div>
 
                 {/* Content */}
@@ -582,19 +612,14 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                     <span className="text-sm text-modal-text-secondary">
                         {validationError || ''}
                     </span>
-                    <button
+                    <Button
+                        variant="primary"
+                        size="md"
                         onClick={handleSave}
-                        disabled={!isValid}
-                        className={`
-                            px-4 h-10 rounded-full text-sm font-medium transition-colors
-                            ${isValid
-                                ? 'bg-modal-button-active-bg text-modal-button-active-text hover:opacity-90'
-                                : 'bg-modal-button-bg text-modal-text-secondary cursor-not-allowed'
-                            }
-                        `}
+                        disabled={!canSave}
                     >
                         {getSaveButtonText()}
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div >,
