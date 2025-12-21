@@ -176,11 +176,45 @@ export const usePackagingActions = ({
         }
     }, [user, currentChannel, setCurrentChannel, showToast]);
 
+    /**
+     * Saves ONLY A/B test results to the server in the background.
+     * 
+     * This is a "quiet" save that:
+     * - Does NOT create a draft or trigger version history
+     * - Does NOT show a toast notification
+     * - Updates the loaded snapshot so the sync logic doesn't revert the change
+     * 
+     * Used when the user updates watch time share data without modifying
+     * the actual A/B test content (titles/thumbnails).
+     */
+    const handleSaveResultsOnly = useCallback(async (newResults: { titles: number[], thumbnails: number[] }) => {
+        if (!user || !currentChannel || !video.id) return;
+        try {
+            // Quiet background save of results only
+            await updateVideo({
+                videoId: video.id,
+                updates: {
+                    abTestResults: newResults
+                }
+            });
+            // Update the loaded snapshot's results so it stays in sync with what's on server
+            // (even though results are ignored for dirty check, it's good practice)
+            formState.setLoadedSnapshot(prev => ({
+                ...prev,
+                abTestResults: newResults
+            }));
+        } catch (error) {
+            console.error('Failed to save results in background:', error);
+            showToast('Failed to sync results with server', 'error');
+        }
+    }, [user, currentChannel, video.id, updateVideo, formState, showToast]);
+
     return {
         isSaving,
         cloningVersion,
         handleSave,
         handleSaveAsNewVersion,
+        handleSaveResultsOnly,
         handleCancel,
         handleCloneFromVersion,
         handleRestore,

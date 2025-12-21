@@ -3,6 +3,15 @@ import { type VideoDetails, type CoverVersion, type VideoLocalization } from '..
 import { deepEqual } from '../../../../../core/utils/deepEqual';
 import { DEFAULT_TAGS, DEFAULT_LOCALIZATIONS, DEFAULT_AB_RESULTS, DEFAULT_COVER_HISTORY } from '../types';
 
+/**
+ * Manages form state and dirty-checking for the Packaging tab.
+ * 
+ * KEY DESIGN DECISION: A/B test results (watch time share) are excluded from
+ * dirty-checking and sync comparisons. This allows users to update results
+ * without triggering "unsaved changes" warnings or affecting version history.
+ * Results are saved immediately to the server in the background via a separate action.
+ */
+
 interface PackagingSnapshot {
     title: string;
     description: string;
@@ -69,7 +78,13 @@ export const usePackagingFormState = ({
         coverHistory: video.coverHistory || DEFAULT_COVER_HISTORY
     });
 
-    // Check if form is dirty using deep equality
+    /**
+     * Determines if the form has unsaved changes.
+     * 
+     * NOTE: A/B test results (watch time share) are intentionally EXCLUDED
+     * from this check. Results are saved in the background independently
+     * and do not affect the main packaging "dirty" state.
+     */
     const isDirty = useMemo(() => {
         // Old versions are read-only, never dirty
         if (isViewingOldVersion) return false;
@@ -88,10 +103,14 @@ export const usePackagingFormState = ({
             coverHistory: pendingHistory
         };
 
-        return !deepEqual(currentSnapshot, loadedSnapshot);
+        // Note: abTestResults are intentionally excluded from dirty check 
+        // Compare everything except results to determine if the form is dirty
+        const { abTestResults: _, ...restCurrent } = currentSnapshot;
+        const { abTestResults: __, ...restLoaded } = loadedSnapshot;
+        return !deepEqual(restCurrent, restLoaded);
     }, [
         isViewingOldVersion,
-        localization.getFullPayload, // This needs to be stable or useMemo'd in hook
+        localization.getFullPayload,
         customImage,
         abTesting.titles,
         abTesting.thumbnails,
@@ -134,10 +153,18 @@ export const usePackagingFormState = ({
         localization.resetDirty();
     }, [localization, customImage, abTesting, pendingHistory]);
 
-    // Add a helper to check if incoming video props have changed significantly
-    // This replaces the complex logic in PackagingTab.tsx around loading
+    /**
+     * Checks if incoming video props match the current loaded snapshot.
+     * Used to detect external changes (e.g., from another tab or Firebase sync).
+     * 
+     * NOTE: A/B test results are EXCLUDED from this comparison to prevent
+     * the sync loop from resetting locally-saved results before they're
+     * persisted to the server.
+     */
     const incomingVideoMatchesSnapshot = useCallback((videoSnapshot: PackagingSnapshot) => {
-        return deepEqual(videoSnapshot, loadedSnapshot);
+        const { abTestResults: _, ...incomingRest } = videoSnapshot;
+        const { abTestResults: __, ...loadedRest } = loadedSnapshot;
+        return deepEqual(incomingRest, loadedRest);
     }, [loadedSnapshot]);
 
     return {
@@ -147,12 +174,13 @@ export const usePackagingFormState = ({
         videoRender, setVideoRender,
         audioRender, setAudioRender,
         pendingHistory, setPendingHistory,
+        loadedSnapshot, setLoadedSnapshot,
 
-        // Dirty State
+        // Results of computed state
         isDirty,
-        loadedSnapshot,
+        isViewingOldVersion,
 
-        // Actions
+        // Helpers
         resetToSnapshot,
         updateSnapshotToCurrent,
         incomingVideoMatchesSnapshot

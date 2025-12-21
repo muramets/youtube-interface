@@ -67,5 +67,5 @@ export const DetailsPage: React.FC = () => {
         );
     }
 
-    return <DetailsLayout video={video} channelId={channelId} />;
+    return <DetailsLayout video={video} />;
 };

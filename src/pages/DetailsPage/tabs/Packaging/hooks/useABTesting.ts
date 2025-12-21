@@ -1,60 +1,77 @@
 import { useState, useCallback } from 'react';
 import { DEFAULT_AB_RESULTS } from '../types';
 
+/**
+ * Manages A/B testing modal state and data.
+ * 
+ * KEY FEATURE: Supports "background save" for results-only changes.
+ * When the user updates watch time share data without changing titles/thumbnails,
+ * the `onResultsSave` callback is triggered to save results immediately to the server
+ * without affecting the main packaging "dirty" state or version history.
+ */
+
 interface UseABTestingOptions {
     initialTitles?: string[];
     initialThumbnails?: string[];
     initialResults?: { titles: number[], thumbnails: number[] };
+    /** Called when only results changed, allows parent to save results in background */
+    onResultsSave?: (results: { titles: number[], thumbnails: number[] }) => void;
 }
 
-export const useABTesting = ({
-    initialTitles,
-    initialThumbnails,
-    initialResults
-}: UseABTestingOptions = {}) => {
+export const useABTesting = (options?: UseABTestingOptions) => {
     // A/B Testing state
-    const [abTestModalOpen, setAbTestModalOpen] = useState(false);
-    const [abTestInitialTab, setAbTestInitialTab] = useState<'title' | 'thumbnail' | 'both'>('title');
+    const [isOpen, setIsOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<'title' | 'thumbnail' | 'both'>('title');
 
     // Data state
-    const [abTestTitles, setAbTestTitles] = useState<string[]>(initialTitles || []);
-    const [abTestThumbnails, setAbTestThumbnails] = useState<string[]>(initialThumbnails || []);
+    const [abTestTitles, setAbTestTitles] = useState<string[]>(options?.initialTitles || []);
+    const [abTestThumbnails, setAbTestThumbnails] = useState<string[]>(options?.initialThumbnails || []);
     const [abTestResults, setAbTestResults] = useState<{ titles: number[], thumbnails: number[] }>(
-        initialResults || DEFAULT_AB_RESULTS
+        options?.initialResults || DEFAULT_AB_RESULTS
     );
 
     // Handlers
     const handleOpenFromTitle = useCallback(() => {
-        setAbTestInitialTab('title');
-        setAbTestModalOpen(true);
+        setActiveTab('title');
+        setIsOpen(true);
     }, []);
 
     const handleOpenFromThumbnail = useCallback(() => {
-        setAbTestInitialTab('thumbnail');
-        setAbTestModalOpen(true);
+        setActiveTab('thumbnail');
+        setIsOpen(true);
     }, []);
 
     const closeModal = useCallback(() => {
-        setAbTestModalOpen(false);
+        setIsOpen(false);
     }, []);
 
+    /**
+     * Handles save from the A/B modal.
+     * - Always updates local state with new titles/thumbnails/results.
+     * - If packagingChanged is FALSE (only results changed), triggers background save
+     *   via onResultsSave callback so data persists without "Draft" status.
+     */
     const handleSave = useCallback((data: {
         mode: 'title' | 'thumbnail' | 'both';
         titles: string[];
         thumbnails: string[];
         results: { titles: number[], thumbnails: number[] };
+        packagingChanged: boolean;
     }) => {
         setAbTestTitles(data.titles);
         setAbTestThumbnails(data.thumbnails);
         setAbTestResults(data.results);
-        // Note: The parent component should handle showToast and isDirty marking
-        // based on the updated values being passed back to form state
-    }, []);
+
+        // If only results changed, trigger a background save
+        if (!data.packagingChanged && options?.onResultsSave) {
+            options.onResultsSave(data.results);
+        }
+    }, [options]);
 
     return {
         // State
-        modalOpen: abTestModalOpen,
-        initialTab: abTestInitialTab,
+        modalOpen: isOpen,
+        initialTab: activeTab,
         titles: abTestTitles,
         thumbnails: abTestThumbnails,
         results: abTestResults,

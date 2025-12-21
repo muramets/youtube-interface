@@ -8,10 +8,9 @@ import { useUIStore } from '../../core/stores/uiStore';
 
 interface DetailsLayoutProps {
     video: VideoDetails;
-    channelId?: string; // From URL for deep linking support
 }
 
-export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, channelId }) => {
+export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
     const { showToast } = useUIStore();
 
     // ============================================================================
@@ -36,12 +35,18 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, channelId }
         const videoDescription = video.description || '';
         const videoTags = video.tags || [];
         const videoCover = video.customImage || '';
+        const videoAbTestTitles = video.abTestTitles || [];
+        const videoAbTestThumbnails = video.abTestThumbnails || [];
+        const videoAbTestResults = video.abTestResults || { titles: [], thumbnails: [] };
 
         const hasDifference =
             videoTitle !== snapshot.title ||
             videoDescription !== snapshot.description ||
             JSON.stringify(videoTags) !== JSON.stringify(snapshot.tags) ||
-            videoCover !== (snapshot.coverImage || '');
+            videoCover !== (snapshot.coverImage || '') ||
+            JSON.stringify(videoAbTestTitles) !== JSON.stringify(snapshot.abTestTitles || []) ||
+            JSON.stringify(videoAbTestThumbnails) !== JSON.stringify(snapshot.abTestThumbnails || []) ||
+            JSON.stringify(videoAbTestResults) !== JSON.stringify(snapshot.abTestResults || { titles: [], thumbnails: [] });
 
         return hasDifference;
     }, [video]);

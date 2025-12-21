@@ -47,9 +47,10 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
 
     // 2. Hook: A/B Testing State
     const abTesting = useABTesting({
-        initialTitles: video.abTestTitles,
-        initialThumbnails: video.abTestThumbnails,
-        initialResults: video.abTestResults
+        initialTitles: video.abTestTitles || [],
+        initialThumbnails: video.abTestThumbnails || [],
+        initialResults: video.abTestResults || DEFAULT_AB_RESULTS,
+        onResultsSave: (results) => actions.handleSaveResultsOnly(results)
     });
 
     // 3. Hook: Form State & Dirty Checking (consolidated)

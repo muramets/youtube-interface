@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Plus } from 'lucide-react';
+import { getABTestRank, getRankBorderClass } from '../utils/abTestRank';
 
 type ABTestMode = 'title' | 'thumbnail' | 'both';
 
@@ -20,6 +21,7 @@ interface ABTestingModalProps {
             titles: number[];
             thumbnails: number[];
         };
+        packagingChanged: boolean;  // true if titles/thumbnails changed, false if only results
     }) => void;
     initialResults?: {
         titles: number[];
@@ -137,10 +139,11 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
             setThumbnails(initThumbnails);
 
             // Initialize results
-            setResults({
+            const newResults = {
                 titles: [...(initialResults.titles || []), 0, 0, 0].slice(0, 3),
                 thumbnails: [...(initialResults.thumbnails || []), 0, 0, 0].slice(0, 3)
-            });
+            };
+            setResults(newResults);
 
             // Show results if any are non-zero
             const hasResults = (initialResults.titles?.some(v => v > 0)) || (initialResults.thumbnails?.some(v => v > 0));
@@ -209,51 +212,41 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
     const getBorderColor = (value: number, allValues: number[], hasContent: boolean) => {
         if (!showResults || !isValid || !hasContent) return 'border-[#5F5F5F]';
 
-        // If nothing entered yet (all 0), don't show colors
-        const total = allValues.reduce((a, b) => a + (b || 0), 0);
-        if (total === 0) return 'border-[#5F5F5F]';
-
-        // User request: "second - until I enter data for it" implies 0 values shouldn't be colored yet.
-        if (value === 0) return 'border-[#5F5F5F]';
-
-        // Determine number of valid variants being tested
-        let validCount = 0;
-        if (activeTab === 'title') {
-            validCount = titles.filter(t => t.trim()).length;
-        } else if (activeTab === 'thumbnail') {
-            validCount = thumbnails.filter(t => t).length;
-        } else {
-            // both: count index if either title or thumbnail is present
-            validCount = titles.reduce((acc, t, i) => acc + ((t.trim() || thumbnails[i]) ? 1 : 0), 0);
-        }
-
-        const uniqueValues = [...new Set(allValues)].sort((a, b) => b - a);
-        const rank = uniqueValues.indexOf(value);
-
-        // 2 active variants: Green / Red
-        if (validCount === 2) {
-            if (rank === 0) return '!border-green-500';
-            return '!border-red-500';
-        }
-
-        // 3 active variants: Green / Orange / Red
-        if (rank === 0) return '!border-green-500';
-        if (rank === 1) return '!border-orange-500';
-        if (rank === 2) return '!border-red-500'; // 3rd
-        return 'border-[#5F5F5F]'; // Fallback
+        // Use shared ranking utility
+        const rank = getABTestRank(value, allValues);
+        return getRankBorderClass(rank);
     };
 
     const handleSave = () => {
         if (!isValid) return;
-        onSave({
+
+        // Determine if packaging content changed (not just results)
+        const currentValidTitles = titles.filter(t => t.trim());
+        const currentValidThumbnails = thumbnails.filter(t => t);
+
+        let packagingChanged = false;
+        if (activeTab === 'title') {
+            packagingChanged = JSON.stringify(currentValidTitles) !== JSON.stringify(titleVariants);
+        } else if (activeTab === 'thumbnail') {
+            packagingChanged = JSON.stringify(currentValidThumbnails) !== JSON.stringify(thumbnailVariants);
+        } else { // both
+            const titlesChanged = JSON.stringify(currentValidTitles) !== JSON.stringify(titleVariants);
+            const thumbnailsChanged = JSON.stringify(currentValidThumbnails) !== JSON.stringify(thumbnailVariants);
+            packagingChanged = titlesChanged || thumbnailsChanged;
+        }
+
+        const saveData = {
             mode: activeTab,
-            titles: titles.filter(t => t.trim()),
-            thumbnails: thumbnails.filter(t => t),
+            titles: currentValidTitles,
+            thumbnails: currentValidThumbnails,
             results: {
-                titles: results.titles.slice(0, titles.filter(t => t.trim()).length),
-                thumbnails: results.thumbnails.slice(0, thumbnails.filter(t => t).length)
-            }
-        });
+                titles: showResults ? results.titles.slice(0, currentValidTitles.length) : currentValidTitles.map(() => 0),
+                thumbnails: showResults ? results.thumbnails.slice(0, currentValidThumbnails.length) : currentValidThumbnails.map(() => 0)
+            },
+            packagingChanged
+        };
+
+        onSave(saveData);
         onClose();
     };
 

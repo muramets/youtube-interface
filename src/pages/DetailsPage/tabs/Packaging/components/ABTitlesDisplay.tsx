@@ -1,4 +1,6 @@
 import React from 'react';
+import { Badge } from '../../../../../components/ui/atoms/Badge';
+import { getABTestRank, getRankBadgeProps } from '../utils/abTestRank';
 
 interface ABTitlesDisplayProps {
     titles: string[];
@@ -42,10 +44,22 @@ export const ABTitlesDisplay: React.FC<ABTitlesDisplayProps> = ({
                     const maxPercentage = Math.max(...results, 0);
                     const isWinner = percentage > 0 && percentage === maxPercentage;
 
+                    // Use shared ranking utility
+                    const rank = getABTestRank(percentage, results);
+                    const badgeProps = getRankBadgeProps(rank);
+
                     return (
                         <div key={index} className="flex flex-col gap-2">
-                            <div className={`text-sm ${isWinner ? 'text-white font-medium' : 'text-text-primary'}`}>
-                                {title}
+                            {/* Title with Badge */}
+                            <div className="flex items-center gap-2">
+                                <span className={`text-sm ${isWinner ? 'text-white font-medium' : 'text-text-primary'}`}>
+                                    {title}
+                                </span>
+                                {badgeProps && (
+                                    <Badge variant={badgeProps.variant}>
+                                        {badgeProps.label}
+                                    </Badge>
+                                )}
                             </div>
 
                             {/* Result Bar */}
