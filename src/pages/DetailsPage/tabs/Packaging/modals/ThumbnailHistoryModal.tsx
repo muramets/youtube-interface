@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { type CoverVersion } from '../../../../../core/utils/youtubeApi';
 import { ImageActionOverlay } from '../components/ImageActionOverlay';
+import { Button } from '../../../../../components/ui/atoms/Button';
 
 export interface ThumbnailHistoryModalProps {
     isOpen: boolean;
@@ -34,6 +35,7 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
 }) => {
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [direction, setDirection] = useState(0);
+    const [isAnimating, setIsAnimating] = useState(false);
     const [openTooltipTimestamp, setOpenTooltipTimestamp] = useState<number | null>(null);
     const [isCurrentTooltipOpen, setIsCurrentTooltipOpen] = useState(false);
     const [isHistoricalTooltipOpen, setIsHistoricalTooltipOpen] = useState(false);
@@ -52,30 +54,29 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
         }
     }, [history.length, currentThumbnail, isOpen]);
 
+    // Synchronized slide animation with significant overlap to eliminate gap
     const variants = {
         enter: (direction: number) => ({
-            x: direction > 0 ? '30%' : '-30%',
-            opacity: 0,
-            scale: 0.98
+            x: direction > 0 ? '90%' : '-90%',
+            zIndex: 2, // Entering image on top
+            filter: 'blur(16px)'
         }),
         center: {
             zIndex: 1,
             x: 0,
-            opacity: 1,
-            scale: 1,
+            filter: 'blur(0px)',
             transition: {
-                x: { type: 'spring' as const, stiffness: 300, damping: 30 },
-                opacity: { duration: 0 } // Instant opacity
+                x: { duration: 0.5, ease: [0.32, 0.72, 0, 1] as [number, number, number, number] },
+                filter: { duration: 0.4 }
             }
         },
         exit: (direction: number) => ({
-            zIndex: 0,
-            x: direction < 0 ? '30%' : '-30%',
-            opacity: 1, // Keep opacity 1 during exit
-            scale: 0.98,
+            zIndex: 0, // Exiting image below
+            x: direction < 0 ? '90%' : '-90%',
+            filter: 'blur(16px)',
             transition: {
-                x: { type: 'spring' as const, stiffness: 300, damping: 30 },
-                opacity: { duration: 0 }
+                x: { duration: 0.5, ease: [0.32, 0.72, 0, 1] as [number, number, number, number] },
+                filter: { duration: 0.4 }
             }
         })
     };
@@ -111,22 +112,48 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
         }
     }, [isOpen, history.length]);
 
+    // Keyboard navigation: Arrow keys to browse thumbnails
+    // Must be before the early return to maintain hook order
+    useEffect(() => {
+        if (!isOpen || history.length <= 1) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (isAnimating) return; // Block navigation during animation
+
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                setIsAnimating(true);
+                setDirection(1);
+                setSelectedIndex((prev) => (prev + 1) % history.length);
+            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                setIsAnimating(true);
+                setDirection(-1);
+                setSelectedIndex((prev) => (prev - 1 + history.length) % history.length);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, history.length, isAnimating]);
+
     if (!isOpen) return null;
 
     const selectedVersion = history[selectedIndex];
 
     const handleNext = () => {
+        if (isAnimating) return;
+        setIsAnimating(true);
         setDirection(1);
         setSelectedIndex((prev) => (prev + 1) % history.length);
     };
 
     const handlePrev = () => {
+        if (isAnimating) return;
+        setIsAnimating(true);
         setDirection(-1);
         setSelectedIndex((prev) => (prev - 1 + history.length) % history.length);
     };
-
-
-
 
     return createPortal(
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
@@ -152,12 +179,14 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                         <h2 className="text-xl font-semibold text-modal-text-primary">Compare Version History</h2>
                         <p className="text-sm text-modal-text-secondary mt-0.5">Compare your current thumbnail with previous versions</p>
                     </div>
-                    <button
+                    <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={onClose}
-                        className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-modal-surface-hover transition-colors text-modal-text-secondary hover:text-modal-text-primary"
+                        className="!p-2 !rounded-full"
                     >
                         <X size={24} />
-                    </button>
+                    </Button>
                 </div>
 
                 {/* Main Comparison Area */}
@@ -223,6 +252,7 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                             initial="enter"
                                             animate="center"
                                             exit="exit"
+                                            onAnimationComplete={() => setIsAnimating(false)}
                                             transition={{
                                                 x: { duration: 0.4, ease: [0.32, 0.72, 0, 1] }
                                             }}
@@ -254,27 +284,27 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                     )}
                                 </div>
 
-                                {/* Quick Nav Arrows - expanded hover area */}
+                                {/* Quick Nav Arrows - sleek frozen blur style from timeline controls */}
                                 {history.length > 1 && (
                                     <>
-                                        <div className="absolute left-[-40px] top-0 bottom-0 w-[80px] flex items-center justify-start z-10 group/arrow">
+                                        <div className="absolute left-[-40px] top-0 bottom-0 w-[80px] flex items-center justify-start z-10">
                                             <button
                                                 onClick={handlePrev}
-                                                className={`ml-4 w-10 h-10 rounded-full bg-modal-surface border border-modal-border flex items-center justify-center text-modal-text-primary backdrop-blur-md 
-                                                    transition-all 
-                                                    ${isHistoricalTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
-                                                    group-hover/arrow:bg-white/20 group-hover/arrow:scale-110`}
+                                                className="ml-4 w-10 h-10 rounded-full bg-bg-secondary/90 backdrop-blur-md border border-border shadow-lg 
+                                                    flex items-center justify-center text-text-secondary
+                                                    transition-all hover:brightness-125 hover:text-text-primary hover:scale-110 hover:animate-none
+                                                    animate-[pulse-subtle_2s_ease-in-out_infinite]"
                                             >
                                                 <ChevronLeft size={24} />
                                             </button>
                                         </div>
-                                        <div className="absolute right-[-40px] top-0 bottom-0 w-[80px] flex items-center justify-end z-10 group/arrow">
+                                        <div className="absolute right-[-40px] top-0 bottom-0 w-[80px] flex items-center justify-end z-10">
                                             <button
                                                 onClick={handleNext}
-                                                className={`mr-4 w-10 h-10 rounded-full bg-modal-surface border border-modal-border flex items-center justify-center text-modal-text-primary backdrop-blur-md 
-                                                    transition-all 
-                                                    ${isHistoricalTooltipOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
-                                                    group-hover/arrow:bg-white/20 group-hover/arrow:scale-110`}
+                                                className="mr-4 w-10 h-10 rounded-full bg-bg-secondary/90 backdrop-blur-md border border-border shadow-lg 
+                                                    flex items-center justify-center text-text-secondary
+                                                    transition-all hover:brightness-125 hover:text-text-primary hover:scale-110 hover:animate-none
+                                                    animate-[pulse-subtle_2s_ease-in-out_infinite]"
                                             >
                                                 <ChevronRight size={24} />
                                             </button>
@@ -362,13 +392,12 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                 {history.length} versions in history
                             </div>
                             <div className="flex gap-3">
-                                <button
-                                    onClick={onClose}
-                                    className="px-3 py-1.5 rounded-full text-sm font-medium bg-modal-button-bg text-modal-text-primary hover:bg-modal-button-hover transition-colors"
-                                >
+                                <Button variant="secondary" size="sm" onClick={onClose}>
                                     Cancel
-                                </button>
-                                <button
+                                </Button>
+                                <Button
+                                    variant="primary"
+                                    size="sm"
                                     onClick={() => {
                                         if (selectedVersion) {
                                             onApply(selectedVersion.url);
@@ -376,13 +405,10 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                         }
                                     }}
                                     disabled={!selectedVersion}
-                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all
-                                        ${selectedVersion
-                                            ? 'bg-[#3ea6ff] text-[#1f1f1f] hover:bg-[#65b8ff] active:scale-95'
-                                            : 'bg-white/10 text-text-secondary cursor-not-allowed'}`}
+                                    className="!bg-[#3ea6ff] !text-[#1f1f1f] hover:!bg-[#65b8ff]"
                                 >
                                     Apply Version
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     </div>
