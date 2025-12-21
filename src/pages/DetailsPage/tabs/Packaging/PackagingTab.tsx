@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { type VideoDetails } from '../../../../utils/youtubeApi';
+import { type VideoDetails } from '../../../../core/utils/youtubeApi';
 import { PackagingForm } from './components/PackagingForm';
 import { VideoPreviewCard } from './components/VideoPreviewCard';
-import { LanguageTabs } from '../../../../components/Video/LanguageTabs';
+import { LanguageTabs } from '../../../../features/Video/LanguageTabs';
 import { ABTestingModal } from './modals/ABTestingModal';
-import { useChannelStore } from '../../../../stores/channelStore';
+import { useChannelStore } from '../../../../core/stores/channelStore';
 import { usePackagingLocalization } from './hooks/usePackagingLocalization';
 import { usePackagingFormState } from './hooks/usePackagingFormState';
 import { useABTesting } from './hooks/useABTesting';

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import type { MonthRegion } from '../../../types/trends';
+import type { MonthRegion } from '../../../core/types/trends';
 
 interface TimelineBackgroundProps {
     monthRegions: MonthRegion[];

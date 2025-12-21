@@ -1,6 +1,6 @@
 import React, { useMemo, useLayoutEffect, useRef, useState } from 'react';
 import { Check, Globe, Home, Search, CheckCheck, CircleOff } from 'lucide-react';
-import { useTrendStore } from '../../../stores/trendStore';
+import { useTrendStore } from '../../../core/stores/trendStore';
 
 // Special ID for "Unassigned" filter option
 export const UNASSIGNED_NICHE_ID = 'UNASSIGNED';

@@ -1,5 +1,5 @@
 import React from 'react';
-import type { MonthRegion, YearMarker } from '../../../types/trends';
+import type { MonthRegion, YearMarker } from '../../../core/types/trends';
 
 interface TimelineDateHeaderProps {
     yearMarkers: YearMarker[];

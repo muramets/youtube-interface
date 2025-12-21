@@ -1,17 +1,17 @@
 import React from 'react';
 import { Menu, Search, Bell, User } from 'lucide-react';
-import { useChannelStore } from '../../stores/channelStore';
-import { ChannelDropdown } from '../ChannelDropdown';
-import { useFilterStore } from '../../stores/filterStore';
-import { useNotificationStore } from '../../stores/notificationStore';
-import { NotificationDropdown } from '../Notifications/NotificationDropdown';
+import { useChannelStore } from '../../core/stores/channelStore';
+import { ChannelDropdown } from '../../features/Profile/ChannelDropdown';
+import { useFilterStore } from '../../core/stores/filterStore';
+import { useNotificationStore } from '../../core/stores/notificationStore';
+import { NotificationDropdown } from '../../features/Notifications/NotificationDropdown';
 import { Dropdown } from '../Shared/Dropdown';
 import { AddContentMenu } from '../Shared/AddContentMenu';
 import { useLocation } from 'react-router-dom';
 import { YouTubeCreateIcon } from '../Shared/YouTubeCreateIcon';
-import { useUIStore } from '../../stores/uiStore';
-import { useAuth } from '../../hooks/useAuth';
-import { useChannels } from '../../hooks/useChannels';
+import { useUIStore } from '../../core/stores/uiStore';
+import { useAuth } from '../../core/hooks/useAuth';
+import { useChannels } from '../../core/hooks/useChannels';
 
 export const Header: React.FC<{ className?: string }> = ({ className }) => {
   const location = useLocation();

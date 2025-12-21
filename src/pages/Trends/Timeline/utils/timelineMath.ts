@@ -1,4 +1,4 @@
-import type { MonthLayout, TimelineStats } from '../../../../types/trends';
+import type { MonthLayout, TimelineStats } from '../../../../core/types/trends';
 
 /**
  * Finds the timestamp corresponding to a normalized X position (0-1) in the world.
@@ -216,7 +216,7 @@ export const calculateSelectionZoomTransform = (
     };
 };
 
-import type { VideoPosition } from '../../../../types/trends';
+import type { VideoPosition } from '../../../../core/types/trends';
 
 interface SmartAnchorParams {
     videoPositions: VideoPosition[];

@@ -1,6 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import { QueryProvider } from './providers/QueryProvider'
+import { QueryProvider } from './components/providers/QueryProvider'
 import './index.css'
 import App from './App.tsx'
 

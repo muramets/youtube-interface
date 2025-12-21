@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Eye, EyeOff, MoreVertical, ChevronDown, ChevronRight } from 'lucide-react';
-import type { TrendChannel, TrendNiche } from '../../../types/trends';
+import type { TrendChannel, TrendNiche } from '../../../core/types/trends';
 import { CollapsibleNicheList } from './CollapsibleNicheList';
 
 interface TrendsChannelItemProps {

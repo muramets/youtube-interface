@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import type { TrendVideo } from '../../../../types/trends';
+import type { TrendVideo } from '../../../../core/types/trends';
 
 export interface TooltipData {
     video: TrendVideo;

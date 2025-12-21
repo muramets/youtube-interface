@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Home, Globe, Pencil, Trash2 } from 'lucide-react';
-import type { TrendNiche } from '../../../types/trends';
-import { useTrendStore } from '../../../stores/trendStore';
+import type { TrendNiche } from '../../../core/types/trends';
+import { useTrendStore } from '../../../core/stores/trendStore';
 import { useNicheAnalysis, type ChannelStat, type NicheWithMeta } from '../hooks/useNicheAnalysis';
 import { SplitNicheModal } from './SplitNicheModal';
 import { MergeNichesModal } from './MergeNichesModal';

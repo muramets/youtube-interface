@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { TrendVideo, TimelineStats } from '../../../../types/trends';
+import type { TrendVideo, TimelineStats } from '../../../../core/types/trends';
 
 interface UseTimelineAutoUpdateProps {
     videos: TrendVideo[];

@@ -1,10 +1,10 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { type VideoDetails } from '../../utils/youtubeApi';
+import { type VideoDetails } from '../../core/utils/youtubeApi';
 import { DetailsSidebar } from './Sidebar/DetailsSidebar';
 import { PackagingTab } from './tabs/Packaging/PackagingTab';
 import { usePackagingVersions } from './tabs/Packaging/hooks/usePackagingVersions';
 import { ConfirmationModal } from '../../components/Shared/ConfirmationModal';
-import { useUIStore } from '../../stores/uiStore';
+import { useUIStore } from '../../core/stores/uiStore';
 
 interface DetailsLayoutProps {
     video: VideoDetails;

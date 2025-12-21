@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Upload, MoreVertical, Trash2, History } from 'lucide-react';
 import { ThumbnailHistoryModal } from '../modals/ThumbnailHistoryModal';
-import { type CoverVersion } from '../../../../../utils/youtubeApi';
+import { type CoverVersion } from '../../../../../core/utils/youtubeApi';
 
 interface ThumbnailSectionProps {
     value: string;

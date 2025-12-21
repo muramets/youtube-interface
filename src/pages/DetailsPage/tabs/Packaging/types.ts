@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { type PackagingVersion, type VideoLocalization, type CoverVersion } from '../../../../utils/youtubeApi';
+import { type PackagingVersion, type VideoLocalization, type CoverVersion } from '../../../../core/utils/youtubeApi';
 
 // ============================================================================
 // DEFAULT VALUES

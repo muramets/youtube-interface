@@ -1,7 +1,7 @@
 import React, { useState, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { AlignLeft, Tag, Copy, Check, Calendar } from 'lucide-react';
-import type { TrendVideo } from '../../../types/trends';
+import type { TrendVideo } from '../../../core/types/trends';
 
 interface TrendTooltipProps {
     video: TrendVideo;

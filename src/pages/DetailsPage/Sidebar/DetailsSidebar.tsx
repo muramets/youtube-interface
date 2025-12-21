@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { type VideoDetails, type PackagingVersion } from '../../../utils/youtubeApi';
+import { type VideoDetails, type PackagingVersion } from '../../../core/utils/youtubeApi';
 import { SidebarVideoPreview } from './SidebarVideoPreview';
 import { SidebarNavItem } from './SidebarNavItem';
 import { PackagingNav } from './Packaging/PackagingNav';

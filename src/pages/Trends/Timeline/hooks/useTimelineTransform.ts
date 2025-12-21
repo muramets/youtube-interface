@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
-import { useDebounce } from '../../../../hooks/useDebounce';
-import { useTrendStore } from '../../../../stores/trendStore';
+import { useDebounce } from '../../../../core/hooks/useDebounce';
+import { useTrendStore } from '../../../../core/stores/trendStore';
 import { calculatePreservedTransform } from '../utils/timelineMath';
-import type { MonthLayout, TimelineStats } from '../../../../types/trends';
+import type { MonthLayout, TimelineStats } from '../../../../core/types/trends';
 
 export interface Transform {
     scale: number;

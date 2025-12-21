@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { type CoverVersion } from '../../../../../utils/youtubeApi';
+import { type CoverVersion } from '../../../../../core/utils/youtubeApi';
 import { ImageActionOverlay } from '../components/ImageActionOverlay';
 
 export interface ThumbnailHistoryModalProps {

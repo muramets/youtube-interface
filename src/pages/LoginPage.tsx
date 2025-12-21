@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../core/hooks/useAuth';
 
 export const LoginPage: React.FC = () => {
     const { user, loginWithGoogle, isLoading } = useAuth();

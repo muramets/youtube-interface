@@ -1,6 +1,6 @@
 import React, { useRef, useLayoutEffect, useEffect, useState } from 'react';
-import type { TrendVideo, VideoPosition } from '../../../../types/trends';
-import { getDotStyle } from '../../../../utils/trendStyles';
+import type { TrendVideo, VideoPosition } from '../../../../core/types/trends';
+import { getDotStyle } from '../../../../core/utils/trendStyles';
 import {
     ANIMATION_DURATION_MS,
     DOT_HIT_BUFFER_PX,

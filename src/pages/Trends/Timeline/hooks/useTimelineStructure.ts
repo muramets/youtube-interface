@@ -1,5 +1,5 @@
 import { useMemo, useRef, useCallback } from 'react';
-import type { TrendVideo, MonthRegion, YearMarker, TimelineStats, MonthLayout } from '../../../../types/trends';
+import type { TrendVideo, MonthRegion, YearMarker, TimelineStats, MonthLayout } from '../../../../core/types/trends';
 import { useFrozenValue } from './useFrozenValue';
 
 // Helper: Days in month

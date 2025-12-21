@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { TrendVideo, TimelineStats, VideoPosition } from '../../../../types/trends';
+import type { TrendVideo, TimelineStats, VideoPosition } from '../../../../core/types/trends';
 
 const BASE_THUMBNAIL_SIZE = 200;
 const MIN_THUMBNAIL_SIZE = 40;

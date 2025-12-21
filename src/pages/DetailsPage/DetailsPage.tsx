@@ -1,8 +1,8 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
-import { useChannelStore } from '../../stores/channelStore';
-import { useVideos } from '../../hooks/useVideos';
+import { useAuth } from '../../core/hooks/useAuth';
+import { useChannelStore } from '../../core/stores/channelStore';
+import { useVideos } from '../../core/hooks/useVideos';
 import { DetailsLayout } from './DetailsLayout';
 import { Loader2 } from 'lucide-react';
 

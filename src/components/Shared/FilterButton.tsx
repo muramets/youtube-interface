@@ -1,15 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Filter, ChevronRight, X, Calendar, Clock, Eye, Type, List, MonitorPlay, ChevronLeft } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { useFilterStore, type FilterType, type FilterOperator } from '../../stores/filterStore';
+import { useFilterStore, type FilterType, type FilterOperator } from '../../core/stores/filterStore';
 import { FilterInputTitle } from './FilterInputs/FilterInputTitle';
 import { FilterInputNumeric } from './FilterInputs/FilterInputNumeric';
 import { FilterInputDate } from './FilterInputs/FilterInputDate';
 import { FilterInputList } from './FilterInputs/FilterInputList';
-import { useVideos } from '../../hooks/useVideos';
-import { usePlaylists } from '../../hooks/usePlaylists';
-import { useAuth } from '../../hooks/useAuth';
-import { useChannelStore } from '../../stores/channelStore';
+import { useVideos } from '../../core/hooks/useVideos';
+import { usePlaylists } from '../../core/hooks/usePlaylists';
+import { useAuth } from '../../core/hooks/useAuth';
+import { useChannelStore } from '../../core/stores/channelStore';
 
 export const FilterButton: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);

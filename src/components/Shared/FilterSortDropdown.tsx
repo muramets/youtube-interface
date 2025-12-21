@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { Filter, Check, ArrowDownUp, SlidersHorizontal, RotateCcw } from 'lucide-react';
-import { usePlaylists } from '../../hooks/usePlaylists';
-import { useSettings } from '../../hooks/useSettings';
-import { useAuth } from '../../hooks/useAuth';
-import { useChannelStore } from '../../stores/channelStore';
+import { usePlaylists } from '../../core/hooks/usePlaylists';
+import { useSettings } from '../../core/hooks/useSettings';
+import { useAuth } from '../../core/hooks/useAuth';
+import { useChannelStore } from '../../core/stores/channelStore';
 import { createPortal } from 'react-dom';
 
 export interface SortOption {

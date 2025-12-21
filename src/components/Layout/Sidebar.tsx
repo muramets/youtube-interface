@@ -1,14 +1,14 @@
 import React from 'react';
 import { Home, List, Settings, TrendingUp } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { SettingsModal } from '../Settings/SettingsModal';
-import { useUIStore } from '../../stores/uiStore';
-import { useAuth } from '../../hooks/useAuth';
-import { useChannelStore } from '../../stores/channelStore';
-import { useChannels } from '../../hooks/useChannels';
+import { SettingsModal } from '../../features/Settings/SettingsModal';
+import { useUIStore } from '../../core/stores/uiStore';
+import { useAuth } from '../../core/hooks/useAuth';
+import { useChannelStore } from '../../core/stores/channelStore';
+import { useChannels } from '../../core/hooks/useChannels';
 import { TrendsSidebarSection } from '../../pages/Trends/Sidebar/TrendsSidebarSection';
 import { AddChannelModal } from '../../pages/Trends/Sidebar/AddChannelModal';
-import { useTrendStore } from '../../stores/trendStore';
+import { useTrendStore } from '../../core/stores/trendStore';
 
 // Collapsed sidebar item - icon on top, text below
 const CollapsedSidebarItem: React.FC<{

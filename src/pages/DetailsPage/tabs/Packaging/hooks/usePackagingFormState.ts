@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
-import { type VideoDetails, type CoverVersion, type VideoLocalization } from '../../../../../utils/youtubeApi';
-import { deepEqual } from '../../../../../utils/deepEqual';
+import { type VideoDetails, type CoverVersion, type VideoLocalization } from '../../../../../core/utils/youtubeApi';
+import { deepEqual } from '../../../../../core/utils/deepEqual';
 import { DEFAULT_TAGS, DEFAULT_LOCALIZATIONS, DEFAULT_AB_RESULTS, DEFAULT_COVER_HISTORY } from '../types';
 
 interface PackagingSnapshot {

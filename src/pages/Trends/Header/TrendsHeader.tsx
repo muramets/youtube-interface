@@ -1,5 +1,5 @@
 import React from 'react';
-import type { TimelineConfig } from '../../../types/trends';
+import type { TimelineConfig } from '../../../core/types/trends';
 import { TrendsStats } from './TrendsStats';
 import { TrendsSettings } from './TrendsSettings';
 import { TrendsFilterButton } from './TrendsFilterButton';

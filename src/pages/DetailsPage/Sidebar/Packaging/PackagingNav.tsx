@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Pencil, ChevronDown, ChevronRight } from 'lucide-react';
 import { SidebarVersionItem } from './SidebarVersionItem';
-import type { PackagingVersion } from '../../../../utils/youtubeApi';
+import type { PackagingVersion } from '../../../../core/utils/youtubeApi';
 
 interface PackagingNavProps {
     versions: PackagingVersion[];

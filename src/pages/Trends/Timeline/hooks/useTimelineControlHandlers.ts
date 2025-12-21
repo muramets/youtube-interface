@@ -1,5 +1,5 @@
 import { useRef, useCallback } from 'react';
-import type { VideoPosition, TimelineStats, MonthLayout } from '../../../../types/trends';
+import type { VideoPosition, TimelineStats, MonthLayout } from '../../../../core/types/trends';
 import type { Transform } from './useTimelineTransform';
 import { findSmartAnchorTime, getTimeAtWorldX } from '../utils/timelineMath';
 

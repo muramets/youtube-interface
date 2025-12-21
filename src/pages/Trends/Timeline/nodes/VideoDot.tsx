@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import type { TrendVideo, VideoPosition } from '../../../../types/trends';
+import type { TrendVideo, VideoPosition } from '../../../../core/types/trends';
 import { MIN_INTERACTION_SIZE_PX } from '../utils/timelineConstants';
 
 interface VideoDotProps {
@@ -17,7 +17,7 @@ interface VideoDotProps {
 }
 
 // Helper for percentile styles
-import { getDotStyle } from '../../../../utils/trendStyles';
+import { getDotStyle } from '../../../../core/utils/trendStyles';
 
 
 export const VideoDot = memo(({

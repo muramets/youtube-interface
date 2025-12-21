@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { useTrendStore, type TrendsFilterItem } from '../../../stores/trendStore';
-import type { TrendVideo } from '../../../types/trends';
-import { applyNumericFilter } from '../../../utils/filterUtils';
+import { useTrendStore, type TrendsFilterItem } from '../../../core/stores/trendStore';
+import type { TrendVideo } from '../../../core/types/trends';
+import { applyNumericFilter } from '../../../core/utils/filterUtils';
 
 interface UseFilteredVideosParams {
     videos: TrendVideo[];

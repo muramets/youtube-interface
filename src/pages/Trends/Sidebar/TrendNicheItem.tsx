@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useDroppable } from '@dnd-kit/core';
 import { MoreVertical, Check, Trash2 } from 'lucide-react';
-import type { TrendNiche } from '../../../types/trends';
-import { useTrendStore, MANUAL_NICHE_PALETTE } from '../../../stores/trendStore';
+import type { TrendNiche } from '../../../core/types/trends';
+import { useTrendStore, MANUAL_NICHE_PALETTE } from '../../../core/stores/trendStore';
 import { ConfirmationModal } from '../../../components/Shared/ConfirmationModal';
 import { NicheContextMenu } from '../Shared/NicheContextMenu';
 

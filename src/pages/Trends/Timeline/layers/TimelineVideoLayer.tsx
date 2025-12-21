@@ -1,6 +1,6 @@
 import React, { useState, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useDndMonitor } from '@dnd-kit/core';
-import type { TrendVideo, VideoPosition } from '../../../../types/trends';
+import type { TrendVideo, VideoPosition } from '../../../../core/types/trends';
 import { useTimelineVirtualization } from '../hooks/useTimelineVirtualization';
 import { VideoDot } from '../nodes/VideoDot';
 import { DraggableVideoNode } from '../nodes/DraggableVideoNode';

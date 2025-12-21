@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { type VideoLocalization, type CoverVersion } from '../../../../../utils/youtubeApi';
+import { type VideoLocalization, type CoverVersion } from '../../../../../core/utils/youtubeApi';
 import { type ABTestResults } from '../types';
 
 // ============================================================================

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { type CoverVersion } from '../../../../../utils/youtubeApi';
+import { type CoverVersion } from '../../../../../core/utils/youtubeApi';
 import { TitleInput } from './TitleInput';
 import { DescriptionInput } from './DescriptionInput';
 import { ThumbnailSection } from './ThumbnailSection';

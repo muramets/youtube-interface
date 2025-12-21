@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { TrendVideo } from '../../../../types/trends';
+import type { TrendVideo } from '../../../../core/types/trends';
 
 /**
  * Selection state for timeline videos.

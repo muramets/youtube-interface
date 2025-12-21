@@ -1,16 +1,16 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { X, Check, Home, Trash2, RotateCcw } from 'lucide-react';
-import type { TrendVideo } from '../../../types/trends';
-import { useAuth } from '../../../hooks/useAuth';
-import { useChannelStore } from '../../../stores/channelStore';
-import { useTrendStore } from '../../../stores/trendStore';
-import { useVideos } from '../../../hooks/useVideos';
-import { useUIStore } from '../../../stores/uiStore';
-import { VideoService } from '../../../services/videoService';
+import type { TrendVideo } from '../../../core/types/trends';
+import { useAuth } from '../../../core/hooks/useAuth';
+import { useChannelStore } from '../../../core/stores/channelStore';
+import { useTrendStore } from '../../../core/stores/trendStore';
+import { useVideos } from '../../../core/hooks/useVideos';
+import { useUIStore } from '../../../core/stores/uiStore';
+import { VideoService } from '../../../core/services/videoService';
 import { useSmartPosition } from './hooks/useSmartPosition';
 import { NicheSelector } from './components/NicheSelector';
 import { PlaylistSelector } from './components/PlaylistSelector';
-import { trendVideoToVideoDetails } from '../../../utils/videoAdapters';
+import { trendVideoToVideoDetails } from '../../../core/utils/videoAdapters';
 import { ConfirmationModal } from '../../../components/Shared/ConfirmationModal';
 
 interface TrendsFloatingBarProps {

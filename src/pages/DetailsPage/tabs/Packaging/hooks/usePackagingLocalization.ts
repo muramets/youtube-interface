@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { type VideoLocalization } from '../../../../../utils/youtubeApi';
+import { type VideoLocalization } from '../../../../../core/utils/youtubeApi';
 
 interface LocalizationState {
     title: string;

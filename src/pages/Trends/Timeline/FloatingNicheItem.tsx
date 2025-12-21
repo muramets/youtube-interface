@@ -1,8 +1,8 @@
 import React, { useState, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { MoreVertical, Check, Globe } from 'lucide-react';
-import type { TrendNiche } from '../../../types/trends';
-import { useTrendStore, MANUAL_NICHE_PALETTE } from '../../../stores/trendStore';
+import type { TrendNiche } from '../../../core/types/trends';
+import { useTrendStore, MANUAL_NICHE_PALETTE } from '../../../core/stores/trendStore';
 import { ConfirmationModal } from '../../../components/Shared/ConfirmationModal';
 import { NicheContextMenu } from '../../Trends/Shared/NicheContextMenu';
 

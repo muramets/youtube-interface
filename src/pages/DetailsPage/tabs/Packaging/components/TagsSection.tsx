@@ -1,5 +1,5 @@
 import React from 'react';
-import { TagsInput } from '../../../../../components/TagsInput';
+import { TagsInput } from '../../../../../components/ui/TagsInput';
 
 interface TagsSectionProps {
     tags: string[];

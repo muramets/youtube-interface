@@ -1,33 +1,33 @@
 import { Routes, Route } from 'react-router-dom';
 import { useEffect } from 'react';
-import { ProtectedRoute } from './components/ProtectedRoute';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
 import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
-import { VideoGrid } from './components/Video/VideoGrid';
-import { WatchPage } from './components/Watch/WatchPage';
-import { PlaylistsPage } from './components/Playlist/PlaylistsPage';
-import { PlaylistDetailPage } from './components/Playlist/PlaylistDetailPage';
-import { CategoryBar } from './components/Video/CategoryBar';
+import { VideoGrid } from './features/Video/VideoGrid';
+import { WatchPage } from './features/Watch/WatchPage';
+import { PlaylistsPage } from './features/Playlist/PlaylistsPage';
+import { PlaylistDetailPage } from './features/Playlist/PlaylistDetailPage';
+import { CategoryBar } from './features/Video/CategoryBar';
 import { TrendsPage } from './pages/Trends/TrendsPage';
 import { DetailsPage } from './pages/DetailsPage';
-import { useStoreInitialization } from './hooks/useStoreInitialization';
-import { useVideos } from './hooks/useVideos';
+import { useStoreInitialization } from './core/hooks/useStoreInitialization';
+import { useVideos } from './core/hooks/useVideos';
 
-import { useSettings } from './hooks/useSettings';
-import { useAuth } from './hooks/useAuth';
-import { useChannelStore } from './stores/channelStore';
+import { useSettings } from './core/hooks/useSettings';
+import { useAuth } from './core/hooks/useAuth';
+import { useChannelStore } from './core/stores/channelStore';
 
-import { useUIStore } from './stores/uiStore';
-import { useNotificationStore } from './stores/notificationStore';
+import { useUIStore } from './core/stores/uiStore';
+import { useNotificationStore } from './core/stores/notificationStore';
 import { Toast } from './components/Shared/Toast';
 
-import { useCheckinScheduler } from './hooks/useCheckinScheduler';
-import { useVideoFetchRetry } from './hooks/useVideoFetchRetry';
-import { useAutoCleanup } from './hooks/useAutoCleanup';
-import { useFilterChannelSync } from './hooks/useFilterChannelSync';
+import { useCheckinScheduler } from './core/hooks/useCheckinScheduler';
+import { useVideoFetchRetry } from './core/hooks/useVideoFetchRetry';
+import { useAutoCleanup } from './core/hooks/useAutoCleanup';
+import { useFilterChannelSync } from './core/hooks/useFilterChannelSync';
 import { useTrendSubscription } from './pages/Trends/hooks/useTrendSubscription';
-import { useUserPersistence } from './hooks/useUserPersistence';
+import { useUserPersistence } from './core/hooks/useUserPersistence';
 import { TrendsDndProvider } from './pages/Trends/TrendsDndProvider';
 
 function AppContent() {

@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
-import { type VideoDetails, type CoverVersion } from '../../../../../utils/youtubeApi';
-import { useUIStore } from '../../../../../stores/uiStore';
-import { useVideos } from '../../../../../hooks/useVideos';
-import { useAuth } from '../../../../../hooks/useAuth';
-import { useChannelStore } from '../../../../../stores/channelStore';
-import { ChannelService } from '../../../../../services/channelService';
+import { type VideoDetails, type CoverVersion } from '../../../../../core/utils/youtubeApi';
+import { useUIStore } from '../../../../../core/stores/uiStore';
+import { useVideos } from '../../../../../core/hooks/useVideos';
+import { useAuth } from '../../../../../core/hooks/useAuth';
+import { useChannelStore } from '../../../../../core/stores/channelStore';
+import { ChannelService } from '../../../../../core/services/channelService';
 import { type VersionState } from '../types';
 import { type UsePackagingLocalizationResult } from './usePackagingLocalization';
 import { type UsePackagingFormStateResult } from './usePackagingFormState';

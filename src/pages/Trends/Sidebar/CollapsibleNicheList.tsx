@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
-import type { TrendNiche } from '../../../types/trends';
+import type { TrendNiche } from '../../../core/types/trends';
 import { TrendNicheItem } from './TrendNicheItem';
 
 interface CollapsibleNicheListProps {

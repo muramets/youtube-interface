@@ -1,16 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ListVideo, Plus, Check } from 'lucide-react';
 import { FloatingDropdownPortal } from '../../../../components/Shared/FloatingDropdownPortal';
-import { useAuth } from '../../../../hooks/useAuth';
-import { useChannelStore } from '../../../../stores/channelStore';
-import { useTrendStore } from '../../../../stores/trendStore';
-import { usePlaylists } from '../../../../hooks/usePlaylists';
-import { useVideos } from '../../../../hooks/useVideos';
-import { useUIStore } from '../../../../stores/uiStore';
-import { VideoService } from '../../../../services/videoService';
-import { PlaylistService } from '../../../../services/playlistService';
-import type { TrendVideo } from '../../../../types/trends';
-import { trendVideoToVideoDetails } from '../../../../utils/videoAdapters';
+import { useAuth } from '../../../../core/hooks/useAuth';
+import { useChannelStore } from '../../../../core/stores/channelStore';
+import { useTrendStore } from '../../../../core/stores/trendStore';
+import { usePlaylists } from '../../../../core/hooks/usePlaylists';
+import { useVideos } from '../../../../core/hooks/useVideos';
+import { useUIStore } from '../../../../core/stores/uiStore';
+import { VideoService } from '../../../../core/services/videoService';
+import { PlaylistService } from '../../../../core/services/playlistService';
+import type { TrendVideo } from '../../../../core/types/trends';
+import { trendVideoToVideoDetails } from '../../../../core/utils/videoAdapters';
 
 interface PlaylistSelectorProps {
     videos: TrendVideo[];

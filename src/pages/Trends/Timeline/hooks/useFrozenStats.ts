@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
-import type { TimelineStats, TrendVideo } from '../../../../types/trends';
+import type { TimelineStats, TrendVideo } from '../../../../core/types/trends';
 
 interface ChannelBasic {
     id: string;

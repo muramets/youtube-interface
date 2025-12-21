@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { FolderPlus, Plus, ChevronDown, Home, Globe } from 'lucide-react';
-import type { TrendNiche, TrendVideo } from '../../../../types/trends';
-import { useTrendStore, generateNicheColor } from '../../../../stores/trendStore';
+import type { TrendNiche, TrendVideo } from '../../../../core/types/trends';
+import { useTrendStore, generateNicheColor } from '../../../../core/stores/trendStore';
 import { FloatingNicheItem } from '../FloatingNicheItem';
 import { FloatingDropdownPortal } from '../../../../components/Shared/FloatingDropdownPortal';
 

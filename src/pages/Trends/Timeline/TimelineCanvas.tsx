@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { useTrendStore } from '../../../stores/trendStore';
+import { useTrendStore } from '../../../core/stores/trendStore';
 import { TrendTooltip } from './TrendTooltip';
 import { TimelineDateHeader } from './TimelineDateHeader';
 import { TimelineViewAxis } from './TimelineViewAxis';
@@ -10,7 +10,7 @@ import { TimelineControls } from './TimelineControls';
 import { TimelineSkeleton } from './TimelineSkeleton';
 import { TimelineEmptyState } from './TimelineEmptyState';
 import { TimelineSelectionOverlay } from './TimelineSelectionOverlay';
-import type { TrendVideo, TimelineStats } from '../../../types/trends';
+import type { TrendVideo, TimelineStats } from '../../../core/types/trends';
 
 // Hooks
 import { useTimelineStructure } from './hooks/useTimelineStructure';

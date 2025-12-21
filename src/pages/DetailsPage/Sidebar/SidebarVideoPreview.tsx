@@ -1,5 +1,5 @@
 import React from 'react';
-import { type VideoDetails } from '../../../utils/youtubeApi';
+import { type VideoDetails } from '../../../core/utils/youtubeApi';
 import { PortalTooltip } from '../../../components/Shared/PortalTooltip';
 
 interface SidebarVideoPreviewProps {

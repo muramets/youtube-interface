@@ -1,15 +1,15 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { Plus, Youtube, Upload, ListPlus } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { AddYouTubeVideoModal } from '../Video/AddYouTubeVideoModal';
-import { CustomVideoModal } from '../Video/CustomVideoModal';
-import { CreatePlaylistModal } from '../Playlist/CreatePlaylistModal';
-import { useVideos } from '../../hooks/useVideos';
-import { useSettings } from '../../hooks/useSettings';
-import type { VideoDetails } from '../../utils/youtubeApi';
+import { AddYouTubeVideoModal } from '../../features/Video/AddYouTubeVideoModal';
+import { CustomVideoModal } from '../../features/Video/CustomVideoModal';
+import { CreatePlaylistModal } from '../../features/Playlist/CreatePlaylistModal';
+import { useVideos } from '../../core/hooks/useVideos';
+import { useSettings } from '../../core/hooks/useSettings';
+import type { VideoDetails } from '../../core/utils/youtubeApi';
 
-import { useAuth } from '../../hooks/useAuth';
-import { useChannelStore } from '../../stores/channelStore';
+import { useAuth } from '../../core/hooks/useAuth';
+import { useChannelStore } from '../../core/stores/channelStore';
 
 interface AddContentMenuProps {
     showVideo?: boolean;

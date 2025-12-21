@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { FilterOperator } from '../../../stores/filterStore';
+import type { FilterOperator } from '../../../core/stores/filterStore';
 import { CustomSelect } from '../CustomSelect';
 import { SmartDurationInput } from './SmartDurationInput';
 import { SmartNumericInput } from './SmartNumericInput';

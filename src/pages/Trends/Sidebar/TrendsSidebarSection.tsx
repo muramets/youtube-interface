@@ -7,8 +7,8 @@ import { SidebarDivider } from '../../../components/Layout/Sidebar';
 import { Dropdown } from '../../../components/Shared/Dropdown';
 import { ConfirmationModal } from '../../../components/Shared/ConfirmationModal';
 import { useTrendsSidebar } from './hooks/useTrendsSidebar';
-import { useTrendStore } from '../../../stores/trendStore';
-import type { TrendChannel } from '../../../types/trends';
+import { useTrendStore } from '../../../core/stores/trendStore';
+import type { TrendChannel } from '../../../core/types/trends';
 
 export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded }) => {
     const {

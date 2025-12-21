@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import type { TrendVideo, VideoPosition } from '../../../../types/trends';
+import type { TrendVideo, VideoPosition } from '../../../../core/types/trends';
 
 // Helper for formatting
 const formatCompactNumber = (num: number) => {

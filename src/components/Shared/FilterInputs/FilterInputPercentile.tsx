@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Check } from 'lucide-react';
-import { PERCENTILE_GROUPS, type PercentileGroup } from '../../../stores/trendStore';
+import { PERCENTILE_GROUPS, type PercentileGroup } from '../../../core/stores/trendStore';
 
 interface FilterInputPercentileProps {
     initialExcluded?: PercentileGroup[];
