@@ -1,5 +1,7 @@
 import React, { useRef, useState } from 'react';
-import { Upload, MoreVertical, Trash2 } from 'lucide-react';
+import { Upload, MoreVertical, Trash2, History } from 'lucide-react';
+import { ThumbnailHistoryModal } from './ThumbnailHistoryModal';
+import { type CoverVersion } from '../../../utils/youtubeApi';
 
 interface ThumbnailSectionProps {
     value: string;
@@ -7,6 +9,7 @@ interface ThumbnailSectionProps {
     readOnly?: boolean;
     onABTestClick?: () => void;
     variants?: string[];
+    history?: CoverVersion[];
 }
 
 export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
@@ -14,10 +17,12 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
     onChange,
     readOnly = false,
     onABTestClick,
-    variants = []
+    variants = [],
+    history = []
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showDropdown, setShowDropdown] = useState(false);
+    const [historyModalOpen, setHistoryModalOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -122,6 +127,20 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
                                                     A/B Testing
                                                 </button>
                                             )}
+
+                                            {/* Version History - only if not A/B testing and has history */}
+                                            {variants.length === 0 && history.length > 0 && (
+                                                <button
+                                                    onClick={() => {
+                                                        setShowDropdown(false);
+                                                        setHistoryModalOpen(true);
+                                                    }}
+                                                    className="w-full px-4 py-2 text-left text-sm text-text-primary hover:bg-white/5 flex items-center gap-2"
+                                                >
+                                                    <History size={16} />
+                                                    Version History
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={handleRemove}
                                                 className="w-full px-4 py-2 text-left text-sm text-text-primary hover:bg-white/5 flex items-center gap-2"
@@ -171,6 +190,17 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
                     />
                 )
             }
+
+            <ThumbnailHistoryModal
+                isOpen={historyModalOpen}
+                onClose={() => setHistoryModalOpen(false)}
+                currentThumbnail={value}
+                history={history}
+                onApply={(url) => {
+                    onChange(url);
+                    setHistoryModalOpen(false);
+                }}
+            />
         </div >
     );
 };

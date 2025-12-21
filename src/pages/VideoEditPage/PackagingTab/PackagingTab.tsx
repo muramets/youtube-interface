@@ -544,6 +544,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                             abTestStatus="draft"
                             onTitleABTestClick={handleOpenABTestFromTitle}
                             onThumbnailABTestClick={handleOpenABTestFromThumbnail}
+                            coverHistory={video.coverHistory}
                         />
 
 

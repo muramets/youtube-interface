@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { type CoverVersion } from '../../../utils/youtubeApi';
 import { TitleInput } from './TitleInput';
 import { DescriptionInput } from './DescriptionInput';
 import { ThumbnailSection } from './ThumbnailSection';
@@ -29,6 +30,7 @@ interface PackagingFormProps {
     onTitleABTestClick?: () => void;
     onThumbnailABTestClick?: () => void;
     abTestThumbnails?: string[];
+    coverHistory?: CoverVersion[];
 }
 
 export const PackagingForm: React.FC<PackagingFormProps> = ({
@@ -51,7 +53,8 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
     abTestStatus = 'draft',
     onTitleABTestClick,
     onThumbnailABTestClick,
-    abTestThumbnails = []
+    abTestThumbnails = [],
+    coverHistory = []
 }) => {
     const [showMore, setShowMore] = useState(false);
 
@@ -86,6 +89,7 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
                 readOnly={readOnly}
                 onABTestClick={onThumbnailABTestClick}
                 variants={abTestThumbnails}
+                history={coverHistory}
             />
 
             {/* Tags */}
