@@ -3,7 +3,7 @@ import { FolderPlus, Plus, ChevronDown, Home, Globe } from 'lucide-react';
 import type { TrendNiche, TrendVideo } from '../../../../types/trends';
 import { useTrendStore, generateNicheColor } from '../../../../stores/trendStore';
 import { FloatingNicheItem } from '../FloatingNicheItem';
-import { FloatingDropdownPortal } from '../../../Shared/FloatingDropdownPortal';
+import { FloatingDropdownPortal } from '../../../../components/Shared/FloatingDropdownPortal';
 
 interface NicheSelectorProps {
     videos: TrendVideo[];

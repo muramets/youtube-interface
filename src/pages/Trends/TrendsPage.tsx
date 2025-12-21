@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useTrendStore } from '../stores/trendStore';
-import { TimelineCanvas } from '../components/Trends/Timeline/TimelineCanvas';
-import { TrendService } from '../services/trendService';
-import { TrendsHeader } from '../components/Trends/Header/TrendsHeader';
-import type { TrendVideo } from '../types/trends';
-import { useFilteredVideos } from '../components/Trends/hooks/useFilteredVideos';
-import { useFrozenStats } from '../components/Trends/Timeline/hooks/useFrozenStats';
+import { useTrendStore } from '../../stores/trendStore';
+import { TimelineCanvas } from './Timeline/TimelineCanvas';
+import { TrendService } from '../../services/trendService';
+import { TrendsHeader } from './Header/TrendsHeader';
+import type { TrendVideo } from '../../types/trends';
+import { useFilteredVideos } from './hooks/useFilteredVideos';
+import { useFrozenStats } from './Timeline/hooks/useFrozenStats';
 
-import { useAuth } from '../hooks/useAuth';
-import { useChannelStore } from '../stores/channelStore';
-import { useApiKey } from '../hooks/useApiKey';
+import { useAuth } from '../../hooks/useAuth';
+import { useChannelStore } from '../../stores/channelStore';
+import { useApiKey } from '../../hooks/useApiKey';
 
 export const TrendsPage: React.FC = () => {
     const { user } = useAuth();

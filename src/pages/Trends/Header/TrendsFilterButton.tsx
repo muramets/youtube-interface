@@ -2,9 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Filter, ChevronRight, X, Calendar, Eye, ChevronLeft, BarChart3, Layers } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useTrendStore, type PercentileGroup } from '../../../stores/trendStore';
-import { FilterInputDate } from '../../Shared/FilterInputs/FilterInputDate';
-import { FilterInputNumeric } from '../../Shared/FilterInputs/FilterInputNumeric';
-import { FilterInputPercentile } from '../../Shared/FilterInputs/FilterInputPercentile';
+import { FilterInputDate } from '../../../components/Shared/FilterInputs/FilterInputDate';
+import { FilterInputNumeric } from '../../../components/Shared/FilterInputs/FilterInputNumeric';
+import { FilterInputPercentile } from '../../../components/Shared/FilterInputs/FilterInputPercentile';
 import type { FilterOperator } from '../../../stores/filterStore';
 import { FilterInputNiche } from './FilterInputNiche';
 

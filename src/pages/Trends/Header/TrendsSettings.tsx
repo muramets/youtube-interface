@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Settings, Maximize2, Check } from 'lucide-react';
 import type { TimelineConfig } from '../../../types/trends';
 import { ScalingTooltip } from './ScalingTooltip';
-import { Dropdown } from '../../Shared/Dropdown';
+import { Dropdown } from '../../../components/Shared/Dropdown';
 
 interface TrendsSettingsProps {
     timelineConfig: TimelineConfig;

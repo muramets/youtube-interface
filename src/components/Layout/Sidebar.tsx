@@ -6,8 +6,8 @@ import { useUIStore } from '../../stores/uiStore';
 import { useAuth } from '../../hooks/useAuth';
 import { useChannelStore } from '../../stores/channelStore';
 import { useChannels } from '../../hooks/useChannels';
-import { TrendsSidebarSection } from '../Trends/Sidebar/TrendsSidebarSection';
-import { AddChannelModal } from '../Trends/Sidebar/AddChannelModal';
+import { TrendsSidebarSection } from '../../pages/Trends/Sidebar/TrendsSidebarSection';
+import { AddChannelModal } from '../../pages/Trends/Sidebar/AddChannelModal';
 import { useTrendStore } from '../../stores/trendStore';
 
 // Collapsed sidebar item - icon on top, text below

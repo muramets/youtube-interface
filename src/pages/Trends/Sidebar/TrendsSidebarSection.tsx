@@ -3,9 +3,9 @@ import { Plus, TrendingUp, Trash2, RefreshCw, ChevronDown, ChevronRight } from '
 import { TrendsChannelItem } from './TrendsChannelItem';
 import { TrendsChannelSkeleton } from './TrendsChannelSkeleton';
 import { CollapsibleNicheList } from './CollapsibleNicheList';
-import { SidebarDivider } from '../../Layout/Sidebar';
-import { Dropdown } from '../../Shared/Dropdown';
-import { ConfirmationModal } from '../../Shared/ConfirmationModal';
+import { SidebarDivider } from '../../../components/Layout/Sidebar';
+import { Dropdown } from '../../../components/Shared/Dropdown';
+import { ConfirmationModal } from '../../../components/Shared/ConfirmationModal';
 import { useTrendsSidebar } from './hooks/useTrendsSidebar';
 import { useTrendStore } from '../../../stores/trendStore';
 import type { TrendChannel } from '../../../types/trends';

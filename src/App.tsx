@@ -9,7 +9,7 @@ import { WatchPage } from './components/Watch/WatchPage';
 import { PlaylistsPage } from './components/Playlist/PlaylistsPage';
 import { PlaylistDetailPage } from './components/Playlist/PlaylistDetailPage';
 import { CategoryBar } from './components/Video/CategoryBar';
-import { TrendsPage } from './pages/TrendsPage';
+import { TrendsPage } from './pages/Trends/TrendsPage';
 import { DetailsPage } from './pages/DetailsPage';
 import { useStoreInitialization } from './hooks/useStoreInitialization';
 import { useVideos } from './hooks/useVideos';
@@ -26,9 +26,9 @@ import { useCheckinScheduler } from './hooks/useCheckinScheduler';
 import { useVideoFetchRetry } from './hooks/useVideoFetchRetry';
 import { useAutoCleanup } from './hooks/useAutoCleanup';
 import { useFilterChannelSync } from './hooks/useFilterChannelSync';
-import { useTrendSubscription } from './hooks/useTrendSubscription';
+import { useTrendSubscription } from './pages/Trends/hooks/useTrendSubscription';
 import { useUserPersistence } from './hooks/useUserPersistence';
-import { TrendsDndProvider } from './components/Trends/TrendsDndProvider';
+import { TrendsDndProvider } from './pages/Trends/TrendsDndProvider';
 
 function AppContent() {
   useCheckinScheduler();

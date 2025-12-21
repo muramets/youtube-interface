@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
-import { useAuth } from './useAuth';
-import { useTrendStore } from '../stores/trendStore';
-import { TrendService } from '../services/trendService';
-import { useChannelStore } from '../stores/channelStore';
+import { useAuth } from '../../../hooks/useAuth';
+import { useTrendStore } from '../../../stores/trendStore';
+import { TrendService } from '../../../services/trendService';
+import { useChannelStore } from '../../../stores/channelStore';
 
 export const useTrendSubscription = () => {
     const { user, isLoading: isAuthLoading } = useAuth();

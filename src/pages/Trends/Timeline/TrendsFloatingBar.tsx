@@ -11,7 +11,7 @@ import { useSmartPosition } from './hooks/useSmartPosition';
 import { NicheSelector } from './components/NicheSelector';
 import { PlaylistSelector } from './components/PlaylistSelector';
 import { trendVideoToVideoDetails } from '../../../utils/videoAdapters';
-import { ConfirmationModal } from '../../Shared/ConfirmationModal';
+import { ConfirmationModal } from '../../../components/Shared/ConfirmationModal';
 
 interface TrendsFloatingBarProps {
     videos: TrendVideo[];

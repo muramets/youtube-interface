@@ -4,7 +4,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { MoreVertical, Check, Trash2 } from 'lucide-react';
 import type { TrendNiche } from '../../../types/trends';
 import { useTrendStore, MANUAL_NICHE_PALETTE } from '../../../stores/trendStore';
-import { ConfirmationModal } from '../../Shared/ConfirmationModal';
+import { ConfirmationModal } from '../../../components/Shared/ConfirmationModal';
 import { NicheContextMenu } from '../Shared/NicheContextMenu';
 
 interface TrendNicheItemProps {

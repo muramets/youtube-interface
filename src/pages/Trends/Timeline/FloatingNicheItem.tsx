@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { MoreVertical, Check, Globe } from 'lucide-react';
 import type { TrendNiche } from '../../../types/trends';
 import { useTrendStore, MANUAL_NICHE_PALETTE } from '../../../stores/trendStore';
-import { ConfirmationModal } from '../../Shared/ConfirmationModal';
+import { ConfirmationModal } from '../../../components/Shared/ConfirmationModal';
 import { NicheContextMenu } from '../../Trends/Shared/NicheContextMenu';
 
 interface FloatingNicheItemProps {
