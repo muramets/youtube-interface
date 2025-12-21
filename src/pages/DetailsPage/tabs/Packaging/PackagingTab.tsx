@@ -4,6 +4,7 @@ import { PackagingForm } from './components/PackagingForm';
 import { VideoPreviewCard } from './components/VideoPreviewCard';
 import { LanguageTabs } from '../../../../features/Video/LanguageTabs';
 import { ABTestingModal } from './modals/ABTestingModal';
+import { Button } from '../../../../components/ui/Button';
 import { useChannelStore } from '../../../../core/stores/channelStore';
 import { usePackagingLocalization } from './hooks/usePackagingLocalization';
 import { usePackagingFormState } from './hooks/usePackagingFormState';
@@ -178,38 +179,47 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                     <h1 className="text-2xl font-medium text-text-primary">{headerTitle}</h1>
 
                     {!isViewingActiveVersion && versionState.viewingVersion !== 'draft' && (
-                        <button onClick={actions.handleRestore} className="px-4 py-1.5 rounded-full text-sm font-medium bg-[#3ea6ff]/20 text-[#3ea6ff] hover:bg-[#3ea6ff]/30 transition-colors">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={actions.handleRestore}
+                            className="bg-[#3ea6ff]/20 hover:bg-[#3ea6ff]/30"
+                        >
                             Restore this version
-                        </button>
+                        </Button>
                     )}
 
                     <div className="flex-1" />
 
                     {!isViewingOldVersion && (
                         <div className="flex gap-3">
-                            <button
+                            <Button
+                                variant="secondary"
+                                size="sm"
                                 onClick={actions.handleCancel}
                                 disabled={!formState.isDirty}
-                                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${formState.isDirty ? 'bg-button-secondary-bg text-text-primary hover:bg-button-secondary-hover' : 'bg-button-secondary-bg text-text-tertiary cursor-not-allowed'}`}
                             >
                                 Undo changes
-                            </button>
-                            <button
+                            </Button>
+                            <Button
+                                variant="primary"
+                                size="sm"
                                 onClick={actions.handleSave}
                                 disabled={!formState.isDirty || actions.isSaving}
-                                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${formState.isDirty && !actions.isSaving ? 'bg-text-primary text-bg-primary hover:opacity-90' : 'bg-button-secondary-bg text-text-tertiary cursor-not-allowed'}`}
+                                isLoading={actions.isSaving}
                             >
-                                {actions.isSaving ? 'Saving...' : formState.isDirty ? 'Save as draft' : 'Save'}
-                            </button>
+                                {formState.isDirty ? 'Save as draft' : 'Save'}
+                            </Button>
 
                             {(formState.isDirty || versionState.viewingVersion === 'draft') && (
-                                <button
+                                <Button
+                                    variant="outline"
+                                    size="sm"
                                     onClick={actions.handleSaveAsNewVersion}
                                     disabled={actions.isSaving}
-                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border border-[#3ea6ff] text-[#3ea6ff] hover:bg-[#3ea6ff]/10 ${actions.isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
                                     Save as v.{versionState.currentVersionNumber}
-                                </button>
+                                </Button>
                             )}
                         </div>
                     )}
