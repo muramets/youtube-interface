@@ -28,6 +28,7 @@ interface PackagingFormProps {
     abTestStatus?: 'running' | 'completed' | 'draft';
     onTitleABTestClick?: () => void;
     onThumbnailABTestClick?: () => void;
+    abTestThumbnails?: string[];
 }
 
 export const PackagingForm: React.FC<PackagingFormProps> = ({
@@ -50,6 +51,7 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
     abTestStatus = 'draft',
     onTitleABTestClick,
     onThumbnailABTestClick,
+    abTestThumbnails = []
 }) => {
     const [showMore, setShowMore] = useState(false);
 
@@ -83,6 +85,7 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
                 onChange={setCoverImage}
                 readOnly={readOnly}
                 onABTestClick={onThumbnailABTestClick}
+                variants={abTestThumbnails}
             />
 
             {/* Tags */}

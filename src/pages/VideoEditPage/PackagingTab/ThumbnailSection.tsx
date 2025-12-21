@@ -1,18 +1,20 @@
 import React, { useRef, useState } from 'react';
-import { Upload, MoreVertical, Trash2, SplitSquareVertical } from 'lucide-react';
+import { Upload, MoreVertical, Trash2 } from 'lucide-react';
 
 interface ThumbnailSectionProps {
     value: string;
     onChange: (value: string) => void;
     readOnly?: boolean;
     onABTestClick?: () => void;
+    variants?: string[];
 }
 
 export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
     value,
     onChange,
     readOnly = false,
-    onABTestClick
+    onABTestClick,
+    variants = []
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showDropdown, setShowDropdown] = useState(false);
@@ -66,62 +68,88 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
             )}
 
             <div className="mt-2">
-                {/* If has value - show image with more button */}
                 {value ? (
-                    <div className="relative w-40 aspect-video rounded-lg border-2 border-dashed border-border p-1 group">
-                        <img
-                            src={value}
-                            alt="Thumbnail preview"
-                            className="w-full h-full object-cover rounded"
-                        />
-                        {/* More button with dropdown - hide in read-only mode */}
-                        {!readOnly && (
-                            <div ref={dropdownRef} className="absolute top-1.5 right-1.5">
-                                <button
-                                    onClick={() => setShowDropdown(!showDropdown)}
-                                    className="w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center
-                                        hover:bg-black/80 transition-colors"
-                                >
-                                    <MoreVertical size={16} />
-                                </button>
+                    <div className="flex flex-col gap-2 w-40">
+                        <div className="relative w-40 aspect-video rounded-lg border border-dashed border-border p-1 group hover:border-text-primary transition-colors bg-bg-secondary">
+                            <div className="flex h-full w-full rounded overflow-hidden">
+                                {(variants.length > 0 ? variants : [value]).map((src, index, all) => (
+                                    <React.Fragment key={index}>
+                                        <img
+                                            src={src}
+                                            alt={variants.length > 0 ? `Thumbnail variant ${index + 1}` : "Thumbnail preview"}
+                                            className="h-full object-cover flex-1 min-w-0"
+                                            style={{ width: `${100 / all.length}%` }}
+                                        />
+                                        {index < all.length - 1 && (
+                                            <div className="w-[1px] h-full bg-[#282828] flex-shrink-0" />
+                                        )}
+                                    </React.Fragment>
+                                ))}
+                            </div>
 
-                                {/* Dropdown */}
-                                {showDropdown && (
-                                    <div className="absolute top-12 right-0 bg-modal-surface border border-border rounded-lg shadow-lg py-1 min-w-[160px] z-10">
-                                        {onABTestClick && (
+                            {/* "Test" badge on hover - only if A/B testing is active */}
+                            {variants.length > 0 && (
+                                <div className="absolute top-2 left-2 w-max h-6 px-2 bg-black/60 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none flex items-center justify-center">
+                                    <span className="text-white text-xs font-medium">Test</span>
+                                </div>
+                            )}
+
+                            {/* More button with dropdown - hide in read-only mode */}
+                            {!readOnly && (
+                                <div ref={dropdownRef} className="absolute top-1.5 right-1.5">
+                                    <button
+                                        onClick={() => setShowDropdown(!showDropdown)}
+                                        className="w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center
+                                            hover:bg-black/80 transition-colors"
+                                    >
+                                        <MoreVertical size={16} />
+                                    </button>
+
+                                    {/* Dropdown */}
+                                    {showDropdown && (
+                                        <div className="absolute top-8 right-0 bg-modal-surface border border-border rounded-lg shadow-lg py-1 min-w-[160px] z-10">
+                                            {onABTestClick && (
+                                                <button
+                                                    onClick={() => {
+                                                        setShowDropdown(false);
+                                                        onABTestClick();
+                                                    }}
+                                                    className="w-full px-4 py-2 text-left text-sm text-text-primary hover:bg-white/5 flex items-center gap-2"
+                                                >
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                                        <path d="M12 1a1 1 0 011 1v20a1 1 0 11-2 0V2a1 1 0 011-1Zm-2 4H3v14h7v2H3a2 2 0 01-1.99-1.796L1 19V5a2 2 0 012-2h7v2Zm11-2a2 2 0 012 2v14a2 2 0 01-2 2h-7v-4h4.132a1 1 0 00.832-1.555L14 8V3h7Zm-11 8.604L7.736 15H10v2H5.868a1 1 0 01-.832-1.555L10 8v3.606Z" />
+                                                    </svg>
+                                                    A/B Testing
+                                                </button>
+                                            )}
                                             <button
-                                                onClick={() => {
-                                                    setShowDropdown(false);
-                                                    onABTestClick();
-                                                }}
+                                                onClick={handleRemove}
                                                 className="w-full px-4 py-2 text-left text-sm text-text-primary hover:bg-white/5 flex items-center gap-2"
                                             >
-                                                <SplitSquareVertical size={16} />
-                                                A/B Testing
+                                                <Trash2 size={16} />
+                                                Remove
                                             </button>
-                                        )}
-                                        <button
-                                            onClick={handleRemove}
-                                            className="w-full px-4 py-2 text-left text-sm text-text-primary hover:bg-white/5 flex items-center gap-2"
-                                        >
-                                            <Trash2 size={16} />
-                                            Remove
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* A/B testing label below */}
+                        {variants.length > 0 && (
+                            <span className="text-sm text-text-secondary w-full text-center">A/B testing</span>
                         )}
                     </div>
                 ) : (
                     /* No value - show upload button or placeholder */
                     readOnly ? (
-                        <div className="w-40 aspect-video rounded-lg bg-bg-secondary flex items-center justify-center border-2 border-dashed border-border">
+                        <div className="w-40 aspect-video rounded-lg bg-bg-secondary flex items-center justify-center border border-dashed border-border">
                             <span className="text-xs text-text-secondary">No thumbnail</span>
                         </div>
                     ) : (
                         <button
                             onClick={() => fileInputRef.current?.click()}
-                            className="w-40 aspect-video rounded-lg border-2 border-dashed border-border 
+                            className="w-40 aspect-video rounded-lg border border-dashed border-border 
                                 hover:border-text-primary transition-colors flex flex-col items-center justify-center gap-2
                                 bg-bg-secondary"
                         >
@@ -132,15 +160,17 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
                 )}
             </div>
 
-            {!readOnly && (
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                />
-            )}
-        </div>
+            {
+                !readOnly && (
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                    />
+                )
+            }
+        </div >
     );
 };

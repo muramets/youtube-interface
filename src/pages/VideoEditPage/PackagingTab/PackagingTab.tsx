@@ -540,6 +540,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                             setAudioRender={setAudioRender}
                             readOnly={isViewingOldVersion}
                             abTestTitles={abTestTitles}
+                            abTestThumbnails={abTestThumbnails}
                             abTestStatus="draft"
                             onTitleABTestClick={handleOpenABTestFromTitle}
                             onThumbnailABTestClick={handleOpenABTestFromThumbnail}
