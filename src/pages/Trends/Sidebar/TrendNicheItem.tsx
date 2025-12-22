@@ -307,6 +307,7 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                                     setIsDeleteConfirmOpen(true);
                                     setIsMenuOpen(false);
                                 }}
+                                hideFilterOption={true}
                             />
                         </div>
                     )}

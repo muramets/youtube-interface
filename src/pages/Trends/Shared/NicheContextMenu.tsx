@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Home, Globe, Pencil, Trash2, Target } from 'lucide-react';
+import { Home, Globe, Pencil, Trash2, Target, Filter } from 'lucide-react';
 import type { TrendNiche } from '../../../core/types/trends';
 import { useTrendStore } from '../../../core/stores/trendStore';
 import { useChannelStore } from '../../../core/stores/channelStore';
@@ -16,6 +16,7 @@ interface NicheContextMenuProps {
     anchorRef?: React.RefObject<HTMLElement>;
     onRename: () => void;
     onDelete: () => void;
+    hideFilterOption?: boolean;
 }
 
 export const NicheContextMenu: React.FC<NicheContextMenuProps> = ({
@@ -24,9 +25,10 @@ export const NicheContextMenu: React.FC<NicheContextMenuProps> = ({
     onClose,
     position,
     onRename,
-    onDelete
+    onDelete,
+    hideFilterOption = false
 }) => {
-    const { updateNiche, setTargetNiche, removeTargetNiche } = useTrendStore();
+    const { updateNiche, setTargetNiche, removeTargetNiche, setTrendsFilters, setSelectedChannelId, setFilterMode, selectedChannelId } = useTrendStore();
     const { currentChannel } = useChannelStore();
     const { computeChannelStats, findMatchingNiches } = useNicheAnalysis();
 
@@ -129,12 +131,45 @@ export const NicheContextMenu: React.FC<NicheContextMenuProps> = ({
         onClose();
     };
 
+    const handleFilterByNiche = () => {
+        // Handle context switching (Global vs Local)
+        if (niche.type === 'global') {
+            setSelectedChannelId(null);
+        } else if (niche.channelId && selectedChannelId !== niche.channelId) {
+            setSelectedChannelId(niche.channelId);
+        }
+
+        setTrendsFilters([{
+            id: crypto.randomUUID(),
+            type: 'niche',
+            operator: 'contains',
+            value: [niche.id],
+            label: `Niche: ${niche.name}`
+        }]);
+        setFilterMode('filtered');
+        onClose();
+    };
+
     const content = (
         <div
             className="fixed z-[9999] bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl animate-fade-in min-w-[140px]"
             style={position ? { left: position.x, top: position.y } : undefined}
             onClick={(e) => e.stopPropagation()}
         >
+            {/* Filter by Niche */}
+            {!hideFilterOption && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        handleFilterByNiche();
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2"
+                >
+                    <Filter size={10} />
+                    Filter by this niche
+                </button>
+            )}
+
             {/* Set as Target (only show if we have a user channel) */}
             {currentChannel && (
                 <>
