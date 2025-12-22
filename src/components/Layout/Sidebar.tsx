@@ -168,10 +168,50 @@ export const TrendsCollapsedGroup: React.FC<{
 export const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isSettingsOpen, setSettingsOpen, isSidebarExpanded } = useUIStore();
+  const { isSettingsOpen, setSettingsOpen, isSidebarExpanded, sidebarWidth, setSidebarWidth } = useUIStore();
   const { user } = useAuth();
   const { currentChannel, setCurrentChannel } = useChannelStore();
   const { channels: trendChannels, selectedChannelId, setSelectedChannelId } = useTrendStore();
+
+  const [isResizing, setIsResizing] = React.useState(false);
+
+  // Resize Logic
+  React.useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+
+      // Prevent text selection during drag
+      e.preventDefault();
+
+      // Clamp width between 200px (min) and 600px (max)
+      // Or 40% of screen width? Let's stick to pixel limits first for simplicity.
+      const newWidth = Math.max(200, Math.min(600, e.clientX));
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = '';
+    };
+
+    if (isResizing) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      // Cleanup in case component unmounts while resizing
+      if (isResizing) {
+        document.body.style.cursor = 'default';
+        document.body.style.userSelect = '';
+      }
+    };
+  }, [isResizing, setSidebarWidth]);
 
   // Use TanStack Query hook for channels
   const { data: channels, isLoading } = useChannels(user?.uid || '');
@@ -225,96 +265,110 @@ export const Sidebar: React.FC = () => {
   return (
     <>
       <aside
-        className={`h-[calc(100vh-56px)] sticky top-14 flex flex-col py-1 overflow-y-auto hidden sm:flex flex-shrink-0
-          ${isSidebarExpanded ? 'w-[256px] px-3' : 'w-[72px] px-1'}`}
+        style={{ width: isSidebarExpanded ? `${sidebarWidth}px` : undefined }}
+        className={`h-[calc(100vh-56px)] sticky top-14 flex hidden sm:flex flex-shrink-0 relative
+          ${isSidebarExpanded ? 'px-0' : 'w-[72px] px-1 py-1 flex-col'}`}
       >
-        {isSidebarExpanded ? (
-          // Expanded view - icon left, text right
-          <>
-            <div className="flex-1">
-              <ExpandedSidebarItem
+        <div className={`flex-1 w-full flex flex-col overflow-y-auto overflow-x-hidden ${isSidebarExpanded ? 'px-3 py-1' : ''}`}>
+          {isSidebarExpanded ? (
+            // Expanded view - icon left, text right
+            <>
+              <div className="flex-1">
+                <ExpandedSidebarItem
+                  icon={homeIcon}
+                  activeIcon={homeActiveIcon}
+                  label="Home"
+                  active={isHome}
+                  onClick={() => navigate('/')}
+                />
+                <ExpandedSidebarItem
+                  icon={playlistsIcon}
+                  activeIcon={playlistsActiveIcon}
+                  label="Playlists"
+                  active={isPlaylists}
+                  onClick={() => navigate('/playlists')}
+                />
+
+                <TrendsSidebarSection expanded={true} />
+
+                <SidebarDivider />
+              </div>
+
+              <div className="border-t border-border pt-2">
+                <ExpandedSidebarItem
+                  icon={settingsIcon}
+                  activeIcon={settingsActiveIcon}
+                  label="Settings"
+                  active={isSettingsOpen}
+                  onClick={() => setSettingsOpen(true)}
+                />
+              </div>
+            </>
+          ) : (
+            // Collapsed view - icon on top, text below
+            <>
+              <CollapsedSidebarItem
                 icon={homeIcon}
                 activeIcon={homeActiveIcon}
                 label="Home"
                 active={isHome}
+                noBackground={true}
                 onClick={() => navigate('/')}
               />
-              <ExpandedSidebarItem
+              <CollapsedSidebarItem
                 icon={playlistsIcon}
                 activeIcon={playlistsActiveIcon}
                 label="Playlists"
                 active={isPlaylists}
+                noBackground={true}
                 onClick={() => navigate('/playlists')}
               />
-
-              <TrendsSidebarSection expanded={true} />
-
-              <SidebarDivider />
-            </div>
-
-            <div className="border-t border-border pt-2">
-              <ExpandedSidebarItem
-                icon={settingsIcon}
-                activeIcon={settingsActiveIcon}
-                label="Settings"
-                active={isSettingsOpen}
-                onClick={() => setSettingsOpen(true)}
-              />
-            </div>
-          </>
-        ) : (
-          // Collapsed view - icon on top, text below
-          <>
-            <CollapsedSidebarItem
-              icon={homeIcon}
-              activeIcon={homeActiveIcon}
-              label="Home"
-              active={isHome}
-              noBackground={true}
-              onClick={() => navigate('/')}
-            />
-            <CollapsedSidebarItem
-              icon={playlistsIcon}
-              activeIcon={playlistsActiveIcon}
-              label="Playlists"
-              active={isPlaylists}
-              noBackground={true}
-              onClick={() => navigate('/playlists')}
-            />
-            {/* Trends Section with Hover Dropdown */}
-            <div
-              className="flex flex-col w-full"
-              onMouseEnter={() => {
-                // Preload or ensure logic is ready if needed
-              }}
-            >
-              {/* Main Trends Icon - acts as hover trigger for the group if we wrap it? 
-                    Actually, we want the list to stay open when hovering the list too.
-                    So we need a wrapper around both.
-                */}
-              <TrendsCollapsedGroup
-                isActive={isTrends && !selectedChannelId}
-                channels={trendChannels}
-                selectedChannelId={selectedChannelId}
-                navigate={navigate}
-                setSelectedChannelId={setSelectedChannelId}
-                icons={{
-                  normal: trendsIcon,
-                  active: trendsActiveIcon
+              {/* Trends Section with Hover Dropdown */}
+              <div
+                className="flex flex-col w-full"
+                onMouseEnter={() => {
+                  // Preload or ensure logic is ready if needed
                 }}
-              />
-            </div>
+              >
+                {/* Main Trends Icon - acts as hover trigger for the group if we wrap it? 
+                      Actually, we want the list to stay open when hovering the list too.
+                      So we need a wrapper around both.
+                  */}
+                <TrendsCollapsedGroup
+                  isActive={isTrends && !selectedChannelId}
+                  channels={trendChannels}
+                  selectedChannelId={selectedChannelId}
+                  navigate={navigate}
+                  setSelectedChannelId={setSelectedChannelId}
+                  icons={{
+                    normal: trendsIcon,
+                    active: trendsActiveIcon
+                  }}
+                />
+              </div>
 
-            <div className="mt-auto">
-              <CollapsedSidebarItem
-                icon={settingsIcon}
-                activeIcon={settingsActiveIcon}
-                label="Settings"
-                active={isSettingsOpen}
-                onClick={() => setSettingsOpen(true)}
-              />
-            </div>
-          </>
+              <div className="mt-auto">
+                <CollapsedSidebarItem
+                  icon={settingsIcon}
+                  activeIcon={settingsActiveIcon}
+                  label="Settings"
+                  active={isSettingsOpen}
+                  onClick={() => setSettingsOpen(true)}
+                />
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Resize Handle - Only visible when expanded */}
+        {isSidebarExpanded && (
+          <div
+            className="w-1.5 h-full cursor-col-resize z-50 group flex flex-none justify-center hover:bg-theme-accent/10 active:bg-theme-accent/20 transition-colors"
+            onMouseDown={() => setIsResizing(true)}
+          >
+            {/* Visual Indicator (Pill) - appears on hover */}
+            <div className="w-[3px] h-8 bg-border rounded-full my-auto opacity-0 group-hover:opacity-100 transition-opacity bg-text-secondary/50 group-active:bg-theme-accent" />
+          </div>
         )}
       </aside>
 

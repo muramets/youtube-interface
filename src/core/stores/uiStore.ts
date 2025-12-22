@@ -6,6 +6,10 @@ interface UIState {
     isSidebarExpanded: boolean;
     toggleSidebar: () => void;
     setSidebarExpanded: (isExpanded: boolean) => void;
+
+    sidebarWidth: number;
+    setSidebarWidth: (width: number) => void;
+
     toast: {
         message: string;
         type: 'success' | 'error';
@@ -36,6 +40,9 @@ export const useUIStore = create<UIState>()(
             toggleSidebar: () => set((state) => ({ isSidebarExpanded: !state.isSidebarExpanded })),
             setSidebarExpanded: (isExpanded) => set({ isSidebarExpanded: isExpanded }),
 
+            sidebarWidth: 256,
+            setSidebarWidth: (width) => set({ sidebarWidth: width }),
+
             toast: {
                 message: '',
                 type: 'success',
@@ -58,7 +65,8 @@ export const useUIStore = create<UIState>()(
             name: 'ui-storage',
             partialize: (state) => ({
                 videoViewModes: state.videoViewModes,
-                isSidebarExpanded: state.isSidebarExpanded
+                isSidebarExpanded: state.isSidebarExpanded,
+                sidebarWidth: state.sidebarWidth,
             })
         }
     )
