@@ -172,8 +172,35 @@ export const Sidebar: React.FC = () => {
   const { user } = useAuth();
   const { currentChannel, setCurrentChannel } = useChannelStore();
   const { channels: trendChannels, selectedChannelId, setSelectedChannelId } = useTrendStore();
+  const { data: channels, isLoading } = useChannels(user?.uid || '');
 
   const [isResizing, setIsResizing] = React.useState(false);
+  const [hasScrollbar, setHasScrollbar] = React.useState(false);
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+
+  // Check for scrollbar presence
+  React.useEffect(() => {
+    const checkScrollbar = () => {
+      if (scrollRef.current) {
+        const hasScroll = scrollRef.current.scrollHeight > scrollRef.current.clientHeight;
+        setHasScrollbar(hasScroll);
+      }
+    };
+
+    checkScrollbar();
+    window.addEventListener('resize', checkScrollbar);
+
+    // Create an observer to watch for content changes that might trigger scrollbars
+    const observer = new MutationObserver(checkScrollbar);
+    if (scrollRef.current) {
+      observer.observe(scrollRef.current, { childList: true, subtree: true });
+    }
+
+    return () => {
+      window.removeEventListener('resize', checkScrollbar);
+      observer.disconnect();
+    };
+  }, [isSidebarExpanded, isLoading]);
 
   // Resize Logic
   React.useEffect(() => {
@@ -212,9 +239,6 @@ export const Sidebar: React.FC = () => {
       }
     };
   }, [isResizing, setSidebarWidth]);
-
-  // Use TanStack Query hook for channels
-  const { data: channels, isLoading } = useChannels(user?.uid || '');
 
   // Select channel logic with persistence
   React.useEffect(() => {
@@ -269,7 +293,10 @@ export const Sidebar: React.FC = () => {
         className={`h-[calc(100vh-56px)] sticky top-14 flex hidden sm:flex flex-shrink-0 relative
           ${isSidebarExpanded ? 'px-0' : 'w-[72px] px-1 py-1 flex-col'}`}
       >
-        <div className={`flex-1 w-full flex flex-col overflow-y-auto overflow-x-hidden ${isSidebarExpanded ? 'px-3 py-1' : ''}`}>
+        <div
+          ref={scrollRef}
+          className={`flex-1 w-full flex flex-col overflow-y-auto overflow-x-hidden ${isSidebarExpanded ? 'px-3 py-1' : ''}`}
+        >
           {isSidebarExpanded ? (
             // Expanded view - icon left, text right
             <>
@@ -360,14 +387,17 @@ export const Sidebar: React.FC = () => {
           )}
         </div>
 
-        {/* Resize Handle - Only visible when expanded */}
+        {/* Resize Handle - 1px line at right edge of sidebar. Hit area extends inward only (into sidebar). */}
         {isSidebarExpanded && (
           <div
-            className="w-1.5 h-full cursor-col-resize z-50 group flex flex-none justify-center hover:bg-theme-accent/10 active:bg-theme-accent/20 transition-colors"
+            className={`absolute top-0 h-full cursor-col-resize z-50 flex items-center justify-center transition-all
+              ${hasScrollbar ? 'w-1 right-0' : 'w-4 right-0'}`}
             onMouseDown={() => setIsResizing(true)}
           >
-            {/* Visual Indicator (Pill) - appears on hover */}
-            <div className="w-[3px] h-8 bg-border rounded-full my-auto opacity-0 group-hover:opacity-100 transition-opacity bg-text-secondary/50 group-active:bg-theme-accent" />
+            <div
+              className={`w-[1px] h-full transition-colors flex-none
+                ${isResizing ? 'bg-blue-500' : 'bg-border'}`}
+            />
           </div>
         )}
       </aside>
