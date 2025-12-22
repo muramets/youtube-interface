@@ -10,6 +10,7 @@ interface FloatingNicheItemProps {
     niche: TrendNiche;
     isAssigned: boolean;
     isActive: boolean; // Controls whether this item's menu is open
+    isHighlighted?: boolean; // For keyboard navigation
     onToggle: () => void;
     onToggleMenu: () => void;
     onCloseMenu: () => void;
@@ -19,6 +20,7 @@ export const FloatingNicheItem: React.FC<FloatingNicheItemProps> = ({
     niche,
     isAssigned,
     isActive,
+    isHighlighted = false,
     onToggle,
     onToggleMenu,
     onCloseMenu
@@ -104,9 +106,9 @@ export const FloatingNicheItem: React.FC<FloatingNicheItemProps> = ({
     return (
         <div
             className={`
-                group relative w-full text-left px-3 py-2 text-xs rounded-lg flex items-center justify-between transition-colors
+                group relative w-full text-left px-3 py-2 text-xs rounded-lg flex items-center justify-between transition-colors scroll-mt-1
                 ${isAssigned ? 'text-white' : 'text-text-secondary hover:text-white'}
-                ${isInteracting ? 'bg-white/5 z-20' : 'hover:bg-white/5'}
+                ${isInteracting ? 'bg-white/5 z-20' : isHighlighted ? 'bg-white/10 text-white' : 'hover:bg-white/5'}
             `}
             // Only toggle on main area click if not editing/interacting
             onClick={() => !isEditing && !isInteracting && onToggle()}

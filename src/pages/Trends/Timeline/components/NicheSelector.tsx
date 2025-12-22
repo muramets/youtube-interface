@@ -229,8 +229,58 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
         }));
     };
 
+    const [highlightedIndex, setHighlightedIndex] = useState(-1);
+    const listRef = useRef<HTMLDivElement>(null);
+
+    // Reset highlighted index when keys change
+    React.useEffect(() => {
+        setHighlightedIndex(-1);
+    }, [filteredNiches, newNicheName]); // Reset when filter changes
+
+    // Scroll highlighted item into view
+    React.useEffect(() => {
+        if (highlightedIndex >= 0 && listRef.current) {
+            const item = listRef.current.children[highlightedIndex] as HTMLElement;
+            if (item) {
+                item.scrollIntoView({ block: 'nearest' });
+            }
+        }
+    }, [highlightedIndex]);
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (filteredNiches.length === 0) return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setHighlightedIndex(prev => Math.min(prev + 1, filteredNiches.length - 1));
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            // Allow going back to -1 (input focus state)
+            setHighlightedIndex(prev => Math.max(prev - 1, -1));
+        } else if (e.key === 'Enter') {
+            // If we have a valid selection, toggle it & prevent form submit
+            if (highlightedIndex >= 0 && filteredNiches[highlightedIndex]) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const niche = filteredNiches[highlightedIndex];
+                const status = nicheAssignmentStatus.get(niche.id) || 'none';
+                handleNicheToggle(niche.id, status);
+
+                // Optional: Clear input or close?
+                // Usually we keep it open for multi-select, or close?
+                // If single video, maybe close?
+                // Current behavior of clicking item is: it stays open (see handleNicheToggle).
+                // So we just toggle.
+            }
+        } else if (e.key === 'Escape') {
+            // Handled by input's existing handler, or we can unify here
+        }
+    };
+
     return (
         <div className="relative">
+            {/* ... button ... */}
             <button
                 ref={buttonRef}
                 onMouseDown={(e) => e.stopPropagation()}
@@ -243,12 +293,12 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                 `}
                 style={{ backgroundColor: displayNiche?.color ? `${displayNiche.color}20` : undefined }}
             >
+                {/* ... button content ... */}
                 {displayNiche ? (
                     <>
                         <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: displayNiche.color }} />
                         <span className="truncate max-w-[120px]">{displayNiche.name}</span>
                         {/* If single video and has multiple niches, show count */}
-                        {/* If multi select, we didn't enter this block */}
                         {videos[0] && (videoNicheAssignments[videos[0].id] || []).length > 1 && (
                             <span className="text-[10px] text-text-secondary">
                                 +{(videoNicheAssignments[videos[0].id] || []).length - 1}
@@ -281,9 +331,13 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                                     value={newNicheName}
                                     onChange={(e) => setNewNicheName(e.target.value)}
                                     onKeyDown={(e) => {
+                                        // Handle navigation keys
+                                        handleKeyDown(e);
+
+                                        // Original Escape logic
                                         if (e.key === 'Escape') {
                                             e.preventDefault();
-                                            onToggle(); // Close dropdown
+                                            onToggle();
                                         }
                                     }}
                                 />
@@ -327,16 +381,10 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                             )}
                         </form>
                     </div>
-                    <div className="overflow-y-auto custom-scrollbar p-1 flex-1">
-                        {filteredNiches.map(niche => {
+                    <div ref={listRef} className="overflow-y-auto custom-scrollbar p-1 flex-1">
+                        {filteredNiches.map((niche, index) => {
                             const status = nicheAssignmentStatus.get(niche.id) || 'none';
                             const isAssigned = status === 'all';
-                            // Optional: Distinct visual for 'some' (partial) if FloatingNicheItem supports it.
-                            // If not, we'll just treat 'all' as checked and 'some'/'none' as unchecked for now, 
-                            // or maybe force 'some' to look different? 
-                            // Since I can't easily change FloatingNicheItem props right now without seeing it, I'll stick to simple boolean 'isAssigned' = status === 'all'. 
-                            // Wait, if status is 'some', users might want to know.
-                            // But FloatingNicheItem prop is 'isAssigned'. I'll pass true only if ALL are assigned.
 
                             return (
                                 <FloatingNicheItem
@@ -344,6 +392,7 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                                     niche={niche}
                                     isAssigned={isAssigned}
                                     isActive={activeNicheMenuId === niche.id}
+                                    isHighlighted={index === highlightedIndex}
                                     onToggle={() => handleNicheToggle(niche.id, status)}
                                     onToggleMenu={() => setActiveNicheMenuId(current => current === niche.id ? null : niche.id)}
                                     onCloseMenu={() => setActiveNicheMenuId(null)}
