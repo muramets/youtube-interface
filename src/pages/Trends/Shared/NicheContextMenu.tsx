@@ -45,7 +45,7 @@ export const NicheContextMenu: React.FC<NicheContextMenuProps> = ({
     // Tooltip for disabled state
     const [showMaxTooltip, setShowMaxTooltip] = useState(false);
     const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
-    const targetBtnRef = useRef<HTMLButtonElement>(null);
+    const targetBtnRef = useRef<HTMLDivElement>(null);
 
     const handleTargetMouseEnter = () => {
         if (isDisabled && targetBtnRef.current) {
@@ -138,26 +138,30 @@ export const NicheContextMenu: React.FC<NicheContextMenuProps> = ({
             {/* Set as Target (only show if we have a user channel) */}
             {currentChannel && (
                 <>
-                    <button
+                    {/* Wrapper div captures hover on disabled button */}
+                    <div
                         ref={targetBtnRef}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleToggleTarget();
-                        }}
                         onMouseEnter={handleTargetMouseEnter}
                         onMouseLeave={() => setShowMaxTooltip(false)}
-                        disabled={isDisabled}
-                        className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center gap-2 whitespace-nowrap
-                            ${isTargeted
-                                ? 'text-emerald-400 hover:bg-white/5'
-                                : isDisabled
-                                    ? 'text-text-tertiary cursor-not-allowed'
-                                    : 'text-text-primary hover:bg-white/5'
-                            }`}
                     >
-                        <Target size={10} />
-                        {isTargeted ? 'Remove target' : 'Set as target'}
-                    </button>
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleTarget();
+                            }}
+                            disabled={isDisabled}
+                            className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center gap-2 whitespace-nowrap
+                                ${isTargeted
+                                    ? 'text-emerald-400 hover:bg-white/5'
+                                    : isDisabled
+                                        ? 'text-text-tertiary cursor-not-allowed'
+                                        : 'text-text-primary hover:bg-white/5'
+                                }`}
+                        >
+                            <Target size={10} />
+                            {isTargeted ? 'Remove target' : 'Set as target'}
+                        </button>
+                    </div>
                     {/* Tooltip for max targets reached */}
                     {showMaxTooltip && createPortal(
                         <div
