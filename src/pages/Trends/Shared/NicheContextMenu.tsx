@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Home, Globe, Pencil, Trash2, Target } from 'lucide-react';
 import type { TrendNiche } from '../../../core/types/trends';
@@ -40,6 +40,20 @@ export const NicheContextMenu: React.FC<NicheContextMenuProps> = ({
     // Check if this niche is targeted for the current USER channel (not TrendChannel)
     const isTargeted = currentChannel?.targetNicheIds?.includes(niche.id) ?? false;
     const isMaxTargets = (currentChannel?.targetNicheIds?.length ?? 0) >= 2;
+    const isDisabled = !isTargeted && isMaxTargets;
+
+    // Tooltip for disabled state
+    const [showMaxTooltip, setShowMaxTooltip] = useState(false);
+    const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+    const targetBtnRef = useRef<HTMLButtonElement>(null);
+
+    const handleTargetMouseEnter = () => {
+        if (isDisabled && targetBtnRef.current) {
+            const rect = targetBtnRef.current.getBoundingClientRect();
+            setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top - 4 });
+            setShowMaxTooltip(true);
+        }
+    };
 
     const handleToggleTarget = () => {
         if (!currentChannel) return;
@@ -123,24 +137,38 @@ export const NicheContextMenu: React.FC<NicheContextMenuProps> = ({
         >
             {/* Set as Target (only show if we have a user channel) */}
             {currentChannel && (
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        handleToggleTarget();
-                    }}
-                    disabled={!isTargeted && isMaxTargets}
-                    className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center gap-2 whitespace-nowrap
-                        ${isTargeted
-                            ? 'text-emerald-400 hover:bg-white/5'
-                            : isMaxTargets
-                                ? 'text-text-tertiary cursor-not-allowed'
-                                : 'text-text-primary hover:bg-white/5'
-                        }`}
-                    title={isMaxTargets && !isTargeted ? 'Maximum 2 targets per channel' : undefined}
-                >
-                    <Target size={10} />
-                    {isTargeted ? 'Remove target' : 'Set as target'}
-                </button>
+                <>
+                    <button
+                        ref={targetBtnRef}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleTarget();
+                        }}
+                        onMouseEnter={handleTargetMouseEnter}
+                        onMouseLeave={() => setShowMaxTooltip(false)}
+                        disabled={isDisabled}
+                        className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center gap-2 whitespace-nowrap
+                            ${isTargeted
+                                ? 'text-emerald-400 hover:bg-white/5'
+                                : isDisabled
+                                    ? 'text-text-tertiary cursor-not-allowed'
+                                    : 'text-text-primary hover:bg-white/5'
+                            }`}
+                    >
+                        <Target size={10} />
+                        {isTargeted ? 'Remove target' : 'Set as target'}
+                    </button>
+                    {/* Tooltip for max targets reached */}
+                    {showMaxTooltip && createPortal(
+                        <div
+                            className="fixed z-[10000] px-2 py-1 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl text-[10px] text-white whitespace-nowrap pointer-events-none animate-fade-in"
+                            style={{ left: tooltipPos.x, top: tooltipPos.y, transform: 'translate(-50%, -100%)' }}
+                        >
+                            Maximum 2 targets per channel
+                        </div>,
+                        document.body
+                    )}
+                </>
             )}
 
             {/* Toggle Global/Local */}
