@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useDroppable } from '@dnd-kit/core';
-import { MoreVertical, Check, Trash2 } from 'lucide-react';
+import { MoreVertical, Check, Trash2, Target } from 'lucide-react';
 import type { TrendNiche } from '../../../core/types/trends';
 import { useTrendStore, MANUAL_NICHE_PALETTE } from '../../../core/stores/trendStore';
+import { useChannelStore } from '../../../core/stores/channelStore';
 import { ConfirmationModal } from '../../../components/Shared/ConfirmationModal';
 import { NicheContextMenu } from '../Shared/NicheContextMenu';
 
@@ -29,11 +30,15 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
     isTrash = false
 }) => {
     const { updateNiche, deleteNiche, isDragging } = useTrendStore();
+    const { currentChannel } = useChannelStore();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(niche.name);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+
+    // Check if this niche is targeted for the current USER channel (from ChannelDropdown)
+    const isTargeted = !isTrash && (currentChannel?.targetNicheIds?.includes(niche.id) ?? false);
 
     // DnD: Make this niche a drop target (only for non-trash items)
     const { setNodeRef, isOver } = useDroppable({
@@ -200,11 +205,16 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                     )}
                 </div>
 
+                {/* Target Icon (for targeted niches) */}
+                {isTargeted && (
+                    <Target size={11} className="text-emerald-400 mr-1 shrink-0" />
+                )}
+
                 {/* Name (Editable on double-click) */}
                 <div className="flex-1 min-w-0 relative flex items-center">
                     <span
                         ref={nameRef}
-                        className={`text-xs overflow-hidden whitespace-nowrap transition-colors leading-none translate-y-[-1px] ${isEditing ? 'opacity-0' : ''}`}
+                        className={`text-xs overflow-hidden whitespace-nowrap transition-colors leading-none translate-y-[-1px] ${isEditing ? 'opacity-0' : ''} ${isTargeted ? 'text-emerald-400' : ''}`}
                         style={isTruncated ? {
                             // Fade truncation always applied (name visible via tooltip when isDragTarget)
                             maskImage: 'linear-gradient(to right, black 50%, transparent 100%)',

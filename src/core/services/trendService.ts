@@ -520,6 +520,10 @@ export const TrendService = {
         await updateDoc(doc(db, `users/${userId}/channels/${userChannelId}/trendChannels`, channelId), { isVisible });
     },
 
+    updateChannel: async (userId: string, userChannelId: string, channelId: string, updates: Partial<TrendChannel>) => {
+        await updateDoc(doc(db, `users/${userId}/channels/${userChannelId}/trendChannels`, channelId), updates);
+    },
+
     // --- Video Fetching & Caching (IndexedDB) ---
 
     syncChannelVideos: async (userId: string, userChannelId: string, channel: TrendChannel, apiKey: string, forceFullSync: boolean = false): Promise<{ totalNewVideos: number; totalQuotaUsed: number; quotaBreakdown: { list: number; details: number } }> => {

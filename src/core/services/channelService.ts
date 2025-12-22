@@ -21,6 +21,8 @@ export interface Channel {
     avatar?: string;
     createdAt: number;
     customLanguages?: CustomLanguage[];
+    /** Niches marked as targets for this channel (max 2), used as reminders */
+    targetNicheIds?: string[];
 }
 
 export const ChannelService = {

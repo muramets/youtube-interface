@@ -125,6 +125,10 @@ interface TrendStore {
     hideVideos: (videos: { id: string; channelId: string }[]) => void;
     restoreVideos: (ids: string[]) => void;
 
+    // Target Niche Actions (saves to currentChannel from channelStore)
+    setTargetNiche: (nicheId: string) => Promise<void>;
+    removeTargetNiche: (nicheId: string) => Promise<void>;
+
     // Helpers
     toggleChannelVisibility: (id: string) => void;
 }
@@ -540,6 +544,49 @@ export const useTrendStore = create<TrendStore>()(
                 const userChannelId = useChannelStore.getState().currentChannel?.id;
                 if (!userId || !userChannelId) return;
                 await TrendService.restoreVideos(userId, userChannelId, ids);
+            },
+
+            // Target Niche Actions
+            /**
+             * Set a niche as a target for the current user channel (max 2 targets).
+             * Used to remind users which niches they want to focus on for their channel.
+             * NOTE: This saves to the USER's channel (from ChannelDropdown), not to TrendChannel.
+             */
+            setTargetNiche: async (nicheId) => {
+                const { userId } = get();
+                const currentChannel = useChannelStore.getState().currentChannel;
+                if (!userId || !currentChannel) return;
+
+                const currentTargets = currentChannel.targetNicheIds || [];
+
+                // Already targeted or max 2 reached
+                if (currentTargets.includes(nicheId) || currentTargets.length >= 2) return;
+
+                const newTargets = [...currentTargets, nicheId];
+
+                // Update via channelStore (which persists to Firestore)
+                await useChannelStore.getState().updateChannel(userId, currentChannel.id, { targetNicheIds: newTargets });
+
+                // Also update the current channel in memory
+                useChannelStore.getState().setCurrentChannel({ ...currentChannel, targetNicheIds: newTargets });
+            },
+
+            /**
+             * Remove a niche from the current user channel's targets.
+             */
+            removeTargetNiche: async (nicheId) => {
+                const { userId } = get();
+                const currentChannel = useChannelStore.getState().currentChannel;
+                if (!userId || !currentChannel) return;
+
+                const currentTargets = currentChannel.targetNicheIds || [];
+                const newTargets = currentTargets.filter(id => id !== nicheId);
+
+                // Update via channelStore (which persists to Firestore)
+                await useChannelStore.getState().updateChannel(userId, currentChannel.id, { targetNicheIds: newTargets });
+
+                // Also update the current channel in memory
+                useChannelStore.getState().setCurrentChannel({ ...currentChannel, targetNicheIds: newTargets });
             },
         }),
         {

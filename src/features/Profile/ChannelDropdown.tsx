@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { User, LogOut, Plus, Check, Settings } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { User, LogOut, Plus, Check, Settings, Target } from 'lucide-react';
 import { useChannelStore } from '../../core/stores/channelStore';
+import { useTrendStore } from '../../core/stores/trendStore';
 import { useChannels } from '../../core/hooks/useChannels';
 import { useSettings } from '../../core/hooks/useSettings';
 import { type Channel } from '../../core/services/channelService';
@@ -9,6 +11,42 @@ import { CreateChannelModal } from './CreateChannelModal';
 import { EditChannelModal } from './EditChannelModal';
 import { Dropdown } from '../../components/Shared/Dropdown';
 
+/** Badge component for displaying a target niche with truncation and tooltip */
+const TargetNicheBadge: React.FC<{ nicheName: string }> = ({ nicheName }) => {
+    const [showTooltip, setShowTooltip] = useState(false);
+    const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+    const badgeRef = useRef<HTMLDivElement>(null);
+
+    const handleMouseEnter = () => {
+        if (badgeRef.current) {
+            const rect = badgeRef.current.getBoundingClientRect();
+            setTooltipPos({ x: rect.left, y: rect.top - 4 });
+        }
+        setShowTooltip(true);
+    };
+
+    return (
+        <div
+            ref={badgeRef}
+            className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 text-[9px] max-w-[80px] cursor-default"
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={() => setShowTooltip(false)}
+        >
+            <Target size={8} className="shrink-0" />
+            <span className="truncate">{nicheName}</span>
+            {showTooltip && createPortal(
+                <div
+                    className="fixed z-[9999] px-2 py-1 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl text-[10px] text-white whitespace-nowrap pointer-events-none animate-fade-in"
+                    style={{ left: tooltipPos.x, top: tooltipPos.y, transform: 'translateY(-100%)' }}
+                >
+                    {nicheName}
+                </div>,
+                document.body
+            )}
+        </div>
+    );
+};
+
 interface ChannelDropdownProps {
     onClose: () => void;
     anchorEl: HTMLElement | null;
@@ -16,6 +54,7 @@ interface ChannelDropdownProps {
 
 export const ChannelDropdown: React.FC<ChannelDropdownProps> = ({ onClose, anchorEl }) => {
     const { currentChannel, setCurrentChannel } = useChannelStore();
+    const { niches } = useTrendStore();
     const { user, logout } = useAuth();
     const { generalSettings, updateGeneralSettings } = useSettings();
 
@@ -25,6 +64,15 @@ export const ChannelDropdown: React.FC<ChannelDropdownProps> = ({ onClose, ancho
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
     const [menuView, setMenuView] = useState<'main' | 'appearance'>('main');
+
+    // Get target niche names for a channel
+    const getTargetNicheNames = (channel: Channel): string[] => {
+        if (!channel.targetNicheIds || channel.targetNicheIds.length === 0) return [];
+        return channel.targetNicheIds
+            .slice(0, 2)
+            .map(id => niches.find(n => n.id === id)?.name)
+            .filter((name): name is string => name !== undefined);
+    };
 
     const handleSwitch = (channelId: string) => {
         const channel = channels.find(c => c.id === channelId);
@@ -94,37 +142,50 @@ export const ChannelDropdown: React.FC<ChannelDropdownProps> = ({ onClose, ancho
                         <div className="px-4 pb-2 text-xs text-text-secondary font-bold">
                             Your Channels
                         </div>
-                        {channels.map(channel => (
-                            <div
-                                key={channel.id}
-                                className={`group px-4 py-2 flex items-center gap-3 cursor-pointer relative hover:bg-hover-bg ${currentChannel?.id === channel.id ? 'bg-hover-bg' : ''}`}
-                            >
+                        {channels.map(channel => {
+                            const targetNicheNames = getTargetNicheNames(channel);
+                            return (
                                 <div
-                                    className="flex items-center gap-3 flex-1 overflow-hidden"
-                                    onClick={() => handleSwitch(channel.id)}
+                                    key={channel.id}
+                                    className={`group px-4 py-2 flex items-center gap-3 cursor-pointer relative hover:bg-hover-bg ${currentChannel?.id === channel.id ? 'bg-hover-bg' : ''}`}
                                 >
-                                    <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center overflow-hidden shrink-0">
-                                        {channel.avatar ? (
-                                            <img src={channel.avatar} alt={channel.name} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <User size={16} color="white" />
-                                        )}
+                                    <div
+                                        className="flex items-center gap-3 flex-1 overflow-hidden"
+                                        onClick={() => handleSwitch(channel.id)}
+                                    >
+                                        <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center overflow-hidden shrink-0">
+                                            {channel.avatar ? (
+                                                <img src={channel.avatar} alt={channel.name} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <User size={16} color="white" />
+                                            )}
+                                        </div>
+                                        <div className="flex-1 overflow-hidden">
+                                            <span className="block text-text-primary truncate">{channel.name}</span>
+                                            {/* Target Niche Badges */}
+                                            {targetNicheNames.length > 0 && (
+                                                <div className="flex gap-1 mt-0.5">
+                                                    {targetNicheNames.map((name, idx) => (
+                                                        <TargetNicheBadge key={idx} nicheName={name} />
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                        {currentChannel?.id === channel.id && <Check size={16} className="text-text-secondary shrink-0" />}
                                     </div>
-                                    <span className="flex-1 text-text-primary truncate">{channel.name}</span>
-                                    {currentChannel?.id === channel.id && <Check size={16} className="text-text-secondary shrink-0" />}
-                                </div>
 
-                                <div
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEditingChannel(channel);
-                                    }}
-                                    className="p-1 rounded-full text-text-secondary flex items-center justify-center hover:bg-[#3f3f3f] hover:text-white transition-colors"
-                                >
-                                    <Settings size={16} />
+                                    <div
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setEditingChannel(channel);
+                                        }}
+                                        className="p-1 rounded-full text-text-secondary flex items-center justify-center hover:bg-[#3f3f3f] hover:text-white transition-colors"
+                                    >
+                                        <Settings size={16} />
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
 
                         {/* Add Channel - Moved to bottom of list */}
                         <div

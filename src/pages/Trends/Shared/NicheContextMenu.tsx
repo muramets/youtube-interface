@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Home, Globe, Pencil, Trash2 } from 'lucide-react';
+import { Home, Globe, Pencil, Trash2, Target } from 'lucide-react';
 import type { TrendNiche } from '../../../core/types/trends';
 import { useTrendStore } from '../../../core/stores/trendStore';
+import { useChannelStore } from '../../../core/stores/channelStore';
 import { useNicheAnalysis, type ChannelStat, type NicheWithMeta } from '../hooks/useNicheAnalysis';
 import { SplitNicheModal } from './SplitNicheModal';
 import { MergeNichesModal } from './MergeNichesModal';
@@ -25,7 +26,8 @@ export const NicheContextMenu: React.FC<NicheContextMenuProps> = ({
     onRename,
     onDelete
 }) => {
-    const { updateNiche } = useTrendStore();
+    const { updateNiche, setTargetNiche, removeTargetNiche } = useTrendStore();
+    const { currentChannel } = useChannelStore();
     const { computeChannelStats, findMatchingNiches } = useNicheAnalysis();
 
     // Modal states - managed independently from context menu lifecycle
@@ -34,6 +36,21 @@ export const NicheContextMenu: React.FC<NicheContextMenuProps> = ({
     const [showMergeModal, setShowMergeModal] = useState(false);
     const [channelStats, setChannelStats] = useState<ChannelStat[]>([]);
     const [matchingNiches, setMatchingNiches] = useState<NicheWithMeta[]>([]);
+
+    // Check if this niche is targeted for the current USER channel (not TrendChannel)
+    const isTargeted = currentChannel?.targetNicheIds?.includes(niche.id) ?? false;
+    const isMaxTargets = (currentChannel?.targetNicheIds?.length ?? 0) >= 2;
+
+    const handleToggleTarget = () => {
+        if (!currentChannel) return;
+
+        if (isTargeted) {
+            removeTargetNiche(niche.id);
+        } else {
+            setTargetNiche(niche.id);
+        }
+        onClose();
+    };
 
     // Component renders if menu is open OR any modal is open
     // This allows modals to persist after context menu is closed
@@ -104,6 +121,28 @@ export const NicheContextMenu: React.FC<NicheContextMenuProps> = ({
             style={position ? { left: position.x, top: position.y } : undefined}
             onClick={(e) => e.stopPropagation()}
         >
+            {/* Set as Target (only show if we have a user channel) */}
+            {currentChannel && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleTarget();
+                    }}
+                    disabled={!isTargeted && isMaxTargets}
+                    className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center gap-2 whitespace-nowrap
+                        ${isTargeted
+                            ? 'text-emerald-400 hover:bg-white/5'
+                            : isMaxTargets
+                                ? 'text-text-tertiary cursor-not-allowed'
+                                : 'text-text-primary hover:bg-white/5'
+                        }`}
+                    title={isMaxTargets && !isTargeted ? 'Maximum 2 targets per channel' : undefined}
+                >
+                    <Target size={10} />
+                    {isTargeted ? 'Remove target' : 'Set as target'}
+                </button>
+            )}
+
             {/* Toggle Global/Local */}
             <button
                 onClick={(e) => {
