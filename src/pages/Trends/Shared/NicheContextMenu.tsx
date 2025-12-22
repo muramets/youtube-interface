@@ -168,7 +168,7 @@ export const NicheContextMenu: React.FC<NicheContextMenuProps> = ({
                             className="fixed z-[10000] px-2 py-1 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl text-[10px] text-white whitespace-nowrap pointer-events-none animate-fade-in"
                             style={{ left: tooltipPos.x, top: tooltipPos.y, transform: 'translate(-50%, -100%)' }}
                         >
-                            Maximum 2 targets per channel
+                            Max 2 targets. Remove one to add new.
                         </div>,
                         document.body
                     )}
