@@ -597,11 +597,11 @@ export const TrendService = {
                         publishedAt: item.snippet.publishedAt,
                         publishedAtTimestamp: new Date(item.snippet.publishedAt).getTime(),
                         title: item.snippet.title,
-                        thumbnail: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url,
-                        viewCount: parseInt(item.statistics.viewCount),
-                        duration: item.contentDetails.duration,
-                        tags: item.snippet.tags,
-                        description: item.snippet.description,
+                        thumbnail: item.snippet.thumbnails.medium?.url || item.snippet.thumbnails.default?.url || '',
+                        viewCount: parseInt(item.statistics.viewCount || '0'),
+                        duration: item.contentDetails.duration || '',
+                        tags: item.snippet.tags || [],
+                        description: item.snippet.description || '',
                     }));
 
                     // 1. Save to IndexedDB (speed layer)
