@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { X, Plus } from 'lucide-react';
 import { Button } from '../../../../../components/ui/atoms/Button';
-import { useABTestingModalState, type ABTestMode } from '../hooks/useABTestingModalState';
+import { useABTestingModalState, type ABTestMode } from './hooks/useABTestingModalState';
 import { ThumbnailSlot, TitleInputCard, ShareResultCell } from './components';
 
 interface ABTestingModalProps {

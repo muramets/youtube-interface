@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { getABTestRank, getRankBorderClass } from '../utils/abTestRank';
+import { getABTestRank, getRankBorderClass } from '../../utils/abTestRank';
 
 export type ABTestMode = 'title' | 'thumbnail' | 'both';
 
