@@ -164,9 +164,14 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
     }, [isOpen, currentSortedNiches, stableNiches]);
 
     const filteredNiches = useMemo(() => {
+        if (!newNicheName.trim()) return stableNiches;
+
+        const searchTerms = newNicheName.toLowerCase().trim().split(/\s+/);
+
         return stableNiches.filter(n => {
-            if (!newNicheName) return true;
-            return n.name.toLowerCase().includes(newNicheName.toLowerCase());
+            const nameLower = n.name.toLowerCase();
+            // All terms must be found in the name
+            return searchTerms.every(term => nameLower.includes(term));
         });
     }, [stableNiches, newNicheName]);
 
