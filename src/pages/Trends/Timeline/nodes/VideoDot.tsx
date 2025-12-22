@@ -45,7 +45,7 @@ export const VideoDot = memo(({
 
     return (
         <div
-            className="absolute"
+            className="absolute outline-none focus:outline-none focus:ring-0"
             style={{
                 left: x,
                 top: y,

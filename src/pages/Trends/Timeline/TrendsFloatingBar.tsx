@@ -84,7 +84,7 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
         };
     }, [isMultiSelect, isConfirmOpen, activeMenu, onClose]);
 
-    // Handle Esc key: first close dropdown, then close floating bar
+    // Handle Keyboard Shortcuts
     React.useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
@@ -100,6 +100,22 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                     // Second Esc: close floating bar (clear selection)
                     onClose();
                 }
+            } else if (e.key === 'Enter') {
+                // Determine if we should handle Enter
+                // 1. If confirm modal is open -> let it handle (it usually does)
+                // 2. If dropdown is already open -> let it handle (e.g. form submission)
+                // 3. If nothing open -> open niche selector
+                if (isConfirmOpen) return;
+
+                if (activeMenu) {
+                    // Dropdowns might need Enter for their own logic (creating niche, etc.)
+                    // so we don't interfere here.
+                    return;
+                }
+
+                e.preventDefault();
+                e.stopPropagation();
+                setActiveMenu('niche');
             }
         };
 

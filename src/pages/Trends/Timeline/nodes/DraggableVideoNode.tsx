@@ -80,7 +80,7 @@ export const DraggableVideoNode = memo(({
     return (
         <div
             ref={setNodeRef}
-            className={`absolute cursor-grab group flex flex-col items-center will-change-transform ${isHighlighted ? 'drop-shadow-[0_8px_30px_rgba(255,255,255,0.15)]' : ''}`}
+            className={`absolute cursor-grab group flex flex-col items-center will-change-transform outline-none focus:outline-none focus:ring-0 ${isHighlighted ? 'drop-shadow-[0_8px_30px_rgba(255,255,255,0.15)]' : ''}`}
             style={{
                 left: x,
                 top: y,
