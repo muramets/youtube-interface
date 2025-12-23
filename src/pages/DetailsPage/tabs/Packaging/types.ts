@@ -90,7 +90,11 @@ export interface VersionState {
     // Actions
     switchToVersion: (versionNumber: number | 'draft') => void;
     restoreVersion: (versionNumber: number) => void;
-    createVersion: (snapshot: PackagingSnapshot) => PackagingVersion;
+    createVersion: (snapshot: PackagingSnapshot) => {
+        newVersion: PackagingVersion;
+        updatedHistory: PackagingVersion[];
+        currentPackagingVersion: number;
+    };
     saveDraft: () => void;
     deleteVersion: (versionNumber: number) => void;
     markDirty: () => void;

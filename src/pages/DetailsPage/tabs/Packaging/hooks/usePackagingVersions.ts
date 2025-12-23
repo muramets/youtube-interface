@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import type { PackagingVersion, VideoLocalization } from '../../../../../core/utils/youtubeApi';
 
 interface PackagingSnapshot {
@@ -46,6 +46,29 @@ export const usePackagingVersions = ({
     // Which version are we currently viewing in the form? 'draft' or a version number
     const [viewingVersion, setViewingVersion] = useState<number | 'draft'>(activeVersion);
 
+    // ============================================================================
+    // SYNC STATE: Re-initialize when video data changes (e.g., after navigation)
+    // ============================================================================
+    // This handles the case where user navigates away and back - the video prop
+    // comes from Firestore and may have updated history that we need to load.
+    useEffect(() => {
+        console.log('[DEBUG usePackagingVersions] useEffect triggered');
+        console.log('[DEBUG usePackagingVersions] initialHistory:', initialHistory);
+        console.log('[DEBUG usePackagingVersions] initialCurrentVersion:', initialCurrentVersion);
+        console.log('[DEBUG usePackagingVersions] initialIsDraft:', initialIsDraft);
+
+        setPackagingHistory(initialHistory);
+        setCurrentVersionNumber(initialCurrentVersion);
+        setHasDraft(initialIsDraft);
+
+        const computedActiveVersion = initialIsDraft ? 'draft' : (initialHistory.length > 0
+            ? Math.max(...initialHistory.map(v => v.versionNumber))
+            : 'draft');
+        console.log('[DEBUG usePackagingVersions] computedActiveVersion:', computedActiveVersion);
+        setActiveVersion(computedActiveVersion);
+        setViewingVersion(computedActiveVersion);
+    }, [initialHistory, initialCurrentVersion, initialIsDraft]);
+
     // Sorted versions (newest first by version number)
     const sortedVersions = useMemo(() =>
         [...packagingHistory].sort((a, b) => b.versionNumber - a.versionNumber),
@@ -88,14 +111,21 @@ export const usePackagingVersions = ({
     }, [activeVersion]);
 
     // Create a new version from current state
-    const createVersion = useCallback((snapshot: PackagingSnapshot): PackagingVersion => {
+    // Returns both the new version AND the updated history to avoid race condition
+    // (React state updates are async, so getVersionsPayload would read stale state)
+    const createVersion = useCallback((snapshot: PackagingSnapshot): {
+        newVersion: PackagingVersion;
+        updatedHistory: PackagingVersion[];
+        currentPackagingVersion: number;
+    } => {
         // Close out the previous active version
+        let updatedHistory = packagingHistory;
         if (activeVersion !== 'draft') {
-            setPackagingHistory(prev => prev.map(v =>
+            updatedHistory = packagingHistory.map(v =>
                 v.versionNumber === activeVersion
                     ? { ...v, endDate: Date.now() }
                     : v
-            ));
+            );
         }
 
         const newVersion: PackagingVersion = {
@@ -105,14 +135,23 @@ export const usePackagingVersions = ({
             configurationSnapshot: snapshot
         };
 
-        setPackagingHistory(prev => [...prev, newVersion]);
+        // Add new version to history
+        updatedHistory = [...updatedHistory, newVersion];
+
+        // Update React state for UI
+        setPackagingHistory(updatedHistory);
         setCurrentVersionNumber(prev => prev + 1);
         setHasDraft(false);
         setActiveVersion(newVersion.versionNumber);
         setViewingVersion(newVersion.versionNumber);
 
-        return newVersion;
-    }, [currentVersionNumber, activeVersion]);
+        // Return synchronously for immediate use in save
+        return {
+            newVersion,
+            updatedHistory,
+            currentPackagingVersion: currentVersionNumber + 1
+        };
+    }, [currentVersionNumber, activeVersion, packagingHistory]);
 
     // Save as draft (mark that there are unsaved changes)
     const saveDraft = useCallback(() => {

@@ -52,6 +52,9 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
     }, [video]);
 
     // Version management hook
+    console.log('[DEBUG DetailsLayout] video.packagingHistory:', video.packagingHistory);
+    console.log('[DEBUG DetailsLayout] video.currentPackagingVersion:', video.currentPackagingVersion);
+    console.log('[DEBUG DetailsLayout] computedHasDraft:', computedHasDraft);
     const versions = usePackagingVersions({
         initialHistory: video.packagingHistory || [],
         initialCurrentVersion: video.currentPackagingVersion || 1,

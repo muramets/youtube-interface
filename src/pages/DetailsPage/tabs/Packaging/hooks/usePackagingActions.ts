@@ -101,8 +101,8 @@ export const usePackagingActions = ({
         try {
             const payload = buildSavePayload();
 
-            // Create new version in memory
-            versionState.createVersion({
+            // Create new version in memory - returns sync data to avoid race condition
+            const { newVersion, updatedHistory, currentPackagingVersion } = versionState.createVersion({
                 title: payload.title,
                 description: payload.description,
                 tags: payload.tags,
@@ -113,8 +113,8 @@ export const usePackagingActions = ({
                 localizations: payload.localizations
             });
 
-            const versionPayload = versionState.getVersionsPayload();
-            const newVersionNum = versionPayload.packagingHistory.reduce((max, v) => v.versionNumber > max ? v.versionNumber : max, 1);
+            console.log('[DEBUG handleSaveAsNewVersion] newVersion:', newVersion);
+            console.log('[DEBUG handleSaveAsNewVersion] updatedHistory:', updatedHistory);
 
             await updateVideo({
                 videoId: video.id,
@@ -122,14 +122,14 @@ export const usePackagingActions = ({
                     ...payload,
                     // Keep thumbnail in sync with customImage (use empty string if deliberately cleared)
                     thumbnail: payload.customImage,
-                    packagingHistory: versionPayload.packagingHistory,
-                    currentPackagingVersion: versionPayload.currentPackagingVersion,
-                    isDraft: versionPayload.isDraft
+                    packagingHistory: updatedHistory,
+                    currentPackagingVersion: currentPackagingVersion,
+                    isDraft: false
                 }
             });
 
             formState.updateSnapshotToCurrent();
-            showToast(`Saved as v.${newVersionNum}`, 'success');
+            showToast(`Saved as v.${newVersion.versionNumber}`, 'success');
         } catch (error) {
             console.error('Failed to create version:', error);
             showToast('Failed to create version', 'error');
