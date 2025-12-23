@@ -4,6 +4,43 @@ import { useTrendStore } from '../../../../core/stores/trendStore';
 import { calculatePreservedTransform } from '../utils/timelineMath';
 import type { MonthLayout, TimelineStats } from '../../../../core/types/trends';
 
+/**
+ * useTimelineTransform — Viewport State Management (Miro-like)
+ * 
+ * ARCHITECTURE OVERVIEW:
+ * ----------------------
+ * This hook manages zoom/pan state with automatic save/restore per content hash.
+ * It follows the "Miro-like" pattern: always save on change, always restore on return.
+ * 
+ * KEY COMPONENTS:
+ * 1. Transform State      — Current {scale, offsetX, offsetY}
+ * 2. Content Hash         — Unique ID per channel+niche combination
+ * 3. savedConfigs         — Map<hash, config> persisted in Zustand store
+ * 
+ * EFFECT COORDINATION:
+ * --------------------
+ * Two effects manage viewport changes and can conflict:
+ * 
+ *   useEffect (Restore)          useLayoutEffect (Ratio Preservation)
+ *   ────────────────────         ──────────────────────────────────
+ *   Trigger: hash change         Trigger: worldWidth/Height change
+ *   Action: setTransform(saved)  Action: setTransform(calculated)
+ * 
+ * RACE CONDITION PROBLEM:
+ * -----------------------
+ * On page load: Restore sets saved values → Data loads → worldWidth changes →
+ * Ratio Preservation recalculates offset → Wrong values get saved → DRIFT
+ * 
+ * SOLUTION (skipNextRatioPreservationRef):
+ * ----------------------------------------
+ * After restore, we set skipNextRatioPreservationRef = true.
+ * When useLayoutEffect sees worldWidth change, it checks this flag:
+ *   - If true: skip ratio preservation, reset flag, return early
+ *   - If false: proceed with normal ratio preservation
+ * 
+ * This ensures restored values are not immediately overwritten.
+ */
+
 export interface Transform {
     scale: number;
     offsetX: number;
@@ -209,6 +246,8 @@ export const useTimelineTransform = ({
     // Track initialization
     const hasInitializedRef = useRef(false);
     const prevViewportSizeRef = useRef({ width: 0, height: 0 });
+    // Skip ratio preservation after restore to prevent drift
+    const skipNextRatioPreservationRef = useRef(false);
 
     // Restore or Auto-Fit on Mount/Hash Change (Miro-like)
     // WHY: Single effect handles both initial load and navigation between channels/niches.
@@ -226,7 +265,6 @@ export const useTimelineTransform = ({
             prevViewportSizeRef.current = viewportSize;
         }
 
-        // Core logic: restore if saved config exists, otherwise auto-fit
         const savedConfig = savedConfigs[currentContentHash];
         if (savedConfig) {
             setTransformState({
@@ -238,6 +276,8 @@ export const useTimelineTransform = ({
                 ...savedConfig,
                 contentHash: currentContentHash
             });
+            // Skip next ratio preservation to prevent drift
+            skipNextRatioPreservationRef.current = true;
         } else {
             handleAutoFit();
         }
@@ -354,6 +394,12 @@ export const useTimelineTransform = ({
 
         // Only proceed if dimensions actually changed
         if (!wChanged && !hChanged) return;
+
+        // Skip ratio preservation if we just restored (prevents drift)
+        if (skipNextRatioPreservationRef.current) {
+            skipNextRatioPreservationRef.current = false;
+            return;
+        }
 
         /**
          * PRIORITY 2: Auto-Fit Maintenance

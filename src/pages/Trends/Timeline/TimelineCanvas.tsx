@@ -68,7 +68,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     filterHash,
     allChannelsHidden = false
 }) => {
-    const { timelineConfig, setTimelineConfig, setAddChannelModalOpen, clearTrendsFilters, savedConfigs } = useTrendStore();
+    const { timelineConfig, setTimelineConfig, setAddChannelModalOpen, clearTrendsFilters, savedConfigs, saveConfigForHash } = useTrendStore();
     const { scalingMode, verticalSpread, timeLinearity } = timelineConfig;
 
     // Determine effective stats for triggering updates. 
@@ -250,17 +250,20 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                 const fitTransform = calculateAutoFitTransform();
                 if (fitTransform) {
                     smoothToTransform(fitTransform);
-                    setTimelineConfig({
+                    const configUpdate = {
                         zoomLevel: fitTransform.scale,
                         offsetX: fitTransform.offsetX,
                         offsetY: fitTransform.offsetY,
                         contentHash: currentContentHash
-                    });
+                    };
+                    setTimelineConfig(configUpdate);
+                    // Persist immediately to savedConfigs (fixes Z key not saving)
+                    saveConfigForHash(currentContentHash, configUpdate);
                 }
             }
             shouldAutoFitRef.current = false;
         }
-    }, [structureVersion, hookShouldAutoFit, calculateAutoFitTransform, smoothToTransform, setTimelineConfig, currentContentHash, savedConfigs]);
+    }, [structureVersion, hookShouldAutoFit, calculateAutoFitTransform, smoothToTransform, setTimelineConfig, currentContentHash, savedConfigs, saveConfigForHash]);
 
     // Hotkeys (Standard)
     useTimelineHotkeys({
