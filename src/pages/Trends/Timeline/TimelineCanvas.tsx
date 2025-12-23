@@ -68,7 +68,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     filterHash,
     allChannelsHidden = false
 }) => {
-    const { timelineConfig, setTimelineConfig, setAddChannelModalOpen, clearTrendsFilters } = useTrendStore();
+    const { timelineConfig, setTimelineConfig, setAddChannelModalOpen, clearTrendsFilters, savedConfigs } = useTrendStore();
     const { scalingMode, verticalSpread, timeLinearity } = timelineConfig;
 
     // Determine effective stats for triggering updates. 
@@ -233,12 +233,18 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     };
 
     // Effect to trigger Auto-Fit when structure updates explicitly
+    // WHY: This uses smoothToTransform (animated) for manual reset (double-click/hotkey).
+    // Contrast: useTimelineTransform uses instant setTransformState for hash changes.
+    // We skip auto-fit if savedConfigs exists (Miro-like: restore saved position instead).
     useEffect(() => {
         if (structureVersion > 0 && structureVersion > appliedStructureVersionRef.current) {
             appliedStructureVersionRef.current = structureVersion;
 
             // Use declarative flag from hook OR manual override
-            const canFit = hookShouldAutoFit || shouldAutoFitRef.current;
+            // MIRO-LIKE FIX: If we have a saved config, ignore the hook's auto-fit request (which happens on load),
+            // unless it's a manual override (shouldAutoFitRef).
+            const hasSavedState = !!savedConfigs[currentContentHash];
+            const canFit = shouldAutoFitRef.current || (hookShouldAutoFit && !hasSavedState);
 
             if (canFit) {
                 const fitTransform = calculateAutoFitTransform();
@@ -248,14 +254,13 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                         zoomLevel: fitTransform.scale,
                         offsetX: fitTransform.offsetX,
                         offsetY: fitTransform.offsetY,
-                        isCustomView: false,
                         contentHash: currentContentHash
                     });
                 }
             }
             shouldAutoFitRef.current = false;
         }
-    }, [structureVersion, hookShouldAutoFit, calculateAutoFitTransform, smoothToTransform, setTimelineConfig, currentContentHash]);
+    }, [structureVersion, hookShouldAutoFit, calculateAutoFitTransform, smoothToTransform, setTimelineConfig, currentContentHash, savedConfigs]);
 
     // Hotkeys (Standard)
     useTimelineHotkeys({

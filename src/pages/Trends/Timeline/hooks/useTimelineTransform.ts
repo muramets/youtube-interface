@@ -37,8 +37,8 @@ export const useTimelineTransform = ({
     // Total padding for calculations that need both
     const totalPadding = paddingLeft + paddingRight;
     const totalVerticalPadding = paddingTop + paddingBottom;
-    const { timelineConfig, setTimelineConfig, selectedChannelId, trendsFilters } = useTrendStore();
-    const { zoomLevel, offsetX, offsetY, isCustomView, contentHash: savedContentHash } = timelineConfig;
+    const { timelineConfig, setTimelineConfig, selectedChannelId, trendsFilters, savedConfigs } = useTrendStore();
+    const { zoomLevel, offsetX, offsetY, contentHash: savedContentHash } = timelineConfig;
 
     // Calculate current content hash based on context (Channel ID + Filters)
     const currentContentHash = useMemo(() => {
@@ -113,7 +113,10 @@ export const useTimelineTransform = ({
     // 3. Min Scale
     const minScale = fitScale;
 
-    // Helper to clamp transform
+    // Clamp Transform to Viewport Bounds
+    // WHY: Prevents user from panning content completely off-screen.
+    // X-axis uses dynamic overscroll (grows with zoom) to allow centering edge items.
+    // Y-axis snaps to top when content fits, clamps when content is larger.
     const clampTransform = useCallback((
         t: Transform,
         viewportWidth: number,
@@ -154,8 +157,6 @@ export const useTimelineTransform = ({
 
         constrainedOffsetX = Math.max(lowerBound, Math.min(upperBound, t.offsetX));
 
-
-
         // Y-Axis clamping
         let constrainedOffsetY: number;
         const availableHeight = viewportHeight - headerHeight - totalVerticalPadding;
@@ -188,21 +189,20 @@ export const useTimelineTransform = ({
         const newOffsetY = headerHeight + paddingTop;
 
         return { scale: currentFitScale, offsetX: newOffsetX, offsetY: newOffsetY };
-    }, [videosLength, viewportSize, totalPadding, paddingLeft, paddingTop, worldWidth, dynamicWorldHeight, headerHeight]);
+    }, [videosLength, viewportSize, totalPadding, paddingLeft, paddingTop, worldWidth, headerHeight]);
 
     // Handle Auto Fit (Instant)
+    // WHY: Fits all content in viewport. Called on first load, hash change (no saved state), or manual reset.
     const handleAutoFit = useCallback(() => {
         const newState = calculateAutoFitTransform();
         if (!newState) return;
-
         setTransformState(newState);
 
         setTimelineConfig({
             zoomLevel: newState.scale,
             offsetX: newState.offsetX,
             offsetY: newState.offsetY,
-            isCustomView: false,
-            contentHash: currentContentHash // Save hash on auto-fit
+            contentHash: currentContentHash
         });
     }, [calculateAutoFitTransform, setTransformState, setTimelineConfig, currentContentHash]);
 
@@ -210,54 +210,46 @@ export const useTimelineTransform = ({
     const hasInitializedRef = useRef(false);
     const prevViewportSizeRef = useRef({ width: 0, height: 0 });
 
-    // Initial Auto-fit Logic
+    // Restore or Auto-Fit on Mount/Hash Change (Miro-like)
+    // WHY: Single effect handles both initial load and navigation between channels/niches.
+    // Logic: If savedConfigs[hash] exists → restore it, otherwise → auto-fit.
     useEffect(() => {
-        if (hasInitializedRef.current) return;
+        // Wait for data to be ready
         if (videosLength === 0 || viewportSize.width === 0) return;
 
-        hasInitializedRef.current = true;
-        prevViewportSizeRef.current = viewportSize;
+        // Skip if already showing the correct hash (no change needed)
+        if (hasInitializedRef.current && savedContentHash === currentContentHash) return;
 
-        // 1. If user hasn't customized view, Auto-Fit.
-        // 2. OR, if the content has changed (hash mismatch) compared to what was saved, Auto-Fit.
-        const shouldAutoFit = !isCustomView || (savedContentHash !== currentContentHash);
+        // Mark first run and capture viewport size
+        if (!hasInitializedRef.current) {
+            hasInitializedRef.current = true;
+            prevViewportSizeRef.current = viewportSize;
+        }
 
-        if (shouldAutoFit) {
+        // Core logic: restore if saved config exists, otherwise auto-fit
+        const savedConfig = savedConfigs[currentContentHash];
+        if (savedConfig) {
+            setTransformState({
+                scale: savedConfig.zoomLevel,
+                offsetX: savedConfig.offsetX,
+                offsetY: savedConfig.offsetY
+            });
+            setTimelineConfig({
+                ...savedConfig,
+                contentHash: currentContentHash
+            });
+        } else {
             handleAutoFit();
         }
-    }, [handleAutoFit, isCustomView, videosLength, viewportSize, savedContentHash, currentContentHash]);
+    }, [videosLength, viewportSize, savedContentHash, currentContentHash, savedConfigs, setTransformState, setTimelineConfig, handleAutoFit]);
 
-    // Continuous Auto-fit on Hash Change (e.g. Filter Switch)
+    // Resize handling (Miro-like)
+    // WHY: On resize, just update ref. Ratio preservation is handled by useLayoutEffect.
+    // Auto-fit only happens on first load or hash change, NOT on resize.
     useEffect(() => {
         if (!hasInitializedRef.current) return;
-
-        // If the hash changes while we are already running, we MUST auto-fit to show new data.
-        if (savedContentHash !== currentContentHash) {
-            handleAutoFit();
-        }
-    }, [savedContentHash, currentContentHash, handleAutoFit]);
-
-    // Resize Auto-fit
-    useEffect(() => {
-        if (!hasInitializedRef.current) return;
-
-        // If the user has a custom view (zoomed in/panned), DO NOT auto-fit on resize.
-        // The useLayoutEffect logic will handle maintaining relative position (ratios).
-        if (isCustomView) {
-            prevViewportSizeRef.current = viewportSize; // Just update the ref
-            return;
-        }
-
-        const prevSize = prevViewportSizeRef.current;
-        const hasResized = prevSize.width > 0 &&
-            (Math.abs(prevSize.width - viewportSize.width) > 10 ||
-                Math.abs(prevSize.height - viewportSize.height) > 10);
-
-        if (hasResized) {
-            handleAutoFit();
-        }
         prevViewportSizeRef.current = viewportSize;
-    }, [viewportSize, isCustomView, handleAutoFit]);
+    }, [viewportSize]);
 
 
     // --- Interaction & Update Logic using useLayoutEffect (Same as before) ---
@@ -407,7 +399,7 @@ export const useTimelineTransform = ({
 
         setTransformState(newTransform);
 
-    }, [worldWidth, dynamicWorldHeight, videosLength, viewportSize, headerHeight, isCustomView, handleAutoFit, transformState, setTransformState, monthLayouts, stats, totalPadding]); // Dependencies
+    }, [worldWidth, dynamicWorldHeight, videosLength, viewportSize, headerHeight, handleAutoFit, transformState, setTransformState, monthLayouts, stats, totalPadding]); // Dependencies
 
     // Track latest store config in ref to avoid effect dependency loops
     const latestConfigRef = useRef({ zoomLevel, offsetX, offsetY });
@@ -424,23 +416,32 @@ export const useTimelineTransform = ({
         setVisualScale(transformState.scale);
     }, [transformState.scale, setVisualScale]);
 
+    // Persist viewport to per-contentHash storage (Miro-like: always save)
+    // WHY: Debounced save ensures we don't thrash the store on every frame.
+    // Threshold check prevents saving when values haven't meaningfully changed.
+    const { saveConfigForHash } = useTrendStore();
+
     useEffect(() => {
         const { zoomLevel: sZoom, offsetX: sX, offsetY: sY } = latestConfigRef.current;
-
         if (
             Math.abs(debouncedTransform.scale - sZoom) > 0.001 ||
             Math.abs(debouncedTransform.offsetX - sX) > 1 ||
             Math.abs(debouncedTransform.offsetY - sY) > 1
         ) {
-            setTimelineConfig({
+            const configUpdate = {
                 zoomLevel: debouncedTransform.scale,
                 offsetX: debouncedTransform.offsetX,
                 offsetY: debouncedTransform.offsetY,
-                isCustomView: true,
-                contentHash: currentContentHash // Save hash on interaction
-            });
+                contentHash: currentContentHash
+            };
+
+            // Update current session config
+            setTimelineConfig(configUpdate);
+
+            // Also persist to per-hash storage for restoration on next visit
+            saveConfigForHash(currentContentHash, configUpdate);
         }
-    }, [debouncedTransform, setTimelineConfig, currentContentHash]);
+    }, [debouncedTransform, setTimelineConfig, currentContentHash, saveConfigForHash]);
 
     // Helper to get time at center of viewport
     const getCenterTime = useCallback(() => {

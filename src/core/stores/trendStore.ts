@@ -29,7 +29,6 @@ const DEFAULT_TIMELINE_CONFIG: TimelineConfig = {
     zoomLevel: 1,
     offsetX: 0,
     offsetY: 0,
-    isCustomView: false,
     startDate: Date.now() - 30 * 24 * 60 * 60 * 1000, // Default last 30 days
     endDate: Date.now(),
     viewMode: 'per-channel',
@@ -108,6 +107,7 @@ interface TrendStore {
     setIsDragging: (isDragging: boolean) => void;
     setVisualScale: (scale: number) => void;
     setDraggedBaseSize: (size: number | null) => void;
+    saveConfigForHash: (hash: string, config: Partial<TimelineConfig>) => void;
 
     // Niche Actions
     addNiche: (niche: Omit<TrendNiche, 'createdAt' | 'viewCount'>) => Promise<void>;
@@ -193,28 +193,10 @@ export const useTrendStore = create<TrendStore>()(
             })),
 
             setHiddenVideos: (hiddenVideos) => set({ hiddenVideos }),
-            setSelectedChannelId: (id) => set((state) => {
-                // Save current config
-                const currentKey = state.selectedChannelId || 'global';
-                const nextKey = id || 'global';
 
-                const updatedSavedConfigs = {
-                    ...state.savedConfigs,
-                    [currentKey]: state.timelineConfig
-                };
-
-                // Load next config or default
-                const nextConfig = updatedSavedConfigs[nextKey] || { ...DEFAULT_TIMELINE_CONFIG };
-
-                // Note: We do NOT restore trendsFilters here.
-                // handleChannelClick explicitly calls setTrendsFilters with channelRootFilters.
-
-                return {
-                    selectedChannelId: id,
-                    savedConfigs: updatedSavedConfigs,
-                    timelineConfig: nextConfig
-                };
-            }),
+            // Miro-like: viewport save/restore handled by useTimelineTransform via contentHash
+            // This action only updates the selected channel, filters are set by handleChannelClick
+            setSelectedChannelId: (id) => set({ selectedChannelId: id }),
 
             setSelectedVideo: (video) => set({ selectedVideo: video }),
 
@@ -329,6 +311,14 @@ export const useTrendStore = create<TrendStore>()(
             setIsDragging: (isDragging) => set({ isDragging }),
             setVisualScale: (visualScale) => set({ visualScale }),
             setDraggedBaseSize: (draggedBaseSize) => set({ draggedBaseSize }),
+
+            // Persist viewport config per contentHash (channel+niche combination)
+            saveConfigForHash: (hash, config) => set((state) => ({
+                savedConfigs: {
+                    ...state.savedConfigs,
+                    [hash]: { ...state.savedConfigs[hash], ...config }
+                }
+            })),
 
             toggleChannelVisibility: (id) => set((state) => ({
                 channels: state.channels.map(c =>
