@@ -668,5 +668,219 @@ export const TrendService = {
         });
 
         return totalViews;
+    },
+
+    // --- Copy Channel to Another User Channel ---
+
+    /**
+     * Check if a TrendChannel exists in a target User Channel.
+     */
+    channelExistsInUserChannel: async (
+        userId: string,
+        targetUserChannelId: string,
+        trendChannelId: string
+    ): Promise<boolean> => {
+        const ref = doc(db, `users/${userId}/channels/${targetUserChannelId}/trendChannels`, trendChannelId);
+        const snapshot = await getDoc(ref);
+        return snapshot.exists();
+    },
+
+    /**
+     * Get all niches for a specific User Channel.
+     */
+    getNichesForUserChannel: async (
+        userId: string,
+        userChannelId: string
+    ): Promise<TrendNiche[]> => {
+        const ref = collection(db, `users/${userId}/channels/${userChannelId}/trendNiches`);
+        const snapshot = await getDocs(ref);
+        return snapshot.docs.map(d => d.data() as TrendNiche);
+    },
+
+    /**
+     * Copy a TrendChannel (with niches, video assignments, hidden videos) to another User Channel.
+     * 
+     * @param merge - If true, the channel already exists in target and we merge niche data.
+     *                If false, create fresh copy.
+     */
+    copyTrendChannel: async (
+        userId: string,
+        sourceUserChannelId: string,
+        targetUserChannelId: string,
+        trendChannelId: string,
+        merge: boolean
+    ): Promise<void> => {
+        // 1. Get source channel data
+        const channelRef = doc(db, `users/${userId}/channels/${sourceUserChannelId}/trendChannels`, trendChannelId);
+        const channelSnap = await getDoc(channelRef);
+        if (!channelSnap.exists()) {
+            throw new Error('Source channel not found');
+        }
+        const channelData = channelSnap.data() as TrendChannel;
+
+        // 2. Get source niches related to this channel
+        const sourceNiches = await TrendService.getNichesForUserChannel(userId, sourceUserChannelId);
+        const sourceAssignmentsRef = collection(db, `users/${userId}/channels/${sourceUserChannelId}/videoNicheAssignments`);
+        const sourceAssignmentsSnap = await getDocs(sourceAssignmentsRef);
+
+        // Get videos to identify which niches are relevant
+        const videosRef = collection(db, `users/${userId}/channels/${sourceUserChannelId}/trendChannels/${trendChannelId}/videos`);
+        const videosSnap = await getDocs(videosRef);
+        const videoIds = new Set(videosSnap.docs.map(d => d.id));
+
+        // Collect relevant niche IDs (used by this channel's videos)
+        const relevantNicheIds = new Set<string>();
+        sourceAssignmentsSnap.docs.forEach(doc => {
+            if (videoIds.has(doc.id)) {
+                const assignments = doc.data().assignments || [];
+                assignments.forEach((a: { nicheId: string }) => relevantNicheIds.add(a.nicheId));
+            }
+        });
+
+        // Also include local niches for this channel
+        sourceNiches.forEach(n => {
+            if (n.type === 'local' && n.channelId === trendChannelId) {
+                relevantNicheIds.add(n.id);
+            }
+        });
+
+        const nichesToCopy = sourceNiches.filter(n => relevantNicheIds.has(n.id));
+
+        // 3. Get hidden videos for this channel
+        const hiddenRef = collection(db, `users/${userId}/channels/${sourceUserChannelId}/hiddenVideos`);
+        const hiddenSnap = await getDocs(hiddenRef);
+        const hiddenToCopy = hiddenSnap.docs
+            .map(d => d.data() as HiddenVideo)
+            .filter(hv => hv.channelId === trendChannelId);
+
+        // 4. Get target niches for merge mapping
+        let targetNiches: TrendNiche[] = [];
+        if (merge) {
+            targetNiches = await TrendService.getNichesForUserChannel(userId, targetUserChannelId);
+        }
+
+        // Build niche ID mapping: source niche ID -> target niche ID
+        const nicheIdMap = new Map<string, string>();
+
+        const batch = writeBatch(db);
+
+        // 5. Copy/create niches
+        for (const niche of nichesToCopy) {
+            if (merge) {
+                // Check if same-name niche exists in target
+                const existingNiche = targetNiches.find(n => n.name === niche.name);
+                if (existingNiche) {
+                    // Map to existing niche
+                    nicheIdMap.set(niche.id, existingNiche.id);
+                } else {
+                    // Create new niche in target
+                    const newNicheId = crypto.randomUUID();
+                    nicheIdMap.set(niche.id, newNicheId);
+                    const newNiche: TrendNiche = {
+                        ...niche,
+                        id: newNicheId,
+                        viewCount: 0, // Will be recalculated
+                        createdAt: Date.now()
+                    };
+                    const nicheRef = doc(db, `users/${userId}/channels/${targetUserChannelId}/trendNiches`, newNicheId);
+                    batch.set(nicheRef, newNiche);
+                }
+            } else {
+                // Fresh copy: create new niche with new ID
+                const newNicheId = crypto.randomUUID();
+                nicheIdMap.set(niche.id, newNicheId);
+                const newNiche: TrendNiche = {
+                    ...niche,
+                    id: newNicheId,
+                    viewCount: 0,
+                    createdAt: Date.now()
+                };
+                const nicheRef = doc(db, `users/${userId}/channels/${targetUserChannelId}/trendNiches`, newNicheId);
+                batch.set(nicheRef, newNiche);
+            }
+        }
+
+        // 6. Copy channel (if not merge)
+        if (!merge) {
+            const targetChannelRef = doc(db, `users/${userId}/channels/${targetUserChannelId}/trendChannels`, trendChannelId);
+            batch.set(targetChannelRef, channelData);
+        }
+
+        // 7. Copy videos
+        for (const videoDoc of videosSnap.docs) {
+            const videoData = videoDoc.data();
+            const targetVideoRef = doc(db, `users/${userId}/channels/${targetUserChannelId}/trendChannels/${trendChannelId}/videos`, videoDoc.id);
+            batch.set(targetVideoRef, videoData);
+        }
+
+        // 8. Copy video-niche assignments with mapped IDs
+        for (const assignDoc of sourceAssignmentsSnap.docs) {
+            if (!videoIds.has(assignDoc.id)) continue;
+
+            const sourceAssignments: { nicheId: string; addedAt: number }[] = assignDoc.data().assignments || [];
+            const mappedAssignments = sourceAssignments
+                .filter(a => nicheIdMap.has(a.nicheId))
+                .map(a => ({
+                    nicheId: nicheIdMap.get(a.nicheId)!,
+                    addedAt: Date.now()
+                }));
+
+            if (mappedAssignments.length > 0) {
+                const targetAssignRef = doc(db, `users/${userId}/channels/${targetUserChannelId}/videoNicheAssignments`, assignDoc.id);
+
+                if (merge) {
+                    // Get existing assignments and merge
+                    const existingSnap = await getDoc(targetAssignRef);
+                    const existing: { nicheId: string; addedAt: number }[] = existingSnap.exists()
+                        ? (existingSnap.data().assignments || [])
+                        : [];
+
+                    // Merge: add new assignments that don't already exist
+                    const existingNicheIds = new Set(existing.map(a => a.nicheId));
+                    const merged = [
+                        ...existing,
+                        ...mappedAssignments.filter(a => !existingNicheIds.has(a.nicheId))
+                    ];
+                    batch.set(targetAssignRef, { assignments: merged });
+                } else {
+                    batch.set(targetAssignRef, { assignments: mappedAssignments });
+                }
+            }
+        }
+
+        // 9. Copy hidden videos
+        for (const hv of hiddenToCopy) {
+            const targetHiddenRef = doc(db, `users/${userId}/channels/${targetUserChannelId}/hiddenVideos`, hv.id);
+            batch.set(targetHiddenRef, hv);
+        }
+
+        // 10. Commit all changes
+        await batch.commit();
+
+        // 11. Recalculate niche view counts in target
+        // This is done asynchronously to avoid blocking
+        const targetNicheIdsToUpdate = new Set(nicheIdMap.values());
+        for (const nicheId of targetNicheIdsToUpdate) {
+            // Get all videos assigned to this niche in target
+            const targetAssignRef = collection(db, `users/${userId}/channels/${targetUserChannelId}/videoNicheAssignments`);
+            const allAssigns = await getDocs(targetAssignRef);
+
+            let totalViews = 0;
+            for (const doc of allAssigns.docs) {
+                const assignments = doc.data().assignments || [];
+                if (assignments.some((a: { nicheId: string }) => a.nicheId === nicheId)) {
+                    // Get video view count
+                    // Try to find in the copied videos first
+                    const videoData = videosSnap.docs.find(v => v.id === doc.id)?.data();
+                    if (videoData) {
+                        totalViews += videoData.viewCount || 0;
+                    }
+                }
+            }
+
+            // Update niche view count
+            const nicheRef = doc(db, `users/${userId}/channels/${targetUserChannelId}/trendNiches`, nicheId);
+            await updateDoc(nicheRef, { viewCount: increment(totalViews) });
+        }
     }
 };

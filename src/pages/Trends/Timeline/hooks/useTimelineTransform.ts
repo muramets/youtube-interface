@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
 import { useDebounce } from '../../../../core/hooks/useDebounce';
 import { useTrendStore } from '../../../../core/stores/trendStore';
+import { useChannelStore } from '../../../../core/stores/channelStore';
 import { calculatePreservedTransform } from '../utils/timelineMath';
 import type { MonthLayout, TimelineStats } from '../../../../core/types/trends';
 
@@ -75,6 +76,7 @@ export const useTimelineTransform = ({
     const totalPadding = paddingLeft + paddingRight;
     const totalVerticalPadding = paddingTop + paddingBottom;
     const { timelineConfig, setTimelineConfig, selectedChannelId, trendsFilters, savedConfigs } = useTrendStore();
+    const { currentChannel } = useChannelStore();
     const { zoomLevel, offsetX, offsetY, contentHash: savedContentHash } = timelineConfig;
 
     // Calculate current content hash based on context (Channel ID + Filters)
@@ -88,8 +90,9 @@ export const useTimelineTransform = ({
         const nicheKey = nicheFilter ? (nicheFilter.value as string[]).sort().join(',') : 'all';
 
         // Include selectedChannelId to distinguish Global view from Specific Channel view
-        return `${selectedChannelId || 'global'}:${nicheKey}`;
-    }, [selectedChannelId, trendsFilters]);
+        // CRITICAL: Include currentChannel.id (User Channel) to prevent config collisions between users!
+        return `${currentChannel?.id || 'anon'}:${selectedChannelId || 'global'}:${nicheKey}`;
+    }, [currentChannel?.id, selectedChannelId, trendsFilters]);
 
     // Transform state
     const transformRef = useRef<Transform>({

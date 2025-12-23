@@ -15,7 +15,7 @@ export const TrendsPage: React.FC = () => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { apiKey } = useApiKey();
-    const { channels, selectedChannelId, timelineConfig, setTimelineConfig, trendsFilters, filterMode, setVideos, videos, hiddenVideos } = useTrendStore();
+    const { channels, selectedChannelId, timelineConfig, setTimelineConfig, trendsFilters, filterMode, setVideos, videos, hiddenVideos, isLoadingChannels } = useTrendStore();
     const [isLoading, setIsLoading] = useState(true);
 
     // Reset state when channel switches
@@ -182,7 +182,7 @@ export const TrendsPage: React.FC = () => {
                 showChannelCount={!selectedChannelId}
                 timelineConfig={timelineConfig}
                 setTimelineConfig={setTimelineConfig}
-                isLoading={isLoading || channels.length === 0}
+                isLoading={isLoading || isLoadingChannels}
                 availableMinDate={currentStats?.minDate}
                 availableMaxDate={currentStats?.maxDate}
             />
@@ -191,7 +191,7 @@ export const TrendsPage: React.FC = () => {
                 key={selectedChannelId || 'all'}
                 videos={filteredVideos}
                 allVideos={allVideos}
-                isLoading={isLoading || channels.length === 0}
+                isLoading={isLoading || isLoadingChannels}
                 percentileMap={globalPercentileMap}
                 frozenStats={frozenStats}
                 currentStats={currentStats}

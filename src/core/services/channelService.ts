@@ -23,6 +23,8 @@ export interface Channel {
     customLanguages?: CustomLanguage[];
     /** Niches marked as targets for this channel (max 2), used as reminders */
     targetNicheIds?: string[];
+    /** Cached names of target niches for display across user channels */
+    targetNicheNames?: string[];
 }
 
 export const ChannelService = {

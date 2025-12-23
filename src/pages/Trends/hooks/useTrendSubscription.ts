@@ -3,11 +3,12 @@ import { useAuth } from '../../../core/hooks/useAuth';
 import { useTrendStore } from '../../../core/stores/trendStore';
 import { TrendService } from '../../../core/services/trendService';
 import { useChannelStore } from '../../../core/stores/channelStore';
+import { ChannelService } from '../../../core/services/channelService';
 
 export const useTrendSubscription = () => {
     const { user, isLoading: isAuthLoading } = useAuth();
-    const { currentChannel } = useChannelStore();
-    const { setChannels, setNiches, setVideoNicheAssignments, setHiddenVideos, setIsLoadingChannels } = useTrendStore();
+    const { currentChannel, setCurrentChannel } = useChannelStore();
+    const { setChannels, setNiches, setVideoNicheAssignments, setHiddenVideos, setIsLoadingChannels, niches } = useTrendStore();
 
     useEffect(() => {
         // While auth is still loading, keep showing skeleton
@@ -67,4 +68,33 @@ export const useTrendSubscription = () => {
             unsubHidden();
         };
     }, [user, currentChannel?.id, setChannels, setNiches, setVideoNicheAssignments, setHiddenVideos, setIsLoadingChannels, isAuthLoading]);
+
+    /**
+     * Migration: Populate targetNicheNames for current channel if missing.
+     * This runs when niches are loaded and currentChannel has targetNicheIds but no targetNicheNames.
+     */
+    useEffect(() => {
+        if (!user?.uid || !currentChannel || niches.length === 0) return;
+
+        const hasIds = currentChannel.targetNicheIds && currentChannel.targetNicheIds.length > 0;
+        const hasNames = currentChannel.targetNicheNames && currentChannel.targetNicheNames.length > 0;
+
+        // Only migrate if we have IDs but no names
+        if (hasIds && !hasNames) {
+            const names = currentChannel.targetNicheIds!
+                .map(id => niches.find(n => n.id === id)?.name)
+                .filter((name): name is string => name !== undefined);
+
+            if (names.length > 0) {
+                console.log('[useTrendSubscription] Migrating targetNicheNames for channel:', currentChannel.name);
+
+                // Update Firestore
+                ChannelService.updateChannel(user.uid, currentChannel.id, { targetNicheNames: names });
+
+                // Update local state
+                setCurrentChannel({ ...currentChannel, targetNicheNames: names });
+            }
+        }
+    }, [user?.uid, currentChannel?.id, currentChannel?.targetNicheIds, niches, setCurrentChannel]);
 };
+

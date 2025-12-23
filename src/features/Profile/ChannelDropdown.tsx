@@ -54,7 +54,16 @@ interface ChannelDropdownProps {
 
 export const ChannelDropdown: React.FC<ChannelDropdownProps> = ({ onClose, anchorEl }) => {
     const { currentChannel, setCurrentChannel } = useChannelStore();
-    const { niches } = useTrendStore();
+    const {
+        niches,
+        clearTrendsFilters,
+        setSelectedChannelId,
+        setVideos,
+        setChannels,
+        setNiches,
+        setVideoNicheAssignments,
+        setHiddenVideos
+    } = useTrendStore();
     const { user, logout } = useAuth();
     const { generalSettings, updateGeneralSettings } = useSettings();
 
@@ -65,9 +74,15 @@ export const ChannelDropdown: React.FC<ChannelDropdownProps> = ({ onClose, ancho
     const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
     const [menuView, setMenuView] = useState<'main' | 'appearance'>('main');
 
-    // Get target niche names for a channel
+    // Get target niche names for a channel (from cached names or lookup for current channel)
     const getTargetNicheNames = (channel: Channel): string[] => {
+        // Use cached names if available (works across all channels)
+        if (channel.targetNicheNames && channel.targetNicheNames.length > 0) {
+            return channel.targetNicheNames.slice(0, 2);
+        }
+        // Fallback: lookup from niches (only works for current channel)
         if (!channel.targetNicheIds || channel.targetNicheIds.length === 0) return [];
+        if (channel.id !== currentChannel?.id) return []; // Can't lookup other channel's niches
         return channel.targetNicheIds
             .slice(0, 2)
             .map(id => niches.find(n => n.id === id)?.name)
@@ -76,7 +91,20 @@ export const ChannelDropdown: React.FC<ChannelDropdownProps> = ({ onClose, ancho
 
     const handleSwitch = (channelId: string) => {
         const channel = channels.find(c => c.id === channelId);
-        if (channel) {
+        if (channel && channel.id !== currentChannel?.id) {
+            // Clear trends state when switching User Channels
+            // Trend data (niches, channels, assignments, videos) is scoped per userChannel
+            clearTrendsFilters();
+            setSelectedChannelId(null);
+
+            // CRITICAL: Clear all data synchronously to prevent stale reads by TrendsPage
+            // before the new subscription data arrives.
+            setVideos([]);
+            setChannels([]);
+            setNiches([]);
+            setVideoNicheAssignments({});
+            setHiddenVideos([]);
+
             setCurrentChannel(channel);
         }
         onClose();

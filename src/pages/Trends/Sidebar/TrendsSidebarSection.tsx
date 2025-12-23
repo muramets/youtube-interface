@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, TrendingUp, Trash2, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, TrendingUp, Trash2, RefreshCw, ChevronDown, ChevronRight, Copy } from 'lucide-react';
 import { TrendsChannelItem } from './TrendsChannelItem';
 import { TrendsChannelSkeleton } from './TrendsChannelSkeleton';
 import { CollapsibleNicheList } from './CollapsibleNicheList';
 import { SidebarDivider } from '../../../components/Layout/Sidebar';
 import { Dropdown } from '../../../components/Shared/Dropdown';
 import { ConfirmationModal } from '../../../components/Shared/ConfirmationModal';
+import { CopyChannelModal } from './CopyChannelModal';
 import { useTrendsSidebar } from './hooks/useTrendsSidebar';
 import { useTrendStore } from '../../../core/stores/trendStore';
 import type { TrendChannel } from '../../../core/types/trends';
@@ -38,6 +39,9 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
     useEffect(() => {
         localStorage.setItem('trends-section-expanded', String(isContentExpanded));
     }, [isContentExpanded]);
+
+    // State for copy channel modal
+    const [channelToCopy, setChannelToCopy] = useState<TrendChannel | null>(null);
 
     // Derived active niche state from filters
     const activeNicheIds = React.useMemo(() => {
@@ -356,6 +360,17 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                             <button
                                 onClick={() => {
                                     const channel = channels.find((c: TrendChannel) => c.id === menuState.channelId);
+                                    if (channel) setChannelToCopy(channel);
+                                    setMenuState({ anchorEl: null, channelId: null });
+                                }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-white/5 rounded cursor-pointer transition-colors text-left"
+                            >
+                                <Copy size={14} />
+                                <span>Copy to channel...</span>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    const channel = channels.find((c: TrendChannel) => c.id === menuState.channelId);
                                     if (channel) setChannelToDelete(channel);
                                     setMenuState({ anchorEl: null, channelId: null });
                                 }}
@@ -374,6 +389,12 @@ export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded
                         title="Remove Channel"
                         message={`Are you sure you want to remove "${channelToDelete?.title}"? This will delete all tracked data for this channel.`}
                         confirmLabel="Remove"
+                    />
+
+                    <CopyChannelModal
+                        isOpen={!!channelToCopy}
+                        onClose={() => setChannelToCopy(null)}
+                        trendChannel={channelToCopy}
                     />
 
                 </div>

@@ -3,6 +3,7 @@ import { User, Plus } from 'lucide-react';
 // ...
 // const [loadingYT, setLoadingYT] = useState(false);
 import { useChannelStore } from '../../core/stores/channelStore';
+import { useTrendStore } from '../../core/stores/trendStore';
 import { useChannels } from '../../core/hooks/useChannels';
 import { useAuth } from '../../core/hooks/useAuth';
 import { CreateChannelModal } from './CreateChannelModal';
@@ -23,7 +24,16 @@ interface YouTubeChannel {
 }
 
 export const ChannelSelectorModal: React.FC<ChannelSelectorModalProps> = ({ isOpen, onClose }) => {
-    const { setCurrentChannel, addChannel } = useChannelStore();
+    const { setCurrentChannel, addChannel, currentChannel } = useChannelStore();
+    const {
+        clearTrendsFilters,
+        setSelectedChannelId,
+        setVideos,
+        setChannels,
+        setNiches,
+        setVideoNicheAssignments,
+        setHiddenVideos
+    } = useTrendStore();
     const { user } = useAuth();
     // Use TanStack Query hook for channels
     const { data: channels = [] } = useChannels(user?.uid || '');
@@ -72,7 +82,18 @@ export const ChannelSelectorModal: React.FC<ChannelSelectorModalProps> = ({ isOp
 
     const handleSelect = (channelId: string) => {
         const channel = channels.find(c => c.id === channelId);
-        if (channel) {
+        if (channel && channel.id !== currentChannel?.id) {
+            // Clear trends state when switching User Channels
+            clearTrendsFilters();
+            setSelectedChannelId(null);
+
+            // Clear all data synchronously to prevent stale reads
+            setVideos([]);
+            setChannels([]);
+            setNiches([]);
+            setVideoNicheAssignments({});
+            setHiddenVideos([]);
+
             setCurrentChannel(channel);
         }
         onClose();

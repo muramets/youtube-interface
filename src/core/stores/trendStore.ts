@@ -543,7 +543,7 @@ export const useTrendStore = create<TrendStore>()(
              * NOTE: This saves to the USER's channel (from ChannelDropdown), not to TrendChannel.
              */
             setTargetNiche: async (nicheId) => {
-                const { userId } = get();
+                const { userId, niches } = get();
                 const currentChannel = useChannelStore.getState().currentChannel;
                 if (!userId || !currentChannel) return;
 
@@ -552,31 +552,59 @@ export const useTrendStore = create<TrendStore>()(
                 // Already targeted or max 2 reached
                 if (currentTargets.includes(nicheId) || currentTargets.length >= 2) return;
 
-                const newTargets = [...currentTargets, nicheId];
+                const niche = niches.find(n => n.id === nicheId);
+                if (!niche) return;
+
+                const newTargetIds = [...currentTargets, nicheId];
+                const currentNames = currentChannel.targetNicheNames || [];
+                const newTargetNames = [...currentNames, niche.name];
 
                 // Update via channelStore (which persists to Firestore)
-                await useChannelStore.getState().updateChannel(userId, currentChannel.id, { targetNicheIds: newTargets });
+                await useChannelStore.getState().updateChannel(userId, currentChannel.id, {
+                    targetNicheIds: newTargetIds,
+                    targetNicheNames: newTargetNames
+                });
 
                 // Also update the current channel in memory
-                useChannelStore.getState().setCurrentChannel({ ...currentChannel, targetNicheIds: newTargets });
+                useChannelStore.getState().setCurrentChannel({
+                    ...currentChannel,
+                    targetNicheIds: newTargetIds,
+                    targetNicheNames: newTargetNames
+                });
             },
 
             /**
              * Remove a niche from the current user channel's targets.
              */
             removeTargetNiche: async (nicheId) => {
-                const { userId } = get();
+                const { userId, niches } = get();
                 const currentChannel = useChannelStore.getState().currentChannel;
                 if (!userId || !currentChannel) return;
 
-                const currentTargets = currentChannel.targetNicheIds || [];
-                const newTargets = currentTargets.filter(id => id !== nicheId);
+                const currentTargetIds = currentChannel.targetNicheIds || [];
+                const indexToRemove = currentTargetIds.indexOf(nicheId);
+                if (indexToRemove === -1) return;
+
+                const newTargetIds = currentTargetIds.filter(id => id !== nicheId);
+
+                // Rebuild names from remaining IDs (in case names array was out of sync)
+                const newTargetNames = newTargetIds.map(id => {
+                    const niche = niches.find(n => n.id === id);
+                    return niche?.name || '';
+                }).filter(Boolean);
 
                 // Update via channelStore (which persists to Firestore)
-                await useChannelStore.getState().updateChannel(userId, currentChannel.id, { targetNicheIds: newTargets });
+                await useChannelStore.getState().updateChannel(userId, currentChannel.id, {
+                    targetNicheIds: newTargetIds,
+                    targetNicheNames: newTargetNames
+                });
 
                 // Also update the current channel in memory
-                useChannelStore.getState().setCurrentChannel({ ...currentChannel, targetNicheIds: newTargets });
+                useChannelStore.getState().setCurrentChannel({
+                    ...currentChannel,
+                    targetNicheIds: newTargetIds,
+                    targetNicheNames: newTargetNames
+                });
             },
         }),
         {

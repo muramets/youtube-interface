@@ -87,11 +87,11 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
     const videoMap = new Map(contextVideos.map(v => [v.id, v]));
     const sorted = localVideoOrder.map(id => videoMap.get(id)).filter((v): v is VideoDetails => !!v);
 
-    // Append any new videos that are not in localVideoOrder yet
+    // Prepend any new videos that are not in localVideoOrder yet (so they appear first)
     const orderedSet = new Set(localVideoOrder);
-    const remaining = contextVideos.filter(v => !orderedSet.has(v.id));
+    const newVideos = contextVideos.filter(v => !orderedSet.has(v.id));
 
-    return [...sorted, ...remaining];
+    return [...newVideos, ...sorted];
   }, [propVideos, contextVideos, localVideoOrder]);
 
   const handleLocalVideoMove = (movedVideoId: string, targetVideoId: string) => {
