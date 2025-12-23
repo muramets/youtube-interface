@@ -255,10 +255,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   // For custom videos with their own thumbnail: only show placeholder in YouTube View
   // For regular YouTube videos or custom videos without thumbnail: always show if unavailable
   const hasCustomThumbnail = video.isCustom && (video.customImage || video.thumbnail);
+  // Also check if we have ANY valid thumbnail (e.g., from Trends import)
+  const hasValidThumbnail = !!(video.thumbnail || video.customImage);
   const isYouTubeLinkUnavailable = video.fetchStatus === 'failed' || hasSyncError;
   // In YouTube View, also show unavailable if we have a publishedVideoId but no mergedVideoData (fetch pending/failed)
   const isMissingYouTubeData = viewMode === 'youtube' && video.publishedVideoId && !video.mergedVideoData;
-  const isUnavailable = (isYouTubeLinkUnavailable || isMissingYouTubeData) && (viewMode === 'youtube' || !hasCustomThumbnail);
+  // Don't show unavailable if we have a valid thumbnail to display (e.g., imported from Trends)
+  const isUnavailable = (isYouTubeLinkUnavailable || isMissingYouTubeData) && (viewMode === 'youtube' || !hasCustomThumbnail) && !hasValidThumbnail;
 
   return (
     <>
@@ -425,7 +428,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
 
           <div className="flex flex-col flex-1 min-w-0">
             <h3 className="text-base font-bold text-text-primary line-clamp-2 leading-tight mb-1">
-              {displayVideo.title}
+              {/* Use first A/B test title if available, otherwise regular title */}
+              {(video.abTestTitles && video.abTestTitles.length > 0) ? video.abTestTitles[0] : displayVideo.title}
             </h3>
             <div className="text-sm text-text-secondary flex flex-col">
               <div className="hover:text-text-primary transition-colors w-fit">
