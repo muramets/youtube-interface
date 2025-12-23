@@ -50,6 +50,13 @@ export const usePackagingActions = ({
 
     const handleSave = useCallback(async () => {
         if (!user || !currentChannel || !video.id) return;
+
+        // Prevent saving if image is still uploading (blob: URLs are temporary)
+        if (formState.customImage.startsWith('blob:')) {
+            showToast('Please wait for image upload to complete', 'error');
+            return;
+        }
+
         setIsSaving(true);
         try {
             const payload = buildSavePayload();
@@ -62,6 +69,8 @@ export const usePackagingActions = ({
                 videoId: video.id,
                 updates: {
                     ...payload,
+                    // Keep thumbnail in sync with customImage (use empty string if deliberately cleared)
+                    thumbnail: payload.customImage,
                     // Version data
                     packagingHistory: versionPayload.packagingHistory,
                     currentPackagingVersion: versionPayload.currentPackagingVersion,
@@ -81,6 +90,13 @@ export const usePackagingActions = ({
 
     const handleSaveAsNewVersion = useCallback(async () => {
         if (!user || !currentChannel || !video.id) return;
+
+        // Prevent saving if image is still uploading (blob: URLs are temporary)
+        if (formState.customImage.startsWith('blob:')) {
+            showToast('Please wait for image upload to complete', 'error');
+            return;
+        }
+
         setIsSaving(true);
         try {
             const payload = buildSavePayload();
@@ -104,6 +120,8 @@ export const usePackagingActions = ({
                 videoId: video.id,
                 updates: {
                     ...payload,
+                    // Keep thumbnail in sync with customImage (use empty string if deliberately cleared)
+                    thumbnail: payload.customImage,
                     packagingHistory: versionPayload.packagingHistory,
                     currentPackagingVersion: versionPayload.currentPackagingVersion,
                     isDraft: versionPayload.isDraft

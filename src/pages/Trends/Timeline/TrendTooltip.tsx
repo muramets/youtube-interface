@@ -24,7 +24,9 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({
 }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [areTagsExpanded, setAreTagsExpanded] = useState(false);
-    const [isCopied, setIsCopied] = useState(false);
+    const [isTitleCopied, setIsTitleCopied] = useState(false);
+    const [isDescriptionCopied, setIsDescriptionCopied] = useState(false);
+    const [isTagsCopied, setIsTagsCopied] = useState(false);
 
     // Smart Positioning
     const tooltipRef = useRef<HTMLDivElement>(null);
@@ -146,9 +148,23 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({
             </div>
 
             {/* Title & Channel */}
-            <div className="flex flex-col gap-1">
-                <div className="text-sm font-semibold text-text-primary line-clamp-2 leading-snug">
-                    {video.title}
+            <div className="flex flex-col gap-1 relative">
+                <div className="flex items-start gap-2">
+                    <div className="text-sm font-semibold text-text-primary line-clamp-2 leading-snug flex-1 pr-6">
+                        {video.title}
+                    </div>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(video.title);
+                            setIsTitleCopied(true);
+                            setTimeout(() => setIsTitleCopied(false), 2000);
+                        }}
+                        className="absolute top-0 right-0 text-text-tertiary hover:text-text-primary transition-colors p-1 hover:bg-text-primary/5 rounded"
+                        title="Copy title"
+                    >
+                        {isTitleCopied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                    </button>
                 </div>
                 {video.channelTitle && (
                     <div className="text-xs text-text-secondary">
@@ -201,15 +217,27 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({
 
             {/* Description */}
             {video.description && (
-                <div className="flex gap-2 border-t border-border pt-3">
+                <div className="flex gap-2 border-t border-border pt-3 relative">
                     <AlignLeft size={14} className="text-text-tertiary mt-0.5 shrink-0" />
                     <div
-                        className={`text-[10px] text-text-secondary cursor-pointer hover:text-text-primary transition-colors whitespace-pre-wrap ${isExpanded ? '' : 'line-clamp-2'}`}
+                        className={`text-[10px] text-text-secondary cursor-pointer hover:text-text-primary transition-colors whitespace-pre-wrap pr-6 ${isExpanded ? '' : 'line-clamp-2'}`}
                         onClick={() => setIsExpanded(!isExpanded)}
                         title={isExpanded ? "Collapse" : "Expand"}
                     >
                         {video.description}
                     </div>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            navigator.clipboard.writeText(video.description ?? '');
+                            setIsDescriptionCopied(true);
+                            setTimeout(() => setIsDescriptionCopied(false), 2000);
+                        }}
+                        className="absolute top-3 right-0 text-text-tertiary hover:text-text-primary transition-colors p-1 hover:bg-text-primary/5 rounded"
+                        title="Copy description"
+                    >
+                        {isDescriptionCopied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                    </button>
                 </div>
             )}
 
@@ -251,13 +279,13 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({
                             e.stopPropagation();
                             const cleanTags = video.tags?.map(tag => tag.replace(/^#/, '')) || [];
                             navigator.clipboard.writeText(cleanTags.join(', '));
-                            setIsCopied(true);
-                            setTimeout(() => setIsCopied(false), 2000);
+                            setIsTagsCopied(true);
+                            setTimeout(() => setIsTagsCopied(false), 2000);
                         }}
                         className="absolute top-3 right-0 text-text-tertiary hover:text-text-primary transition-colors p-1 hover:bg-text-primary/5 rounded"
                         title="Copy all tags"
                     >
-                        {isCopied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                        {isTagsCopied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
                     </button>
                 </div>
             )}

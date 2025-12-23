@@ -6,6 +6,9 @@ import { LanguageTabs } from '../../../../features/Video/LanguageTabs';
 import { ABTestingModal } from './modals/ABTestingModal';
 import { Button } from '../../../../components/ui/atoms/Button';
 import { useChannelStore } from '../../../../core/stores/channelStore';
+import { useAuth } from '../../../../core/hooks/useAuth';
+import { uploadImageToStorage } from '../../../../core/services/storageService';
+import { resizeImageToBlob } from '../../../../core/utils/imageUtils';
 import { usePackagingLocalization } from './hooks/usePackagingLocalization';
 import { usePackagingFormState } from './hooks/usePackagingFormState';
 import { useABTesting } from './hooks/useABTesting';
@@ -29,6 +32,7 @@ interface PackagingTabProps {
 }
 
 export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState, onDirtyChange }) => {
+    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const sentinelRef = useRef<HTMLDivElement>(null);
     const [isScrolled, setIsScrolled] = useState(false);
@@ -252,6 +256,24 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                             setTags={localization.setTags}
                             coverImage={formState.customImage}
                             setCoverImage={formState.setCustomImage}
+                            onFileUpload={async (file: File) => {
+                                // Resize and compress the image
+                                const blob = await resizeImageToBlob(file, 1280, 0.7);
+                                // Create path: users/{userId}/channels/{channelId}/videos/{videoId}/{timestamp}_{filename}
+                                const timestamp = Date.now();
+                                const path = `users/${user?.uid}/channels/${currentChannel?.id}/videos/${video.id}/${timestamp}_${file.name}`;
+                                // Upload to Firebase Storage and return download URL
+                                return uploadImageToStorage(blob, path);
+                            }}
+                            onPushToHistory={(url) => {
+                                // Add current cover to history before it gets replaced
+                                formState.setPendingHistory(prev => [{
+                                    url,
+                                    version: (video.customImageVersion || 0) + prev.length + 1,
+                                    timestamp: Date.now(),
+                                    originalName: video.customImageName
+                                }, ...prev]);
+                            }}
                             publishedUrl={formState.publishedVideoId}
                             setPublishedUrl={formState.setPublishedVideoId}
                             videoRender={formState.videoRender}

@@ -284,30 +284,63 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
 
         {/* Thumbnail Container */}
         <div className="relative aspect-video rounded-xl overflow-hidden bg-bg-secondary">
-          {!isUnavailable ? (
-            <img
-              src={displayVideo.isCustom ? (displayVideo.customImage || displayVideo.thumbnail) : displayVideo.thumbnail}
-              alt={displayVideo.title}
-              className={`w-full h-full object-cover transition-transform duration-200 ${isOverlay || isMenuOpen || isTooltipOpen ? 'scale-105' : 'group-hover:scale-105'}`}
-              loading="lazy"
-              onLoad={(e) => {
-                const img = e.target as HTMLImageElement;
-                // YouTube returns a tiny placeholder (120x90) when maxres doesn't exist
-                // Normal thumbnails are at least 480px wide, so anything smaller is a fallback
-                if (img.naturalWidth < 480) {
-                  handleThumbnailError();
-                }
-              }}
-              onError={handleThumbnailError}
-            />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-bg-secondary to-bg-tertiary flex items-center justify-center flex-col gap-2 relative">
-              <div className="text-text-secondary/20">
-                <AlertTriangle size={48} />
-              </div>
-              <span className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.2em] opacity-40">Video Unavailable</span>
-            </div>
-          )}
+          {(() => {
+            // Determine the thumbnail URL
+            const thumbnailUrl = displayVideo.isCustom
+              ? (displayVideo.customImage || displayVideo.thumbnail)
+              : displayVideo.thumbnail;
+
+            // Show "No Thumbnail" placeholder for custom videos without a cover
+            if (displayVideo.isCustom && !thumbnailUrl) {
+              return (
+                <div className="w-full h-full bg-gradient-to-br from-[#1a1a2e] via-[#16213e] to-[#0f3460] flex items-center justify-center flex-col gap-3 relative">
+                  {/* Subtle grid pattern overlay */}
+                  <div className="absolute inset-0 opacity-10" style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.15'%3E%3Cpath d='M0 0h1v1H0zM20 0h1v1h-1zM0 20h1v1H0zM20 20h1v1h-1z'/%3E%3C/g%3E%3C/svg%3E")`,
+                    backgroundSize: '40px 40px'
+                  }} />
+                  {/* Icon container with glow */}
+                  <div className="w-16 h-16 rounded-2xl bg-white/5 backdrop-blur-sm flex items-center justify-center border border-white/10 shadow-lg">
+                    <svg className="w-8 h-8 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                    </svg>
+                  </div>
+                  <span className="text-[10px] font-semibold text-white/40 uppercase tracking-[0.2em]">No Thumbnail</span>
+                </div>
+              );
+            }
+
+            // Show unavailable placeholder
+            if (isUnavailable) {
+              return (
+                <div className="w-full h-full bg-gradient-to-br from-bg-secondary to-bg-tertiary flex items-center justify-center flex-col gap-2 relative">
+                  <div className="text-text-secondary/20">
+                    <AlertTriangle size={48} />
+                  </div>
+                  <span className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.2em] opacity-40">Video Unavailable</span>
+                </div>
+              );
+            }
+
+            // Show actual thumbnail
+            return (
+              <img
+                src={thumbnailUrl}
+                alt={displayVideo.title}
+                className={`w-full h-full object-cover transition-transform duration-200 ${isOverlay || isMenuOpen || isTooltipOpen ? 'scale-105' : 'group-hover:scale-105'}`}
+                loading="lazy"
+                onLoad={(e) => {
+                  const img = e.target as HTMLImageElement;
+                  // YouTube returns a tiny placeholder (120x90) when maxres doesn't exist
+                  // Normal thumbnails are at least 480px wide, so anything smaller is a fallback
+                  if (img.naturalWidth < 480) {
+                    handleThumbnailError();
+                  }
+                }}
+                onError={handleThumbnailError}
+              />
+            );
+          })()}
 
           {/* Unavailable Overlay Badge */}
           {isUnavailable && (

@@ -1,11 +1,15 @@
 import React, { useRef, useState } from 'react';
-import { Upload, MoreVertical, Trash2, History } from 'lucide-react';
+import { Upload, MoreVertical, Trash2, History, Loader2 } from 'lucide-react';
 import { ThumbnailHistoryModal } from '../modals/ThumbnailHistoryModal';
 import { type CoverVersion } from '../../../../../core/utils/youtubeApi';
 
 interface ThumbnailSectionProps {
     value: string;
     onChange: (value: string) => void;
+    /** Callback to handle file upload to Firebase Storage. Returns the download URL. */
+    onFileUpload?: (file: File) => Promise<string>;
+    /** Callback to push current thumbnail to history before replacing it */
+    onPushToHistory?: (url: string) => void;
     readOnly?: boolean;
     onABTestClick?: () => void;
     variants?: string[];
@@ -17,7 +21,6 @@ interface ThumbnailSectionProps {
         version?: number;
         originalName?: string;
     };
-
 }
 
 /**
@@ -41,6 +44,8 @@ interface ThumbnailSectionProps {
 export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
     value,
     onChange,
+    onFileUpload,
+    onPushToHistory,
     readOnly = false,
     onABTestClick,
     variants = [],
@@ -53,9 +58,10 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showDropdown, setShowDropdown] = useState(false);
     const [historyModalOpen, setHistoryModalOpen] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
@@ -64,12 +70,47 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
             return;
         }
 
-        // Convert to base64 for preview (in production, would upload to storage)
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            onChange(reader.result as string);
-        };
-        reader.readAsDataURL(file);
+        // Reset input so the same file can be selected again
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+
+        // If onFileUpload is provided, upload directly to Firebase Storage
+        if (onFileUpload) {
+            setIsUploading(true);
+            try {
+                // Push current thumbnail to history before replacing (if exists and is a valid URL)
+                if (value && !value.startsWith('blob:') && onPushToHistory) {
+                    onPushToHistory(value);
+                }
+
+                // Show optimistic preview immediately
+                const objectUrl = URL.createObjectURL(file);
+                onChange(objectUrl);
+
+                // Upload to storage and get download URL
+                const downloadUrl = await onFileUpload(file);
+
+                // Replace preview with actual URL
+                onChange(downloadUrl);
+
+                // Clean up object URL
+                URL.revokeObjectURL(objectUrl);
+            } catch (error) {
+                console.error('Failed to upload thumbnail:', error);
+                // Revert to previous value on error
+                onChange(value);
+            } finally {
+                setIsUploading(false);
+            }
+        } else {
+            // Fallback: convert to base64 (legacy behavior, not recommended)
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                onChange(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
     const handleRemove = () => {
@@ -113,7 +154,10 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
             <div className="mt-2">
                 {value ? (
                     <div className="flex flex-col gap-2 w-40">
-                        <div className="relative w-40 aspect-video rounded-lg border border-dashed border-border p-1 group hover:border-text-primary transition-colors bg-bg-secondary">
+                        <div
+                            className="relative w-40 aspect-video rounded-lg border border-dashed border-border p-1 group hover:border-text-primary transition-colors bg-bg-secondary cursor-pointer"
+                            onClick={() => !readOnly && fileInputRef.current?.click()}
+                        >
                             {/* 
                               Split-view display: Show multiple thumbnails side-by-side
                               Only activate when there's a real thumbnail A/B test (>= 2 variants).
@@ -135,6 +179,13 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
                                 ))}
                             </div>
 
+                            {/* Upload progress indicator */}
+                            {isUploading && (
+                                <div className="absolute inset-0 bg-black/50 rounded flex items-center justify-center">
+                                    <Loader2 size={24} className="text-white animate-spin" />
+                                </div>
+                            )}
+
                             {/* "Test" badge on hover - only if thumbnail A/B testing is active */}
                             {variants.length >= 2 && (
                                 <div className="absolute top-2 left-2 w-max h-6 px-2 bg-black/60 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none flex items-center justify-center z-10">
@@ -148,7 +199,10 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
                             {!readOnly && (
                                 <div ref={dropdownRef} className={`absolute top-1.5 right-1.5 transition-opacity ${showDropdown ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                                     <button
-                                        onClick={() => setShowDropdown(!showDropdown)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowDropdown(!showDropdown);
+                                        }}
                                         className="w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center
                                             hover:bg-black/80 transition-colors"
                                     >
@@ -157,7 +211,7 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
 
                                     {/* Dropdown */}
                                     {showDropdown && (
-                                        <div className="absolute top-8 right-0 bg-bg-secondary border border-border rounded-lg shadow-lg py-1 min-w-[160px] z-10">
+                                        <div className="absolute top-8 right-0 bg-bg-secondary border border-border rounded-lg shadow-lg py-1 min-w-[160px] z-10" onClick={e => e.stopPropagation()}>
                                             {onABTestClick && (
                                                 <button
                                                     onClick={() => {
@@ -298,6 +352,12 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
                 currentThumbnail={value}
                 history={history}
                 onApply={(url, close = true) => {
+                    // When applying a historical version, also remove it from history
+                    // to prevent duplicates (applied version becomes current)
+                    const appliedItem = history.find(v => v.url === url);
+                    if (appliedItem && onDelete) {
+                        onDelete(appliedItem.timestamp);
+                    }
                     onChange(url);
                     if (close) setHistoryModalOpen(false);
                 }}

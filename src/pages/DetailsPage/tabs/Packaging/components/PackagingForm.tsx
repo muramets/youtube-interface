@@ -17,6 +17,10 @@ interface PackagingFormProps {
     setTags: (value: string[]) => void;
     coverImage: string;
     setCoverImage: (value: string) => void;
+    /** Callback to handle file upload to Firebase Storage. Returns the download URL. */
+    onFileUpload?: (file: File) => Promise<string>;
+    /** Callback to push current thumbnail to history before replacing it */
+    onPushToHistory?: (url: string) => void;
     publishedUrl: string;
     setPublishedUrl: (value: string) => void;
     videoRender: string;
@@ -53,6 +57,8 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
     setTags,
     coverImage,
     setCoverImage,
+    onFileUpload,
+    onPushToHistory,
     publishedUrl,
     setPublishedUrl,
     videoRender,
@@ -103,6 +109,8 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
             <ThumbnailSection
                 value={coverImage}
                 onChange={setCoverImage}
+                onFileUpload={onFileUpload}
+                onPushToHistory={onPushToHistory}
                 readOnly={readOnly}
                 onABTestClick={onThumbnailABTestClick}
                 variants={abTestThumbnails}
