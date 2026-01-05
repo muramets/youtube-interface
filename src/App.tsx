@@ -14,7 +14,6 @@ import { DetailsPage } from './pages/DetailsPage';
 import { useStoreInitialization } from './core/hooks/useStoreInitialization';
 import { useVideos } from './core/hooks/useVideos';
 
-import { useSettings } from './core/hooks/useSettings';
 import { useAuth } from './core/hooks/useAuth';
 import { useChannelStore } from './core/stores/channelStore';
 
@@ -39,9 +38,8 @@ function AppContent() {
   useTrendSubscription();
   const { user } = useAuth();
   const { currentChannel } = useChannelStore();
-  const { isLoading, videos } = useVideos(user?.uid || '', currentChannel?.id || '');
+  const { isLoading } = useVideos(user?.uid || '', currentChannel?.id || '');
 
-  const { updateVideoOrder, videoOrder } = useSettings();
   const { subscribeToNotifications } = useNotificationStore();
 
   useEffect(() => {
@@ -50,35 +48,6 @@ function AppContent() {
       return () => unsubscribe();
     }
   }, [user, currentChannel, subscribeToNotifications]);
-
-  const handleVideoMove = (movedVideoId: string, targetVideoId: string) => {
-    if (!user || !currentChannel) return;
-
-    // If we have a saved order, use it. Otherwise, initialize it from current videos.
-    let currentOrder = [...(videoOrder || [])];
-    if (currentOrder.length === 0 && videos.length > 0) {
-      currentOrder = videos.map(v => v.id);
-    }
-
-    // Ensure all current videos are in the order list
-    const orderSet = new Set(currentOrder);
-    videos.forEach(v => {
-      if (!orderSet.has(v.id)) {
-        currentOrder.push(v.id);
-      }
-    });
-
-    const oldIndex = currentOrder.indexOf(movedVideoId);
-    const newIndex = currentOrder.indexOf(targetVideoId);
-
-    if (oldIndex !== -1 && newIndex !== -1) {
-      const newOrder = [...currentOrder];
-      const [movedId] = newOrder.splice(oldIndex, 1);
-      newOrder.splice(newIndex, 0, movedId);
-
-      updateVideoOrder(user.uid, currentChannel.id, newOrder);
-    }
-  };
 
   return (
     <div className="h-screen flex flex-col bg-bg-primary text-text-primary overflow-hidden">
@@ -107,7 +76,7 @@ function AppContent() {
                         <div className="h-full flex flex-col">
                           <CategoryBar />
                           <div className="flex-1 min-h-0 relative">
-                            <VideoGrid isLoading={isLoading} onVideoMove={handleVideoMove} />
+                            <VideoGrid isLoading={isLoading} />
                           </div>
                         </div>
                       } />
@@ -123,7 +92,7 @@ function AppContent() {
           </ProtectedRoute>
         } />
       </Routes>
-    </div>
+    </div >
   );
 }
 

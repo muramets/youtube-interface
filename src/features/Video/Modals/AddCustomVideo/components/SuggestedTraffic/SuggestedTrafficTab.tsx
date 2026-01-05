@@ -316,7 +316,8 @@ export const SuggestedTrafficTab: React.FC<SuggestedTrafficTabProps> = ({ custom
                             const videoWithTimestamp = {
                                 ...video,
                                 createdAt: Date.now(),
-                                isPlaylistOnly: false // Explicitly show on home
+                                isPlaylistOnly: false, // Explicitly show on home
+                                addedToHomeAt: Date.now()
                             };
                             await VideoService.addVideo(user.uid, currentChannel.id, videoWithTimestamp);
                         }));

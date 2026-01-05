@@ -16,7 +16,6 @@ import { useUIStore } from '../../core/stores/uiStore';
 
 interface VideoGridProps {
   videos?: VideoDetails[];
-  onVideoMove?: (movedVideoId: string, targetVideoId: string) => void;
   disableChannelFilter?: boolean;
   playlistId?: string;
   isLoading?: boolean;
@@ -44,7 +43,6 @@ const parseViewCount = (viewCount: string | number | undefined): number => {
 
 export const VideoGrid: React.FC<VideoGridProps> = ({
   videos: propVideos,
-  onVideoMove,
   disableChannelFilter = false,
   playlistId,
   isLoading: propIsLoading = false
@@ -59,7 +57,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
 
   const { playlists } = usePlaylists(user?.uid || '', currentChannel?.id || '');
 
-  const { generalSettings, videoOrder } = useSettings();
+  const { generalSettings, videoOrder, updateVideoOrder } = useSettings();
   const cardsPerRow = generalSettings.cardsPerRow;
   const hiddenPlaylistIds = generalSettings.hiddenPlaylistIds || [];
 
@@ -82,49 +80,86 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
   const sourceVideos = React.useMemo(() => {
     if (propVideos) return propVideos;
     // Use localVideoOrder instead of videoOrder for immediate feedback
-    if (!localVideoOrder || localVideoOrder.length === 0) return contextVideos;
+    // If no saved order, use current videos order
+    if (localVideoOrder.length === 0) {
+      const result = contextVideos;
+      return result;
+    }
 
     const videoMap = new Map(contextVideos.map(v => [v.id, v]));
     const sorted = localVideoOrder.map(id => videoMap.get(id)).filter((v): v is VideoDetails => !!v);
 
-    // Prepend any new videos that are not in localVideoOrder yet (so they appear first)
+    // Add any new videos that are not in localVideoOrder yet (PREPEND to beginning)
     const orderedSet = new Set(localVideoOrder);
     const newVideos = contextVideos.filter(v => !orderedSet.has(v.id));
 
-    return [...newVideos, ...sorted];
+    // PREPEND new videos to the beginning (so they appear first)
+    const result = [...newVideos, ...sorted];
+    return result;
   }, [propVideos, contextVideos, localVideoOrder]);
 
   const handleLocalVideoMove = (movedVideoId: string, targetVideoId: string) => {
-    // 1. Update local state immediately
-    const currentOrder = [...(localVideoOrder.length > 0 ? localVideoOrder : contextVideos.map(v => v.id))];
 
-    // Ensure all current videos are in the order list (same logic as App.tsx)
-    const orderSet = new Set(currentOrder);
-    contextVideos.forEach(v => {
-      if (!orderSet.has(v.id)) {
-        currentOrder.push(v.id);
+    // Auto-switch to Manual mode when dragging in any sorted mode
+    if (homeSortBy !== 'default') {
+      // Capture current visual order BEFORE switching
+      const currentVisualOrder = filteredVideos.map(v => v.id);
+
+      // Switch to Manual mode
+      setHomeSortBy('default');
+
+      // Initialize videoOrder with current visual state
+      setLocalVideoOrder(currentVisualOrder);
+
+      // Update server immediately
+      if (user && currentChannel) {
+        updateVideoOrder(user.uid, currentChannel.id, currentVisualOrder);
       }
-    });
 
-    const oldIndex = currentOrder.indexOf(movedVideoId);
-    const newIndex = currentOrder.indexOf(targetVideoId);
+      // After switching, we need to re-calculate indices based on NEW visual order
+      // Since we just set localVideoOrder to currentVisualOrder, use it
+      const oldIndex = currentVisualOrder.indexOf(movedVideoId);
+      const newIndex = currentVisualOrder.indexOf(targetVideoId);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newOrder = [...currentVisualOrder];
+        const [movedId] = newOrder.splice(oldIndex, 1);
+        newOrder.splice(newIndex, 0, movedId);
+
+        setLocalVideoOrder(newOrder);
+
+        // Update server directly
+        if (user && currentChannel) {
+          updateVideoOrder(user.uid, currentChannel.id, newOrder);
+        }
+      }
+      return; // Exit early after auto-switch
+    }
+
+    // Manual mode: Use SOURCE order (before filters) for drag indices
+    // This ensures we save ALL videos, not just filtered ones
+    const visualOrder = sourceVideos.map(v => v.id);
+
+    const oldIndex = visualOrder.indexOf(movedVideoId);
+    const newIndex = visualOrder.indexOf(targetVideoId);
 
     if (oldIndex !== -1 && newIndex !== -1) {
-      const newOrder = [...currentOrder];
+      const newOrder = [...visualOrder];
       const [movedId] = newOrder.splice(oldIndex, 1);
       newOrder.splice(newIndex, 0, movedId);
 
       setLocalVideoOrder(newOrder);
 
-      // 2. Propagate to parent for server update
-      if (onVideoMove) {
-        onVideoMove(movedVideoId, targetVideoId);
+      // Update server directly
+      if (user && currentChannel) {
+        updateVideoOrder(user.uid, currentChannel.id, newOrder);
       }
     }
   };
 
   const activeFilters = useFilterStore(state => state.activeFilters);
   const homeSortBy = useFilterStore(state => state.homeSortBy);
+  const setHomeSortBy = useFilterStore(state => state.setHomeSortBy);
   const videoViewModes = useUIStore(state => state.videoViewModes);
 
   const filteredVideos = React.useMemo(() => {
@@ -288,6 +323,11 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
           return viewsB - viewsA; // Descending
         } else if (homeSortBy === 'date') {
           return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+        } else if (homeSortBy === 'recently_added') {
+          // Sort by addedToHomeAt, fallback to createdAt for backward compatibility
+          const timeA = a.addedToHomeAt || a.createdAt || 0;
+          const timeB = b.addedToHomeAt || b.createdAt || 0;
+          return timeB - timeA; // Newest first
         }
         return 0;
       });

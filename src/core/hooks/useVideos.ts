@@ -47,7 +47,8 @@ export const useVideos = (userId: string, channelId: string) => {
 
             const videoWithTimestamp: VideoDetails = {
                 ...details,
-                createdAt: Date.now()
+                createdAt: Date.now(),
+                addedToHomeAt: Date.now()
             };
 
             await VideoService.addVideo(userId, channelId, videoWithTimestamp);
@@ -66,7 +67,8 @@ export const useVideos = (userId: string, channelId: string) => {
                 channelTitle: video.channelTitle || currentChannel?.name || '',
                 channelAvatar: video.channelAvatar || currentChannel?.avatar || '',
                 viewCount: video.viewCount || '1000000',
-                createdAt: Date.now()
+                createdAt: Date.now(),
+                addedToHomeAt: Date.now()
             };
 
             // Optimistic Order Update
@@ -139,6 +141,32 @@ export const useVideos = (userId: string, channelId: string) => {
     const removeVideoMutation = useMutation({
         mutationFn: async (videoId: string) => {
             await VideoService.deleteVideo(userId, channelId, videoId);
+        },
+        onMutate: async (videoId: string) => {
+            // Cancel any outgoing refetches
+            await queryClient.cancelQueries({ queryKey: ['videos', userId, channelId] });
+
+            // Snapshot the previous value
+            const previousVideos = queryClient.getQueryData<VideoDetails[]>(['videos', userId, channelId]);
+
+            // Optimistically update to remove the video
+            queryClient.setQueryData<VideoDetails[]>(['videos', userId, channelId], (old) => {
+                if (!old) return old;
+                return old.filter(v => v.id !== videoId);
+            });
+
+            // Return context with the snapshotted value
+            return { previousVideos };
+        },
+        onError: (_err, _videoId, context) => {
+            // If the mutation fails, use the context returned from onMutate to roll back
+            if (context?.previousVideos) {
+                queryClient.setQueryData(['videos', userId, channelId], context.previousVideos);
+            }
+        },
+        onSettled: () => {
+            // Always refetch after error or success to ensure consistency
+            queryClient.invalidateQueries({ queryKey: ['videos', userId, channelId] });
         }
     });
 

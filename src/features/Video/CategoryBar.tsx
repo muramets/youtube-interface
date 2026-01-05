@@ -30,6 +30,7 @@ export const CategoryBar: React.FC = () => {
 
     const sortOptions = [
         { label: 'Default (Manual)', value: 'default' },
+        { label: 'Recently Added', value: 'recently_added' },
         { label: 'Most Viewed', value: 'views' },
         { label: 'Newest First', value: 'date' },
     ];
@@ -57,7 +58,7 @@ export const CategoryBar: React.FC = () => {
                     <SortButton
                         sortOptions={sortOptions}
                         activeSort={homeSortBy}
-                        onSortChange={(val) => setHomeSortBy(val as 'default' | 'views' | 'date')}
+                        onSortChange={(val) => setHomeSortBy(val as 'default' | 'views' | 'date' | 'recently_added')}
                     />
                     <FilterButton />
                 </div>

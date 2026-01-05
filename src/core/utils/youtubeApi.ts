@@ -48,6 +48,7 @@ export interface VideoDetails {
     lastFetchAttempt?: number;
     fetchStatus?: 'pending' | 'success' | 'failed';
     isPlaylistOnly?: boolean;
+    addedToHomeAt?: number; // Timestamp when added to Home Page (not playlist-only)
 }
 
 export interface CTRRule {

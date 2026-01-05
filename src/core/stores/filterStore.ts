@@ -14,7 +14,7 @@ export interface FilterItem {
 interface FilterState {
     searchQuery: string;
     selectedChannel: string | null; // Legacy simple filter (can be kept for backward compat or migrated)
-    homeSortBy: 'default' | 'views' | 'date';
+    homeSortBy: 'default' | 'views' | 'date' | 'recently_added';
 
     activeFilters: FilterItem[];
     channelFilters: Record<string, FilterItem[]>;
@@ -23,7 +23,7 @@ interface FilterState {
     // Actions
     setSearchQuery: (query: string) => void;
     setSelectedChannel: (channel: string | null) => void;
-    setHomeSortBy: (sort: 'default' | 'views' | 'date') => void;
+    setHomeSortBy: (sort: 'default' | 'views' | 'date' | 'recently_added') => void;
 
     addFilter: (filter: Omit<FilterItem, 'id'>) => void;
     removeFilter: (id: string) => void;

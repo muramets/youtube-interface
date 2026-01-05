@@ -173,7 +173,8 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                         await VideoService.addVideo(user.uid, currentChannel!.id, {
                             ...videoDetails,
                             isPlaylistOnly: false,
-                            createdAt: Date.now()
+                            createdAt: Date.now(),
+                            addedToHomeAt: Date.now()
                         });
                     }
                 }));

@@ -37,10 +37,16 @@ export const VideoService = {
         channelId: string,
         video: VideoDetails
     ) => {
+        const videoWithTimestamp = {
+            ...video,
+            // Auto-set addedToHomeAt if not provided and video is not playlist-only
+            addedToHomeAt: video.addedToHomeAt || (!video.isPlaylistOnly ? Date.now() : undefined)
+        };
+
         await setDocument(
             getVideosPath(userId, channelId),
             video.id,
-            video
+            videoWithTimestamp
         );
     },
 
@@ -145,6 +151,19 @@ export const VideoService = {
             getVideosPath(userId, channelId),
             videoId
         );
+
+        // 4. CLEANUP: Remove from videoOrder
+        try {
+            const { SettingsService } = await import('./settingsService');
+            const currentOrder = await SettingsService.fetchVideoOrder(userId, channelId);
+            if (currentOrder && currentOrder.includes(videoId)) {
+                const newOrder = currentOrder.filter(id => id !== videoId);
+                await SettingsService.updateVideoOrder(userId, channelId, newOrder);
+            }
+        } catch (error) {
+            console.error('Failed to cleanup videoOrder:', error);
+            // Don't throw - video is already deleted, this is just cleanup
+        }
     },
 
     // History Subcollection
