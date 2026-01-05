@@ -122,11 +122,28 @@ export const useTrendsSidebar = () => {
             return;
         }
 
+        // Check if this channel has a broken avatar that needs refresh
+        const brokenAvatarChannelIds = useTrendStore.getState().brokenAvatarChannelIds;
+        const needsAvatarRefresh = brokenAvatarChannelIds.has(channelId);
+
         showToast(`Syncing all videos for ${channel.title}...`, 'success');
 
         try {
             // Force full sync (true) to update view counts for existing videos
-            const { totalNewVideos, totalQuotaUsed, quotaBreakdown } = await TrendService.syncChannelVideos(user.uid, currentChannel.id, channel, apiKey, true);
+            // Also refresh avatar if it was broken
+            const { totalNewVideos, totalQuotaUsed, quotaBreakdown, newAvatarUrl } = await TrendService.syncChannelVideos(
+                user.uid,
+                currentChannel.id,
+                channel,
+                apiKey,
+                true,
+                needsAvatarRefresh
+            );
+
+            // Clear broken avatar flag if we got a new avatar
+            if (newAvatarUrl) {
+                useTrendStore.getState().clearBrokenAvatar(channelId);
+            }
 
             showToast(`${channel.title} sync complete. Processed ${totalNewVideos} videos.`, 'success');
 
@@ -135,7 +152,7 @@ export const useTrendsSidebar = () => {
                 message: `Updated ${totalNewVideos} videos.`,
                 type: 'success',
                 meta: totalQuotaUsed.toString(),
-                avatarUrl: channel.avatarUrl,
+                avatarUrl: newAvatarUrl || channel.avatarUrl,
                 quotaBreakdown
             });
         } catch (error: any) {

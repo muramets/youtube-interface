@@ -80,6 +80,7 @@ interface TrendStore {
     isDragging: boolean;
     visualScale: number;
     draggedBaseSize: number | null;
+    brokenAvatarChannelIds: Set<string>; // Track channels with broken avatars for sync refresh
 
     // Actions
     setUserId: (id: string | null) => void;
@@ -108,6 +109,8 @@ interface TrendStore {
     setVisualScale: (scale: number) => void;
     setDraggedBaseSize: (size: number | null) => void;
     saveConfigForHash: (hash: string, config: Partial<TimelineConfig>) => void;
+    markAvatarBroken: (channelId: string) => void;
+    clearBrokenAvatar: (channelId: string) => void;
 
     // Niche Actions
     addNiche: (niche: Omit<TrendNiche, 'createdAt' | 'viewCount'>) => Promise<void>;
@@ -158,6 +161,7 @@ export const useTrendStore = create<TrendStore>()(
             isDragging: false,
             visualScale: 1,
             draggedBaseSize: null,
+            brokenAvatarChannelIds: new Set(),
 
             setUserId: (id) => set((state) => {
                 if (state.userId === id) return {};
@@ -312,13 +316,24 @@ export const useTrendStore = create<TrendStore>()(
             setVisualScale: (visualScale) => set({ visualScale }),
             setDraggedBaseSize: (draggedBaseSize) => set({ draggedBaseSize }),
 
-            // Persist viewport config per contentHash (channel+niche combination)
             saveConfigForHash: (hash, config) => set((state) => ({
                 savedConfigs: {
                     ...state.savedConfigs,
                     [hash]: { ...state.savedConfigs[hash], ...config }
                 }
             })),
+
+            markAvatarBroken: (channelId) => set((state) => {
+                const newSet = new Set(state.brokenAvatarChannelIds);
+                newSet.add(channelId);
+                return { brokenAvatarChannelIds: newSet };
+            }),
+
+            clearBrokenAvatar: (channelId) => set((state) => {
+                const newSet = new Set(state.brokenAvatarChannelIds);
+                newSet.delete(channelId);
+                return { brokenAvatarChannelIds: newSet };
+            }),
 
             toggleChannelVisibility: (id) => set((state) => ({
                 channels: state.channels.map(c =>

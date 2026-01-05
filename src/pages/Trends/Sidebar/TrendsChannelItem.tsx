@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Eye, EyeOff, MoreVertical, ChevronDown, ChevronRight } from 'lucide-react';
 import type { TrendChannel, TrendNiche } from '../../../core/types/trends';
 import { CollapsibleNicheList } from './CollapsibleNicheList';
+import { useTrendStore } from '../../../core/stores/trendStore';
 
 interface TrendsChannelItemProps {
     channel: TrendChannel;
@@ -50,6 +51,20 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
     useEffect(() => {
         localStorage.setItem(CHANNEL_EXPANDED_KEY + channel.id, String(isExpanded));
     }, [isExpanded, channel.id]);
+
+    // Track avatar loading errors to show fallback
+    const [avatarError, setAvatarError] = useState(false);
+    const markAvatarBroken = useTrendStore(state => state.markAvatarBroken);
+
+    // Reset avatar error state when avatarUrl changes (e.g., after sync refresh)
+    useEffect(() => {
+        setAvatarError(false);
+    }, [channel.avatarUrl]);
+
+    const handleAvatarError = () => {
+        setAvatarError(true);
+        markAvatarBroken(channel.id);
+    };
 
     // Tooltip State
     const [showTooltip, setShowTooltip] = useState(false);
@@ -104,13 +119,21 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                     : isMenuOpen ? 'bg-white/5' : 'hover:bg-white/5'
                     }`}
             >
-                <img
-                    src={channel.avatarUrl}
-                    alt={channel.title}
-                    referrerPolicy="no-referrer"
-                    className={`w-6 h-6 rounded-full mr-3 ring-2 transition-all ${!channel.isVisible ? 'grayscale opacity-50' : ''
-                        } ${isActive ? 'ring-white/30' : 'ring-transparent'}`}
-                />
+                {channel.avatarUrl && !avatarError ? (
+                    <img
+                        src={channel.avatarUrl}
+                        alt={channel.title}
+                        referrerPolicy="no-referrer"
+                        onError={handleAvatarError}
+                        className={`w-6 h-6 rounded-full mr-3 ring-2 transition-all ${!channel.isVisible ? 'grayscale opacity-50' : ''
+                            } ${isActive ? 'ring-white/30' : 'ring-transparent'}`}
+                    />
+                ) : (
+                    <div className={`w-6 h-6 rounded-full mr-3 ring-2 flex items-center justify-center bg-white/10 text-text-secondary text-xs font-medium transition-all ${!channel.isVisible ? 'opacity-50' : ''
+                        } ${isActive ? 'ring-white/30' : 'ring-transparent'}`}>
+                        {channel.title.charAt(0).toUpperCase()}
+                    </div>
+                )}
 
                 {/* Expand Toggle */}
                 {hasContent && (

@@ -526,8 +526,8 @@ export const TrendService = {
 
     // --- Video Fetching & Caching (IndexedDB) ---
 
-    syncChannelVideos: async (userId: string, userChannelId: string, channel: TrendChannel, apiKey: string, forceFullSync: boolean = false): Promise<{ totalNewVideos: number; totalQuotaUsed: number; quotaBreakdown: { list: number; details: number } }> => {
-        console.log(`[TrendService] Starting sync for channel: ${channel.title} (Full Sync: ${forceFullSync})`);
+    syncChannelVideos: async (userId: string, userChannelId: string, channel: TrendChannel, apiKey: string, forceFullSync: boolean = false, refreshAvatar: boolean = false): Promise<{ totalNewVideos: number; totalQuotaUsed: number; quotaBreakdown: { list: number; details: number }; newAvatarUrl?: string }> => {
+        console.log(`[TrendService] Starting sync for channel: ${channel.title} (Full Sync: ${forceFullSync}, Refresh Avatar: ${refreshAvatar})`);
 
         let nextPageToken: string | undefined = undefined;
         let totalProcessedVideos = 0;
@@ -634,13 +634,37 @@ export const TrendService = {
         const totalViews = allVideos.reduce((sum, v) => sum + v.viewCount, 0);
         const averageViews = allVideos.length > 0 ? totalViews / allVideos.length : 0;
 
+        // Refresh avatar if requested (when current avatar is broken)
+        let newAvatarUrl: string | undefined;
+        if (refreshAvatar) {
+            try {
+                const avatarParams = new URLSearchParams({
+                    part: 'snippet',
+                    id: channel.id,
+                    key: apiKey,
+                });
+                const avatarRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?${avatarParams.toString()}`);
+                const avatarData = await avatarRes.json();
+                totalQuotaUsed += 1;
+
+                if (avatarData.items?.[0]?.snippet?.thumbnails) {
+                    const thumbnails = avatarData.items[0].snippet.thumbnails;
+                    newAvatarUrl = thumbnails.medium?.url || thumbnails.default?.url;
+                    console.log(`[TrendService] Refreshed avatar for ${channel.title}: ${newAvatarUrl}`);
+                }
+            } catch (err) {
+                console.error('[TrendService] Failed to refresh avatar:', err);
+            }
+        }
+
         await updateDoc(doc(db, `users/${userId}/channels/${userChannelId}/trendChannels`, channel.id), {
             lastUpdated: Date.now(),
             averageViews,
-            totalViewCount: totalViews
+            totalViewCount: totalViews,
+            ...(newAvatarUrl ? { avatarUrl: newAvatarUrl } : {})
         });
 
-        return { totalNewVideos: totalProcessedVideos, totalQuotaUsed, quotaBreakdown };
+        return { totalNewVideos: totalProcessedVideos, totalQuotaUsed, quotaBreakdown, newAvatarUrl };
     },
 
     getChannelVideosFromCache: async (channelId: string) => {
