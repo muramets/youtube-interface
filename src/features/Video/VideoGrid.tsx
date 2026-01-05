@@ -79,24 +79,31 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
 
   const sourceVideos = React.useMemo(() => {
     if (propVideos) return propVideos;
+
+    // CRITICAL: Filter out isPlaylistOnly videos FIRST
+    // They should NEVER be in Home Page order
+    const homePageVideos = playlistId
+      ? contextVideos // In playlist view, show all videos
+      : contextVideos.filter(v => !v.isPlaylistOnly); // On Home, exclude playlist-only
+
     // Use localVideoOrder instead of videoOrder for immediate feedback
     // If no saved order, use current videos order
     if (localVideoOrder.length === 0) {
-      const result = contextVideos;
-      return result;
+      return homePageVideos;
     }
 
-    const videoMap = new Map(contextVideos.map(v => [v.id, v]));
+    const videoMap = new Map(homePageVideos.map(v => [v.id, v]));
     const sorted = localVideoOrder.map(id => videoMap.get(id)).filter((v): v is VideoDetails => !!v);
 
     // Add any new videos that are not in localVideoOrder yet (PREPEND to beginning)
     const orderedSet = new Set(localVideoOrder);
-    const newVideos = contextVideos.filter(v => !orderedSet.has(v.id));
+    const newVideos = homePageVideos.filter(v => !orderedSet.has(v.id));
 
     // PREPEND new videos to the beginning (so they appear first)
     const result = [...newVideos, ...sorted];
+
     return result;
-  }, [propVideos, contextVideos, localVideoOrder]);
+  }, [propVideos, contextVideos, localVideoOrder, playlistId]);
 
   const handleLocalVideoMove = (movedVideoId: string, targetVideoId: string) => {
 
@@ -136,15 +143,16 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
       return; // Exit early after auto-switch
     }
 
-    // Manual mode: Use SOURCE order (before filters) for drag indices
-    // This ensures we save ALL videos, not just filtered ones
-    const visualOrder = sourceVideos.map(v => v.id);
+    // Manual mode: Calculate drag indices from FILTERED videos (what user sees)
+    // Only save order for visible videos - isPlaylistOnly videos don't need Home Page order
+    const filteredOrder = filteredVideos.map(v => v.id);
 
-    const oldIndex = visualOrder.indexOf(movedVideoId);
-    const newIndex = visualOrder.indexOf(targetVideoId);
+    const oldIndex = filteredOrder.indexOf(movedVideoId);
+    const newIndex = filteredOrder.indexOf(targetVideoId);
 
     if (oldIndex !== -1 && newIndex !== -1) {
-      const newOrder = [...visualOrder];
+      // Reorder the filtered list
+      const newOrder = [...filteredOrder];
       const [movedId] = newOrder.splice(oldIndex, 1);
       newOrder.splice(newIndex, 0, movedId);
 
@@ -384,7 +392,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
             removeVideo(videoId);
           }
         }}
-        onVideoMove={handleLocalVideoMove}
+        onVideoMove={homeSortBy === 'default' ? handleLocalVideoMove : undefined}
       />
     </VideoGridContainer>
   );

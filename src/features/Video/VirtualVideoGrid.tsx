@@ -45,6 +45,11 @@ const InnerGrid: React.FC<InnerGridProps> = ({
     const { generalSettings } = useSettings();
     const cardsPerRow = generalSettings.cardsPerRow;
 
+    // Track when videos array changes
+    React.useEffect(() => {
+        // videos changed
+    }, [videos]);
+
     // Memoize layout calculations
     const { columnCount, safeCardWidth, rowHeight } = React.useMemo(() => {
         const columnCount = cardsPerRow;
@@ -96,10 +101,16 @@ const InnerGrid: React.FC<InnerGridProps> = ({
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
+
+        setActiveVideo(null);
+
         if (over && active.id !== over.id && onVideoMove) {
             onVideoMove(active.id as string, over.id as string);
         }
-        setActiveVideo(null);
+    };
+
+    const handleDragOver = (_event: any) => {
+        // Handle drag over if needed
     };
 
     const handleDragCancel = () => {
@@ -173,6 +184,7 @@ const InnerGrid: React.FC<InnerGridProps> = ({
                 sensors={sensors}
                 collisionDetection={closestCenter}
                 onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
                 onDragCancel={handleDragCancel}
             >
@@ -241,7 +253,7 @@ export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = (props) => {
     return (
         <div
             ref={parentRef}
-            className="flex-1 w-full h-full overflow-y-auto contain-strict"
+            className="flex-1 w-full h-full overflow-y-auto"
             style={{
                 paddingTop: GRID_LAYOUT.PADDING.TOP,
                 paddingBottom: GRID_LAYOUT.PADDING.BOTTOM,

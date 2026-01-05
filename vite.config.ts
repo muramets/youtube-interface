@@ -9,9 +9,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       devOptions: {
-        enabled: true
+        enabled: false // Disabled to reduce console noise
       },
       workbox: {
+        navigateFallbackDenylist: [/^\/api/, /^\/auth/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/(firebasestorage\.googleapis\.com|lh3\.googleusercontent\.com|.*\.googleusercontent\.com)\/.*/i,
@@ -28,7 +29,13 @@ export default defineConfig({
             },
           },
         ],
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
+        disableDevLogs: true, // Added this line as per instruction
       },
+      injectRegister: 'auto',
+      manifest: false,
     }),
   ],
   build: {

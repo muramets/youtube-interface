@@ -28,7 +28,7 @@ export const ZoomControls: React.FC = () => {
             <button
                 className="w-12 h-12 rounded-full bg-bg-secondary hover:bg-hover-bg text-text-primary shadow-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={() => updateCardsPerRow(cardsPerRow - 1)}
-                disabled={cardsPerRow <= 3}
+                disabled={cardsPerRow <= 2}
                 title="Zoom In (Fewer Columns)"
             >
                 <Plus size={24} />
