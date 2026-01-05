@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { MoreVertical, Info, Trash2, AlertTriangle } from 'lucide-react';
 import { type VideoDetails } from '../../core/utils/youtubeApi';
 import { formatDuration, formatViewCount } from '../../core/utils/formatUtils';
-import { useVideos } from '../../core/hooks/useVideos';
 import { useVideoSync } from '../../core/hooks/useVideoSync';
 
 import { usePlaylists } from '../../core/hooks/usePlaylists';
@@ -33,7 +32,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const { user } = useAuth();
   const currentChannel = useChannelStore(state => state.currentChannel);
 
-  // const { updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
   const { syncVideo } = useVideoSync(user?.uid || '', currentChannel?.id || '');
 
   const { removeVideoFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
@@ -185,37 +183,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     setShowPlaylistModal(true);
   };
 
-  const handleRemove = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    handleMenuClose();
-
-    if (playlistId) {
-      setConfirmation({
-        isOpen: true,
-        title: 'Remove from playlist?',
-        message: `Are you sure you want to remove "${video.title}" from this playlist?`,
-        onConfirm: () => {
-          if (user && currentChannel) {
-            removeVideoFromPlaylist({ playlistId, videoId: video.id });
-          }
-          setConfirmation(prev => ({ ...prev, isOpen: false }));
-        }
-      });
-    } else {
-      setConfirmation({
-        isOpen: true,
-        title: 'Delete video?',
-        message: `Are you sure you want to delete "${video.title}"? This cannot be undone.`,
-        onConfirm: () => {
-          onRemove(video.id);
-          setConfirmation(prev => ({ ...prev, isOpen: false }));
-        }
-      });
-    }
-  };
-
-
-
   const handleDetails = (e: React.MouseEvent) => {
     e.stopPropagation();
     handleMenuClose();
@@ -259,7 +226,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   return (
     <>
       <div
-        className={`flex flex-col gap-3 cursor-pointer group relative p-2 rounded-xl z-0 focus:outline-none transition-all duration-150 ease-in-out ${isOverlay ? 'shadow-2xl bg-bg-secondary' : ''}`}
+        className={`flex flex-col gap-2 cursor-pointer group relative p-[6px] rounded-xl z-0 focus:outline-none transition-all duration-150 ease-in-out ${isOverlay ? 'shadow-2xl bg-bg-secondary' : ''}`}
         style={{
           transform: isFlipping ? 'rotateY(90deg)' : 'rotateY(0deg)',
           transformStyle: 'preserve-3d',

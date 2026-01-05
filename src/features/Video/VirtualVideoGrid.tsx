@@ -61,7 +61,7 @@ const InnerGrid: React.FC<InnerGridProps> = ({
 
         const thumbnailHeight = safeCardWidth * (9 / 16);
         const cardHeight = thumbnailHeight + GRID_LAYOUT.CARD_CONTENT_HEIGHT;
-        const rowHeight = cardHeight + GRID_LAYOUT.GAP;
+        const rowHeight = cardHeight + 4; // Smaller vertical gap between rows (Total: 6+4+6 = 16px)
 
         return { columnCount, safeCardWidth, rowHeight };
     }, [containerWidth, cardsPerRow]);
@@ -76,9 +76,8 @@ const InnerGrid: React.FC<InnerGridProps> = ({
     });
 
     // Recalculate virtualizer measurements when rowHeight changes
-    useEffect(() => {
-        virtualizer.measure();
-    }, [rowHeight, virtualizer]);
+    // Removed virtualizer.measure() here as we use a dynamic key on the container 
+    // to force a full reset when the layout (columnCount/rowHeight) changes.
 
     const isDraggable = !!onVideoMove;
     const [activeVideo, setActiveVideo] = React.useState<VideoDetails | null>(null);
@@ -121,6 +120,7 @@ const InnerGrid: React.FC<InnerGridProps> = ({
 
     const gridContent = (
         <div
+            key={`grid-${columnCount}-${safeCardWidth}`}
             style={{
                 height: `${virtualizer.getTotalSize()}px`,
                 width: '100%',
@@ -141,7 +141,6 @@ const InnerGrid: React.FC<InnerGridProps> = ({
                     <div
                         key={virtualRow.key}
                         data-index={virtualRow.index}
-                        ref={virtualizer.measureElement}
                         style={{
                             position: 'absolute',
                             top: 0,
