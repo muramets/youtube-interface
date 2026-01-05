@@ -32,7 +32,7 @@ export const FilterButton: React.FC = () => {
     const channelOptions = Array.from(new Set(videos.map(v => v.channelTitle))).map(name => ({
         id: name,
         label: name
-    })).sort((a, b) => a.label.localeCompare(b.label));
+    })).sort((a, b) => (a.label || '').localeCompare(b.label || ''));
 
     const playlistOptions = playlists.map(p => ({
         id: p.id,

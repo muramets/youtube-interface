@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Info, Trash2, FlaskConical } from 'lucide-react';
+import { Info, Trash2 } from 'lucide-react';
 import { PortalTooltip } from '../../../components/Shared/PortalTooltip';
 import { ClonedVideoTooltipContent } from '../ClonedVideoTooltipContent';
 
@@ -12,8 +12,6 @@ interface ImageUploaderProps {
     currentVersion: number;
     currentOriginalName?: string;
     onDelete: (e: React.MouseEvent) => void;
-    abTestVariants: string[];
-    onAddToAbTest: (url: string) => void;
     readOnly?: boolean;
 }
 
@@ -26,8 +24,6 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
     currentVersion,
     currentOriginalName,
     onDelete,
-    abTestVariants,
-    onAddToAbTest,
     readOnly = false
 }) => {
     const [isTooltipOpen, setIsTooltipOpen] = useState(false);
@@ -70,18 +66,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
             {/* Top Right Actions */}
             {coverImage && !readOnly && (
                 <div className={`absolute top-2 right-2 flex gap-2 transition-opacity duration-200 ${isTooltipOpen ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onAddToAbTest(coverImage);
-                        }}
-                        className={`w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-sm transition-colors ${abTestVariants.includes(coverImage)
-                            ? 'bg-purple-500 text-white'
-                            : 'bg-black/60 text-white hover:bg-purple-500 hover:text-white'
-                            }`}
-                    >
-                        <FlaskConical size={16} className={abTestVariants.includes(coverImage) ? "fill-current" : ""} />
-                    </button>
+
                     <button
                         onClick={onDelete}
                         className="w-8 h-8 rounded-full bg-black/60 text-white hover:bg-red-500 hover:text-white flex items-center justify-center backdrop-blur-sm transition-colors"

@@ -29,10 +29,10 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
     const navigate = useNavigate();
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { removeVideo, updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const { removeVideo, updateVideo, cloneVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { syncVideo } = useVideoSync(user?.uid || '', currentChannel?.id || '');
     const { removeVideoFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
-    const { generalSettings } = useSettings();
+    const { generalSettings, cloneSettings } = useSettings();
     const apiKey = generalSettings.apiKey;
     const { setSettingsOpen } = useUIStore();
 
@@ -102,12 +102,11 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
         if (seconds >= 3600) {
             const h = Math.floor(seconds / 3600);
             const m = Math.floor((seconds % 3600) / 60);
-            const s = seconds % 60;
-            return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')} `;
+            return `${h}:${m.toString().padStart(2, '0')}`;
         }
         const m = Math.floor(seconds / 60);
         const s = seconds % 60;
-        return `${m}:${s.toString().padStart(2, '0')} `;
+        return `${m}:${s.toString().padStart(2, '0')}`;
     };
 
     const handleVideoClick = () => {
@@ -322,9 +321,8 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                                     onClose={handleCloseMenu}
                                     anchorEl={anchorEl}
                                     playlistId={playlistId}
-                                    isCustom={video.isCustom}
                                     onAddToPlaylist={handleAddToPlaylist}
-                                    onEdit={handleUpdate}
+                                    onDetails={handleUpdate}
                                     onRemove={handleRemove}
                                     onDelete={handleDelete}
                                     onSync={(!video.isCustom || video.publishedVideoId) ? handleSync : undefined}
@@ -346,6 +344,15 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                             await updateVideo({ videoId: video.id, updates: updatedVideo });
                         }
                         setShowEditModal(false);
+                    }}
+                    onClone={async (originalVideo, version) => {
+                        const duration = cloneSettings?.cloneDurationSeconds;
+                        console.warn('DEBUG RecCard: Cloning video with duration:', duration);
+                        await cloneVideo({
+                            originalVideo,
+                            coverVersion: version,
+                            cloneDurationSeconds: duration || 3600
+                        });
                     }}
                     initialData={video}
                 />

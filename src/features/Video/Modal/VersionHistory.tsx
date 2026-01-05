@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Info, Trash2, ArrowUp, Copy, Loader2, FlaskConical } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Info, Trash2, ArrowUp, Copy, Loader2 } from 'lucide-react';
 import { PortalTooltip } from '../../../components/Shared/PortalTooltip';
 import { ClonedVideoTooltipContent } from '../ClonedVideoTooltipContent';
 import { type VideoDetails, type CoverVersion } from '../../../core/utils/youtubeApi';
@@ -17,8 +17,6 @@ interface VersionHistoryProps {
     initialData?: VideoDetails;
     cloningVersion: number | null;
     currentVersion: number;
-    abTestVariants?: string[];
-    onAddToAbTest?: (url: string) => void;
 }
 
 export const VersionHistory: React.FC<VersionHistoryProps> = ({
@@ -30,8 +28,6 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
     initialData,
     cloningVersion,
     currentVersion,
-    abTestVariants,
-    onAddToAbTest
 }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
@@ -142,11 +138,11 @@ export const VersionHistory: React.FC<VersionHistoryProps> = ({
                                     onDelete={onDelete}
                                     onRestore={onRestore}
                                     onClone={onClone}
-                                    onAddToAbTest={onAddToAbTest}
+
                                     initialData={initialData}
                                     cloningVersion={cloningVersion}
                                     videos={videos}
-                                    abTestVariants={abTestVariants}
+
                                 />
                             ))}
                         </div>
@@ -173,11 +169,9 @@ interface HistoryItemProps {
     onDelete: (e: React.MouseEvent, timestamp: number, immediate?: boolean) => void;
     onRestore: (version: CoverVersion) => void;
     onClone?: (version: CoverVersion) => void;
-    onAddToAbTest?: (url: string) => void;
     initialData?: VideoDetails;
     cloningVersion: number | null;
     videos: VideoDetails[];
-    abTestVariants?: string[];
 }
 
 const HistoryItem: React.FC<HistoryItemProps> = ({
@@ -185,11 +179,9 @@ const HistoryItem: React.FC<HistoryItemProps> = ({
     onDelete,
     onRestore,
     onClone,
-    onAddToAbTest,
     initialData,
     cloningVersion,
-    videos,
-    abTestVariants
+    videos
 }) => {
     const [isLoaded, setIsLoaded] = useState(false);
     const [hasError, setHasError] = useState(false);
@@ -293,21 +285,7 @@ const HistoryItem: React.FC<HistoryItemProps> = ({
                                 <ArrowUp size={16} strokeWidth={2.5} />
                             </button>
 
-                            {onAddToAbTest && abTestVariants && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onAddToAbTest(version.url);
-                                    }}
-                                    className={`w-7 h-7 rounded-full flex items-center justify-center backdrop-blur-sm transition-all transform scale-90 hover:scale-100 shadow-lg border cursor-pointer pointer-events-auto ${abTestVariants.includes(version.url)
-                                        ? 'bg-purple-500 text-white border-transparent'
-                                        : 'bg-black/40 text-white/90 hover:bg-purple-500 hover:text-white border-white/10 hover:border-transparent'
-                                        }`}
-                                    title={abTestVariants.includes(version.url) ? "Remove from A/B Test" : "A/B Test"}
-                                >
-                                    <FlaskConical size={14} strokeWidth={abTestVariants.includes(version.url) ? 3 : 2} className={abTestVariants.includes(version.url) ? "fill-current" : ""} />
-                                </button>
-                            )}
+
                         </div>
                     )}
                 </div>

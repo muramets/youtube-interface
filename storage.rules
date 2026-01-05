@@ -1,0 +1,20 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Allow users to access their own folder tree
+    match /users/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Legacy support for covers uploaded to the root 'covers' folder
+    match /covers/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // If you need your uploaded images to be publicly viewable by anyone (optional)
+    // You should verify if your app relies on "getDownloadURL" (which produces a tokenized public link)
+    // or if it tries to fetch by raw path.
+    // The strict rule above assumes you use the SDK to get tokenized URLs.
+  }
+}

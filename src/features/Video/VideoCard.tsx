@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MoreVertical, Info, Trash2, AlertTriangle } from 'lucide-react';
-import { type VideoDetails, type CoverVersion } from '../../core/utils/youtubeApi';
+import { type VideoDetails } from '../../core/utils/youtubeApi';
 import { formatDuration, formatViewCount } from '../../core/utils/formatUtils';
 import { useVideos } from '../../core/hooks/useVideos';
 import { useVideoSync } from '../../core/hooks/useVideoSync';
@@ -10,7 +10,6 @@ import { usePlaylists } from '../../core/hooks/usePlaylists';
 
 import { PortalTooltip } from '../../components/Shared/PortalTooltip';
 import { VideoCardMenu } from './VideoCardMenu';
-import { CustomVideoModal } from './CustomVideoModal';
 import { AddToPlaylistModal as PlaylistSelectionModal } from '../Playlist/AddToPlaylistModal';
 import { ConfirmationModal } from '../../components/Shared/ConfirmationModal';
 import { ClonedVideoTooltipContent } from './ClonedVideoTooltipContent';
@@ -25,28 +24,28 @@ interface VideoCardProps {
   playlistId?: string;
   onMenuOpenChange?: (isOpen: boolean) => void;
   onRemove: (videoId: string) => void;
-  onEdit?: (video: VideoDetails) => void;
+  // onEdit removed
   isOverlay?: boolean;
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange, onRemove, onEdit, isOverlay }) => {
+export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange, onRemove, isOverlay }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const currentChannel = useChannelStore(state => state.currentChannel);
 
-  const { updateVideo, cloneVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
+  // const { updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
   const { syncVideo } = useVideoSync(user?.uid || '', currentChannel?.id || '');
 
   const { removeVideoFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
-  const { generalSettings, cloneSettings } = useSettings();
+  const { generalSettings } = useSettings();
   const apiKey = generalSettings.apiKey;
 
-  const { setSettingsOpen, activeVideoId, activeTab, closeVideoModal, videoViewModes, setVideoViewMode } = useUIStore();
+  const { setSettingsOpen, videoViewModes, setVideoViewMode } = useUIStore();
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const [showPlaylistModal, setShowPlaylistModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
+
   const [isSyncing, setIsSyncing] = useState(false);
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number>(0);
@@ -54,12 +53,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const [hasSyncError, setHasSyncError] = useState(false);
   const [attemptedAutoSync, setAttemptedAutoSync] = useState(false);
 
-  // Global Modal Control
-  React.useEffect(() => {
-    if (activeVideoId === video.id) {
-      setShowEditModal(true);
-    }
-  }, [activeVideoId, video.id]);
+
 
   const viewMode = videoViewModes[video.id] || (video.publishedVideoId ? 'youtube' : 'custom');
   const [isFlipping, setIsFlipping] = useState(false);
@@ -108,19 +102,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     }
   }, [video.isCloned, video.expiresAt, user, currentChannel, onRemove, video.id]);
 
-  const handleCloneVideo = async (originalVideo: VideoDetails, version: CoverVersion) => {
-    setShowEditModal(false);
-    if (user && currentChannel) {
-      await cloneVideo({ originalVideo, coverVersion: version, cloneDurationSeconds: cloneSettings.cloneDurationSeconds });
-    }
-  };
-
   const formatTimeLeft = (seconds: number) => {
     if (seconds >= 3600) {
       const h = Math.floor(seconds / 3600);
       const m = Math.floor((seconds % 3600) / 60);
-      const s = seconds % 60;
-      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+      return `${h}:${m.toString().padStart(2, '0')}`;
     }
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
@@ -135,6 +121,28 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   }>({ isOpen: false, title: '', message: '', onConfirm: () => { } });
 
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+
+  const handleDeleteVideo = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    handleMenuClose();
+    setConfirmation({
+      isOpen: true,
+      title: 'Delete Video',
+      message: 'Are you sure you want to delete this video?',
+      onConfirm: () => {
+        onRemove(video.id);
+        setConfirmation(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
+  const handleRemoveFromPlaylist = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    handleMenuClose();
+    if (playlistId) {
+      await removeVideoFromPlaylist({ playlistId, videoId: video.id });
+    }
+  };
 
   const handleMenuOpen = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -206,15 +214,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     }
   };
 
-  const handleUpdate = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    handleMenuClose();
-    if (video.isCustom) {
-      setShowEditModal(true);
-    } else {
-      onEdit?.(video);
-    }
-  };
+
 
   const handleDetails = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -222,13 +222,6 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     if (currentChannel) {
       navigate(`/video/${currentChannel.id}/${video.id}/details`);
     }
-  };
-
-  const handleSaveCustomVideo = async (updatedVideo: Omit<VideoDetails, 'id'>, shouldClose = true) => {
-    if (user && currentChannel) {
-      await updateVideo({ videoId: video.id, updates: updatedVideo, apiKey });
-    }
-    if (shouldClose) setShowEditModal(false);
   };
 
   const handleThumbnailError = async () => {
@@ -484,14 +477,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                     onClose={handleMenuClose}
                     anchorEl={menuAnchor}
                     playlistId={playlistId}
-                    isCustom={video.isCustom}
                     onAddToPlaylist={handleAddToPlaylist}
-                    onEdit={handleUpdate}
-                    onRemove={handleRemove}
-                    onSync={(!video.isCustom || video.publishedVideoId) ? handleSync : undefined}
+                    onDetails={handleDetails}
+                    onRemove={playlistId ? handleRemoveFromPlaylist : handleDeleteVideo}
+                    onDelete={handleDeleteVideo}
+                    onSync={video.publishedVideoId ? handleSync : undefined}
                     isSyncing={isSyncing}
                     onSwitchView={video.publishedVideoId ? handleSwitchView : undefined}
-                    onDetails={handleDetails}
                   />
                 </>
               )
@@ -500,24 +492,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         </div>
       </div>
 
-      {/* Custom Video Edit Modal */}
-      {
-        showEditModal && (
-          <CustomVideoModal
-            isOpen={showEditModal}
-            onClose={() => {
-              setShowEditModal(false);
-              if (activeVideoId === video.id) {
-                closeVideoModal();
-              }
-            }}
-            onSave={handleSaveCustomVideo}
-            onClone={handleCloneVideo}
-            initialData={video}
-            initialTab={(activeVideoId === video.id && (activeTab === 'details' || activeTab === 'packaging' || activeTab === 'traffic')) ? activeTab : undefined}
-          />
-        )
-      }
+
 
       {/* Playlist Selection Modal */}
       {

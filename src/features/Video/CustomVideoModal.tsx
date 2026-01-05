@@ -1,9 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Loader2 } from 'lucide-react';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy } from '@dnd-kit/sortable';
-import { type VideoDetails, type CoverVersion, type PackagingMetrics, type PackagingVersion, type HistoryItem, type PackagingCheckin, fetchVideoDetails, extractVideoId } from '../../core/utils/youtubeApi';
+import { X } from 'lucide-react';
+
+import { type VideoDetails, type CoverVersion, type PackagingVersion, type HistoryItem, fetchVideoDetails, extractVideoId } from '../../core/utils/youtubeApi';
 
 import { useVideos } from '../../core/hooks/useVideos';
 
@@ -17,9 +16,6 @@ import { useVideoForm } from '../../core/hooks/useVideoForm';
 import { VersionHistory } from './Modal/VersionHistory';
 import { ImageUploader } from './Modal/ImageUploader';
 import { VideoForm } from './Modal/VideoForm';
-import { PackagingTable } from './Packaging';
-import { SortableVariant } from './Modal/SortableVariant';
-import { MetricsModal } from './Modal/MetricsModal';
 import { SaveMenu } from './Modal/SaveMenu';
 
 import { SuggestedTrafficTab } from './Modal/SuggestedTraffic/SuggestedTrafficTab';
@@ -35,7 +31,7 @@ interface CustomVideoModalProps {
     onClone?: (originalVideo: VideoDetails, version: CoverVersion) => Promise<void>;
 
     initialData?: VideoDetails;
-    initialTab?: 'details' | 'packaging' | 'traffic';
+    initialTab?: 'details' | 'traffic';
 }
 
 export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
@@ -49,7 +45,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 }) => {
     const { user } = useAuth();
     const { currentChannel, updateChannel } = useChannelStore();
-    const { packagingSettings, generalSettings } = useSettings();
+    const { generalSettings } = useSettings();
 
 
     const { saveVideoHistory, deleteVideoHistoryItem } = useVideos(user?.uid || '', currentChannel?.id || '');
@@ -59,12 +55,10 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 
     const [draftId] = useState(() => initialData?.id || `custom-${Date.now()}`);
 
-    const [activeTab, setActiveTab] = useState<'details' | 'packaging' | 'traffic'>(initialTab);
+    const [activeTab, setActiveTab] = useState<'details' | 'traffic'>(initialTab || 'details');
 
     useEffect(() => {
-        if (initialTab) {
-            setActiveTab(initialTab);
-        }
+
     }, [initialTab]);
 
     // Debug: Log current check-ins when modal opens
@@ -79,27 +73,19 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     const [isStatsExpanded, setIsStatsExpanded] = useState(false);
     const [cloningVersion, setCloningVersion] = useState<number | null>(null);
 
-    const sensors = useSensors(
-        useSensor(PointerSensor),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        })
-    );
+    // Dnd sensors removed
     const [isSaving, setIsSaving] = useState(false);
 
 
 
     // Metrics Modal State
-    const [showMetricsModal, setShowMetricsModal] = useState(false);
 
-    const [checkinTargetVersion, setCheckinTargetVersion] = useState<number | null>(null);
 
     // Delete Confirmation State
     const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean; versionNumber: number | null }>({
         isOpen: false,
         versionNumber: null
     });
-    const [deleteCheckinConfirmation, setDeleteCheckinConfirmation] = useState<{ isOpen: boolean; versionNumber: number | null; checkinId: string | null }>({ isOpen: false, versionNumber: null, checkinId: null });
 
     // Pending Restore State for Persistence
     const [pendingRestore, setPendingRestore] = useState(false);
@@ -114,45 +100,10 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     }, [pendingRestore]);
 
     const handleSaveAsVersion = () => {
-        // If this is the first version (no history), automatically finalize it with null metrics
-        if (packagingHistory.length === 0) {
-            const nullMetrics: PackagingMetrics = {
-                impressions: null,
-                ctr: null,
-                views: null,
-                avdSeconds: null
-            };
-            confirmSaveVersion(nullMetrics);
-            return;
-        }
-        setCheckinTargetVersion(null); // Reset target version (null means creating NEW version)
-        setShowMetricsModal(true);
+        confirmSaveVersion();
     };
 
-    const confirmSaveVersion = async (metricsData: PackagingMetrics) => {
-        if (checkinTargetVersion !== null) {
-            // Adding a check-in to an existing version
-            const newCheckin = {
-                id: crypto.randomUUID(),
-                date: Date.now(),
-                metrics: metricsData
-            };
-
-            setPackagingHistory(prev => prev.map(v => {
-                if (v.versionNumber === checkinTargetVersion) {
-                    return {
-                        ...v,
-                        checkins: [...v.checkins, newCheckin]
-                    };
-                }
-                return v;
-            }));
-
-            setShowMetricsModal(false);
-            setCheckinTargetVersion(null);
-            return;
-        }
-
+    const confirmSaveVersion = async () => {
         // Creating a NEW version
 
         // IMPORTANT: Snapshot MUST use the DEFAULT locale content, not the active form values.
@@ -187,17 +138,9 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 
         setPackagingHistory(newHistory);
         setCurrentPackagingVersion(newVersion);
-        setShowMetricsModal(false);
         setIsDraft(false); // Version finalized, no longer a draft
 
         // Proceed with normal save, explicitly setting isDraft to false
-        // IMPORTANT: We must pass the NEW values explicitly because state updates are async
-        // and handleSave reads from state which might be stale in this closure?
-        // Actually handleSave reads from state variables which are closed over.
-        // But `confirmSaveVersion` is a closure.
-        // If we call `handleSave` immediately, it will see the OLD state values because re-render hasn't happened yet.
-        // THIS IS THE BUG!
-
         await handleSave(true, false, {
             overridePackagingVersion: newVersion,
             overridePackagingHistory: newHistory
@@ -230,7 +173,6 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         deletedHistoryIds, setDeletedHistoryIds,
         isMetadataDirty,
         isPackagingDirty,
-        isCtrRulesDirty,
         isDraft, setIsDraft,
         isPublished, setIsPublished,
         publishedUrl, setPublishedUrl,
@@ -251,8 +193,8 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         setCurrentPackagingVersion,
         packagingHistory,
         setPackagingHistory,
-        ctrRules,
-        setCtrRules
+
+        ctrRules
     } = useVideoForm(initialData, isOpen);
 
     // Sole Survivor Logic: Auto-promote single variant
@@ -268,77 +210,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 
     // Initialize activeVersionTab based on draft status
 
-    // Auto-Checkin Logic
-    // Helper to calculate checkin count for dependency stability
-    const checkinCount = packagingHistory.reduce((acc, v) => acc + v?.checkins?.length || 0, 0);
-    const hasRules = packagingSettings?.checkinRules?.length > 0;
 
-    // Auto-Checkin Logic
-    useEffect(() => {
-        if (!isOpen || !initialData?.publishedAt || !hasRules || !isPublished || !initialData?.publishedVideoId) return;
-
-        // Use a flag to prevent multiple checks per render cycle (though useEffect handles this, strict mode might double invoke)
-        // Also we want to avoid checking if we just updated history.
-
-        const publishTime = new Date(initialData.publishedAt).getTime();
-        const now = Date.now();
-        let hasUpdates = false;
-
-        // Perform check
-        // Find the active version (or latest)
-        // We use packagingHistory from PROPS/STATE.
-        if (packagingHistory.length === 0) return;
-
-        // Deep clone history to avoid direct mutation
-        // We only modify if we find something to add.
-        const historyCopy = JSON.parse(JSON.stringify(packagingHistory)) as PackagingVersion[];
-
-        // Sort to find latest
-        historyCopy.sort((a, b) => b.versionNumber - a.versionNumber);
-        const latestVersion = historyCopy[0];
-
-        // Check rules against latest version
-        packagingSettings.checkinRules.forEach(rule => {
-            const targetTime = publishTime + (rule.hoursAfterPublish * 60 * 60 * 1000);
-
-            if (now >= targetTime) {
-                // BUG FIX: Check ENTIRE history for this rule, not just the latest version.
-                // Check-ins should be unique per video/rule.
-                const alreadyExists = historyCopy.some(v => v.checkins?.some(c => c.ruleId === rule.id));
-
-                if (!alreadyExists) {
-                    // Add checkin to latest version
-                    const newCheckin: PackagingCheckin = {
-                        id: crypto.randomUUID(),
-                        date: targetTime,
-                        metrics: {
-                            impressions: null,
-                            ctr: null,
-                            views: null,
-                            avdSeconds: null
-                        },
-                        ruleId: rule.id
-                    };
-                    latestVersion.checkins.push(newCheckin);
-                    hasUpdates = true;
-                }
-            }
-        });
-
-        if (hasUpdates) {
-            // Sort checkins
-            latestVersion.checkins.sort((a, b) => a.date - b.date);
-
-            // Update state
-            // Re-construct history array with updated latest version
-            const newHistory = packagingHistory.map(v => v.versionNumber === latestVersion.versionNumber ? latestVersion : v);
-
-            // Only update if actually different to prevent loops?
-            // React state update is already optimized, but if objects are new references it will trigger re-render.
-            // We rely on the fact that if we add a checkin, next time `!alreadyExists` will be true.
-            setPackagingHistory(newHistory);
-        }
-    }, [isOpen, initialData?.publishedAt, hasRules, isPublished, packagingHistory.length, checkinCount]); // Minimized dependencies
 
     // Auto-sync Duration when Published URL changes
     useEffect(() => {
@@ -654,45 +526,12 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
         }
     };
 
-    const handleDeleteCheckin = (versionNumber: number, checkinId: string) => {
-        setDeleteCheckinConfirmation({
-            isOpen: true,
-            versionNumber,
-            checkinId
-        });
-    };
 
-    const confirmDeleteCheckin = async () => {
-        const { versionNumber, checkinId } = deleteCheckinConfirmation;
-        if (versionNumber !== null && checkinId !== null) {
-            const newHistory = packagingHistory.map(v => {
-                if (v.versionNumber === versionNumber) {
-                    return {
-                        ...v,
-                        checkins: v.checkins.filter(c => c.id !== checkinId)
-                    };
-                }
-                return v;
-            });
 
-            setPackagingHistory(newHistory);
-
-            // Persist changes
-            await handleSave(false, undefined, {
-                overridePackagingHistory: newHistory
-            });
-
-            setToastMessage('Check-in deleted');
-            setToastType('success');
-            setShowToast(true);
-        }
-        setDeleteCheckinConfirmation({ isOpen: false, versionNumber: null, checkinId: null });
-    };
-
-    const handleSave = async (shouldClose = true, overrideIsDraft?: boolean, overrides?: { overridePackagingVersion?: number, overridePackagingHistory?: PackagingVersion[] }) => {
+    const handleSave = async (shouldClose = true, overrideIsDraft?: boolean, overrides?: { overridePackagingVersion?: number, overridePackagingHistory?: PackagingVersion[] }): Promise<string | undefined> => {
         if (!coverImage) {
             alert("Please upload a cover image");
-            return;
+            return undefined;
         }
 
         let effectiveCoverImage = coverImage;
@@ -706,14 +545,14 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                 }
             } catch (e) {
                 setIsSaving(false);
-                return; // Stop save if upload failed
+                return undefined; // Stop save if upload failed
             }
         } else if (coverImage.startsWith('blob:')) {
             // Fallback for edge case where promise is gone but blob remains (shouldn't happen with new logic)
             setToastMessage("Please wait for image upload to complete");
             setToastType('error');
             setShowToast(true);
-            return;
+            return undefined;
         } else if (coverImage.startsWith('data:image')) {
             // Handle legacy or restored Base64 images for the MAIN cover
             try {
@@ -729,7 +568,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                 setToastType('error');
                 setShowToast(true);
                 setIsSaving(false);
-                return;
+                return undefined;
             }
         }
 
@@ -793,16 +632,14 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
             const effectivePackagingVersion = overrides?.overridePackagingVersion ?? currentPackagingVersion;
 
             const videoData: Omit<VideoDetails, 'id'> & { id?: string } = {
-                ...finalData,
-                id: draftId,
-                title: finalTitle,
+                id: initialData?.id, // Keep existing ID if present
+                title: finalTitle.trim(),
                 thumbnail: effectiveCoverImage,
                 channelId: currentChannel?.id || '',
                 channelTitle: currentChannel?.name || 'My Channel',
                 channelAvatar: currentChannel?.avatar || '',
                 publishedAt: (initialData && initialData.publishedAt) ? initialData.publishedAt : new Date().toISOString(),
-                // Metadata is already in finalData, but we need to ensure structure matches
-                viewCount: finalData.viewCount || '1M',
+                viewCount: finalData.viewCount,
                 duration: finalData.duration || '1:02:11',
                 isCustom: true,
                 customImage: effectiveCoverImage,
@@ -824,7 +661,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
             };
 
             const newId = await onSave(videoData, shouldClose);
-            const targetId = initialData?.id || (typeof newId === 'string' ? newId : undefined);
+            const targetId = (typeof newId === 'string' ? newId : initialData?.id);
 
             if (targetId && user && currentChannel) {
                 const deletePromises = Array.from(deletedHistoryIds).map(timestamp =>
@@ -842,6 +679,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                 // If manual save (not close), mark as draft
                 setIsDraft(true);
             }
+            return targetId;
         } catch (error: any) {
             console.error("Failed to save video:", error);
 
@@ -853,6 +691,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
 
             setToastType('error');
             setShowToast(true);
+            return undefined;
         } finally {
             setIsSaving(false);
         }
@@ -891,11 +730,48 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     };
 
     const handleCloneWithSave = async (version: CoverVersion) => {
-        if (!onClone || !initialData) return;
+        if (!onClone) return;
         setCloningVersion(version.version);
         try {
-            await handleSave(false);
-            await onClone(initialData, version);
+            // Force save current state to ensure we capture latest changes and create ID if needed
+            // We do NOT close the modal here, as we are navigating to clone
+            const savedId = await handleSave(false);
+
+            if (!savedId) {
+                console.error("Failed to save video before cloning");
+                return;
+            }
+
+            // Construct effective video object for cloning
+            // If initialData existed, use it (merged with updates potentially?)
+            // If not, construct from form state + new ID
+            const videoToClone: VideoDetails = initialData ? { ...initialData, id: savedId } : {
+                id: savedId,
+                title: title,
+                description: description,
+                tags: tags,
+                // Add other required fields with defaults
+                publishedAt: new Date().toISOString(),
+                createdAt: Date.now(),
+                channelId: currentChannel?.id || '',
+                channelTitle: currentChannel?.name || '',
+                channelAvatar: currentChannel?.avatar || '',
+                viewCount: viewCount,
+                duration: duration,
+                isCustom: true,
+                thumbnail: coverImage || '',
+                customImage: coverImage || '',
+                customImageVersion: currentVersion,
+                historyCount: coverHistory.length,
+                coverHistory: coverHistory
+            };
+
+            await onClone(videoToClone, version);
+
+            // After successful clone, we should probably close this modal?
+            // User expectation: "modal closes, there is a main video and clone"
+            onClose();
+
         } finally {
             setCloningVersion(null);
         }
@@ -904,32 +780,6 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     const handleBackdropClick = (e: React.MouseEvent) => {
         if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
             handleClose();
-        }
-    };
-
-
-
-    const handleDragEnd = (event: DragEndEvent) => {
-        const { active, over } = event;
-
-        if (over && active.id !== over.id) {
-            setAbTestVariants((items) => {
-                const oldIndex = items.indexOf(active.id as string);
-                const newIndex = items.indexOf(over.id as string);
-                return arrayMove(items, oldIndex, newIndex);
-            });
-        }
-    };
-
-    const handleAddToAbTest = (url: string) => {
-        if (abTestVariants.includes(url)) {
-            setAbTestVariants(prev => prev.filter(v => v !== url));
-        } else if (abTestVariants.length < 3) {
-            setAbTestVariants(prev => [...prev, url]);
-        } else {
-            setToastMessage('A/B test limit reached (max 3)');
-            setToastType('error');
-            setShowToast(true);
         }
     };
 
@@ -1033,15 +883,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
     return createPortal(
         <>
             {/* Metrics Input Modal */}
-            {showMetricsModal && (
-                <MetricsModal
-                    isOpen={showMetricsModal}
-                    onClose={() => setShowMetricsModal(false)}
-                    onConfirm={confirmSaveVersion}
-                    checkinTargetVersion={checkinTargetVersion}
-                    currentPackagingVersion={currentPackagingVersion}
-                />
-            )}
+
 
             {/* Delete Confirmation Modal */}
             <ConfirmationModal
@@ -1054,15 +896,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                 cancelLabel="Cancel"
             />
 
-            <ConfirmationModal
-                isOpen={deleteCheckinConfirmation.isOpen}
-                onClose={() => setDeleteCheckinConfirmation({ isOpen: false, versionNumber: null, checkinId: null })}
-                onConfirm={confirmDeleteCheckin}
-                title="Delete Check-in"
-                message="Are you sure you want to delete this check-in? This action cannot be undone."
-                confirmLabel="Delete"
-                cancelLabel="Cancel"
-            />
+
 
             <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-modal-overlay backdrop-blur-sm animate-fade-in" onMouseDown={handleBackdropClick}>
                 <div
@@ -1088,22 +922,8 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                     onSaveDraft={() => handleSave(true, true)}
                                     onSaveVersion={handleSaveAsVersion}
                                 />
-                            ) : activeTab === 'packaging' ? (
-                                <button
-                                    onClick={() => handleSave(true)}
-                                    disabled={(!isPackagingDirty && !isMetadataDirty && !isCtrRulesDirty) || isSaving}
-                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${(isPackagingDirty || isMetadataDirty || isCtrRulesDirty) && !isSaving
-                                        ? 'bg-white text-black hover:bg-gray-200 cursor-pointer shadow-[0_0_10px_rgba(255,255,255,0.3)]'
-                                        : 'bg-[#424242] text-[#717171] cursor-default'
-                                        }`}
-                                >
-                                    {isSaving ? (
-                                        <Loader2 size={16} className="animate-spin text-white" />
-                                    ) : (
-                                        "Save"
-                                    )}
-                                </button>
                             ) : null}
+
 
                             <button
                                 onClick={handleClose}
@@ -1123,13 +943,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                             Packaging
                             {activeTab === 'details' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-text-primary rounded-t-full" />}
                         </button>
-                        <button
-                            onClick={() => setActiveTab('packaging')}
-                            className={`px-4 pb-3 text-sm font-medium transition-all relative ${activeTab === 'packaging' ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
-                        >
-                            Performance Tracking
-                            {activeTab === 'packaging' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-text-primary rounded-t-full" />}
-                        </button>
+
                         {initialData?.id && (
                             <button
                                 onClick={() => setActiveTab('traffic')}
@@ -1275,62 +1089,20 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                     {/* Right Column: Packaging Preview */}
                                     <div className="w-[352px] mt-[4px]">
                                         <div className="bg-modal-surface rounded-xl shadow-lg overflow-hidden">
-                                            {/* Main Cover Uploader - Hides when A/B Test is active (User Requirement) */}
-                                            {abTestVariants.length === 0 && (
-                                                <ImageUploader
-                                                    coverImage={
-                                                        (activeVersionTab === 'current' || (packagingHistory.length > 0 && activeVersionTab === Math.max(...packagingHistory.map(v => v.versionNumber)).toString() && !isDraft))
-                                                            ? coverImage
-                                                            : (packagingHistory.find(v => v.versionNumber.toString() === activeVersionTab)?.configurationSnapshot.coverImage || '')
-                                                    }
-                                                    onUpload={handleImageUpload}
-                                                    onDrop={handleDrop}
-                                                    fileInputRef={fileInputRef}
-                                                    onTriggerUpload={() => fileInputRef.current?.click()}
-                                                    currentVersion={currentVersion}
-                                                    currentOriginalName={currentOriginalName}
-                                                    onDelete={handleDeleteCurrentVersion}
-                                                    abTestVariants={abTestVariants}
-                                                    onAddToAbTest={handleAddToAbTest}
-                                                    readOnly={
-                                                        activeVersionTab !== 'current' &&
-                                                        !(packagingHistory.length > 0 && activeVersionTab === Math.max(...packagingHistory.map(v => v.versionNumber)).toString() && !isDraft)
-                                                    }
-                                                />
-                                            )}
+                                            <ImageUploader
+                                                coverImage={coverImage}
+                                                onUpload={handleImageUpload}
+                                                onDrop={handleDrop}
+                                                fileInputRef={fileInputRef}
+                                                onTriggerUpload={() => fileInputRef.current?.click()}
+                                                currentVersion={currentVersion}
+                                                currentOriginalName={currentOriginalName}
+                                                onDelete={handleDeleteCurrentVersion}
+                                                readOnly={isDraft ? false : false} // Simplified logic for creation modal
+                                            />
                                         </div>
 
-                                        {/* A/B Test Variants */}
-                                        {abTestVariants.length > 0 && (
-                                            <div className="bg-modal-surface p-3 rounded-lg mt-2">
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <h3 className="text-xs font-medium text-text-primary uppercase tracking-wider">A/B Test Variants</h3>
-                                                    <span className="text-[10px] text-text-secondary">{abTestVariants.length}/3</span>
-                                                </div>
-                                                <DndContext
-                                                    sensors={sensors}
-                                                    collisionDetection={closestCenter}
-                                                    onDragEnd={handleDragEnd}
-                                                >
-                                                    <SortableContext
-                                                        items={abTestVariants}
-                                                        strategy={horizontalListSortingStrategy}
-                                                    >
-                                                        <div className="grid grid-cols-3 gap-2">
-                                                            {abTestVariants.map((variantUrl, index) => (
-                                                                <SortableVariant
-                                                                    key={variantUrl}
-                                                                    id={variantUrl}
-                                                                    url={variantUrl}
-                                                                    index={index}
-                                                                    onRemove={() => setAbTestVariants(prev => prev.filter((_, i) => i !== index))}
-                                                                />
-                                                            ))}
-                                                        </div>
-                                                    </SortableContext>
-                                                </DndContext>
-                                            </div>
-                                        )}
+
 
                                         {/* Version History */}
                                         {coverHistory.length > 0 && (
@@ -1368,8 +1140,6 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                                     initialData={initialData}
                                                     cloningVersion={cloningVersion}
                                                     currentVersion={currentVersion}
-                                                    abTestVariants={abTestVariants}
-                                                    onAddToAbTest={handleAddToAbTest}
                                                 />
                                             </div>
                                         )}
@@ -1377,47 +1147,7 @@ export const CustomVideoModal: React.FC<CustomVideoModalProps> = ({
                                 </div>
                             )}
 
-                            {activeTab === 'packaging' && (
-                                <div className="animate-fade-in px-6 pt-6">
-                                    <div className="rounded-xl overflow-hidden">
-                                        <div className="rounded-xl overflow-hidden">
-                                            <PackagingTable
-                                                history={packagingHistory}
-                                                onUpdateHistory={setPackagingHistory}
-                                                onAddCheckin={(versionNumber) => {
-                                                    const newCheckin = {
-                                                        id: crypto.randomUUID(),
-                                                        date: Date.now(),
-                                                        metrics: {
-                                                            impressions: null,
-                                                            ctr: null,
-                                                            views: null,
-                                                            avdSeconds: null
-                                                        }
-                                                        // No ruleId - this is a manual check-in
-                                                    };
 
-                                                    setPackagingHistory(prev => prev.map(v => {
-                                                        if (v.versionNumber === versionNumber) {
-                                                            return {
-                                                                ...v,
-                                                                checkins: [...v.checkins, newCheckin]
-                                                            };
-                                                        }
-                                                        return v;
-                                                    }));
-                                                }}
-                                                ctrRules={ctrRules}
-                                                onUpdateCtrRules={setCtrRules}
-                                                onDeleteVersion={handleDeletePackagingVersion}
-                                                isPublished={isPublished}
-                                                checkinRules={packagingSettings.checkinRules}
-                                                onDeleteCheckin={handleDeleteCheckin}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
 
                             {activeTab === 'traffic' && initialData?.id && (
                                 <div className="animate-fade-in h-full">

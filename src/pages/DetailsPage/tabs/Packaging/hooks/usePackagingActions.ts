@@ -4,6 +4,7 @@ import { useUIStore } from '../../../../../core/stores/uiStore';
 import { useVideos } from '../../../../../core/hooks/useVideos';
 import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';
+import { useSettings } from '../../../../../core/hooks/useSettings';
 import { ChannelService } from '../../../../../core/services/channelService';
 import { type VersionState } from '../types';
 import { type UsePackagingLocalizationResult } from './usePackagingLocalization';
@@ -27,6 +28,7 @@ export const usePackagingActions = ({
 }: UsePackagingActionsProps) => {
     const { user } = useAuth();
     const { currentChannel, setCurrentChannel } = useChannelStore();
+    const { cloneSettings } = useSettings();
     const { updateVideo, cloneVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { showToast } = useUIStore();
     const [isSaving, setIsSaving] = useState(false);
@@ -149,7 +151,7 @@ export const usePackagingActions = ({
             await cloneVideo({
                 originalVideo: video,
                 coverVersion: version,
-                cloneDurationSeconds: 24 * 60 * 60
+                cloneDurationSeconds: cloneSettings?.cloneDurationSeconds || 3600
             });
             showToast(`Cloned version v.${version.version}`, 'success');
         } catch {

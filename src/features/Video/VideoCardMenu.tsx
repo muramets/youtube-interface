@@ -1,5 +1,5 @@
 import React from 'react';
-import { ListPlus, Edit2, Trash2, RefreshCw, MinusCircle, ArrowLeftRight, FileText } from 'lucide-react';
+import { ListPlus, Trash2, RefreshCw, MinusCircle, ArrowLeftRight, FileText } from 'lucide-react';
 import { Dropdown } from '../../components/Shared/Dropdown';
 
 interface VideoCardMenuProps {
@@ -7,9 +7,9 @@ interface VideoCardMenuProps {
     onClose: () => void;
     anchorEl: HTMLElement | null;
     playlistId?: string;
-    isCustom?: boolean;
+    // isCustom? prop removed as it was only for Edit
     onAddToPlaylist: (e: React.MouseEvent) => void;
-    onEdit: (e: React.MouseEvent) => void;
+    // onEdit prop removed
     onRemove: (e: React.MouseEvent) => void;
     onDelete?: (e: React.MouseEvent) => void;
     onSync?: (e: React.MouseEvent) => void;
@@ -23,9 +23,9 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
     onClose,
     anchorEl,
     playlistId,
-    isCustom,
+    // isCustom,
     onAddToPlaylist,
-    onEdit,
+    // onEdit,
     onRemove,
     onDelete,
     onSync,
@@ -34,7 +34,7 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
     onDetails
 }) => {
     const showSaveToPlaylist = !playlistId;
-    const showEdit = isCustom;
+
     const showDelete = true; // Always allow deleting/removing
     const showSync = !!onSync;
 
@@ -57,7 +57,7 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
                 </div>
             )}
 
-            {showSync && (showSaveToPlaylist || showEdit || showDelete) && (
+            {showSync && (showSaveToPlaylist || showDelete) && (
                 <div className="h-px bg-border my-2"></div>
             )}
 
@@ -71,19 +71,11 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
                 </div>
             )}
 
-            {showSaveToPlaylist && (showEdit || showDelete) && (
+            {showSaveToPlaylist && showDelete && (
                 <div className="h-px bg-border my-2"></div>
             )}
 
-            {showEdit && (
-                <div
-                    className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"
-                    onClick={onEdit}
-                >
-                    <Edit2 size={20} />
-                    <span>Edit</span>
-                </div>
-            )}
+
 
             {onDetails && (
                 <div

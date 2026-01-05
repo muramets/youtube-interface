@@ -1,12 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useCallback } from 'react';
 import { deleteField } from 'firebase/firestore';
+import { useChannelStore } from '../stores/channelStore';
 import { VideoService } from '../services/videoService';
 import { fetchVideoDetails, extractVideoId, type VideoDetails, type PackagingVersion, type PackagingCheckin, type HistoryItem, type CoverVersion } from '../utils/youtubeApi';
 import { SettingsService } from '../services/settingsService';
 
 export const useVideos = (userId: string, channelId: string) => {
     const queryClient = useQueryClient();
+    const { currentChannel } = useChannelStore();
     const queryKey = useMemo(() => ['videos', userId, channelId], [userId, channelId]);
 
     // 1. Query with Real-time Subscription
@@ -61,6 +63,9 @@ export const useVideos = (userId: string, channelId: string) => {
                 ...video,
                 id,
                 isCustom: true,
+                channelTitle: video.channelTitle || currentChannel?.name || '',
+                channelAvatar: video.channelAvatar || currentChannel?.avatar || '',
+                viewCount: video.viewCount || '1000000',
                 createdAt: Date.now()
             };
 
@@ -147,6 +152,11 @@ export const useVideos = (userId: string, channelId: string) => {
             const newVideo: VideoDetails = {
                 ...originalVideo,
                 id,
+                channelId: originalVideo.channelId || channelId,
+                channelTitle: originalVideo.channelTitle || currentChannel?.name || '',
+                channelAvatar: originalVideo.channelAvatar || currentChannel?.avatar || '',
+                viewCount: originalVideo.viewCount || '1000000',
+                publishedAt: originalVideo.publishedAt || new Date().toISOString(),
                 isCustom: true,
                 isCloned: true,
                 clonedFromId: originalVideo.id,

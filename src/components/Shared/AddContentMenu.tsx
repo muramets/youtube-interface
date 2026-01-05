@@ -30,12 +30,24 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
 }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { addCustomVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
-    const { uploadDefaults } = useSettings();
-    const [internalIsOpen, setInternalIsOpen] = useState(false);
+    const { addCustomVideo, cloneVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const { uploadDefaults, cloneSettings } = useSettings();
 
+    // State
+    const [internalIsOpen, setInternalIsOpen] = useState(false);
+    const [activeModal, setActiveModal] = useState<'youtube' | 'custom' | 'playlist' | null>(null);
+    const [customVideoInitialData, setCustomVideoInitialData] = useState<VideoDetails | undefined>(undefined);
+    const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
+
+    // Refs
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    // Derived State
     const isControlled = controlledIsOpen !== undefined;
     const isOpen = isControlled ? controlledIsOpen : internalIsOpen;
+
+    // Handlers
     const setIsOpen = React.useCallback((value: boolean) => {
         if (onOpenChange) {
             onOpenChange(value);
@@ -43,15 +55,42 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
         if (!isControlled) {
             setInternalIsOpen(value);
         }
-
     }, [onOpenChange, isControlled]);
-    const [activeModal, setActiveModal] = useState<'youtube' | 'custom' | 'playlist' | null>(null);
-    const [customVideoInitialData, setCustomVideoInitialData] = useState<VideoDetails | undefined>(undefined);
 
-    const buttonRef = useRef<HTMLButtonElement>(null);
-    const dropdownRef = useRef<HTMLDivElement>(null);
-    const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
+    const handleCloneVideo = async (originalVideo: VideoDetails, version: any) => {
+        const duration = cloneSettings?.cloneDurationSeconds;
+        console.warn('DEBUG: Cloning video with duration (s):', duration);
+        await cloneVideo({
+            originalVideo,
+            coverVersion: version,
+            cloneDurationSeconds: duration || 3600
+        });
+    };
 
+    const handleOptionClick = (modal: 'youtube' | 'custom' | 'playlist') => {
+        if (modal === 'custom') {
+            const defaults: Partial<VideoDetails> = {
+                title: uploadDefaults.title || '',
+                description: uploadDefaults.description || '',
+                tags: uploadDefaults.tags || []
+            };
+            setCustomVideoInitialData(defaults as VideoDetails);
+        } else {
+            setCustomVideoInitialData(undefined);
+        }
+        setActiveModal(modal);
+        setIsOpen(false);
+    };
+
+    const handleButtonClick = () => {
+        if (directPlaylist) {
+            setActiveModal('playlist');
+        } else {
+            setIsOpen(!isOpen);
+        }
+    };
+
+    // Effects
     useLayoutEffect(() => {
         if (isOpen && buttonRef.current) {
             const rect = buttonRef.current.getBoundingClientRect();
@@ -88,36 +127,6 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
             window.removeEventListener('resize', () => setIsOpen(false));
         };
     }, [isOpen, setIsOpen]);
-
-    const handleOptionClick = (modal: 'youtube' | 'custom' | 'playlist') => {
-        if (modal === 'custom') {
-            // Apply upload defaults
-            const defaults: Partial<VideoDetails> = {
-                title: uploadDefaults.title || '',
-                description: uploadDefaults.description || '',
-                tags: uploadDefaults.tags || []
-            };
-            // We need to cast this to VideoDetails because CustomVideoModal expects a full object
-            // but useVideoForm handles partial data gracefully if we pass it as initialData
-            // However, useVideoForm expects initialData to have an ID if it's an edit.
-            // For creation, we can pass these defaults.
-            // But CustomVideoModal props say initialData?: VideoDetails.
-            // Let's cast it for now, as useVideoForm uses it as effectiveData.
-            setCustomVideoInitialData(defaults as VideoDetails);
-        } else {
-            setCustomVideoInitialData(undefined);
-        }
-        setActiveModal(modal);
-        setIsOpen(false);
-    };
-
-    const handleButtonClick = () => {
-        if (directPlaylist) {
-            setActiveModal('playlist');
-        } else {
-            setIsOpen(!isOpen);
-        }
-    };
 
     return (
         <>
@@ -184,16 +193,19 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
                 onClose={() => setActiveModal(null)}
             />
 
-            <CustomVideoModal
-                isOpen={activeModal === 'custom'}
-                onClose={() => setActiveModal(null)}
-                onSave={async (videoData) => {
-                    if (user && currentChannel) {
-                        return await addCustomVideo(videoData);
-                    }
-                }}
-                initialData={customVideoInitialData}
-            />
+            {activeModal === 'custom' && (
+                <CustomVideoModal
+                    isOpen={true}
+                    onClose={() => setActiveModal(null)}
+                    onSave={async (videoData) => {
+                        if (user && currentChannel) {
+                            return await addCustomVideo(videoData);
+                        }
+                    }}
+                    onClone={handleCloneVideo}
+                    initialData={customVideoInitialData}
+                />
+            )}
 
             <CreatePlaylistModal
                 isOpen={activeModal === 'playlist'}
