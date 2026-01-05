@@ -97,27 +97,31 @@ export const useTimelineStructure = ({
     // Both worldWidth and monthLayouts use this shared calculation
     // ============================================================
     const timelineRange = useMemo(() => {
-        const startDate = new Date(effectiveStats.minDate);
-        startDate.setDate(1);
-        startDate.setHours(0, 0, 0, 0);
-        // No buffer - start from the month of the first video
+        // Use the actual min date (with buffer removed) to determine the starting month
+        // The buffer is 12 hours, so we add it back to get the real video date
+        const BUFFER_MS = 1000 * 60 * 60 * 12;
+        const actualMinDate = new Date(effectiveStats.minDate + BUFFER_MS);
+
+        // Start from the 1st of the month containing the first video
+        const startDate = new Date(actualMinDate.getFullYear(), actualMinDate.getMonth(), 1);
 
         // End exactly at the day of the last video (not rounded up to month end)
-        const endDate = new Date(effectiveStats.maxDate);
-        const lastVideoDay = endDate.getDate();
-        const lastVideoDaysInMonth = getDaysInMonth(endDate.getFullYear(), endDate.getMonth());
+        // Also account for the buffer on maxDate
+        const actualMaxDate = new Date(effectiveStats.maxDate - BUFFER_MS);
+        const lastVideoDay = actualMaxDate.getDate();
+        const lastVideoDaysInMonth = getDaysInMonth(actualMaxDate.getFullYear(), actualMaxDate.getMonth());
 
         // Calculate clip factor for the last month (how much of the month to show)
         // e.g., if last video is on day 5 of 31, clipFactor = 5/31 ≈ 0.16
         const lastMonthClipFactor = (lastVideoDay + 0.5) / lastVideoDaysInMonth; // +0.5 to include the full day
 
         // For the loop condition, we still need to include the last month
-        const safeEndDate = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 1);
+        const safeEndDate = new Date(actualMaxDate.getFullYear(), actualMaxDate.getMonth() + 1, 1);
 
         return {
             startDate,
             endDate: safeEndDate,
-            lastMonthKey: `${endDate.getFullYear()}-${endDate.getMonth()}`,
+            lastMonthKey: `${actualMaxDate.getFullYear()}-${actualMaxDate.getMonth()}`,
             lastMonthClipFactor
         };
     }, [effectiveStats]);
