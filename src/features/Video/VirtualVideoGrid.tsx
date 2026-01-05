@@ -120,7 +120,6 @@ const InnerGrid: React.FC<InnerGridProps> = ({
 
     const gridContent = (
         <div
-            key={`grid-${columnCount}-${safeCardWidth}`}
             style={{
                 height: `${virtualizer.getTotalSize()}px`,
                 width: '100%',
@@ -213,6 +212,7 @@ const InnerGrid: React.FC<InnerGridProps> = ({
 };
 
 export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = (props) => {
+    const { generalSettings } = useSettings();
     const parentRef = useRef<HTMLDivElement>(null);
 
     // Track container dimensions
@@ -268,6 +268,7 @@ export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = (props) => {
             {containerSize.width > 0 && (
                 <InnerGrid
                     {...props}
+                    key={`grid-${containerSize.width}-${generalSettings.cardsPerRow}`}
                     containerWidth={containerSize.width}
                     scrollElement={parentRef.current}
                 />
