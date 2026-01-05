@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FolderPlus, Plus, X, ChevronDown, Check, Home, ListVideo } from 'lucide-react';
-import type { TrafficGroup } from '../../../../core/types/traffic';
-import type { Playlist } from '../../../../core/services/playlistService';
+import type { TrafficGroup } from '../../../../../../core/types/traffic';
+import type { Playlist } from '../../../../../../core/services/playlistService';
 
 interface TrafficSelectionBarProps {
     selectedCount: number;

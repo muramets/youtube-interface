@@ -1,9 +1,9 @@
 import React from 'react';
 import { Check, ChevronDown, ChevronUp } from 'lucide-react';
-import { TagsInput } from '../../../components/ui/TagsInput';
-import { LanguageTabs } from '../LanguageTabs';
-import { type VideoLocalization } from '../../../core/utils/youtubeApi';
-import { type CustomLanguage } from '../../../core/services/channelService';
+import { TagsInput } from '../../../../../components/ui/TagsInput';
+import { LanguageTabs } from '../../../LanguageTabs';
+import { type VideoLocalization } from '../../../../../core/utils/youtubeApi';
+import { type CustomLanguage } from '../../../../../core/services/channelService';
 
 interface VideoFormProps {
     title: string;

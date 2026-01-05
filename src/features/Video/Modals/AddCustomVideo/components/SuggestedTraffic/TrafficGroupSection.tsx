@@ -1,6 +1,6 @@
 import React from 'react';
 import { Edit2, Trash2 } from 'lucide-react';
-import type { TrafficGroup, TrafficSource } from '../../../../core/types/traffic';
+import type { TrafficGroup, TrafficSource } from '../../../../../../core/types/traffic';
 import { TrafficTable } from './TrafficTable';
 
 interface TrafficGroupSectionProps {

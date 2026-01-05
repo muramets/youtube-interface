@@ -12,7 +12,7 @@ import { formatViewCount, formatDuration } from '../../core/utils/formatUtils';
 import { VideoCardMenu } from '../Video/VideoCardMenu';
 import { AddToPlaylistModal } from '../Playlist/AddToPlaylistModal';
 import { ConfirmationModal } from '../../components/Shared/ConfirmationModal';
-import { CustomVideoModal } from '../Video/CustomVideoModal';
+import { AddCustomVideoModal } from '../Video/Modals/AddCustomVideo/AddCustomVideoModal';
 import { PortalTooltip } from '../../components/Shared/PortalTooltip';
 import { ClonedVideoTooltipContent } from '../Video/ClonedVideoTooltipContent';
 import { useSettings } from '../../core/hooks/useSettings';
@@ -336,7 +336,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
             </div>
 
             {showEditModal && video.isCustom && (
-                <CustomVideoModal
+                <AddCustomVideoModal
                     isOpen={showEditModal}
                     onClose={() => setShowEditModal(false)}
                     onSave={async (updatedVideo) => {

@@ -7,9 +7,7 @@ interface VideoCardMenuProps {
     onClose: () => void;
     anchorEl: HTMLElement | null;
     playlistId?: string;
-    // isCustom? prop removed as it was only for Edit
     onAddToPlaylist: (e: React.MouseEvent) => void;
-    // onEdit prop removed
     onRemove: (e: React.MouseEvent) => void;
     onDelete?: (e: React.MouseEvent) => void;
     onSync?: (e: React.MouseEvent) => void;
@@ -23,9 +21,7 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
     onClose,
     anchorEl,
     playlistId,
-    // isCustom,
     onAddToPlaylist,
-    // onEdit,
     onRemove,
     onDelete,
     onSync,

@@ -3,7 +3,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react';
 import { type CoverVersion } from '../../../../../core/utils/youtubeApi';
 import { TitleInput } from './TitleInput';
 import { DescriptionInput } from './DescriptionInput';
-import { ThumbnailSection } from './ThumbnailSection';
+import { ThumbnailSection } from '../../../../../components/Shared/Thumbnail/ThumbnailSection';
 import { TagsSection } from './TagsSection';
 import { ShowMoreSection } from './ShowMoreSection';
 import { ABTitlesDisplay } from './ABTitlesDisplay';

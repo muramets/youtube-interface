@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { type CoverVersion } from '../../../../../../core/utils/youtubeApi';
+import { type CoverVersion } from '../../../../core/utils/youtubeApi';
 
 export interface UseThumbnailHistoryModalStateProps {
     isOpen: boolean;

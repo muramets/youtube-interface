@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { X, Youtube } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { useVideos } from '../../core/hooks/useVideos';
+import { useVideos } from '../../../core/hooks/useVideos';
 
-import { useAuth } from '../../core/hooks/useAuth';
-import { useChannelStore } from '../../core/stores/channelStore';
-import { useSettings } from '../../core/hooks/useSettings';
+import { useAuth } from '../../../core/hooks/useAuth';
+import { useChannelStore } from '../../../core/stores/channelStore';
+import { useSettings } from '../../../core/hooks/useSettings';
 
 interface AddYouTubeVideoModalProps {
     isOpen: boolean;

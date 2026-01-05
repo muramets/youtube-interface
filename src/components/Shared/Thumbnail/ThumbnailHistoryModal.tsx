@@ -2,9 +2,9 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { X, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { type CoverVersion } from '../../../../../core/utils/youtubeApi';
-import { ImageActionOverlay } from '../components/ImageActionOverlay';
-import { Button } from '../../../../../components/ui/atoms/Button';
+import { type CoverVersion } from '../../../core/utils/youtubeApi';
+import { ImageActionOverlay } from './ImageActionOverlay';
+import { Button } from '../../../components/ui/atoms/Button';
 import { useThumbnailHistoryModalState } from './hooks';
 import { slideVariants, containerVariants, itemVariants } from './constants';
 
@@ -141,7 +141,7 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
     const showHistoricalColumn = !hasOnlyCurrentThumbnail;
 
     return createPortal(
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6">
             {/* Backdrop - same as Cancel */}
             <motion.div
                 initial={{ opacity: 0 }}

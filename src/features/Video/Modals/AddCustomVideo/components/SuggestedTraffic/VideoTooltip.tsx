@@ -1,6 +1,6 @@
-import { PortalTooltip } from '../../../../components/Shared/PortalTooltip';
+import { PortalTooltip } from '../../../../../../components/Shared/PortalTooltip';
 import { ExternalLink } from 'lucide-react';
-import type { TrafficSource } from '../../../../core/types/traffic';
+import type { TrafficSource } from '../../../../../../core/types/traffic';
 
 interface VideoTooltipProps {
     source: TrafficSource;

@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { Plus, Youtube, Upload, ListPlus } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { AddYouTubeVideoModal } from '../../features/Video/AddYouTubeVideoModal';
-import { CustomVideoModal } from '../../features/Video/CustomVideoModal';
+import { AddYouTubeVideoModal } from '../../features/Video/Modals/AddYouTubeVideoModal';
+import { AddCustomVideoModal } from '../../features/Video/Modals/AddCustomVideo/AddCustomVideoModal';
 import { CreatePlaylistModal } from '../../features/Playlist/CreatePlaylistModal';
 import { useVideos } from '../../core/hooks/useVideos';
 import { useSettings } from '../../core/hooks/useSettings';
@@ -194,7 +194,7 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
             />
 
             {activeModal === 'custom' && (
-                <CustomVideoModal
+                <AddCustomVideoModal
                     isOpen={true}
                     onClose={() => setActiveModal(null)}
                     onSave={async (videoData) => {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Info, Trash2, Copy, Loader2, Check, AlertCircle } from 'lucide-react';
-import { PortalTooltip } from '../../../../../components/Shared/PortalTooltip';
-import { ClonedVideoTooltipContent } from '../../../../../features/Video/ClonedVideoTooltipContent';
+import { PortalTooltip } from '../PortalTooltip';
+import { ClonedVideoTooltipContent } from '../../../features/Video/ClonedVideoTooltipContent';
 
 interface ImageActionOverlayProps {
     version: number;

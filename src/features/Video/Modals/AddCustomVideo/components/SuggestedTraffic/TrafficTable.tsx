@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { ArrowUpDown, Settings, Check } from 'lucide-react';
-import type { TrafficSource, TrafficGroup } from '../../../../core/types/traffic';
+import type { TrafficSource, TrafficGroup } from '../../../../../../core/types/traffic';
 import { VideoTooltip } from './VideoTooltip';
-import { CTRConfigPopup } from '../../Packaging/components/CTRConfigPopup';
-import type { CTRRule } from '../../Packaging/types';
-import { PortalTooltip } from '../../../../components/Shared/PortalTooltip';
+import { CTRConfigPopup } from '../../../../Packaging/components/CTRConfigPopup';
+import type { CTRRule } from '../../../../Packaging/types';
+import { PortalTooltip } from '../../../../../../components/Shared/PortalTooltip';
 
 interface TrafficTableProps {
     data: TrafficSource[];
