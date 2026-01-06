@@ -476,6 +476,8 @@ export function useAddCustomVideo({
             const videoData: Omit<VideoDetails, 'id'> & { id?: string } = {
                 id: initialData?.id,
                 title: finalTitle.trim(),
+                description: finalData.description || '',
+                tags: finalData.tags || [],
                 thumbnail: effectiveCoverImage,
                 channelId: currentChannel?.id || '',
                 channelTitle: currentChannel?.name || 'My Channel',
