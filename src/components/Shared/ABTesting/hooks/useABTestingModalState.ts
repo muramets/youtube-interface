@@ -153,11 +153,11 @@ export function useABTestingModalState({
     const getValidationError = (): string | null => {
         if (activeTab === 'title' || activeTab === 'both') {
             const filledTitles = titles.filter(t => t.trim()).length;
-            if (filledTitles < 2) return '2nd title is required';
+            if (filledTitles < 1) return 'At least 1 title is required';
         }
         if (activeTab === 'thumbnail' || activeTab === 'both') {
             const filledThumbnails = thumbnails.filter(t => t).length;
-            if (filledThumbnails < 2) return '2nd thumbnail is required';
+            if (filledThumbnails < 1) return 'At least 1 thumbnail is required';
         }
         return null;
     };
@@ -170,22 +170,43 @@ export function useABTestingModalState({
         const currentValidTitles = titles.filter(t => t.trim());
         const currentValidThumbnails = thumbnails.filter(t => t);
 
+        // Determine effective initial state (handling pre-filled current values)
+        // If titleVariants is empty but currentTitle exists, the modal pre-fills with currentTitle
+        const effectiveInitialTitles = titleVariants.length > 0
+            ? titleVariants
+            : (currentTitle ? [currentTitle] : []);
+
+        const effectiveInitialThumbnails = thumbnailVariants.length > 0
+            ? thumbnailVariants
+            : (currentThumbnail ? [currentThumbnail] : []);
+
         // Check titles changed
-        const titlesChanged = JSON.stringify(currentValidTitles) !== JSON.stringify(titleVariants);
+        const titlesChanged = JSON.stringify(currentValidTitles) !== JSON.stringify(effectiveInitialTitles);
 
         // Check thumbnails changed
-        const thumbnailsChanged = JSON.stringify(currentValidThumbnails) !== JSON.stringify(thumbnailVariants);
+        const thumbnailsChanged = JSON.stringify(currentValidThumbnails) !== JSON.stringify(effectiveInitialThumbnails);
 
         // Check results changed (only count filled slots)
         const currentResults = {
             titles: results.titles.slice(0, currentValidTitles.length),
             thumbnails: results.thumbnails.slice(0, currentValidThumbnails.length)
         };
-        const initialResultsNormalized = {
-            titles: (initialResults.titles || []).slice(0, titleVariants.length),
-            thumbnails: (initialResults.thumbnails || []).slice(0, thumbnailVariants.length)
+
+        // Normalize initial results to match effective initial length
+        const effectiveInitialResults = {
+            titles: (initialResults.titles || []).slice(0, effectiveInitialTitles.length),
+            thumbnails: (initialResults.thumbnails || []).slice(0, effectiveInitialThumbnails.length)
         };
-        const resultsChanged = JSON.stringify(currentResults) !== JSON.stringify(initialResultsNormalized);
+
+        // Pad with zeros if needed
+        while (effectiveInitialResults.titles.length < effectiveInitialTitles.length) {
+            effectiveInitialResults.titles.push(0);
+        }
+        while (effectiveInitialResults.thumbnails.length < effectiveInitialThumbnails.length) {
+            effectiveInitialResults.thumbnails.push(0);
+        }
+
+        const resultsChanged = JSON.stringify(currentResults) !== JSON.stringify(effectiveInitialResults);
 
         return titlesChanged || thumbnailsChanged || resultsChanged;
     })();
@@ -264,19 +285,27 @@ export function useABTestingModalState({
     // Get save button text based on state
     const getSaveButtonText = () => {
         if (!isValid) return 'Set test';
+        if (!hasChanges) return 'Set test';
 
         const hasExistingTitleTest = titleVariants.length >= 2;
         const hasExistingThumbnailTest = thumbnailVariants.length >= 2;
 
+        const currentValidTitles = titles.filter(t => t.trim());
+        const currentValidThumbnails = thumbnails.filter(t => t);
+
         let isNewTest = false;
 
         if (activeTab === 'title') {
-            isNewTest = !hasExistingTitleTest;
+            // It's a "Set Test" action ONLY if we are creating a test (2+ variants) 
+            // where one didn't exist before.
+            isNewTest = !hasExistingTitleTest && currentValidTitles.length >= 2;
         } else if (activeTab === 'thumbnail') {
-            isNewTest = !hasExistingThumbnailTest;
+            isNewTest = !hasExistingThumbnailTest && currentValidThumbnails.length >= 2;
         } else { // both
-            // If we are missing EITHER test part previously, we are effectively setting up a new combined test
-            isNewTest = !hasExistingTitleTest || !hasExistingThumbnailTest;
+            // If we are upgrading EITHER part to a test (2+ vars) where it wasn't before
+            const creatingTitleTest = !hasExistingTitleTest && currentValidTitles.length >= 2;
+            const creatingThumbnailTest = !hasExistingThumbnailTest && currentValidThumbnails.length >= 2;
+            isNewTest = creatingTitleTest || creatingThumbnailTest;
         }
 
         return isNewTest ? 'Set test' : 'Save';

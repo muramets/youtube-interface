@@ -54,7 +54,9 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
         initialTitles: video.abTestTitles || [],
         initialThumbnails: video.abTestThumbnails || [],
         initialResults: video.abTestResults || DEFAULT_AB_RESULTS,
-        onResultsSave: (results) => actions.handleSaveResultsOnly(results)
+        onResultsSave: (results) => actions.handleSaveResultsOnly(results),
+        onTitleChange: (title) => localization.setTitle(title),
+        onThumbnailChange: (thumbnail) => formState.setCustomImage(thumbnail)
     });
 
     // 3. Hook: Form State & Dirty Checking (consolidated)

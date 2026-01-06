@@ -16,6 +16,10 @@ interface UseABTestingOptions {
     initialResults?: { titles: number[], thumbnails: number[] };
     /** Called when only results changed, allows parent to save results in background */
     onResultsSave?: (results: { titles: number[], thumbnails: number[] }) => void;
+    /** Called when a single title is edited (not creating A/B test) */
+    onTitleChange?: (title: string) => void;
+    /** Called when a single thumbnail is edited (not creating A/B test) */
+    onThumbnailChange?: (thumbnail: string) => void;
 }
 
 export const useABTesting = (options?: UseABTestingOptions) => {
@@ -50,6 +54,7 @@ export const useABTesting = (options?: UseABTestingOptions) => {
      * - Always updates local state with new titles/thumbnails/results.
      * - If packagingChanged is FALSE (only results changed), triggers background save
      *   via onResultsSave callback so data persists without "Draft" status.
+     * - If saving a single variant (not A/B test), syncs with main title/thumbnail.
      */
     const handleSave = useCallback((data: {
         mode: 'title' | 'thumbnail' | 'both';
@@ -61,6 +66,16 @@ export const useABTesting = (options?: UseABTestingOptions) => {
         setAbTestTitles(data.titles);
         setAbTestThumbnails(data.thumbnails);
         setAbTestResults(data.results);
+
+        // If editing a single title (not creating A/B test), sync with main title
+        if (data.titles.length === 1 && options?.onTitleChange) {
+            options.onTitleChange(data.titles[0]);
+        }
+
+        // If editing a single thumbnail (not creating A/B test), sync with main thumbnail
+        if (data.thumbnails.length === 1 && options?.onThumbnailChange) {
+            options.onThumbnailChange(data.thumbnails[0]);
+        }
 
         // If only results changed, trigger a background save
         if (!data.packagingChanged && options?.onResultsSave) {
