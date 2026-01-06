@@ -75,15 +75,23 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
         currentThumbnail
     });
 
-    if (!isOpen) return null;
+    // Check if all versions have been deleted (for empty state)
+    const allVersionsDeleted = visibleHistory.length === 0;
+
+    // BUSINESS LOGIC: Button text depends on current state
+    // - "Save" → only current thumbnail exists (user deleted all history, just confirming to close)
+    // - "Clear Thumbnail" → everything deleted (user wants to remove all)
+    // - "Apply Version" → historical versions exist (user can apply one)
+    const hasOnlyCurrentThumbnail = effectiveCurrentThumbnail && visibleHistory.length === 0;
+    const hasNothingLeft = !effectiveCurrentThumbnail && visibleHistory.length === 0;
 
     /**
      * Handle Cancel: discard all pending changes and close.
      */
-    const handleCancel = () => {
+    const handleCancel = React.useCallback(() => {
         discardChanges();
         onClose();
-    };
+    }, [discardChanges, onClose]);
 
     /**
      * Handle Apply: commit all pending changes and close.
@@ -101,7 +109,7 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
      * To actually clear the thumbnail, user should use "More" > "Remove"
      * in the main Packaging tab, not this History modal.
      */
-    const handleApply = () => {
+    const handleApply = React.useCallback(() => {
         const changes = getChangesToApply();
 
         // 1. Execute pending deletions from history
@@ -127,18 +135,35 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
         // → just close without calling onApply, keeping current thumbnail intact
 
         onClose();
-    };
+    }, [getChangesToApply, onDelete, selectedVersion, visibleHistory.length, effectiveCurrentThumbnail, onApply, onClose]);
 
-    // Check if all versions have been deleted (for empty state)
-    const allVersionsDeleted = visibleHistory.length === 0;
-
-    // BUSINESS LOGIC: Button text depends on current state
-    // - "Save" → current thumbnail exists, no historical versions (user reviewed and kept current)
-    // - "Clear Thumbnail" → everything deleted (user wants to remove all)
-    // - "Apply Version" → historical versions exist (user can apply one)
-    const hasOnlyCurrentThumbnail = effectiveCurrentThumbnail && visibleHistory.length === 0;
-    const hasNothingLeft = !effectiveCurrentThumbnail && visibleHistory.length === 0;
     const showHistoricalColumn = !hasOnlyCurrentThumbnail;
+
+    // Keyboard shortcuts: Esc → Cancel, Enter → Apply Version
+    React.useEffect(() => {
+        if (!isOpen) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Esc → Cancel
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                handleCancel();
+            }
+            // Enter → Apply Version (if enabled)
+            else if (e.key === 'Enter') {
+                const isApplyDisabled = !selectedVersion && !allVersionsDeleted && pendingChanges.thumbnailUrl === null;
+                if (!isApplyDisabled) {
+                    e.preventDefault();
+                    handleApply();
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, selectedVersion, allVersionsDeleted, pendingChanges.thumbnailUrl, handleCancel, handleApply]);
+
+    if (!isOpen) return null;
 
     return createPortal(
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6">
@@ -393,17 +418,17 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                 {visibleHistory.length} versions in history
                             </div>
                             <div className="flex gap-3">
-                                <Button variant="secondary" size="sm" onClick={handleCancel}>
-                                    Cancel
-                                </Button>
                                 <Button
-                                    variant="primary"
+                                    variant="secondary"
                                     size="sm"
                                     onClick={handleApply}
                                     disabled={!selectedVersion && !allVersionsDeleted && pendingChanges.thumbnailUrl === null}
                                     className="!bg-[#3ea6ff] !text-[#1f1f1f] hover:!bg-[#65b8ff]"
                                 >
                                     {hasOnlyCurrentThumbnail ? 'Save' : (hasNothingLeft ? 'Clear Thumbnail' : 'Apply Version')}
+                                </Button>
+                                <Button variant="primary" size="sm" onClick={handleCancel}>
+                                    Cancel
                                 </Button>
                             </div>
                         </div>
