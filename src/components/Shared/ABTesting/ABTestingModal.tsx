@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { X, Plus } from 'lucide-react';
-import { Button } from '../../../../../components/ui/atoms/Button';
+import { Button } from '../../ui/atoms/Button';
 import { useABTestingModalState, type ABTestMode } from './hooks/useABTestingModalState';
 import { ThumbnailSlot, TitleInputCard, ShareResultCell } from './components';
 
@@ -97,7 +97,7 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
     );
 
     return createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center">
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center">
             {/* Backdrop */}
             <div className="absolute inset-0 bg-black/70" onClick={onClose} />
 

@@ -10,6 +10,7 @@ import { SuggestedTrafficTab } from './components/SuggestedTraffic/SuggestedTraf
 import { ConfirmationModal } from '../../../../components/Shared/ConfirmationModal';
 import { ThumbnailSection } from '../../../../components/Shared/Thumbnail/ThumbnailSection';
 import { useAddCustomVideo } from './hooks/useAddCustomVideo';
+import { ABTestingModal } from '../../../../components/Shared/ABTesting';
 
 interface AddCustomVideoModalProps {
     isOpen: boolean;
@@ -54,7 +55,6 @@ export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) =
         activeLanguage,
         localizations,
         switchLanguage,
-        abTestVariants,
         ctrRules,
 
         videoRender, setVideoRender,
@@ -71,6 +71,16 @@ export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) =
         handleAddLanguage,
         handleDeleteCustomLanguage,
         setToastMessage, setToastType,
+
+        // A/B Testing
+        abTestVariants,
+        abTestTitles,
+        isABModalOpen,
+        handleCloseABModal,
+        handleOpenTitleABTest,
+        handleOpenThumbnailABTest,
+        handleABTestSave,
+        activeABTab,
     } = useAddCustomVideo(props);
 
     if (!isOpen) return null;
@@ -94,6 +104,21 @@ export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) =
                 confirmLabel="Delete"
                 cancelLabel="Cancel"
             />
+
+            {/* A/B Testing Modal */}
+            {isABModalOpen && (
+                <ABTestingModal
+                    isOpen={isABModalOpen}
+                    onClose={handleCloseABModal}
+                    initialTab={activeABTab}
+                    currentTitle={title}
+                    currentThumbnail={coverImage || ''}
+                    titleVariants={abTestTitles}
+                    thumbnailVariants={abTestVariants}
+                    onSave={handleABTestSave}
+                    initialResults={{ titles: [], thumbnails: [] }}
+                />
+            )}
 
             <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-modal-overlay backdrop-blur-sm animate-fade-in" onMouseDown={handleBackdropClick}>
                 <div
@@ -194,6 +219,8 @@ export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) =
                                                 setShowToast(true);
                                             }}
                                             readOnly={!isShowingCurrent}
+                                            abTestTitles={abTestTitles}
+                                            onTitleABTestClick={handleOpenTitleABTest}
                                         />
                                     </div>
 
@@ -224,6 +251,7 @@ export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) =
                                                 variants={abTestVariants}
                                                 readOnly={!isShowingCurrent}
                                                 widthClass="w-full"
+                                                onABTestClick={handleOpenThumbnailABTest}
                                             />
                                         </div>
                                     </div>

@@ -4,6 +4,8 @@ import { TagsInput } from '../../../../../components/ui/TagsInput';
 import { LanguageTabs } from '../../../LanguageTabs';
 import { type VideoLocalization } from '../../../../../core/utils/youtubeApi';
 import { type CustomLanguage } from '../../../../../core/services/channelService';
+import { TitleInput } from '../../../../../pages/DetailsPage/tabs/Packaging/components/TitleInput';
+import { ABTitlesDisplay } from '../../../../../pages/DetailsPage/tabs/Packaging/components/ABTitlesDisplay';
 
 interface VideoFormProps {
     title: string;
@@ -19,6 +21,10 @@ interface VideoFormProps {
     onRemoveLanguage: (code: string) => void;
     savedCustomLanguages?: CustomLanguage[];
     onDeleteCustomLanguage?: (code: string) => void;
+    // A/B Testing Props
+    abTestTitles: string[];
+    onTitleABTestClick: () => void;
+    abTestResults?: { titles: number[]; thumbnails: number[] };
     isPublished: boolean;
     setIsPublished: (val: boolean) => void;
     publishedUrl: string;
@@ -66,8 +72,13 @@ export const VideoForm: React.FC<VideoFormProps> = ({
     audioRender,
     setAudioRender,
     onShowToast,
-    readOnly = false
+    readOnly = false,
+    abTestTitles,
+    onTitleABTestClick,
+    abTestResults
 }) => {
+    // Only show AB test UI if we have multiple titles
+    const showABTestUI = abTestTitles.length > 0;
     return (
         <div className="flex-1 flex flex-col gap-5 overflow-y-auto custom-scrollbar pr-2">
             <LanguageTabs
@@ -80,22 +91,23 @@ export const VideoForm: React.FC<VideoFormProps> = ({
                 onDeleteCustomLanguage={onDeleteCustomLanguage}
             />
 
-            {/* Title */}
-            <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-center">
-                    <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Title</label>
-                    <span className="text-xs text-text-secondary">{title.length}/100</span>
-                </div>
-                <input
-                    type="text"
-                    maxLength={100}
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="w-full bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
-                    placeholder="Add a title that describes your video"
-                    disabled={readOnly}
+            {/* Title Section */}
+            {showABTestUI ? (
+                <ABTitlesDisplay
+                    titles={abTestTitles}
+                    status="draft" // New videos are always drafts initially
+                    onEditClick={onTitleABTestClick}
+                    readOnly={readOnly}
+                    results={abTestResults?.titles}
                 />
-            </div>
+            ) : (
+                <TitleInput
+                    value={title}
+                    onChange={setTitle}
+                    onABTestClick={onTitleABTestClick}
+                    readOnly={readOnly}
+                />
+            )}
 
             {/* Description */}
             <div className="flex flex-col gap-2">

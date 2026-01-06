@@ -168,6 +168,7 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
 
     // A/B Testing State
     const [abTestVariants, setAbTestVariants] = useState<string[]>(initialData?.abTestVariants || []);
+    const [abTestTitles, setAbTestTitles] = useState<string[]>(initialData?.abTestTitles || []);
 
     const [defaultData, setDefaultData] = useState({
         title: initialData?.title || '',
@@ -319,6 +320,13 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         const sortedInitial = [...initialVariants].sort();
         if (JSON.stringify(sortedCurrent) !== JSON.stringify(sortedInitial)) return true;
 
+        // Check A/B Test Titles
+        const initialTitles = initialData.abTestTitles || [];
+        if (abTestTitles.length !== initialTitles.length) return true;
+        const sortedCurrentTitles = [...abTestTitles].sort();
+        const sortedInitialTitles = [...initialTitles].sort();
+        if (JSON.stringify(sortedCurrentTitles) !== JSON.stringify(sortedInitialTitles)) return true;
+
         // Check Packaging History
         const initialHistory = initialData?.packagingHistory || [];
         if (JSON.stringify(packagingHistory) !== JSON.stringify(initialHistory)) return true;
@@ -395,6 +403,9 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
         setCurrentPackagingVersion,
         packagingHistory,
         setPackagingHistory,
+        // A/B Test Titles
+        abTestTitles,
+        setAbTestTitles,
         // CTR Rules
         ctrRules,
         setCtrRules,
@@ -411,6 +422,7 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
                 ...effectiveDefault,
                 localizations: effectiveLocalizations,
                 abTestVariants,
+                abTestTitles,
                 ctrRules,
                 // Metadata
                 viewCount,
@@ -430,6 +442,7 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
                 tags: initialData?.tags || [],
                 localizations: initialData?.localizations || {},
                 abTestVariants: initialData?.abTestVariants || [],
+                abTestTitles: initialData?.abTestTitles || [],
                 ctrRules,
                 // New Metadata
                 viewCount,

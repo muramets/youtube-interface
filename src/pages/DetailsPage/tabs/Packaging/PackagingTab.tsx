@@ -3,7 +3,7 @@ import { type VideoDetails } from '../../../../core/utils/youtubeApi';
 import { PackagingForm } from './components/PackagingForm';
 import { VideoPreviewCard } from './components/VideoPreviewCard';
 import { LanguageTabs } from '../../../../features/Video/LanguageTabs';
-import { ABTestingModal } from './modals/ABTestingModal';
+import { ABTestingModal } from '../../../../components/Shared/ABTesting';
 import { Button } from '../../../../components/ui/atoms/Button';
 import { useChannelStore } from '../../../../core/stores/channelStore';
 import { useAuth } from '../../../../core/hooks/useAuth';

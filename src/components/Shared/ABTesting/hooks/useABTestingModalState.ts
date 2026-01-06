@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { getABTestRank, getRankBorderClass } from '../../utils/abTestRank';
+import { getABTestRank, getRankBorderClass } from '../../../../pages/DetailsPage/tabs/Packaging/utils/abTestRank';
 
 export type ABTestMode = 'title' | 'thumbnail' | 'both';
 
@@ -101,14 +101,28 @@ export function useABTestingModalState({
         const file = e.target.files?.[0];
         if (!file || !file.type.startsWith('image/')) return;
 
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const newThumbnails = [...thumbnails];
-            newThumbnails[index] = reader.result as string;
-            setThumbnails(newThumbnails);
-        };
-        reader.readAsDataURL(file);
+        const objectUrl = URL.createObjectURL(file);
+        const newThumbnails = [...thumbnails];
+
+        // Revoke old URL if it was a blob
+        if (newThumbnails[index].startsWith('blob:')) {
+            URL.revokeObjectURL(newThumbnails[index]);
+        }
+
+        newThumbnails[index] = objectUrl;
+        setThumbnails(newThumbnails);
     };
+
+    // Cleanup blob URLs on unmount
+    useEffect(() => {
+        return () => {
+            thumbnails.forEach(url => {
+                if (url && url.startsWith('blob:')) {
+                    URL.revokeObjectURL(url);
+                }
+            });
+        };
+    }, []);
 
     const handleRemoveThumbnail = (index: number) => {
         const newThumbnails = [...thumbnails];

@@ -14,6 +14,7 @@ import {
     fetchVideoDetails,
     extractVideoId
 } from '../../../../../core/utils/youtubeApi';
+import { useABTesting, type ABTestingSaveData } from '../../../../../components/Shared/ABTesting';
 
 export interface UseAddCustomVideoProps {
     isOpen: boolean;
@@ -90,11 +91,49 @@ export function useAddCustomVideo({
         getMetadataOnlyPayload,
         abTestVariants,
         setAbTestVariants,
+        abTestTitles,
+        setAbTestTitles,
         currentPackagingVersion,
         setCurrentPackagingVersion,
         packagingHistory,
         setPackagingHistory
     } = videoForm;
+
+    // A/B Testing
+    const {
+        isOpen: isABModalOpen,
+        openModal: openABModal,
+        closeModal: closeABModal,
+        handleSave: handleABTestSaveInternal,
+        activeMode: activeABTab
+    } = useABTesting({
+        mode: 'both', // Initial dummy mode
+        titles: abTestTitles,
+        thumbnails: abTestVariants,
+        currentTitle: title, // Use form title as base
+        currentThumbnail: coverImage || '',
+        onSave: (data) => {
+            // Update local state
+            setAbTestTitles(data.titles);
+            setAbTestVariants(data.thumbnails);
+        },
+        onResultsSave: async () => {
+            // No-op for now in creation flow
+        }
+    });
+
+    const handleOpenTitleABTest = () => {
+        openABModal('title');
+    };
+
+    const handleOpenThumbnailABTest = () => {
+        openABModal('thumbnail');
+    };
+
+    const handleABTestSave = (data: ABTestingSaveData) => {
+        handleABTestSaveInternal(data);
+        closeABModal();
+    };
 
     // Derived dirty state for SaveMenu
     const isEffectivePackagingDirty = isPackagingDirty && isDraft;
@@ -360,16 +399,43 @@ export function useAddCustomVideo({
             await Promise.all(coverHistoryPromises);
             if (hasHistoryUpdates) setCoverHistory(updatedCoverHistory);
 
-            // 2. Migrate Legacy Base64 Images in Packaging History
+            // 2. Migrate Legacy Base64 Images in Packaging History & Upload new A/B variants
             let effectivePackagingHistory = overrides?.overridePackagingHistory ?? packagingHistory;
             const effectiveOverriddenHistory = overrides?.overridePackagingHistory; // Keep ref to verify if used
             let hasPackagingUpdates = false;
             effectivePackagingHistory = JSON.parse(JSON.stringify(effectivePackagingHistory));
 
             const packagingPromises = effectivePackagingHistory.map(async (version, index) => {
+                // Upload cover image if base64
                 if (version.configurationSnapshot.coverImage?.startsWith('data:image')) {
                     const newUrl = await uploadBase64ToStorage(version.configurationSnapshot.coverImage, user?.uid || 'anonymous');
                     effectivePackagingHistory[index].configurationSnapshot.coverImage = newUrl;
+                    hasPackagingUpdates = true;
+                }
+
+                // Upload A/B test variants (blob: or data:image)
+                if (version.configurationSnapshot.abTestVariants?.some(v => v.startsWith('blob:') || v.startsWith('data:image'))) {
+                    const variantPromises = (version.configurationSnapshot.abTestVariants || []).map(async (variant) => {
+                        if (variant) {
+                            if (variant.startsWith('blob:')) {
+                                try {
+                                    const blob = await fetch(variant).then(r => r.blob());
+                                    const timestamp = Date.now();
+                                    const randomId = Math.random().toString(36).substring(7);
+                                    const path = `covers/${user?.uid || 'anonymous'}/abtest_${timestamp}_${randomId}.jpg`;
+                                    return await uploadImageToStorage(blob, path);
+                                } catch (e) {
+                                    console.error('Failed to upload blob variant:', e);
+                                    return variant; // Fallback? Or fail? Best to return variant and let error handling upstream deal with it, or empty string.
+                                }
+                            } else if (variant.startsWith('data:image')) {
+                                return await uploadBase64ToStorage(variant, user?.uid || 'anonymous');
+                            }
+                        }
+                        return variant;
+                    });
+                    const newVariants = await Promise.all(variantPromises);
+                    effectivePackagingHistory[index].configurationSnapshot.abTestVariants = newVariants;
                     hasPackagingUpdates = true;
                 }
             });
@@ -377,6 +443,32 @@ export function useAddCustomVideo({
 
             if (hasPackagingUpdates && !effectiveOverriddenHistory) {
                 setPackagingHistory(effectivePackagingHistory);
+            }
+
+            // 3. Upload current A/B test variants (blob: or data:image)
+            let effectiveAbTestVariants = [...abTestVariants];
+            if (effectiveAbTestVariants.some(v => v.startsWith('blob:') || v.startsWith('data:image'))) {
+                const variantPromises = effectiveAbTestVariants.map(async (variant) => {
+                    if (variant) {
+                        if (variant.startsWith('blob:')) {
+                            try {
+                                const blob = await fetch(variant).then(r => r.blob());
+                                const timestamp = Date.now();
+                                const randomId = Math.random().toString(36).substring(7);
+                                const path = `covers/${user?.uid || 'anonymous'}/abtest_${timestamp}_${randomId}.jpg`;
+                                return await uploadImageToStorage(blob, path);
+                            } catch (e) {
+                                console.error('Failed to upload blob variant:', e);
+                                return variant;
+                            }
+                        } else if (variant.startsWith('data:image')) {
+                            return await uploadBase64ToStorage(variant, user?.uid || 'anonymous');
+                        }
+                    }
+                    return variant;
+                });
+                effectiveAbTestVariants = await Promise.all(variantPromises);
+                setAbTestVariants(effectiveAbTestVariants);
             }
 
             const finalData = getFullPayload();
@@ -407,7 +499,10 @@ export function useAddCustomVideo({
                 audioRender: finalData.audioRender,
                 isDraft: overrideIsDraft !== undefined ? overrideIsDraft : (shouldClose ? isDraft : true),
                 currentPackagingVersion: effectivePackagingVersion,
-                packagingHistory: effectivePackagingHistory
+                packagingHistory: effectivePackagingHistory,
+                abTestTitles: abTestTitles,
+                abTestThumbnails: effectiveAbTestVariants,
+                abTestResults: { titles: [], thumbnails: [] } // Initialize empty results for new tests
             };
 
             const newId = await onSave(videoData, shouldClose);
@@ -570,6 +665,17 @@ export function useAddCustomVideo({
         handleSaveAsVersion,
         setToastMessage, setToastType, setToastPosition,
         setDeleteConfirmation, // Used by confirmation modal state if needed, though simpler now
+
+        // A/B Test Exports
+        abTestVariants,
+        abTestTitles,
+        isABModalOpen,
+        handleCloseABModal: closeABModal,
+        handleOpenTitleABTest,
+        handleOpenThumbnailABTest,
+        handleABTestSave,
+        activeABTab,
+        abTestResults: undefined, // Or pass from initialData if available for edit mode
 
         // Custom Language Handlers
         handleAddLanguage,
