@@ -265,25 +265,21 @@ export function useABTestingModalState({
     const getSaveButtonText = () => {
         if (!isValid) return 'Set test';
 
-        const isExistingTest = titleVariants.length > 0 || thumbnailVariants.length > 0;
-        if (!isExistingTest) return 'Set test';
+        const hasExistingTitleTest = titleVariants.length >= 2;
+        const hasExistingThumbnailTest = thumbnailVariants.length >= 2;
 
-        const currentValidTitles = titles.filter(t => t.trim());
-        const currentValidThumbnails = thumbnails.filter(t => t);
+        let isNewTest = false;
 
-        let contentChanged = false;
         if (activeTab === 'title') {
-            contentChanged = JSON.stringify(currentValidTitles) !== JSON.stringify(titleVariants);
+            isNewTest = !hasExistingTitleTest;
         } else if (activeTab === 'thumbnail') {
-            contentChanged = JSON.stringify(currentValidThumbnails) !== JSON.stringify(thumbnailVariants);
-        } else {
-            const titlesChange = JSON.stringify(currentValidTitles) !== JSON.stringify(titleVariants);
-            const thumbnailsChange = JSON.stringify(currentValidThumbnails) !== JSON.stringify(thumbnailVariants);
-            contentChanged = titlesChange || thumbnailsChange;
+            isNewTest = !hasExistingThumbnailTest;
+        } else { // both
+            // If we are missing EITHER test part previously, we are effectively setting up a new combined test
+            isNewTest = !hasExistingTitleTest || !hasExistingThumbnailTest;
         }
 
-        if (contentChanged) return 'Set test';
-        return 'Save';
+        return isNewTest ? 'Set test' : 'Save';
     };
 
     return {
