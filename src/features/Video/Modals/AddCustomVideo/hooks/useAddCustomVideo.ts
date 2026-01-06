@@ -78,7 +78,6 @@ export function useAddCustomVideo({
         fileVersionMap, setFileVersionMap,
         coverHistory, setCoverHistory,
         deletedHistoryIds, setDeletedHistoryIds,
-        isMetadataDirty,
         isPackagingDirty,
         isDraft, setIsDraft,
         isPublished,
@@ -88,7 +87,6 @@ export function useAddCustomVideo({
         addLanguage,
         defaultData,
         getFullPayload,
-        getMetadataOnlyPayload,
         abTestVariants,
         setAbTestVariants,
         abTestTitles,
@@ -539,31 +537,6 @@ export function useAddCustomVideo({
     };
 
     const handleClose = async () => {
-        if (isMetadataDirty && initialData) {
-            const metadataPayload = getMetadataOnlyPayload();
-            const videoData: Omit<VideoDetails, 'id'> = {
-                ...metadataPayload,
-                thumbnail: initialData.thumbnail || '',
-                channelId: currentChannel?.id || '',
-                channelTitle: currentChannel?.name || 'My Channel',
-                channelAvatar: currentChannel?.avatar || '',
-                publishedAt: initialData.publishedAt,
-                isCustom: true,
-                customImage: initialData.customImage || '',
-                createdAt: initialData.createdAt,
-                coverHistory: coverHistory,
-                customImageName: initialData.customImageName,
-                customImageVersion: initialData.customImageVersion || 1,
-                highestVersion: initialData.highestVersion || 0,
-                fileVersionMap: initialData.fileVersionMap || {},
-                historyCount: coverHistory.length,
-            };
-            try {
-                await onSave(videoData, false);
-            } catch (error) {
-                console.error("Failed to auto-save metadata:", error);
-            }
-        }
         onClose();
     };
 

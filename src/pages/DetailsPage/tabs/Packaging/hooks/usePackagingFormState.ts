@@ -17,6 +17,7 @@ interface PackagingSnapshot {
     description: string;
     tags: string[];
     customImage: string;
+    customImageName: string;
     localizations: Record<string, VideoLocalization>;
     abTestTitles: string[];
     abTestThumbnails: string[];
@@ -60,6 +61,7 @@ export const usePackagingFormState = ({
 }: UsePackagingFormStateOptions) => {
     // Non-localized form state
     const [customImage, setCustomImage] = useState(video.customImage || '');
+    const [customImageName, setCustomImageName] = useState(video.customImageName || ''); // Added state
     const [publishedVideoId, setPublishedVideoId] = useState(video.publishedVideoId || '');
     const [videoRender, setVideoRender] = useState(video.videoRender || '');
     const [audioRender, setAudioRender] = useState(video.audioRender || '');
@@ -71,6 +73,7 @@ export const usePackagingFormState = ({
         description: video.description || '',
         tags: video.tags || DEFAULT_TAGS,
         customImage: video.customImage || '',
+        customImageName: video.customImageName || '', // Added to snapshot
         localizations: video.localizations || DEFAULT_LOCALIZATIONS,
         abTestTitles: video.abTestTitles || DEFAULT_TAGS,
         abTestThumbnails: video.abTestThumbnails || DEFAULT_TAGS,
@@ -97,6 +100,7 @@ export const usePackagingFormState = ({
             tags: locPayload.tags,
             localizations: locPayload.localizations,
             customImage,
+            customImageName, // Added to dirty check
             abTestTitles: abTesting.titles,
             abTestThumbnails: abTesting.thumbnails,
             abTestResults: abTesting.results,
@@ -112,6 +116,7 @@ export const usePackagingFormState = ({
         isViewingOldVersion,
         localization.getFullPayload,
         customImage,
+        customImageName, // Added dependency
         abTesting.titles,
         abTesting.thumbnails,
         abTesting.results,
@@ -128,6 +133,7 @@ export const usePackagingFormState = ({
             localizations: snapshot.localizations
         });
         setCustomImage(snapshot.customImage);
+        setCustomImageName(snapshot.customImageName); // Added reset
         setPendingHistory(snapshot.coverHistory);
         abTesting.setTitles(snapshot.abTestTitles);
         abTesting.setThumbnails(snapshot.abTestThumbnails);
@@ -145,13 +151,14 @@ export const usePackagingFormState = ({
             tags: locPayload.tags,
             localizations: locPayload.localizations,
             customImage,
+            customImageName, // Added snapshot update
             abTestTitles: abTesting.titles,
             abTestThumbnails: abTesting.thumbnails,
             abTestResults: abTesting.results,
             coverHistory: pendingHistory
         });
         localization.resetDirty();
-    }, [localization, customImage, abTesting, pendingHistory]);
+    }, [localization, customImage, customImageName, abTesting, pendingHistory]); // Added dependency
 
     /**
      * Checks if incoming video props match the current loaded snapshot.
@@ -170,6 +177,7 @@ export const usePackagingFormState = ({
     return {
         // State
         customImage, setCustomImage,
+        customImageName, setCustomImageName, // Added return
         publishedVideoId, setPublishedVideoId,
         videoRender, setVideoRender,
         audioRender, setAudioRender,

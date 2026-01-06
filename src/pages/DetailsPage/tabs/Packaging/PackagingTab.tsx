@@ -105,6 +105,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                     description: video.description || '',
                     tags: video.tags || DEFAULT_TAGS,
                     customImage: video.customImage || '',
+                    customImageName: video.customImageName || '',
                     localizations: video.localizations || DEFAULT_LOCALIZATIONS,
                     abTestTitles: video.abTestTitles || DEFAULT_TAGS,
                     abTestThumbnails: video.abTestThumbnails || DEFAULT_TAGS,
@@ -127,6 +128,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                     description: versionSnapshot.description,
                     tags: versionSnapshot.tags || DEFAULT_TAGS,
                     customImage: versionSnapshot.coverImage || '',
+                    customImageName: versionSnapshot.originalName || '', // Mapped from originalName
                     localizations: versionSnapshot.localizations || DEFAULT_LOCALIZATIONS,
                     abTestTitles: versionSnapshot.abTestTitles || DEFAULT_TAGS,
                     abTestThumbnails: versionSnapshot.abTestThumbnails || DEFAULT_TAGS,
@@ -262,6 +264,10 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                                 // Create path: users/{userId}/channels/{channelId}/videos/{videoId}/{timestamp}_{filename}
                                 const timestamp = Date.now();
                                 const path = `users/${user?.uid}/channels/${currentChannel?.id}/videos/${video.id}/${timestamp}_${file.name}`;
+
+                                // Capture the real filename immediately
+                                formState.setCustomImageName(file.name);
+
                                 // Upload to Firebase Storage and return download URL
                                 return uploadImageToStorage(blob, path);
                             }}
@@ -271,7 +277,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                                     url,
                                     version: (video.customImageVersion || 0) + prev.length + 1,
                                     timestamp: Date.now(),
-                                    originalName: video.customImageName
+                                    originalName: formState.customImageName
                                 }, ...prev]);
                             }}
                             publishedUrl={formState.publishedVideoId}
@@ -297,7 +303,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                             cloningVersion={actions.cloningVersion}
                             currentVersionInfo={{
                                 version: video.customImageVersion,
-                                originalName: video.customImageName
+                                originalName: formState.customImageName
                             }}
                         />
                     </div>

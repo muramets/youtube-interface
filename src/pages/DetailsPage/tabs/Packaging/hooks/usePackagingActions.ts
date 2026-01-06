@@ -40,6 +40,7 @@ export const usePackagingActions = ({
         return {
             ...locPayload,
             customImage: formState.customImage,
+            customImageName: formState.customImageName,
             publishedVideoId: formState.publishedVideoId,
             videoRender: formState.videoRender,
             audioRender: formState.audioRender,
