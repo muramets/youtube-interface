@@ -154,7 +154,7 @@ export const ImageActionOverlay: React.FC<ImageActionOverlayProps> = ({
                                             ? 'bg-gray-500/50 text-gray-300 cursor-not-allowed border-transparent'
                                             : 'bg-black/60 text-white hover:bg-green-500 hover:text-white border-white/10 hover:border-transparent hover:scale-105'
                                     }`}
-                                title={showCloneSuccess ? "Done!" : isCloned ? "Active clone already exists" : "Clone Video from this version"}
+                                title={showCloneSuccess ? "Done!" : isCloned ? "Active clone with this thumbnail already exists" : "Clone Video from this version"}
                             >
                                 {showCloneSuccess ? (
                                     <Check size={iconSize + 2} className="text-white" />

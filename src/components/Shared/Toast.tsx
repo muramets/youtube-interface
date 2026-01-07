@@ -10,16 +10,20 @@ interface ToastProps {
     type?: 'success' | 'error';
     position?: 'top' | 'bottom';
     onClick?: () => void;
+    actionLabel?: string;
+    onAction?: () => void;
 }
 
 export const Toast: React.FC<ToastProps> = ({
     message,
     isVisible,
-    duration = 3000,
+    duration = 5000,
     onClose,
     type = 'success',
     position = 'bottom',
-    onClick
+    onClick,
+    actionLabel,
+    onAction
 }) => {
     const [shouldRender, setShouldRender] = useState(false);
     const [animationClass, setAnimationClass] = useState('');
@@ -50,14 +54,26 @@ export const Toast: React.FC<ToastProps> = ({
     const Icon = type === 'success' ? CheckCircle : AlertCircle;
     const positionClass = position === 'top' ? 'top-8' : 'bottom-8';
 
+    // Determine if toast should be clickable
+    const isClickable = onClick || (actionLabel && onAction);
+    const handleToastClick = () => {
+        if (onAction) {
+            onAction();
+            onClose();
+        } else if (onClick) {
+            onClick();
+        }
+    };
+
     return createPortal(
         <div className={`fixed ${positionClass} left-1/2 -translate-x-1/2 z-[2000]`} onClick={(e) => e.stopPropagation()}>
             <div
-                className={`${bgColor} text-white pl-4 pr-3 py-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px] ${animationClass} ${onClick ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
-                onClick={onClick}
+                className={`${bgColor} text-white pl-4 pr-3 py-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px] ${animationClass} ${isClickable ? 'cursor-pointer hover:brightness-110 transition-all' : ''}`}
+                onClick={isClickable ? handleToastClick : undefined}
             >
                 <Icon size={20} className="text-white flex-shrink-0" />
                 <span className="text-sm font-medium flex-grow">{message}</span>
+
                 <button
                     onClick={(e) => {
                         e.stopPropagation();

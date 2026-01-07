@@ -13,6 +13,7 @@ import { usePackagingLocalization } from './hooks/usePackagingLocalization';
 import { usePackagingFormState } from './hooks/usePackagingFormState';
 import { useABTesting } from './hooks/useABTesting';
 import { usePackagingActions } from './hooks/usePackagingActions';
+import { useVideos } from '../../../../core/hooks/useVideos';
 import {
     type VersionState,
     DEFAULT_TAGS,
@@ -34,6 +35,7 @@ interface PackagingTabProps {
 export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState, onDirtyChange }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
+    const { videos } = useVideos(user?.uid || '', currentChannel?.id || '');
     const sentinelRef = useRef<HTMLDivElement>(null);
     const [isScrolled, setIsScrolled] = useState(false);
 
@@ -275,9 +277,10 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                             }}
                             onPushToHistory={(url) => {
                                 // Add current cover to history before it gets replaced
+                                // IMPORTANT: The old thumbnail keeps its CURRENT version number
                                 formState.setPendingHistory(prev => [{
                                     url,
-                                    version: (video.customImageVersion || 0) + prev.length + 1,
+                                    version: video.customImageVersion || 1,
                                     timestamp: Date.now(),
                                     originalName: formState.customImageName
                                 }, ...prev]);
@@ -304,8 +307,19 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                             onCloneFromVersion={actions.handleCloneFromVersion}
                             cloningVersion={actions.cloningVersion}
                             currentVersionInfo={{
-                                version: video.customImageVersion,
+                                // Calculate current version based on history
+                                version: formState.pendingHistory.length > 0
+                                    ? Math.max(...formState.pendingHistory.map(v => v.version)) + 1
+                                    : 1,
                                 originalName: formState.customImageName
+                            }}
+                            // Check if a clone with this thumbnail already exists
+                            checkIsCloned={(thumbnailUrl) => {
+                                return videos.some(v =>
+                                    v.isCloned &&
+                                    v.clonedFromId === video.id &&
+                                    v.customImage === thumbnailUrl
+                                );
                             }}
                         />
                     </div>

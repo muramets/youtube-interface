@@ -37,10 +37,19 @@ export const usePackagingActions = ({
     // Common payload construction
     const buildSavePayload = useCallback(() => {
         const locPayload = localization.getFullPayload();
+
+        // Calculate the correct version for the current thumbnail
+        // It should be 1 + the maximum version in history
+        const maxHistoryVersion = formState.pendingHistory.length > 0
+            ? Math.max(...formState.pendingHistory.map(v => v.version))
+            : 0;
+        const newVersion = maxHistoryVersion + 1;
+
         return {
             ...locPayload,
             customImage: formState.customImage,
             customImageName: formState.customImageName,
+            customImageVersion: newVersion,
             publishedVideoId: formState.publishedVideoId,
             videoRender: formState.videoRender,
             audioRender: formState.audioRender,
@@ -154,13 +163,38 @@ export const usePackagingActions = ({
                 coverVersion: version,
                 cloneDurationSeconds: cloneSettings?.cloneDurationSeconds || 3600
             });
-            showToast(`Cloned version v.${version.version}`, 'success');
+
+            // Dynamic message based on whether there are unsaved changes
+            const message = formState.isDirty
+                ? `Thumbnail cloned — save & view`
+                : `Thumbnail cloned — click to view`;
+
+            // Show toast with action to save draft and navigate to homepage
+            showToast(
+                message,
+                'success',
+                'clickable', // This signals the toast is clickable
+                async () => {
+                    // Auto-save draft before navigating (only if dirty)
+                    if (formState.isDirty) {
+                        try {
+                            await handleSave();
+                        } catch (error) {
+                            console.error('Failed to save draft:', error);
+                            showToast('Failed to save changes', 'error');
+                            return; // Don't navigate if save failed
+                        }
+                    }
+                    // Navigate to homepage to see the cloned video
+                    window.location.href = '/';
+                }
+            );
         } catch {
             showToast('Failed to clone version', 'error');
         } finally {
             setCloningVersion(null);
         }
-    }, [cloningVersion, cloneVideo, video, showToast]);
+    }, [cloningVersion, cloneVideo, video, showToast, cloneSettings, formState.isDirty, handleSave]);
 
     const handleRestore = useCallback(() => {
         if (versionState.viewingVersion !== 'draft' && typeof versionState.viewingVersion === 'number') {

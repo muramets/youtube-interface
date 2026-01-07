@@ -22,6 +22,7 @@ interface ThumbnailSectionProps {
         originalName?: string;
     };
     widthClass?: string;
+    checkIsCloned?: (thumbnailUrl: string) => boolean;
 }
 
 /**
@@ -55,7 +56,8 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
     onClone,
     cloningVersion,
     currentVersionInfo,
-    widthClass = "w-40"
+    widthClass = "w-40",
+    checkIsCloned
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showDropdown, setShowDropdown] = useState(false);
@@ -318,6 +320,7 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
                 onClone={onClone}
                 cloningVersion={cloningVersion}
                 currentVersionInfo={currentVersionInfo}
+                checkIsCloned={checkIsCloned}
             />
         </div >
     );

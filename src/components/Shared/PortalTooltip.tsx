@@ -30,6 +30,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
     const [shouldRender, setShouldRender] = useState(false); // Controls mounting
     const [position, setPosition] = useState({ top: 0, left: 0 });
     const triggerRef = useRef<HTMLDivElement>(null);
+    const tooltipRef = useRef<HTMLDivElement>(null);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const enterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -44,6 +45,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
         positionRaf.current = requestAnimationFrame(() => {
             if (triggerRef.current) {
                 const rect = triggerRef.current.getBoundingClientRect();
+                const tooltipWidth = tooltipRef.current?.offsetWidth || 0;
                 let top = 0;
                 let left = 0;
 
@@ -63,6 +65,19 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                 } else if (side === 'right') {
                     top = rect.top;
                     left = rect.right + 8;
+                }
+
+                // Ensure tooltip stays within viewport bounds
+                const padding = 16;
+
+                // For right-aligned tooltips, account for the translateX(-100%) transform
+                if (align === 'right' && tooltipWidth > 0) {
+                    // After transform, the tooltip's left edge will be at: left - tooltipWidth
+                    const effectiveLeft = left - tooltipWidth;
+                    if (effectiveLeft < padding) {
+                        // Shift right to prevent clipping
+                        left = padding + tooltipWidth;
+                    }
                 }
 
                 setPosition({ top, left });
@@ -201,9 +216,10 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                     onPointerLeave={handleMouseLeave}
                 >
                     <div
+                        ref={tooltipRef}
                         className={`
                             bg-[#1F1F1F] text-white text-[11px] leading-relaxed px-3 py-2 rounded-lg
-                            whitespace-normal break-words w-max max-w-[250px] shadow-xl text-left border border-white/10
+                            whitespace-normal break-words w-max shadow-xl text-left border border-white/10
                             transition-all ease-out origin-top-right
                             ${noAnimation ? 'duration-0' : 'duration-200'}
                             ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}

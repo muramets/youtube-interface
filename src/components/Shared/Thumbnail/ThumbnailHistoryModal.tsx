@@ -21,6 +21,7 @@ export interface ThumbnailHistoryModalProps {
         version?: number;
         originalName?: string;
     };
+    checkIsCloned?: (thumbnailUrl: string) => boolean;
 }
 
 /**
@@ -47,7 +48,8 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
     onDelete,
     onClone,
     cloningVersion,
-    currentVersionInfo
+    currentVersionInfo,
+    checkIsCloned
 }) => {
     const {
         selectedIndex,
@@ -230,6 +232,7 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                             }
                                         }}
                                         onTooltipOpenChange={setIsCurrentTooltipOpen}
+                                        isCloned={checkIsCloned?.(effectiveCurrentThumbnail) || false}
                                     />
                                 </div>
                             </div>
@@ -309,6 +312,7 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                                         isCloning={cloningVersion === selectedVersion.version}
                                                         className="z-30"
                                                         onTooltipOpenChange={setIsHistoricalTooltipOpen}
+                                                        isCloned={checkIsCloned?.(selectedVersion.url) || false}
                                                     />
                                                 )}
                                             </>
@@ -398,6 +402,7 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                             isCloning={cloningVersion === version.version}
                                             size="small"
                                             onTooltipOpenChange={(open) => setOpenTooltipTimestamp(open ? version.timestamp : null)}
+                                            isCloned={checkIsCloned?.(version.url) || false}
                                         />
 
                                         {selectedIndex === index && (

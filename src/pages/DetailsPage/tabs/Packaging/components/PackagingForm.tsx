@@ -46,6 +46,7 @@ interface PackagingFormProps {
         version?: number;
         originalName?: string;
     };
+    checkIsCloned?: (thumbnailUrl: string) => boolean;
 }
 
 export const PackagingForm: React.FC<PackagingFormProps> = ({
@@ -76,7 +77,8 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
     onDeleteHistoryVersion,
     onCloneFromVersion,
     cloningVersion,
-    currentVersionInfo
+    currentVersionInfo,
+    checkIsCloned
 }) => {
     const [showMore, setShowMore] = useState(false);
 
@@ -119,6 +121,7 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
                 onClone={onCloneFromVersion}
                 cloningVersion={cloningVersion}
                 currentVersionInfo={currentVersionInfo}
+                checkIsCloned={checkIsCloned}
             />
 
             {/* Tags */}

@@ -115,6 +115,8 @@ function ToastWrapper() {
       type={toast.type}
       isVisible={toast.isVisible}
       onClose={hideToast}
+      actionLabel={toast.actionLabel}
+      onAction={toast.onAction}
     />
   );
 }

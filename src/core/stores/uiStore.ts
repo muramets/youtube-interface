@@ -14,8 +14,10 @@ interface UIState {
         message: string;
         type: 'success' | 'error';
         isVisible: boolean;
+        actionLabel?: string;
+        onAction?: () => void;
     };
-    showToast: (message: string, type?: 'success' | 'error') => void;
+    showToast: (message: string, type?: 'success' | 'error', actionLabel?: string, onAction?: () => void) => void;
     hideToast: () => void;
 
     // Global Modal Control
@@ -46,10 +48,16 @@ export const useUIStore = create<UIState>()(
             toast: {
                 message: '',
                 type: 'success',
-                isVisible: false
+                isVisible: false,
+                actionLabel: undefined,
+                onAction: undefined
             },
-            showToast: (message, type = 'success') => set({ toast: { message, type, isVisible: true } }),
-            hideToast: () => set((state) => ({ toast: { ...state.toast, isVisible: false } })),
+            showToast: (message, type = 'success', actionLabel, onAction) => set({
+                toast: { message, type, isVisible: true, actionLabel, onAction }
+            }),
+            hideToast: () => set((state) => ({
+                toast: { ...state.toast, isVisible: false, actionLabel: undefined, onAction: undefined }
+            })),
 
             activeVideoId: null,
             activeTab: 'details',

@@ -17,12 +17,12 @@ export const ClonedVideoTooltipContent: React.FC<ClonedVideoTooltipContentProps>
     };
 
     return (
-        <div className="flex flex-col gap-1 min-w-[200px]">
+        <div className="flex flex-col gap-1">
             <div className="font-medium text-white">
                 v.{version}
             </div>
-            <div className="flex items-center justify-between gap-3 text-sm text-gray-300">
-                <span className="truncate max-w-[180px]" title={filename}>
+            <div className="flex items-start justify-between gap-3 text-sm text-gray-300">
+                <span className="break-words">
                     {filename}
                 </span>
                 <button
