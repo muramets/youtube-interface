@@ -29,8 +29,9 @@ export const TitleInputCard: React.FC<TitleInputCardProps> = ({
                 hover:border-[#AAAAAA] focus-within:border-[#AAAAAA] transition-colors overflow-hidden ${borderClassName}`}
             style={compact ? undefined : { height: '148px' }}
         >
-            <div className="text-xs text-modal-text-secondary mb-2 whitespace-nowrap">
+            <div className="flex items-center justify-between text-xs text-modal-text-secondary mb-2 whitespace-nowrap px-1">
                 <span>Title{compact ? ` ${index + 1}` : ''}{isRequired ? requiredLabel : ''}</span>
+                <span>{value.length > 0 ? value.length : ''}</span>
             </div>
             <textarea
                 value={value}
