@@ -3,12 +3,14 @@ import { ExternalLink } from 'lucide-react';
 import type { TrafficSource, TrafficGroup } from '../../../../../core/types/traffic';
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { PortalTooltip } from '../../../../../components/Shared/PortalTooltip';
+import { VideoPreviewTooltip } from '../../../../../components/Shared/VideoPreviewTooltip';
 
 interface TrafficRowProps {
     item: TrafficSource;
     index: number;
     isSelected: boolean;
     group?: TrafficGroup;
+    activeSortKey?: string;
     onRowClick: (id: string, index: number, e: React.MouseEvent) => void;
 }
 
@@ -26,22 +28,22 @@ const formatDuration = (duration: string) => {
 };
 
 
-export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, group, onRowClick }) => {
+export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, group, activeSortKey, onRowClick }) => {
     return (
         <div
             key={item.videoId || index}
             onClick={(e) => item.videoId && onRowClick(item.videoId, index, e)}
             className={`
-                h-full grid grid-cols-[40px_1fr_100px_100px_120px_100px] gap-4 px-4 items-center border-b border-white/5 
-                text-sm transition-colors cursor-pointer group
-                ${isSelected
-                    ? 'bg-accent-blue/10 hover:bg-accent-blue/20'
-                    : index % 2 === 0
-                        ? 'bg-white/[0.01] hover:bg-white/[0.03]'
-                        : 'hover:bg-white/[0.02]'
-                }
+                relative h-full grid grid-cols-[40px_1fr_100px_100px_120px_100px] gap-4 px-4 items-center border-b border-white/5 
+                text-xs transition-colors duration-200 cursor-pointer group select-none
+                ${index % 2 === 0 ? 'bg-white/[0.035]' : 'bg-transparent'} 
+                hover:bg-white/[0.05]
             `}
         >
+            {/* Selection indicator line - Absolute to avoid clipping */}
+            {isSelected && (
+                <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-[#3EA6FF] z-10 shadow-[2px_0_8px_rgba(62,166,255,0.4)]" />
+            )}
             <div className="flex items-center justify-center">
                 <Checkbox
                     checked={isSelected}
@@ -59,8 +61,23 @@ export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, grou
                         />
                     )}
                     <div className="min-w-0 flex-1">
-                        <PortalTooltip content={item.sourceTitle} enterDelay={500} triggerClassName="!flex w-full min-w-0 !justify-start">
-                            <span className="truncate text-text-primary font-medium block">
+                        <PortalTooltip
+                            content={
+                                item.videoId ? (
+                                    <VideoPreviewTooltip
+                                        videoId={item.videoId}
+                                        title={item.sourceTitle}
+                                        channelTitle={item.channelTitle}
+                                    />
+                                ) : (
+                                    item.sourceTitle
+                                )
+                            }
+                            enterDelay={500}
+                            triggerClassName="!flex w-full min-w-0 !justify-start"
+                            variant={item.videoId ? "glass" : "default"}
+                        >
+                            <span className={`truncate block ${activeSortKey === 'sourceTitle' ? 'text-text-primary font-semibold' : 'text-text-primary font-medium'}`}>
                                 {item.sourceTitle}
                             </span>
                         </PortalTooltip>
@@ -79,19 +96,19 @@ export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, grou
                 </div>
             </div>
 
-            <div className="text-right text-text-secondary">
+            <div className={`text-right ${activeSortKey === 'impressions' ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
                 {item.impressions.toLocaleString()}
             </div>
 
-            <div className="text-right text-text-secondary">
+            <div className={`text-right ${activeSortKey === 'ctr' ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
                 {item.ctr}%
             </div>
 
-            <div className="text-right font-medium text-text-primary">
+            <div className={`text-right ${activeSortKey === 'views' ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
                 {item.views.toLocaleString()}
             </div>
 
-            <div className="text-right text-text-secondary">
+            <div className={`text-right ${activeSortKey === 'avgViewDuration' ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
                 {formatDuration(item.avgViewDuration)}
             </div>
         </div>
@@ -102,7 +119,8 @@ export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, grou
         prevProps.item === nextProps.item &&
         prevProps.isSelected === nextProps.isSelected &&
         prevProps.group === nextProps.group &&
-        prevProps.index === nextProps.index
+        prevProps.index === nextProps.index &&
+        prevProps.activeSortKey === nextProps.activeSortKey
     );
 });
 

@@ -160,7 +160,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
             </div>
 
             {/* Main Content - Table with its own scroll */}
-            <div className="px-6 pb-6">
+            <div className="px-6 pb-6 pt-6">
                 {/* Version Pills - Always show */}
                 <div className="mb-6 max-w-[1050px]">
                     <VersionPills

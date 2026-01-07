@@ -106,7 +106,7 @@ export const usePackagingActions = ({
         try {
             const payload = buildSavePayload();
 
-            // Create new version in memory - returns sync data to avoid race condition
+            // Create new version - this updates local state via reducer
             const { newVersion, updatedHistory, currentPackagingVersion } = versionState.createVersion({
                 title: payload.title,
                 description: payload.description,
@@ -118,20 +118,24 @@ export const usePackagingActions = ({
                 localizations: payload.localizations
             });
 
-            await updateVideo({
+            // Update snapshot and show toast
+            formState.updateSnapshotToCurrent();
+            showToast(`Saved as v.${newVersion.versionNumber}`, 'success');
+
+            // Save to Firestore in background
+            updateVideo({
                 videoId: video.id,
                 updates: {
                     ...payload,
-                    // Keep thumbnail in sync with customImage (use empty string if deliberately cleared)
                     thumbnail: payload.customImage,
                     packagingHistory: updatedHistory,
                     currentPackagingVersion: currentPackagingVersion,
                     isDraft: false
                 }
+            }).catch(error => {
+                console.error('Failed to create version:', error);
+                showToast('Failed to save to server', 'error');
             });
-
-            formState.updateSnapshotToCurrent();
-            showToast(`Saved as v.${newVersion.versionNumber}`, 'success');
         } catch (error) {
             console.error('Failed to create version:', error);
             showToast('Failed to create version', 'error');

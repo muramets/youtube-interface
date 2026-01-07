@@ -12,6 +12,7 @@ import { parseTrafficCsv } from '../../core/utils/csvParser';
 import { useUIStore } from '../../core/stores/uiStore';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
+import { useVideos } from '../../core/hooks/useVideos';
 
 interface DetailsLayoutProps {
     video: VideoDetails;
@@ -22,6 +23,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
     const { showToast } = useUIStore();
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
+    const { updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
 
     // Tab State
     const [activeTab, setActiveTab] = useState<'packaging' | 'traffic'>('packaging');
@@ -34,14 +36,17 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
     // - Has versions = compare current title/description/tags/cover to latest snapshot
     const computedHasDraft = useMemo(() => {
         const history = video.packagingHistory || [];
-        if (history.length === 0) return false;
+
+        // If no versions exist yet, we're in a "draft v.1" state by default.
+        // This ensures the sidebar sub-items (Draft) are visible.
+        if (history.length === 0) return true;
 
         // Find the latest version
         const latestVersion = history.reduce((max, v) =>
             v.versionNumber > max.versionNumber ? v : max, history[0]);
 
         const snapshot = latestVersion.configurationSnapshot;
-        if (!snapshot) return false;
+        if (!snapshot) return true; // Treat as draft if snapshot is missing
 
         // Compare current video data to latest version snapshot
         const videoTitle = video.title || '';
@@ -58,9 +63,6 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
             videoCover !== (snapshot.coverImage || '') ||
             JSON.stringify(videoAbTestTitles) !== JSON.stringify(snapshot.abTestTitles || []) ||
             JSON.stringify(videoAbTestThumbnails) !== JSON.stringify(snapshot.abTestThumbnails || []);
-        // NOTE: We deliberately exclude abTestResults comparison.
-        // A/B test results (view counts) update automatically and should NOT trigger a "content draft" state.
-        // Only actual configuration changes (titles, thumbnails) should create a draft.
 
         return hasDifference;
     }, [video]);
@@ -69,7 +71,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
     const versions = usePackagingVersions({
         initialHistory: video.packagingHistory || [],
         initialCurrentVersion: video.currentPackagingVersion || 1,
-        isDraft: computedHasDraft
+        isDraft: video.isDraft || computedHasDraft
     });
 
     // Confirmation modal for switching versions with unsaved changes
@@ -148,19 +150,83 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
     }, []);
 
     // Confirm delete
-    const confirmDelete = useCallback(() => {
+    const confirmDelete = useCallback(async () => {
         if (deleteConfirmation.versionNumber !== null) {
-            versions.deleteVersion(deleteConfirmation.versionNumber);
-            showToast(`Version ${deleteConfirmation.versionNumber} deleted`, 'success');
+            const versionToDelete = deleteConfirmation.versionNumber;
+            const isActiveDeleted = versions.activeVersion === versionToDelete;
+
+            // Calculate updated data BEFORE calling deleteVersion
+            const updatedHistory = versions.packagingHistory.filter(
+                v => v.versionNumber !== versionToDelete
+            );
+
+            // Calculate new currentPackagingVersion
+            const newCurrentVersion = updatedHistory.length === 0
+                ? 1
+                : Math.max(...updatedHistory.map(v => v.versionNumber)) + 1;
+
+            // NEW LOGIC: If we deleted the ACTIVE version, we should roll back 
+            // the video data to the new latest version to avoid creating a draft.
+            let rollbackUpdates = {};
+            if (isActiveDeleted && updatedHistory.length > 0) {
+                // Find the new latest version
+                const latestRemaining = updatedHistory.reduce((max, v) =>
+                    v.versionNumber > max.versionNumber ? v : max, updatedHistory[0]);
+
+                const snapshot = latestRemaining.configurationSnapshot;
+                if (snapshot) {
+                    rollbackUpdates = {
+                        title: snapshot.title,
+                        description: snapshot.description,
+                        tags: snapshot.tags,
+                        customImage: snapshot.coverImage || '',
+                        thumbnail: snapshot.coverImage || '',
+                        abTestTitles: snapshot.abTestTitles || [],
+                        abTestThumbnails: snapshot.abTestThumbnails || [],
+                        abTestResults: snapshot.abTestResults,
+                        localizations: snapshot.localizations || {}
+                    };
+                }
+            }
+
+            const willHaveDraft = updatedHistory.length === 0;
+
+            // INSTANT UI UPDATE
+            versions.deleteVersion(versionToDelete);
+            versions.setCurrentVersionNumber(newCurrentVersion);
+
+            if (willHaveDraft) {
+                versions.setHasDraft(true);
+            } else {
+                versions.setHasDraft(false);
+            }
+
+            showToast(`Version ${versionToDelete} deleted`, 'success');
+
+            // Save to Firestore
+            if (user?.uid && currentChannel?.id && video.id) {
+                updateVideo({
+                    videoId: video.id,
+                    updates: {
+                        ...rollbackUpdates, // Restore data if active version was deleted
+                        packagingHistory: updatedHistory,
+                        currentPackagingVersion: newCurrentVersion,
+                        isDraft: willHaveDraft
+                    }
+                }).catch(error => {
+                    console.error('Failed to save deletion to Firestore:', error);
+                    showToast('Failed to save deletion', 'error');
+                });
+            }
         }
         setDeleteConfirmation({ isOpen: false, versionNumber: null });
-    }, [deleteConfirmation.versionNumber, versions, showToast]);
+    }, [deleteConfirmation.versionNumber, versions, showToast, user, currentChannel, video.id, updateVideo]);
 
     // ============================================================================
     // BUSINESS LOGIC: Restore Version with Snapshot
     // ============================================================================
     // Handler for restore version button
-    const handleRestoreVersion = useCallback((versionToRestore: number) => {
+    const handleRestoreVersion = useCallback(async (versionToRestore: number) => {
         // Check if video is published
         const isPublished = !!video.publishedVideoId;
 
@@ -173,9 +239,57 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
         } else {
             // Directly restore without snapshot for unpublished videos
             versions.restoreVersion(versionToRestore);
+
+            // Save to Firestore to persist the restoration
+            if (user?.uid && currentChannel?.id && video.id) {
+                try {
+                    // Get the version snapshot to restore data from
+                    const versionToRestoreData = versions.packagingHistory.find(
+                        v => v.versionNumber === versionToRestore
+                    );
+                    const snapshot = versionToRestoreData?.configurationSnapshot;
+
+                    if (!snapshot) {
+                        showToast('Version data not found', 'error');
+                        return;
+                    }
+
+                    // Get updated history with new endDate for restored version
+                    const updatedHistory = versions.packagingHistory.map(v =>
+                        v.versionNumber === versionToRestore
+                            ? { ...v, endDate: Date.now() }
+                            : v
+                    );
+
+                    // Restore both the version metadata AND the actual video data
+                    await updateVideo({
+                        videoId: video.id,
+                        updates: {
+                            // Version metadata
+                            packagingHistory: updatedHistory,
+                            isDraft: false,
+                            // Actual video data from snapshot
+                            title: snapshot.title,
+                            description: snapshot.description,
+                            tags: snapshot.tags,
+                            customImage: snapshot.coverImage || '',
+                            thumbnail: snapshot.coverImage || '',
+                            abTestTitles: snapshot.abTestTitles || [],
+                            abTestThumbnails: snapshot.abTestThumbnails || [],
+                            abTestResults: snapshot.abTestResults,
+                            localizations: snapshot.localizations || {}
+                        }
+                    });
+                } catch (error) {
+                    console.error('Failed to save restoration to Firestore:', error);
+                    showToast('Failed to save restoration', 'error');
+                    return;
+                }
+            }
+
             showToast(`Restored to v.${versionToRestore}`, 'success');
         }
-    }, [video.publishedVideoId, versions, showToast]);
+    }, [video.publishedVideoId, video.id, versions, showToast, user, currentChannel, updateVideo]);
 
     // Handle snapshot upload from modal
     const handleSnapshotUpload = useCallback(async (file: File) => {
@@ -194,13 +308,51 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
 
             // Restore the version
             versions.restoreVersion(snapshotRequest.versionToRestore);
+
+            // Get the version snapshot to restore data from
+            const versionToRestoreData = versions.packagingHistory.find(
+                v => v.versionNumber === snapshotRequest.versionToRestore
+            );
+            const snapshot = versionToRestoreData?.configurationSnapshot;
+
+            if (!snapshot) {
+                showToast('Version data not found', 'error');
+                return;
+            }
+
+            // Save to Firestore to persist the restoration
+            const updatedHistory = versions.packagingHistory.map(v =>
+                v.versionNumber === snapshotRequest.versionToRestore
+                    ? { ...v, endDate: Date.now() }
+                    : v
+            );
+
+            await updateVideo({
+                videoId: video.id,
+                updates: {
+                    // Version metadata
+                    packagingHistory: updatedHistory,
+                    isDraft: false,
+                    // Actual video data from snapshot
+                    title: snapshot.title,
+                    description: snapshot.description,
+                    tags: snapshot.tags,
+                    customImage: snapshot.coverImage || '',
+                    thumbnail: snapshot.coverImage || '',
+                    abTestTitles: snapshot.abTestTitles || [],
+                    abTestThumbnails: snapshot.abTestThumbnails || [],
+                    abTestResults: snapshot.abTestResults,
+                    localizations: snapshot.localizations || {}
+                }
+            });
+
             setSnapshotRequest({ isOpen: false, versionToRestore: null });
             showToast(`Snapshot saved & restored to v.${snapshotRequest.versionToRestore}`, 'success');
         } catch (err) {
             console.error('Failed to save snapshot:', err);
             showToast('Failed to save snapshot', 'error');
         }
-    }, [user, currentChannel, video.id, versions, snapshotRequest, showToast]);
+    }, [user, currentChannel, video.id, versions, snapshotRequest, showToast, updateVideo]);
 
     // Handle skip snapshot (use current data)
     const handleSkipSnapshot = useCallback(async () => {
@@ -220,13 +372,51 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
 
             // Restore the version
             versions.restoreVersion(snapshotRequest.versionToRestore);
+
+            // Get the version snapshot to restore data from
+            const versionToRestoreData = versions.packagingHistory.find(
+                v => v.versionNumber === snapshotRequest.versionToRestore
+            );
+            const snapshot = versionToRestoreData?.configurationSnapshot;
+
+            if (!snapshot) {
+                showToast('Version data not found', 'error');
+                return;
+            }
+
+            // Save to Firestore to persist the restoration
+            const updatedHistory = versions.packagingHistory.map(v =>
+                v.versionNumber === snapshotRequest.versionToRestore
+                    ? { ...v, endDate: Date.now() }
+                    : v
+            );
+
+            await updateVideo({
+                videoId: video.id,
+                updates: {
+                    // Version metadata
+                    packagingHistory: updatedHistory,
+                    isDraft: false,
+                    // Actual video data from snapshot
+                    title: snapshot.title,
+                    description: snapshot.description,
+                    tags: snapshot.tags,
+                    customImage: snapshot.coverImage || '',
+                    thumbnail: snapshot.coverImage || '',
+                    abTestTitles: snapshot.abTestTitles || [],
+                    abTestThumbnails: snapshot.abTestThumbnails || [],
+                    abTestResults: snapshot.abTestResults,
+                    localizations: snapshot.localizations || {}
+                }
+            });
+
             setSnapshotRequest({ isOpen: false, versionToRestore: null });
             showToast(`Restored to v.${snapshotRequest.versionToRestore}`, 'success');
         } catch (err) {
             console.error('Failed to create snapshot:', err);
             showToast('Failed to create snapshot', 'error');
         }
-    }, [user, currentChannel, video.id, versions, trafficState, snapshotRequest, showToast]);
+    }, [user, currentChannel, video.id, versions, trafficState, snapshotRequest, showToast, updateVideo]);
 
 
     return (
@@ -234,7 +424,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
             {/* Left Sidebar */}
             <DetailsSidebar
                 video={video}
-                versions={versions.packagingHistory}
+                versions={versions.navSortedVersions}
                 viewingVersion={versions.viewingVersion}
                 activeVersion={versions.activeVersion}
                 hasDraft={versions.hasDraft}

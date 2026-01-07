@@ -31,7 +31,7 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
             onClick={onClick}
             className={`
                 group flex items-center justify-between pl-[56px] pr-4 py-1.5 cursor-pointer
-                transition-colors rounded-lg mx-3
+                transition-colors rounded-lg ml-6 mr-3
                 ${isViewing
                     ? 'text-text-primary font-medium bg-sidebar-active'
                     : 'text-text-secondary hover:text-text-primary hover:bg-sidebar-hover'
@@ -41,10 +41,10 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
             <div className="flex items-center gap-2">
                 <span className="text-sm">{label}</span>
 
-                {/* ACTIVE badge - using Badge atom */}
-                {isVideoActive && (
+                {/* ACTIVE badge - always rendered, controlled by opacity for smooth transitions */}
+                <div className={`inline-flex items-center transition-opacity duration-200 ${isVideoActive ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                     <Badge variant="success">Active</Badge>
-                )}
+                </div>
             </div>
 
             {/* Delete button - always present, show on hover via opacity */}

@@ -3,10 +3,12 @@ import { createPortal } from 'react-dom';
 
 interface PortalTooltipProps {
     content: React.ReactNode;
-    children: React.ReactElement;
+    children?: React.ReactElement; // Make optional if using anchorRect
+    anchorRect?: { top: number; left: number; width: number; height: number; right?: number; bottom?: number };
     align?: 'left' | 'center' | 'right';
     side?: 'bottom' | 'left' | 'right' | 'top';
     onOpenChange?: (isOpen: boolean) => void;
+    variant?: 'default' | 'glass';
     className?: string;
     triggerClassName?: string;
     enterDelay?: number;
@@ -17,9 +19,11 @@ interface PortalTooltipProps {
 export const PortalTooltip: React.FC<PortalTooltipProps> = ({
     content,
     children,
+    anchorRect,
     align = 'left',
     side = 'bottom',
     onOpenChange,
+    variant = 'default',
     className = '',
     triggerClassName = '',
     enterDelay = 0,
@@ -46,35 +50,24 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
         if (positionRaf.current) return;
 
         positionRaf.current = requestAnimationFrame(() => {
-            if (triggerRef.current) {
-                const rect = triggerRef.current.getBoundingClientRect();
+            const rect = anchorRect || (triggerRef.current?.getBoundingClientRect());
+            if (rect) {
                 const viewportWidth = document.documentElement.clientWidth;
                 const padding = 16;
-                const minWidth = 200; // Minimum width we try to maintain before forcefully shrinking
+                const minWidth = 200;
 
                 let top = 0;
                 let left = 0;
                 let calculatedMaxWidth: number | undefined = undefined;
                 let transform = 'none';
 
-                // --- HORIZONTAL POSITIONING LOGIC ---
-                // We primarily determine horizontal placement (left/right) relative to viewport
-                // regardless of whether the tooltip is top/bottom or side-aligned.
-
-                // Calculate available space on both sides
-                // For 'align=left', tooltip grows right: space is (viewport - rect.left)
-                // For 'align=right', tooltip grows left: space is (rect.right)
-
-                // Effective alignment determination (handling flipping)
                 let effectiveAlign = align;
 
                 if (side === 'left' || side === 'right') {
-                    // For side tooltips, main axis is horizontal. We flip sides, not align.
-                    // This is handled separately below.
+                    // ...
                 } else {
-                    // Top/Bottom tooltips: check if we need to flip alignment
                     const spaceRight = viewportWidth - rect.left - padding;
-                    const spaceLeft = rect.right - padding;
+                    const spaceLeft = (rect.right || (rect.left + rect.width)) - padding;
 
                     if (align === 'left' && spaceRight < minWidth && spaceLeft > spaceRight) {
                         effectiveAlign = 'right';
@@ -83,22 +76,16 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                     }
                 }
 
-                // --- POSITION CALCULATION ---
-
                 if (side === 'top' || side === 'bottom') {
-                    // Vertical Position
-                    top = side === 'bottom' ? rect.bottom + 8 : rect.top - 8;
+                    top = side === 'bottom' ? (rect.bottom || (rect.top + rect.height)) + 8 : rect.top - 8;
 
-                    // Horizontal Position based on Effective Alignment
                     if (effectiveAlign === 'left') {
                         left = rect.left;
                         transform = side === 'top' ? 'translateY(-100%)' : 'none';
-                        // Max width is distance to right edge
                         calculatedMaxWidth = viewportWidth - left - padding;
                     } else if (effectiveAlign === 'right') {
-                        left = rect.right;
+                        left = (rect.right || (rect.left + rect.width));
                         transform = `translateX(-100%) ${side === 'top' ? 'translateY(-100%)' : ''}`;
-                        // Max width is distance to left edge (which is 'left' value minus padding)
                         calculatedMaxWidth = left - padding;
                     } else { // center
                         left = rect.left + (rect.width / 2);
@@ -107,10 +94,8 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                     }
 
                 } else {
-                    // Side Position (Left/Right)
-                    // Determine if we need to flip side based on available width
                     let effectiveSide = side;
-                    const spaceRight = viewportWidth - rect.right - 8 - padding;
+                    const spaceRight = viewportWidth - (rect.right || (rect.left + rect.width)) - 8 - padding;
                     const spaceLeft = rect.left - 8 - padding;
 
                     if (side === 'right' && spaceRight < minWidth && spaceLeft > spaceRight) {
@@ -119,14 +104,14 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                         effectiveSide = 'right';
                     }
 
-                    top = rect.top; // Default top alignment
+                    top = rect.top;
 
                     if (effectiveSide === 'left') {
                         left = rect.left - 8;
                         transform = 'translateX(-100%)';
                         calculatedMaxWidth = left - padding;
                     } else {
-                        left = rect.right + 8;
+                        left = (rect.right || (rect.left + rect.width)) + 8;
                         transform = 'none';
                         calculatedMaxWidth = viewportWidth - left - padding;
                     }
@@ -138,7 +123,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
             }
             positionRaf.current = null;
         });
-    }, [align, side]);
+    }, [align, side, anchorRect]);
 
     const showTooltip = useCallback(() => {
         updatePosition();
@@ -264,9 +249,13 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                     <div
                         ref={tooltipRef}
                         className={`
-                            bg-[#1F1F1F] text-white text-[11px] leading-relaxed px-3 py-2 rounded-lg
-                            whitespace-normal break-all max-w-full shadow-xl text-left border border-white/10
+                            text-white text-[11px] leading-relaxed
+                            whitespace-normal break-all max-w-full text-left border
                             transition-all ease-out origin-top-right
+                            ${variant === 'glass'
+                                ? 'bg-[#1a1a1a]/60 backdrop-blur-xl p-4 rounded-xl border-white/10 shadow-2xl w-[340px]'
+                                : 'bg-[#1F1F1F] px-3 py-2 rounded-lg border-white/10 shadow-xl'
+                            }
                             ${noAnimation ? 'duration-0' : 'duration-200'}
                             ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}
                             ${className}

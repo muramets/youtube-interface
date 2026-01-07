@@ -32,13 +32,8 @@ export const PackagingNav: React.FC<PackagingNavProps> = ({
     // - Second click → navigates to draft or latest version
     const [isExpanded, setIsExpanded] = useState(false);
 
-    // BUSINESS LOGIC: Version Ordering
-    // Sort by most recently used (endDate) or created (startDate) - newest first
-    const sortedVersions = [...versions].sort((a, b) => {
-        const aDate = a.endDate || a.startDate;
-        const bDate = b.endDate || b.startDate;
-        return bDate - aDate;
-    });
+    // Using pre-sorted versions from props (handled by hook for atomic synchronization)
+    const sortedVersions = versions;
 
     // Determine if there's content to expand
     const hasContent = hasDraft || versions.length > 0;

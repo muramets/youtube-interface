@@ -81,6 +81,7 @@ export interface VersionState {
     // Version History
     packagingHistory: PackagingVersion[];
     sortedVersions: PackagingVersion[];
+    navSortedVersions: PackagingVersion[]; // Specialized sort for sidebar (active first, then desc)
     currentVersionNumber: number;
     hasDraft: boolean;
 
@@ -112,6 +113,7 @@ export interface VersionState {
     setPackagingHistory: React.Dispatch<React.SetStateAction<PackagingVersion[]>>;
     setHasDraft: React.Dispatch<React.SetStateAction<boolean>>;
     setActiveVersion: React.Dispatch<React.SetStateAction<number | 'draft'>>;
+    setCurrentVersionNumber: React.Dispatch<React.SetStateAction<number>>;
 }
 
 /**

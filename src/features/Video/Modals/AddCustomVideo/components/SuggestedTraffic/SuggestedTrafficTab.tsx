@@ -5,7 +5,7 @@ import { TrafficTable } from './TrafficTable';
 import { GroupCreationModal } from './GroupCreationModal';
 import { useSuggestedTraffic } from '../../../../../../core/hooks/useSuggestedTraffic';
 import type { TrafficGroup, TrafficSource } from '../../../../../../core/types/traffic';
-import type { CTRRule } from '../../../../../Packaging/types';
+import type { CTRRule } from '../../../../Packaging/types';
 import { TrafficSelectionBar } from './TrafficSelectionBar';
 import { SubTabs } from '../../../../../../components/Shared/SubTabs';
 import { usePlaylists } from '../../../../../../core/hooks/usePlaylists';
