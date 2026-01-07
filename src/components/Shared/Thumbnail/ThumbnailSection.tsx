@@ -5,7 +5,7 @@ import { type CoverVersion } from '../../../core/utils/youtubeApi';
 
 interface ThumbnailSectionProps {
     value: string;
-    onChange: (value: string) => void;
+    onChange: (value: string, filename?: string, version?: number) => void;
     /** Callback to handle file upload to Firebase Storage. Returns the download URL. */
     onFileUpload?: (file: File) => Promise<string>;
     /** Callback to push current thumbnail to history before replacing it */
@@ -23,6 +23,9 @@ interface ThumbnailSectionProps {
     };
     widthClass?: string;
     checkIsCloned?: (thumbnailUrl: string) => boolean;
+    likedThumbnailVersions?: number[];
+    onLikeThumbnail?: (version: number) => void;
+    onRemoveThumbnail?: (version: number) => void;
 }
 
 /**
@@ -57,7 +60,10 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
     cloningVersion,
     currentVersionInfo,
     widthClass = "w-40",
-    checkIsCloned
+    checkIsCloned,
+    likedThumbnailVersions,
+    onLikeThumbnail,
+    onRemoveThumbnail
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showDropdown, setShowDropdown] = useState(false);
@@ -306,14 +312,24 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
                 onClose={() => setHistoryModalOpen(false)}
                 currentThumbnail={value}
                 history={history}
-                onApply={(url, close = true) => {
-                    // When applying a historical version, also remove it from history
-                    // to prevent duplicates (applied version becomes current)
+                onApply={(url, filename, version, close = true) => {
+                    // When applying a historical version, swap it with the current one
+                    // to prevent duplicates and preserve state.
+
+                    // 1. Push CURRENT thumbnail to history before replacing it
+                    if (value && onPushToHistory) {
+                        onPushToHistory(value);
+                    }
+
+                    // 2. Remove the version we are applying from history (as it becomes current)
                     const appliedItem = history.find(v => v.url === url);
                     if (appliedItem && onDelete) {
                         onDelete(appliedItem.timestamp);
                     }
-                    onChange(url);
+
+                    // 3. Update URL, filename, and version
+                    onChange(url, filename, version);
+
                     if (close) setHistoryModalOpen(false);
                 }}
                 onDelete={onDelete}
@@ -321,6 +337,9 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
                 cloningVersion={cloningVersion}
                 currentVersionInfo={currentVersionInfo}
                 checkIsCloned={checkIsCloned}
+                likedThumbnailVersions={likedThumbnailVersions}
+                onLikeThumbnail={onLikeThumbnail}
+                onRemoveThumbnail={onRemoveThumbnail}
             />
         </div >
     );

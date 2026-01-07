@@ -63,6 +63,7 @@ export interface PackagingSnapshot {
     abTestThumbnails?: string[];
     abTestResults?: ABTestResults;
     localizations?: Record<string, VideoLocalization>;
+    originalName?: string;
 }
 
 /**

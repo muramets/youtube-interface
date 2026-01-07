@@ -6,6 +6,11 @@ import { VideoService } from '../services/videoService';
 import { fetchVideoDetails, extractVideoId, type VideoDetails, type PackagingVersion, type PackagingCheckin, type HistoryItem, type CoverVersion } from '../utils/youtubeApi';
 import { SettingsService } from '../services/settingsService';
 
+// Global set to track videos currently being deleted across all instances of the hook
+// This prevents "flickering" where a video reappears in one instance (e.g. HomePage)
+// because an unrelated update in another instance (e.g. VideoCard) triggered a snapshot
+const terminatingVideoIds = new Set<string>();
+
 export const useVideos = (userId: string, channelId: string) => {
     const queryClient = useQueryClient();
     const { currentChannel } = useChannelStore();
@@ -16,7 +21,10 @@ export const useVideos = (userId: string, channelId: string) => {
         queryKey,
         queryFn: async () => {
             // Perform initial fetch to ensure isLoading is true until data arrives
-            return VideoService.fetchVideos(userId, channelId);
+            const videos = await VideoService.fetchVideos(userId, channelId);
+
+            // Apply terminator filter to initial fetch too (prevents flicker if invalidation happens fast)
+            return videos.filter(v => !terminatingVideoIds.has(v.id));
         },
         staleTime: Infinity,
         enabled: !!userId && !!channelId,
@@ -25,7 +33,9 @@ export const useVideos = (userId: string, channelId: string) => {
     useEffect(() => {
         if (!userId || !channelId) return;
         const unsubscribe = VideoService.subscribeToVideos(userId, channelId, (data) => {
-            queryClient.setQueryData(queryKey, data);
+            // Filter out videos that are currently being deleted
+            const filteredData = data.filter(v => !terminatingVideoIds.has(v.id));
+            queryClient.setQueryData(queryKey, filteredData);
         });
         return () => unsubscribe();
     }, [userId, channelId, queryClient, queryKey]);
@@ -146,6 +156,9 @@ export const useVideos = (userId: string, channelId: string) => {
             // Cancel any outgoing refetches
             await queryClient.cancelQueries({ queryKey: ['videos', userId, channelId] });
 
+            // Mark video as being terminated globally
+            terminatingVideoIds.add(videoId);
+
             // Snapshot the previous value
             const previousVideos = queryClient.getQueryData<VideoDetails[]>(['videos', userId, channelId]);
 
@@ -158,14 +171,23 @@ export const useVideos = (userId: string, channelId: string) => {
             // Return context with the snapshotted value
             return { previousVideos };
         },
-        onError: (_err, _videoId, context) => {
+        onError: (_err, videoId, context) => {
+            // Remove from terminating set on error
+            terminatingVideoIds.delete(videoId);
+
             // If the mutation fails, use the context returned from onMutate to roll back
             if (context?.previousVideos) {
                 queryClient.setQueryData(['videos', userId, channelId], context.previousVideos);
             }
         },
-        onSettled: () => {
-            // Always refetch after error or success to ensure consistency
+        onSettled: (_data, _error, videoId) => {
+            // Remove from terminating set when done (success or error) after a delay
+            // to allow for consistency propagation
+            setTimeout(() => {
+                terminatingVideoIds.delete(videoId);
+            }, 3000);
+
+            // Still invalidate to ensure we have the correct state eventually
             queryClient.invalidateQueries({ queryKey: ['videos', userId, channelId] });
         }
     });

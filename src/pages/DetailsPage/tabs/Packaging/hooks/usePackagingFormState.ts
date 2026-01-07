@@ -18,6 +18,7 @@ interface PackagingSnapshot {
     tags: string[];
     customImage: string;
     customImageName: string;
+    customImageVersion: number;
     localizations: Record<string, VideoLocalization>;
     abTestTitles: string[];
     abTestThumbnails: string[];
@@ -61,7 +62,8 @@ export const usePackagingFormState = ({
 }: UsePackagingFormStateOptions) => {
     // Non-localized form state
     const [customImage, setCustomImage] = useState(video.customImage || '');
-    const [customImageName, setCustomImageName] = useState(video.customImageName || ''); // Added state
+    const [customImageName, setCustomImageName] = useState(video.customImageName || '');
+    const [customImageVersion, setCustomImageVersion] = useState(video.customImageVersion || 1);
     const [publishedVideoId, setPublishedVideoId] = useState(video.publishedVideoId || '');
     const [videoRender, setVideoRender] = useState(video.videoRender || '');
     const [audioRender, setAudioRender] = useState(video.audioRender || '');
@@ -73,7 +75,8 @@ export const usePackagingFormState = ({
         description: video.description || '',
         tags: video.tags || DEFAULT_TAGS,
         customImage: video.customImage || '',
-        customImageName: video.customImageName || '', // Added to snapshot
+        customImageName: video.customImageName || '',
+        customImageVersion: video.customImageVersion || 1,
         localizations: video.localizations || DEFAULT_LOCALIZATIONS,
         abTestTitles: video.abTestTitles || DEFAULT_TAGS,
         abTestThumbnails: video.abTestThumbnails || DEFAULT_TAGS,
@@ -100,7 +103,8 @@ export const usePackagingFormState = ({
             tags: locPayload.tags,
             localizations: locPayload.localizations,
             customImage,
-            customImageName, // Added to dirty check
+            customImageName,
+            customImageVersion,
             abTestTitles: abTesting.titles,
             abTestThumbnails: abTesting.thumbnails,
             abTestResults: abTesting.results,
@@ -133,7 +137,8 @@ export const usePackagingFormState = ({
             localizations: snapshot.localizations
         });
         setCustomImage(snapshot.customImage);
-        setCustomImageName(snapshot.customImageName); // Added reset
+        setCustomImageName(snapshot.customImageName);
+        setCustomImageVersion(snapshot.customImageVersion);
         setPendingHistory(snapshot.coverHistory);
         abTesting.setTitles(snapshot.abTestTitles);
         abTesting.setThumbnails(snapshot.abTestThumbnails);
@@ -151,7 +156,8 @@ export const usePackagingFormState = ({
             tags: locPayload.tags,
             localizations: locPayload.localizations,
             customImage,
-            customImageName, // Added snapshot update
+            customImageName,
+            customImageVersion,
             abTestTitles: abTesting.titles,
             abTestThumbnails: abTesting.thumbnails,
             abTestResults: abTesting.results,
@@ -177,7 +183,8 @@ export const usePackagingFormState = ({
     return {
         // State
         customImage, setCustomImage,
-        customImageName, setCustomImageName, // Added return
+        customImageName, setCustomImageName,
+        customImageVersion, setCustomImageVersion,
         publishedVideoId, setPublishedVideoId,
         videoRender, setVideoRender,
         audioRender, setAudioRender,

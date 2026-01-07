@@ -14,6 +14,7 @@ import { usePackagingFormState } from './hooks/usePackagingFormState';
 import { useABTesting } from './hooks/useABTesting';
 import { usePackagingActions } from './hooks/usePackagingActions';
 import { useVideos } from '../../../../core/hooks/useVideos';
+import { useThumbnailActions } from '../../../../core/hooks/useThumbnailActions';
 import {
     type VersionState,
     DEFAULT_TAGS,
@@ -36,6 +37,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { videos } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const { handleLikeThumbnail, handleRemoveThumbnail } = useThumbnailActions(video.id);
     const sentinelRef = useRef<HTMLDivElement>(null);
     const [isScrolled, setIsScrolled] = useState(false);
 
@@ -110,6 +112,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                     tags: video.tags || DEFAULT_TAGS,
                     customImage: video.customImage || '',
                     customImageName: video.customImageName || '',
+                    customImageVersion: video.customImageVersion || 1,
                     localizations: video.localizations || DEFAULT_LOCALIZATIONS,
                     abTestTitles: video.abTestTitles || DEFAULT_TAGS,
                     abTestThumbnails: video.abTestThumbnails || DEFAULT_TAGS,
@@ -132,7 +135,8 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                     description: versionSnapshot.description,
                     tags: versionSnapshot.tags || DEFAULT_TAGS,
                     customImage: versionSnapshot.coverImage || '',
-                    customImageName: versionSnapshot.originalName || '', // Mapped from originalName
+                    customImageName: versionSnapshot.originalName || '',
+                    customImageVersion: typeof versionState.viewingVersion === 'number' ? versionState.viewingVersion : 1,
                     localizations: versionSnapshot.localizations || DEFAULT_LOCALIZATIONS,
                     abTestTitles: versionSnapshot.abTestTitles || DEFAULT_TAGS,
                     abTestThumbnails: versionSnapshot.abTestThumbnails || DEFAULT_TAGS,
@@ -261,7 +265,31 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                             tags={localization.tags}
                             setTags={localization.setTags}
                             coverImage={formState.customImage}
-                            setCoverImage={formState.setCustomImage}
+                            setCoverImage={(url, filename, version) => {
+                                formState.setCustomImage(url);
+
+                                // 1. If we have an explicit version (from Restore), use it
+                                if (version !== undefined) {
+                                    formState.setCustomImageVersion(version);
+                                } else {
+                                    // 2. New upload - calculate next version
+                                    // We must look at BOTH history AND current version to handle the race condition
+                                    // where history hasn't updated yet (from onPushToHistory).
+                                    const historyMax = formState.pendingHistory.length > 0
+                                        ? Math.max(...formState.pendingHistory.map(v => v.version))
+                                        : 0;
+                                    const currentMax = formState.customImageVersion || 0;
+
+                                    // New version is strictly higher than anything seen so far
+                                    const nextVersion = Math.max(historyMax, currentMax) + 1;
+                                    formState.setCustomImageVersion(nextVersion);
+                                }
+
+                                // 3. Update filename if provided (from Restore)
+                                if (filename) {
+                                    formState.setCustomImageName(filename);
+                                }
+                            }}
                             onFileUpload={async (file: File) => {
                                 // Resize and compress the image
                                 const blob = await resizeImageToBlob(file, 1280, 0.7);
@@ -277,10 +305,11 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                             }}
                             onPushToHistory={(url) => {
                                 // Add current cover to history before it gets replaced
-                                // IMPORTANT: The old thumbnail keeps its CURRENT version number
+                                // Use the EXISTING version number for the item being pushed to history
+                                // Do NOT calculate a new one here.
                                 formState.setPendingHistory(prev => [{
                                     url,
-                                    version: video.customImageVersion || 1,
+                                    version: formState.customImageVersion || 1,
                                     timestamp: Date.now(),
                                     originalName: formState.customImageName
                                 }, ...prev]);
@@ -307,10 +336,8 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                             onCloneFromVersion={actions.handleCloneFromVersion}
                             cloningVersion={actions.cloningVersion}
                             currentVersionInfo={{
-                                // Calculate current version based on history
-                                version: formState.pendingHistory.length > 0
-                                    ? Math.max(...formState.pendingHistory.map(v => v.version)) + 1
-                                    : 1,
+                                // Use the explicitly tracked version from state
+                                version: formState.customImageVersion,
                                 originalName: formState.customImageName
                             }}
                             // Check if a clone with this thumbnail already exists
@@ -321,6 +348,9 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                                     v.customImage === thumbnailUrl
                                 );
                             }}
+                            likedThumbnailVersions={video.likedThumbnailVersions}
+                            onLikeThumbnail={handleLikeThumbnail}
+                            onRemoveThumbnail={handleRemoveThumbnail}
                         />
                     </div>
 

@@ -14,6 +14,7 @@ interface PackagingSnapshot {
     };
     abTestVariants?: string[];
     localizations?: Record<string, VideoLocalization>;
+    originalName?: string;
 }
 
 interface UsePackagingVersionsOptions {
@@ -52,11 +53,6 @@ export const usePackagingVersions = ({
     // This handles the case where user navigates away and back - the video prop
     // comes from Firestore and may have updated history that we need to load.
     useEffect(() => {
-        console.log('[DEBUG usePackagingVersions] useEffect triggered');
-        console.log('[DEBUG usePackagingVersions] initialHistory:', initialHistory);
-        console.log('[DEBUG usePackagingVersions] initialCurrentVersion:', initialCurrentVersion);
-        console.log('[DEBUG usePackagingVersions] initialIsDraft:', initialIsDraft);
-
         setPackagingHistory(initialHistory);
         setCurrentVersionNumber(initialCurrentVersion);
         setHasDraft(initialIsDraft);
@@ -64,7 +60,6 @@ export const usePackagingVersions = ({
         const computedActiveVersion = initialIsDraft ? 'draft' : (initialHistory.length > 0
             ? Math.max(...initialHistory.map(v => v.versionNumber))
             : 'draft');
-        console.log('[DEBUG usePackagingVersions] computedActiveVersion:', computedActiveVersion);
         setActiveVersion(computedActiveVersion);
         setViewingVersion(computedActiveVersion);
     }, [initialHistory, initialCurrentVersion, initialIsDraft]);

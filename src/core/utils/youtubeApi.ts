@@ -20,6 +20,7 @@ export interface VideoDetails {
     coverHistory?: CoverVersion[];
     customImageName?: string;
     customImageVersion?: number;
+    likedThumbnailVersions?: number[];
     highestVersion?: number;
     notes?: VideoNote[];
     isCloned?: boolean;

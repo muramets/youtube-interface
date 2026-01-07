@@ -13,6 +13,9 @@ interface ImageActionOverlayProps {
     className?: string;
     size?: 'default' | 'small';
     onTooltipOpenChange?: (open: boolean) => void;
+    isLiked?: boolean;
+    onLike?: () => void;
+    onRemove?: () => void;
 }
 
 export const ImageActionOverlay: React.FC<ImageActionOverlayProps> = ({
@@ -24,7 +27,10 @@ export const ImageActionOverlay: React.FC<ImageActionOverlayProps> = ({
     isCloned,
     className = '',
     size = 'default',
-    onTooltipOpenChange
+    onTooltipOpenChange,
+    isLiked,
+    onLike,
+    onRemove
 }) => {
     const [isTooltipOpen, setIsTooltipOpen] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
@@ -73,6 +79,9 @@ export const ImageActionOverlay: React.FC<ImageActionOverlayProps> = ({
                                 <ClonedVideoTooltipContent
                                     version={version}
                                     filename={originalName || 'Unknown Filename'}
+                                    isLiked={isLiked}
+                                    onLike={onLike}
+                                    onRemove={onRemove}
                                 />
                             }
                             align="left"
@@ -111,6 +120,9 @@ export const ImageActionOverlay: React.FC<ImageActionOverlayProps> = ({
                                 <ClonedVideoTooltipContent
                                     version={version}
                                     filename={originalName || 'Unknown Filename'}
+                                    isLiked={isLiked}
+                                    onLike={onLike}
+                                    onRemove={onRemove}
                                 />
                             }
                             align="left"

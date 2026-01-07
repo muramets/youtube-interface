@@ -12,6 +12,7 @@ import { VideoCardMenu } from './VideoCardMenu';
 import { AddToPlaylistModal as PlaylistSelectionModal } from '../Playlist/AddToPlaylistModal';
 import { ConfirmationModal } from '../../components/Shared/ConfirmationModal';
 import { ClonedVideoTooltipContent } from './ClonedVideoTooltipContent';
+import { useThumbnailActions } from '../../core/hooks/useThumbnailActions';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useSettings } from '../../core/hooks/useSettings';
@@ -60,6 +61,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const displayVideo = viewMode === 'youtube' && video.mergedVideoData ? video.mergedVideoData : video;
 
   // Hover color logic - no border for colored custom cards for cleaner premium look
+  const { handleLikeThumbnail, handleRemoveThumbnail } = useThumbnailActions(video.id);
+
   const hoverBorderColor = video.isCustom || video.isCloned || video.publishedVideoId || viewMode === 'youtube'
     ? 'border-transparent'
     : 'border-transparent';
@@ -352,6 +355,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                   <ClonedVideoTooltipContent
                     version={video.customImageVersion || 1}
                     filename={video.customImageName || 'Unknown Filename'}
+                    isLiked={video.likedThumbnailVersions?.includes(video.customImageVersion || 1)}
+                    onLike={() => handleLikeThumbnail(video.customImageVersion || 1)}
+                    onRemove={() => handleRemoveThumbnail(video.customImageVersion || 1)}
                   />
                 }
                 align="right"

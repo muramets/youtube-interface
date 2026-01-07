@@ -13,7 +13,7 @@ export interface ThumbnailHistoryModalProps {
     onClose: () => void;
     currentThumbnail: string | null;
     history: CoverVersion[];
-    onApply: (url: string, close?: boolean) => void;
+    onApply: (url: string, originalName?: string, version?: number, close?: boolean) => void;
     onDelete?: (timestamp: number) => void;
     onClone?: (version: CoverVersion) => void;
     cloningVersion?: number | null;
@@ -22,6 +22,9 @@ export interface ThumbnailHistoryModalProps {
         originalName?: string;
     };
     checkIsCloned?: (thumbnailUrl: string) => boolean;
+    likedThumbnailVersions?: number[];
+    onLikeThumbnail?: (version: number) => void;
+    onRemoveThumbnail?: (version: number) => void;
 }
 
 /**
@@ -49,7 +52,10 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
     onClone,
     cloningVersion,
     currentVersionInfo,
-    checkIsCloned
+    checkIsCloned,
+    likedThumbnailVersions = [],
+    onLikeThumbnail,
+    onRemoveThumbnail
 }) => {
     const {
         selectedIndex,
@@ -123,21 +129,24 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
 
         // 2. Determine what thumbnail to apply
         if (selectedVersion) {
-            // Apply selected historical version
-            onApply(selectedVersion.url);
+            // Apply selected historical version with filename and original version
+            onApply(selectedVersion.url, selectedVersion.originalName, selectedVersion.version);
         } else if (visibleHistory.length === 0 && !effectiveCurrentThumbnail) {
             // All versions deleted AND no current thumbnail → clear the thumbnail
-            // This is an explicit user action: they deleted everything
-            onApply('');
+            onApply('', '', undefined);
         } else if (changes.thumbnailUrl !== null && changes.thumbnailUrl !== '') {
             // Explicit pending thumbnail URL (not empty)
-            onApply(changes.thumbnailUrl);
+            const matchedVersion = visibleHistory.find(v => v.url === changes.thumbnailUrl);
+            onApply(changes.thumbnailUrl, matchedVersion?.originalName || '', matchedVersion?.version);
+        } else {
+            // If only current thumbnail remains (hasOnlyCurrentThumbnail case)
+            // → just close without calling onApply, keeping current thumbnail intact
+            // Or if no changes were made and nothing was selected, just close.
+            onClose();
         }
-        // If only current thumbnail remains (hasOnlyCurrentThumbnail case)
-        // → just close without calling onApply, keeping current thumbnail intact
 
         onClose();
-    }, [getChangesToApply, onDelete, selectedVersion, visibleHistory.length, effectiveCurrentThumbnail, onApply, onClose]);
+    }, [getChangesToApply, onDelete, selectedVersion, visibleHistory.length, effectiveCurrentThumbnail, onApply, onClose, history]);
 
     const showHistoricalColumn = !hasOnlyCurrentThumbnail;
 
@@ -233,6 +242,9 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                         }}
                                         onTooltipOpenChange={setIsCurrentTooltipOpen}
                                         isCloned={checkIsCloned?.(effectiveCurrentThumbnail) || false}
+                                        isLiked={likedThumbnailVersions.includes(currentVersionInfo?.version || 0)}
+                                        onLike={() => onLikeThumbnail?.(currentVersionInfo?.version || 0)}
+                                        onRemove={() => onRemoveThumbnail?.(currentVersionInfo?.version || 0)}
                                     />
                                 </div>
                             </div>
@@ -313,6 +325,9 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                                         className="z-30"
                                                         onTooltipOpenChange={setIsHistoricalTooltipOpen}
                                                         isCloned={checkIsCloned?.(selectedVersion.url) || false}
+                                                        isLiked={likedThumbnailVersions.includes(selectedVersion.version)}
+                                                        onLike={() => onLikeThumbnail?.(selectedVersion.version)}
+                                                        onRemove={() => onRemoveThumbnail?.(selectedVersion.version)}
                                                     />
                                                 )}
                                             </>
@@ -403,6 +418,9 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                             size="small"
                                             onTooltipOpenChange={(open) => setOpenTooltipTimestamp(open ? version.timestamp : null)}
                                             isCloned={checkIsCloned?.(version.url) || false}
+                                            isLiked={likedThumbnailVersions.includes(version.version)}
+                                            onLike={() => onLikeThumbnail?.(version.version)}
+                                            onRemove={() => onRemoveThumbnail?.(version.version)}
                                         />
 
                                         {selectedIndex === index && (

@@ -38,18 +38,11 @@ export const usePackagingActions = ({
     const buildSavePayload = useCallback(() => {
         const locPayload = localization.getFullPayload();
 
-        // Calculate the correct version for the current thumbnail
-        // It should be 1 + the maximum version in history
-        const maxHistoryVersion = formState.pendingHistory.length > 0
-            ? Math.max(...formState.pendingHistory.map(v => v.version))
-            : 0;
-        const newVersion = maxHistoryVersion + 1;
-
         return {
             ...locPayload,
             customImage: formState.customImage,
             customImageName: formState.customImageName,
-            customImageVersion: newVersion,
+            customImageVersion: formState.customImageVersion,
             publishedVideoId: formState.publishedVideoId,
             videoRender: formState.videoRender,
             audioRender: formState.audioRender,
@@ -124,9 +117,6 @@ export const usePackagingActions = ({
                 abTestResults: abTesting.results,
                 localizations: payload.localizations
             });
-
-            console.log('[DEBUG handleSaveAsNewVersion] newVersion:', newVersion);
-            console.log('[DEBUG handleSaveAsNewVersion] updatedHistory:', updatedHistory);
 
             await updateVideo({
                 videoId: video.id,

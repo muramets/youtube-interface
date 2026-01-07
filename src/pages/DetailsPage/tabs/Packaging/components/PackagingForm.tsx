@@ -16,7 +16,7 @@ interface PackagingFormProps {
     tags: string[];
     setTags: (value: string[]) => void;
     coverImage: string;
-    setCoverImage: (value: string) => void;
+    setCoverImage: (value: string, filename?: string, version?: number) => void;
     /** Callback to handle file upload to Firebase Storage. Returns the download URL. */
     onFileUpload?: (file: File) => Promise<string>;
     /** Callback to push current thumbnail to history before replacing it */
@@ -47,6 +47,9 @@ interface PackagingFormProps {
         originalName?: string;
     };
     checkIsCloned?: (thumbnailUrl: string) => boolean;
+    likedThumbnailVersions?: number[];
+    onLikeThumbnail?: (version: number) => void;
+    onRemoveThumbnail?: (version: number) => void;
 }
 
 export const PackagingForm: React.FC<PackagingFormProps> = ({
@@ -78,7 +81,10 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
     onCloneFromVersion,
     cloningVersion,
     currentVersionInfo,
-    checkIsCloned
+    checkIsCloned,
+    likedThumbnailVersions,
+    onLikeThumbnail,
+    onRemoveThumbnail
 }) => {
     const [showMore, setShowMore] = useState(false);
 
@@ -122,6 +128,9 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
                 cloningVersion={cloningVersion}
                 currentVersionInfo={currentVersionInfo}
                 checkIsCloned={checkIsCloned}
+                likedThumbnailVersions={likedThumbnailVersions}
+                onLikeThumbnail={onLikeThumbnail}
+                onRemoveThumbnail={onRemoveThumbnail}
             />
 
             {/* Tags */}
