@@ -187,9 +187,13 @@ export function useABTestingModalState({
         const thumbnailsChanged = JSON.stringify(currentValidThumbnails) !== JSON.stringify(effectiveInitialThumbnails);
 
         // Check results changed (only count filled slots)
-        const currentResults = {
+        // If results are hidden, we treat current results as all zeros
+        const currentResults = showResults ? {
             titles: results.titles.slice(0, currentValidTitles.length),
             thumbnails: results.thumbnails.slice(0, currentValidThumbnails.length)
+        } : {
+            titles: currentValidTitles.map(() => 0),
+            thumbnails: currentValidThumbnails.map(() => 0)
         };
 
         // Normalize initial results to match effective initial length
@@ -307,6 +311,10 @@ export function useABTestingModalState({
             const creatingThumbnailTest = !hasExistingThumbnailTest && currentValidThumbnails.length >= 2;
             isNewTest = creatingTitleTest || creatingThumbnailTest;
         }
+
+        // If results changed (even if hidden/cleared), and a test already exists, it should be "Save"
+        const hasExistingResults = (initialResults.titles?.some(v => v > 0)) || (initialResults.thumbnails?.some(v => v > 0));
+        if (hasExistingResults && !isNewTest) return 'Save';
 
         return isNewTest ? 'Set test' : 'Save';
     };

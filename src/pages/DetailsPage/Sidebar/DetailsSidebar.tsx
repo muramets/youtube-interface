@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, TrendingUp } from 'lucide-react';
 import { type VideoDetails, type PackagingVersion } from '../../../core/utils/youtubeApi';
 import { SidebarVideoPreview } from './SidebarVideoPreview';
 import { SidebarNavItem } from './SidebarNavItem';
@@ -15,6 +15,9 @@ interface DetailsSidebarProps {
     hasDraft: boolean;
     onVersionClick: (versionNumber: number | 'draft') => void;
     onDeleteVersion: (versionNumber: number) => void;
+    // Tab Navigation
+    activeTab: 'packaging' | 'traffic';
+    onTabChange: (tab: 'packaging' | 'traffic') => void;
 }
 
 export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
@@ -25,8 +28,14 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
     hasDraft,
     onVersionClick,
     onDeleteVersion,
+    activeTab,
+    onTabChange
 }) => {
     const navigate = useNavigate();
+    // Dynamically import icon or assume it's available (Import at top needed)
+    // I need to add import for TrendingUp first. Wait, I can't add imports with replace_file_content unless I target the top.
+    // I will use a separate call for import or just add it here if I am replacing the whole block?
+    // I am replacing the body. I will fix imports in next step or use multi_replace.
 
     return (
         <aside
@@ -51,12 +60,21 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
                     viewingVersion={viewingVersion}
                     activeVersion={activeVersion}
                     hasDraft={hasDraft}
-                    onVersionClick={onVersionClick}
+                    onVersionClick={(v) => {
+                        onTabChange('packaging');
+                        onVersionClick(v);
+                    }}
                     onDeleteVersion={onDeleteVersion}
+                    isActive={activeTab === 'packaging'}
+                    onSelect={() => onTabChange('packaging')}
                 />
-                {/* Future tabs will be added here */}
-                {/* <SidebarNavItem icon={<BarChart3 size={24} />} label="Performance" /> */}
-                {/* <SidebarNavItem icon={<TrendingUp size={24} />} label="Traffic" /> */}
+
+                <SidebarNavItem
+                    icon={<TrendingUp size={24} />}
+                    label="Suggested Traffic"
+                    isActive={activeTab === 'traffic'}
+                    onClick={() => onTabChange('traffic')}
+                />
             </nav>
         </aside>
     );

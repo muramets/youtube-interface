@@ -31,14 +31,16 @@ interface PackagingTabProps {
     video: VideoDetails;
     versionState: VersionState;
     onDirtyChange: (isDirty: boolean) => void;  // Sync dirty state to parent for version switch confirmation
+    onRestoreVersion?: (version: number) => void; // Callback for restore version button
 }
 
-export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState, onDirtyChange }) => {
+export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState, onDirtyChange, onRestoreVersion }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { videos } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { handleLikeThumbnail, handleRemoveThumbnail } = useThumbnailActions(video.id);
     const sentinelRef = useRef<HTMLDivElement>(null);
+    // Detect scroll for sticky header shadow
     const [isScrolled, setIsScrolled] = useState(false);
 
     // Is the user viewing an old version (read-only)?
@@ -197,7 +199,11 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                         <Button
                             variant="outline"
                             size="sm"
-                            onClick={actions.handleRestore}
+                            onClick={() => {
+                                if (onRestoreVersion && typeof versionState.viewingVersion === 'number') {
+                                    onRestoreVersion(versionState.viewingVersion);
+                                }
+                            }}
                             className="bg-[#3ea6ff]/20 hover:bg-[#3ea6ff]/30"
                         >
                             Restore this version

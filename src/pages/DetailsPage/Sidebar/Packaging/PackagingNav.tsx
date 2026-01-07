@@ -10,6 +10,8 @@ interface PackagingNavProps {
     hasDraft: boolean;
     onVersionClick: (versionNumber: number | 'draft') => void;
     onDeleteVersion: (versionNumber: number) => void;
+    onSelect: () => void;
+    isActive: boolean;
 }
 
 export const PackagingNav: React.FC<PackagingNavProps> = ({
@@ -19,6 +21,8 @@ export const PackagingNav: React.FC<PackagingNavProps> = ({
     hasDraft,
     onVersionClick,
     onDeleteVersion,
+    onSelect,
+    isActive
 }) => {
     // ============================================================================
     // BUSINESS LOGIC: Collapsible Version List
@@ -39,15 +43,13 @@ export const PackagingNav: React.FC<PackagingNavProps> = ({
     // Determine if there's content to expand
     const hasContent = hasDraft || versions.length > 0;
 
-    // Header is always "active" since it's the only nav item for now
-    const isActive = true;
-
     return (
         <div className="flex flex-col">
             {/* Header Row */}
             <div className="px-3">
                 <div
                     onClick={() => {
+                        onSelect();
                         // If not expanded, first expand
                         // If expanded, clicking header goes to draft/current
                         if (!isExpanded && hasContent) {

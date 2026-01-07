@@ -235,13 +235,36 @@ export const usePackagingActions = ({
     const handleSaveResultsOnly = useCallback(async (newResults: { titles: number[], thumbnails: number[] }) => {
         if (!user || !currentChannel || !video.id) return;
         try {
-            // Quiet background save of results only
+            // 1. Prepare updated history to include results in the active version's snapshot
+            // This ensures results survive a page refresh when viewing that version
+            let updatedHistory = [...(video.packagingHistory || [])];
+            if (versionState.activeVersion !== 'draft') {
+                updatedHistory = updatedHistory.map(v =>
+                    v.versionNumber === versionState.activeVersion
+                        ? {
+                            ...v,
+                            configurationSnapshot: {
+                                ...v.configurationSnapshot,
+                                abTestResults: newResults
+                            }
+                        }
+                        : v
+                );
+            }
+
+            // 2. Perform Update to Firestore
             await updateVideo({
                 videoId: video.id,
                 updates: {
-                    abTestResults: newResults
+                    abTestResults: newResults,
+                    packagingHistory: updatedHistory
                 }
             });
+
+            // 3. Update local state to stay in sync
+            // Update versionState history so it knows about the change immediately
+            versionState.setPackagingHistory(updatedHistory);
+
             // Update the loaded snapshot's results so it stays in sync with what's on server
             // (even though results are ignored for dirty check, it's good practice)
             formState.setLoadedSnapshot(prev => ({
@@ -252,7 +275,7 @@ export const usePackagingActions = ({
             console.error('Failed to save results in background:', error);
             showToast('Failed to sync results with server', 'error');
         }
-    }, [user, currentChannel, video.id, updateVideo, formState, showToast]);
+    }, [user, currentChannel, video.id, video.packagingHistory, versionState, updateVideo, formState, showToast]);
 
     return {
         isSaving,

@@ -20,9 +20,30 @@ export interface TrafficGroup {
     videoIds: string[]; // List of video IDs assigned to this group
 }
 
+/**
+ * Snapshot of traffic data at a specific point in time (when version changes).
+ * This allows us to calculate how many views belong to a specific version.
+ */
+export interface TrafficSnapshot {
+    version: number; // The version number this snapshot effectively "closes"
+    timestamp: number;
+    createdAt: string; // ISO date for display
+    // Store complete sources array for accurate historical data
+    sources: TrafficSource[];
+    totalRow?: TrafficSource;
+}
+
+export interface TrafficVersionInfo {
+    version: number | 'draft';
+    label: string; // "v.1", "v.2", "Draft"
+    isActive: boolean;
+    hasDraft: boolean;
+}
+
 export interface TrafficData {
     lastUpdated: number;
     sources: TrafficSource[];
-    groups: TrafficGroup[];
-    totalRow?: TrafficSource; // The "Total" row from CSV
+    groups: TrafficGroup[]; // Groups persist across versions
+    totalRow?: TrafficSource;
+    snapshots: TrafficSnapshot[]; // History of "freezes"
 }

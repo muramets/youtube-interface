@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { DEFAULT_AB_RESULTS } from '../types';
 
 /**
@@ -33,6 +33,19 @@ export const useABTesting = (options?: UseABTestingOptions) => {
     const [abTestResults, setAbTestResults] = useState<{ titles: number[], thumbnails: number[] }>(
         options?.initialResults || DEFAULT_AB_RESULTS
     );
+
+    // Sync state when props change (e.g. data loaded from server)
+    useEffect(() => {
+        if (options?.initialTitles) setAbTestTitles(options.initialTitles);
+    }, [JSON.stringify(options?.initialTitles)]);
+
+    useEffect(() => {
+        if (options?.initialThumbnails) setAbTestThumbnails(options.initialThumbnails);
+    }, [JSON.stringify(options?.initialThumbnails)]);
+
+    useEffect(() => {
+        if (options?.initialResults) setAbTestResults(options.initialResults);
+    }, [JSON.stringify(options?.initialResults)]);
 
     // Handlers
     const handleOpenFromTitle = useCallback(() => {

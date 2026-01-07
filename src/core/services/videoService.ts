@@ -21,6 +21,11 @@ export const VideoService = {
         return fetchCollection<VideoDetails>(getVideosPath(userId, channelId));
     },
 
+    getVideo: async (userId: string, channelId: string, videoId: string) => {
+        const path = `${getVideosPath(userId, channelId)}/${videoId}`;
+        return getDocument<VideoDetails>(path);
+    },
+
     subscribeToVideos: (
         userId: string,
         channelId: string,
