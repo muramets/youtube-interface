@@ -111,10 +111,18 @@ export function useThumbnailHistoryModalState({
     });
 
     // === Computed: Visible History ===
-    // Filter out items marked for deletion (pending)
+    // Filter out items marked for deletion (pending) AND the current thumbnail
+    // (to prevent showing it in both "Current" and "Historical" columns)
+    const effectiveCurrentThumbnail = pendingChanges.thumbnailUrl === ''
+        ? null
+        : (pendingChanges.thumbnailUrl ?? currentThumbnail);
+
     const visibleHistory = useMemo(() =>
-        history.filter(v => !pendingChanges.deletedTimestamps.includes(v.timestamp)),
-        [history, pendingChanges.deletedTimestamps]
+        history.filter(v =>
+            !pendingChanges.deletedTimestamps.includes(v.timestamp) &&
+            v.url !== effectiveCurrentThumbnail
+        ),
+        [history, pendingChanges.deletedTimestamps, effectiveCurrentThumbnail]
     );
 
     // === Initialize on Modal Open ===
@@ -260,11 +268,6 @@ export function useThumbnailHistoryModalState({
 
     const hasPendingChanges = pendingChanges.thumbnailUrl !== null ||
         pendingChanges.deletedTimestamps.length > 0;
-
-    // Effective current thumbnail considering pending deletion
-    const effectiveCurrentThumbnail = pendingChanges.thumbnailUrl === ''
-        ? null
-        : (pendingChanges.thumbnailUrl ?? currentThumbnail);
 
     return {
         // Navigation

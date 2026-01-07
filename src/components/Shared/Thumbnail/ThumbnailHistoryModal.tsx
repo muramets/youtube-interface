@@ -381,62 +381,64 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                 {/* Footer */}
                 <div className="px-8 bg-modal-surface/50 border-t border-modal-border">
                     <div className="flex flex-col">
-                        <div className="flex items-center justify-between py-4">
-                            <motion.div
-                                variants={containerVariants}
-                                initial="hidden"
-                                animate="visible"
-                                className="flex gap-1.5 overflow-x-auto p-2 scrollbar-hide -mx-2 px-2"
-                            >
-                                {visibleHistory.map((version, index) => (
-                                    <motion.div
-                                        key={version.timestamp}
-                                        variants={itemVariants}
-                                        onClick={() => handleThumbnailSelect(index)}
-                                        className={`flex-shrink-0 w-36 aspect-video rounded-lg overflow-hidden border-2 transition-all relative group group/item cursor-pointer
-                                            ${selectedIndex === index
-                                                ? 'border-[#3ea6ff] scale-105 z-10 shadow-lg shadow-[#3ea6ff]/10'
-                                                : (openTooltipTimestamp === version.timestamp
-                                                    ? 'opacity-100 border-white/20 ring-1 ring-white/10'
-                                                    : 'border-transparent opacity-60 hover:opacity-100 hover:border-white/20')}`}
-                                    >
-                                        <img
-                                            src={version.url}
-                                            alt={`v.${version.version}`}
-                                            className="w-full h-full object-cover"
-                                        />
+                        {visibleHistory.length > 1 && (
+                            <div className="flex items-center justify-between py-4">
+                                <motion.div
+                                    variants={containerVariants}
+                                    initial="hidden"
+                                    animate="visible"
+                                    className="flex gap-1.5 overflow-x-auto p-2 scrollbar-hide -mx-2 px-2"
+                                >
+                                    {visibleHistory.map((version, index) => (
+                                        <motion.div
+                                            key={version.timestamp}
+                                            variants={itemVariants}
+                                            onClick={() => handleThumbnailSelect(index)}
+                                            className={`flex-shrink-0 w-36 aspect-video rounded-lg overflow-hidden border-2 transition-all relative group group/item cursor-pointer
+                                                ${selectedIndex === index
+                                                    ? 'border-[#3ea6ff] scale-105 z-10 shadow-lg shadow-[#3ea6ff]/10'
+                                                    : (openTooltipTimestamp === version.timestamp
+                                                        ? 'opacity-100 border-white/20 ring-1 ring-white/10'
+                                                        : 'border-transparent opacity-60 hover:opacity-100 hover:border-white/20')}`}
+                                        >
+                                            <img
+                                                src={version.url}
+                                                alt={`v.${version.version}`}
+                                                className="w-full h-full object-cover"
+                                            />
 
-                                        {/* Overlay for Carousel Items */}
-                                        <ImageActionOverlay
-                                            version={version.version}
-                                            originalName={version.originalName}
-                                            onDelete={() => {
-                                                // Mark for deletion (pending)
-                                                markForDeletion(version.timestamp, version.url);
-                                            }}
-                                            isCloning={cloningVersion === version.version}
-                                            size="small"
-                                            onTooltipOpenChange={(open) => setOpenTooltipTimestamp(open ? version.timestamp : null)}
-                                            isCloned={checkIsCloned?.(version.url) || false}
-                                            isLiked={likedThumbnailVersions.includes(version.version)}
-                                            onLike={() => onLikeThumbnail?.(version.version)}
-                                            onRemove={() => onRemoveThumbnail?.(version.version)}
-                                        />
+                                            {/* Overlay for Carousel Items */}
+                                            <ImageActionOverlay
+                                                version={version.version}
+                                                originalName={version.originalName}
+                                                onDelete={() => {
+                                                    // Mark for deletion (pending)
+                                                    markForDeletion(version.timestamp, version.url);
+                                                }}
+                                                isCloning={cloningVersion === version.version}
+                                                size="small"
+                                                onTooltipOpenChange={(open) => setOpenTooltipTimestamp(open ? version.timestamp : null)}
+                                                isCloned={checkIsCloned?.(version.url) || false}
+                                                isLiked={likedThumbnailVersions.includes(version.version)}
+                                                onLike={() => onLikeThumbnail?.(version.version)}
+                                                onRemove={() => onRemoveThumbnail?.(version.version)}
+                                            />
 
-                                        {selectedIndex === index && (
-                                            <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[#3ea6ff] flex items-center justify-center shadow-lg pointer-events-none">
-                                                <Check size={10} strokeWidth={3} className="text-[#1f1f1f]" />
+                                            {selectedIndex === index && (
+                                                <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[#3ea6ff] flex items-center justify-center shadow-lg pointer-events-none">
+                                                    <Check size={10} strokeWidth={3} className="text-[#1f1f1f]" />
+                                                </div>
+                                            )}
+                                            <div className="absolute bottom-1 left-1.5 text-[9px] font-bold text-white px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-sm border border-white/10 pointer-events-none">
+                                                v{version.version}
                                             </div>
-                                        )}
-                                        <div className="absolute bottom-1 left-1.5 text-[9px] font-bold text-white px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-sm border border-white/10 pointer-events-none">
-                                            v{version.version}
-                                        </div>
-                                    </motion.div>
-                                ))}
-                            </motion.div>
-                        </div>
+                                        </motion.div>
+                                    ))}
+                                </motion.div>
+                            </div>
+                        )}
 
-                        <div className="flex items-center justify-between border-t border-modal-border py-4">
+                        <div className={`flex items-center justify-between py-4 ${visibleHistory.length > 1 ? 'border-t border-modal-border' : ''}`}>
                             <div className="text-sm text-modal-text-secondary font-medium">
                                 {visibleHistory.length} versions in history
                             </div>
