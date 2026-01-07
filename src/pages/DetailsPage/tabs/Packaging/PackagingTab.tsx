@@ -307,12 +307,21 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                                 // Add current cover to history before it gets replaced
                                 // Use the EXISTING version number for the item being pushed to history
                                 // Do NOT calculate a new one here.
-                                formState.setPendingHistory(prev => [{
-                                    url,
-                                    version: formState.customImageVersion || 1,
-                                    timestamp: Date.now(),
-                                    originalName: formState.customImageName
-                                }, ...prev]);
+                                formState.setPendingHistory(prev => {
+                                    // Prevent duplicates: specific check for existing URL
+                                    // We check primarily the most recent one, but also scan the whole list just in case
+                                    // to avoid any identical duplicates cluttering history.
+                                    if (prev.some(v => v.url === url)) {
+                                        return prev;
+                                    }
+
+                                    return [{
+                                        url,
+                                        version: formState.customImageVersion || 1,
+                                        timestamp: Date.now(),
+                                        originalName: formState.customImageName
+                                    }, ...prev];
+                                });
                             }}
                             publishedUrl={formState.publishedVideoId}
                             setPublishedUrl={formState.setPublishedVideoId}

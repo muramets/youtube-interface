@@ -28,6 +28,9 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
 }) => {
     const [isVisible, setIsVisible] = useState(false); // Controls visual opacity/transform
     const [shouldRender, setShouldRender] = useState(false); // Controls mounting
+    const [maxWidth, setMaxWidth] = useState<number | undefined>(undefined);
+    const [finalTransform, setFinalTransform] = useState('none');
+
     const [position, setPosition] = useState({ top: 0, left: 0 });
     const triggerRef = useRef<HTMLDivElement>(null);
     const tooltipRef = useRef<HTMLDivElement>(null);
@@ -45,42 +48,93 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
         positionRaf.current = requestAnimationFrame(() => {
             if (triggerRef.current) {
                 const rect = triggerRef.current.getBoundingClientRect();
-                const tooltipWidth = tooltipRef.current?.offsetWidth || 0;
+                const viewportWidth = document.documentElement.clientWidth;
+                const padding = 16;
+                const minWidth = 200; // Minimum width we try to maintain before forcefully shrinking
+
                 let top = 0;
                 let left = 0;
+                let calculatedMaxWidth: number | undefined = undefined;
+                let transform = 'none';
 
-                if (side === 'bottom') {
-                    top = rect.bottom + 8;
-                    if (align === 'right') left = rect.right;
-                    else if (align === 'center') left = rect.left + (rect.width / 2);
-                    else left = rect.left;
-                } else if (side === 'top') {
-                    top = rect.top - 8;
-                    if (align === 'right') left = rect.right;
-                    else if (align === 'center') left = rect.left + (rect.width / 2);
-                    else left = rect.left;
-                } else if (side === 'left') {
-                    top = rect.top; // Align top-to-top by default for side
-                    left = rect.left - 8;
-                } else if (side === 'right') {
-                    top = rect.top;
-                    left = rect.right + 8;
+                // --- HORIZONTAL POSITIONING LOGIC ---
+                // We primarily determine horizontal placement (left/right) relative to viewport
+                // regardless of whether the tooltip is top/bottom or side-aligned.
+
+                // Calculate available space on both sides
+                // For 'align=left', tooltip grows right: space is (viewport - rect.left)
+                // For 'align=right', tooltip grows left: space is (rect.right)
+
+                // Effective alignment determination (handling flipping)
+                let effectiveAlign = align;
+
+                if (side === 'left' || side === 'right') {
+                    // For side tooltips, main axis is horizontal. We flip sides, not align.
+                    // This is handled separately below.
+                } else {
+                    // Top/Bottom tooltips: check if we need to flip alignment
+                    const spaceRight = viewportWidth - rect.left - padding;
+                    const spaceLeft = rect.right - padding;
+
+                    if (align === 'left' && spaceRight < minWidth && spaceLeft > spaceRight) {
+                        effectiveAlign = 'right';
+                    } else if (align === 'right' && spaceLeft < minWidth && spaceRight > spaceLeft) {
+                        effectiveAlign = 'left';
+                    }
                 }
 
-                // Ensure tooltip stays within viewport bounds
-                const padding = 16;
+                // --- POSITION CALCULATION ---
 
-                // For right-aligned tooltips, account for the translateX(-100%) transform
-                if (align === 'right' && tooltipWidth > 0) {
-                    // After transform, the tooltip's left edge will be at: left - tooltipWidth
-                    const effectiveLeft = left - tooltipWidth;
-                    if (effectiveLeft < padding) {
-                        // Shift right to prevent clipping
-                        left = padding + tooltipWidth;
+                if (side === 'top' || side === 'bottom') {
+                    // Vertical Position
+                    top = side === 'bottom' ? rect.bottom + 8 : rect.top - 8;
+
+                    // Horizontal Position based on Effective Alignment
+                    if (effectiveAlign === 'left') {
+                        left = rect.left;
+                        transform = side === 'top' ? 'translateY(-100%)' : 'none';
+                        // Max width is distance to right edge
+                        calculatedMaxWidth = viewportWidth - left - padding;
+                    } else if (effectiveAlign === 'right') {
+                        left = rect.right;
+                        transform = `translateX(-100%) ${side === 'top' ? 'translateY(-100%)' : ''}`;
+                        // Max width is distance to left edge (which is 'left' value minus padding)
+                        calculatedMaxWidth = left - padding;
+                    } else { // center
+                        left = rect.left + (rect.width / 2);
+                        transform = `translateX(-50%) ${side === 'top' ? 'translateY(-100%)' : ''}`;
+                        calculatedMaxWidth = Math.min(left - padding, viewportWidth - left - padding) * 2;
+                    }
+
+                } else {
+                    // Side Position (Left/Right)
+                    // Determine if we need to flip side based on available width
+                    let effectiveSide = side;
+                    const spaceRight = viewportWidth - rect.right - 8 - padding;
+                    const spaceLeft = rect.left - 8 - padding;
+
+                    if (side === 'right' && spaceRight < minWidth && spaceLeft > spaceRight) {
+                        effectiveSide = 'left';
+                    } else if (side === 'left' && spaceLeft < minWidth && spaceRight > spaceLeft) {
+                        effectiveSide = 'right';
+                    }
+
+                    top = rect.top; // Default top alignment
+
+                    if (effectiveSide === 'left') {
+                        left = rect.left - 8;
+                        transform = 'translateX(-100%)';
+                        calculatedMaxWidth = left - padding;
+                    } else {
+                        left = rect.right + 8;
+                        transform = 'none';
+                        calculatedMaxWidth = viewportWidth - left - padding;
                     }
                 }
 
                 setPosition({ top, left });
+                setMaxWidth(calculatedMaxWidth);
+                setFinalTransform(transform);
             }
             positionRaf.current = null;
         });
@@ -185,16 +239,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
         }
     }, [shouldRender, updatePosition]);
 
-    const getTransform = () => {
-        if (side === 'left') return 'translateX(-100%)';
-        if (side === 'top') return 'translateY(-100%)';
-        if (side === 'right') return 'none'; // Default origin is top-left, so it grows right.
-        if (side === 'bottom') {
-            // legacy handling based on align
-            return align === 'left' ? 'none' : 'translateX(-100%)';
-        }
-        return 'none';
-    };
+
 
     return (
         <div
@@ -210,7 +255,8 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                     style={{
                         top: Math.round(position.top),
                         left: Math.round(position.left),
-                        transform: getTransform(),
+                        transform: finalTransform,
+                        maxWidth: maxWidth ? Math.round(maxWidth) : undefined,
                     }}
                     onPointerEnter={handleMouseEnter} // Keep open when hovering tooltip
                     onPointerLeave={handleMouseLeave}
@@ -219,7 +265,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                         ref={tooltipRef}
                         className={`
                             bg-[#1F1F1F] text-white text-[11px] leading-relaxed px-3 py-2 rounded-lg
-                            whitespace-normal break-words w-max shadow-xl text-left border border-white/10
+                            whitespace-normal break-all max-w-full shadow-xl text-left border border-white/10
                             transition-all ease-out origin-top-right
                             ${noAnimation ? 'duration-0' : 'duration-200'}
                             ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}
