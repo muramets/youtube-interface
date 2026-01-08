@@ -172,6 +172,38 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, [formState.isDirty]);
 
+    // Auto-save metadata fields (publishedVideoId, videoRender, audioRender)
+    // These fields don't affect packaging versions, so they auto-save independently
+    useEffect(() => {
+        if (isViewingOldVersion) return;
+
+        const timer = setTimeout(() => {
+            const hasMetadataChanges =
+                formState.publishedVideoId !== (video.publishedVideoId || '') ||
+                formState.videoRender !== (video.videoRender || '') ||
+                formState.audioRender !== (video.audioRender || '');
+
+            if (hasMetadataChanges) {
+                actions.handleSaveMetadata({
+                    publishedVideoId: formState.publishedVideoId,
+                    videoRender: formState.videoRender,
+                    audioRender: formState.audioRender
+                });
+            }
+        }, 1000); // 1 second debounce
+
+        return () => clearTimeout(timer);
+    }, [
+        formState.publishedVideoId,
+        formState.videoRender,
+        formState.audioRender,
+        video.publishedVideoId,
+        video.videoRender,
+        video.audioRender,
+        isViewingOldVersion,
+        actions
+    ]);
+
 
     // ============================================================================
     // ACTIONS: Save / Undo / Versions

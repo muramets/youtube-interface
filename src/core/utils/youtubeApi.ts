@@ -82,10 +82,52 @@ export interface PackagingCheckin {
     isFinal?: boolean; // User manually marked as last for version
 }
 
+/**
+ * BUSINESS LOGIC: Timeline-based Version Tracking
+ * 
+ * A packaging version can be active multiple times (e.g., v.1 → v.2 → v.1).
+ * Each activation period is tracked separately to enable accurate view attribution.
+ * 
+ * Example Timeline:
+ * - Day 1-2: v.1 active (period 1)
+ * - Day 2-3: v.2 active
+ * - Day 3-4: v.1 active (period 2) ← Different from period 1!
+ * 
+ * When calculating views for "v.1 period 2", we subtract the snapshot that
+ * closed v.2, NOT the snapshot that closed "v.1 period 1".
+ */
 export interface PackagingVersion {
     versionNumber: number;
+
+    // DEPRECATED: Use activePeriods[0].startDate instead
+    // Kept for backward compatibility with existing data
     startDate: number;
+
+    // DEPRECATED: Use activePeriods[last].endDate instead
+    // Kept for backward compatibility with existing data
     endDate?: number;
+
+    /**
+     * Array of all time periods when this version was active.
+     * Multiple periods occur when a version is restored after being replaced.
+     * 
+     * Each period has:
+     * - startDate: When this version became active
+     * - endDate: When this version was replaced (undefined if currently active)
+     * - closingSnapshotId: ID of the traffic snapshot that closed this period
+     * 
+     * Example for v.1 with 2 activation periods:
+     * activePeriods: [
+     *   { startDate: Day1, endDate: Day2, closingSnapshotId: "snap_csv2" },
+     *   { startDate: Day4, endDate: undefined } // Currently active
+     * ]
+     */
+    activePeriods?: Array<{
+        startDate: number;
+        endDate?: number;
+        closingSnapshotId?: string; // References TrafficSnapshot.id
+    }>;
+
     checkins: PackagingCheckin[];
     configurationSnapshot: {
         title: string;

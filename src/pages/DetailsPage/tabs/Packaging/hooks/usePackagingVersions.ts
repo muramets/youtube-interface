@@ -1,5 +1,6 @@
 import { useReducer, useCallback, useMemo, useEffect } from 'react';
 import type { PackagingVersion, VideoLocalization } from '../../../../../core/utils/youtubeApi';
+import type { TrafficSnapshot } from '../../../../../core/types/traffic';
 
 interface PackagingSnapshot {
     title: string;
@@ -36,15 +37,105 @@ interface VersionsState {
 // Actions
 type VersionsAction =
     | { type: 'SYNC_FROM_PROPS'; payload: { history: PackagingVersion[]; currentVersion: number; isDraft: boolean } }
-    | { type: 'CREATE_VERSION'; payload: { newVersion: PackagingVersion; updatedHistory: PackagingVersion[] } }
+    | { type: 'CREATE_VERSION'; payload: { newVersion: PackagingVersion; updatedHistory: PackagingVersion[]; closingSnapshotId?: string } }
     | { type: 'DELETE_VERSION'; payload: { versionNumber: number } }
-    | { type: 'RESTORE_VERSION'; payload: { versionNumber: number } }
+    | { type: 'RESTORE_VERSION'; payload: { versionNumber: number; closingSnapshotId?: string } }
     | { type: 'SWITCH_TO_VERSION'; payload: { versionNumber: number | 'draft' } }
     | { type: 'SAVE_DRAFT' }
     | { type: 'MARK_DIRTY' }
     | { type: 'SET_CURRENT_VERSION_NUMBER'; payload: number }
     | { type: 'SET_HAS_DRAFT'; payload: boolean }
     | { type: 'SET_ACTIVE_VERSION'; payload: number | 'draft' };
+
+/**
+ * BUSINESS LOGIC: Helper Functions for Active Periods Management
+ * 
+ * These functions handle the timeline-based attribution system for versions.
+ * They ensure that when versions are created, restored, or deleted, the
+ * activation periods are properly tracked.
+ */
+
+/**
+ * Initialize activePeriods for a version if not present (backward compatibility).
+ */
+function ensureActivePeriods(version: PackagingVersion): PackagingVersion {
+    if (version.activePeriods && version.activePeriods.length > 0) {
+        return version;
+    }
+
+    return {
+        ...version,
+        activePeriods: [{
+            startDate: version.startDate,
+            endDate: version.endDate,
+            closingSnapshotId: undefined
+        }]
+    };
+}
+
+/**
+ * Close the active period of a version.
+ * 
+ * @param version - The version whose active period should be closed
+ * @param closingSnapshotId - Optional ID of the snapshot that closes this period
+ * @returns Updated version with closed period
+ */
+function closeActivePeriod(
+    version: PackagingVersion,
+    closingSnapshotId?: string
+): PackagingVersion {
+    const now = Date.now();
+    const versionWithPeriods = ensureActivePeriods(version);
+    const periods = versionWithPeriods.activePeriods!;
+
+    // Find the active period (no endDate)
+    const activePeriodIndex = periods.findIndex(p => p.endDate === undefined);
+
+    if (activePeriodIndex === -1) {
+        console.warn(`No active period found for v.${version.versionNumber}`);
+        return versionWithPeriods;
+    }
+
+    // Close the active period
+    const updatedPeriods = [...periods];
+    updatedPeriods[activePeriodIndex] = {
+        ...updatedPeriods[activePeriodIndex],
+        endDate: now,
+        closingSnapshotId
+    };
+
+    return {
+        ...versionWithPeriods,
+        endDate: now, // Update deprecated field for backward compat
+        activePeriods: updatedPeriods
+    };
+}
+
+/**
+ * Add a new activation period to a version.
+ * Used when restoring an old version.
+ * 
+ * @param version - The version to add a new period to
+ * @returns Updated version with new active period
+ */
+function addNewActivePeriod(version: PackagingVersion): PackagingVersion {
+    const now = Date.now();
+    const versionWithPeriods = ensureActivePeriods(version);
+    const periods = versionWithPeriods.activePeriods!;
+
+    const newPeriod = {
+        startDate: now,
+        endDate: undefined,
+        closingSnapshotId: undefined
+    };
+
+    return {
+        ...versionWithPeriods,
+        startDate: now, // Update deprecated field for backward compat
+        endDate: undefined,
+        activePeriods: [...periods, newPeriod]
+    };
+}
 
 // Helper: Compute sidebar-sorted versions (active first, then desc by number)
 function computeNavSorted(history: PackagingVersion[], activeVersion: number | 'draft'): PackagingVersion[] {
@@ -85,15 +176,47 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
         }
 
         case 'CREATE_VERSION': {
-            const { newVersion, updatedHistory } = action.payload;
+            const { newVersion, updatedHistory, closingSnapshotId } = action.payload;
+
+            /**
+             * BUSINESS LOGIC: Create New Version with Period Tracking
+             * 
+             * When creating a new version (e.g., v.2 → v.3):
+             * 1. Close the active period of the current version (v.2)
+             * 2. Add the new version (v.3) with its first activation period
+             * 
+             * The closingSnapshotId (from CSV upload) is linked to v.2's period,
+             * allowing us to calculate views for v.2 later.
+             */
+
+            // Close the current active version's period
+            const historyWithClosedPeriod = state.packagingHistory.map(v => {
+                if (v.versionNumber === state.activeVersion && typeof state.activeVersion === 'number') {
+                    return closeActivePeriod(v, closingSnapshotId);
+                }
+                return ensureActivePeriods(v);
+            });
+
+            // Add new version with its first activation period
+            const newVersionWithPeriod: PackagingVersion = {
+                ...newVersion,
+                activePeriods: [{
+                    startDate: newVersion.startDate,
+                    endDate: undefined, // Currently active
+                    closingSnapshotId: undefined
+                }]
+            };
+
+            const finalHistory = [...historyWithClosedPeriod, newVersionWithPeriod];
+
             return {
                 ...state,
-                packagingHistory: updatedHistory,
+                packagingHistory: finalHistory,
                 currentVersionNumber: state.currentVersionNumber + 1,
                 hasDraft: false,
                 activeVersion: newVersion.versionNumber,
                 viewingVersion: newVersion.versionNumber,
-                navSortedVersions: computeNavSorted(updatedHistory, newVersion.versionNumber)
+                navSortedVersions: computeNavSorted(finalHistory, newVersion.versionNumber)
             };
         }
 
@@ -117,17 +240,39 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
         }
 
         case 'RESTORE_VERSION': {
-            const { versionNumber } = action.payload;
-            const now = Date.now();
+            const { versionNumber, closingSnapshotId } = action.payload;
+
+            /**
+             * BUSINESS LOGIC: Restore Version with New Period
+             * 
+             * When restoring an old version (e.g., v.3 → v.1):
+             * 1. Close the current version's (v.3) active period
+             * 2. Add a NEW activation period to the restored version (v.1)
+             * 
+             * IMPORTANT: We don't reuse v.1's old period! We create a new one.
+             * This allows accurate attribution of views to each activation period.
+             * 
+             * Example:
+             * v.1 activePeriods before restore: [{ startDate: Day1, endDate: Day2 }]
+             * v.1 activePeriods after restore:  [
+             *   { startDate: Day1, endDate: Day2 },
+             *   { startDate: Day4, endDate: undefined } ← NEW period!
+             * ]
+             */
 
             const updatedHistory = state.packagingHistory.map(v => {
+                // Close the current active version's period
                 if (v.versionNumber === state.activeVersion && typeof state.activeVersion === 'number') {
-                    return { ...v, endDate: now };
+                    return closeActivePeriod(v, closingSnapshotId);
                 }
+
+                // Add new activation period to the restored version
                 if (v.versionNumber === versionNumber) {
-                    return { ...v, endDate: now };
+                    return addNewActivePeriod(v);
                 }
-                return v;
+
+                // Ensure all other versions have activePeriods initialized
+                return ensureActivePeriods(v);
             });
 
             return {

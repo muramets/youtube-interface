@@ -281,12 +281,33 @@ export const usePackagingActions = ({
         }
     }, [user, currentChannel, video.id, video.packagingHistory, versionState, updateVideo, formState, showToast]);
 
+    // Auto-save metadata fields (publishedVideoId, videoRender, audioRender)
+    // These fields don't belong to packaging versioning, so they save independently
+    const handleSaveMetadata = useCallback(async (metadata: {
+        publishedVideoId: string;
+        videoRender: string;
+        audioRender: string;
+    }) => {
+        if (!user || !currentChannel || !video.id) return;
+
+        try {
+            await updateVideo({
+                videoId: video.id,
+                updates: metadata
+            });
+        } catch (error) {
+            console.error('Failed to auto-save metadata:', error);
+            // Silent fail - don't show toast for auto-save
+        }
+    }, [user, currentChannel, video.id, updateVideo]);
+
     return {
         isSaving,
         cloningVersion,
         handleSave,
         handleSaveAsNewVersion,
         handleSaveResultsOnly,
+        handleSaveMetadata,
         handleCancel,
         handleCloneFromVersion,
         handleRestore,

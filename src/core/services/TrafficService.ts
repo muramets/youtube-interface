@@ -97,10 +97,12 @@ export const TrafficService = {
         totalRow?: TrafficSource
     ): Promise<void> {
         const currentData = await this.fetchTrafficData(userId, channelId, videoId);
+        const timestamp = Date.now();
 
         const snapshot: TrafficSnapshot = {
+            id: `snap_${timestamp}_v${version}`,
             version,
-            timestamp: Date.now(),
+            timestamp,
             createdAt: new Date().toISOString(),
             sources: sources,
             totalRow
