@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '../../../../../components/ui/atoms/Button/Button';
-import { TrafficUploader } from './TrafficUploader';
+import { TrafficUploader } from '../components/TrafficUploader';
 import { Info } from 'lucide-react';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 
@@ -41,7 +41,7 @@ export const VersionFreezeModal: React.FC<VersionFreezeModalProps> = ({
 
                     <div className="mb-6">
                         <TrafficUploader
-                            onUpload={async (sources) => {
+                            onUpload={async (sources: any) => {
                                 await onFreeze(sources);
                                 onClose();
                             }}

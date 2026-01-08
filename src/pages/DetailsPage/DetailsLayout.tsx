@@ -6,7 +6,7 @@ import { TrafficTab } from './tabs/Traffic/TrafficTab';
 import { usePackagingVersions } from './tabs/Packaging/hooks/usePackagingVersions';
 import { useTrafficData } from './tabs/Traffic/hooks/useTrafficData';
 import { ConfirmationModal } from '../../components/Shared/ConfirmationModal';
-import { SnapshotRequestModal } from './tabs/Traffic/components/SnapshotRequestModal';
+import { SnapshotRequestModal } from './tabs/Traffic/modals/SnapshotRequestModal';
 import { TrafficService } from '../../core/services/TrafficService';
 import { parseTrafficCsv } from '../../core/utils/csvParser';
 import { useUIStore } from '../../core/stores/uiStore';

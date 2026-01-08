@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, startTransition } from 'react';
 import { TrafficTable } from './components/TrafficTable';
 import { TrafficUploader } from './components/TrafficUploader';
-import { ColumnMapperModal } from './components/ColumnMapperModal';
+import { ColumnMapperModal } from './modals/ColumnMapperModal';
 import { VersionPills } from './components/VersionPills';
 import { useTrafficData } from './hooks/useTrafficData';
 import { useAuth } from '../../../../core/hooks/useAuth';

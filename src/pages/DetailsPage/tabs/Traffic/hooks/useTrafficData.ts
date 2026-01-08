@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { TrafficService } from '../../../../../core/services/TrafficService';
-import type { TrafficData, TrafficSource, TrafficGroup, TrafficSnapshot } from '../../../../../core/types/traffic';
+import type { TrafficData, TrafficSource } from '../../../../../core/types/traffic';
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 
 interface UseTrafficDataProps {

@@ -1,6 +1,5 @@
 import { useReducer, useCallback, useMemo, useEffect } from 'react';
 import type { PackagingVersion, VideoLocalization } from '../../../../../core/utils/youtubeApi';
-import type { TrafficSnapshot } from '../../../../../core/types/traffic';
 
 interface PackagingSnapshot {
     title: string;
@@ -176,7 +175,7 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
         }
 
         case 'CREATE_VERSION': {
-            const { newVersion, updatedHistory, closingSnapshotId } = action.payload;
+            const { newVersion, closingSnapshotId } = action.payload;
 
             /**
              * BUSINESS LOGIC: Create New Version with Period Tracking

@@ -1,9 +1,8 @@
 import { db } from '../../config/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import type { TrafficData, TrafficSource, TrafficGroup, TrafficSnapshot } from '../types/traffic';
+import type { TrafficData, TrafficSource, TrafficSnapshot } from '../types/traffic';
 
-const COLLECTION_PATH = 'users/{userId}/channels/{channelId}/videos/{videoId}/traffic';
-const DOC_ID = 'main'; // Single document strategy per video for simplicity
+
 
 export const TrafficService = {
     /**
