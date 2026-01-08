@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useAuth } from './useAuth';
 import { useChannelStore } from '../stores/channelStore';
-import { SettingsService, type GeneralSettings, type SyncSettings, type CloneSettings, type RecommendationOrder, type PackagingSettings, type UploadDefaults } from '../services/settingsService';
+import { SettingsService, type GeneralSettings, type SyncSettings, type CloneSettings, type RecommendationOrder, type PackagingSettings, type UploadDefaults, type TrafficSettings } from '../services/settingsService';
 
 const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
     cardsPerRow: 3,
@@ -31,6 +31,10 @@ const DEFAULT_UPLOAD_DEFAULTS: UploadDefaults = {
     title: '',
     description: '',
     tags: []
+};
+
+const DEFAULT_TRAFFIC_SETTINGS: TrafficSettings = {
+    ctrRules: []
 };
 
 export const useSettings = () => {
@@ -126,6 +130,17 @@ export const useSettings = () => {
         staleTime: Infinity
     });
 
+    const trafficQuery = useQuery({
+        queryKey: ['settings', 'traffic', userId, channelId],
+        queryFn: async () => {
+            const data = await SettingsService.fetchTrafficSettings(userId, channelId);
+            return data || DEFAULT_TRAFFIC_SETTINGS;
+        },
+        enabled,
+        staleTime: Infinity
+    });
+    const trafficSettings = trafficQuery.data || DEFAULT_TRAFFIC_SETTINGS;
+
     // --- Subscriptions ---
 
     useEffect(() => {
@@ -163,6 +178,10 @@ export const useSettings = () => {
             if (data) queryClient.setQueryData(['settings', 'uploadDefaults', userId, channelId], data);
         });
 
+        const unsubTraffic = SettingsService.subscribeToTrafficSettings(userId, channelId, (data) => {
+            if (data) queryClient.setQueryData(['settings', 'traffic', userId, channelId], data);
+        });
+
         return () => {
             unsubGeneral();
             unsubSync();
@@ -172,6 +191,7 @@ export const useSettings = () => {
             unsubPlaylistOrder();
             unsubPackaging();
             unsubUploadDefaults();
+            unsubTraffic();
         };
     }, [userId, channelId, enabled, queryClient]);
 
@@ -297,6 +317,21 @@ export const useSettings = () => {
         }
     });
 
+    const updateTrafficSettingsMutation = useMutation({
+        mutationFn: async (settings: TrafficSettings) => {
+            await SettingsService.updateTrafficSettings(userId, channelId, settings);
+        },
+        onMutate: async (newSettings) => {
+            await queryClient.cancelQueries({ queryKey: ['settings', 'traffic', userId, channelId] });
+            const previousSettings = queryClient.getQueryData(['settings', 'traffic', userId, channelId]);
+            queryClient.setQueryData(['settings', 'traffic', userId, channelId], newSettings);
+            return { previousSettings };
+        },
+        onError: (_err, _newSettings, context) => {
+            queryClient.setQueryData(['settings', 'traffic', userId, channelId], context?.previousSettings);
+        }
+    });
+
     // Wrapper functions to match store signature
     // Note: The store had (userId, channelId, settings) signature.
     // The hook already knows userId and channelId, but for compatibility we might need to ignore them or check them.
@@ -322,6 +357,8 @@ export const useSettings = () => {
         updatePlaylistOrder: (_uid: string, _cid: string, order: string[]) => updatePlaylistOrderMutation.mutateAsync(order),
         updatePackagingSettings: (_uid: string, _cid: string, settings: PackagingSettings) => updatePackagingSettingsMutation.mutateAsync(settings),
         updateUploadDefaults: (_uid: string, _cid: string, settings: UploadDefaults) => updateUploadDefaultsMutation.mutateAsync(settings),
-        isLoading: generalQuery.isLoading || syncQuery.isLoading || packagingQuery.isLoading
+        updateTrafficSettings: (_uid: string, _cid: string, settings: TrafficSettings) => updateTrafficSettingsMutation.mutateAsync(settings),
+        trafficSettings,
+        isLoading: generalQuery.isLoading || syncQuery.isLoading || packagingQuery.isLoading || trafficQuery.isLoading
     };
 };

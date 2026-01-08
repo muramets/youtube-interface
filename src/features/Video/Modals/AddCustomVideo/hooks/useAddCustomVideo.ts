@@ -22,7 +22,7 @@ export interface UseAddCustomVideoProps {
     onSave: (videoData: Omit<VideoDetails, 'id'>, shouldClose?: boolean) => Promise<string | void>;
     onClone?: (originalVideo: VideoDetails, version: CoverVersion) => Promise<void>;
     initialData?: VideoDetails;
-    initialTab?: 'details' | 'traffic';
+    initialTab?: 'details';
 }
 
 export function useAddCustomVideo({
@@ -46,7 +46,7 @@ export function useAddCustomVideo({
     const [draftId] = useState(() => initialData?.id || `custom-${Date.now()}`);
 
     // UI State
-    const [activeTab, setActiveTab] = useState<'details' | 'traffic'>(initialTab || 'details');
+    const [activeTab, setActiveTab] = useState<'details'>(initialTab || 'details');
     const [isStatsExpanded, setIsStatsExpanded] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [cloningVersion, setCloningVersion] = useState<number | null>(null);

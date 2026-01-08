@@ -6,7 +6,6 @@ import { type VideoDetails, type CoverVersion } from '../../../../core/utils/you
 import { Toast } from '../../../../components/Shared/Toast';
 import { VideoForm } from './components/VideoForm';
 import { SaveMenu } from './components/SaveMenu';
-import { SuggestedTrafficTab } from './components/SuggestedTraffic/SuggestedTrafficTab';
 import { ConfirmationModal } from '../../../../components/Shared/ConfirmationModal';
 import { ThumbnailSection } from '../../../../components/Shared/Thumbnail/ThumbnailSection';
 import { useAddCustomVideo } from './hooks/useAddCustomVideo';
@@ -18,7 +17,7 @@ interface AddCustomVideoModalProps {
     onSave: (videoData: Omit<VideoDetails, 'id'>, shouldClose?: boolean) => Promise<string | void>;
     onClone?: (originalVideo: VideoDetails, version: CoverVersion) => Promise<void>;
     initialData?: VideoDetails;
-    initialTab?: 'details' | 'traffic';
+    initialTab?: 'details';
 }
 
 export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) => {
@@ -55,7 +54,7 @@ export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) =
         activeLanguage,
         localizations,
         switchLanguage,
-        ctrRules,
+
 
         videoRender, setVideoRender,
         audioRender, setAudioRender,
@@ -165,20 +164,12 @@ export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) =
                             {activeTab === 'details' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-text-primary rounded-t-full" />}
                         </button>
 
-                        {initialData?.id && (
-                            <button
-                                onClick={() => setActiveTab('traffic')}
-                                className={`px-4 pb-3 text-sm font-medium transition-all relative ${activeTab === 'traffic' ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary'}`}
-                            >
-                                Suggested Traffic
-                                {activeTab === 'traffic' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-text-primary rounded-t-full" />}
-                            </button>
-                        )}
+
                     </div>
 
                     {/* Content */}
                     <div
-                        className={`flex-1 custom-scrollbar ${activeTab === 'traffic' ? 'overflow-hidden' : 'overflow-y-auto'}`}
+                        className="flex-1 custom-scrollbar overflow-y-auto"
                         style={{ scrollbarGutter: 'stable' }}
                     >
                         <div key={activeTab} className="h-full animate-fade-in">
@@ -258,14 +249,7 @@ export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) =
                                 </div>
                             )}
 
-                            {activeTab === 'traffic' && initialData?.id && (
-                                <div className="animate-fade-in h-full">
-                                    <SuggestedTrafficTab
-                                        customVideoId={initialData.id}
-                                        packagingCtrRules={ctrRules}
-                                    />
-                                </div>
-                            )}
+
                         </div>
                     </div>
                 </div>

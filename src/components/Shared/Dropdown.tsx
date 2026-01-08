@@ -9,6 +9,7 @@ interface DropdownProps extends React.HTMLAttributes<HTMLDivElement> {
     className?: string;
     width?: number;
     align?: 'left' | 'right';
+    zIndexClass?: string;
 }
 
 export const Dropdown: React.FC<DropdownProps> = ({
@@ -19,6 +20,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
     className = '',
     width = 300,
     align = 'right',
+    zIndexClass = 'z-dropdown',
     ...props
 }) => {
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -112,7 +114,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
     return createPortal(
         <div
             ref={dropdownRef}
-            className={`fixed z-dropdown bg-bg-secondary rounded-xl border border-border shadow-2xl animate-scale-in overflow-hidden ${className}`}
+            className={`fixed ${zIndexClass} bg-bg-secondary rounded-xl border border-border shadow-2xl animate-scale-in overflow-hidden ${className}`}
             style={{
                 top: position.top,
                 left: position.left,

@@ -4,6 +4,7 @@ import type { TrafficSource, TrafficGroup } from '../../../../../core/types/traf
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { PortalTooltip } from '../../../../../components/Shared/PortalTooltip';
 import { VideoPreviewTooltip } from '../../../../../components/Shared/VideoPreviewTooltip';
+import type { CTRRule } from '../../../../../core/services/settingsService';
 
 interface TrafficRowProps {
     item: TrafficSource;
@@ -12,6 +13,7 @@ interface TrafficRowProps {
     group?: TrafficGroup;
     activeSortKey?: string;
     onRowClick: (id: string, index: number, e: React.MouseEvent) => void;
+    ctrRules?: CTRRule[];
 }
 
 // Helper function to format duration
@@ -27,8 +29,39 @@ const formatDuration = (duration: string) => {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
+const getCtrColor = (ctr: number | string, rules: CTRRule[]): string | undefined => {
+    const val = typeof ctr === 'string' ? parseFloat(ctr) : ctr;
+    if (isNaN(val)) return undefined;
 
-export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, group, activeSortKey, onRowClick }) => {
+    // Find first matching rule
+    // Assuming rules are sorted by value if that's desired, but we just check criteria
+    // Actually, legacy filtered through all and maybe took last? Or first?
+    // Let's implement standard ordered check. First match wins? Or specific logic?
+    // If rules are sorted by value asc:
+    // val=3. <5 (red), <10 (orange).
+    // 3 < 5 matches. Returns red.
+    // 7 < 5 false. 7 < 10 matches. Returns orange.
+    // This seems correct for "<" operators.
+    // For ">" operators? > 10 (green).
+    // If we mix < and > it gets tricky.
+    // The legacy code used specific logic or expected user to define disjoint or ordered rules.
+    // I'll check first match.
+    for (const rule of rules) {
+        switch (rule.operator) {
+            case '<': if (val < rule.value) return rule.color; break;
+            case '>': if (val > rule.value) return rule.color; break;
+            case '<=': if (val <= rule.value) return rule.color; break;
+            case '>=': if (val >= rule.value) return rule.color; break;
+            case 'between':
+                if (rule.maxValue !== undefined && val >= rule.value && val <= rule.maxValue) return rule.color;
+                break;
+        }
+    }
+    return undefined;
+};
+
+
+export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, group, activeSortKey, onRowClick, ctrRules = [] }) => {
     return (
         <div
             key={item.videoId || index}
@@ -100,7 +133,10 @@ export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, grou
                 {item.impressions.toLocaleString()}
             </div>
 
-            <div className={`text-right ${activeSortKey === 'ctr' ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
+            <div
+                className={`text-right ${activeSortKey === 'ctr' ? 'text-text-primary font-medium' : 'text-text-secondary'}`}
+                style={{ color: getCtrColor(item.ctr, ctrRules) }}
+            >
                 {item.ctr}%
             </div>
 
@@ -120,7 +156,8 @@ export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, grou
         prevProps.isSelected === nextProps.isSelected &&
         prevProps.group === nextProps.group &&
         prevProps.index === nextProps.index &&
-        prevProps.activeSortKey === nextProps.activeSortKey
+        prevProps.activeSortKey === nextProps.activeSortKey &&
+        prevProps.ctrRules === nextProps.ctrRules
     );
 });
 

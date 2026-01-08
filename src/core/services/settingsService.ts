@@ -47,6 +47,18 @@ export interface UploadDefaults {
     tags?: string[];
 }
 
+export interface CTRRule {
+    id: string;
+    operator: '<' | '>' | '<=' | '>=' | 'between';
+    value: number;
+    maxValue?: number;
+    color: string;
+}
+
+export interface TrafficSettings {
+    ctrRules: CTRRule[];
+}
+
 const getSettingsPath = (userId: string, channelId: string) =>
     `users/${userId}/channels/${channelId}/settings`;
 
@@ -280,6 +292,35 @@ export const SettingsService = {
         await setDocument(
             getSettingsPath(userId, channelId),
             'uploadDefaults',
+            settings,
+            true
+        );
+    },
+
+    fetchTrafficSettings: async (userId: string, channelId: string) => {
+        return fetchDoc<TrafficSettings>(getSettingsPath(userId, channelId), 'traffic');
+    },
+
+    subscribeToTrafficSettings: (
+        userId: string,
+        channelId: string,
+        callback: (settings: TrafficSettings | null) => void
+    ) => {
+        return subscribeToDoc<TrafficSettings>(
+            getSettingsPath(userId, channelId),
+            'traffic',
+            callback
+        );
+    },
+
+    updateTrafficSettings: async (
+        userId: string,
+        channelId: string,
+        settings: TrafficSettings
+    ) => {
+        await setDocument(
+            getSettingsPath(userId, channelId),
+            'traffic',
             settings,
             true
         );

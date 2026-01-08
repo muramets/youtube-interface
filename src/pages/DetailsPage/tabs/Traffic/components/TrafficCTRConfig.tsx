@@ -1,8 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Plus, Trash2 } from 'lucide-react';
-import { Dropdown } from '../../../../components/Shared/Dropdown';
-import type { CTRRule } from '../types';
+import { Dropdown } from '../../../../../components/Shared/Dropdown';
+import { useAuth } from '../../../../../core/hooks/useAuth';
+import { useChannelStore } from '../../../../../core/stores/channelStore';
+import { useSettings } from '../../../../../core/hooks/useSettings';
+import type { CTRRule } from '../../../../../core/services/settingsService';
 
 const PRESET_COLORS = [
     '#EF4444', // Red
@@ -33,7 +36,8 @@ const ColorSelect: React.FC<{ value: string; onChange: (color: string) => void }
                 anchorEl={anchorEl}
                 width={32}
                 align="left"
-                className="p-1"
+                className="p-1 ctr-config-dropdown"
+                zIndexClass="z-popover"
             >
                 <div className="flex flex-col gap-1">
                     {PRESET_COLORS.map(color => (
@@ -76,7 +80,7 @@ const OperatorSelect: React.FC<{ value: string; onChange: (op: CTRRule['operator
                 onClick={() => setIsOpen(!isOpen)}
                 className="h-7 px-2 bg-[#2A2A2A] text-white text-xs rounded flex items-center gap-1 hover:bg-[#333] transition-colors min-w-[40px] justify-center"
             >
-                {value === 'between' ? 'Betw.' : value}
+                {value === 'between' ? 'Between' : value}
             </button>
             <Dropdown
                 isOpen={isOpen}
@@ -84,7 +88,8 @@ const OperatorSelect: React.FC<{ value: string; onChange: (op: CTRRule['operator
                 anchorEl={anchorEl}
                 width={80}
                 align="left"
-                className="p-1"
+                className="p-1 ctr-config-dropdown"
+                zIndexClass="z-popover"
             >
                 <div className="flex flex-col gap-1">
                     {options.map(opt => (
@@ -94,7 +99,7 @@ const OperatorSelect: React.FC<{ value: string; onChange: (op: CTRRule['operator
                                 onChange(opt.value);
                                 setIsOpen(false);
                             }}
-                            className={`w-full text-left px-2 py-1.5 text-xs text-white hover:bg-white/10 rounded transition-colors ${value === opt.value ? 'bg-white/5' : ''}`}
+                            className={`w-full text-left px-2 py-1.5 text-xs text-text-primary hover:bg-white/10 rounded transition-colors ${value === opt.value ? 'bg-white/5' : ''}`}
                         >
                             {opt.label}
                         </button>
@@ -105,31 +110,37 @@ const OperatorSelect: React.FC<{ value: string; onChange: (op: CTRRule['operator
     );
 };
 
-export const CTRConfigPopup: React.FC<{
+
+
+export const TrafficCTRConfig: React.FC<{
     isOpen: boolean;
     onClose: () => void;
-    rules: CTRRule[];
-    onSave: (rules: CTRRule[]) => void;
-    anchorRef: React.RefObject<HTMLElement>;
-}> = ({ isOpen, onClose, rules, onSave, anchorRef }) => {
+    anchorRef: React.RefObject<any>;
+}> = ({ isOpen, onClose, anchorRef }) => {
     const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
     const popupRef = useRef<HTMLDivElement>(null);
 
-    React.useLayoutEffect(() => {
+    const { user } = useAuth();
+    const { currentChannel } = useChannelStore();
+    const { trafficSettings, updateTrafficSettings } = useSettings();
+    const rules = trafficSettings?.ctrRules || [];
+
+    useLayoutEffect(() => {
         if (isOpen && anchorRef.current) {
             const rect = anchorRef.current.getBoundingClientRect();
+            // Position it to the left of the button
             setPosition({
                 top: rect.bottom + 8,
-                left: rect.left - 100 // Shift left to align better
+                left: rect.right - 280 // Shift left (width is 280)
             });
         }
     }, [isOpen, anchorRef]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            // Check if click is inside the popup OR inside any portal (dropdowns)
             const target = event.target as HTMLElement;
-            const isInDropdown = target.closest('.z-\\[10000\\]');
+            // Check for our specific dropdown class
+            const isInDropdown = target.closest('.ctr-config-dropdown');
 
             if (popupRef.current && !popupRef.current.contains(target as Node) &&
                 anchorRef.current && !anchorRef.current.contains(target as Node) &&
@@ -146,6 +157,15 @@ export const CTRConfigPopup: React.FC<{
 
     if (!isOpen || !position) return null;
 
+    const saveRules = async (newRules: CTRRule[]) => {
+        if (!user?.uid || !currentChannel?.id) return;
+        try {
+            await updateTrafficSettings(user.uid, currentChannel.id, { ctrRules: newRules });
+        } catch (e) {
+            console.error("Failed to save CTR rules", e);
+        }
+    };
+
     const addRule = () => {
         const lastRule = rules[rules.length - 1];
         let nextValue = 5;
@@ -159,7 +179,8 @@ export const CTRConfigPopup: React.FC<{
             }
         }
 
-        onSave([
+        // Save
+        saveRules([
             ...rules,
             { id: crypto.randomUUID(), operator: '<', value: nextValue, color: nextColor }
         ]);
@@ -168,27 +189,22 @@ export const CTRConfigPopup: React.FC<{
     const updateRule = (id: string, updates: Partial<CTRRule>) => {
         const newRules = rules.map(r => {
             if (r.id !== id) return r;
-
             const updated = { ...r, ...updates };
-
-            // Clamp values
             if (updated.value > 100) updated.value = 100;
             if (updated.maxValue !== undefined && updated.maxValue > 100) updated.maxValue = 100;
-
             return updated;
         });
-        onSave(newRules);
+        saveRules(newRules);
     };
 
     const removeRule = (id: string) => {
-        onSave(rules.filter(r => r.id !== id));
+        saveRules(rules.filter(r => r.id !== id));
     };
 
     const sortAndSaveRules = () => {
         const sorted = [...rules].sort((a, b) => a.value - b.value);
-        // Only save if order changed to avoid unnecessary renders/saves
         if (JSON.stringify(sorted) !== JSON.stringify(rules)) {
-            onSave(sorted);
+            saveRules(sorted);
         }
     };
 
@@ -196,31 +212,35 @@ export const CTRConfigPopup: React.FC<{
         <div
             ref={popupRef}
             style={{ top: position.top, left: position.left }}
-            className="fixed z-[9999] w-auto min-w-[220px] bg-[#1F1F1F] border border-white/10 rounded-xl shadow-2xl p-3 flex flex-col gap-3 animate-in fade-in zoom-in-95 duration-200"
+            className="fixed z-dropdown w-[280px] bg-[#1F1F1F] rounded-xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200"
         >
-            <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                <span className="text-xs font-bold text-[#AAAAAA] uppercase tracking-wider">CTR Color Rules</span>
-                <button onClick={onClose} className="text-[#AAAAAA] hover:text-red-500 transition-colors">
+            {/* Header matching View Mode style */}
+            <div className="px-4 py-3 border-b border-[#2a2a2a] flex justify-between items-center">
+                <span className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider">
+                    CTR Color Rules
+                </span>
+                <button
+                    onClick={onClose}
+                    className="text-text-tertiary hover:text-text-primary transition-colors focus:outline-none"
+                >
                     <X size={14} />
                 </button>
             </div>
 
-            <div className="flex flex-col gap-2 max-h-[300px] overflow-y-auto custom-scrollbar">
+            <div className="flex flex-col max-h-[300px] overflow-y-auto custom-scrollbar p-2">
                 {rules.length === 0 ? (
-                    <div className="text-center py-4 text-[#555] text-xs">
-                        No rules yet. <button onClick={addRule} className="text-[#AAAAAA] hover:text-white transition-colors">Add rule</button>
+                    <div className="flex items-center justify-center h-[40px] text-text-tertiary text-xs">
+                        No rules yet.
                     </div>
                 ) : (
-                    <>
+                    <div className="flex flex-col gap-2">
                         {rules.map((rule) => (
-                            <div key={rule.id} className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-white/5">
-                                {/* Operator */}
+                            <div key={rule.id} className="flex items-center gap-2 px-2 py-1.5 bg-[#252525] rounded-lg group transition-all">
                                 <OperatorSelect
                                     value={rule.operator}
                                     onChange={(op) => updateRule(rule.id, { operator: op })}
                                 />
 
-                                {/* Value(s) */}
                                 <div className="flex-1 flex justify-center">
                                     {rule.operator === 'between' ? (
                                         <div className="flex items-center gap-1">
@@ -232,9 +252,9 @@ export const CTRConfigPopup: React.FC<{
                                                     updateRule(rule.id, { value: Number(val) });
                                                 }}
                                                 onBlur={sortAndSaveRules}
-                                                className="w-9 h-7 bg-[#2A2A2A] text-white text-xs rounded px-1 focus:outline-none text-center border border-transparent focus:border-white/20"
+                                                className="w-10 h-7 bg-transparent text-text-primary text-xs font-medium focus:bg-[#2A2A2A] rounded px-1 focus:outline-none text-center transition-colors"
                                             />
-                                            <span className="text-[9px] text-[#555]">-</span>
+                                            <span className="text-[10px] text-text-tertiary">-</span>
                                             <input
                                                 type="text"
                                                 value={rule.maxValue || ''}
@@ -243,7 +263,7 @@ export const CTRConfigPopup: React.FC<{
                                                     updateRule(rule.id, { maxValue: Number(val) });
                                                 }}
                                                 onBlur={sortAndSaveRules}
-                                                className="w-9 h-7 bg-[#2A2A2A] text-white text-xs rounded px-1 focus:outline-none text-center border border-transparent focus:border-white/20"
+                                                className="w-10 h-7 bg-transparent text-text-primary text-xs font-medium focus:bg-[#2A2A2A] rounded px-1 focus:outline-none text-center transition-colors"
                                             />
                                         </div>
                                     ) : (
@@ -256,43 +276,40 @@ export const CTRConfigPopup: React.FC<{
                                                     updateRule(rule.id, { value: Number(val) });
                                                 }}
                                                 onBlur={sortAndSaveRules}
-                                                className="w-12 h-7 bg-[#2A2A2A] text-white text-xs rounded px-2 focus:outline-none text-center border border-transparent focus:border-white/20"
+                                                className="w-10 h-7 bg-transparent text-text-primary text-xs font-medium focus:bg-[#2A2A2A] rounded px-1 focus:outline-none text-center transition-colors"
                                             />
-                                            <span className="absolute right-1 text-[9px] text-[#555] pointer-events-none">%</span>
+                                            <span className="ml-0.5 text-[10px] text-text-tertiary pointer-events-none">%</span>
                                         </div>
                                     )}
                                 </div>
 
-                                {/* Color Picker */}
                                 <ColorSelect
                                     value={rule.color}
                                     onChange={(color) => updateRule(rule.id, { color })}
                                 />
 
-                                {/* Delete */}
                                 <button
                                     onClick={() => removeRule(rule.id)}
-                                    className="text-[#555] hover:text-red-500 transition-colors p-1.5 hover:bg-white/5 rounded"
+                                    className="opacity-0 group-hover:opacity-100 text-text-tertiary hover:text-red-500 transition-all p-1.5"
                                 >
-                                    <Trash2 size={12} />
+                                    <Trash2 size={13} />
                                 </button>
                             </div>
                         ))}
-                    </>
+                    </div>
                 )}
             </div>
 
-            {rules.length > 0 && (
-                <div className="flex gap-2 mt-1">
-                    <button
-                        onClick={addRule}
-                        className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-white/5 hover:bg-white/10 text-[10px] text-[#AAAAAA] hover:text-white rounded transition-colors border border-white/10 hover:border-white/20"
-                    >
-                        <Plus size={10} />
-                        Add Rule
-                    </button>
-                </div>
-            )}
+            {/* Footer Action */}
+            <div className="p-2 border-t border-[#2a2a2a]">
+                <button
+                    onClick={addRule}
+                    className="w-full flex items-center justify-center gap-2 py-2 bg-white/5 hover:bg-white/10 text-xs font-medium text-text-secondary hover:text-text-primary rounded-lg transition-colors"
+                >
+                    <Plus size={14} />
+                    Add Rule
+                </button>
+            </div>
         </div>,
         document.body
     );

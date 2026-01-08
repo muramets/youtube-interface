@@ -7,6 +7,9 @@ import { ColumnMapperModal } from './modals/ColumnMapperModal';
 import type { VideoDetails } from '../../../../core/utils/youtubeApi';
 import { parseTrafficCsv } from '../../../../core/utils/csvParser';
 import { TrafficService } from '../../../../core/services/TrafficService';
+import { Settings } from 'lucide-react';
+import { TrafficCTRConfig } from './components/TrafficCTRConfig';
+import { useSettings } from '../../../../core/hooks/useSettings';
 
 interface TrafficTabProps {
     video: VideoDetails;
@@ -44,6 +47,11 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     const [failedFile, setFailedFile] = useState<File | null>(null);
 
     // Detect scroll for sticky header shadow
+    const configBtnRef = useRef<HTMLButtonElement>(null);
+    const [isConfigOpen, setIsConfigOpen] = useState(false);
+    const { trafficSettings } = useSettings();
+    const ctrRules = trafficSettings?.ctrRules || [];
+
     useEffect(() => {
         const sentinel = sentinelRef.current;
         if (!sentinel) return;
@@ -178,6 +186,16 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                     {/* Actions - Only show if not empty */}
                     {!isEmpty && (
                         <div className="flex gap-2">
+                            {/* CTR Settings */}
+                            <button
+                                ref={configBtnRef}
+                                onClick={() => setIsConfigOpen(!isConfigOpen)}
+                                className={`w-[34px] h-[34px] rounded-full flex items-center justify-center transition-colors border-none cursor-pointer ${isConfigOpen ? 'bg-text-primary text-bg-primary' : 'bg-transparent text-text-primary hover:bg-hover-bg'}`}
+                                title="CTR Color Rules"
+                            >
+                                <Settings size={18} />
+                            </button>
+
                             {/* View Mode Filter Menu */}
                             {!isLoading && (viewingVersion === 'draft' || viewingVersion === activeVersion) && (
                                 <FilterDropdown align="right" width="280px">
@@ -233,6 +251,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                         totalRow={trafficData?.totalRow}
                         selectedIds={selectedIds}
                         isLoading={isLoading || isLoadingSnapshot}
+                        ctrRules={ctrRules}
                         onToggleSelection={(id) => {
                             const newSet = new Set(selectedIds);
                             if (newSet.has(id)) newSet.delete(id);
@@ -259,6 +278,11 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             </div>
 
             {/* Modals */}
+            <TrafficCTRConfig
+                isOpen={isConfigOpen}
+                onClose={() => setIsConfigOpen(false)}
+                anchorRef={configBtnRef}
+            />
             <ColumnMapperModal
                 isOpen={isMapperOpen}
                 onClose={() => setIsMapperOpen(false)}

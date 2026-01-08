@@ -6,6 +6,8 @@ import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { TrafficRow } from './TrafficRow';
 import { TrafficEmptyState } from './TrafficEmptyState';
 
+import type { CTRRule } from '../../../../../core/services/settingsService';
+
 interface TrafficTableProps {
     data: TrafficSource[];
     totalRow?: TrafficSource;
@@ -26,6 +28,9 @@ interface TrafficTableProps {
     // Upload for Empty State
     onUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<void>;
     hasExistingSnapshot: boolean;
+
+    // CTR Rules
+    ctrRules?: CTRRule[];
 }
 
 type SortKey = keyof TrafficSource;
@@ -43,7 +48,8 @@ export const TrafficTable: React.FC<TrafficTableProps> = ({
     onToggleAll,
     isLoading,
     onUpload,
-    hasExistingSnapshot
+    hasExistingSnapshot,
+    ctrRules = []
 }) => {
     // Virtualization refs
     const parentRef = useRef<HTMLDivElement>(null);
@@ -240,6 +246,7 @@ export const TrafficTable: React.FC<TrafficTableProps> = ({
                                     group={group}
                                     activeSortKey={sortConfig?.key}
                                     onRowClick={handleRowClick}
+                                    ctrRules={ctrRules}
                                 />
                             </div>
                         );
