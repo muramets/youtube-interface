@@ -1,10 +1,12 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, TrendingUp } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { type VideoDetails, type PackagingVersion } from '../../../core/utils/youtubeApi';
+import { type TrafficSnapshot } from '../../../core/types/traffic';
 import { SidebarVideoPreview } from './SidebarVideoPreview';
 import { SidebarNavItem } from './SidebarNavItem';
 import { PackagingNav } from './Packaging/PackagingNav';
+import { TrafficNav } from './Traffic/TrafficNav';
 
 interface DetailsSidebarProps {
     video: VideoDetails;
@@ -15,6 +17,10 @@ interface DetailsSidebarProps {
     hasDraft: boolean;
     onVersionClick: (versionNumber: number | 'draft') => void;
     onDeleteVersion: (versionNumber: number) => void;
+    // Traffic props
+    snapshots: TrafficSnapshot[];
+    selectedSnapshot: string | null;
+    onSnapshotClick: (snapshotId: string) => void;
     // Tab Navigation
     activeTab: 'packaging' | 'traffic';
     onTabChange: (tab: 'packaging' | 'traffic') => void;
@@ -28,6 +34,9 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
     hasDraft,
     onVersionClick,
     onDeleteVersion,
+    snapshots,
+    selectedSnapshot,
+    onSnapshotClick,
     activeTab,
     onTabChange
 }) => {
@@ -69,11 +78,23 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
                     onSelect={() => onTabChange('packaging')}
                 />
 
-                <SidebarNavItem
-                    icon={<TrendingUp size={24} />}
-                    label="Suggested Traffic"
+                <TrafficNav
+                    versions={versions}
+                    snapshots={snapshots}
+                    viewingVersion={viewingVersion}
+                    activeVersion={activeVersion}
+                    selectedSnapshot={selectedSnapshot}
+                    hasDraft={hasDraft}
+                    onVersionClick={(v) => {
+                        onTabChange('traffic');
+                        onVersionClick(v);
+                    }}
+                    onSnapshotClick={(snapshotId) => {
+                        onTabChange('traffic');
+                        onSnapshotClick(snapshotId);
+                    }}
                     isActive={activeTab === 'traffic'}
-                    onClick={() => onTabChange('traffic')}
+                    onSelect={() => onTabChange('traffic')}
                 />
             </nav>
         </aside>

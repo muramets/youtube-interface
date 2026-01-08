@@ -105,6 +105,9 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
         resolveCallback: ((snapshotId: string | null) => void) | null;
     }>({ isOpen: false, versionToRestore: null, isForCreateVersion: false, resolveCallback: null });
 
+    // Selected Snapshot State (for viewing specific snapshot)
+    const [selectedSnapshot, setSelectedSnapshot] = useState<string | null>(null);
+
     // ============================================================================
     // BUSINESS LOGIC: Version Switch with Dirty Check
     // ============================================================================
@@ -142,6 +145,12 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
             processVersionSwitch(versionNumber);
         }
     }, [versions.viewingVersion, isFormDirty, versions.activeVersion]);
+
+    // Handler when user clicks snapshot in sidebar
+    const handleSnapshotClick = useCallback((snapshotId: string) => {
+        setSelectedSnapshot(snapshotId);
+        setActiveTab('traffic'); // Ensure traffic tab is active
+    }, []);
 
     // ============================================================================
     // BUSINESS LOGIC: Version Deletion
@@ -479,6 +488,9 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                 hasDraft={versions.hasDraft}
                 onVersionClick={handleVersionClick}
                 onDeleteVersion={handleDeleteVersion}
+                snapshots={trafficState.trafficData?.snapshots || []}
+                selectedSnapshot={selectedSnapshot}
+                onSnapshotClick={handleSnapshotClick}
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
             />
@@ -498,6 +510,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                         video={video}
                         activeVersion={typeof versions.activeVersion === 'number' ? versions.activeVersion : 0}
                         viewingVersion={versions.viewingVersion}
+                        selectedSnapshot={selectedSnapshot}
                     // We could pass trafficState down if TrafficTab accepts it to avoid double hook usage
                     // But TrafficTab currently calls useTrafficData internally.
                     // I should update TrafficTab to accept "trafficState" or just let it be for now?

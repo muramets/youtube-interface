@@ -1,8 +1,7 @@
-import React, { useState, useRef, useEffect, useMemo, startTransition } from 'react';
+import React, { useState, useRef, useEffect, startTransition } from 'react';
 import { TrafficTable } from './components/TrafficTable';
 import { TrafficUploader } from './components/TrafficUploader';
 import { ColumnMapperModal } from './modals/ColumnMapperModal';
-import { VersionPills } from './components/VersionPills';
 import { useTrafficData } from './hooks/useTrafficData';
 import { useAuth } from '../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../core/stores/channelStore';
@@ -15,9 +14,10 @@ interface TrafficTabProps {
     video: VideoDetails;
     activeVersion: number;
     viewingVersion?: number | 'draft';
+    selectedSnapshot?: string | null; // If set, show this specific snapshot
 }
 
-export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, viewingVersion }) => {
+export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, viewingVersion, selectedSnapshot }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const sentinelRef = useRef<HTMLDivElement>(null);
@@ -25,9 +25,6 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
 
     // Selection State
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
-    // Version Selection State
-    const [selectedVersion, setSelectedVersion] = useState<number | 'draft'>(viewingVersion || activeVersion);
 
     // View Mode State: 'cumulative' shows total views, 'delta' shows new views since last snapshot
     const [viewMode, setViewMode] = useState<'cumulative' | 'delta'>('cumulative');
@@ -74,48 +71,13 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
         }
     };
 
-    // Build version list from snapshots
-    const versionList = useMemo(() => {
-        const versions: Array<{ version: number | 'draft'; label: string }> = [];
 
-        // Add saved versions from snapshots (sorted)
-        const sortedSnapshots = [...(trafficData?.snapshots || [])].sort((a, b) => a.version - b.version);
-        sortedSnapshots.forEach(snap => {
-            versions.push({
-                version: snap.version,
-                label: `v.${snap.version}`
-            });
-        });
-
-        // Add current version (always show)
-        const hasDraft = viewingVersion === 'draft';
-        const currentVersionExists = versions.some(v => v.version === activeVersion);
-
-        // DEBUG: Phantom Draft Analysis
-        console.log('[TrafficTab] Analyzing Version State:', {
-            activeVersion,
-            viewingVersion,
-            hasDraft,
-            currentVersionExists,
-            snapshotsCount: trafficData?.snapshots?.length || 0,
-            isLoading: isLoading
-        });
-
-        if (!currentVersionExists) {
-            versions.push({
-                version: activeVersion,
-                label: hasDraft ? 'Draft' : `v.${activeVersion}`
-            });
-        }
-
-        return versions;
-    }, [trafficData, activeVersion, viewingVersion]);
 
     // State for displayed sources (async loading support)
     const [displayedSources, setDisplayedSources] = useState<any[]>([]);
     const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(false);
 
-    // Load displayed data based on selected version and view mode
+    // Load displayed data based on selected snapshot, version, and view mode
     useEffect(() => {
         const loadData = async () => {
             if (!trafficData?.sources) {
@@ -123,7 +85,41 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
                 return;
             }
 
-            if (selectedVersion === 'draft' || selectedVersion === activeVersion) {
+            // Priority 1: Specific snapshot selected
+            if (selectedSnapshot) {
+                setIsLoadingSnapshot(true);
+                try {
+                    const snapshot = trafficData.snapshots?.find(s => s.id === selectedSnapshot);
+                    if (snapshot) {
+                        // Load from Storage if storagePath exists
+                        if (snapshot.storagePath) {
+                            const { downloadCsvSnapshot } = await import('../../../../core/services/storageService');
+                            const { parseTrafficCsv } = await import('../../../../core/utils/csvParser');
+
+                            const blob = await downloadCsvSnapshot(snapshot.storagePath);
+                            const file = new File([blob], 'snapshot.csv', { type: 'text/csv' });
+                            const { sources } = await parseTrafficCsv(file);
+                            setDisplayedSources(sources);
+                        } else if (snapshot.sources) {
+                            // Legacy: sources in Firestore
+                            setDisplayedSources(snapshot.sources);
+                        } else {
+                            setDisplayedSources([]);
+                        }
+                    } else {
+                        setDisplayedSources([]);
+                    }
+                } catch (error) {
+                    console.error('Failed to load snapshot:', error);
+                    setDisplayedSources([]);
+                } finally {
+                    setIsLoadingSnapshot(false);
+                }
+                return;
+            }
+
+            // Priority 2: Version selected (no specific snapshot)
+            if (viewingVersion === 'draft' || viewingVersion === activeVersion) {
                 // Current version - synchronous
                 if (viewMode === 'delta') {
                     // Delta: show new views since last snapshot
@@ -142,7 +138,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
                 setIsLoadingSnapshot(true);
                 try {
                     const sources = await TrafficService.getVersionSources(
-                        selectedVersion as number,
+                        viewingVersion as number,
                         trafficData.snapshots || []
                     );
                     setDisplayedSources(sources);
@@ -156,7 +152,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
         };
 
         loadData();
-    }, [trafficData, selectedVersion, activeVersion, viewMode]);
+    }, [trafficData, viewingVersion, activeVersion, viewMode, selectedSnapshot]);
 
     // Derived UI State
     const isViewingOldVersion = viewingVersion && viewingVersion !== activeVersion;
@@ -181,7 +177,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
                     {/* Actions */}
                     <div className="flex gap-2">
                         {/* View Mode Toggle */}
-                        {!isLoading && (selectedVersion === 'draft' || selectedVersion === activeVersion) && (
+                        {!isLoading && (viewingVersion === 'draft' || viewingVersion === activeVersion) && (
                             <div className="flex gap-1 bg-bg-secondary rounded-lg p-1">
                                 <button
                                     onClick={() => setViewMode('cumulative')}
@@ -223,15 +219,6 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
 
             {/* Main Content - Table with its own scroll */}
             <div className="px-6 pb-6 pt-6">
-                {/* Version Pills - Always show */}
-                <div className="mb-6 max-w-[1050px]">
-                    <VersionPills
-                        versions={versionList}
-                        activeVersion={selectedVersion}
-                        onVersionChange={setSelectedVersion}
-                    />
-                </div>
-
                 <div className="max-w-[1050px]" style={{ height: 'calc(100vh - 200px)' }}>
                     <TrafficTable
                         data={displayedSources}
@@ -257,7 +244,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
                             });
                         }}
                         activeVersion={activeVersion}
-                        viewingVersion={selectedVersion}
+                        viewingVersion={viewingVersion}
                     />
                 </div>
             </div>
