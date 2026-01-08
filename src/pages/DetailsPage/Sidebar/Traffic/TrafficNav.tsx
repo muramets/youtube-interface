@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { BarChart3, ChevronDown, ChevronRight, FileEdit } from 'lucide-react';
+import { BarChart3, ChevronDown, ChevronRight } from 'lucide-react';
+import { SidebarVersionItem } from '../Packaging/SidebarVersionItem';
 import type { PackagingVersion } from '../../../../core/utils/youtubeApi';
 import type { TrafficSnapshot } from '../../../../core/types/traffic';
 
@@ -8,7 +9,7 @@ interface TrafficNavProps {
     snapshots: TrafficSnapshot[];
     viewingVersion: number | 'draft';
     activeVersion: number | 'draft';
-    selectedSnapshot: string | null; // Snapshot ID if specific snapshot selected
+    selectedSnapshot: string | null;
     hasDraft: boolean;
     onVersionClick: (versionNumber: number | 'draft') => void;
     onSnapshotClick: (snapshotId: string) => void;
@@ -19,16 +20,12 @@ interface TrafficNavProps {
 /**
  * BUSINESS LOGIC: Traffic Navigation with 3-Level Hierarchy
  * 
- * Structure:
- * - Level 1: "Suggested Traffic" (main nav item)
- * - Level 2: Versions (v.1, v.2, Draft)
- * - Level 3: Snapshots (CSV uploads with dates)
+ * Structure matches PackagingNav for consistency:
+ * - Level 1: "Suggested Traffic" header with chevron toggle
+ * - Level 2: Versions (using SidebarVersionItem)
+ * - Level 3: Snapshots (custom sub-items under versions)
  * 
- * Behavior:
- * - Active version is expanded by default
- * - Click version → shows data based on Cumulative/Delta toggle
- * - Click snapshot → shows that specific CSV (toggle disabled)
- * - Snapshots show date only, time in tooltip
+ * Active version is auto-expanded to show snapshots.
  */
 export const TrafficNav: React.FC<TrafficNavProps> = ({
     versions,
@@ -42,19 +39,19 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
     onSelect,
     isActive
 }) => {
-    // Track which versions are expanded
+    // Main expand/collapse state (like PackagingNav)
+    const [isExpanded, setIsExpanded] = useState(false);
+
+    // Track which versions have their snapshots expanded
     const [expandedVersions, setExpandedVersions] = useState<Set<number | 'draft'>>(
-        new Set([activeVersion]) // Active version expanded by default
+        new Set([activeVersion]) // Active version auto-expanded
     );
 
-    // Sort versions: active first, then descending
-    const sortedVersions = [...versions].sort((a, b) => {
-        const aIsActive = a.versionNumber === activeVersion;
-        const bIsActive = b.versionNumber === activeVersion;
-        if (aIsActive && !bIsActive) return -1;
-        if (!aIsActive && bIsActive) return 1;
-        return b.versionNumber - a.versionNumber;
-    });
+    // Sort versions (same as PackagingNav)
+    const sortedVersions = [...versions].sort((a, b) => b.versionNumber - a.versionNumber);
+
+    // Determine if there's content to expand
+    const hasContent = hasDraft || versions.length > 0;
 
     // Get snapshots for a specific version
     const getVersionSnapshots = (version: number | 'draft'): TrafficSnapshot[] => {
@@ -64,8 +61,9 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
             .sort((a, b) => b.timestamp - a.timestamp); // Latest first
     };
 
-    // Toggle version expansion
-    const toggleVersion = (version: number | 'draft') => {
+    // Toggle version's snapshots expansion
+    const toggleVersionSnapshots = (version: number | 'draft', e: React.MouseEvent) => {
+        e.stopPropagation();
         const newExpanded = new Set(expandedVersions);
         if (newExpanded.has(version)) {
             newExpanded.delete(version);
@@ -90,17 +88,20 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
         return { display, tooltip };
     };
 
-    const hasContent = hasDraft || versions.length > 0;
-
     return (
         <div className="flex flex-col">
-            {/* Level 1: Main Header */}
+            {/* Level 1: Header Row (matches PackagingNav exactly) */}
             <div className="px-3">
                 <div
                     onClick={() => {
                         onSelect();
-                        // Navigate to active version
-                        onVersionClick(activeVersion);
+                        // If not expanded, first expand
+                        // If expanded, clicking header goes to active version
+                        if (!isExpanded && hasContent) {
+                            setIsExpanded(true);
+                        } else {
+                            onVersionClick(activeVersion);
+                        }
                     }}
                     className={`
                         w-full h-12 flex items-center gap-4 px-4 text-sm font-medium 
@@ -115,87 +116,70 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
 
                     {/* Label */}
                     <span className="flex-1">Suggested Traffic</span>
+
+                    {/* Expand/Collapse Toggle - Right Side (matches PackagingNav) */}
+                    {hasContent && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setIsExpanded(!isExpanded);
+                            }}
+                            className="p-1 text-text-secondary hover:text-text-primary transition-colors"
+                        >
+                            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </button>
+                    )}
                 </div>
             </div>
 
-            {/* Level 2: Versions */}
-            {hasContent && (
-                <div className="mt-0.5 flex flex-col gap-0.5">
-                    {/* Draft */}
+            {/* Level 2: Version List (expanded) */}
+            {isExpanded && hasContent && (
+                <div className="flex flex-col gap-1 py-1">
+                    {/* Draft row (if exists) */}
                     {hasDraft && (
-                        <div className="px-3">
-                            <div
-                                onClick={() => onVersionClick('draft')}
-                                className={`
-                                    flex items-center gap-2 px-4 pl-12 py-1.5 text-sm
-                                    transition-colors rounded-lg cursor-pointer
-                                    ${viewingVersion === 'draft' && !selectedSnapshot
-                                        ? 'bg-white/5 text-text-primary'
-                                        : 'text-text-secondary hover:text-text-primary hover:bg-white/3'
-                                    }
-                                `}
-                            >
-                                <FileEdit size={16} className="flex-shrink-0" />
-                                <span className="flex-1">Draft</span>
-                                {activeVersion === 'draft' && (
-                                    <span className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />
-                                )}
-                            </div>
-                        </div>
+                        <SidebarVersionItem
+                            label="Draft"
+                            isViewing={viewingVersion === 'draft' && !selectedSnapshot}
+                            isVideoActive={activeVersion === 'draft'}
+                            onClick={() => onVersionClick('draft')}
+                        />
                     )}
 
-                    {/* Saved Versions */}
+                    {/* Saved versions */}
                     {sortedVersions.map((version) => {
                         const versionSnapshots = getVersionSnapshots(version.versionNumber);
-                        const isExpanded = expandedVersions.has(version.versionNumber);
-                        const isActiveVersion = version.versionNumber === activeVersion;
-                        const isSelected = viewingVersion === version.versionNumber && !selectedSnapshot;
+                        const isVersionExpanded = expandedVersions.has(version.versionNumber);
+                        const hasSnapshots = versionSnapshots.length > 0;
 
                         return (
-                            <div key={version.versionNumber} className="px-3">
-                                {/* Version Row */}
-                                <div
-                                    className={`
-                                        flex items-center gap-2 px-4 pl-12 py-1.5 text-sm
-                                        transition-colors rounded-lg cursor-pointer
-                                        ${isSelected
-                                            ? 'bg-white/5 text-text-primary'
-                                            : 'text-text-secondary hover:text-text-primary hover:bg-white/3'
-                                        }
-                                    `}
-                                >
-                                    {/* Expand/Collapse Icon */}
-                                    {versionSnapshots.length > 0 && (
+                            <div key={version.versionNumber}>
+                                {/* Version Row with Chevron */}
+                                <div className="relative">
+                                    <SidebarVersionItem
+                                        label={`v.${version.versionNumber}`}
+                                        isViewing={viewingVersion === version.versionNumber && !selectedSnapshot}
+                                        isVideoActive={activeVersion === version.versionNumber}
+                                        onClick={() => onVersionClick(version.versionNumber)}
+                                    />
+
+                                    {/* Chevron for snapshots (positioned absolutely) */}
+                                    {hasSnapshots && (
                                         <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                toggleVersion(version.versionNumber);
-                                            }}
-                                            className="flex-shrink-0 hover:text-text-primary transition-colors"
+                                            onClick={(e) => toggleVersionSnapshots(version.versionNumber, e)}
+                                            className="absolute left-[40px] top-1/2 -translate-y-1/2 p-1 text-text-secondary hover:text-text-primary transition-colors"
                                         >
-                                            {isExpanded ? (
-                                                <ChevronDown size={14} />
+                                            {isVersionExpanded ? (
+                                                <ChevronDown size={12} />
                                             ) : (
-                                                <ChevronRight size={14} />
+                                                <ChevronRight size={12} />
                                             )}
                                         </button>
                                     )}
-
-                                    {/* Version Label */}
-                                    <div
-                                        onClick={() => onVersionClick(version.versionNumber)}
-                                        className="flex-1 flex items-center gap-2"
-                                    >
-                                        <span>v.{version.versionNumber}</span>
-                                        {isActiveVersion && (
-                                            <span className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />
-                                        )}
-                                    </div>
                                 </div>
 
-                                {/* Level 3: Snapshots */}
-                                {isExpanded && versionSnapshots.length > 0 && (
-                                    <div className="mt-0.5 flex flex-col gap-0.5">
+                                {/* Level 3: Snapshots (sub-items under version) */}
+                                {isVersionExpanded && hasSnapshots && (
+                                    <div className="flex flex-col gap-0.5 py-0.5">
                                         {versionSnapshots.map((snapshot, index) => {
                                             const { display, tooltip } = formatSnapshotDate(snapshot.timestamp);
                                             const isSnapshotSelected = selectedSnapshot === snapshot.id;
@@ -207,30 +191,21 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                                     onClick={() => onSnapshotClick(snapshot.id)}
                                                     title={tooltip}
                                                     className={`
-                                                        flex items-center gap-2 px-4 pl-20 py-1 text-xs
-                                                        transition-colors rounded-lg cursor-pointer
+                                                        ml-6 mr-3 pl-[72px] pr-4 py-1 text-xs cursor-pointer
+                                                        transition-colors rounded-lg
                                                         ${isSnapshotSelected
-                                                            ? 'bg-white/5 text-text-primary'
-                                                            : 'text-text-tertiary hover:text-text-secondary hover:bg-white/3'
+                                                            ? 'text-text-primary font-medium bg-sidebar-active'
+                                                            : 'text-text-tertiary hover:text-text-secondary hover:bg-sidebar-hover'
                                                         }
                                                     `}
                                                 >
-                                                    <span className="flex-1">
-                                                        {display}
-                                                        {isLatest && (
-                                                            <span className="ml-1 text-text-tertiary">(latest)</span>
-                                                        )}
-                                                    </span>
+                                                    {display}
+                                                    {isLatest && (
+                                                        <span className="ml-1 text-text-tertiary font-normal">(latest)</span>
+                                                    )}
                                                 </div>
                                             );
                                         })}
-                                    </div>
-                                )}
-
-                                {/* No Snapshots Placeholder */}
-                                {isExpanded && versionSnapshots.length === 0 && (
-                                    <div className="px-4 pl-20 py-1 text-xs text-text-tertiary italic">
-                                        No snapshots yet
                                     </div>
                                 )}
                             </div>
