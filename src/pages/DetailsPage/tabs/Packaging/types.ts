@@ -91,8 +91,8 @@ export interface VersionState {
 
     // Actions
     switchToVersion: (versionNumber: number | 'draft') => void;
-    restoreVersion: (versionNumber: number) => void;
-    createVersion: (snapshot: PackagingSnapshot) => {
+    restoreVersion: (versionNumber: number, closingSnapshotId?: string) => void;
+    createVersion: (snapshot: PackagingSnapshot, closingSnapshotId?: string) => {
         newVersion: PackagingVersion;
         updatedHistory: PackagingVersion[];
         currentPackagingVersion: number;

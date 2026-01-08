@@ -368,11 +368,11 @@ export const usePackagingVersions = ({
         dispatch({ type: 'SWITCH_TO_VERSION', payload: { versionNumber } });
     }, []);
 
-    const restoreVersion = useCallback((versionNumber: number) => {
-        dispatch({ type: 'RESTORE_VERSION', payload: { versionNumber } });
+    const restoreVersion = useCallback((versionNumber: number, closingSnapshotId?: string) => {
+        dispatch({ type: 'RESTORE_VERSION', payload: { versionNumber, closingSnapshotId } });
     }, []);
 
-    const createVersion = useCallback((snapshot: PackagingSnapshot): {
+    const createVersion = useCallback((snapshot: PackagingSnapshot, closingSnapshotId?: string): {
         newVersion: PackagingVersion;
         updatedHistory: PackagingVersion[];
         currentPackagingVersion: number;
@@ -395,14 +395,14 @@ export const usePackagingVersions = ({
 
         updatedHistory = [...updatedHistory, newVersion];
 
-        dispatch({ type: 'CREATE_VERSION', payload: { newVersion, updatedHistory } });
+        dispatch({ type: 'CREATE_VERSION', payload: { newVersion, updatedHistory, closingSnapshotId } });
 
         return {
             newVersion,
             updatedHistory,
             currentPackagingVersion: state.currentVersionNumber + 1
         };
-    }, [state.currentVersionNumber, state.activeVersion, state.packagingHistory]);
+    }, [state.packagingHistory, state.activeVersion, state.currentVersionNumber]);
 
     const saveDraft = useCallback(() => {
         dispatch({ type: 'SAVE_DRAFT' });

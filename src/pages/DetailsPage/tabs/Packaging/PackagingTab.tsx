@@ -32,9 +32,10 @@ interface PackagingTabProps {
     versionState: VersionState;
     onDirtyChange: (isDirty: boolean) => void;  // Sync dirty state to parent for version switch confirmation
     onRestoreVersion?: (version: number) => void; // Callback for restore version button
+    onRequestSnapshot?: (versionNumber: number) => Promise<string | null>; // Callback for CSV snapshot request
 }
 
-export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState, onDirtyChange, onRestoreVersion }) => {
+export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState, onDirtyChange, onRestoreVersion, onRequestSnapshot }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { videos } = useVideos(user?.uid || '', currentChannel?.id || '');
@@ -79,7 +80,8 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
         versionState,
         localization,
         formState,
-        abTesting
+        abTesting,
+        onRequestSnapshot
     });
 
     // Detect scroll for sticky header shadow

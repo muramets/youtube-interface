@@ -96,11 +96,13 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
     // Track if form has unsaved changes (will be set by PackagingTab)
     const [isFormDirty, setIsFormDirty] = useState(false);
 
-    // Snapshot Request Modal State (for restore version)
+    // Snapshot Request Modal State
     const [snapshotRequest, setSnapshotRequest] = useState<{
         isOpen: boolean;
         versionToRestore: number | null;
-    }>({ isOpen: false, versionToRestore: null });
+        isForCreateVersion: boolean; // true = CREATE_VERSION, false = RESTORE_VERSION
+        resolveCallback: ((snapshotId: string | null) => void) | null;
+    }>({ isOpen: false, versionToRestore: null, isForCreateVersion: false, resolveCallback: null });
 
     // ============================================================================
     // BUSINESS LOGIC: Version Switch with Dirty Check
@@ -234,7 +236,9 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
             // Show snapshot request modal
             setSnapshotRequest({
                 isOpen: true,
-                versionToRestore
+                versionToRestore,
+                isForCreateVersion: false,
+                resolveCallback: null
             });
         } else {
             // Directly restore without snapshot for unpublished videos
@@ -291,23 +295,58 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
         }
     }, [video.publishedVideoId, video.id, versions, showToast, user, currentChannel, updateVideo]);
 
+    /**
+     * BUSINESS LOGIC: Request Snapshot for CREATE_VERSION
+     * 
+     * Shows SnapshotRequestModal and returns snapshotId when user uploads CSV.
+     * Returns null if user skips or cancels.
+     * 
+     * This is called from PackagingTab when creating a new version for published videos.
+     */
+    const handleRequestSnapshot = useCallback(async (versionNumber: number): Promise<string | null> => {
+        return new Promise((resolve) => {
+            setSnapshotRequest({
+                isOpen: true,
+                versionToRestore: versionNumber,
+                isForCreateVersion: true,
+                resolveCallback: resolve
+            });
+        });
+    }, []);
+
     // Handle snapshot upload from modal
     const handleSnapshotUpload = useCallback(async (file: File) => {
-        if (!user?.uid || !currentChannel?.id || !snapshotRequest.versionToRestore) return;
+        if (!user?.uid || !currentChannel?.id) return;
 
         try {
             const { sources, totalRow } = await parseTrafficCsv(file);
+            const timestamp = Date.now();
+            const versionNum = snapshotRequest.isForCreateVersion
+                ? versions.activeVersion as number
+                : versions.activeVersion as number;
+
+            const snapshotId = `snap_${timestamp}_v${versionNum}`;
+
             await TrafficService.createVersionSnapshot(
                 user.uid,
                 currentChannel.id,
                 video.id,
-                versions.activeVersion as number,
+                versionNum,
                 sources,
                 totalRow
             );
 
-            // Restore the version
-            versions.restoreVersion(snapshotRequest.versionToRestore);
+            if (snapshotRequest.isForCreateVersion) {
+                // For CREATE_VERSION: just return the snapshotId
+                snapshotRequest.resolveCallback?.(snapshotId);
+                setSnapshotRequest({ isOpen: false, versionToRestore: null, isForCreateVersion: false, resolveCallback: null });
+                return;
+            }
+
+            // For RESTORE_VERSION: continue with restore logic
+            if (!snapshotRequest.versionToRestore) return;
+
+            versions.restoreVersion(snapshotRequest.versionToRestore, snapshotId);
 
             // Get the version snapshot to restore data from
             const versionToRestoreData = versions.packagingHistory.find(
@@ -346,16 +385,24 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                 }
             });
 
-            setSnapshotRequest({ isOpen: false, versionToRestore: null });
+            setSnapshotRequest({ isOpen: false, versionToRestore: null, isForCreateVersion: false, resolveCallback: null });
             showToast(`Snapshot saved & restored to v.${snapshotRequest.versionToRestore}`, 'success');
         } catch (err) {
             console.error('Failed to save snapshot:', err);
             showToast('Failed to save snapshot', 'error');
         }
-    }, [user, currentChannel, video.id, versions, snapshotRequest, showToast, updateVideo]);
+    }, [user, currentChannel, video.id, versions, snapshotRequest, showToast, updateVideo, trafficState]);
 
-    // Handle skip snapshot (use current data)
+    // Handle skip snapshot
     const handleSkipSnapshot = useCallback(async () => {
+        if (snapshotRequest.isForCreateVersion) {
+            // For CREATE_VERSION: return null to indicate skip
+            snapshotRequest.resolveCallback?.(null);
+            setSnapshotRequest({ isOpen: false, versionToRestore: null, isForCreateVersion: false, resolveCallback: null });
+            return;
+        }
+
+        // For RESTORE_VERSION: continue with existing logic
         if (!user?.uid || !currentChannel?.id || !snapshotRequest.versionToRestore) return;
 
         try {
@@ -410,7 +457,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                 }
             });
 
-            setSnapshotRequest({ isOpen: false, versionToRestore: null });
+            setSnapshotRequest({ isOpen: false, versionToRestore: null, isForCreateVersion: false, resolveCallback: null });
             showToast(`Restored to v.${snapshotRequest.versionToRestore}`, 'success');
         } catch (err) {
             console.error('Failed to create snapshot:', err);
@@ -442,6 +489,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                         versionState={versions}
                         onDirtyChange={setIsFormDirty}
                         onRestoreVersion={handleRestoreVersion}
+                        onRequestSnapshot={handleRequestSnapshot}
                     />
                 ) : (
                     <TrafficTab
@@ -492,7 +540,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                 videoTitle={video.title}
                 onUpload={handleSnapshotUpload}
                 onSkip={handleSkipSnapshot}
-                onClose={() => setSnapshotRequest({ isOpen: false, versionToRestore: null })}
+                onClose={() => setSnapshotRequest({ isOpen: false, versionToRestore: null, isForCreateVersion: false, resolveCallback: null })}
             />
         </div>
     );

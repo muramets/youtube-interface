@@ -17,6 +17,7 @@ interface UsePackagingActionsProps {
     localization: UsePackagingLocalizationResult;
     formState: UsePackagingFormStateResult;
     abTesting: UseABTestingResult;
+    onRequestSnapshot?: (versionNumber: number) => Promise<string | null>; // Returns snapshotId or null if skipped
 }
 
 export const usePackagingActions = ({
@@ -24,7 +25,8 @@ export const usePackagingActions = ({
     versionState,
     localization,
     formState,
-    abTesting
+    abTesting,
+    onRequestSnapshot
 }: UsePackagingActionsProps) => {
     const { user } = useAuth();
     const { currentChannel, setCurrentChannel } = useChannelStore();
@@ -93,6 +95,18 @@ export const usePackagingActions = ({
         }
     }, [user, currentChannel, video.id, buildSavePayload, versionState, updateVideo, formState, showToast]);
 
+    /**
+     * BUSINESS LOGIC: Save As New Version with CSV Snapshot
+     * 
+     * For published videos:
+     * 1. Request CSV snapshot to close current version's period
+     * 2. Create new version with closingSnapshotId
+     * 3. Save to Firestore
+     * 
+     * For unpublished videos:
+     * 1. Create new version without snapshot
+     * 2. Save to Firestore
+     */
     const handleSaveAsNewVersion = useCallback(async () => {
         if (!user || !currentChannel || !video.id) return;
 
@@ -105,6 +119,17 @@ export const usePackagingActions = ({
         setIsSaving(true);
         try {
             const payload = buildSavePayload();
+            let closingSnapshotId: string | null = null;
+
+            // Request CSV snapshot for published videos
+            if (video.publishedVideoId && onRequestSnapshot) {
+                closingSnapshotId = await onRequestSnapshot(versionState.activeVersion as number);
+                // If user cancelled, don't create version
+                if (closingSnapshotId === null) {
+                    setIsSaving(false);
+                    return;
+                }
+            }
 
             // Create new version - this updates local state via reducer
             const { newVersion, updatedHistory, currentPackagingVersion } = versionState.createVersion({
@@ -116,7 +141,7 @@ export const usePackagingActions = ({
                 abTestThumbnails: abTesting.thumbnails,
                 abTestResults: abTesting.results,
                 localizations: payload.localizations
-            });
+            }, closingSnapshotId || undefined);
 
             // Update snapshot and show toast
             formState.updateSnapshotToCurrent();
@@ -142,7 +167,7 @@ export const usePackagingActions = ({
         } finally {
             setIsSaving(false);
         }
-    }, [user, currentChannel, video.id, buildSavePayload, versionState, updateVideo, formState, showToast, abTesting]);
+    }, [user, currentChannel, video.id, video.publishedVideoId, buildSavePayload, versionState, updateVideo, formState, showToast, abTesting, onRequestSnapshot]);
 
     const handleCancel = useCallback(() => {
         formState.resetToSnapshot(formState.loadedSnapshot);
