@@ -334,7 +334,8 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                 video.id,
                 versionNum,
                 sources,
-                totalRow
+                totalRow,
+                file // Pass original CSV file for hybrid storage
             );
 
             if (snapshotRequest.isForCreateVersion) {

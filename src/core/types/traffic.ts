@@ -21,9 +21,12 @@ export interface TrafficGroup {
 }
 
 /**
- * BUSINESS LOGIC: Traffic Snapshot Attribution
+ * BUSINESS LOGIC: Traffic Snapshot Attribution (Hybrid Storage)
  * 
- * A snapshot captures the state of traffic sources at a specific moment.
+ * HYBRID APPROACH:
+ * - Metadata stored in Firestore (fast queries, small size)
+ * - Full CSV stored in Cloud Storage (no size limits, cheaper)
+ * 
  * Snapshots are created when:
  * 1. A new packaging version is created (closes the previous version)
  * 2. A version is restored (closes the currently active version)
@@ -56,6 +59,25 @@ export interface TrafficSnapshot {
     createdAt: string; // ISO date for display
 
     /**
+     * HYBRID STORAGE: Path to CSV file in Cloud Storage.
+     * Format: "users/{userId}/channels/{channelId}/videos/{videoId}/snapshots/{snapshotId}.csv"
+     * 
+     * If present, full data is in Storage. If missing, data is in `sources` field (legacy).
+     */
+    storagePath?: string;
+
+    /**
+     * HYBRID STORAGE: Summary data for quick display (stored in Firestore).
+     * Allows showing snapshot list without downloading CSV files.
+     */
+    summary?: {
+        totalViews: number;      // Total views across all sources
+        totalWatchTime: number;  // Total watch time in seconds
+        sourcesCount: number;    // Number of traffic sources
+        topSource?: string;      // Name of top traffic source
+    };
+
+    /**
      * Metadata about which version period this snapshot closes.
      * 
      * Example: When creating v.3, we upload CSV that closes v.2's active period.
@@ -72,8 +94,12 @@ export interface TrafficSnapshot {
         periodIndex: number; // Index in PackagingVersion.activePeriods array
     };
 
-    // Complete traffic data at this point in time
-    sources: TrafficSource[];
+    /**
+     * LEGACY: Complete traffic data (for backward compatibility).
+     * New snapshots store data in Cloud Storage instead.
+     * If `storagePath` exists, this field may be omitted to save Firestore space.
+     */
+    sources?: TrafficSource[];
     totalRow?: TrafficSource;
 }
 

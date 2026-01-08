@@ -8,12 +8,14 @@ interface TrafficUploaderProps {
     onUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<void>;
     isLoading?: boolean;
     isCompact?: boolean;
+    hasExistingSnapshot?: boolean; // If true, show "Update CSV" instead of "Upload CSV"
 }
 
 export const TrafficUploader: React.FC<TrafficUploaderProps> = ({
     onUpload,
     isLoading,
-    isCompact = false
+    isCompact = false,
+    hasExistingSnapshot = false
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDragging, setIsDragging] = useState(false);
@@ -80,7 +82,7 @@ export const TrafficUploader: React.FC<TrafficUploaderProps> = ({
                     size="sm"
                     leftIcon={isLoading ? <Loader2 className="animate-spin" /> : <Upload />}
                 >
-                    {isLoading ? 'Processing...' : 'Upload CSV'}
+                    {isLoading ? 'Processing...' : (hasExistingSnapshot ? 'Update CSV' : 'Upload CSV')}
                 </Button>
                 {error && <div className="text-red-500 text-xs mt-1 absolute">{error}</div>}
             </div>
@@ -117,7 +119,7 @@ export const TrafficUploader: React.FC<TrafficUploaderProps> = ({
 
                 <div className="space-y-1">
                     <h3 className="text-sm font-medium text-text-primary">
-                        {isLoading ? 'Processing CSV...' : 'Upload Suggested Traffic CSV'}
+                        {isLoading ? 'Processing CSV...' : (hasExistingSnapshot ? 'Update Suggested Traffic CSV' : 'Upload Suggested Traffic CSV')}
                     </h3>
                     <p className="text-xs text-text-secondary">
                         Drag and drop your file here, or{' '}

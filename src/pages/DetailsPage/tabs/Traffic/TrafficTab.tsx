@@ -9,6 +9,7 @@ import { useChannelStore } from '../../../../core/stores/channelStore';
 import type { VideoDetails } from '../../../../core/utils/youtubeApi';
 import { parseTrafficCsv } from '../../../../core/utils/csvParser';
 import { TrafficService } from '../../../../core/services/TrafficService';
+import { BarChart3, TrendingUp } from 'lucide-react';
 
 interface TrafficTabProps {
     video: VideoDetails;
@@ -27,6 +28,9 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
 
     // Version Selection State
     const [selectedVersion, setSelectedVersion] = useState<number | 'draft'>(viewingVersion || activeVersion);
+
+    // View Mode State: 'cumulative' shows total views, 'delta' shows new views since last snapshot
+    const [viewMode, setViewMode] = useState<'cumulative' | 'delta'>('cumulative');
 
     // Modals State
     const [isMapperOpen, setIsMapperOpen] = useState(false);
@@ -107,25 +111,52 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
         return versions;
     }, [trafficData, activeVersion, viewingVersion]);
 
-    // Calculate displayed data based on selected version
-    const displayedSources = useMemo(() => {
-        if (!trafficData?.sources) return [];
+    // State for displayed sources (async loading support)
+    const [displayedSources, setDisplayedSources] = useState<any[]>([]);
+    const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(false);
 
-        if (selectedVersion === 'draft' || selectedVersion === activeVersion) {
-            // Current version - show delta from previous snapshot
-            return TrafficService.calculateVersionDelta(
-                trafficData.sources,
-                activeVersion,
-                trafficData.snapshots || []
-            );
-        } else {
-            // Historical version - show snapshot data
-            return TrafficService.getVersionSources(
-                selectedVersion as number,
-                trafficData.snapshots || []
-            );
-        }
-    }, [trafficData, selectedVersion, activeVersion]);
+    // Load displayed data based on selected version and view mode
+    useEffect(() => {
+        const loadData = async () => {
+            if (!trafficData?.sources) {
+                setDisplayedSources([]);
+                return;
+            }
+
+            if (selectedVersion === 'draft' || selectedVersion === activeVersion) {
+                // Current version - synchronous
+                if (viewMode === 'delta') {
+                    // Delta: show new views since last snapshot
+                    const delta = TrafficService.calculateVersionDelta(
+                        trafficData.sources,
+                        activeVersion,
+                        trafficData.snapshots || []
+                    );
+                    setDisplayedSources(delta);
+                } else {
+                    // Cumulative: show total views
+                    setDisplayedSources(trafficData.sources);
+                }
+            } else {
+                // Historical version - async (may load from Storage)
+                setIsLoadingSnapshot(true);
+                try {
+                    const sources = await TrafficService.getVersionSources(
+                        selectedVersion as number,
+                        trafficData.snapshots || []
+                    );
+                    setDisplayedSources(sources);
+                } catch (error) {
+                    console.error('Failed to load version sources:', error);
+                    setDisplayedSources([]);
+                } finally {
+                    setIsLoadingSnapshot(false);
+                }
+            }
+        };
+
+        loadData();
+    }, [trafficData, selectedVersion, activeVersion, viewMode]);
 
     // Derived UI State
     const isViewingOldVersion = viewingVersion && viewingVersion !== activeVersion;
@@ -149,10 +180,41 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
 
                     {/* Actions */}
                     <div className="flex gap-2">
+                        {/* View Mode Toggle */}
+                        {!isLoading && (selectedVersion === 'draft' || selectedVersion === activeVersion) && (
+                            <div className="flex gap-1 bg-bg-secondary rounded-lg p-1">
+                                <button
+                                    onClick={() => setViewMode('cumulative')}
+                                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${viewMode === 'cumulative'
+                                        ? 'bg-accent text-white'
+                                        : 'text-text-secondary hover:text-text-primary'
+                                        }`}
+                                    title="Show total views (cumulative)"
+                                >
+                                    <BarChart3 size={16} />
+                                    Cumulative
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('delta')}
+                                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${viewMode === 'delta'
+                                        ? 'bg-accent text-white'
+                                        : 'text-text-secondary hover:text-text-primary'
+                                        }`}
+                                    title="Show new views since last snapshot (delta)"
+                                >
+                                    <TrendingUp size={16} />
+                                    Delta
+                                </button>
+                            </div>
+                        )}
+
                         {!isLoading && (
                             <TrafficUploader
                                 isCompact
                                 onUpload={handleUploadWithErrorTracking}
+                                hasExistingSnapshot={
+                                    (trafficData?.snapshots || []).some(s => s.version === activeVersion)
+                                }
                             />
                         )}
                     </div>
@@ -176,7 +238,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
                         groups={trafficData?.groups || []}
                         totalRow={trafficData?.totalRow}
                         selectedIds={selectedIds}
-                        isLoading={isLoading}
+                        isLoading={isLoading || isLoadingSnapshot}
                         onToggleSelection={(id) => {
                             const newSet = new Set(selectedIds);
                             if (newSet.has(id)) newSet.delete(id);

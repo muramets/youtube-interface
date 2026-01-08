@@ -2,6 +2,7 @@ import { db } from '../../config/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import type { TrafficData, TrafficSource, TrafficSnapshot } from '../types/traffic';
 import { generateSnapshotId } from '../utils/snapshotUtils';
+import { uploadCsvSnapshot } from './storageService';
 
 
 
@@ -85,8 +86,26 @@ export const TrafficService = {
 
 
     /**
-     * Creates a snapshot of traffic data when packaging version changes.
-     * Called from DetailsLayout when user saves new packaging version.
+     * Create a version snapshot with HYBRID STORAGE.
+     * 
+     * HYBRID APPROACH:
+     * 1. Upload CSV file to Cloud Storage
+     * 2. Calculate summary statistics
+     * 3. Save metadata + summary to Firestore (NOT full sources)
+     * 
+     * Benefits:
+     * - No Firestore 1MB document limit
+     * - Faster queries (metadata only)
+     * - Cheaper storage costs
+     * - Original CSV preserved
+     * 
+     * @param userId - User ID
+     * @param channelId - Channel ID
+     * @param videoId - Video ID
+     * @param version - Packaging version number
+     * @param sources - Traffic sources from CSV
+     * @param totalRow - Total row from CSV
+     * @param csvFile - Original CSV file to upload to Storage
      */
     async createVersionSnapshot(
         userId: string,
@@ -94,18 +113,58 @@ export const TrafficService = {
         videoId: string,
         version: number,
         sources: TrafficSource[],
-        totalRow?: TrafficSource
+        totalRow?: TrafficSource,
+        csvFile?: File
     ): Promise<void> {
         const currentData = await this.fetchTrafficData(userId, channelId, videoId);
         const timestamp = Date.now();
+        const snapshotId = generateSnapshotId(timestamp, version);
 
+        // Calculate summary statistics
+        const totalViews = sources.reduce((sum, s) => sum + (s.views || 0), 0);
+        const totalWatchTime = sources.reduce((sum, s) => sum + (s.watchTimeHours || 0), 0);
+        const topSource = sources.reduce((max, s) =>
+            (s.views || 0) > (max.views || 0) ? s : max,
+            sources[0]
+        );
+
+        let storagePath: string | undefined;
+
+        // Upload CSV to Cloud Storage if file provided
+        if (csvFile) {
+            try {
+                const uploadResult = await uploadCsvSnapshot(
+                    userId,
+                    channelId,
+                    videoId,
+                    snapshotId,
+                    csvFile
+                );
+                storagePath = uploadResult.storagePath;
+            } catch (error) {
+                console.error('Failed to upload CSV to Storage:', error);
+                // Continue without storage path (will save sources to Firestore as fallback)
+            }
+        }
+
+        // Create snapshot metadata
         const snapshot: TrafficSnapshot = {
-            id: generateSnapshotId(timestamp, version),
+            id: snapshotId,
             version,
             timestamp,
             createdAt: new Date().toISOString(),
-            sources: sources,
-            totalRow
+
+            // Hybrid storage fields
+            storagePath,
+            summary: {
+                totalViews,
+                totalWatchTime,
+                sourcesCount: sources.length,
+                topSource: topSource?.sourceTitle
+            },
+
+            // Legacy: Only include sources if CSV upload failed
+            ...(storagePath ? {} : { sources, totalRow })
         };
 
         const updated: TrafficData = {
@@ -130,7 +189,7 @@ export const TrafficService = {
     ): TrafficSource[] {
         // Find snapshot for previous version
         const prevSnapshot = snapshots.find(s => s.version === version - 1);
-        if (!prevSnapshot) return currentSources; // No previous data, return all
+        if (!prevSnapshot || !prevSnapshot.sources) return currentSources; // No previous data or data in Storage
 
         // Create map of previous views
         const prevViews = new Map<string, number>();
@@ -156,12 +215,44 @@ export const TrafficService = {
 
     /**
      * Get sources for a specific historical version from snapshot.
+     * 
+     * HYBRID STORAGE:
+     * - If snapshot has storagePath: download CSV from Storage and parse
+     * - If snapshot has sources: return directly (legacy)
+     * 
+     * @param version - Version number to get sources for
+     * @param snapshots - Array of snapshots
+     * @returns Traffic sources for the version
      */
-    getVersionSources(
+    async getVersionSources(
         version: number,
         snapshots: TrafficSnapshot[]
-    ): TrafficSource[] {
+    ): Promise<TrafficSource[]> {
         const snapshot = snapshots.find(s => s.version === version);
-        return snapshot?.sources || [];
+        if (!snapshot) return [];
+
+        // Legacy: sources stored in Firestore
+        if (snapshot.sources) {
+            return snapshot.sources;
+        }
+
+        // Hybrid: sources in Cloud Storage
+        if (snapshot.storagePath) {
+            try {
+                const { downloadCsvSnapshot } = await import('./storageService');
+                const { parseTrafficCsv } = await import('../utils/csvParser');
+
+                const blob = await downloadCsvSnapshot(snapshot.storagePath);
+                const file = new File([blob], 'snapshot.csv', { type: 'text/csv' });
+                const { sources } = await parseTrafficCsv(file);
+
+                return sources;
+            } catch (error) {
+                console.error('Failed to load snapshot from Storage:', error);
+                return [];
+            }
+        }
+
+        return [];
     }
 };
