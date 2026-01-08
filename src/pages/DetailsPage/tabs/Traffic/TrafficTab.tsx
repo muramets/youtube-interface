@@ -235,6 +235,10 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     const isViewingOldVersion = viewingVersion && viewingVersion !== activeVersion;
     const headerTitle = 'Suggested Traffic';
     const isEmpty = displayedSources.length === 0;
+    const hasExistingSnapshot = (trafficData?.snapshots || []).some((s: any) => s.version === activeVersion);
+
+    // Show actions if: data exists OR (empty but has snapshots - could be delta mode)
+    const shouldShowActions = !isEmpty || hasExistingSnapshot;
 
     return (
         <div className="flex-1 flex flex-col">
@@ -252,8 +256,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                         )}
                     </div>
 
-                    {/* Actions - Only show if not empty */}
-                    {!isEmpty && (
+                    {/* Actions - Show if data exists OR has existing snapshots (for delta empty state) */}
+                    {shouldShowActions && (
                         <div className="flex gap-2">
                             {/* CTR Settings */}
                             <button
@@ -320,6 +324,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                         selectedIds={selectedIds}
                         isLoading={isLoading || isLoadingSnapshot}
                         ctrRules={ctrRules}
+                        viewMode={viewMode}
                         onToggleSelection={(id) => {
                             const newSet = new Set(selectedIds);
                             if (newSet.has(id)) newSet.delete(id);

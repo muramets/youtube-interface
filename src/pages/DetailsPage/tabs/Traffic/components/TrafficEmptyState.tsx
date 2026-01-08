@@ -5,12 +5,37 @@ import type { TrafficSource } from '../../../../../core/types/traffic';
 interface TrafficEmptyStateProps {
     onUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<void>;
     hasExistingSnapshot: boolean;
+    mode?: 'no-data' | 'no-new-data';
 }
 
 export const TrafficEmptyState: React.FC<TrafficEmptyStateProps> = ({
     onUpload,
-    hasExistingSnapshot
+    hasExistingSnapshot,
+    mode = 'no-data'
 }) => {
+    // Mode: no-new-data - shown when delta/New mode has filtered out all rows
+    if (mode === 'no-new-data') {
+        return (
+            <div className="w-full h-full flex items-center justify-center py-16">
+                <div className="text-center max-w-md">
+                    <div className="mb-4">
+                        <svg className="w-16 h-16 mx-auto text-text-tertiary opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <h3 className="text-lg font-medium text-text-primary mb-2">
+                        No New Data
+                    </h3>
+                    <p className="text-text-secondary text-sm leading-relaxed">
+                        All traffic sources in this CSV are identical to the previous CSV.
+                        Switch to <strong>Total</strong> view to see all data.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    // Mode: no-data - shown when no CSV has been uploaded yet
     return (
         <div className="w-full h-full flex flex-col">
             <div className="w-full">
@@ -34,10 +59,6 @@ export const TrafficEmptyState: React.FC<TrafficEmptyStateProps> = ({
                         <TrafficUploader
                             onUpload={onUpload}
                             hasExistingSnapshot={hasExistingSnapshot}
-                        // Pass a prop to remove internal padding/borders if needed to blend perfectly, 
-                        // or keep it as the content area.
-                        // Since TrafficUploader has its own border, we might want to adjust it.
-                        // For now, let's keep it simple and see how it looks nested.
                         />
                     </div>
                 </div>

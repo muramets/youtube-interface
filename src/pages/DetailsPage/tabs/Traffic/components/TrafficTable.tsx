@@ -30,6 +30,9 @@ interface TrafficTableProps {
 
     // CTR Rules
     ctrRules?: CTRRule[];
+
+    // View mode to determine empty state type
+    viewMode?: 'cumulative' | 'delta';
 }
 
 type SortKey = keyof TrafficSource;
@@ -47,7 +50,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
     isLoading,
     onUpload,
     hasExistingSnapshot,
-    ctrRules = []
+    ctrRules = [],
+    viewMode = 'cumulative'
 }) => {
     // Virtualization refs
     const parentRef = useRef<HTMLDivElement>(null);
@@ -171,8 +175,26 @@ export const TrafficTable = memo<TrafficTableProps>(({
         );
     };
 
+    // Determine if we should show the empty state without table structure
+    // isInitialEmpty: truly no data uploaded yet (no snapshots exist)
+    // isDeltaEmpty: in delta mode with snapshots but no new data
+    const isInitialEmpty = !isLoading && data.length === 0 && !hasExistingSnapshot;
+    const isDeltaEmpty = !isLoading && data.length === 0 && hasExistingSnapshot && viewMode === 'delta';
+
+    // If initial empty state (no CSV uploaded yet), show empty state without table
+    // IMPORTANT: Only show this if we're certain there are no snapshots
+    if (isInitialEmpty) {
+        return (
+            <TrafficEmptyState
+                onUpload={onUpload}
+                hasExistingSnapshot={hasExistingSnapshot}
+                mode="no-data"
+            />
+        );
+    }
+
     return (
-        <div className="w-full h-full flex flex-col bg-bg-secondary/30 rounded-xl border border-white/5 overflow-hidden mt-6">
+        <div className="w-full h-full flex flex-col bg-bg-secondary/30 rounded-xl border border-white/5 overflow-hidden">
             {/* Fixed Header */}
             <div className="grid grid-cols-[40px_1fr_100px_100px_120px_100px] gap-4 px-4 py-3 bg-white/5 border-b border-white/5 text-xs font-medium text-text-secondary uppercase tracking-wider flex-shrink-0 group">
                 <div className="flex items-center justify-center">
@@ -215,11 +237,24 @@ export const TrafficTable = memo<TrafficTableProps>(({
                         </style>
                         Loading traffic data...
                     </div>
-                ) : data.length === 0 ? (
+                ) : isDeltaEmpty ? (
                     <TrafficEmptyState
                         onUpload={onUpload}
                         hasExistingSnapshot={hasExistingSnapshot}
+                        mode="no-new-data"
                     />
+                ) : data.length === 0 && !hasExistingSnapshot ? (
+                    <TrafficEmptyState
+                        onUpload={onUpload}
+                        hasExistingSnapshot={hasExistingSnapshot}
+                        mode="no-data"
+                    />
+                ) : data.length === 0 ? (
+                    // Fallback: empty with snapshots but not in delta mode (shouldn't normally happen)
+                    // Show loading state to avoid flash
+                    <div className="px-4 py-3 text-xs font-medium text-center text-text-secondary">
+                        Loading...
+                    </div>
                 ) : (
                     <>
                         {computedTotal && (
