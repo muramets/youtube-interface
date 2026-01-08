@@ -37,7 +37,9 @@ export const TrafficService = {
         const path = `users/${userId}/channels/${channelId}/videos/${videoId}/traffic/main`;
         try {
             const docRef = doc(db, path);
-            await setDoc(docRef, data, { merge: true });
+            // Sanitize data to remove any undefined fields that Firestore rejects
+            const sanitizedData = this.sanitizeData(data);
+            await setDoc(docRef, sanitizedData, { merge: true });
         } catch (error) {
             console.error('Error saving traffic data:', error);
             throw error;
@@ -57,33 +59,35 @@ export const TrafficService = {
     ): TrafficData {
         const now = Date.now();
 
-        // If no prior data, just return new
-        if (!currentData) {
-            return {
-                lastUpdated: now,
-                sources: newSources,
-                groups: [],
-                totalRow: newTotalRow,
-                snapshots: []
-            };
-        }
-
-        // Logic:
-        // 1. New Sources replace old sources (because CSV is lifetime/cumulative)
-        // 2. BUT we might want to keep groups.
-        // Groups are ID-based. If a videoId in a group no longer exists in new Sources, 
-        // we should probably keep it in the group just in case (or clean it up? user said "ungrouped" if group deleted, not inverse).
-        // Let's keep group definitions as-is.
-
-        return {
+        const merged: TrafficData = {
             ...currentData,
             lastUpdated: now,
             sources: newSources,
-            totalRow: newTotalRow || currentData.totalRow,
-            // Groups and snapshots are preserved
-        };
+            totalRow: newTotalRow || currentData?.totalRow,
+            snapshots: currentData?.snapshots || []
+        } as TrafficData;
+
+        return merged;
     },
 
+    /**
+     * Sanitizes data for Firestore by removing undefined values.
+     */
+    sanitizeData(data: any): any {
+        const json = JSON.parse(JSON.stringify(data));
+        // Remove undefined/null if they still exist for some reason
+        const clean = (obj: any) => {
+            Object.keys(obj).forEach(key => {
+                if (obj[key] === undefined) {
+                    delete obj[key];
+                } else if (obj[key] !== null && typeof obj[key] === 'object') {
+                    clean(obj[key]);
+                }
+            });
+            return obj;
+        };
+        return clean(json);
+    },
 
     /**
      * Create a version snapshot with HYBRID STORAGE.
@@ -254,5 +258,94 @@ export const TrafficService = {
         }
 
         return [];
+    },
+
+    /**
+     * Delete a traffic snapshot.
+     * Removes snapshot from Firestore and deletes CSV file from Cloud Storage.
+     * 
+     * @param userId - User ID
+     * @param channelId - Channel ID
+     * @param videoId - Video ID
+     * @param snapshotId - Snapshot ID to delete
+     */
+    /**
+     * Delete a traffic snapshot.
+     * Implements "Undo" strategy:
+     * - If deleting the LATEST snapshot -> Revert main data to previous snapshot state.
+     * - If deleting HISTORICAL snapshot -> Just remove record (Data stays merged/current).
+     * 
+     * @param userId - User ID
+     * @param channelId - Channel ID
+     * @param videoId - Video ID
+     * @param snapshotId - Snapshot ID to delete
+     */
+    async deleteSnapshot(
+        userId: string,
+        channelId: string,
+        videoId: string,
+        snapshotId: string
+    ): Promise<void> {
+        // 1. Fetch current data
+        const currentData = await this.fetchTrafficData(userId, channelId, videoId);
+        if (!currentData) return;
+
+        // 2. Find snapshot to delete
+        const snapshotIndex = currentData.snapshots.findIndex(s => s.id === snapshotId);
+        if (snapshotIndex === -1) return;
+
+        const snapshot = currentData.snapshots[snapshotIndex];
+        const isLatest = snapshotIndex === currentData.snapshots.length - 1;
+
+        // 3. Delete CSV from Cloud Storage (if exists)
+        if (snapshot.storagePath) {
+            try {
+                const { deleteCsvSnapshot } = await import('./storageService');
+                await deleteCsvSnapshot(snapshot.storagePath);
+            } catch (error) {
+                console.error('Failed to delete CSV from Storage:', error);
+                // Continue with Firestore deletion even if Storage deletion fails
+            }
+        }
+
+        // 4. Prepare updated data
+        let updated: TrafficData;
+
+        if (isLatest) {
+            // UNDO STRATEGY: Revert to previous snapshot state
+            const previousSnapshot = currentData.snapshots[snapshotIndex - 1];
+
+            if (previousSnapshot) {
+                // Revert to previous snapshot's data
+                // We need to fetch the sources for the previous snapshot
+                const prevSources = await this.getVersionSources(previousSnapshot.version, currentData.snapshots);
+
+                updated = {
+                    ...currentData,
+                    lastUpdated: previousSnapshot.timestamp,
+                    sources: prevSources,
+                    totalRow: previousSnapshot.totalRow, // Start with this, effectively
+                    snapshots: currentData.snapshots.filter(s => s.id !== snapshotId)
+                };
+            } else {
+                // No previous snapshot -> Reset to empty state
+                updated = {
+                    ...currentData,
+                    lastUpdated: Date.now(),
+                    sources: [],
+                    totalRow: undefined,
+                    snapshots: []
+                };
+            }
+        } else {
+            // PRUNING STRATEGY: Just remove the record, keep current data
+            // (Note: UI should prevent this case based on "Undo Only" policy, but backend handles it safe)
+            updated = {
+                ...currentData,
+                snapshots: currentData.snapshots.filter(s => s.id !== snapshotId)
+            };
+        }
+
+        await this.saveTrafficData(userId, channelId, videoId, updated);
     }
 };

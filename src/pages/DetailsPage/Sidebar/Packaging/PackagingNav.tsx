@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Pencil, ChevronDown, ChevronRight } from 'lucide-react';
 import { SidebarVersionItem } from './SidebarVersionItem';
 import type { PackagingVersion } from '../../../../core/utils/youtubeApi';
@@ -12,6 +12,8 @@ interface PackagingNavProps {
     onDeleteVersion: (versionNumber: number) => void;
     onSelect: () => void;
     isActive: boolean;
+    isExpanded: boolean;
+    onToggle: () => void;
 }
 
 export const PackagingNav: React.FC<PackagingNavProps> = ({
@@ -22,15 +24,16 @@ export const PackagingNav: React.FC<PackagingNavProps> = ({
     onVersionClick,
     onDeleteVersion,
     onSelect,
-    isActive
+    isActive,
+    isExpanded,
+    onToggle
 }) => {
     // ============================================================================
     // BUSINESS LOGIC: Collapsible Version List
     // ============================================================================
     // Versions are hidden by default to keep sidebar clean.
-    // - First click on header → expands the list
+    // - First click on header → expands the list (managed by parent)
     // - Second click → navigates to draft or latest version
-    const [isExpanded, setIsExpanded] = useState(false);
 
     // Using pre-sorted versions from props (handled by hook for atomic synchronization)
     const sortedVersions = versions;
@@ -48,7 +51,7 @@ export const PackagingNav: React.FC<PackagingNavProps> = ({
                         // If not expanded, first expand
                         // If expanded, clicking header goes to draft/current
                         if (!isExpanded && hasContent) {
-                            setIsExpanded(true);
+                            onToggle();
                         } else {
                             // Go to draft if exists, otherwise latest version
                             if (hasDraft) {
@@ -59,9 +62,9 @@ export const PackagingNav: React.FC<PackagingNavProps> = ({
                         }
                     }}
                     className={`
-                        w-full h-12 flex items-center gap-4 px-4 text-sm font-medium 
+                        w-full h-12 flex items-center gap-4 px-4 text-sm 
                         transition-colors rounded-lg cursor-pointer text-text-primary
-                        ${isActive ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover'}
+                        ${isActive ? 'bg-sidebar-active font-semibold' : 'hover:bg-sidebar-hover font-normal'}
                     `}
                 >
                     {/* Icon */}
@@ -70,14 +73,14 @@ export const PackagingNav: React.FC<PackagingNavProps> = ({
                     </span>
 
                     {/* Label */}
-                    <span className="flex-1">Packaging</span>
+                    <span className="flex-1 whitespace-nowrap">Packaging</span>
 
                     {/* Expand/Collapse Toggle - Right Side */}
                     {hasContent && (
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
-                                setIsExpanded(!isExpanded);
+                                onToggle();
                             }}
                             className="p-1 text-text-secondary hover:text-text-primary transition-colors"
                         >

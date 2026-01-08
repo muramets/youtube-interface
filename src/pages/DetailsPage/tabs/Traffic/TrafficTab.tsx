@@ -1,25 +1,35 @@
 import React, { useState, useRef, useEffect, startTransition } from 'react';
+import { SegmentedControl } from '../../../../components/ui/molecules/SegmentedControl';
+import { FilterDropdown } from '../../../../components/ui/molecules/FilterDropdown';
 import { TrafficTable } from './components/TrafficTable';
 import { TrafficUploader } from './components/TrafficUploader';
 import { ColumnMapperModal } from './modals/ColumnMapperModal';
-import { useTrafficData } from './hooks/useTrafficData';
-import { useAuth } from '../../../../core/hooks/useAuth';
-import { useChannelStore } from '../../../../core/stores/channelStore';
 import type { VideoDetails } from '../../../../core/utils/youtubeApi';
 import { parseTrafficCsv } from '../../../../core/utils/csvParser';
 import { TrafficService } from '../../../../core/services/TrafficService';
-import { BarChart3, TrendingUp } from 'lucide-react';
 
 interface TrafficTabProps {
     video: VideoDetails;
     activeVersion: number;
     viewingVersion?: number | 'draft';
-    selectedSnapshot?: string | null; // If set, show this specific snapshot
+    selectedSnapshot?: string | null;
+    // Shared state from DetailsLayout
+    trafficData: any | null;
+    isLoadingData: boolean;
+    isSaving: boolean;
+    handleCsvUpload: (sources: any[], totalRow?: any, file?: File) => Promise<void>;
 }
 
-export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, viewingVersion, selectedSnapshot }) => {
-    const { user } = useAuth();
-    const { currentChannel } = useChannelStore();
+export const TrafficTab: React.FC<TrafficTabProps> = ({
+    video: _video,
+    activeVersion,
+    viewingVersion,
+    selectedSnapshot,
+    trafficData,
+    isLoadingData: isLoading,
+    isSaving,
+    handleCsvUpload
+}) => {
     const sentinelRef = useRef<HTMLDivElement>(null);
     const [isScrolled, setIsScrolled] = useState(false);
 
@@ -32,16 +42,6 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
     // Modals State
     const [isMapperOpen, setIsMapperOpen] = useState(false);
     const [failedFile, setFailedFile] = useState<File | null>(null);
-
-    const {
-        trafficData,
-        isLoading,
-        handleCsvUpload
-    } = useTrafficData({
-        userId: user?.uid || '',
-        channelId: currentChannel?.id || '',
-        video
-    });
 
     // Detect scroll for sticky header shadow
     useEffect(() => {
@@ -65,7 +65,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
         }
 
         try {
-            await handleCsvUpload(sources, totalRow);
+            await handleCsvUpload(sources, totalRow, file);
         } catch (error) {
             console.error('Upload failed:', error);
         }
@@ -89,7 +89,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
             if (selectedSnapshot) {
                 setIsLoadingSnapshot(true);
                 try {
-                    const snapshot = trafficData.snapshots?.find(s => s.id === selectedSnapshot);
+                    const snapshot = trafficData.snapshots?.find((s: any) => s.id === selectedSnapshot);
                     if (snapshot) {
                         // Load from Storage if storagePath exists
                         if (snapshot.storagePath) {
@@ -157,6 +157,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
     // Derived UI State
     const isViewingOldVersion = viewingVersion && viewingVersion !== activeVersion;
     const headerTitle = 'Suggested Traffic';
+    const isEmpty = displayedSources.length === 0;
 
     return (
         <div className="flex-1 flex flex-col">
@@ -174,46 +175,52 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
                         )}
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex gap-2">
-                        {/* View Mode Toggle */}
-                        {!isLoading && (viewingVersion === 'draft' || viewingVersion === activeVersion) && (
-                            <div className="flex gap-1 bg-bg-secondary rounded-lg p-1">
-                                <button
-                                    onClick={() => setViewMode('cumulative')}
-                                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${viewMode === 'cumulative'
-                                        ? 'bg-accent text-white'
-                                        : 'text-text-secondary hover:text-text-primary'
-                                        }`}
-                                    title="Show total views (cumulative)"
-                                >
-                                    <BarChart3 size={16} />
-                                    Cumulative
-                                </button>
-                                <button
-                                    onClick={() => setViewMode('delta')}
-                                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${viewMode === 'delta'
-                                        ? 'bg-accent text-white'
-                                        : 'text-text-secondary hover:text-text-primary'
-                                        }`}
-                                    title="Show new views since last snapshot (delta)"
-                                >
-                                    <TrendingUp size={16} />
-                                    Delta
-                                </button>
-                            </div>
-                        )}
+                    {/* Actions - Only show if not empty */}
+                    {!isEmpty && (
+                        <div className="flex gap-2">
+                            {/* View Mode Filter Menu */}
+                            {!isLoading && (viewingVersion === 'draft' || viewingVersion === activeVersion) && (
+                                <FilterDropdown align="right" width="280px">
+                                    <div className="py-2">
+                                        <div className="px-4 py-3 border-b border-[#2a2a2a]">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider">
+                                                    View Mode
+                                                </span>
+                                            </div>
+                                            <SegmentedControl
+                                                options={[
+                                                    { value: 'cumulative', label: 'Cumulative' },
+                                                    { value: 'delta', label: 'Delta' }
+                                                ]}
+                                                value={viewMode}
+                                                onChange={(val) => setViewMode(val as 'cumulative' | 'delta')}
+                                            />
+                                            <div className="mt-2 text-[10px] text-text-tertiary leading-relaxed grid">
+                                                <span className={`col-start-1 row-start-1 transition-opacity duration-150 ${viewMode === 'cumulative' ? 'opacity-100' : 'opacity-0'}`}>
+                                                    Show total accumulated views
+                                                </span>
+                                                <span className={`col-start-1 row-start-1 transition-opacity duration-150 ${viewMode === 'delta' ? 'opacity-100' : 'opacity-0'}`}>
+                                                    Show new views since last snapshot
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </FilterDropdown>
+                            )}
 
-                        {!isLoading && (
-                            <TrafficUploader
-                                isCompact
-                                onUpload={handleUploadWithErrorTracking}
-                                hasExistingSnapshot={
-                                    (trafficData?.snapshots || []).some(s => s.version === activeVersion)
-                                }
-                            />
-                        )}
-                    </div>
+                            {!isLoading && (
+                                <TrafficUploader
+                                    isCompact
+                                    onUpload={handleUploadWithErrorTracking}
+                                    isLoading={isSaving}
+                                    hasExistingSnapshot={
+                                        (trafficData?.snapshots || []).some((s: any) => s.version === activeVersion)
+                                    }
+                                />
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -245,6 +252,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
                         }}
                         activeVersion={activeVersion}
                         viewingVersion={viewingVersion}
+                        onUpload={handleUploadWithErrorTracking}
+                        hasExistingSnapshot={(trafficData?.snapshots || []).some((s: any) => s.version === activeVersion)}
                     />
                 </div>
             </div>
@@ -258,7 +267,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({ video, activeVersion, vi
                     if (!failedFile) return;
                     try {
                         const { sources, totalRow } = await parseTrafficCsv(failedFile, mapping);
-                        await handleCsvUpload(sources, totalRow);
+                        await handleCsvUpload(sources, totalRow, failedFile);
                         setIsMapperOpen(false);
                     } catch (e) {
                         alert("Mapping failed to produce valid data.");

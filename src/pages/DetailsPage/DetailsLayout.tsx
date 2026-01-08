@@ -65,6 +65,16 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
             JSON.stringify(videoAbTestTitles) !== JSON.stringify(snapshot.abTestTitles || []) ||
             JSON.stringify(videoAbTestThumbnails) !== JSON.stringify(snapshot.abTestThumbnails || []);
 
+        console.log('[DetailsLayout] computedHasDraft:', {
+            hasDifference,
+            videoTitle,
+            snapTitle: snapshot.title,
+            videoTagsCount: videoTags.length,
+            snapTagsCount: snapshot.tags?.length,
+            isDraftFirestore: video.isDraft,
+            activeVersionFirestore: video.activeVersion
+        });
+
         return hasDifference;
     }, [video]);
 
@@ -72,7 +82,8 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
     const versions = usePackagingVersions({
         initialHistory: video.packagingHistory || [],
         initialCurrentVersion: video.currentPackagingVersion || 1,
-        isDraft: video.isDraft || computedHasDraft
+        isDraft: video.isDraft || computedHasDraft,
+        initialActiveVersion: video.activeVersion // Honor explicit activeVersion from Firestore
     });
 
     // Confirmation modal for switching versions with unsaved changes
@@ -151,6 +162,33 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
         setSelectedSnapshot(snapshotId);
         setActiveTab('traffic'); // Ensure traffic tab is active
     }, []);
+
+    // Handler when user deletes snapshot
+    const handleDeleteSnapshot = useCallback(async (snapshotId: string) => {
+        // Check if deleting the currently selected snapshot
+        const isDeletingActive = selectedSnapshot === snapshotId;
+
+        // Call the deletion handler from useTrafficData
+        await trafficState.handleDeleteSnapshot(snapshotId);
+
+        // Navigation fallback if deleting active snapshot
+        if (isDeletingActive) {
+            const allSnapshots = trafficState.trafficData?.snapshots || [];
+            // Find previous snapshot (by timestamp)
+            const sortedSnapshots = [...allSnapshots]
+                .filter(s => s.id !== snapshotId)
+                .sort((a, b) => b.timestamp - a.timestamp);
+
+            if (sortedSnapshots.length > 0) {
+                // Switch to previous snapshot
+                setSelectedSnapshot(sortedSnapshots[0].id);
+            } else {
+                // No snapshots left → switch to Traffic tab empty state
+                setSelectedSnapshot(null);
+                setActiveTab('traffic');
+            }
+        }
+    }, [selectedSnapshot, trafficState, setActiveTab]);
 
     // ============================================================================
     // BUSINESS LOGIC: Version Deletion
@@ -491,6 +529,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                 snapshots={trafficState.trafficData?.snapshots || []}
                 selectedSnapshot={selectedSnapshot}
                 onSnapshotClick={handleSnapshotClick}
+                onDeleteSnapshot={handleDeleteSnapshot}
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
             />
@@ -511,17 +550,10 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                         activeVersion={typeof versions.activeVersion === 'number' ? versions.activeVersion : 0}
                         viewingVersion={versions.viewingVersion}
                         selectedSnapshot={selectedSnapshot}
-                    // We could pass trafficState down if TrafficTab accepts it to avoid double hook usage
-                    // But TrafficTab currently calls useTrafficData internally.
-                    // I should update TrafficTab to accept "trafficState" or just let it be for now?
-                    // If I call useTrafficData HERE in layout, I also call it in TrafficTab. 
-                    // Double fetching? Yes.
-                    // Ideally TrafficTab should accept the data.
-                    // For now, I'll update TrafficTab prop interface in a separate step or let it fetch twice (caching might handle it, but inefficient).
-                    // Let's refactor TrafficTab to accept props in next step to be clean.
-                    // For this ReplaceFileContent, I will assume I pass props, but TS might error if I haven't updated TrafficTab yet.
-                    // To avoid TS error NOW, I will render TrafficTab as is, and it will fetch its own data.
-                    // The Freeze Logic uses 'trafficState' here.
+                        trafficData={trafficState.trafficData}
+                        isLoadingData={trafficState.isLoading}
+                        isSaving={trafficState.isSaving}
+                        handleCsvUpload={trafficState.handleCsvUpload}
                     />
                 )}
             </div>

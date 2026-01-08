@@ -18,15 +18,15 @@ export const SidebarNavItem: React.FC<SidebarNavItemProps> = ({
             <button
                 onClick={onClick}
                 className={`
-          w-full h-12 flex items-center gap-4 px-4 text-sm font-medium transition-colors rounded-lg text-text-primary
+          w-full h-12 flex items-center gap-4 px-4 text-sm transition-colors rounded-lg text-text-primary
           ${isActive
-                        ? 'bg-sidebar-active'
-                        : 'hover:bg-sidebar-hover'
+                        ? 'bg-sidebar-active font-semibold'
+                        : 'hover:bg-sidebar-hover font-normal'
                     }
         `}
             >
                 <span className="flex-shrink-0">{icon}</span>
-                <span>{label}</span>
+                <span className="whitespace-nowrap">{label}</span>
             </button>
         </div>
     );

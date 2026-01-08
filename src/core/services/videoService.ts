@@ -144,20 +144,45 @@ export const VideoService = {
             await Promise.all(Array.from(imagesToDelete).map(url => deleteImageFromStorage(url)));
         }
 
-        // 2. Delete History Subcollection
+        // 2. Traffic Data Cleanup (Snapshots & CSVs)
+        const trafficPath = `${getVideosPath(userId, channelId)}/${videoId}/traffic`;
+        const trafficSnapshot = await getDocs(getCollectionRef(trafficPath));
+
+        if (!trafficSnapshot.empty) {
+            // Fetch the main traffic document to get snapshots
+            const mainDoc = trafficSnapshot.docs.find(d => d.id === 'main');
+            if (mainDoc) {
+                const trafficData = mainDoc.data() as any; // Cast to avoid type issues if types are not perfectly aligned
+                if (trafficData.snapshots && Array.isArray(trafficData.snapshots)) {
+                    const { deleteCsvSnapshot } = await import('./storageService');
+                    // Delete all CSV snapshots from Cloud Storage
+                    const csvDeletions = trafficData.snapshots
+                        .filter((s: any) => s.storagePath)
+                        .map((s: any) => deleteCsvSnapshot(s.storagePath));
+
+                    await Promise.all(csvDeletions);
+                }
+            }
+
+            // Delete traffic subcollection documents
+            const deleteTrafficPromises = trafficSnapshot.docs.map(doc => deleteDoc(doc.ref));
+            await Promise.all(deleteTrafficPromises);
+        }
+
+        // 3. Delete History Subcollection
         const historyPath = `${getVideosPath(userId, channelId)}/${videoId}/history`;
         const historyRef = getCollectionRef(historyPath);
         const historySnapshot = await getDocs(historyRef);
         const deleteHistoryPromises = historySnapshot.docs.map(doc => deleteDoc(doc.ref));
         await Promise.all(deleteHistoryPromises);
 
-        // 3. Delete Video Document
+        // 4. Delete Video Document
         await deleteDocument(
             getVideosPath(userId, channelId),
             videoId
         );
 
-        // 4. CLEANUP: Remove from videoOrder
+        // 5. CLEANUP: Remove from videoOrder
         try {
             const { SettingsService } = await import('./settingsService');
             const currentOrder = await SettingsService.fetchVideoOrder(userId, channelId);

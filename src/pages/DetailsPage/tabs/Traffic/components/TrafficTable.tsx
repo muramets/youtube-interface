@@ -4,6 +4,7 @@ import { ArrowUp, ArrowDown } from 'lucide-react';
 import type { TrafficSource, TrafficGroup } from '../../../../../core/types/traffic';
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { TrafficRow } from './TrafficRow';
+import { TrafficEmptyState } from './TrafficEmptyState';
 
 interface TrafficTableProps {
     data: TrafficSource[];
@@ -21,6 +22,10 @@ interface TrafficTableProps {
     // Versioning
     viewingVersion?: number | 'draft';
     activeVersion: number;
+
+    // Upload for Empty State
+    onUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<void>;
+    hasExistingSnapshot: boolean;
 }
 
 type SortKey = keyof TrafficSource;
@@ -36,7 +41,9 @@ export const TrafficTable: React.FC<TrafficTableProps> = ({
     selectedIds,
     onToggleSelection,
     onToggleAll,
-    isLoading
+    isLoading,
+    onUpload,
+    hasExistingSnapshot
 }) => {
     // Virtualization refs
     const parentRef = useRef<HTMLDivElement>(null);
@@ -146,6 +153,16 @@ export const TrafficTable: React.FC<TrafficTableProps> = ({
             <div className="flex items-center justify-center h-64 text-text-secondary">
                 Loading traffic data...
             </div>
+        );
+    }
+
+    // Premium Empty State
+    if (data.length === 0) {
+        return (
+            <TrafficEmptyState
+                onUpload={onUpload}
+                hasExistingSnapshot={hasExistingSnapshot}
+            />
         );
     }
 

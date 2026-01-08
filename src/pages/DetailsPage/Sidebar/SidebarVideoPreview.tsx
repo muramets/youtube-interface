@@ -1,9 +1,11 @@
 import React from 'react';
-import { type VideoDetails } from '../../../core/utils/youtubeApi';
+import { type VideoDetails, type PackagingVersion } from '../../../core/utils/youtubeApi';
 import { PortalTooltip } from '../../../components/Shared/PortalTooltip';
 
 interface SidebarVideoPreviewProps {
     video: VideoDetails;
+    viewingVersion?: number | 'draft';
+    versions?: PackagingVersion[];
 }
 
 // Parse ISO 8601 duration (PT1H2M3S) to seconds
@@ -31,10 +33,40 @@ const formatDuration = (durationStr?: string): string => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 };
 
-export const SidebarVideoPreview: React.FC<SidebarVideoPreviewProps> = ({ video }) => {
-    // Use customImage for custom videos, otherwise thumbnail
-    const thumbnail = video.customImage || video.thumbnail;
-    const title = video.title || 'Untitled';
+export const SidebarVideoPreview: React.FC<SidebarVideoPreviewProps> = ({
+    video,
+    viewingVersion = 'draft',
+    versions = []
+}) => {
+    // Determine title and thumbnail based on the viewed version
+    let title = 'Untitled';
+    let thumbnail = '';
+
+    if (viewingVersion === 'draft') {
+        // Root video data (Draft state)
+        title = (video.abTestTitles && video.abTestTitles.length > 0)
+            ? video.abTestTitles[0]
+            : (video.title || 'Untitled');
+        thumbnail = (video.abTestThumbnails && video.abTestThumbnails.length > 0)
+            ? video.abTestThumbnails[0]
+            : (video.customImage || video.thumbnail || '');
+    } else {
+        // Historical version data
+        const version = versions.find(v => v.versionNumber === viewingVersion);
+        if (version?.configurationSnapshot) {
+            const snap = version.configurationSnapshot;
+            title = (snap.abTestTitles && snap.abTestTitles.length > 0)
+                ? snap.abTestTitles[0]
+                : (snap.title || 'Untitled');
+            thumbnail = (snap.abTestThumbnails && snap.abTestThumbnails.length > 0)
+                ? snap.abTestThumbnails[0]
+                : (snap.coverImage || video.thumbnail || '');
+        } else {
+            // Fallback to root data if version not found
+            title = video.title || 'Untitled';
+            thumbnail = video.customImage || video.thumbnail || '';
+        }
+    }
 
     return (
         <div className="px-[15px] pb-4">

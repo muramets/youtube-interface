@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { BarChart3, ChevronDown, ChevronRight } from 'lucide-react';
+import { BarChart3, ChevronDown, ChevronRight, MoreVertical } from 'lucide-react';
 import { SidebarVersionItem } from '../Packaging/SidebarVersionItem';
 import type { PackagingVersion } from '../../../../core/utils/youtubeApi';
 import type { TrafficSnapshot } from '../../../../core/types/traffic';
+import { SnapshotContextMenu } from './SnapshotContextMenu';
+import { ConfirmationModal } from '../../../../components/Shared/ConfirmationModal';
 
 interface TrafficNavProps {
     versions: PackagingVersion[];
@@ -13,8 +15,11 @@ interface TrafficNavProps {
     hasDraft: boolean;
     onVersionClick: (versionNumber: number | 'draft') => void;
     onSnapshotClick: (snapshotId: string) => void;
+    onDeleteSnapshot?: (snapshotId: string) => void;
     onSelect: () => void;
     isActive: boolean;
+    isExpanded: boolean;
+    onToggle: () => void;
 }
 
 /**
@@ -36,16 +41,30 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
     hasDraft,
     onVersionClick,
     onSnapshotClick,
+    onDeleteSnapshot,
     onSelect,
-    isActive
+    isActive,
+    isExpanded,
+    onToggle
 }) => {
-    // Main expand/collapse state (like PackagingNav)
-    const [isExpanded, setIsExpanded] = useState(false);
+    // Main expand/collapse state (managed by parent)
 
     // Track which versions have their snapshots expanded
     const [expandedVersions, setExpandedVersions] = useState<Set<number | 'draft'>>(
         new Set([activeVersion]) // Active version auto-expanded
     );
+
+    // Snapshot context menu state
+    const [menuState, setMenuState] = useState<{
+        snapshotId: string | null;
+        position: { x: number; y: number };
+    }>({ snapshotId: null, position: { x: 0, y: 0 } });
+
+    // Delete confirmation modal state
+    const [deleteConfirmation, setDeleteConfirmation] = useState<{
+        isOpen: boolean;
+        snapshotId: string | null;
+    }>({ isOpen: false, snapshotId: null });
 
     // Sort versions (same as PackagingNav)
     const sortedVersions = [...versions].sort((a, b) => b.versionNumber - a.versionNumber);
@@ -56,9 +75,18 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
     // Get snapshots for a specific version
     const getVersionSnapshots = (version: number | 'draft'): TrafficSnapshot[] => {
         if (version === 'draft') return [];
-        return snapshots
-            .filter(s => s.version === version)
-            .sort((a, b) => b.timestamp - a.timestamp); // Latest first
+
+        const filtered = snapshots.filter(s => s.version === version);
+
+        // DEBUG: Log to understand snapshot data
+        console.log('[TrafficNav] getVersionSnapshots:', {
+            requestedVersion: version,
+            allSnapshots: snapshots.map(s => ({ id: s.id, version: s.version, timestamp: s.timestamp })),
+            filteredSnapshots: filtered.map(s => ({ id: s.id, version: s.version })),
+            filteredCount: filtered.length
+        });
+
+        return filtered.sort((a, b) => b.timestamp - a.timestamp); // Latest first
     };
 
     // Toggle version's snapshots expansion
@@ -98,15 +126,15 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                         // If not expanded, first expand
                         // If expanded, clicking header goes to active version
                         if (!isExpanded && hasContent) {
-                            setIsExpanded(true);
+                            onToggle();
                         } else {
                             onVersionClick(activeVersion);
                         }
                     }}
                     className={`
-                        w-full h-12 flex items-center gap-4 px-4 text-sm font-medium 
+                        w-full h-12 flex items-center gap-4 px-4 text-sm 
                         transition-colors rounded-lg cursor-pointer text-text-primary
-                        ${isActive ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover'}
+                        ${isActive ? 'bg-sidebar-active font-semibold' : 'hover:bg-sidebar-hover font-normal'}
                     `}
                 >
                     {/* Icon */}
@@ -115,14 +143,14 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                     </span>
 
                     {/* Label */}
-                    <span className="flex-1">Suggested Traffic</span>
+                    <span className="flex-1 whitespace-nowrap">Suggested Traffic</span>
 
                     {/* Expand/Collapse Toggle - Right Side (matches PackagingNav) */}
                     {hasContent && (
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
-                                setIsExpanded(!isExpanded);
+                                onToggle();
                             }}
                             className="p-1 text-text-secondary hover:text-text-primary transition-colors"
                         >
@@ -160,6 +188,7 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                         isViewing={viewingVersion === version.versionNumber && !selectedSnapshot}
                                         isVideoActive={activeVersion === version.versionNumber}
                                         onClick={() => onVersionClick(version.versionNumber)}
+                                        isParentOfSelected={selectedSnapshot !== null && versionSnapshots.some(s => s.id === selectedSnapshot)}
                                     />
 
                                     {/* Chevron for snapshots (positioned absolutely) */}
@@ -188,21 +217,52 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                             return (
                                                 <div
                                                     key={snapshot.id}
-                                                    onClick={() => onSnapshotClick(snapshot.id)}
-                                                    title={tooltip}
-                                                    className={`
-                                                        ml-6 mr-3 pl-[72px] pr-4 py-1 text-xs cursor-pointer
-                                                        transition-colors rounded-lg
-                                                        ${isSnapshotSelected
-                                                            ? 'text-text-primary font-medium bg-sidebar-active'
-                                                            : 'text-text-tertiary hover:text-text-secondary hover:bg-sidebar-hover'
-                                                        }
-                                                    `}
+                                                    className="group/snapshot relative"
                                                 >
-                                                    {display}
-                                                    {isLatest && (
-                                                        <span className="ml-1 text-text-tertiary font-normal">(latest)</span>
-                                                    )}
+                                                    <div
+                                                        onClick={() => onSnapshotClick(snapshot.id)}
+                                                        title={tooltip}
+                                                        className={`
+                                                            ml-12 mr-3 pl-12 pr-8 py-1.5 text-xs cursor-pointer
+                                                            transition-colors rounded-lg relative
+                                                            ${isSnapshotSelected
+                                                                ? 'text-text-primary font-medium bg-sidebar-active'
+                                                                : 'text-text-tertiary hover:text-text-secondary hover:bg-sidebar-hover font-normal'
+                                                            }
+                                                        `}
+                                                    >
+                                                        {display}
+                                                        {isLatest && (
+                                                            <span className="ml-1 text-text-tertiary font-normal">(latest)</span>
+                                                        )}
+
+                                                        {/* MoreVertical Icon - Only for latest snapshot (LIFO policy) */}
+                                                        {isLatest && onDeleteSnapshot && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                                    setMenuState({
+                                                                        snapshotId: snapshot.id,
+                                                                        position: {
+                                                                            x: rect.right + 5,
+                                                                            y: rect.top
+                                                                        }
+                                                                    });
+                                                                }}
+                                                                className={`
+                                                                    absolute right-2 top-1/2 -translate-y-1/2
+                                                                    p-0.5 rounded-full transition-opacity
+                                                                    ${menuState.snapshotId === snapshot.id
+                                                                        ? 'opacity-100 bg-white/10'
+                                                                        : 'opacity-0 group-hover/snapshot:opacity-100 hover:bg-white/10'
+                                                                    }
+                                                                `}
+                                                            >
+                                                                <MoreVertical size={12} />
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             );
                                         })}
@@ -213,6 +273,33 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                     })}
                 </div>
             )}
+
+            {/* Snapshot Context Menu */}
+            <SnapshotContextMenu
+                isOpen={menuState.snapshotId !== null}
+                onClose={() => setMenuState({ snapshotId: null, position: { x: 0, y: 0 } })}
+                position={menuState.position}
+                onDelete={() => {
+                    if (menuState.snapshotId) {
+                        setDeleteConfirmation({ isOpen: true, snapshotId: menuState.snapshotId });
+                    }
+                }}
+            />
+
+            {/* Delete Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={deleteConfirmation.isOpen}
+                onClose={() => setDeleteConfirmation({ isOpen: false, snapshotId: null })}
+                onConfirm={() => {
+                    if (deleteConfirmation.snapshotId && onDeleteSnapshot) {
+                        onDeleteSnapshot(deleteConfirmation.snapshotId);
+                    }
+                    setDeleteConfirmation({ isOpen: false, snapshotId: null });
+                }}
+                title="Delete Snapshot"
+                message="Are you sure you want to delete this snapshot? This action cannot be undone."
+                confirmLabel="Delete"
+            />
         </div>
     );
 };

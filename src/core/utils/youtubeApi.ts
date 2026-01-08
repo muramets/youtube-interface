@@ -43,6 +43,7 @@ export interface VideoDetails {
     abTestVariants?: string[]; // Deprecated? Keeping for backward compat if needed, but likely unused in new flow
     packagingHistory?: PackagingVersion[];
     currentPackagingVersion?: number;
+    activeVersion?: number | 'draft'; // The packaging version currently active for this video
     ctrRules?: CTRRule[];
     // Retry state for private/unavailable videos
     fetchRetryCount?: number;

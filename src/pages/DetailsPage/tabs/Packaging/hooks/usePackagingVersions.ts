@@ -21,6 +21,7 @@ interface UsePackagingVersionsOptions {
     initialHistory: PackagingVersion[];
     initialCurrentVersion: number;
     isDraft: boolean;
+    initialActiveVersion?: number | 'draft';
 }
 
 // State managed by reducer
@@ -35,7 +36,7 @@ interface VersionsState {
 
 // Actions
 type VersionsAction =
-    | { type: 'SYNC_FROM_PROPS'; payload: { history: PackagingVersion[]; currentVersion: number; isDraft: boolean } }
+    | { type: 'SYNC_FROM_PROPS'; payload: { history: PackagingVersion[]; currentVersion: number; isDraft: boolean; initialActiveVersion?: number | 'draft' } }
     | { type: 'CREATE_VERSION'; payload: { newVersion: PackagingVersion; updatedHistory: PackagingVersion[]; closingSnapshotId?: string } }
     | { type: 'DELETE_VERSION'; payload: { versionNumber: number } }
     | { type: 'RESTORE_VERSION'; payload: { versionNumber: number; closingSnapshotId?: string } }
@@ -151,10 +152,23 @@ function computeNavSorted(history: PackagingVersion[], activeVersion: number | '
 function versionsReducer(state: VersionsState, action: VersionsAction): VersionsState {
     switch (action.type) {
         case 'SYNC_FROM_PROPS': {
-            const { history, currentVersion, isDraft } = action.payload;
-            const computedActive = isDraft ? 'draft' : (history.length > 0
+            const { history, currentVersion, isDraft, initialActiveVersion } = action.payload;
+
+            // Priority: 
+            // 1. initialActiveVersion from props (if provided)
+            // 2. 'draft' if isDraft is true
+            // 3. Max version if history exists
+            // 4. Fallback to 'draft'
+            const computedActive = initialActiveVersion || (isDraft ? 'draft' : (history.length > 0
                 ? Math.max(...history.map(v => v.versionNumber))
-                : 'draft');
+                : 'draft'));
+
+            console.log('[usePackagingVersions] SYNC_FROM_PROPS:', {
+                isDraft,
+                initialActiveVersion,
+                computedActive,
+                historyCount: history.length
+            });
 
             // Smart sync: preserve local selection if still valid
             const isActiveValid = state.activeVersion === 'draft' ||
@@ -323,11 +337,19 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
 export const usePackagingVersions = ({
     initialHistory,
     initialCurrentVersion,
-    isDraft: initialIsDraft
+    isDraft: initialIsDraft,
+    initialActiveVersion
 }: UsePackagingVersionsOptions) => {
-    const initialActive = initialIsDraft ? 'draft' : (initialHistory.length > 0
+    const initialActive = initialActiveVersion || (initialIsDraft ? 'draft' : (initialHistory.length > 0
         ? Math.max(...initialHistory.map(v => v.versionNumber))
-        : 'draft');
+        : 'draft'));
+
+    console.log('[usePackagingVersions] Initializing hook:', {
+        initialIsDraft,
+        initialActiveVersion,
+        initialActive,
+        historyCount: initialHistory.length
+    });
 
     // Single reducer for atomic state management
     const [state, dispatch] = useReducer(versionsReducer, {
@@ -346,10 +368,11 @@ export const usePackagingVersions = ({
             payload: {
                 history: initialHistory,
                 currentVersion: initialCurrentVersion,
-                isDraft: initialIsDraft
+                isDraft: initialIsDraft,
+                initialActiveVersion
             }
         });
-    }, [initialHistory, initialCurrentVersion, initialIsDraft]);
+    }, [initialHistory, initialCurrentVersion, initialIsDraft, initialActiveVersion]);
 
     // Derived values - always in sync with state
     const sortedVersions = useMemo(() =>

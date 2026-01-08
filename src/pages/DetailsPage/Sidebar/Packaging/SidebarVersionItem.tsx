@@ -17,6 +17,7 @@ interface SidebarVersionItemProps {
     isVideoActive: boolean;
     onClick: () => void;
     onDelete?: () => void;
+    isParentOfSelected?: boolean; // When a child snapshot is selected
 }
 
 export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
@@ -25,6 +26,7 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
     isVideoActive,
     onClick,
     onDelete,
+    isParentOfSelected = false,
 }) => {
     return (
         <div
@@ -34,9 +36,12 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
                 transition-colors rounded-lg ml-6 mr-3
                 ${isViewing
                     ? 'text-text-primary font-medium bg-sidebar-active'
-                    : 'text-text-secondary hover:text-text-primary hover:bg-sidebar-hover'
+                    : isParentOfSelected
+                        ? 'text-text-primary font-normal'
+                        : 'text-text-secondary hover:text-text-primary hover:bg-sidebar-hover font-normal'
                 }
             `}
+            style={isParentOfSelected && !isViewing ? { backgroundColor: 'color-mix(in srgb, var(--sidebar-active), transparent 50%)' } : {}}
         >
             <div className="flex items-center gap-2">
                 <span className="text-sm">{label}</span>

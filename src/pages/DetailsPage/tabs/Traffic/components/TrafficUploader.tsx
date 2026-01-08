@@ -19,7 +19,10 @@ export const TrafficUploader: React.FC<TrafficUploaderProps> = ({
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const [isInputProcessing, setIsInputProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    const isBusy = isLoading || isInputProcessing;
 
     const processFile = async (file: File) => {
         setError(null);
@@ -28,8 +31,13 @@ export const TrafficUploader: React.FC<TrafficUploaderProps> = ({
             return;
         }
 
+        setIsInputProcessing(true);
         try {
+            // Artificial delay for better UX (so loader doesn't flash too fast)
+            await new Promise(resolve => setTimeout(resolve, 600));
+
             const { sources, totalRow } = await parseTrafficCsv(file);
+
             if (sources.length === 0 && !totalRow) {
                 // No valid data found - open mapper modal for manual column mapping
                 await onUpload([], undefined, file);
@@ -40,10 +48,13 @@ export const TrafficUploader: React.FC<TrafficUploaderProps> = ({
             console.error(err);
             // Parse error - open mapper modal
             await onUpload([], undefined, file);
+        } finally {
+            setIsInputProcessing(false);
         }
     };
 
     const handleDragOver = (e: React.DragEvent) => {
+        if (isBusy) return;
         e.preventDefault();
         setIsDragging(true);
     };
@@ -53,6 +64,7 @@ export const TrafficUploader: React.FC<TrafficUploaderProps> = ({
     };
 
     const handleDrop = async (e: React.DragEvent) => {
+        if (isBusy) return;
         e.preventDefault();
         setIsDragging(false);
         const file = e.dataTransfer.files[0];
@@ -76,13 +88,13 @@ export const TrafficUploader: React.FC<TrafficUploaderProps> = ({
                     }}
                 />
                 <Button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isLoading}
+                    onClick={() => !isBusy && fileInputRef.current?.click()}
+                    disabled={isBusy}
                     variant="secondary"
                     size="sm"
-                    leftIcon={isLoading ? <Loader2 className="animate-spin" /> : <Upload />}
+                    leftIcon={isBusy ? <Loader2 className="animate-spin" /> : <Upload />}
                 >
-                    {isLoading ? 'Processing...' : (hasExistingSnapshot ? 'Update CSV' : 'Upload CSV')}
+                    {isBusy ? 'Processing...' : (hasExistingSnapshot ? 'Update CSV' : 'Upload CSV')}
                 </Button>
                 {error && <div className="text-red-500 text-xs mt-1 absolute">{error}</div>}
             </div>
@@ -93,13 +105,17 @@ export const TrafficUploader: React.FC<TrafficUploaderProps> = ({
     return (
         <div
             className={`
-                relative border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200
-                ${isDragging ? 'border-accent-blue bg-accent-blue/5' : 'border-white/10 hover:border-white/20 bg-bg-secondary'}
-                ${isLoading ? 'opacity-50 pointer-events-none' : ''}
+                relative h-[200px] flex flex-col items-center justify-center text-center transition-all duration-300
+                border-2 rounded-xl
+                ${isBusy
+                    ? 'border-transparent bg-bg-secondary/50 cursor-wait'
+                    : `cursor-pointer border-dashed ${isDragging ? 'border-accent-blue bg-accent-blue/5' : 'border-white/10 hover:border-white bg-transparent'}`
+                }
             `}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
+            onClick={() => !isBusy && fileInputRef.current?.click()}
         >
             <input
                 type="file"
@@ -113,27 +129,44 @@ export const TrafficUploader: React.FC<TrafficUploaderProps> = ({
             />
 
             <div className="flex flex-col items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-text-secondary">
-                    {isLoading ? <Loader2 className="animate-spin" size={24} /> : <FileText size={24} />}
-                </div>
+                {isBusy ? (
+                    <>
+                        <div className="w-12 h-12 rounded-full bg-accent-blue/10 flex items-center justify-center text-accent-blue mb-1">
+                            <Loader2 className="animate-spin" size={24} />
+                        </div>
+                        <div className="space-y-1 animate-pulse">
+                            <h3 className="text-sm font-medium text-text-primary">
+                                {isInputProcessing ? 'Structuring Traffic Data...' : 'Saving to Database...'}
+                            </h3>
+                            <p className="text-xs text-text-secondary">
+                                This may take a few seconds
+                            </p>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-text-secondary transition-colors group-hover:bg-white/10">
+                            <FileText size={24} />
+                        </div>
 
-                <div className="space-y-1">
-                    <h3 className="text-sm font-medium text-text-primary">
-                        {isLoading ? 'Processing CSV...' : (hasExistingSnapshot ? 'Update Suggested Traffic CSV' : 'Upload Suggested Traffic CSV')}
-                    </h3>
-                    <p className="text-xs text-text-secondary">
-                        Drag and drop your file here, or{' '}
-                        <button
-                            onClick={() => fileInputRef.current?.click()}
-                            className="text-accent-blue hover:underline font-medium"
-                        >
-                            browse
-                        </button>
-                    </p>
-                </div>
+                        <div className="space-y-1">
+                            <h3 className="text-sm font-medium text-text-primary">
+                                {hasExistingSnapshot ? 'Update Suggested Traffic CSV' : 'Upload Suggested Traffic CSV'}
+                            </h3>
+                            <p className="text-xs text-text-secondary">
+                                Drag and drop your file here, or{' '}
+                                <span
+                                    className="text-accent-blue hover:underline font-medium"
+                                >
+                                    browse
+                                </span>
+                            </p>
+                        </div>
+                    </>
+                )}
 
-                {error && (
-                    <div className="flex items-center gap-2 text-red-400 text-xs bg-red-400/10 px-3 py-2 rounded-lg mt-2">
+                {error && !isBusy && (
+                    <div className="flex items-center gap-2 text-red-400 text-xs bg-red-400/10 px-3 py-2 rounded-lg mt-2 absolute bottom-4">
                         <AlertCircle size={14} />
                         {error}
                     </div>

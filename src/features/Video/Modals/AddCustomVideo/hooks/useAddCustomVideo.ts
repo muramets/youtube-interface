@@ -500,10 +500,23 @@ export function useAddCustomVideo({
                 isDraft: overrideIsDraft !== undefined ? overrideIsDraft : (shouldClose ? isDraft : true),
                 currentPackagingVersion: effectivePackagingVersion,
                 packagingHistory: effectivePackagingHistory,
+                // Set activeVersion based on whether we're saving as a version or draft
+                activeVersion: (overrideIsDraft === false && effectivePackagingHistory.length > 0)
+                    ? effectivePackagingHistory[effectivePackagingHistory.length - 1].versionNumber
+                    : 'draft',
                 abTestTitles: abTestTitles,
                 abTestThumbnails: effectiveAbTestVariants,
                 abTestResults: { titles: [], thumbnails: [] } // Initialize empty results for new tests
             };
+
+            console.log('[useAddCustomVideo] Preparing videoData:', {
+                title: videoData.title,
+                isDraft: videoData.isDraft,
+                activeVersion: videoData.activeVersion,
+                historyCount: videoData.packagingHistory?.length,
+                overrideIsDraft,
+                shouldClose
+            });
 
             const newId = await onSave(videoData, shouldClose);
             const targetId = (typeof newId === 'string' ? newId : initialData?.id);
@@ -578,14 +591,26 @@ export function useAddCustomVideo({
     };
 
     const handleSaveAsVersion = () => {
-        let snapshotTitle = title;
-        let snapshotDescription = description;
-        let snapshotTags = tags;
+        const finalData = getFullPayload();
+        let snapshotTitle = finalData.title.trim() || "Your Next Viral Music Playlist";
+        let snapshotDescription = finalData.description || '';
+        let snapshotTags = finalData.tags || [];
+
         if (activeLanguage !== 'default') {
-            snapshotTitle = defaultData.title;
-            snapshotDescription = defaultData.description;
-            snapshotTags = defaultData.tags;
+            // If we're on a localization, we still want to save the snapshot
+            // but we need to decide what goes into the "main" config snapshot.
+            // Usually, main snapshot refers to the default language.
+            snapshotTitle = defaultData.title.trim() || "Your Next Viral Music Playlist";
+            snapshotDescription = defaultData.description || '';
+            snapshotTags = defaultData.tags || [];
         }
+
+        console.log('[useAddCustomVideo] handleSaveAsVersion called', {
+            currentPackagingVersion,
+            packagingHistoryCount: packagingHistory.length,
+            activeLanguage,
+            snapshotTitle
+        });
 
         const newHistoryItem: PackagingVersion = {
             versionNumber: currentPackagingVersion,
@@ -596,13 +621,20 @@ export function useAddCustomVideo({
                 description: snapshotDescription,
                 tags: snapshotTags,
                 coverImage: coverImage || '',
-                abTestVariants: abTestVariants,
+                abTestTitles: abTestTitles,
+                abTestThumbnails: abTestVariants,
+                abTestVariants: abTestVariants, // Backward compatibility
                 localizations: localizations
             }
         };
 
         const newHistory = [...packagingHistory, newHistoryItem];
         const newVersion = currentPackagingVersion + 1;
+
+        console.log('[useAddCustomVideo] New history created:', {
+            newHistoryCount: newHistory.length,
+            newVersion
+        });
 
         setPackagingHistory(newHistory);
         setCurrentPackagingVersion(newVersion);

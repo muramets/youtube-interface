@@ -21,6 +21,7 @@ interface DetailsSidebarProps {
     snapshots: TrafficSnapshot[];
     selectedSnapshot: string | null;
     onSnapshotClick: (snapshotId: string) => void;
+    onDeleteSnapshot?: (snapshotId: string) => void;
     // Tab Navigation
     activeTab: 'packaging' | 'traffic';
     onTabChange: (tab: 'packaging' | 'traffic') => void;
@@ -37,14 +38,27 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
     snapshots,
     selectedSnapshot,
     onSnapshotClick,
+    onDeleteSnapshot,
     activeTab,
     onTabChange
 }) => {
     const navigate = useNavigate();
-    // Dynamically import icon or assume it's available (Import at top needed)
-    // I need to add import for TrendingUp first. Wait, I can't add imports with replace_file_content unless I target the top.
-    // I will use a separate call for import or just add it here if I am replacing the whole block?
-    // I am replacing the body. I will fix imports in next step or use multi_replace.
+
+    // ============================================================================
+    // UI STATE: Mutual Exclusivity for Sidebar Sections
+    // ============================================================================
+    // Only one section (Packaging or Traffic) can be expanded at a time.
+    // By default, the active tab's section is expanded.
+    const [expandedSection, setExpandedSection] = React.useState<'packaging' | 'traffic' | null>(activeTab);
+
+    // Update expansion when active tab changes (e.g. from external source)
+    React.useEffect(() => {
+        setExpandedSection(activeTab);
+    }, [activeTab]);
+
+    const handleToggleSection = (section: 'packaging' | 'traffic') => {
+        setExpandedSection(prev => prev === section ? null : section);
+    };
 
     return (
         <aside
@@ -60,10 +74,14 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
             </div>
 
             {/* Video Preview Section */}
-            <SidebarVideoPreview video={video} />
+            <SidebarVideoPreview
+                video={video}
+                viewingVersion={viewingVersion}
+                versions={versions}
+            />
 
             {/* Navigation Items */}
-            <nav className="flex-1">
+            <nav className="flex-1 overflow-y-auto no-scrollbar">
                 <PackagingNav
                     versions={versions}
                     viewingVersion={viewingVersion}
@@ -75,6 +93,8 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
                     }}
                     onDeleteVersion={onDeleteVersion}
                     isActive={activeTab === 'packaging'}
+                    isExpanded={expandedSection === 'packaging'}
+                    onToggle={() => handleToggleSection('packaging')}
                     onSelect={() => onTabChange('packaging')}
                 />
 
@@ -93,7 +113,10 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
                         onTabChange('traffic');
                         onSnapshotClick(snapshotId);
                     }}
+                    onDeleteSnapshot={onDeleteSnapshot}
                     isActive={activeTab === 'traffic'}
+                    isExpanded={expandedSection === 'traffic'}
+                    onToggle={() => handleToggleSection('traffic')}
                     onSelect={() => onTabChange('traffic')}
                 />
             </nav>
