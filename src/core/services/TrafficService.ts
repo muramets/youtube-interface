@@ -1,6 +1,7 @@
 import { db } from '../../config/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import type { TrafficData, TrafficSource, TrafficSnapshot } from '../types/traffic';
+import { generateSnapshotId } from '../utils/snapshotUtils';
 
 
 
@@ -99,7 +100,7 @@ export const TrafficService = {
         const timestamp = Date.now();
 
         const snapshot: TrafficSnapshot = {
-            id: `snap_${timestamp}_v${version}`,
+            id: generateSnapshotId(timestamp, version),
             version,
             timestamp,
             createdAt: new Date().toISOString(),

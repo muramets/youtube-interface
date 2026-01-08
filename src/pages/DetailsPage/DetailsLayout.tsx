@@ -9,6 +9,7 @@ import { ConfirmationModal } from '../../components/Shared/ConfirmationModal';
 import { SnapshotRequestModal } from './tabs/Traffic/modals/SnapshotRequestModal';
 import { TrafficService } from '../../core/services/TrafficService';
 import { parseTrafficCsv } from '../../core/utils/csvParser';
+import { generateSnapshotId } from '../../core/utils/snapshotUtils';
 import { useUIStore } from '../../core/stores/uiStore';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
@@ -325,7 +326,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                 ? versions.activeVersion as number
                 : versions.activeVersion as number;
 
-            const snapshotId = `snap_${timestamp}_v${versionNum}`;
+            const snapshotId = generateSnapshotId(timestamp, versionNum);
 
             await TrafficService.createVersionSnapshot(
                 user.uid,
