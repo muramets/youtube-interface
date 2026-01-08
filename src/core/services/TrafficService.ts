@@ -119,7 +119,7 @@ export const TrafficService = {
         sources: TrafficSource[],
         totalRow?: TrafficSource,
         csvFile?: File
-    ): Promise<void> {
+    ): Promise<string> {
         const currentData = await this.fetchTrafficData(userId, channelId, videoId);
         const timestamp = Date.now();
         const snapshotId = generateSnapshotId(timestamp, version);
@@ -180,6 +180,7 @@ export const TrafficService = {
         };
 
         await this.saveTrafficData(userId, channelId, videoId, updated);
+        return snapshotId;
     },
 
     /**
@@ -195,26 +196,40 @@ export const TrafficService = {
         const prevSnapshot = snapshots.find(s => s.version === version - 1);
         if (!prevSnapshot || !prevSnapshot.sources) return currentSources; // No previous data or data in Storage
 
-        // Create map of previous views
-        const prevViews = new Map<string, number>();
+        // Create map of previous data
+        const prevData = new Map<string, { views: number, impressions: number, watchTime: number }>();
         prevSnapshot.sources.forEach(s => {
             if (s.videoId) {
-                prevViews.set(s.videoId, s.views);
+                prevData.set(s.videoId, {
+                    views: s.views || 0,
+                    impressions: s.impressions || 0,
+                    watchTime: s.watchTimeHours || 0
+                });
             }
         });
 
         // Calculate delta for each source
-        return currentSources.map(source => {
-            if (!source.videoId) return source;
+        return currentSources
+            .map(source => {
+                if (!source.videoId) return source;
 
-            const prevCount = prevViews.get(source.videoId) || 0;
-            const delta = Math.max(0, source.views - prevCount);
+                const prev = prevData.get(source.videoId) || { views: 0, impressions: 0, watchTime: 0 };
+                const viewsDelta = Math.max(0, source.views - prev.views);
+                const impressionsDelta = Math.max(0, (source.impressions || 0) - prev.impressions);
+                const watchTimeDelta = Math.max(0, (source.watchTimeHours || 0) - prev.watchTime);
 
-            return {
-                ...source,
-                views: delta
-            };
-        });
+                // Calculate new CTR based on deltas
+                const ctrDelta = impressionsDelta > 0 ? (viewsDelta / impressionsDelta) * 100 : 0;
+
+                return {
+                    ...source,
+                    views: viewsDelta,
+                    impressions: impressionsDelta,
+                    watchTimeHours: watchTimeDelta,
+                    ctr: parseFloat(ctrDelta.toFixed(2))
+                };
+            })
+            .filter(source => !source.videoId || source.views > 0);
     },
 
     /**

@@ -53,14 +53,14 @@ export const useTrafficData = ({ userId, channelId, video }: UseTrafficDataProps
 
     // Action: Handle New CSV Upload
     const handleCsvUpload = useCallback(async (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => {
-        if (!userId || !video.id) return;
+        if (!userId || !video.id) return null;
         setIsSaving(true);
         try {
             const effectiveVersion = video.activeVersion === 'draft' ? 0 : (video.activeVersion || 1);
 
             // 1. Create the snapshot (Hybrid Approach)
             // This will also update the main traffic document's snapshots array
-            await TrafficService.createVersionSnapshot(
+            const newSnapshotId = await TrafficService.createVersionSnapshot(
                 userId,
                 channelId,
                 video.id,
@@ -78,12 +78,15 @@ export const useTrafficData = ({ userId, channelId, video }: UseTrafficDataProps
                 await TrafficService.saveTrafficData(userId, channelId, video.id, merged);
                 setData(merged);
             }
+
+            return newSnapshotId;
         } catch (err) {
             console.error('[useTrafficData] CSV upload failed:', err);
             setError("Failed to process CSV");
 
             // Premium UX: Show clear error message
             showToast("Failed to process CSV file. Ensure the format is correct.", "error");
+            return null;
         } finally {
             setIsSaving(false);
         }

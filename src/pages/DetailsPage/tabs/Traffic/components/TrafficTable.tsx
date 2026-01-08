@@ -10,7 +10,6 @@ import type { CTRRule } from '../../../../../core/services/settingsService';
 
 interface TrafficTableProps {
     data: TrafficSource[];
-    totalRow?: TrafficSource;
     groups: TrafficGroup[];
     isLoading: boolean;
     // Selection for grouping
@@ -41,7 +40,6 @@ interface SortConfig {
 
 export const TrafficTable = memo<TrafficTableProps>(({
     data,
-    totalRow,
     groups,
     selectedIds,
     onToggleSelection,
@@ -131,6 +129,25 @@ export const TrafficTable = memo<TrafficTableProps>(({
     const isAllSelected = data.length > 0 && data.every(d => d.videoId && selectedIds.has(d.videoId));
     const isIndeterminate = data.some(d => d.videoId && selectedIds.has(d.videoId)) && !isAllSelected;
 
+    const computedTotal = useMemo(() => {
+        if (data.length === 0) return null;
+
+        const totalImpressions = data.reduce((sum, s) => sum + (s.impressions || 0), 0);
+        const totalViews = data.reduce((sum, s) => sum + (s.views || 0), 0);
+        const totalWatchTimeHours = data.reduce((sum, s) => sum + (s.watchTimeHours || 0), 0);
+        const totalWatchTimeSeconds = totalWatchTimeHours * 3600;
+
+        const avgCtr = totalImpressions > 0 ? (totalViews / totalImpressions) * 100 : 0;
+        const avgDurationSeconds = totalViews > 0 ? totalWatchTimeSeconds / totalViews : 0;
+
+        return {
+            impressions: totalImpressions,
+            views: totalViews,
+            ctr: parseFloat(avgCtr.toFixed(2)),
+            avgViewDuration: Math.round(avgDurationSeconds).toString(),
+        };
+    }, [data]);
+
     const renderHeaderCell = (label: string, sortKey?: SortKey, align: 'left' | 'right' = 'right') => {
         const isSorted = sortConfig?.key === sortKey;
         const canSort = !!sortKey;
@@ -205,21 +222,21 @@ export const TrafficTable = memo<TrafficTableProps>(({
                     />
                 ) : (
                     <>
-                        {totalRow && (
+                        {computedTotal && (
                             <div className="sticky top-0 z-10 grid grid-cols-[40px_1fr_100px_100px_120px_100px] gap-4 px-4 py-3 border-b border-white/10 bg-video-edit-bg backdrop-blur-md font-bold text-text-primary text-xs select-none shadow-sm">
                                 <div />
                                 <div>Total</div>
                                 <div className={`text-right ${sortConfig?.key === 'impressions' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
-                                    {totalRow.impressions.toLocaleString()}
+                                    {computedTotal.impressions.toLocaleString()}
                                 </div>
                                 <div className={`text-right ${sortConfig?.key === 'ctr' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
-                                    {totalRow.ctr}%
+                                    {computedTotal.ctr}%
                                 </div>
                                 <div className={`text-right ${sortConfig?.key === 'views' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
-                                    {totalRow.views.toLocaleString()}
+                                    {computedTotal.views.toLocaleString()}
                                 </div>
                                 <div className={`text-right ${sortConfig?.key === 'avgViewDuration' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
-                                    {formatDuration(totalRow.avgViewDuration)}
+                                    {formatDuration(computedTotal.avgViewDuration)}
                                 </div>
                             </div>
                         )}

@@ -20,7 +20,8 @@ interface TrafficTabProps {
     trafficData: any | null;
     isLoadingData: boolean;
     isSaving: boolean;
-    handleCsvUpload: (sources: any[], totalRow?: any, file?: File) => Promise<void>;
+    handleCsvUpload: (sources: any[], totalRow?: any, file?: File) => Promise<string | null>;
+    onSnapshotClick?: (id: string) => void;
 }
 
 export const TrafficTab: React.FC<TrafficTabProps> = ({
@@ -31,7 +32,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     trafficData,
     isLoadingData: isLoading,
     isSaving,
-    handleCsvUpload
+    handleCsvUpload,
+    onSnapshotClick
 }) => {
     const sentinelRef = useRef<HTMLDivElement>(null);
     const [isScrolled, setIsScrolled] = useState(false);
@@ -73,7 +75,10 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         }
 
         try {
-            await handleCsvUpload(sources, totalRow, file);
+            const newSnapshotId = await handleCsvUpload(sources, totalRow, file);
+            if (newSnapshotId && onSnapshotClick) {
+                onSnapshotClick(newSnapshotId);
+            }
         } catch (error) {
             console.error('Upload failed:', error);
         }
@@ -99,7 +104,9 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 try {
                     const snapshot = trafficData.snapshots?.find((s: any) => s.id === selectedSnapshot);
                     if (snapshot) {
-                        // Load from Storage if storagePath exists
+                        let currentSources: any[] = [];
+
+                        // Load current snapshot data
                         if (snapshot.storagePath) {
                             const { downloadCsvSnapshot } = await import('../../../../core/services/storageService');
                             const { parseTrafficCsv } = await import('../../../../core/utils/csvParser');
@@ -107,13 +114,75 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                             const blob = await downloadCsvSnapshot(snapshot.storagePath);
                             const file = new File([blob], 'snapshot.csv', { type: 'text/csv' });
                             const { sources } = await parseTrafficCsv(file);
-                            setDisplayedSources(sources);
+                            currentSources = sources;
                         } else if (snapshot.sources) {
                             // Legacy: sources in Firestore
-                            setDisplayedSources(snapshot.sources);
-                        } else {
-                            setDisplayedSources([]);
+                            currentSources = snapshot.sources;
                         }
+
+                        // Apply Delta mode if enabled
+                        if (viewMode === 'delta' && currentSources.length > 0) {
+                            // Find previous snapshot (by timestamp)
+                            const allSnapshots = trafficData.snapshots || [];
+                            const currentIndex = allSnapshots.findIndex((s: any) => s.id === selectedSnapshot);
+
+                            if (currentIndex > 0) {
+                                const prevSnapshot = allSnapshots[currentIndex - 1];
+                                let prevSources: any[] = [];
+
+                                // Load previous snapshot data
+                                if (prevSnapshot.storagePath) {
+                                    const { downloadCsvSnapshot } = await import('../../../../core/services/storageService');
+                                    const { parseTrafficCsv } = await import('../../../../core/utils/csvParser');
+
+                                    const blob = await downloadCsvSnapshot(prevSnapshot.storagePath);
+                                    const file = new File([blob], 'prev-snapshot.csv', { type: 'text/csv' });
+                                    const { sources } = await parseTrafficCsv(file);
+                                    prevSources = sources;
+                                } else if (prevSnapshot.sources) {
+                                    prevSources = prevSnapshot.sources;
+                                }
+
+                                // Calculate delta
+                                if (prevSources.length > 0) {
+                                    const prevData = new Map<string, { views: number, impressions: number, watchTime: number }>();
+                                    prevSources.forEach((s: any) => {
+                                        if (s.videoId) {
+                                            prevData.set(s.videoId, {
+                                                views: s.views || 0,
+                                                impressions: s.impressions || 0,
+                                                watchTime: s.watchTimeHours || 0
+                                            });
+                                        }
+                                    });
+
+                                    currentSources = currentSources
+                                        .map((source: any) => {
+                                            if (!source.videoId) return source;
+                                            const prev = prevData.get(source.videoId) || { views: 0, impressions: 0, watchTime: 0 };
+
+                                            const viewsDelta = Math.max(0, source.views - prev.views);
+                                            const impressionsDelta = Math.max(0, (source.impressions || 0) - prev.impressions);
+                                            const watchTimeDelta = Math.max(0, (source.watchTimeHours || 0) - prev.watchTime);
+
+                                            // Calculate new CTR based on deltas
+                                            const ctrDelta = impressionsDelta > 0 ? (viewsDelta / impressionsDelta) * 100 : 0;
+
+                                            return {
+                                                ...source,
+                                                views: viewsDelta,
+                                                impressions: impressionsDelta,
+                                                watchTimeHours: watchTimeDelta,
+                                                ctr: parseFloat(ctrDelta.toFixed(2))
+                                            };
+                                        })
+                                        // Filter out sources with no new views in Delta mode
+                                        .filter((source: any) => !source.videoId || source.views > 0);
+                                }
+                            }
+                        }
+
+                        setDisplayedSources(currentSources);
                     } else {
                         setDisplayedSources([]);
                     }
@@ -208,11 +277,11 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                                             </div>
                                             <SegmentedControl
                                                 options={[
-                                                    { value: 'cumulative', label: 'Cumulative' },
-                                                    { value: 'delta', label: 'Delta' }
+                                                    { label: 'Total', value: 'cumulative' },
+                                                    { label: 'New', value: 'delta' }
                                                 ]}
                                                 value={viewMode}
-                                                onChange={(val) => setViewMode(val as 'cumulative' | 'delta')}
+                                                onChange={(v: any) => setViewMode(v)}
                                             />
                                             <div className="mt-2 text-[10px] text-text-tertiary leading-relaxed grid">
                                                 <span className={`col-start-1 row-start-1 transition-opacity duration-150 ${viewMode === 'cumulative' ? 'opacity-100' : 'opacity-0'}`}>
@@ -248,7 +317,6 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                     <TrafficTable
                         data={displayedSources}
                         groups={trafficData?.groups || []}
-                        totalRow={trafficData?.totalRow}
                         selectedIds={selectedIds}
                         isLoading={isLoading || isLoadingSnapshot}
                         ctrRules={ctrRules}

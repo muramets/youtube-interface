@@ -554,6 +554,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                         isLoadingData={trafficState.isLoading}
                         isSaving={trafficState.isSaving}
                         handleCsvUpload={trafficState.handleCsvUpload}
+                        onSnapshotClick={handleSnapshotClick}
                     />
                 )}
             </div>
