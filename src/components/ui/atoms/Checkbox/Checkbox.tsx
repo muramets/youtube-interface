@@ -6,22 +6,26 @@ interface CheckboxProps {
     indeterminate?: boolean;
     onChange: () => void;
     className?: string;
+    disabled?: boolean;
 }
 
 export const Checkbox: React.FC<CheckboxProps> = ({
     checked,
     indeterminate,
     onChange,
-    className = ''
+    className = '',
+    disabled = false
 }) => {
     return (
         <button
             type="button"
             role="checkbox"
             aria-checked={indeterminate ? 'mixed' : checked}
-            onClick={onChange}
+            disabled={disabled}
+            onClick={!disabled ? onChange : undefined}
             className={`
                 w-4 h-4 rounded border transition-all flex items-center justify-center
+                ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
                 ${checked || indeterminate
                     ? 'bg-white border-white'
                     : 'border-white/20 bg-transparent hover:border-white/40'

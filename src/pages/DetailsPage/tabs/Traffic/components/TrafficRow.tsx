@@ -33,19 +33,9 @@ const getCtrColor = (ctr: number | string, rules: CTRRule[]): string | undefined
     const val = typeof ctr === 'string' ? parseFloat(ctr) : ctr;
     if (isNaN(val)) return undefined;
 
-    // Find first matching rule
-    // Assuming rules are sorted by value if that's desired, but we just check criteria
-    // Actually, legacy filtered through all and maybe took last? Or first?
-    // Let's implement standard ordered check. First match wins? Or specific logic?
-    // If rules are sorted by value asc:
-    // val=3. <5 (red), <10 (orange).
-    // 3 < 5 matches. Returns red.
-    // 7 < 5 false. 7 < 10 matches. Returns orange.
-    // This seems correct for "<" operators.
-    // For ">" operators? > 10 (green).
-    // If we mix < and > it gets tricky.
-    // The legacy code used specific logic or expected user to define disjoint or ordered rules.
-    // I'll check first match.
+    // Rules are user-defined and ordered via drag-and-drop in the CTR Config UI.
+    // We apply "first match wins" logic: iterate through rules in order,
+    // and return the color of the first rule that matches the CTR value.
     for (const rule of rules) {
         switch (rule.operator) {
             case '<': if (val < rule.value) return rule.color; break;

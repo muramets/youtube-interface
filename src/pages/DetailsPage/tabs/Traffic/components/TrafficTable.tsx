@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState, useMemo } from 'react';
+import React, { useCallback, useRef, useState, useMemo, memo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 import type { TrafficSource, TrafficGroup } from '../../../../../core/types/traffic';
@@ -39,7 +39,7 @@ interface SortConfig {
     direction: 'asc' | 'desc';
 }
 
-export const TrafficTable: React.FC<TrafficTableProps> = ({
+export const TrafficTable = memo<TrafficTableProps>(({
     data,
     totalRow,
     groups,
@@ -154,24 +154,6 @@ export const TrafficTable: React.FC<TrafficTableProps> = ({
         );
     };
 
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center h-64 text-text-secondary">
-                Loading traffic data...
-            </div>
-        );
-    }
-
-    // Premium Empty State
-    if (data.length === 0) {
-        return (
-            <TrafficEmptyState
-                onUpload={onUpload}
-                hasExistingSnapshot={hasExistingSnapshot}
-            />
-        );
-    }
-
     return (
         <div className="w-full h-full flex flex-col bg-bg-secondary/30 rounded-xl border border-white/5 overflow-hidden mt-6">
             {/* Fixed Header */}
@@ -181,6 +163,7 @@ export const TrafficTable: React.FC<TrafficTableProps> = ({
                         checked={isAllSelected}
                         indeterminate={isIndeterminate}
                         onChange={handleHeaderCheckbox}
+                        disabled={isLoading || data.length === 0}
                     />
                 </div>
                 <div>Traffic Source</div>
@@ -190,69 +173,100 @@ export const TrafficTable: React.FC<TrafficTableProps> = ({
                 {renderHeaderCell('AVD', 'avgViewDuration')}
             </div>
 
-            {/* Scrollable Body - Virtualized */}
+            {/* Scrollable Body */}
             <div
                 ref={parentRef}
-                className="flex-1 overflow-y-auto min-h-0"
+                className="flex-1 overflow-y-auto min-h-0 relative"
             >
-                {totalRow && (
-                    <div className="sticky top-0 z-10 grid grid-cols-[40px_1fr_100px_100px_120px_100px] gap-4 px-4 py-3 border-b border-white/10 bg-video-edit-bg backdrop-blur-md font-bold text-text-primary text-xs select-none shadow-sm">
-                        <div />
-                        <div>Total</div>
-                        <div className={`text-right ${sortConfig?.key === 'impressions' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
-                            {totalRow.impressions.toLocaleString()}
-                        </div>
-                        <div className={`text-right ${sortConfig?.key === 'ctr' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
-                            {totalRow.ctr}%
-                        </div>
-                        <div className={`text-right ${sortConfig?.key === 'views' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
-                            {totalRow.views.toLocaleString()}
-                        </div>
-                        <div className={`text-right ${sortConfig?.key === 'avgViewDuration' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
-                            {formatDuration(totalRow.avgViewDuration)}
-                        </div>
+                {isLoading ? (
+                    <div className="px-4 py-3 text-xs font-medium text-center bg-clip-text text-transparent flex justify-center items-center"
+                        style={{
+                            backgroundImage: 'linear-gradient(120deg, var(--text-secondary) 42%, var(--text-primary) 50%, var(--text-secondary) 58%)',
+                            backgroundSize: '200% 100%',
+                            display: 'inline-block',
+                            width: '100%',
+                            animation: 'shimmer-premium 2.5s infinite linear',
+                        }}
+                    >
+                        <style>
+                            {`
+                                @keyframes shimmer-premium {
+                                    0% { background-position: 100% 0; }
+                                    100% { background-position: -100% 0; }
+                                }
+                            `}
+                        </style>
+                        Loading traffic data...
                     </div>
-                )}
-
-                <div
-                    style={{
-                        height: `${rowVirtualizer.getTotalSize()}px`,
-                        width: '100%',
-                        position: 'relative',
-                    }}
-                >
-                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                        const item = sortedData[virtualRow.index];
-                        const index = virtualRow.index;
-                        const isSelected = item.videoId ? selectedIds.has(item.videoId) : false;
-                        const group = groups.find(g => item.videoId && g.videoIds.includes(item.videoId));
-
-                        return (
-                            <div
-                                key={item.videoId || virtualRow.key}
-                                style={{
-                                    position: 'absolute',
-                                    top: 0,
-                                    left: 0,
-                                    width: '100%',
-                                    height: `${virtualRow.size}px`,
-                                    transform: `translateY(${virtualRow.start}px)`,
-                                }}
-                            >
-                                <TrafficRow
-                                    item={item}
-                                    index={index}
-                                    isSelected={isSelected}
-                                    group={group}
-                                    activeSortKey={sortConfig?.key}
-                                    onRowClick={handleRowClick}
-                                    ctrRules={ctrRules}
-                                />
+                ) : data.length === 0 ? (
+                    <TrafficEmptyState
+                        onUpload={onUpload}
+                        hasExistingSnapshot={hasExistingSnapshot}
+                    />
+                ) : (
+                    <>
+                        {totalRow && (
+                            <div className="sticky top-0 z-10 grid grid-cols-[40px_1fr_100px_100px_120px_100px] gap-4 px-4 py-3 border-b border-white/10 bg-video-edit-bg backdrop-blur-md font-bold text-text-primary text-xs select-none shadow-sm">
+                                <div />
+                                <div>Total</div>
+                                <div className={`text-right ${sortConfig?.key === 'impressions' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
+                                    {totalRow.impressions.toLocaleString()}
+                                </div>
+                                <div className={`text-right ${sortConfig?.key === 'ctr' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
+                                    {totalRow.ctr}%
+                                </div>
+                                <div className={`text-right ${sortConfig?.key === 'views' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
+                                    {totalRow.views.toLocaleString()}
+                                </div>
+                                <div className={`text-right ${sortConfig?.key === 'avgViewDuration' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
+                                    {formatDuration(totalRow.avgViewDuration)}
+                                </div>
                             </div>
-                        );
-                    })}
-                </div>
+                        )}
+
+                        <div
+                            style={{
+                                height: `${rowVirtualizer.getTotalSize()}px`,
+                                width: '100%',
+                                position: 'relative',
+                            }}
+                        >
+                            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                                const item = sortedData[virtualRow.index];
+                                const index = virtualRow.index;
+                                const isSelected = item.videoId ? selectedIds.has(item.videoId) : false;
+                                const group = groups.find(g => item.videoId && g.videoIds.includes(item.videoId));
+
+                                return (
+                                    <div
+                                        key={item.videoId || virtualRow.key}
+                                        style={{
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                            width: '100%',
+                                            height: `${virtualRow.size}px`,
+                                            transform: `translateY(${virtualRow.start}px)`,
+                                        }}
+                                    >
+                                        <TrafficRow
+                                            item={item}
+                                            index={index}
+                                            isSelected={isSelected}
+                                            group={group}
+                                            activeSortKey={sortConfig?.key}
+                                            onRowClick={handleRowClick}
+                                            ctrRules={ctrRules}
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );
-};
+});
+
+TrafficTable.displayName = 'TrafficTable';

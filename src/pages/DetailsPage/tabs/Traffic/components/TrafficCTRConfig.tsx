@@ -1,6 +1,10 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { X, Plus, Trash2, GripVertical } from 'lucide-react';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Dropdown } from '../../../../../components/Shared/Dropdown';
 import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';
@@ -10,6 +14,7 @@ import type { CTRRule } from '../../../../../core/services/settingsService';
 const PRESET_COLORS = [
     '#EF4444', // Red
     '#F59E0B', // Amber
+    '#e4d90aff', // Yellow    
     '#10B981', // Green
     '#3B82F6', // Blue
     '#8B5CF6', // Violet
@@ -110,13 +115,119 @@ const OperatorSelect: React.FC<{ value: string; onChange: (op: CTRRule['operator
     );
 };
 
+// Sortable Rule Item Component
+interface SortableRuleItemProps {
+    rule: CTRRule;
+    onUpdate: (id: string, updates: Partial<CTRRule>) => void;
+    onRemove: (id: string) => void;
+    onBlur: () => void;
+    showHandle: boolean;
+}
 
+const SortableRuleItem: React.FC<SortableRuleItemProps> = ({ rule, onUpdate, onRemove, onBlur, showHandle }) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: rule.id });
 
-export const TrafficCTRConfig: React.FC<{
+    const style: React.CSSProperties = {
+        transform: CSS.Transform.toString(transform),
+        transition: isDragging ? undefined : transition,
+        opacity: isDragging ? 0.5 : 1,
+        position: 'relative',
+        zIndex: isDragging ? 50 : 1,
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className={`flex items-center gap-2 px-2 py-1.5 bg-[#252525] rounded-lg group w-full overflow-hidden ${!isDragging ? 'transition-all' : ''}`}
+        >
+            {/* Drag Handle */}
+            {showHandle && (
+                <div
+                    {...attributes}
+                    {...listeners}
+                    className="cursor-grab active:cursor-grabbing text-text-tertiary hover:text-text-primary transition-colors touch-none shrink-0"
+                >
+                    <GripVertical size={14} />
+                </div>
+            )}
+
+            <OperatorSelect
+                value={rule.operator}
+                onChange={(op) => onUpdate(rule.id, { operator: op })}
+            />
+
+            <div className="flex-1 flex justify-center">
+                {rule.operator === 'between' ? (
+                    <div className="flex items-center gap-1">
+                        <input
+                            type="text"
+                            value={rule.value}
+                            onChange={(e) => {
+                                const val = e.target.value.replace(/[^\d.]/g, '');
+                                onUpdate(rule.id, { value: Number(val) });
+                            }}
+                            onBlur={onBlur}
+                            className="w-10 h-7 bg-transparent text-text-primary text-xs font-medium focus:bg-[#2A2A2A] rounded px-1 focus:outline-none text-center transition-colors"
+                        />
+                        <span className="text-[10px] text-text-tertiary">-</span>
+                        <input
+                            type="text"
+                            value={rule.maxValue || ''}
+                            onChange={(e) => {
+                                const val = e.target.value.replace(/[^\d.]/g, '');
+                                onUpdate(rule.id, { maxValue: Number(val) });
+                            }}
+                            onBlur={onBlur}
+                            className="w-10 h-7 bg-transparent text-text-primary text-xs font-medium focus:bg-[#2A2A2A] rounded px-1 focus:outline-none text-center transition-colors"
+                        />
+                    </div>
+                ) : (
+                    <div className="relative flex items-center">
+                        <input
+                            type="text"
+                            value={rule.value}
+                            onChange={(e) => {
+                                const val = e.target.value.replace(/[^\d.]/g, '');
+                                onUpdate(rule.id, { value: Number(val) });
+                            }}
+                            onBlur={onBlur}
+                            className="w-10 h-7 bg-transparent text-text-primary text-xs font-medium focus:bg-[#2A2A2A] rounded px-1 focus:outline-none text-center transition-colors"
+                        />
+                        <span className="ml-0.5 text-[10px] text-text-tertiary pointer-events-none">%</span>
+                    </div>
+                )}
+            </div>
+
+            <ColorSelect
+                value={rule.color}
+                onChange={(color) => onUpdate(rule.id, { color })}
+            />
+
+            <button
+                onClick={() => onRemove(rule.id)}
+                className="opacity-0 group-hover:opacity-100 text-text-tertiary hover:text-red-500 transition-all p-1.5"
+            >
+                <Trash2 size={13} />
+            </button>
+        </div>
+    );
+};
+
+interface TrafficCTRConfigProps {
     isOpen: boolean;
     onClose: () => void;
     anchorRef: React.RefObject<any>;
-}> = ({ isOpen, onClose, anchorRef }) => {
+}
+
+export const TrafficCTRConfig: React.FC<TrafficCTRConfigProps> = ({ isOpen, onClose, anchorRef }) => {
     const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
     const popupRef = useRef<HTMLDivElement>(null);
 
@@ -155,7 +266,7 @@ export const TrafficCTRConfig: React.FC<{
         return () => document.removeEventListener('mousedown', handleClickOutside, true);
     }, [isOpen, onClose, anchorRef]);
 
-    if (!isOpen || !position) return null;
+
 
     const saveRules = async (newRules: CTRRule[]) => {
         if (!user?.uid || !currentChannel?.id) return;
@@ -201,18 +312,34 @@ export const TrafficCTRConfig: React.FC<{
         saveRules(rules.filter(r => r.id !== id));
     };
 
-    const sortAndSaveRules = () => {
-        const sorted = [...rules].sort((a, b) => a.value - b.value);
-        if (JSON.stringify(sorted) !== JSON.stringify(rules)) {
-            saveRules(sorted);
+    // Drag and drop sensors
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 3, // Small distance to prevent accidental drags while keeping it responsive
+            },
+        })
+    );
+
+    const handleDragEnd = (event: any) => {
+        const { active, over } = event;
+
+        if (over && active.id !== over.id) {
+            const oldIndex = rules.findIndex((r) => r.id === active.id);
+            const newIndex = rules.findIndex((r) => r.id === over.id);
+
+            const reorderedRules = arrayMove(rules, oldIndex, newIndex);
+            saveRules(reorderedRules);
         }
     };
+
+    if (!isOpen || !position) return null;
 
     return createPortal(
         <div
             ref={popupRef}
             style={{ top: position.top, left: position.left }}
-            className="fixed z-dropdown w-[280px] bg-[#1F1F1F] rounded-xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200"
+            className="fixed z-dropdown w-[280px] bg-[#1F1F1F] rounded-xl shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
         >
             {/* Header matching View Mode style */}
             <div className="px-4 py-3 border-b border-[#2a2a2a] flex justify-between items-center">
@@ -227,76 +354,36 @@ export const TrafficCTRConfig: React.FC<{
                 </button>
             </div>
 
-            <div className="flex flex-col max-h-[300px] overflow-y-auto custom-scrollbar p-2">
+            <div className="flex flex-col max-h-[400px] overflow-y-auto overflow-x-hidden custom-scrollbar p-2">
                 {rules.length === 0 ? (
                     <div className="flex items-center justify-center h-[40px] text-text-tertiary text-xs">
                         No rules yet.
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-2">
-                        {rules.map((rule) => (
-                            <div key={rule.id} className="flex items-center gap-2 px-2 py-1.5 bg-[#252525] rounded-lg group transition-all">
-                                <OperatorSelect
-                                    value={rule.operator}
-                                    onChange={(op) => updateRule(rule.id, { operator: op })}
-                                />
-
-                                <div className="flex-1 flex justify-center">
-                                    {rule.operator === 'between' ? (
-                                        <div className="flex items-center gap-1">
-                                            <input
-                                                type="text"
-                                                value={rule.value}
-                                                onChange={(e) => {
-                                                    const val = e.target.value.replace(/[^\d.]/g, '');
-                                                    updateRule(rule.id, { value: Number(val) });
-                                                }}
-                                                onBlur={sortAndSaveRules}
-                                                className="w-10 h-7 bg-transparent text-text-primary text-xs font-medium focus:bg-[#2A2A2A] rounded px-1 focus:outline-none text-center transition-colors"
-                                            />
-                                            <span className="text-[10px] text-text-tertiary">-</span>
-                                            <input
-                                                type="text"
-                                                value={rule.maxValue || ''}
-                                                onChange={(e) => {
-                                                    const val = e.target.value.replace(/[^\d.]/g, '');
-                                                    updateRule(rule.id, { maxValue: Number(val) });
-                                                }}
-                                                onBlur={sortAndSaveRules}
-                                                className="w-10 h-7 bg-transparent text-text-primary text-xs font-medium focus:bg-[#2A2A2A] rounded px-1 focus:outline-none text-center transition-colors"
-                                            />
-                                        </div>
-                                    ) : (
-                                        <div className="relative flex items-center">
-                                            <input
-                                                type="text"
-                                                value={rule.value}
-                                                onChange={(e) => {
-                                                    const val = e.target.value.replace(/[^\d.]/g, '');
-                                                    updateRule(rule.id, { value: Number(val) });
-                                                }}
-                                                onBlur={sortAndSaveRules}
-                                                className="w-10 h-7 bg-transparent text-text-primary text-xs font-medium focus:bg-[#2A2A2A] rounded px-1 focus:outline-none text-center transition-colors"
-                                            />
-                                            <span className="ml-0.5 text-[10px] text-text-tertiary pointer-events-none">%</span>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <ColorSelect
-                                    value={rule.color}
-                                    onChange={(color) => updateRule(rule.id, { color })}
-                                />
-
-                                <button
-                                    onClick={() => removeRule(rule.id)}
-                                    className="opacity-0 group-hover:opacity-100 text-text-tertiary hover:text-red-500 transition-all p-1.5"
-                                >
-                                    <Trash2 size={13} />
-                                </button>
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                        modifiers={[restrictToVerticalAxis]}
+                    >
+                        <SortableContext
+                            items={rules.map(r => r.id)}
+                            strategy={verticalListSortingStrategy}
+                        >
+                            <div className="flex flex-col gap-2 overflow-hidden">
+                                {rules.map((rule) => (
+                                    <SortableRuleItem
+                                        key={rule.id}
+                                        rule={rule}
+                                        onUpdate={updateRule}
+                                        onRemove={removeRule}
+                                        onBlur={() => { }}
+                                        showHandle={rules.length > 1}
+                                    />
+                                ))}
                             </div>
-                        ))}
-                    </div>
+                        </SortableContext>
+                    </DndContext>
                 )}
             </div>
 
