@@ -5,7 +5,7 @@ import { TrafficTable } from './components/TrafficTable';
 import { TrafficUploader } from './components/TrafficUploader';
 import { ColumnMapperModal } from './modals/ColumnMapperModal';
 import type { VideoDetails } from '../../../../core/utils/youtubeApi';
-import { parseTrafficCsv } from '../../../../core/utils/csvParser';
+import { parseTrafficCsv } from './utils/csvParser';
 import { TrafficService } from '../../../../core/services/TrafficService';
 import { Settings } from 'lucide-react';
 import { TrafficCTRConfig } from './components/TrafficCTRConfig';
@@ -109,7 +109,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                         // Load current snapshot data
                         if (snapshot.storagePath) {
                             const { downloadCsvSnapshot } = await import('../../../../core/services/storageService');
-                            const { parseTrafficCsv } = await import('../../../../core/utils/csvParser');
+                            const { parseTrafficCsv } = await import('./utils/csvParser');
 
                             const blob = await downloadCsvSnapshot(snapshot.storagePath);
                             const file = new File([blob], 'snapshot.csv', { type: 'text/csv' });
@@ -133,7 +133,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                                 // Load previous snapshot data
                                 if (prevSnapshot.storagePath) {
                                     const { downloadCsvSnapshot } = await import('../../../../core/services/storageService');
-                                    const { parseTrafficCsv } = await import('../../../../core/utils/csvParser');
+                                    const { parseTrafficCsv } = await import('./utils/csvParser');
 
                                     const blob = await downloadCsvSnapshot(prevSnapshot.storagePath);
                                     const file = new File([blob], 'prev-snapshot.csv', { type: 'text/csv' });

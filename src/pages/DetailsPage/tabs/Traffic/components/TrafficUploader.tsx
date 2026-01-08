@@ -1,8 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { Upload, FileText, AlertCircle, Loader2 } from 'lucide-react';
-import { parseTrafficCsv } from '../../../../../core/utils/csvParser';
+import { parseTrafficCsv } from '../utils/csvParser';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import { Button } from '../../../../../components/ui/atoms/Button';
+import { useUIStore } from '../../../../../core/stores/uiStore';
 
 interface TrafficUploaderProps {
     onUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<void>;
@@ -21,6 +22,7 @@ export const TrafficUploader: React.FC<TrafficUploaderProps> = ({
     const [isDragging, setIsDragging] = useState(false);
     const [isInputProcessing, setIsInputProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const { showToast } = useUIStore();
 
     const isBusy = isLoading || isInputProcessing;
 
@@ -44,9 +46,17 @@ export const TrafficUploader: React.FC<TrafficUploaderProps> = ({
                 return;
             }
             await onUpload(sources, totalRow, file);
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            // Parse error - open mapper modal
+
+            // Handle specific validation errors
+            if (err.message === 'NO_VIDEO_DATA') {
+                showToast("No video data found in CSV", "error");
+                return; // Stop here, do not open mapper
+            }
+
+            // If headers are missing/unrecognized, OR general parse error -> Open Mapper
+            // This covers 'MAPPING_REQUIRED' and unexpected errors
             await onUpload([], undefined, file);
         } finally {
             setIsInputProcessing(false);
