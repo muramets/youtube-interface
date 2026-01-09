@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { BarChart3, ChevronDown, ChevronRight, MoreVertical } from 'lucide-react';
 import { SidebarVersionItem } from '../Packaging/SidebarVersionItem';
 import { PortalTooltip } from '../../../../components/Shared/PortalTooltip';
-import { PackagingSnapshotTooltip } from '../../components/PackagingSnapshotTooltip';
+import { PackagingSnapshotTooltip } from './components/PackagingSnapshotTooltip';
 import type { PackagingVersion } from '../../../../core/utils/youtubeApi';
 import type { TrafficSnapshot } from '../../../../core/types/traffic';
 import { SnapshotContextMenu } from './SnapshotContextMenu';
@@ -221,7 +221,8 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                         >
                                             <div className="w-full">
                                                 <SidebarVersionItem
-                                                    label={`v.${version.versionNumber} (packaging deleted)`}
+                                                    label={`v.${version.versionNumber}`}
+                                                    isDeleted={true}
                                                     isViewing={viewingVersion === version.versionNumber && !selectedSnapshot}
                                                     isVideoActive={activeVersion === version.versionNumber}
                                                     onClick={() => onVersionClick(version.versionNumber)}
@@ -231,7 +232,8 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                         </PortalTooltip>
                                     ) : (
                                         <SidebarVersionItem
-                                            label={isPackagingDeleted ? `v.${version.versionNumber} (packaging deleted)` : `v.${version.versionNumber}`}
+                                            label={`v.${version.versionNumber}`}
+                                            isDeleted={isPackagingDeleted}
                                             isViewing={viewingVersion === version.versionNumber && !selectedSnapshot}
                                             isVideoActive={activeVersion === version.versionNumber}
                                             onClick={() => onVersionClick(version.versionNumber)}

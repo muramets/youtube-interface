@@ -18,6 +18,7 @@ interface SidebarVersionItemProps {
     onClick: () => void;
     onDelete?: () => void;
     isParentOfSelected?: boolean; // When a child snapshot is selected
+    isDeleted?: boolean;
 }
 
 export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
@@ -27,6 +28,7 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
     onClick,
     onDelete,
     isParentOfSelected = false,
+    isDeleted = false,
 }) => {
     return (
         <div
@@ -42,12 +44,20 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
                 }
             `}
             style={isParentOfSelected && !isViewing ? { backgroundColor: 'color-mix(in srgb, var(--sidebar-active), transparent 50%)' } : {}}
+            title={label}
         >
-            <div className="flex items-center gap-2">
-                <span className="text-sm">{label}</span>
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+                <span className="text-sm truncate">{label}</span>
+
+                {/* DELETED badge */}
+                {isDeleted && (
+                    <div className="inline-flex items-center flex-shrink-0 -mt-0.5">
+                        <Badge variant="error">Deleted</Badge>
+                    </div>
+                )}
 
                 {/* ACTIVE badge - always rendered, controlled by opacity for smooth transitions */}
-                <div className={`inline-flex items-center transition-opacity duration-200 ${isVideoActive ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                <div className={`inline-flex items-center transition-opacity duration-200 flex-shrink-0 -mt-0.5 ${isVideoActive ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                     <Badge variant="success">Active</Badge>
                 </div>
             </div>
@@ -59,7 +69,7 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
                         e.stopPropagation();
                         onDelete();
                     }}
-                    className="p-1 text-text-secondary hover:text-red-500 rounded transition-all opacity-0 group-hover:opacity-100"
+                    className="p-1 text-text-secondary hover:text-red-500 rounded transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
                     title="Delete version"
                 >
                     <Trash2 size={12} />
