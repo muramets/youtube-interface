@@ -4,6 +4,7 @@ import { parseTrafficCsv } from '../utils/csvParser';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import { Button } from '../../../../../components/ui/atoms/Button';
 import { useUIStore } from '../../../../../core/stores/uiStore';
+import { UX_DELAYS } from '../utils/constants';
 
 interface TrafficUploaderProps {
     onUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<void>;
@@ -36,7 +37,7 @@ export const TrafficUploader: React.FC<TrafficUploaderProps> = ({
         setIsInputProcessing(true);
         try {
             // Artificial delay for better UX (so loader doesn't flash too fast)
-            await new Promise(resolve => setTimeout(resolve, 600));
+            await new Promise(resolve => setTimeout(resolve, UX_DELAYS.CSV_PROCESSING_MIN));
 
             const { sources, totalRow } = await parseTrafficCsv(file);
 

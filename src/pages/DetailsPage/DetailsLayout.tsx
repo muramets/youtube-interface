@@ -7,7 +7,7 @@ import { usePackagingVersions } from './tabs/Packaging/hooks/usePackagingVersion
 import { useTrafficData } from './tabs/Traffic/hooks/useTrafficData';
 import { ConfirmationModal } from '../../components/Shared/ConfirmationModal';
 import { SnapshotRequestModal } from './tabs/Traffic/modals/SnapshotRequestModal';
-import { TrafficService } from '../../core/services/TrafficService';
+import { TrafficService } from '../../core/services/traffic';
 import { parseTrafficCsv } from './tabs/Traffic/utils/csvParser';
 import { generateSnapshotId } from '../../core/utils/snapshotUtils';
 import { useUIStore } from '../../core/stores/uiStore';

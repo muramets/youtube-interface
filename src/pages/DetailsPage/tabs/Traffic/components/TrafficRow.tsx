@@ -4,6 +4,7 @@ import type { TrafficSource, TrafficGroup } from '../../../../../core/types/traf
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { PortalTooltip } from '../../../../../components/Shared/PortalTooltip';
 import { VideoPreviewTooltip } from '../../../../../components/Shared/VideoPreviewTooltip';
+import { formatDuration } from '../utils/formatters';
 import type { CTRRule } from '../../../../../core/services/settingsService';
 
 interface TrafficRowProps {
@@ -15,19 +16,6 @@ interface TrafficRowProps {
     onRowClick: (id: string, index: number, e: React.MouseEvent) => void;
     ctrRules?: CTRRule[];
 }
-
-// Helper function to format duration
-const formatDuration = (duration: string) => {
-    // If already formatted (HH:MM:SS), return as is
-    if (duration.includes(':')) return duration;
-    // Otherwise, assume it's seconds and format
-    const seconds = parseInt(duration);
-    if (isNaN(seconds)) return duration;
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-};
 
 const getCtrColor = (ctr: number | string, rules: CTRRule[]): string | undefined => {
     const val = typeof ctr === 'string' ? parseFloat(ctr) : ctr;

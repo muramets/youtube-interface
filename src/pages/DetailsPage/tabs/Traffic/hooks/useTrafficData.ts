@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { TrafficService } from '../../../../../core/services/TrafficService';
+import { TrafficService } from '../../../../../core/services/traffic';
 import { useUIStore } from '../../../../../core/stores/uiStore';
 import type { TrafficData, TrafficSource } from '../../../../../core/types/traffic';
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';

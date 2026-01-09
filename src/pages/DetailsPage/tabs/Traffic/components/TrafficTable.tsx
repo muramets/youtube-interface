@@ -5,7 +5,8 @@ import type { TrafficSource, TrafficGroup } from '../../../../../core/types/traf
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { TrafficRow } from './TrafficRow';
 import { TrafficEmptyState } from './TrafficEmptyState';
-
+import { formatDuration, durationToSeconds } from '../utils/formatters';
+import { TRAFFIC_TABLE } from '../utils/constants';
 import type { CTRRule } from '../../../../../core/services/settingsService';
 
 interface TrafficTableProps {
@@ -57,29 +58,6 @@ export const TrafficTable = memo<TrafficTableProps>(({
     const parentRef = useRef<HTMLDivElement>(null);
     const [sortConfig, setSortConfig] = useState<SortConfig | null>({ key: 'views', direction: 'desc' });
 
-    // Helper function to format duration
-    const formatDuration = (duration: string) => {
-        // If already formatted (HH:MM:SS), return as is
-        if (duration.includes(':')) return duration;
-        // Otherwise, assume it's seconds and format
-        const seconds = parseInt(duration);
-        if (isNaN(seconds)) return duration;
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        const secs = seconds % 60;
-        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    // Convert duration to seconds for sorting
-    const durationToSeconds = (duration: string): number => {
-        if (!duration) return 0;
-        if (!duration.includes(':')) return parseInt(duration) || 0;
-        const parts = duration.split(':').map(p => parseInt(p) || 0);
-        if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
-        if (parts.length === 2) return parts[0] * 60 + parts[1];
-        return parts[0] || 0;
-    };
-
     const sortedData = useMemo(() => {
         if (!sortConfig) return data;
 
@@ -103,8 +81,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
     const rowVirtualizer = useVirtualizer({
         count: sortedData.length,
         getScrollElement: () => parentRef.current,
-        estimateSize: () => 44, // Approximate height of a row
-        overscan: 10, // Render 10 items outside of viewport
+        estimateSize: () => TRAFFIC_TABLE.ROW_HEIGHT,
+        overscan: TRAFFIC_TABLE.OVERSCAN_COUNT,
     });
 
     const handleRowClick = useCallback((id: string, _index: number, e: React.MouseEvent) => {
