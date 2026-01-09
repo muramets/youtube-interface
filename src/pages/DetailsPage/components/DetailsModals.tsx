@@ -1,6 +1,7 @@
 import React from 'react';
 import { ConfirmationModal } from '../../../components/Shared/ConfirmationModal';
 import { SnapshotRequestModal } from '../tabs/Traffic/modals/SnapshotRequestModal';
+import { AlertTriangle } from 'lucide-react';
 import type { ModalState } from '../types/versionManagement';
 
 interface DetailsModalsProps {
@@ -60,7 +61,8 @@ export const DetailsModals: React.FC<DetailsModalsProps> = ({
 
                                 <div className="bg-yellow-500/10 rounded-lg p-3.5 text-sm text-yellow-200/90">
                                     <p className="font-medium mb-2 text-yellow-100 flex items-center gap-2">
-                                        ⚠️ Traffic data will be preserved
+                                        <AlertTriangle size={16} className="text-yellow-500" />
+                                        Traffic data will be preserved
                                     </p>
                                     <ul className="list-disc list-outside ml-4 space-y-1.5 opacity-90">
                                         <li>
