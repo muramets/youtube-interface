@@ -39,7 +39,7 @@ export const TrafficDataService = {
         try {
             const docRef = doc(db, path);
             // Sanitize data to remove any undefined fields that Firestore rejects
-            const sanitizedData = this.sanitize(data);
+            const sanitizedData = TrafficDataService.sanitize(data);
             await setDoc(docRef, sanitizedData, { merge: true });
         } catch (error) {
             console.error('Error saving traffic data:', error);
@@ -82,7 +82,7 @@ export const TrafficDataService = {
      */
     async clear(userId: string, channelId: string, videoId: string): Promise<void> {
         console.log('[TrafficDataService] clear called');
-        const currentData = await this.fetch(userId, channelId, videoId);
+        const currentData = await TrafficDataService.fetch(userId, channelId, videoId);
 
         const path = `users/${userId}/channels/${channelId}/videos/${videoId}/traffic/main`;
         const docRef = doc(db, path);

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 
 export interface SegmentedControlOption<T extends string | number> {
     value: T;

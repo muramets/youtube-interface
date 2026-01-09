@@ -209,10 +209,13 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                 {/* Level 3: Snapshots (sub-items under version) */}
                                 {isVersionExpanded && hasSnapshots && (
                                     <div className="flex flex-col gap-0.5 py-0.5">
-                                        {versionSnapshots.map((snapshot, index) => {
+                                        {versionSnapshots.map((snapshot) => {
                                             const { display, tooltip } = formatSnapshotDate(snapshot.timestamp);
                                             const isSnapshotSelected = selectedSnapshot === snapshot.id;
-                                            const isLatest = index === 0;
+
+                                            // Find globally latest snapshot (across all versions)
+                                            const globalLatestTimestamp = Math.max(...snapshots.map(s => s.timestamp));
+                                            const isLatest = snapshot.timestamp === globalLatestTimestamp;
 
                                             return (
                                                 <div

@@ -136,10 +136,10 @@ export const TrafficSnapshotService = {
     },
 
     /**
-     * Удаляет снапшот трафика.
-     * Реализует стратегию "Undo":
-     * - Если удаляется ПОСЛЕДНИЙ снапшот -> Откатывает основные данные к предыдущему снапшоту
-     * - Если удаляется ИСТОРИЧЕСКИЙ снапшот -> Просто удаляет запись (данные остаются текущими)
+     * Удаляет последний снапшот трафика.
+     * Реализует стратегию "UNDO": откатывает данные к предыдущему снапшоту.
+     * 
+     * NOTE: UI позволяет удалять только последний снапшот (см. TrafficNav.tsx L240)
      */
     async delete(
         userId: string,
@@ -156,7 +156,6 @@ export const TrafficSnapshotService = {
         if (snapshotIndex === -1) return;
 
         const snapshot = currentData.snapshots[snapshotIndex];
-        const isLatest = snapshotIndex === currentData.snapshots.length - 1;
 
         // 3. Удаляем CSV из Cloud Storage (если существует)
         if (snapshot.storagePath) {
@@ -168,39 +167,29 @@ export const TrafficSnapshotService = {
             }
         }
 
-        // 4. Подготавливаем обновленные данные
+        // 4. UNDO: Откатываемся к предыдущему снапшоту
+        const previousSnapshot = currentData.snapshots[snapshotIndex - 1];
         let updated: TrafficData;
 
-        if (isLatest) {
-            // СТРАТЕГИЯ UNDO: Откатываемся к предыдущему снапшоту
-            const previousSnapshot = currentData.snapshots[snapshotIndex - 1];
+        if (previousSnapshot) {
+            // Откатываемся к данным предыдущего снапшота
+            const prevSources = await this.getVersionSources(previousSnapshot.version, currentData.snapshots);
 
-            if (previousSnapshot) {
-                // Откатываемся к данным предыдущего снапшота
-                const prevSources = await this.getVersionSources(previousSnapshot.version, currentData.snapshots);
-
-                updated = {
-                    ...currentData,
-                    lastUpdated: previousSnapshot.timestamp,
-                    sources: prevSources,
-                    totalRow: previousSnapshot.totalRow,
-                    snapshots: currentData.snapshots.filter(s => s.id !== snapshotId)
-                };
-            } else {
-                // Нет предыдущего снапшота -> Сбрасываем в пустое состояние
-                updated = {
-                    ...currentData,
-                    lastUpdated: Date.now(),
-                    sources: [],
-                    totalRow: undefined,
-                    snapshots: []
-                };
-            }
-        } else {
-            // СТРАТЕГИЯ PRUNING: Просто удаляем запись, оставляем текущие данные
             updated = {
                 ...currentData,
+                lastUpdated: previousSnapshot.timestamp,
+                sources: prevSources,
+                totalRow: previousSnapshot.totalRow,
                 snapshots: currentData.snapshots.filter(s => s.id !== snapshotId)
+            };
+        } else {
+            // Нет предыдущего снапшота -> Сбрасываем в пустое состояние
+            updated = {
+                ...currentData,
+                lastUpdated: Date.now(),
+                sources: [],
+                totalRow: undefined,
+                snapshots: []
             };
         }
 
