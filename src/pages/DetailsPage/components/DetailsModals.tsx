@@ -51,11 +51,28 @@ export const DetailsModals: React.FC<DetailsModalsProps> = ({
                 isOpen={modalState.type === 'DELETE_CONFIRM'}
                 title="Delete Version"
                 message={
-                    modalState.type === 'DELETE_CONFIRM'
-                        ? modalState.snapshotCount > 0
-                            ? `⚠️ This version has ${modalState.snapshotCount} traffic snapshot${modalState.snapshotCount > 1 ? 's' : ''}.\n\nDeleting this version will preserve the traffic data in the Suggested Traffic tab with a "(packaging deleted)" label. You'll still be able to see what packaging drove those views.\n\nAre you sure you want to delete v.${modalState.versionNumber}?`
-                            : `Are you sure you want to delete v.${modalState.versionNumber}? This action cannot be undone.`
-                        : ''
+                    modalState.type === 'DELETE_CONFIRM' ? (
+                        modalState.snapshotCount > 0 ? (
+                            <div className="flex flex-col gap-3">
+                                <p>
+                                    This version has <span className="font-semibold text-text-primary">{modalState.snapshotCount} traffic snapshot{modalState.snapshotCount > 1 ? 's' : ''}</span> attached to it.
+                                </p>
+                                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-sm text-blue-200">
+                                    <p className="font-medium mb-1">Traffic data will be preserved</p>
+                                    <ul className="list-disc list-inside opacity-90 space-y-0.5 ml-1">
+                                        <li>Snapshots will remain in the Traffic tab</li>
+                                        <li>Marked as <span className="font-mono text-xs bg-blue-500/20 px-1 py-0.5 rounded">v.{modalState.versionNumber} (packaging deleted)</span></li>
+                                        <li>Original packaging details viewable via tooltip</li>
+                                    </ul>
+                                </div>
+                                <p className="text-sm text-text-secondary mt-1">
+                                    Are you sure you want to delete <span className="font-medium text-text-primary">v.{modalState.versionNumber}</span>?
+                                </p>
+                            </div>
+                        ) : (
+                            `Are you sure you want to delete v.${modalState.versionNumber}? This action cannot be undone.`
+                        )
+                    ) : ''
                 }
                 confirmLabel="Delete"
                 cancelLabel="Cancel"
