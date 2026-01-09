@@ -77,30 +77,22 @@ export const useVersionManagement = ({
      * Проверяет наличие traffic snapshots для этой версии (только для опубликованных видео).
      */
     const handleDeleteVersion = useCallback((versionNumber: number) => {
-        const isPublished = !!video.publishedVideoId;
+        // Проверяем наличие snapshots для всех видео (включая неопубликованные/custom)
+        const snapshotsForVersion = trafficState.trafficData?.snapshots?.filter(
+            (s: any) => s.version === versionNumber
+        ) || [];
 
-        if (isPublished) {
-            // Для опубликованных видео проверяем наличие snapshots
-            const snapshotsForVersion = trafficState.trafficData?.snapshots?.filter(
-                (s: any) => s.version === versionNumber
-            ) || [];
-
-            onOpenDeleteConfirm(versionNumber, snapshotsForVersion.length);
-        } else {
-            // Для неопубликованных просто открываем modal
-            onOpenDeleteConfirm(versionNumber);
-        }
-    }, [video.publishedVideoId, trafficState, onOpenDeleteConfirm]);
+        onOpenDeleteConfirm(versionNumber, snapshotsForVersion.length);
+    }, [trafficState, onOpenDeleteConfirm]);
 
     /**
      * Подтверждение удаления версии.
      * Для опубликованных видео с traffic snapshots сохраняет packaging данные перед удалением.
      */
     const confirmDelete = useCallback(async (versionNumber: number) => {
-        const isPublished = !!video.publishedVideoId;
-
         // PACKAGING SNAPSHOT PRESERVATION: Сохраняем packaging данные в traffic snapshots
-        if (isPublished && user?.uid && currentChannel?.id && video.id) {
+        // Работает для любых видео, если есть snapshots
+        if (user?.uid && currentChannel?.id && video.id) {
             const snapshotsForVersion = trafficState.trafficData?.snapshots?.filter(
                 (s: any) => s.version === versionNumber
             ) || [];
