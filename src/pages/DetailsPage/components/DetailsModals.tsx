@@ -54,18 +54,18 @@ export const DetailsModals: React.FC<DetailsModalsProps> = ({
                     modalState.type === 'DELETE_CONFIRM' ? (
                         modalState.snapshotCount > 0 ? (
                             <div className="flex flex-col gap-4">
-                                <p className="text-[15px] leading-relaxed text-text-primary">
+                                <p className="text-sm text-text-secondary">
                                     This version generated <span className="font-semibold text-text-primary">{modalState.totalViews.toLocaleString()} views</span> according to CSVs with Suggested Traffic attached to it.
                                 </p>
 
-                                <p className="text-[15px] leading-relaxed text-text-primary">
+                                <p className="text-sm text-text-secondary">
                                     Before you delete this version of packaging, acknowledge what will happen:
                                 </p>
 
                                 <div className="bg-yellow-500/10 rounded-lg p-3.5 text-sm text-yellow-200/90">
                                     <ul className="list-disc list-outside ml-4 space-y-2 opacity-90">
                                         <li>
-                                            <span className="font-medium text-yellow-100">Traffic data will be still saved</span> — Your {modalState.snapshotCount} traffic snapshot{modalState.snapshotCount > 1 ? 's' : ''} will be preserved and remain accessible in the Traffic tab
+                                            <span className="font-medium">Traffic data will be still saved</span> — your {modalState.snapshotCount} traffic snapshot{modalState.snapshotCount > 1 ? 's' : ''} will be preserved and remain accessible in the Traffic tab
                                         </li>
                                         <li>
                                             This version will be labeled as <span className="font-mono text-xs bg-yellow-500/20 px-1 py-0.5 rounded text-yellow-100">deleted</span> in Suggested Traffic tab so you can still view the original title and thumbnail by hovering over the name of deleted version
