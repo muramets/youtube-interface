@@ -6,7 +6,7 @@ import type { ModalState } from '../types/versionManagement';
  */
 type ModalAction =
     | { type: 'OPEN_SWITCH_CONFIRM'; targetVersion: number | 'draft' }
-    | { type: 'OPEN_DELETE_CONFIRM'; versionNumber: number; snapshotCount?: number }
+    | { type: 'OPEN_DELETE_CONFIRM'; versionNumber: number; snapshotCount: number; totalViews: number }
     | {
         type: 'OPEN_SNAPSHOT_REQUEST';
         versionToRestore: number | null;
@@ -27,7 +27,8 @@ const modalReducer = (state: ModalState, action: ModalAction): ModalState => {
             return {
                 type: 'DELETE_CONFIRM',
                 versionNumber: action.versionNumber,
-                snapshotCount: action.snapshotCount || 0
+                snapshotCount: action.snapshotCount || 0,
+                totalViews: action.totalViews
             };
 
         case 'OPEN_SNAPSHOT_REQUEST':
@@ -57,8 +58,8 @@ export const useModalState = () => {
         dispatch({ type: 'OPEN_SWITCH_CONFIRM', targetVersion });
     }, []);
 
-    const openDeleteConfirm = useCallback((versionNumber: number, snapshotCount?: number) => {
-        dispatch({ type: 'OPEN_DELETE_CONFIRM', versionNumber, snapshotCount });
+    const openDeleteConfirm = useCallback((versionNumber: number, snapshotCount: number = 0, totalViews: number = 0) => {
+        dispatch({ type: 'OPEN_DELETE_CONFIRM', versionNumber, snapshotCount, totalViews });
     }, []);
 
     const openSnapshotRequest = useCallback((params: {

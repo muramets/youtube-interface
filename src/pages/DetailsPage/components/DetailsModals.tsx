@@ -1,7 +1,6 @@
 import React from 'react';
 import { ConfirmationModal } from '../../../components/Shared/ConfirmationModal';
 import { SnapshotRequestModal } from '../tabs/Traffic/modals/SnapshotRequestModal';
-import { AlertTriangle } from 'lucide-react';
 import type { ModalState } from '../types/versionManagement';
 
 interface DetailsModalsProps {
@@ -56,29 +55,26 @@ export const DetailsModals: React.FC<DetailsModalsProps> = ({
                         modalState.snapshotCount > 0 ? (
                             <div className="flex flex-col gap-4">
                                 <p className="text-[15px] leading-relaxed text-text-primary">
-                                    This version has <span className="font-semibold">{modalState.snapshotCount} traffic snapshot{modalState.snapshotCount > 1 ? 's' : ''}</span> attached to it.
+                                    This version generated <span className="font-semibold text-text-primary">{modalState.totalViews.toLocaleString()} views</span> according to CSVs with Suggested Traffic attached to it.
+                                </p>
+
+                                <p className="text-[15px] leading-relaxed text-text-primary">
+                                    Before you delete this version of packaging, acknowledge what will happen:
                                 </p>
 
                                 <div className="bg-yellow-500/10 rounded-lg p-3.5 text-sm text-yellow-200/90">
-                                    <p className="font-medium mb-2 text-yellow-100 flex items-center gap-2">
-                                        <AlertTriangle size={16} className="text-yellow-500" />
-                                        Traffic data will be preserved
-                                    </p>
-                                    <ul className="list-disc list-outside ml-4 space-y-1.5 opacity-90">
+                                    <ul className="list-disc list-outside ml-4 space-y-2 opacity-90">
                                         <li>
-                                            Snapshot{modalState.snapshotCount > 1 ? 's' : ''} will remain in the Traffic tab
+                                            <span className="font-medium text-yellow-100">Traffic data will be still saved</span> — Your {modalState.snapshotCount} traffic snapshot{modalState.snapshotCount > 1 ? 's' : ''} will be preserved and remain accessible in the Traffic tab
                                         </li>
                                         <li>
-                                            The version will be labeled as <span className="font-mono text-xs bg-yellow-500/20 px-1 py-0.5 rounded text-yellow-100">deleted</span>
-                                        </li>
-                                        <li>
-                                            Original packaging details (title, thumbnail) viewable on hover
+                                            This version will be labeled as <span className="font-mono text-xs bg-yellow-500/20 px-1 py-0.5 rounded text-yellow-100">deleted</span> in Suggested Traffic tab so you can still view the original title and thumbnail by hovering over the name of deleted version
                                         </li>
                                     </ul>
                                 </div>
 
                                 <p className="text-sm text-text-secondary mt-1">
-                                    Are you sure you want to delete <span className="font-medium text-text-primary">v.{modalState.versionNumber}</span>?
+                                    Are you sure you want to continue?
                                 </p>
                             </div>
                         ) : (
