@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { TrafficTable } from './components/TrafficTable';
 import { TrafficHeader } from './components/TrafficHeader';
 import { TrafficModals } from './components/TrafficModals';
+import { TrafficEmptyState } from './components/TrafficEmptyState';
 import type { VideoDetails } from '../../../../core/utils/youtubeApi';
 import { useTrafficDataLoader } from './hooks/useTrafficDataLoader';
 import { useTrafficSelection } from './hooks/useTrafficSelection';
@@ -153,20 +154,28 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             {/* Main Content - Table with its own scroll */}
             <div className="px-6 pb-6 pt-6">
                 <div className="max-w-[1050px]" style={{ minHeight: '200px', maxHeight: 'calc(100vh - 200px)' }}>
-                    <TrafficTable
-                        data={displayedSources}
-                        groups={trafficData?.groups || []}
-                        selectedIds={selectedIds}
-                        isLoading={isLoading || isLoadingSnapshot}
-                        ctrRules={ctrRules}
-                        viewMode={viewMode}
-                        onToggleSelection={toggleSelection}
-                        onToggleAll={toggleAll}
-                        activeVersion={activeVersion}
-                        viewingVersion={viewingVersion}
-                        onUpload={handleUploadWithErrorTracking}
-                        hasExistingSnapshot={hasExistingSnapshot}
-                    />
+                    {isEmpty && !isLoading && !isLoadingSnapshot ? (
+                        <TrafficEmptyState
+                            onUpload={handleUploadWithErrorTracking}
+                            hasExistingSnapshot={hasExistingSnapshot}
+                            mode="no-data"
+                        />
+                    ) : (
+                        <TrafficTable
+                            data={displayedSources}
+                            groups={trafficData?.groups || []}
+                            selectedIds={selectedIds}
+                            isLoading={isLoading || isLoadingSnapshot}
+                            ctrRules={ctrRules}
+                            viewMode={viewMode}
+                            onToggleSelection={toggleSelection}
+                            onToggleAll={toggleAll}
+                            activeVersion={activeVersion}
+                            viewingVersion={viewingVersion}
+                            onUpload={handleUploadWithErrorTracking}
+                            hasExistingSnapshot={hasExistingSnapshot}
+                        />
+                    )}
                 </div>
             </div>
 

@@ -125,12 +125,24 @@ export const useTrafficDataLoader = ({
                         const periodStart = period?.startDate;
                         const periodEnd = period?.endDate;
 
+                        console.log('[DEBUG] Calling TrafficService.getVersionSources with:', {
+                            version: viewingVersion,
+                            periodStart,
+                            periodEnd,
+                            periodIndex: finalIndex
+                        });
+
                         const sources = await TrafficService.getVersionSources(
                             viewingVersion as number,
                             trafficData.snapshots || [],
                             periodStart,
                             periodEnd
                         );
+
+                        console.log('[DEBUG] TrafficService.getVersionSources returned:', {
+                            sourcesCount: sources.length,
+                            sources: sources.slice(0, 2) // First 2 for inspection
+                        });
                         console.log('[useTrafficDataLoader] Loaded formatted sources from latest snapshot:', sources);
 
                         if (viewMode === 'delta') {

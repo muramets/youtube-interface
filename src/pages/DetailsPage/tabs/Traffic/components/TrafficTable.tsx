@@ -173,22 +173,24 @@ export const TrafficTable = memo<TrafficTableProps>(({
 
     return (
         <div className="w-full h-full flex flex-col bg-bg-secondary/30 rounded-xl border border-white/5 overflow-hidden">
-            {/* Fixed Header */}
-            <div className="grid grid-cols-[40px_1fr_100px_100px_120px_100px] gap-4 px-4 py-3 bg-white/5 border-b border-white/5 text-xs font-medium text-text-secondary uppercase tracking-wider flex-shrink-0 group">
-                <div className="flex items-center justify-center">
-                    <Checkbox
-                        checked={isAllSelected}
-                        indeterminate={isIndeterminate}
-                        onChange={handleHeaderCheckbox}
-                        disabled={isLoading || data.length === 0}
-                    />
+            {/* Fixed Header - Show when loading OR when there's data */}
+            {(isLoading || data.length > 0) && (
+                <div className="grid grid-cols-[40px_1fr_100px_100px_120px_100px] gap-4 px-4 py-3 bg-white/5 border-b border-white/5 text-xs font-medium text-text-secondary uppercase tracking-wider flex-shrink-0 group">
+                    <div className="flex items-center justify-center">
+                        <Checkbox
+                            checked={isAllSelected}
+                            indeterminate={isIndeterminate}
+                            onChange={handleHeaderCheckbox}
+                            disabled={isLoading || data.length === 0}
+                        />
+                    </div>
+                    <div>Traffic Source</div>
+                    {renderHeaderCell('Impr.', 'impressions')}
+                    {renderHeaderCell('CTR', 'ctr')}
+                    {renderHeaderCell('Views', 'views')}
+                    {renderHeaderCell('AVD', 'avgViewDuration')}
                 </div>
-                <div>Traffic Source</div>
-                {renderHeaderCell('Impr.', 'impressions')}
-                {renderHeaderCell('CTR', 'ctr')}
-                {renderHeaderCell('Views', 'views')}
-                {renderHeaderCell('AVD', 'avgViewDuration')}
-            </div>
+            )}
 
             {/* Scrollable Body */}
             <div
@@ -221,18 +223,6 @@ export const TrafficTable = memo<TrafficTableProps>(({
                         hasExistingSnapshot={hasExistingSnapshot}
                         mode="no-new-data"
                     />
-                ) : data.length === 0 && !hasExistingSnapshot ? (
-                    <TrafficEmptyState
-                        onUpload={onUpload}
-                        hasExistingSnapshot={hasExistingSnapshot}
-                        mode="no-data"
-                    />
-                ) : data.length === 0 ? (
-                    // Fallback: empty with snapshots but not in delta mode (shouldn't normally happen)
-                    // Show loading state to avoid flash
-                    <div className="px-4 py-3 text-xs font-medium text-center text-text-secondary">
-                        Loading...
-                    </div>
                 ) : (
                     <>
                         {computedTotal && (
