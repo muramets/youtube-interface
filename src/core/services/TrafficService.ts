@@ -1,5 +1,5 @@
 import { db } from '../../config/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, deleteField, getDocFromServer } from 'firebase/firestore';
 import type { TrafficData, TrafficSource, TrafficSnapshot } from '../types/traffic';
 import { generateSnapshotId } from '../utils/snapshotUtils';
 import { uploadCsvSnapshot } from './storageService';
@@ -14,7 +14,8 @@ export const TrafficService = {
         const path = `users/${userId}/channels/${channelId}/videos/${videoId}/traffic/main`;
         try {
             const docRef = doc(db, path);
-            const snapshot = await getDoc(docRef);
+            // Use getDocFromServer to ensure we don't get stale cached data
+            const snapshot = await getDocFromServer(docRef);
             if (snapshot.exists()) {
                 const data = snapshot.data() as TrafficData;
                 // Ensure array existence for older data
@@ -58,6 +59,10 @@ export const TrafficService = {
         newTotalRow?: TrafficSource
     ): TrafficData {
         const now = Date.now();
+        console.log('[TrafficService] mergeTrafficData:', {
+            newSourcesLen: newSources.length,
+            currentSnapshotsLen: currentData?.snapshots?.length
+        });
 
         const merged: TrafficData = {
             ...currentData,
@@ -173,9 +178,9 @@ export const TrafficService = {
 
         const updated: TrafficData = {
             lastUpdated: Date.now(),
-            sources: currentData?.sources || [],
+            sources: sources, // Update sources to latest
             groups: currentData?.groups || [],
-            totalRow: currentData?.totalRow,
+            totalRow: totalRow || currentData?.totalRow, // Update totalRow
             snapshots: [...(currentData?.snapshots || []), snapshot]
         };
 
@@ -247,7 +252,11 @@ export const TrafficService = {
         version: number,
         snapshots: TrafficSnapshot[]
     ): Promise<TrafficSource[]> {
-        const snapshot = snapshots.find(s => s.version === version);
+        // Find ALL snapshots for this version and take the LAST one (latest)
+        // Assuming snapshots are ordered chronologically ASC or handled by caller sorting
+        const versionSnapshots = snapshots.filter(s => s.version === version);
+        const snapshot = versionSnapshots[versionSnapshots.length - 1];
+
         if (!snapshot) return [];
 
         // Legacy: sources stored in Firestore
@@ -259,7 +268,7 @@ export const TrafficService = {
         if (snapshot.storagePath) {
             try {
                 const { downloadCsvSnapshot } = await import('./storageService');
-                const { parseTrafficCsv } = await import('../utils/csvParser');
+                const { parseTrafficCsv } = await import('../../pages/DetailsPage/tabs/Traffic/utils/csvParser');
 
                 const blob = await downloadCsvSnapshot(snapshot.storagePath);
                 const file = new File([blob], 'snapshot.csv', { type: 'text/csv' });
@@ -362,5 +371,35 @@ export const TrafficService = {
         }
 
         await this.saveTrafficData(userId, channelId, videoId, updated);
+    },
+
+    /**
+     * Clears the current traffic data (sources and totalRow) for the video.
+     * This is used when starting a new version to ensure a clean slate.
+     * Preserves snapshots history.
+     */
+    async clearCurrentTrafficData(
+        userId: string,
+        channelId: string,
+        videoId: string
+    ): Promise<void> {
+        console.log('[TrafficService] clearCurrentTrafficData called');
+        const currentData = await this.fetchTrafficData(userId, channelId, videoId);
+
+        const path = `users/${userId}/channels/${channelId}/videos/${videoId}/traffic/main`;
+        const docRef = doc(db, path);
+        try {
+            await setDoc(docRef, {
+                lastUpdated: Date.now(),
+                sources: [],
+                totalRow: deleteField(),
+                snapshots: currentData?.snapshots || [],
+                groups: currentData?.groups || []
+            }, { merge: true });
+            console.log('[TrafficService] Data cleared successfully');
+        } catch (e) {
+            console.error('[TrafficService] Failed to clear data:', e);
+            throw e;
+        }
     }
 };

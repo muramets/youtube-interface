@@ -93,13 +93,23 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     // Load displayed data based on selected snapshot, version, and view mode
     useEffect(() => {
         const loadData = async () => {
+            console.log('[TrafficTab] loadData triggered:', {
+                viewingVersion,
+                activeVersion,
+                selectedSnapshot,
+                dataSourcesLen: trafficData?.sources?.length,
+                snapshotsLen: trafficData?.snapshots?.length
+            });
+
             if (!trafficData?.sources) {
+                console.log('[TrafficTab] No sources in trafficData, setting empty');
                 setDisplayedSources([]);
                 return;
             }
 
             // Priority 1: Specific snapshot selected
             if (selectedSnapshot) {
+                console.log('[TrafficTab] Loading specific snapshot:', selectedSnapshot);
                 setIsLoadingSnapshot(true);
                 try {
                     const snapshot = trafficData.snapshots?.find((s: any) => s.id === selectedSnapshot);
@@ -197,20 +207,55 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
             // Priority 2: Version selected (no specific snapshot)
             if (viewingVersion === 'draft' || viewingVersion === activeVersion) {
-                // Current version - synchronous
-                if (viewMode === 'delta') {
-                    // Delta: show new views since last snapshot
-                    const delta = TrafficService.calculateVersionDelta(
-                        trafficData.sources,
-                        activeVersion,
-                        trafficData.snapshots || []
-                    );
-                    setDisplayedSources(delta);
+                // Check if we have snapshots for this version
+                const versionSnapshots = (trafficData.snapshots || []).filter((s: any) => s.version === viewingVersion);
+
+                // If we have snapshots, we MUST load from the LATEST snapshot to ensure consistency
+                // `trafficData.sources` might be stale (e.g. from an old restoration that didn't update sources),
+                // so we only use it if there's truly NO snapshot history (e.g. fresh unsaved data).
+                if (versionSnapshots.length > 0) {
+                    console.log('[TrafficTab] Active version has snapshots, loading LATEST snapshot to ensure accuracy');
+                    setIsLoadingSnapshot(true);
+                    try {
+                        const sources = await TrafficService.getVersionSources(
+                            viewingVersion as number,
+                            trafficData.snapshots || []
+                        );
+                        console.log('[TrafficTab] Loaded formatted sources from latest snapshot:', sources);
+
+                        if (viewMode === 'delta') {
+                            const delta = TrafficService.calculateVersionDelta(
+                                sources,
+                                activeVersion,
+                                trafficData.snapshots || []
+                            );
+                            setDisplayedSources(delta);
+                        } else {
+                            setDisplayedSources(sources);
+                        }
+                    } catch (error) {
+                        console.error('Failed to load version sources:', error);
+                        // Fallback to sources if snapshot load fails
+                        setDisplayedSources(trafficData.sources || []);
+                    } finally {
+                        setIsLoadingSnapshot(false);
+                    }
                 } else {
-                    // Cumulative: show total views
-                    setDisplayedSources(trafficData.sources);
+                    // No snapshots -> checking "Working Copy" (trafficData.sources)
+                    console.log('[TrafficTab] No snapshots for active version, using trafficData.sources');
+                    if (viewMode === 'delta') {
+                        const delta = TrafficService.calculateVersionDelta(
+                            trafficData.sources || [],
+                            activeVersion,
+                            trafficData.snapshots || []
+                        );
+                        setDisplayedSources(delta);
+                    } else {
+                        setDisplayedSources(trafficData.sources || []);
+                    }
                 }
             } else {
+                console.log('[TrafficTab] Loading historical version:', viewingVersion);
                 // Historical version - async (may load from Storage)
                 setIsLoadingSnapshot(true);
                 try {
@@ -218,6 +263,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                         viewingVersion as number,
                         trafficData.snapshots || []
                     );
+                    console.log('[TrafficTab] Loaded historical sources:', sources);
                     setDisplayedSources(sources);
                 } catch (error) {
                     console.error('Failed to load version sources:', error);

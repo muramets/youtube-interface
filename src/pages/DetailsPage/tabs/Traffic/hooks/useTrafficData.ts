@@ -17,25 +17,29 @@ export const useTrafficData = ({ userId, channelId, video }: UseTrafficDataProps
     const [isSaving, setIsSaving] = useState(false);
     const { showToast } = useUIStore();
 
+    // Expose refresh function
+    const refetch = useCallback(async () => {
+        if (!userId || !channelId || !video.id) return;
+        setIsLoading(true);
+        try {
+            const fetched = await TrafficService.fetchTrafficData(userId, channelId, video.id);
+            setData(fetched);
+        } catch (err) {
+            console.error("Failed to load traffic data", err);
+            setError("Failed to load traffic data");
+        } finally {
+            setIsLoading(false);
+        }
+    }, [userId, channelId, video.id]);
+
     // Fetch on mount
     useEffect(() => {
-        if (!userId || !channelId || !video.id) return;
+        refetch();
+    }, [refetch]);
 
-        const load = async () => {
-            setIsLoading(true);
-            try {
-                const fetched = await TrafficService.fetchTrafficData(userId, channelId, video.id);
-                setData(fetched);
-            } catch (err) {
-                console.error("Failed to load traffic data", err);
-                setError("Failed to load traffic data");
-            } finally {
-                setIsLoading(false);
-            }
-        };
+    // ... (rest of actions)
 
-        load();
-    }, [userId, channelId, video.id]);
+
 
     // Action: Save Data (General)
     const saveData = useCallback(async (newData: TrafficData) => {
@@ -70,13 +74,11 @@ export const useTrafficData = ({ userId, channelId, video }: UseTrafficDataProps
                 file
             );
 
-            // 2. Update the main traffic sources and total row
-            // We do this separately to ensure the current view updates immediately
-            const currentData = await TrafficService.fetchTrafficData(userId, channelId, video.id);
-            if (currentData) {
-                const merged = TrafficService.mergeTrafficData(currentData, sources, totalRow);
-                await TrafficService.saveTrafficData(userId, channelId, video.id, merged);
-                setData(merged);
+            // 2. Refetch to get the updated sources and snapshots from Firestore
+            // This is now clean as createVersionSnapshot handles updating the main sources
+            const updatedData = await TrafficService.fetchTrafficData(userId, channelId, video.id);
+            if (updatedData) {
+                setData(updatedData);
             }
 
             return newSnapshotId;
@@ -117,6 +119,7 @@ export const useTrafficData = ({ userId, channelId, video }: UseTrafficDataProps
         error,
         handleCsvUpload,
         handleDeleteSnapshot,
-        saveData
+        saveData,
+        refetch
     };
 };

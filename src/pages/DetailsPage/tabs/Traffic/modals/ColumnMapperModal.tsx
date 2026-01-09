@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Button } from '../../../../../components/ui/atoms/Button/Button';
+import { Button } from '../../../../../components/ui/atoms/Button';
 import { X } from 'lucide-react';
-import { type CsvMapping, DEFAULT_MAPPING } from '../../../../../core/utils/csvParser';
+import { type CsvMapping, DEFAULT_MAPPING } from '../utils/csvParser';
 
 interface ColumnMapperModalProps {
     isOpen: boolean;

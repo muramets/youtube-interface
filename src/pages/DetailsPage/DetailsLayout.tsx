@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { type VideoDetails } from '../../core/utils/youtubeApi';
 import { DetailsSidebar } from './Sidebar/DetailsSidebar';
 import { PackagingTab } from './tabs/Packaging/PackagingTab';
@@ -8,7 +8,7 @@ import { useTrafficData } from './tabs/Traffic/hooks/useTrafficData';
 import { ConfirmationModal } from '../../components/Shared/ConfirmationModal';
 import { SnapshotRequestModal } from './tabs/Traffic/modals/SnapshotRequestModal';
 import { TrafficService } from '../../core/services/TrafficService';
-import { parseTrafficCsv } from '../../core/utils/csvParser';
+import { parseTrafficCsv } from './tabs/Traffic/utils/csvParser';
 import { generateSnapshotId } from '../../core/utils/snapshotUtils';
 import { useUIStore } from '../../core/stores/uiStore';
 import { useAuth } from '../../core/hooks/useAuth';
@@ -113,7 +113,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
         isOpen: boolean;
         versionToRestore: number | null;
         isForCreateVersion: boolean; // true = CREATE_VERSION, false = RESTORE_VERSION
-        resolveCallback: ((snapshotId: string | null) => void) | null;
+        resolveCallback: ((snapshotId: string | null | undefined) => void) | null;
     }>({ isOpen: false, versionToRestore: null, isForCreateVersion: false, resolveCallback: null });
 
     // Selected Snapshot State (for viewing specific snapshot)
@@ -144,18 +144,42 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
         versions.switchToVersion(targetVersion);
     };
 
+    // Auto-switch to active version when entering Traffic tab
+    // We use a ref to track the previous tab to ensure this logic only runs ONCE when switching TO traffic tab
+    const prevActiveTabRef = React.useRef(activeTab);
+
+    useEffect(() => {
+        const prevTab = prevActiveTabRef.current;
+        if (prevTab !== 'traffic' && activeTab === 'traffic') {
+            // Just entered Traffic tab -> Switch to active version
+            if (versions.viewingVersion !== versions.activeVersion) {
+                versions.switchToVersion(versions.activeVersion);
+                setSelectedSnapshot(null);
+            }
+        }
+        prevActiveTabRef.current = activeTab;
+    }, [activeTab, versions.activeVersion, versions.switchToVersion, versions.viewingVersion]);
+
     // Handler when user clicks version in sidebar
     const handleVersionClick = useCallback((versionNumber: number | 'draft') => {
-        if (versionNumber === versions.viewingVersion) return;
+        // Allow clicking the current version to clear the selected snapshot
+        if (versionNumber === versions.viewingVersion) {
+            if (activeTab === 'traffic' && selectedSnapshot) {
+                setSelectedSnapshot(null);
+            }
+            return;
+        }
 
         if (isFormDirty) {
             // If dirty, ask to discard first
             setSwitchConfirmation({ isOpen: true, targetVersion: versionNumber });
         } else {
+            // New version selected -> Clear any selected snapshot
+            setSelectedSnapshot(null);
             // If clean, proceed to switch logic (which may ask to freeze)
             processVersionSwitch(versionNumber);
         }
-    }, [versions.viewingVersion, isFormDirty, versions.activeVersion]);
+    }, [versions.viewingVersion, isFormDirty, versions.activeVersion, activeTab, selectedSnapshot]);
 
     // Handler when user clicks snapshot in sidebar
     const handleSnapshotClick = useCallback((snapshotId: string) => {
@@ -233,7 +257,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                         thumbnail: snapshot.coverImage || '',
                         abTestTitles: snapshot.abTestTitles || [],
                         abTestThumbnails: snapshot.abTestThumbnails || [],
-                        abTestResults: snapshot.abTestResults,
+                        abTestResults: snapshot.abTestResults || { titles: [], thumbnails: [] },
                         localizations: snapshot.localizations || {}
                     };
                 }
@@ -328,8 +352,9 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                             thumbnail: snapshot.coverImage || '',
                             abTestTitles: snapshot.abTestTitles || [],
                             abTestThumbnails: snapshot.abTestThumbnails || [],
-                            abTestResults: snapshot.abTestResults,
-                            localizations: snapshot.localizations || {}
+                            abTestResults: snapshot.abTestResults || { titles: [], thumbnails: [] },
+                            localizations: snapshot.localizations || {},
+                            activeVersion: versionToRestore
                         }
                     });
                 } catch (error) {
@@ -351,8 +376,18 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
      * 
      * This is called from PackagingTab when creating a new version for published videos.
      */
-    const handleRequestSnapshot = useCallback(async (versionNumber: number): Promise<string | null> => {
-        return new Promise((resolve) => {
+    const handleRequestSnapshot = useCallback(async (versionNumber: number): Promise<string | null | undefined> => {
+        // If video is not published, skip modal but ensure traffic is cleared for new version
+        if (!video.publishedVideoId) {
+            console.log('[DetailsLayout] Video unpublished, auto-skipping snapshot and clearing traffic');
+            if (user?.uid && currentChannel?.id && video.id) {
+                await TrafficService.clearCurrentTrafficData(user.uid, currentChannel.id, video.id);
+                await trafficState.refetch();
+            }
+            return null; // Equivalent to "Skip"
+        }
+
+        return new Promise<string | null | undefined>((resolve) => {
             setSnapshotRequest({
                 isOpen: true,
                 versionToRestore: versionNumber,
@@ -360,7 +395,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                 resolveCallback: resolve
             });
         });
-    }, []);
+    }, [video.publishedVideoId, video.id, user, currentChannel, trafficState]);
 
     // Handle snapshot upload from modal
     const handleSnapshotUpload = useCallback(async (file: File) => {
@@ -370,8 +405,8 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
             const { sources, totalRow } = await parseTrafficCsv(file);
             const timestamp = Date.now();
             const versionNum = snapshotRequest.isForCreateVersion
-                ? versions.activeVersion as number
-                : versions.activeVersion as number;
+                ? (versions.activeVersion === 'draft' ? 0 : (versions.activeVersion || 1)) + 1
+                : (versions.activeVersion as number);
 
             const snapshotId = generateSnapshotId(timestamp, versionNum);
 
@@ -385,8 +420,17 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                 file // Pass original CSV file for hybrid storage
             );
 
+            console.log('[DetailsLayout] handleSnapshotUpload: isForCreateVersion:', snapshotRequest.isForCreateVersion);
             if (snapshotRequest.isForCreateVersion) {
-                // For CREATE_VERSION: just return the snapshotId
+                // For CREATE_VERSION: 
+                // 1. Clear current traffic data to start fresh for new version
+                console.log('[DetailsLayout] Clearing traffic data for new version');
+                await TrafficService.clearCurrentTrafficData(user.uid, currentChannel.id, video.id);
+
+                // 2. Refresh traffic state locally
+                await trafficState.refetch();
+
+                // 3. Resolve callback
                 snapshotRequest.resolveCallback?.(snapshotId);
                 setSnapshotRequest({ isOpen: false, versionToRestore: null, isForCreateVersion: false, resolveCallback: null });
                 return;
@@ -430,7 +474,8 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                     abTestTitles: snapshot.abTestTitles || [],
                     abTestThumbnails: snapshot.abTestThumbnails || [],
                     abTestResults: snapshot.abTestResults,
-                    localizations: snapshot.localizations || {}
+                    localizations: snapshot.localizations || {},
+                    activeVersion: snapshotRequest.versionToRestore
                 }
             });
 
@@ -445,14 +490,34 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
     // Handle skip snapshot
     const handleSkipSnapshot = useCallback(async () => {
         if (snapshotRequest.isForCreateVersion) {
-            // For CREATE_VERSION: return null to indicate skip
+            // For CREATE_VERSION: 
+            // 1. Clear current traffic data to start fresh (even if user skipped snapshot upload)
+            // Logic: They are starting a new version period, and chose NOT to save old data to storage,
+            // but we still must clear the main data so it doesn't bleed into the new version.
+            // (Old data is effectively lost if they skip snapshot, or kept in snapshots array if we did an auto-snapshot?
+            // Wait, we probably want to auto-archive current sources to a snapshot WITHOUT CSV if they skip?
+            // The prompt says "Skip", usually implying "Don't upload CSV".
+            // The implementation plan says: "Call TrafficService.clearCurrentTrafficData".
+
+            if (user?.uid && currentChannel?.id && video.id) {
+                console.log('[DetailsLayout] handleSkipSnapshot -> clearing data for new version');
+                await TrafficService.clearCurrentTrafficData(user.uid, currentChannel.id, video.id);
+                await trafficState.refetch();
+            }
+
+            // 2. Return null to indicate skip
             snapshotRequest.resolveCallback?.(null);
             setSnapshotRequest({ isOpen: false, versionToRestore: null, isForCreateVersion: false, resolveCallback: null });
             return;
         }
 
         // For RESTORE_VERSION: continue with existing logic
-        if (!user?.uid || !currentChannel?.id || !snapshotRequest.versionToRestore) return;
+        if (!user?.uid || !currentChannel?.id || !snapshotRequest.versionToRestore) {
+            // If for some reason we can't proceed with restore, still resolve the callback
+            snapshotRequest.resolveCallback?.(null);
+            setSnapshotRequest({ isOpen: false, versionToRestore: null, isForCreateVersion: false, resolveCallback: null });
+            return;
+        }
 
         try {
             // Use current traffic data (if any) as snapshot
@@ -502,7 +567,8 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                     abTestTitles: snapshot.abTestTitles || [],
                     abTestThumbnails: snapshot.abTestThumbnails || [],
                     abTestResults: snapshot.abTestResults,
-                    localizations: snapshot.localizations || {}
+                    localizations: snapshot.localizations || {},
+                    activeVersion: snapshotRequest.versionToRestore
                 }
             });
 
@@ -588,7 +654,10 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                 videoTitle={video.title}
                 onUpload={handleSnapshotUpload}
                 onSkip={handleSkipSnapshot}
-                onClose={() => setSnapshotRequest({ isOpen: false, versionToRestore: null, isForCreateVersion: false, resolveCallback: null })}
+                onClose={() => {
+                    snapshotRequest.resolveCallback?.(undefined);
+                    setSnapshotRequest({ isOpen: false, versionToRestore: null, isForCreateVersion: false, resolveCallback: null });
+                }}
             />
         </div>
     );

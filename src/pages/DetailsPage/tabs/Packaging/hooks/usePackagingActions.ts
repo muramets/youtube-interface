@@ -17,7 +17,7 @@ interface UsePackagingActionsProps {
     localization: UsePackagingLocalizationResult;
     formState: UsePackagingFormStateResult;
     abTesting: UseABTestingResult;
-    onRequestSnapshot?: (versionNumber: number) => Promise<string | null>; // Returns snapshotId or null if skipped
+    onRequestSnapshot?: (versionNumber: number) => Promise<string | null | undefined>; // Returns snapshotId, null (skip), or undefined (cancel)
 }
 
 export const usePackagingActions = ({
@@ -119,16 +119,19 @@ export const usePackagingActions = ({
         setIsSaving(true);
         try {
             const payload = buildSavePayload();
-            let closingSnapshotId: string | null = null;
+            let closingSnapshotId: string | null | undefined = null;
 
-            // Request CSV snapshot for published videos
-            if (video.publishedVideoId && onRequestSnapshot) {
+            // Request CSV snapshot - always offer to save current traffic state before versioning
+            if (onRequestSnapshot) {
+                // Returns string (snapshotId), null (skip), or undefined (cancel)
                 closingSnapshotId = await onRequestSnapshot(versionState.activeVersion as number);
-                // If user cancelled, don't create version
-                if (closingSnapshotId === null) {
+
+                // If user cancelled the modal (undefined), stop everything
+                if (closingSnapshotId === undefined) {
                     setIsSaving(false);
                     return;
                 }
+                // If returned null (Skip), we proceed with creation but closingSnapshotId remains null
             }
 
             // Create new version - this updates local state via reducer
@@ -155,6 +158,7 @@ export const usePackagingActions = ({
                     thumbnail: payload.customImage,
                     packagingHistory: updatedHistory,
                     currentPackagingVersion: currentPackagingVersion,
+                    activeVersion: newVersion.versionNumber,
                     isDraft: false
                 }
             }).catch(error => {
