@@ -10,6 +10,7 @@ interface ConfirmationModalProps {
     message: React.ReactNode;
     confirmLabel?: string;
     cancelLabel?: string;
+    className?: string;
 }
 
 export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
@@ -19,7 +20,8 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
     title,
     message,
     confirmLabel = 'Confirm',
-    cancelLabel = 'Cancel'
+    cancelLabel = 'Cancel',
+    className = ''
 }) => {
     if (!isOpen) return null;
 
@@ -29,7 +31,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
             onClick={onClose}
         >
             <div
-                className="bg-bg-secondary rounded-xl w-[400px] max-w-[90vw] flex flex-col overflow-hidden animate-scale-in border border-border shadow-2xl"
+                className={`bg-bg-secondary rounded-xl flex flex-col overflow-hidden animate-scale-in border border-border shadow-2xl ${className || 'w-[400px]'} max-w-[90vw]`}
                 onClick={e => e.stopPropagation()}
             >
                 <div className="px-6 py-4 flex items-center justify-between border-b border-border">
