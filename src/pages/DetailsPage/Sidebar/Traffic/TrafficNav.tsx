@@ -69,7 +69,28 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
     }>({ isOpen: false, snapshotId: null });
 
     // Sort versions (same as PackagingNav)
-    const sortedVersions = [...versions].sort((a, b) => b.versionNumber - a.versionNumber);
+    // Sort versions (same as PackagingNav)
+    // MERGE LOGIC: Combine active packaging versions with versions found in snapshots (even if deleted)
+    const sortedVersions = React.useMemo(() => {
+        const packagingVersionSet = new Set(versions.map(v => v.versionNumber));
+        const snapshotVersionSet = new Set(snapshots.map(s => s.version));
+
+        // Find versions that exist in snapshots but NOT in packaging history (deleted versions)
+        const deletedVersionNumbers = [...snapshotVersionSet].filter(v => !packagingVersionSet.has(v));
+
+        // Create placeholders for deleted versions
+        // Note: We don't need full PackagingVersion data here, just versionNumber for rendering
+        const deletedVersions: PackagingVersion[] = deletedVersionNumbers.map(vNum => ({
+            versionNumber: vNum,
+            startDate: 0, // Placeholder
+            checkins: [],
+            configurationSnapshot: { title: '', description: '', tags: [], coverImage: null } // Placeholder
+        }));
+
+        // Combine and sort
+        const allVersions = [...versions, ...deletedVersions];
+        return allVersions.sort((a, b) => b.versionNumber - a.versionNumber);
+    }, [versions, snapshots]);
 
     // Determine if there's content to expand
     const hasContent = hasDraft || versions.length > 0;
