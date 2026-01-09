@@ -8,7 +8,7 @@
 export type ModalState =
     | { type: 'IDLE' }
     | { type: 'SWITCH_CONFIRM'; targetVersion: number | 'draft' }
-    | { type: 'DELETE_CONFIRM'; versionNumber: number }
+    | { type: 'DELETE_CONFIRM'; versionNumber: number; snapshotCount: number }
     | {
         type: 'SNAPSHOT_REQUEST';
         versionToRestore: number | null;

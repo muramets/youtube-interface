@@ -102,6 +102,29 @@ export const TrafficDataService = {
     },
 
     /**
+     * Обновляет snapshots (для packaging snapshot preservation).
+     * Используется при удалении версии упаковки с traffic данными.
+     */
+    async updateSnapshots(userId: string, channelId: string, videoId: string, snapshots: any[]): Promise<void> {
+        const currentData = await TrafficDataService.fetch(userId, channelId, videoId);
+        if (!currentData) return;
+
+        const path = `users/${userId}/channels/${channelId}/videos/${videoId}/traffic/main`;
+        const docRef = doc(db, path);
+
+        try {
+            await setDoc(docRef, {
+                ...currentData,
+                snapshots,
+                lastUpdated: Date.now()
+            }, { merge: true });
+        } catch (error) {
+            console.error('Error updating snapshots:', error);
+            throw error;
+        }
+    },
+
+    /**
      * Санитизирует данные для Firestore, удаляя undefined значения
      */
     sanitize(data: any): any {

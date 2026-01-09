@@ -52,7 +52,9 @@ export const DetailsModals: React.FC<DetailsModalsProps> = ({
                 title="Delete Version"
                 message={
                     modalState.type === 'DELETE_CONFIRM'
-                        ? `Are you sure you want to delete v.${modalState.versionNumber}? This action cannot be undone.`
+                        ? modalState.snapshotCount > 0
+                            ? `⚠️ This version has ${modalState.snapshotCount} traffic snapshot${modalState.snapshotCount > 1 ? 's' : ''}.\n\nDeleting this version will preserve the traffic data in the Suggested Traffic tab with a "(packaging deleted)" label. You'll still be able to see what packaging drove those views.\n\nAre you sure you want to delete v.${modalState.versionNumber}?`
+                            : `Are you sure you want to delete v.${modalState.versionNumber}? This action cannot be undone.`
                         : ''
                 }
                 confirmLabel="Delete"

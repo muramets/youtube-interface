@@ -67,6 +67,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
         setSelectedSnapshot,
         activeTab,
         selectedSnapshot,
+        trafficState,
         onOpenSwitchConfirm: openSwitchConfirm,
         onOpenDeleteConfirm: openDeleteConfirm,
         onOpenSnapshotRequest: (params) => openSnapshotRequest(params)

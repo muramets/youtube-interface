@@ -95,6 +95,34 @@ export interface TrafficSnapshot {
     };
 
     /**
+     * PACKAGING SNAPSHOT PRESERVATION:
+     * When a packaging version is deleted, its configuration is preserved here
+     * to maintain historical context for traffic attribution.
+     * 
+     * This allows users to see what packaging drove the traffic even after
+     * the version is deleted from the Packaging tab.
+     */
+    packagingSnapshot?: {
+        title: string;
+        description: string;
+        tags: string[];
+        coverImage?: string;
+        abTestTitles?: string[];
+        abTestThumbnails?: string[];
+        abTestResults?: {
+            titles?: Array<{ variant: string; ctr: number; impressions: number }>;
+            thumbnails?: Array<{ variant: string; ctr: number; impressions: number }>;
+        };
+        localizations?: Record<string, any>;
+    };
+
+    /**
+     * Flag indicating the packaging version for this snapshot was deleted.
+     * When true, UI shows "(packaging deleted)" with tooltip containing packagingSnapshot data.
+     */
+    isPackagingDeleted?: boolean;
+
+    /**
      * LEGACY: Complete traffic data (for backward compatibility).
      * New snapshots store data in Cloud Storage instead.
      * If `storagePath` exists, this field may be omitted to save Firestore space.

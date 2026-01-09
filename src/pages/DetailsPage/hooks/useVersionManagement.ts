@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import type { VideoDetails } from '../../../core/utils/youtubeApi';
 import { VersionService } from '../services/VersionService';
+import { TrafficDataService } from '../../../core/services/traffic/TrafficDataService';
 
 interface UseVersionManagementProps {
     versions: any; // usePackagingVersions return type
@@ -13,8 +14,9 @@ interface UseVersionManagementProps {
     setSelectedSnapshot: (id: string | null) => void;
     activeTab: 'packaging' | 'traffic';
     selectedSnapshot: string | null;
+    trafficState: any; // useTrafficData return type
     onOpenSwitchConfirm: (targetVersion: number | 'draft') => void;
-    onOpenDeleteConfirm: (versionNumber: number) => void;
+    onOpenDeleteConfirm: (versionNumber: number, snapshotCount?: number) => void;
     onOpenSnapshotRequest: (params: { versionToRestore: number; isForCreateVersion: boolean }) => void;
 }
 
@@ -33,6 +35,7 @@ export const useVersionManagement = ({
     setSelectedSnapshot,
     activeTab,
     selectedSnapshot,
+    trafficState,
     onOpenSwitchConfirm,
     onOpenDeleteConfirm,
     onOpenSnapshotRequest
@@ -70,16 +73,80 @@ export const useVersionManagement = ({
     }, [versions, setSelectedSnapshot]);
 
     /**
-     * Обработчик удаления версии
+     * Обработчик удаления версии.
+     * Проверяет наличие traffic snapshots для этой версии (только для опубликованных видео).
      */
     const handleDeleteVersion = useCallback((versionNumber: number) => {
-        onOpenDeleteConfirm(versionNumber);
-    }, [onOpenDeleteConfirm]);
+        const isPublished = !!video.publishedVideoId;
+
+        if (isPublished) {
+            // Для опубликованных видео проверяем наличие snapshots
+            const snapshotsForVersion = trafficState.trafficData?.snapshots?.filter(
+                (s: any) => s.version === versionNumber
+            ) || [];
+
+            onOpenDeleteConfirm(versionNumber, snapshotsForVersion.length);
+        } else {
+            // Для неопубликованных просто открываем modal
+            onOpenDeleteConfirm(versionNumber);
+        }
+    }, [video.publishedVideoId, trafficState, onOpenDeleteConfirm]);
 
     /**
-     * Подтверждение удаления версии
+     * Подтверждение удаления версии.
+     * Для опубликованных видео с traffic snapshots сохраняет packaging данные перед удалением.
      */
     const confirmDelete = useCallback(async (versionNumber: number) => {
+        const isPublished = !!video.publishedVideoId;
+
+        // PACKAGING SNAPSHOT PRESERVATION: Сохраняем packaging данные в traffic snapshots
+        if (isPublished && user?.uid && currentChannel?.id && video.id) {
+            const snapshotsForVersion = trafficState.trafficData?.snapshots?.filter(
+                (s: any) => s.version === versionNumber
+            ) || [];
+
+            if (snapshotsForVersion.length > 0) {
+                // Получаем packaging snapshot для сохранения
+                const versionData = versions.packagingHistory.find(
+                    (v: any) => v.versionNumber === versionNumber
+                );
+                const packagingSnapshot = versionData?.configurationSnapshot;
+
+                if (packagingSnapshot) {
+                    // Обновляем все snapshots этой версии, добавляя packaging данные
+                    const updatedSnapshots = trafficState.trafficData.snapshots.map((s: any) =>
+                        s.version === versionNumber
+                            ? {
+                                ...s,
+                                packagingSnapshot: {
+                                    title: packagingSnapshot.title,
+                                    description: packagingSnapshot.description,
+                                    tags: packagingSnapshot.tags,
+                                    coverImage: packagingSnapshot.coverImage,
+                                    abTestTitles: packagingSnapshot.abTestTitles,
+                                    abTestThumbnails: packagingSnapshot.abTestThumbnails,
+                                    abTestResults: packagingSnapshot.abTestResults,
+                                    localizations: packagingSnapshot.localizations
+                                },
+                                isPackagingDeleted: true
+                            }
+                            : s
+                    );
+
+                    // Сохраняем обновленные snapshots в Firestore
+                    await TrafficDataService.updateSnapshots(
+                        user.uid,
+                        currentChannel.id,
+                        video.id,
+                        updatedSnapshots
+                    );
+
+                    // Обновляем локальное состояние
+                    await trafficState.refetch();
+                }
+            }
+        }
+
         // Используем VersionService для расчета данных
         const deleteData = VersionService.calculateDeleteVersionData(
             versionNumber,

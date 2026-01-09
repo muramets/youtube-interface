@@ -178,13 +178,16 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                         const versionSnapshots = getVersionSnapshots(version.versionNumber);
                         const isVersionExpanded = expandedVersions.has(version.versionNumber);
                         const hasSnapshots = versionSnapshots.length > 0;
+                        
+                        // Check if packaging was deleted (any snapshot has isPackagingDeleted flag)
+                        const isPackagingDeleted = versionSnapshots.some(s => s.isPackagingDeleted);
 
                         return (
                             <div key={version.versionNumber}>
                                 {/* Version Row with Chevron */}
                                 <div className="relative">
                                     <SidebarVersionItem
-                                        label={`v.${version.versionNumber}`}
+                                        label={isPackagingDeleted ? `v.${version.versionNumber} (packaging deleted)` : `v.${version.versionNumber}`}
                                         isViewing={viewingVersion === version.versionNumber && !selectedSnapshot}
                                         isVideoActive={activeVersion === version.versionNumber}
                                         onClick={() => onVersionClick(version.versionNumber)}
