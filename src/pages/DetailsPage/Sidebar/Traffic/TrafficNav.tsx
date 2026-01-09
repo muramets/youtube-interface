@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { BarChart3, ChevronDown, ChevronRight, MoreVertical } from 'lucide-react';
 import { SidebarVersionItem } from '../Packaging/SidebarVersionItem';
+import { PortalTooltip } from '../../../../components/Shared/PortalTooltip';
+import { PackagingSnapshotTooltip } from '../../components/PackagingSnapshotTooltip';
 import type { PackagingVersion } from '../../../../core/utils/youtubeApi';
 import type { TrafficSnapshot } from '../../../../core/types/traffic';
 import { SnapshotContextMenu } from './SnapshotContextMenu';
@@ -178,21 +180,43 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                         const versionSnapshots = getVersionSnapshots(version.versionNumber);
                         const isVersionExpanded = expandedVersions.has(version.versionNumber);
                         const hasSnapshots = versionSnapshots.length > 0;
-                        
+
                         // Check if packaging was deleted (any snapshot has isPackagingDeleted flag)
-                        const isPackagingDeleted = versionSnapshots.some(s => s.isPackagingDeleted);
+                        const deletedSnapshot = versionSnapshots.find(s => s.isPackagingDeleted);
+                        const isPackagingDeleted = !!deletedSnapshot;
+                        const packagingData = deletedSnapshot?.packagingSnapshot;
 
                         return (
                             <div key={version.versionNumber}>
                                 {/* Version Row with Chevron */}
                                 <div className="relative">
-                                    <SidebarVersionItem
-                                        label={isPackagingDeleted ? `v.${version.versionNumber} (packaging deleted)` : `v.${version.versionNumber}`}
-                                        isViewing={viewingVersion === version.versionNumber && !selectedSnapshot}
-                                        isVideoActive={activeVersion === version.versionNumber}
-                                        onClick={() => onVersionClick(version.versionNumber)}
-                                        isParentOfSelected={selectedSnapshot !== null && versionSnapshots.some(s => s.id === selectedSnapshot)}
-                                    />
+                                    {isPackagingDeleted && packagingData ? (
+                                        <PortalTooltip
+                                            content={<PackagingSnapshotTooltip version={version.versionNumber} data={packagingData} />}
+                                            variant="glass"
+                                            side="right"
+                                            align="center"
+                                            triggerClassName="w-full"
+                                        >
+                                            <div className="w-full">
+                                                <SidebarVersionItem
+                                                    label={`v.${version.versionNumber} (packaging deleted)`}
+                                                    isViewing={viewingVersion === version.versionNumber && !selectedSnapshot}
+                                                    isVideoActive={activeVersion === version.versionNumber}
+                                                    onClick={() => onVersionClick(version.versionNumber)}
+                                                    isParentOfSelected={selectedSnapshot !== null && versionSnapshots.some(s => s.id === selectedSnapshot)}
+                                                />
+                                            </div>
+                                        </PortalTooltip>
+                                    ) : (
+                                        <SidebarVersionItem
+                                            label={isPackagingDeleted ? `v.${version.versionNumber} (packaging deleted)` : `v.${version.versionNumber}`}
+                                            isViewing={viewingVersion === version.versionNumber && !selectedSnapshot}
+                                            isVideoActive={activeVersion === version.versionNumber}
+                                            onClick={() => onVersionClick(version.versionNumber)}
+                                            isParentOfSelected={selectedSnapshot !== null && versionSnapshots.some(s => s.id === selectedSnapshot)}
+                                        />
+                                    )}
 
                                     {/* Chevron for snapshots (positioned absolutely) */}
                                     {hasSnapshots && (

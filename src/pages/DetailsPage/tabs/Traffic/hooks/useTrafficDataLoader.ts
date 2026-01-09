@@ -113,18 +113,10 @@ export const useTrafficDataLoader = ({
                         setIsLoadingSnapshot(false);
                     }
                 } else {
-                    // Нет снапшотов -> используем Working Copy (trafficData.sources)
-                    console.log('[useTrafficDataLoader] No snapshots for active version, using trafficData.sources');
-                    if (viewMode === 'delta') {
-                        const delta = TrafficService.calculateVersionDelta(
-                            trafficData.sources || [],
-                            activeVersion,
-                            trafficData.snapshots || []
-                        );
-                        setDisplayedSources(delta);
-                    } else {
-                        setDisplayedSources(trafficData.sources || []);
-                    }
+                    // No snapshots for active version → show EMPTY STATE
+                    // NOTE: Do NOT use trafficData.sources - they may be from a different version!
+                    console.log('[useTrafficDataLoader] No snapshots for active version, showing empty state');
+                    setDisplayedSources([]);
                 }
             } else {
                 // Приоритет 3: Историческая версия
