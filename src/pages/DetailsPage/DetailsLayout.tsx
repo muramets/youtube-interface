@@ -111,9 +111,15 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
         const prevTab = prevActiveTabRef.current;
 
         // When entering Traffic tab → switch to active version
+        // When entering Traffic tab → switch to active version
         if (prevTab !== 'traffic' && activeTab === 'traffic') {
-            if (versions.viewingVersion !== versions.activeVersion) {
-                versions.switchToVersion(versions.activeVersion);
+            const isNotViewingActive = versions.viewingVersion !== versions.activeVersion;
+
+            // If not viewing active version OR handling a selected snapshot (stale from previous session)
+            if (isNotViewingActive || selectedSnapshot) {
+                if (isNotViewingActive) {
+                    versions.switchToVersion(versions.activeVersion);
+                }
                 setSelectedSnapshot(null);
             }
         }
