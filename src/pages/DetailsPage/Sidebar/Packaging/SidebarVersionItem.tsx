@@ -17,8 +17,9 @@ interface SidebarVersionItemProps {
     isVideoActive: boolean;
     onClick: () => void;
     onDelete?: () => void;
-    isParentOfSelected?: boolean; // When a child snapshot is selected
+    isParentOfSelected?: boolean;
     isDeleted?: boolean;
+    restorationIndex?: number; // If set, displays "Restored {n}" badge
 }
 
 export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
@@ -29,6 +30,7 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
     onDelete,
     isParentOfSelected = false,
     isDeleted = false,
+    restorationIndex,
 }) => {
     return (
         <div
@@ -44,21 +46,32 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
                 }
             `}
             style={isParentOfSelected && !isViewing ? { backgroundColor: 'color-mix(in srgb, var(--sidebar-active), transparent 50%)' } : {}}
-            title={label}
         >
             <div className="flex items-center gap-2 min-w-0 flex-1">
-                <span className="text-sm truncate">{label}</span>
+                {/* Version Label: min-width prevents jitter for v.1-v.9, grows for v.10+ */}
+                <div className="flex-shrink-0 min-w-[24px]">
+                    <span className="text-sm block">{label}</span>
+                </div>
 
-                {/* DELETED badge */}
-                {isDeleted && (
-                    <div className="inline-flex items-center flex-shrink-0 -mt-0.5">
-                        <Badge variant="error">Deleted</Badge>
+                {/* RESTORED badge */}
+                {restorationIndex !== undefined && (
+                    <div className="inline-flex items-center flex-shrink-0">
+                        <Badge variant="warning" className="px-1.5">
+                            {restorationIndex === 1 ? 'Restored' : `Restored ${restorationIndex}`}
+                        </Badge>
                     </div>
                 )}
 
-                {/* ACTIVE badge - always rendered, controlled by opacity for smooth transitions */}
-                <div className={`inline-flex items-center transition-opacity duration-200 flex-shrink-0 -mt-0.5 ${isVideoActive ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                    <Badge variant="success">Active</Badge>
+                {/* DELETED badge */}
+                {isDeleted && (
+                    <div className="inline-flex items-center flex-shrink-0">
+                        <Badge variant="error" className="px-1.5">Deleted</Badge>
+                    </div>
+                )}
+
+                {/* ACTIVE badge - with reduced left margin for tighter spacing */}
+                <div className={`inline-flex items-center transition-opacity duration-200 flex-shrink-0 -ml-0.5 ${isVideoActive ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                    <Badge variant="success" className="px-1.5">Active</Badge>
                 </div>
             </div>
 

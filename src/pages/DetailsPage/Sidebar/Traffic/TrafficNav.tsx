@@ -88,12 +88,41 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
         }));
 
         // Combine and sort
+        // Combine and sort
         const allVersions = [...versions, ...deletedVersions];
-        return allVersions.sort((a, b) => b.versionNumber - a.versionNumber);
-    }, [versions, snapshots]);
+        return allVersions.sort((a, b) => {
+            // Priority 1: Active version always on top
+            const isActiveA = a.versionNumber === activeVersion;
+            const isActiveB = b.versionNumber === activeVersion;
+            if (isActiveA && !isActiveB) return -1;
+            if (!isActiveA && isActiveB) return 1;
+
+            // Priority 2: Chronological (by version ID desc, since IDs are strictly increasing)
+            return b.versionNumber - a.versionNumber;
+        });
+    }, [versions, snapshots, activeVersion]);
 
     // Determine if there's content to expand
     const hasContent = hasDraft || versions.length > 0;
+
+    // Helper: Calculate restoration index
+    // How many times has this original version been restored BEFORE this instance?
+    const getRestorationInfo = (version: PackagingVersion) => {
+        if (!version.cloneOf) return null;
+
+        // Find all versions that are clones of the same original
+        // We only look at 'versions' prop (history), not deleted ones from snapshots
+        // because deleted ones might lack metadata if not fully loaded
+        const clones = versions.filter(v =>
+            v.cloneOf === version.cloneOf &&
+            v.versionNumber < version.versionNumber
+        );
+
+        return {
+            originalVersion: version.cloneOf,
+            index: clones.length + 1
+        };
+    };
 
     // Get snapshots for a specific version
     const getVersionSnapshots = (version: number | 'draft'): TrafficSnapshot[] => {
@@ -207,6 +236,12 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                         const isPackagingDeleted = !!deletedSnapshot;
                         const packagingData = deletedSnapshot?.packagingSnapshot;
 
+                        // Restoration Logic
+                        const restorationInfo = getRestorationInfo(version);
+                        const displayLabel = restorationInfo
+                            ? `v.${restorationInfo.originalVersion}`
+                            : `v.${version.versionNumber}`;
+
                         return (
                             <div key={version.versionNumber}>
                                 {/* Version Row with Chevron */}
@@ -221,23 +256,25 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                         >
                                             <div className="w-full">
                                                 <SidebarVersionItem
-                                                    label={`v.${version.versionNumber}`}
+                                                    label={displayLabel}
                                                     isDeleted={true}
                                                     isViewing={viewingVersion === version.versionNumber && !selectedSnapshot}
                                                     isVideoActive={activeVersion === version.versionNumber}
                                                     onClick={() => onVersionClick(version.versionNumber)}
                                                     isParentOfSelected={selectedSnapshot !== null && versionSnapshots.some(s => s.id === selectedSnapshot)}
+                                                    restorationIndex={restorationInfo?.index}
                                                 />
                                             </div>
                                         </PortalTooltip>
                                     ) : (
                                         <SidebarVersionItem
-                                            label={`v.${version.versionNumber}`}
+                                            label={displayLabel}
                                             isDeleted={isPackagingDeleted}
                                             isViewing={viewingVersion === version.versionNumber && !selectedSnapshot}
                                             isVideoActive={activeVersion === version.versionNumber}
                                             onClick={() => onVersionClick(version.versionNumber)}
                                             isParentOfSelected={selectedSnapshot !== null && versionSnapshots.some(s => s.id === selectedSnapshot)}
+                                            restorationIndex={restorationInfo?.index}
                                         />
                                     )}
 

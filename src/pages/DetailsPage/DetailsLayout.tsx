@@ -8,7 +8,6 @@ import { useTrafficData } from './tabs/Traffic/hooks/useTrafficData';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useVideos } from '../../core/hooks/useVideos';
-import { useDraftDetection } from './hooks/useDraftDetection';
 import { useVersionManagement } from './hooks/useVersionManagement';
 import { useSnapshotManagement } from './hooks/useSnapshotManagement';
 import { useModalState } from './hooks/useModalState';
@@ -28,14 +27,12 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
     const [isFormDirty, setIsFormDirty] = useState(false);
     const [selectedSnapshot, setSelectedSnapshot] = useState<string | null>(null);
 
-    // Draft detection
-    const { hasDraft } = useDraftDetection(video, video.packagingHistory || []);
-
     // Version management
     const versions = usePackagingVersions({
         initialHistory: video.packagingHistory || [],
         initialCurrentVersion: video.currentPackagingVersion || 1,
-        isDraft: video.isDraft || hasDraft,
+        // USER REQUIREMENT: Only show Draft in sidebar if explicitly saved/managed as draft
+        isDraft: !!video.isDraft,
         initialActiveVersion: video.activeVersion
     });
 
@@ -142,7 +139,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                 versions={versions.navSortedVersions}
                 viewingVersion={versions.viewingVersion}
                 activeVersion={versions.activeVersion}
-                hasDraft={hasDraft}
+                hasDraft={versions.hasDraft}
                 onVersionClick={versionMgmt.handleVersionClick}
                 onDeleteVersion={versionMgmt.handleDeleteVersion}
                 snapshots={trafficState.trafficData?.snapshots || []}
@@ -159,7 +156,10 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                     <PackagingTab
                         video={video}
                         versionState={versions}
-                        onDirtyChange={setIsFormDirty}
+                        onDirtyChange={(dirty) => {
+                            setIsFormDirty(dirty);
+                            // We could also use isDataDifferent here if we wanted auto-dirty
+                        }}
                         onRestoreVersion={versionMgmt.handleRestoreVersion}
                         onRequestSnapshot={snapshotMgmt.handleRequestSnapshot}
                     />
@@ -174,6 +174,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                         isSaving={trafficState.isSaving}
                         handleCsvUpload={trafficState.handleCsvUpload}
                         onSnapshotClick={snapshotMgmt.handleSnapshotClick}
+                        packagingHistory={versions.packagingHistory}
                     />
                 )}
             </div>

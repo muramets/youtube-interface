@@ -144,6 +144,13 @@ export interface PackagingVersion {
         abTestVariants?: string[];
         localizations?: Record<string, VideoLocalization>;
     };
+
+    /**
+     * IMMUTABLE DATA: Restoration Metadata.
+     * Use these fields to link "Restored" versions back to their original.
+     */
+    cloneOf?: number; // References the original versionNumber
+    restoredAt?: number; // Timestamp of restoration
 }
 
 export interface VideoLocalization {

@@ -37,8 +37,7 @@ export const useVersionManagement = ({
     selectedSnapshot,
     trafficState,
     onOpenSwitchConfirm,
-    onOpenDeleteConfirm,
-    onOpenSnapshotRequest
+    onOpenDeleteConfirm
 }: UseVersionManagementProps) => {
 
     /**
@@ -142,7 +141,9 @@ export const useVersionManagement = ({
                                     abTestTitles: packagingSnapshot.abTestTitles,
                                     abTestThumbnails: packagingSnapshot.abTestThumbnails,
                                     abTestResults: packagingSnapshot.abTestResults,
-                                    localizations: packagingSnapshot.localizations
+                                    localizations: packagingSnapshot.localizations,
+                                    cloneOf: versionData.cloneOf,
+                                    restoredAt: versionData.restoredAt
                                 },
                                 isPackagingDeleted: true
                             }
@@ -197,56 +198,90 @@ export const useVersionManagement = ({
     /**
      * Обработчик восстановления версии
      */
+    /**
+     * Обработчик восстановления версии (Immutable Data Pattern).
+     * Создает новую верси (клон) на основе старой.
+     */
     const handleRestoreVersion = useCallback(async (versionToRestore: number) => {
-        const isPublished = !!video.publishedVideoId;
+        // IMMUTABLE RESTORE LOGIC (Clone/Alias Strategy)
+        // We now always use cloning when restoring from history to maintain data integrity
+        // and separate traffic snapshots for each activation period.
 
-        if (isPublished) {
-            // Для опубликованных видео показываем snapshot modal
-            onOpenSnapshotRequest({ versionToRestore, isForCreateVersion: false });
-        } else {
-            // Для неопубликованных восстанавливаем напрямую
-            versions.restoreVersion(versionToRestore);
+        // 1. Получаем данные исторической версии
+        const targetVersionData = versions.packagingHistory.find(
+            (v: any) => v.versionNumber === versionToRestore
+        );
 
-            if (user?.uid && currentChannel?.id && video.id) {
-                try {
-                    const versionData = versions.packagingHistory.find(
-                        (v: any) => v.versionNumber === versionToRestore
-                    );
-                    const snapshot = versionData?.configurationSnapshot;
+        if (!targetVersionData || !targetVersionData.configurationSnapshot) {
+            showToast('Version data not found', 'error');
+            return;
+        }
 
-                    if (!snapshot) {
-                        showToast('Version data not found', 'error');
-                        return;
+        // 2. Вычисляем номер следующей версии (v.Next)
+        // Ищем максимальный номер версии в истории
+        const maxVersion = Math.max(
+            ...versions.packagingHistory.map((v: any) => v.versionNumber),
+            versions.activeVersion
+        );
+        const nextVersionNumber = maxVersion + 1;
+
+        // 3. Создаем новую запись в истории (Clone)
+        const newHistoryEntry = {
+            versionNumber: nextVersionNumber,
+            startDate: Date.now(),
+            endDate: null,
+            configurationSnapshot: targetVersionData.configurationSnapshot,
+            // METADATA для UI:
+            cloneOf: versionToRestore,
+            restoredAt: Date.now()
+        };
+
+        // 4. Обновляем историю: Закрываем текущую версию -> Добавляем новую
+        const updatedHistory = versions.packagingHistory.map((v: any) => {
+            // Закрываем текущую активную версию (если она еще открыта)
+            if (v.versionNumber === versions.activeVersion && !v.endDate) {
+                return { ...v, endDate: Date.now() };
+            }
+            return v;
+        });
+
+        // Добавляем новую версию-клон
+        const finalHistory = [...updatedHistory, newHistoryEntry];
+
+        // 5. Обновляем локальное состояние
+        versions.setPackagingHistory(finalHistory);
+        versions.setCurrentVersionNumber(nextVersionNumber);
+        versions.setActiveVersion(nextVersionNumber); // Устанавливаем новую версию как активную
+        versions.switchToVersion(nextVersionNumber);  // <--- FIX: Auto-switch view to the new version
+        versions.setHasDraft(false);
+
+        // 6. Сохраняем в Firestore
+        if (user?.uid && currentChannel?.id && video.id) {
+            try {
+                await updateVideo({
+                    videoId: video.id,
+                    updates: {
+                        packagingHistory: finalHistory,
+                        currentPackagingVersion: nextVersionNumber,
+                        activeVersion: nextVersionNumber, // Обновляем активную версию в Firestore
+                        isDraft: false,
+                        // Восстанавливаем данные на уровне полей видео (для UI превью)
+                        title: targetVersionData.configurationSnapshot.title,
+                        description: targetVersionData.configurationSnapshot.description,
+                        tags: targetVersionData.configurationSnapshot.tags, // Array check inside updateVideo usually
+                        thumbnailUrl: targetVersionData.configurationSnapshot.coverImage,
+                        abTestTitles: targetVersionData.configurationSnapshot.abTestTitles,
+                        abTestThumbnails: targetVersionData.configurationSnapshot.abTestThumbnails,
+                        localizations: targetVersionData.configurationSnapshot.localizations
                     }
-
-                    const updatedHistory = versions.packagingHistory.map((v: any) =>
-                        v.versionNumber === versionToRestore
-                            ? { ...v, endDate: Date.now() }
-                            : v
-                    );
-
-                    const restoreData = VersionService.prepareRestoreVersionData(
-                        versionToRestore,
-                        snapshot
-                    );
-
-                    await updateVideo({
-                        videoId: video.id,
-                        updates: {
-                            packagingHistory: updatedHistory,
-                            isDraft: false,
-                            ...restoreData
-                        }
-                    });
-
-                    showToast(`Restored to v.${versionToRestore}`, 'success');
-                } catch (error) {
-                    console.error('Failed to save restoration to Firestore:', error);
-                    showToast('Failed to save restoration', 'error');
-                }
+                });
+                showToast(`Restored v.${versionToRestore} as v.${nextVersionNumber}`, 'success');
+            } catch (error) {
+                console.error('Failed to save restoration:', error);
+                showToast('Failed to save restoration', 'error');
             }
         }
-    }, [video, versions, user, currentChannel, updateVideo, showToast, onOpenSnapshotRequest]);
+    }, [video, versions, user, currentChannel, updateVideo, showToast]);
 
     return {
         handleVersionClick,

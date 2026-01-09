@@ -10,6 +10,7 @@ interface TrafficHeaderProps {
     headerTitle: string;
     isViewingOldVersion: boolean;
     viewingVersion?: number | 'draft';
+    versionLabel?: string; // e.g. "Version 1" (aliased)
     shouldShowActions: boolean;
 
     // View mode
@@ -33,6 +34,7 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
     headerTitle,
     isViewingOldVersion,
     viewingVersion,
+    versionLabel,
     shouldShowActions,
     viewMode,
     onViewModeChange,
@@ -50,7 +52,13 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
                 <div className="flex items-center justify-between gap-4 max-w-[1050px]">
                     <div>
                         <h1 className="text-2xl font-medium text-text-primary">{headerTitle}</h1>
-                        {isViewingOldVersion && (
+                        {/* Always show version stats info if viewing a specific version */}
+                        {versionLabel && (
+                            <p className="text-sm text-text-secondary mt-1">
+                                Viewing stats for {versionLabel}
+                            </p>
+                        )}
+                        {!versionLabel && isViewingOldVersion && (
                             <p className="text-sm text-text-secondary mt-1">
                                 Viewing stats for Version {viewingVersion}
                             </p>

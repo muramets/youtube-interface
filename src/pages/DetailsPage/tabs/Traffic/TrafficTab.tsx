@@ -18,6 +18,7 @@ interface TrafficTabProps {
     isSaving: boolean;
     handleCsvUpload: (sources: any[], totalRow?: any, file?: File) => Promise<string | null>;
     onSnapshotClick?: (id: string) => void;
+    packagingHistory?: any[]; // Passed to resolve version aliases
 }
 
 export const TrafficTab: React.FC<TrafficTabProps> = ({
@@ -28,7 +29,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     trafficData,
     isLoadingData: isLoading,
     handleCsvUpload,
-    onSnapshotClick
+    onSnapshotClick,
+    packagingHistory = []
 }) => {
     // Scroll detection for sticky header
     const sentinelRef = useRef<HTMLDivElement>(null);
@@ -93,6 +95,28 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     const isEmpty = displayedSources.length === 0;
     const hasExistingSnapshot = (trafficData?.snapshots || []).some((s: any) => s.version === activeVersion);
 
+    // Compute Version Label (with Alias Support)
+    // If viewingVersion is "draft", show "Draft"
+    // If viewingVersion is a number, lookup in history for cloneOf alias
+    const versionLabel = React.useMemo(() => {
+        if (viewingVersion === 'draft') return 'Draft';
+        if (typeof viewingVersion === 'number') {
+            const versionData = packagingHistory.find(v => v.versionNumber === viewingVersion);
+            if (versionData?.cloneOf) {
+                // Clone (Restored) -> Show alias (e.g. "Version 3 (Restored)")
+                // Check if it is active. The "Restored" badge is usually handled by other UI,
+                // but here we just want the name "Version 3" usually?
+                // The prompt says "uses version names... (for restored v.1 may show v.3)".
+                // Actually the user wants "Viewing stats for Version X".
+                // If it's a clone of 1, it should say "Viewing stats for Version 1".
+                // Let's stick to "Version X" where X is the alias.
+                return `Version ${versionData.cloneOf}`;
+            }
+            return `Version ${viewingVersion}`;
+        }
+        return undefined;
+    }, [viewingVersion, packagingHistory]);
+
     // Show actions if: data exists OR (empty but has snapshots - could be delta mode)
     const shouldShowActions = !isEmpty || hasExistingSnapshot;
 
@@ -103,6 +127,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             {/* Sticky Header */}
             <TrafficHeader
                 headerTitle={headerTitle}
+                versionLabel={versionLabel} // Use computed alias
                 isViewingOldVersion={!!isViewingOldVersion}
                 viewingVersion={viewingVersion}
                 shouldShowActions={shouldShowActions}

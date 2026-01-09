@@ -170,18 +170,41 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
                 historyCount: history.length
             });
 
-            // Smart sync: preserve local selection if still valid
+            // Smart sync: preserve local selection if still valid AND we are not forcing a specific initialActiveVersion
             const isActiveValid = state.activeVersion === 'draft' ||
                 history.some(v => v.versionNumber === state.activeVersion);
             const isViewingValid = state.viewingVersion === 'draft' ||
                 history.some(v => v.versionNumber === state.viewingVersion);
 
-            const newActive = isActiveValid ? state.activeVersion : computedActive;
+            // If we have an explicit initialActiveVersion from props (e.g. from fresh data fetch), use it.
+            // Otherwise, if our local state is valid, keep it.
+            // This prevents "flicker" where props might temporarily show old state (isDraft=true) 
+            // after we locally set it to false.
+            let newActive = computedActive;
+            if (initialActiveVersion !== undefined && initialActiveVersion !== null) {
+                newActive = initialActiveVersion;
+            } else if (isActiveValid) {
+                newActive = state.activeVersion;
+            }
+
+            // Fix for "Draft persisting after Restore" race condition:
+            // 1. If local history has more items than props history, it means we just created/restored a version locally (Immutable)
+            // 2. If local hasDraft is false but props say true, but the active version is a number matching our local, it's stale (Legacy Restore)
+            let newHasDraft = isDraft;
+            const isLocalHistoryAhead = state.packagingHistory.length > history.length;
+            const isStaleDraftProp = state.hasDraft === false &&
+                isDraft === true &&
+                typeof state.activeVersion === 'number' &&
+                newActive === state.activeVersion;
+
+            if (isLocalHistoryAhead || isStaleDraftProp) {
+                newHasDraft = state.hasDraft;
+            }
 
             return {
                 packagingHistory: history,
                 currentVersionNumber: currentVersion,
-                hasDraft: isDraft,
+                hasDraft: newHasDraft,
                 activeVersion: newActive,
                 viewingVersion: isViewingValid ? state.viewingVersion : computedActive,
                 navSortedVersions: computeNavSorted(history, newActive)
@@ -314,7 +337,10 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
             };
 
         case 'MARK_DIRTY':
-            return state.viewingVersion !== 'draft' ? { ...state, hasDraft: true } : state;
+            // USER REQUIREMENT: Draft should only appear explicitly (via Save as Draft)
+            // Dirty state is managed externally by formDirty flag.
+            // We no longer automatically show "Draft" in sidebar just because fields changed.
+            return state;
 
         case 'SET_CURRENT_VERSION_NUMBER':
             return { ...state, currentVersionNumber: action.payload };

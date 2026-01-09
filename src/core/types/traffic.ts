@@ -114,6 +114,8 @@ export interface TrafficSnapshot {
             thumbnails?: Array<{ variant: string; ctr: number; impressions: number }>;
         };
         localizations?: Record<string, any>;
+        cloneOf?: number; // Preserved restoration metadata
+        restoredAt?: number; // Preserved restoration metadata
     };
 
     /**

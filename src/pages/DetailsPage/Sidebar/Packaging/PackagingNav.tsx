@@ -35,11 +35,55 @@ export const PackagingNav: React.FC<PackagingNavProps> = ({
     // - First click on header → expands the list (managed by parent)
     // - Second click → navigates to draft or latest version
 
-    // Using pre-sorted versions from props (handled by hook for atomic synchronization)
-    const sortedVersions = versions;
-
     // Determine if there's content to expand
     const hasContent = hasDraft || versions.length > 0;
+
+    // BUSINESS LOGIC: Deduplication for Packaging Tab
+    // Users only care about "Content Versions" here. Since clones (restored versions) 
+    // are identical to their originals, we shouldn't show duplicates (e.g. v.3 and v.3 restored).
+    // We group by "Original Version" and show only the representative (Active > Latest).
+    const uniqueVersions = React.useMemo(() => {
+        const groups = new Map<number, PackagingVersion[]>();
+
+        versions.forEach(v => {
+            const canonicalId = v.cloneOf || v.versionNumber;
+            // Debug log to trace deduplication issues
+            console.log(`[PackagingNav] Dedupe: v.${v.versionNumber} (cloneOf: ${v.cloneOf}) -> Group ${canonicalId}`);
+
+            if (!groups.has(canonicalId)) {
+                groups.set(canonicalId, []);
+            }
+            groups.get(canonicalId)?.push(v);
+        });
+
+        const result: PackagingVersion[] = [];
+        groups.forEach((groupVersions) => {
+            // 1. Pick Active if exists in group
+            const active = groupVersions.find(v => v.versionNumber === activeVersion);
+            if (active) {
+                result.push(active);
+            } else {
+                // 2. Otherwise pick the one with highest versionNumber (latest instance)
+                // Assuming groupVersions might not be sorted, we sort desc
+                const latest = groupVersions.sort((a, b) => b.versionNumber - a.versionNumber)[0];
+                result.push(latest);
+            }
+        });
+
+        // Maintain the sort order: Active Top, then Chronological
+        return result.sort((a, b) => {
+            const isActiveA = a.versionNumber === activeVersion;
+            const isActiveB = b.versionNumber === activeVersion;
+            if (isActiveA && !isActiveB) return -1;
+            if (!isActiveA && isActiveB) return 1;
+
+            // For non-active, sort by their actual version number (desc)
+            // This keeps the "Latest touched" at the top
+            return b.versionNumber - a.versionNumber;
+        });
+    }, [versions, activeVersion]);
+
+    const sortedVersions = uniqueVersions;
 
     return (
         <div className="flex flex-col">
@@ -105,16 +149,18 @@ export const PackagingNav: React.FC<PackagingNavProps> = ({
                     )}
 
                     {/* Saved versions */}
-                    {sortedVersions.map((version) => (
-                        <SidebarVersionItem
-                            key={version.versionNumber}
-                            label={`v.${version.versionNumber}`}
-                            isViewing={viewingVersion === version.versionNumber}
-                            isVideoActive={activeVersion === version.versionNumber}
-                            onClick={() => onVersionClick(version.versionNumber)}
-                            onDelete={() => onDeleteVersion(version.versionNumber)}
-                        />
-                    ))}
+                    {sortedVersions.map((version) => {
+                        return (
+                            <SidebarVersionItem
+                                key={version.versionNumber}
+                                label={`v.${version.cloneOf || version.versionNumber}`}
+                                isViewing={viewingVersion === version.versionNumber}
+                                isVideoActive={activeVersion === version.versionNumber}
+                                onClick={() => onVersionClick(version.versionNumber)}
+                                onDelete={() => onDeleteVersion(version.versionNumber)}
+                            />
+                        );
+                    })}
                 </div>
             )}
         </div>
