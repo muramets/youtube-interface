@@ -11,6 +11,7 @@ interface TrafficTabProps {
     video: VideoDetails;
     activeVersion: number;
     viewingVersion?: number | 'draft';
+    viewingPeriodIndex?: number;
     selectedSnapshot?: string | null;
     // Shared state from DetailsLayout
     trafficData: any | null;
@@ -25,6 +26,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     video: _video,
     activeVersion,
     viewingVersion,
+    viewingPeriodIndex = 0,
     selectedSnapshot,
     trafficData,
     isLoadingData: isLoading,
@@ -47,9 +49,11 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     const { displayedSources, isLoadingSnapshot } = useTrafficDataLoader({
         trafficData,
         viewingVersion,
+        viewingPeriodIndex,
         activeVersion,
         viewMode,
-        selectedSnapshot
+        selectedSnapshot,
+        packagingHistory
     });
 
     const { selectedIds, toggleSelection, toggleAll } = useTrafficSelection();
@@ -98,21 +102,28 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     // Compute Version Label (with Alias Support)
     // If viewingVersion is "draft", show "Draft"
     // If viewingVersion is a number, lookup in history for cloneOf alias
+    // Compute Version Label (Visual Mapping)
+    // We want the label to match the sidebar's visual sequence (v.1, v.2, v.3...)
+    // regardless of internal gaps or clones.
     const versionLabel = React.useMemo(() => {
         if (viewingVersion === 'draft') return 'Draft';
         if (typeof viewingVersion === 'number') {
-            const versionData = packagingHistory.find(v => v.versionNumber === viewingVersion);
-            if (versionData?.cloneOf) {
-                // Clone (Restored) -> Show alias (e.g. "Version 3 (Restored)")
-                // Check if it is active. The "Restored" badge is usually handled by other UI,
-                // but here we just want the name "Version 3" usually?
-                // The prompt says "uses version names... (for restored v.1 may show v.3)".
-                // Actually the user wants "Viewing stats for Version X".
-                // If it's a clone of 1, it should say "Viewing stats for Version 1".
-                // Let's stick to "Version X" where X is the alias.
-                return `Version ${versionData.cloneOf}`;
-            }
-            return `Version ${viewingVersion}`;
+            // 1. Build the map (same logic as PackagingNav)
+            const map = new Map<number, number>();
+            const canonicalIds = Array.from(new Set(
+                packagingHistory.map((v: any) => v.cloneOf || v.versionNumber)
+            )).sort((a: number, b: number) => a - b);
+
+            canonicalIds.forEach((id, index) => {
+                map.set(id, index + 1);
+            });
+
+            // 2. Get the visual number for current viewing version
+            const currentVersionData = packagingHistory.find((v: any) => v.versionNumber === viewingVersion);
+            const canonicalId = currentVersionData?.cloneOf || viewingVersion;
+            const visualNumber = map.get(canonicalId) || canonicalId;
+
+            return `Version ${visualNumber}`;
         }
         return undefined;
     }, [viewingVersion, packagingHistory]);

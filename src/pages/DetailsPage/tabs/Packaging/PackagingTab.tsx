@@ -215,9 +215,19 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
 
     // Derived UI State
     const isViewingActiveVersion = versionState.viewingVersion === versionState.activeVersion;
-    const headerTitle = versionState.viewingVersion === 'draft'
-        ? 'Video Packaging (Draft)'
-        : `Video Packaging v.${versionState.viewingVersion}`;
+
+    const headerTitle = React.useMemo(() => {
+        if (versionState.viewingVersion === 'draft') {
+            return 'Video Packaging (Draft)';
+        }
+        if (typeof versionState.viewingVersion === 'number') {
+            // Use the actual version number directly.
+            // visualVersionMap logic removed to prevent re-indexing (e.g. v.5 becoming v.4 if v.3 is deleted).
+            // This ensures header matches sidebar "v.X".
+            return `Video Packaging v.${versionState.viewingVersion}`;
+        }
+        return 'Video Packaging';
+    }, [versionState.viewingVersion]);
 
 
     return (
@@ -246,7 +256,10 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
 
                     <div className="flex-1" />
 
-                    {!isViewingOldVersion && (
+                    <div className="flex-1" />
+
+                    {/* Show actions if viewing Current OR if Editing an Old Version (Dirty) */}
+                    {(!isViewingOldVersion || formState.isDirty) && (
                         <div className="flex gap-3">
                             <Button
                                 variant="secondary"
@@ -273,7 +286,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                                     onClick={actions.handleSaveAsNewVersion}
                                     disabled={actions.isSaving}
                                 >
-                                    Save as v.{versionState.currentVersionNumber}
+                                    Save as v.{versionState.nextVisualVersionNumber}
                                 </Button>
                             )}
                         </div>
@@ -369,7 +382,9 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                             setVideoRender={formState.setVideoRender}
                             audioRender={formState.audioRender}
                             setAudioRender={formState.setAudioRender}
-                            readOnly={isViewingOldVersion}
+                            // Allow editing even for old versions to support "Forking" (Save as Draft from history)
+                            // We only disable if strictly needed, but for now we want to allow edits.
+                            readOnly={false}
 
                             // A/B Test props
                             abTestTitles={abTesting.titles}

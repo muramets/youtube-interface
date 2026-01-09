@@ -14,9 +14,11 @@ interface DetailsSidebarProps {
     versions: PackagingVersion[];
     viewingVersion: number | 'draft';
     activeVersion: number | 'draft';  // The version currently used by the video
+    viewingPeriodIndex?: number;
     hasDraft: boolean;
-    onVersionClick: (versionNumber: number | 'draft') => void;
-    onDeleteVersion: (versionNumber: number) => void;
+    onVersionClick: (versionNumber: number | 'draft', periodIndex?: number) => void;
+    onDeleteVersion: (versionNumber: number, versionLabel?: string) => void;
+    onDeleteDraft?: () => void;
     // Traffic props
     snapshots: TrafficSnapshot[];
     selectedSnapshot: string | null;
@@ -32,9 +34,11 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
     versions,
     viewingVersion,
     activeVersion,
+    viewingPeriodIndex,
     hasDraft,
     onVersionClick,
     onDeleteVersion,
+    onDeleteDraft,
     snapshots,
     selectedSnapshot,
     onSnapshotClick,
@@ -87,11 +91,12 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
                     viewingVersion={viewingVersion}
                     activeVersion={activeVersion}
                     hasDraft={hasDraft}
-                    onVersionClick={(v) => {
+                    onVersionClick={(v: number | 'draft', p?: number) => {
                         onTabChange('packaging');
-                        onVersionClick(v);
+                        onVersionClick(v, p);
                     }}
                     onDeleteVersion={onDeleteVersion}
+                    onDeleteDraft={onDeleteDraft}
                     isActive={activeTab === 'packaging'}
                     isExpanded={expandedSection === 'packaging'}
                     onToggle={() => handleToggleSection('packaging')}
@@ -102,12 +107,13 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
                     versions={versions}
                     snapshots={snapshots}
                     viewingVersion={viewingVersion}
+                    viewingPeriodIndex={viewingPeriodIndex}
                     activeVersion={activeVersion}
                     selectedSnapshot={selectedSnapshot}
-                    hasDraft={hasDraft}
-                    onVersionClick={(v) => {
+                    isVideoPublished={!!video.publishedVideoId}
+                    onVersionClick={(v: number | 'draft', p?: number) => {
                         onTabChange('traffic');
-                        onVersionClick(v);
+                        onVersionClick(v, p);
                     }}
                     onSnapshotClick={(snapshotId) => {
                         onTabChange('traffic');

@@ -231,7 +231,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
             ref={triggerRef}
             onPointerEnter={handleMouseEnter}
             onPointerLeave={handleMouseLeave}
-            className={`relative inline-flex items-center justify-center ${triggerClassName}`}
+            className={`relative flex items-center justify-center ${triggerClassName}`}
         >
             {children}
             {shouldRender && createPortal(
@@ -253,7 +253,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                             whitespace-normal break-all max-w-full text-left border
                             transition-all ease-out origin-top-right
                             ${variant === 'glass'
-                                ? 'bg-[#1a1a1a]/60 backdrop-blur-xl p-4 rounded-xl border-white/10 shadow-2xl w-[340px]'
+                                ? 'bg-[#1a1a1a]/60 backdrop-blur-xl px-4 py-2 rounded-xl border-white/10 shadow-2xl w-auto max-w-[340px]'
                                 : 'bg-[#1F1F1F] px-3 py-2 rounded-lg border-white/10 shadow-xl'
                             }
                             ${noAnimation ? 'duration-0' : 'duration-200'}

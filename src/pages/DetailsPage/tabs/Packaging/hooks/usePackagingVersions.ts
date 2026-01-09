@@ -1,5 +1,6 @@
 import { useReducer, useCallback, useMemo, useEffect } from 'react';
 import type { PackagingVersion, VideoLocalization } from '../../../../../core/utils/youtubeApi';
+import { VersionService } from '../../../services/VersionService';
 
 interface PackagingSnapshot {
     title: string;
@@ -31,111 +32,30 @@ interface VersionsState {
     hasDraft: boolean;
     activeVersion: number | 'draft';
     viewingVersion: number | 'draft';
+    viewingPeriodIndex?: number;
     navSortedVersions: PackagingVersion[]; // Pre-computed for atomic updates
 }
 
 // Actions
 type VersionsAction =
     | { type: 'SYNC_FROM_PROPS'; payload: { history: PackagingVersion[]; currentVersion: number; isDraft: boolean; initialActiveVersion?: number | 'draft' } }
-    | { type: 'CREATE_VERSION'; payload: { newVersion: PackagingVersion; updatedHistory: PackagingVersion[]; closingSnapshotId?: string } }
-    | { type: 'DELETE_VERSION'; payload: { versionNumber: number } }
-    | { type: 'RESTORE_VERSION'; payload: { versionNumber: number; closingSnapshotId?: string } }
-    | { type: 'SWITCH_TO_VERSION'; payload: { versionNumber: number | 'draft' } }
-    | { type: 'SAVE_DRAFT' }
+    | { type: 'CREATE_VERSION'; payload: { newVersion: PackagingVersion; updatedHistory: PackagingVersion[]; closingSnapshotId?: string | null } }
+    | { type: 'DELETE_VERSION'; payload: { versionNumbers: number[] } }
+    | { type: 'RESTORE_VERSION'; payload: { versionNumber: number; closingSnapshotId?: string | null } }
+    | { type: 'SWITCH_TO_VERSION'; payload: { versionNumber: number | 'draft'; periodIndex?: number } }
+    | { type: 'SAVE_DRAFT'; payload: { closingSnapshotId?: string | null } }
     | { type: 'MARK_DIRTY' }
     | { type: 'SET_CURRENT_VERSION_NUMBER'; payload: number }
     | { type: 'SET_HAS_DRAFT'; payload: boolean }
-    | { type: 'SET_ACTIVE_VERSION'; payload: number | 'draft' };
+    | { type: 'SET_ACTIVE_VERSION'; payload: { versionNumber: number | 'draft'; closingSnapshotId?: string | null } };
 
 /**
- * BUSINESS LOGIC: Helper Functions for Active Periods Management
- * 
- * These functions handle the timeline-based attribution system for versions.
- * They ensure that when versions are created, restored, or deleted, the
- * activation periods are properly tracked.
+ * BUSINESS LOGIC: Helper Functions for Active Periods Management (Aliased from VersionService)
  */
+const { ensureActivePeriods, closeAllPeriods, addNewActivePeriod } = VersionService;
 
-/**
- * Initialize activePeriods for a version if not present (backward compatibility).
- */
-function ensureActivePeriods(version: PackagingVersion): PackagingVersion {
-    if (version.activePeriods && version.activePeriods.length > 0) {
-        return version;
-    }
+// Helper: Compute sidebar-sorted versions (active first, then desc by number)
 
-    return {
-        ...version,
-        activePeriods: [{
-            startDate: version.startDate,
-            endDate: version.endDate,
-            closingSnapshotId: undefined
-        }]
-    };
-}
-
-/**
- * Close the active period of a version.
- * 
- * @param version - The version whose active period should be closed
- * @param closingSnapshotId - Optional ID of the snapshot that closes this period
- * @returns Updated version with closed period
- */
-function closeActivePeriod(
-    version: PackagingVersion,
-    closingSnapshotId?: string
-): PackagingVersion {
-    const now = Date.now();
-    const versionWithPeriods = ensureActivePeriods(version);
-    const periods = versionWithPeriods.activePeriods!;
-
-    // Find the active period (no endDate)
-    const activePeriodIndex = periods.findIndex(p => p.endDate === undefined);
-
-    if (activePeriodIndex === -1) {
-        console.warn(`No active period found for v.${version.versionNumber}`);
-        return versionWithPeriods;
-    }
-
-    // Close the active period
-    const updatedPeriods = [...periods];
-    updatedPeriods[activePeriodIndex] = {
-        ...updatedPeriods[activePeriodIndex],
-        endDate: now,
-        closingSnapshotId
-    };
-
-    return {
-        ...versionWithPeriods,
-        endDate: now, // Update deprecated field for backward compat
-        activePeriods: updatedPeriods
-    };
-}
-
-/**
- * Add a new activation period to a version.
- * Used when restoring an old version.
- * 
- * @param version - The version to add a new period to
- * @returns Updated version with new active period
- */
-function addNewActivePeriod(version: PackagingVersion): PackagingVersion {
-    const now = Date.now();
-    const versionWithPeriods = ensureActivePeriods(version);
-    const periods = versionWithPeriods.activePeriods!;
-
-    const newPeriod = {
-        startDate: now,
-        endDate: undefined,
-        closingSnapshotId: undefined
-    };
-
-    return {
-        ...versionWithPeriods,
-        startDate: now, // Update deprecated field for backward compat
-        endDate: undefined,
-        activePeriods: [...periods, newPeriod]
-    };
-}
 
 // Helper: Compute sidebar-sorted versions (active first, then desc by number)
 function computeNavSorted(history: PackagingVersion[], activeVersion: number | 'draft'): PackagingVersion[] {
@@ -201,77 +121,87 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
                 newHasDraft = state.hasDraft;
             }
 
+            // Sanitize history: ensure at most one version is active (has open period)
+            const sanitizedHistory = history.map(v => {
+                if (v.versionNumber !== newActive) {
+                    return closeAllPeriods(v);
+                }
+
+                // If this IS the active version, ensure it has an OPEN period
+                const withPeriods = ensureActivePeriods(v);
+                const hasOpen = withPeriods.activePeriods!.some(p => !p.endDate);
+                if (!hasOpen) {
+                    return addNewActivePeriod(withPeriods);
+                }
+                return withPeriods;
+            });
+
             return {
-                packagingHistory: history,
+                packagingHistory: sanitizedHistory,
                 currentVersionNumber: currentVersion,
                 hasDraft: newHasDraft,
                 activeVersion: newActive,
                 viewingVersion: isViewingValid ? state.viewingVersion : computedActive,
-                navSortedVersions: computeNavSorted(history, newActive)
+                viewingPeriodIndex: isViewingValid ? state.viewingPeriodIndex : 0,
+                navSortedVersions: computeNavSorted(sanitizedHistory, newActive)
             };
         }
 
         case 'CREATE_VERSION': {
-            const { newVersion, closingSnapshotId } = action.payload;
-
-            /**
-             * BUSINESS LOGIC: Create New Version with Period Tracking
-             * 
-             * When creating a new version (e.g., v.2 → v.3):
-             * 1. Close the active period of the current version (v.2)
-             * 2. Add the new version (v.3) with its first activation period
-             * 
-             * The closingSnapshotId (from CSV upload) is linked to v.2's period,
-             * allowing us to calculate views for v.2 later.
-             */
-
-            // Close the current active version's period
-            const historyWithClosedPeriod = state.packagingHistory.map(v => {
-                if (v.versionNumber === state.activeVersion && typeof state.activeVersion === 'number') {
-                    return closeActivePeriod(v, closingSnapshotId);
-                }
-                return ensureActivePeriods(v);
-            });
-
-            // Add new version with its first activation period
-            const newVersionWithPeriod: PackagingVersion = {
-                ...newVersion,
-                activePeriods: [{
-                    startDate: newVersion.startDate,
-                    endDate: undefined, // Currently active
-                    closingSnapshotId: undefined
-                }]
-            };
-
-            const finalHistory = [...historyWithClosedPeriod, newVersionWithPeriod];
+            const { newVersion, updatedHistory } = action.payload;
 
             return {
                 ...state,
-                packagingHistory: finalHistory,
+                packagingHistory: updatedHistory,
                 currentVersionNumber: state.currentVersionNumber + 1,
                 hasDraft: false,
                 activeVersion: newVersion.versionNumber,
                 viewingVersion: newVersion.versionNumber,
-                navSortedVersions: computeNavSorted(finalHistory, newVersion.versionNumber)
+                viewingPeriodIndex: 0,
+                navSortedVersions: computeNavSorted(updatedHistory, newVersion.versionNumber)
             };
         }
 
         case 'DELETE_VERSION': {
-            const { versionNumber } = action.payload;
-            const remaining = state.packagingHistory.filter(v => v.versionNumber !== versionNumber);
+            const { versionNumbers } = action.payload;
+            const remaining = state.packagingHistory.filter(v => !versionNumbers.includes(v.versionNumber));
             const newest = remaining.length > 0 ? Math.max(...remaining.map(v => v.versionNumber)) : null;
-            const newActive = state.activeVersion === versionNumber ? (newest ?? 'draft') : state.activeVersion;
+
+            // Determine the new active version after deletion
+            let newActive: number | 'draft' = 'draft';
+            if (remaining.length > 0) {
+                // If the currently active version is not deleted, keep it.
+                if (typeof state.activeVersion === 'number' && !versionNumbers.includes(state.activeVersion)) {
+                    newActive = state.activeVersion;
+                } else {
+                    // Otherwise, activate the newest remaining version.
+                    newActive = newest!;
+                }
+            }
+
+            // Determine if the currently viewed version was deleted
+            const isViewingDeleted = typeof state.viewingVersion === 'number' && versionNumbers.includes(state.viewingVersion);
+
+            // Ensure the new active version's periods are managed correctly
+            const updatedHistory = remaining.map(v => {
+                if (v.versionNumber === newActive && typeof newActive === 'number') {
+                    // Force close existing and open fresh
+                    return addNewActivePeriod(closeAllPeriods(v));
+                }
+                return closeAllPeriods(v);
+            });
 
             return {
                 ...state,
-                packagingHistory: remaining,
+                packagingHistory: updatedHistory,
                 currentVersionNumber: remaining.length === 0 ? 1 : (newest! + 1),
                 hasDraft: remaining.length === 0,
                 activeVersion: newActive,
-                viewingVersion: state.viewingVersion === versionNumber
+                viewingVersion: isViewingDeleted
                     ? (newest ?? 'draft')
                     : state.viewingVersion,
-                navSortedVersions: computeNavSorted(remaining, newActive)
+                viewingPeriodIndex: isViewingDeleted ? 0 : state.viewingPeriodIndex,
+                navSortedVersions: computeNavSorted(updatedHistory, newActive)
             };
         }
 
@@ -297,18 +227,10 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
              */
 
             const updatedHistory = state.packagingHistory.map(v => {
-                // Close the current active version's period
-                if (v.versionNumber === state.activeVersion && typeof state.activeVersion === 'number') {
-                    return closeActivePeriod(v, closingSnapshotId);
-                }
-
-                // Add new activation period to the restored version
                 if (v.versionNumber === versionNumber) {
-                    return addNewActivePeriod(v);
+                    return addNewActivePeriod(closeAllPeriods(v, closingSnapshotId));
                 }
-
-                // Ensure all other versions have activePeriods initialized
-                return ensureActivePeriods(v);
+                return closeAllPeriods(v, closingSnapshotId);
             });
 
             return {
@@ -317,6 +239,7 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
                 hasDraft: false,
                 activeVersion: versionNumber,
                 viewingVersion: versionNumber,
+                viewingPeriodIndex: 0, // Latest period after restore
                 navSortedVersions: computeNavSorted(updatedHistory, versionNumber)
             };
         }
@@ -324,17 +247,27 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
         case 'SWITCH_TO_VERSION':
             return {
                 ...state,
-                viewingVersion: action.payload.versionNumber
+                viewingVersion: action.payload.versionNumber,
+                viewingPeriodIndex: action.payload.periodIndex ?? 0
             };
 
-        case 'SAVE_DRAFT':
+        case 'SAVE_DRAFT': {
+            const { closingSnapshotId } = action.payload;
+
+            const updatedHistory = state.packagingHistory.map(v => {
+                return closeAllPeriods(v, closingSnapshotId || null);
+            });
+
             return {
                 ...state,
+                packagingHistory: updatedHistory,
                 hasDraft: true,
                 activeVersion: 'draft',
                 viewingVersion: 'draft',
-                navSortedVersions: computeNavSorted(state.packagingHistory, 'draft')
+                viewingPeriodIndex: 0,
+                navSortedVersions: computeNavSorted(updatedHistory, 'draft')
             };
+        }
 
         case 'MARK_DIRTY':
             // USER REQUIREMENT: Draft should only appear explicitly (via Save as Draft)
@@ -348,12 +281,23 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
         case 'SET_HAS_DRAFT':
             return { ...state, hasDraft: action.payload };
 
-        case 'SET_ACTIVE_VERSION':
+        case 'SET_ACTIVE_VERSION': {
+            const { versionNumber, closingSnapshotId } = action.payload;
+
+            const updatedHistory = state.packagingHistory.map(v => {
+                if (v.versionNumber === versionNumber && typeof versionNumber === 'number') {
+                    return addNewActivePeriod(closeAllPeriods(v, closingSnapshotId || null));
+                }
+                return closeAllPeriods(v, closingSnapshotId || null);
+            });
+
             return {
                 ...state,
-                activeVersion: action.payload,
-                navSortedVersions: computeNavSorted(state.packagingHistory, action.payload)
+                packagingHistory: updatedHistory,
+                activeVersion: versionNumber,
+                navSortedVersions: computeNavSorted(updatedHistory, versionNumber)
             };
+        }
 
         default:
             return state;
@@ -384,6 +328,7 @@ export const usePackagingVersions = ({
         hasDraft: initialIsDraft,
         activeVersion: initialActive,
         viewingVersion: initialActive,
+        viewingPeriodIndex: 0,
         navSortedVersions: computeNavSorted(initialHistory, initialActive)
     });
 
@@ -412,31 +357,42 @@ export const usePackagingVersions = ({
         return version?.configurationSnapshot || null;
     }, [state.packagingHistory]);
 
-    const switchToVersion = useCallback((versionNumber: number | 'draft') => {
-        dispatch({ type: 'SWITCH_TO_VERSION', payload: { versionNumber } });
+    const switchToVersion = useCallback((versionNumber: number | 'draft', periodIndex?: number) => {
+        dispatch({ type: 'SWITCH_TO_VERSION', payload: { versionNumber, periodIndex } });
     }, []);
 
-    const restoreVersion = useCallback((versionNumber: number, closingSnapshotId?: string) => {
-        dispatch({ type: 'RESTORE_VERSION', payload: { versionNumber, closingSnapshotId } });
-    }, []);
+    const restoreVersion = useCallback((versionNumber: number, closingSnapshotId?: string | null): {
+        updatedHistory: PackagingVersion[]
+    } => {
+        const updatedHistory = state.packagingHistory.map(v => {
+            if (v.versionNumber === versionNumber) {
+                return addNewActivePeriod(closeAllPeriods(v, closingSnapshotId || null));
+            }
+            return closeAllPeriods(v, closingSnapshotId || null);
+        });
 
-    const createVersion = useCallback((snapshot: PackagingSnapshot, closingSnapshotId?: string): {
+        dispatch({ type: 'RESTORE_VERSION', payload: { versionNumber, closingSnapshotId: closingSnapshotId || null } });
+        return { updatedHistory };
+    }, [state.packagingHistory]);
+
+    const createVersion = useCallback((snapshot: PackagingSnapshot, closingSnapshotId?: string | null): {
         newVersion: PackagingVersion;
         updatedHistory: PackagingVersion[];
         currentPackagingVersion: number;
     } => {
-        let updatedHistory = state.packagingHistory;
-        if (state.activeVersion !== 'draft') {
-            updatedHistory = state.packagingHistory.map(v =>
-                v.versionNumber === state.activeVersion
-                    ? { ...v, endDate: Date.now() }
-                    : v
-            );
-        }
+        let updatedHistory = state.packagingHistory.map(v => {
+            return closeAllPeriods(v, closingSnapshotId || null);
+        });
 
         const newVersion: PackagingVersion = {
             versionNumber: state.currentVersionNumber,
             startDate: Date.now(),
+            endDate: null,
+            activePeriods: [{
+                startDate: Date.now(),
+                endDate: null,
+                closingSnapshotId: null
+            }],
             checkins: [],
             configurationSnapshot: snapshot
         };
@@ -452,12 +408,21 @@ export const usePackagingVersions = ({
         };
     }, [state.packagingHistory, state.activeVersion, state.currentVersionNumber]);
 
-    const saveDraft = useCallback(() => {
-        dispatch({ type: 'SAVE_DRAFT' });
-    }, []);
+    const saveDraft = useCallback((closingSnapshotId?: string | null): {
+        updatedHistory: PackagingVersion[]
+    } => {
+        const updatedHistory = state.packagingHistory.map(v => {
+            return closeAllPeriods(v, closingSnapshotId || null);
+        });
 
-    const deleteVersion = useCallback((versionNumber: number) => {
-        dispatch({ type: 'DELETE_VERSION', payload: { versionNumber } });
+        dispatch({ type: 'SAVE_DRAFT', payload: { closingSnapshotId } });
+
+        return { updatedHistory };
+    }, [state.packagingHistory, state.activeVersion]);
+
+    const deleteVersion = useCallback((versionNumbers: number | number[]) => {
+        const payload = Array.isArray(versionNumbers) ? versionNumbers : [versionNumbers];
+        dispatch({ type: 'DELETE_VERSION', payload: { versionNumbers: payload } });
     }, []);
 
     const markDirty = useCallback(() => {
@@ -467,8 +432,9 @@ export const usePackagingVersions = ({
     const getVersionsPayload = useCallback(() => ({
         packagingHistory: state.packagingHistory,
         currentPackagingVersion: state.currentVersionNumber,
-        isDraft: state.hasDraft
-    }), [state.packagingHistory, state.currentVersionNumber, state.hasDraft]);
+        isDraft: state.hasDraft,
+        activeVersion: state.activeVersion
+    }), [state.packagingHistory, state.currentVersionNumber, state.hasDraft, state.activeVersion]);
 
     // Direct setters for external sync
     const setPackagingHistory = useCallback((history: PackagingVersion[] | ((prev: PackagingVersion[]) => PackagingVersion[])) => {
@@ -488,15 +454,31 @@ export const usePackagingVersions = ({
         dispatch({ type: 'SET_HAS_DRAFT', payload: newValue });
     }, [state.hasDraft]);
 
-    const setActiveVersion = useCallback((value: (number | 'draft') | ((prev: number | 'draft') => number | 'draft')) => {
-        const newValue = typeof value === 'function' ? value(state.activeVersion) : value;
-        dispatch({ type: 'SET_ACTIVE_VERSION', payload: newValue });
-    }, [state.activeVersion]);
+    const setActiveVersion = useCallback((versionNumber: number | 'draft', closingSnapshotId?: string | null) => {
+        dispatch({ type: 'SET_ACTIVE_VERSION', payload: { versionNumber, closingSnapshotId } });
+    }, []);
 
     const setCurrentVersionNumber = useCallback((value: number | ((prev: number) => number)) => {
         const newValue = typeof value === 'function' ? value(state.currentVersionNumber) : value;
         dispatch({ type: 'SET_CURRENT_VERSION_NUMBER', payload: newValue });
     }, [state.currentVersionNumber]);
+
+    // Compute next VISUAL version number (excluding clones)
+    // This is what users see in the UI, not the internal database version number
+    const nextVisualVersionNumber = useMemo(() => {
+        if (state.packagingHistory.length === 0) {
+            return 1; // First version
+        }
+
+        // Find all unique "canonical" versions (cloneOf || versionNumber)
+        // Since we map these sequentially (1, 2, 3...) in the UI, the next visual version
+        // is simply the count of unique groups + 1.
+        const canonicalVersions = new Set(
+            state.packagingHistory.map(v => v.cloneOf || v.versionNumber)
+        );
+
+        return canonicalVersions.size + 1;
+    }, [state.packagingHistory]);
 
     return useMemo(() => ({
         // State
@@ -504,9 +486,11 @@ export const usePackagingVersions = ({
         sortedVersions,
         navSortedVersions: state.navSortedVersions,
         currentVersionNumber: state.currentVersionNumber,
+        nextVisualVersionNumber, // Visual version number for UI (excludes clones)
         hasDraft: state.hasDraft,
         activeVersion: state.activeVersion,
         viewingVersion: state.viewingVersion,
+        viewingPeriodIndex: state.viewingPeriodIndex,
 
         // Actions
         switchToVersion,

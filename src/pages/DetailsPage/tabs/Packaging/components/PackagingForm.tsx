@@ -111,7 +111,7 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
             )}
 
             {/* Description */}
-            <DescriptionInput value={description} onChange={setDescription} />
+            <DescriptionInput value={description} onChange={setDescription} readOnly={readOnly} />
 
             {/* Thumbnail */}
             <ThumbnailSection

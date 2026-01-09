@@ -103,10 +103,42 @@ export const TrafficSnapshotService = {
      */
     async getVersionSources(
         version: number,
-        snapshots: TrafficSnapshot[]
+        snapshots: TrafficSnapshot[],
+        periodStart?: number,
+        periodEnd?: number | null
     ): Promise<TrafficSource[]> {
-        // Находим ВСЕ снапшоты для этой версии и берем ПОСЛЕДНИЙ (самый свежий)
-        const versionSnapshots = snapshots.filter(s => s.version === version);
+        // Находим снапшоты для этой версии
+        let versionSnapshots = snapshots.filter(s => s.version === version);
+
+        // Если указан временной диапазон (для Restored версий), 
+        // берем ПОСЛЕДНИЙ (LIFO) снапшот внутри этого диапазона
+        if (periodStart) {
+            console.log('[TrafficSnapshotService] Filtering by period:', {
+                periodStart,
+                periodEnd,
+                totalSnapshots: versionSnapshots.length
+            });
+
+            versionSnapshots = versionSnapshots.filter(s => {
+                // Add 5s buffer to start and end as well to handle millisecond-level offsets between client events
+                const matchesStart = s.timestamp >= (periodStart - 5000);
+                const matchesEnd = periodEnd ? s.timestamp <= (periodEnd + 5000) : true;
+
+                if (!matchesStart) {
+                    console.log(`[TrafficSnapshotService] Filtered OUT (too old): ${s.id}`, {
+                        snapTime: s.timestamp,
+                        periodStart,
+                        diff: s.timestamp - periodStart,
+                        limit: periodStart - 5000
+                    });
+                }
+
+                return matchesStart && matchesEnd;
+            });
+            console.log('[TrafficSnapshotService] After filter:', versionSnapshots.length);
+        }
+
+        // Берем самый свежий из подходящих
         const snapshot = versionSnapshots[versionSnapshots.length - 1];
 
         if (!snapshot) return [];

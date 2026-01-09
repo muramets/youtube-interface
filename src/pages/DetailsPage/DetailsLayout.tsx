@@ -91,6 +91,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
             versionToRestore: null,
             resolveCallback: null
         },
+        onOpenSnapshotRequest: openSnapshotRequest,
         closeSnapshotModal: closeModal
     });
 
@@ -131,6 +132,39 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
         prevActiveTabRef.current = activeTab;
     }, [activeTab, versions]);
 
+    // Handle draft deletion
+    const handleDeleteDraft = async () => {
+        if (!user?.uid || !currentChannel?.id || !video.id) return;
+
+        try {
+            // Find the last saved version to switch to
+            const lastVersion = versions.packagingHistory.length > 0
+                ? Math.max(...versions.packagingHistory.map(v => v.versionNumber))
+                : null;
+
+            // Update local state first for immediate UI feedback
+            versions.setHasDraft(false);
+            if (lastVersion) {
+                versions.setActiveVersion(lastVersion);
+                versions.switchToVersion(lastVersion);
+            }
+
+            // Save to Firestore
+            await updateVideo({
+                videoId: video.id,
+                updates: {
+                    isDraft: false,
+                    activeVersion: lastVersion || undefined
+                }
+            });
+
+            console.log('[Toast] success: Draft deleted');
+        } catch (error) {
+            console.error('Failed to delete draft:', error);
+            console.log('[Toast] error: Failed to delete draft');
+        }
+    };
+
     return (
         <div className="flex-1 flex overflow-hidden bg-video-edit-bg">
             {/* Left Sidebar */}
@@ -139,9 +173,11 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                 versions={versions.navSortedVersions}
                 viewingVersion={versions.viewingVersion}
                 activeVersion={versions.activeVersion}
+                viewingPeriodIndex={versions.viewingPeriodIndex}
                 hasDraft={versions.hasDraft}
                 onVersionClick={versionMgmt.handleVersionClick}
                 onDeleteVersion={versionMgmt.handleDeleteVersion}
+                onDeleteDraft={handleDeleteDraft}
                 snapshots={trafficState.trafficData?.snapshots || []}
                 selectedSnapshot={selectedSnapshot}
                 onSnapshotClick={snapshotMgmt.handleSnapshotClick}
@@ -168,6 +204,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                         video={video}
                         activeVersion={typeof versions.activeVersion === 'number' ? versions.activeVersion : 0}
                         viewingVersion={versions.viewingVersion}
+                        viewingPeriodIndex={versions.viewingPeriodIndex}
                         selectedSnapshot={selectedSnapshot}
                         trafficData={trafficState.trafficData}
                         isLoadingData={trafficState.isLoading}

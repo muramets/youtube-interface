@@ -82,22 +82,24 @@ export interface VersionState {
     packagingHistory: PackagingVersion[];
     sortedVersions: PackagingVersion[];
     navSortedVersions: PackagingVersion[]; // Specialized sort for sidebar (active first, then desc)
-    currentVersionNumber: number;
+    currentVersionNumber: number; // Internal database version number (includes clones)
+    nextVisualVersionNumber: number; // Next version number visible to users (excludes clones)
     hasDraft: boolean;
 
     // Current State
     activeVersion: number | 'draft';      // What version is "active" (being edited)
     viewingVersion: number | 'draft';     // What version is displayed (may be historical)
+    viewingPeriodIndex?: number;          // Specific index in activePeriods (for restored versions highlighting)
 
     // Actions
-    switchToVersion: (versionNumber: number | 'draft') => void;
-    restoreVersion: (versionNumber: number, closingSnapshotId?: string) => void;
-    createVersion: (snapshot: PackagingSnapshot, closingSnapshotId?: string) => {
+    switchToVersion: (versionNumber: number | 'draft', periodIndex?: number) => void;
+    restoreVersion: (versionNumber: number, closingSnapshotId?: string | null) => { updatedHistory: PackagingVersion[] };
+    createVersion: (snapshot: PackagingSnapshot, closingSnapshotId?: string | null) => {
         newVersion: PackagingVersion;
         updatedHistory: PackagingVersion[];
         currentPackagingVersion: number;
     };
-    saveDraft: () => void;
+    saveDraft: (closingSnapshotId?: string | null) => { updatedHistory: PackagingVersion[] };
     deleteVersion: (versionNumber: number) => void;
     markDirty: () => void;
 
@@ -112,7 +114,7 @@ export interface VersionState {
     // Direct state setters (for sync with saved data)
     setPackagingHistory: React.Dispatch<React.SetStateAction<PackagingVersion[]>>;
     setHasDraft: React.Dispatch<React.SetStateAction<boolean>>;
-    setActiveVersion: React.Dispatch<React.SetStateAction<number | 'draft'>>;
+    setActiveVersion: (versionNumber: number | 'draft', closingSnapshotId?: string | null) => void;
     setCurrentVersionNumber: React.Dispatch<React.SetStateAction<number>>;
 }
 

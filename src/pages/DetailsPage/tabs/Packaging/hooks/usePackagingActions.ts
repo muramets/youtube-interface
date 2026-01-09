@@ -69,7 +69,7 @@ export const usePackagingActions = ({
             const payload = buildSavePayload();
 
             // Mark as draft -> switches sidebar to Draft
-            versionState.saveDraft();
+            const { updatedHistory } = versionState.saveDraft();
             const versionPayload = versionState.getVersionsPayload();
 
             await updateVideo({
@@ -79,9 +79,10 @@ export const usePackagingActions = ({
                     // Keep thumbnail in sync with customImage (use empty string if deliberately cleared)
                     thumbnail: payload.customImage,
                     // Version data
-                    packagingHistory: versionPayload.packagingHistory,
+                    packagingHistory: updatedHistory,
                     currentPackagingVersion: versionPayload.currentPackagingVersion,
-                    isDraft: true
+                    isDraft: true,
+                    activeVersion: 'draft' // Ensure ACTIVE badge shows on draft
                 }
             });
 
@@ -144,7 +145,7 @@ export const usePackagingActions = ({
                 abTestThumbnails: abTesting.thumbnails,
                 abTestResults: abTesting.results,
                 localizations: payload.localizations
-            }, closingSnapshotId || undefined);
+            }, closingSnapshotId || null);
 
             // Update snapshot and show toast
             formState.updateSnapshotToCurrent();

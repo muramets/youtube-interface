@@ -106,7 +106,7 @@ export interface PackagingVersion {
 
     // DEPRECATED: Use activePeriods[last].endDate instead
     // Kept for backward compatibility with existing data
-    endDate?: number;
+    endDate?: number | null;
 
     /**
      * Array of all time periods when this version was active.
@@ -125,8 +125,8 @@ export interface PackagingVersion {
      */
     activePeriods?: Array<{
         startDate: number;
-        endDate?: number;
-        closingSnapshotId?: string; // References TrafficSnapshot.id
+        endDate?: number | null;
+        closingSnapshotId?: string | null; // References TrafficSnapshot.id
     }>;
 
     checkins: PackagingCheckin[];

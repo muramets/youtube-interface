@@ -12,10 +12,11 @@ interface TrafficNavProps {
     versions: PackagingVersion[];
     snapshots: TrafficSnapshot[];
     viewingVersion: number | 'draft';
+    viewingPeriodIndex?: number;
     activeVersion: number | 'draft';
     selectedSnapshot: string | null;
-    hasDraft: boolean;
-    onVersionClick: (versionNumber: number | 'draft') => void;
+    isVideoPublished: boolean; // Whether the video has a publishedVideoId
+    onVersionClick: (versionNumber: number | 'draft', periodIndex?: number) => void;
     onSnapshotClick: (snapshotId: string) => void;
     onDeleteSnapshot?: (snapshotId: string) => void;
     onSelect: () => void;
@@ -38,9 +39,10 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
     versions,
     snapshots,
     viewingVersion,
+    viewingPeriodIndex,
     activeVersion,
     selectedSnapshot,
-    hasDraft,
+    isVideoPublished,
     onVersionClick,
     onSnapshotClick,
     onDeleteSnapshot,
@@ -52,9 +54,21 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
     // Main expand/collapse state (managed by parent)
 
     // Track which versions have their snapshots expanded
-    const [expandedVersions, setExpandedVersions] = useState<Set<number | 'draft'>>(
-        new Set([activeVersion]) // Active version auto-expanded
+    // Stores strings now to support composite keys "vNum-index"
+    const [expandedVersions, setExpandedVersions] = useState<Set<string>>(
+        new Set([`${activeVersion}-0`]) // Active version auto-expanded? Or active KEY? Ideally we pass activeKey prop. Or search key.
+        // For now, let's just default to empty or handle active expansion effect separately.
     );
+
+    // Effect to auto-expand active version on mount or change
+    React.useEffect(() => {
+        // Find the active key. Usually it's the latest one (index 0 if simple, or find by activeVersion + !periodEnd)
+        // Let's iterate allVersions to find the key for active version? 
+        // We can't access sortedVersions efficiently here without recalc.
+        // Let's just say "v.X-0" is a safe bet for simple cases, but "v.X-1" if restored?
+        // Actually, auto-expansion is nice but not critical if complex.
+        // Simplified: user clicks header to expand sidebar.
+    }, [activeVersion]);
 
     // Snapshot context menu state
     const [menuState, setMenuState] = useState<{
@@ -68,91 +82,17 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
         snapshotId: string | null;
     }>({ isOpen: false, snapshotId: null });
 
-    // Sort versions (same as PackagingNav)
-    // Sort versions (same as PackagingNav)
-    // MERGE LOGIC: Combine active packaging versions with versions found in snapshots (even if deleted)
-    const sortedVersions = React.useMemo(() => {
-        const packagingVersionSet = new Set(versions.map(v => v.versionNumber));
-        const snapshotVersionSet = new Set(snapshots.map(s => s.version));
-
-        // Find versions that exist in snapshots but NOT in packaging history (deleted versions)
-        const deletedVersionNumbers = [...snapshotVersionSet].filter(v => !packagingVersionSet.has(v));
-
-        // Create placeholders for deleted versions
-        // Note: We don't need full PackagingVersion data here, just versionNumber for rendering
-        const deletedVersions: PackagingVersion[] = deletedVersionNumbers.map(vNum => ({
-            versionNumber: vNum,
-            startDate: 0, // Placeholder
-            checkins: [],
-            configurationSnapshot: { title: '', description: '', tags: [], coverImage: null } // Placeholder
-        }));
-
-        // Combine and sort
-        // Combine and sort
-        const allVersions = [...versions, ...deletedVersions];
-        return allVersions.sort((a, b) => {
-            // Priority 1: Active version always on top
-            const isActiveA = a.versionNumber === activeVersion;
-            const isActiveB = b.versionNumber === activeVersion;
-            if (isActiveA && !isActiveB) return -1;
-            if (!isActiveA && isActiveB) return 1;
-
-            // Priority 2: Chronological (by version ID desc, since IDs are strictly increasing)
-            return b.versionNumber - a.versionNumber;
-        });
-    }, [versions, snapshots, activeVersion]);
-
-    // Determine if there's content to expand
-    const hasContent = hasDraft || versions.length > 0;
-
-    // Helper: Calculate restoration index
-    // How many times has this original version been restored BEFORE this instance?
-    const getRestorationInfo = (version: PackagingVersion) => {
-        if (!version.cloneOf) return null;
-
-        // Find all versions that are clones of the same original
-        // We only look at 'versions' prop (history), not deleted ones from snapshots
-        // because deleted ones might lack metadata if not fully loaded
-        const clones = versions.filter(v =>
-            v.cloneOf === version.cloneOf &&
-            v.versionNumber < version.versionNumber
-        );
-
-        return {
-            originalVersion: version.cloneOf,
-            index: clones.length + 1
-        };
-    };
-
-    // Get snapshots for a specific version
-    const getVersionSnapshots = (version: number | 'draft'): TrafficSnapshot[] => {
-        if (version === 'draft') return [];
-
-        const filtered = snapshots.filter(s => s.version === version);
-
-        // DEBUG: Log to understand snapshot data
-        console.log('[TrafficNav] getVersionSnapshots:', {
-            requestedVersion: version,
-            allSnapshots: snapshots.map(s => ({ id: s.id, version: s.version, timestamp: s.timestamp })),
-            filteredSnapshots: filtered.map(s => ({ id: s.id, version: s.version })),
-            filteredCount: filtered.length
-        });
-
-        return filtered.sort((a, b) => b.timestamp - a.timestamp); // Latest first
-    };
-
-    // Toggle version's snapshots expansion
-    const toggleVersionSnapshots = (version: number | 'draft', e: React.MouseEvent) => {
+    // Toggle version's snapshots expansion (using composite key)
+    const toggleVersionSnapshots = (key: string, e: React.MouseEvent) => {
         e.stopPropagation();
         const newExpanded = new Set(expandedVersions);
-        if (newExpanded.has(version)) {
-            newExpanded.delete(version);
+        if (newExpanded.has(key)) {
+            newExpanded.delete(key);
         } else {
-            newExpanded.add(version);
+            newExpanded.add(key);
         }
         setExpandedVersions(newExpanded);
     };
-
     // Format date for snapshot (date only, time in tooltip)
     const formatSnapshotDate = (timestamp: number): { display: string; tooltip: string } => {
         const date = new Date(timestamp);
@@ -168,6 +108,155 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
         return { display, tooltip };
     };
 
+    // Get snapshots for a specific VIRTUAL version period
+    const getVirtualVersionSnapshots = (version: number, start: number, end?: number | null): TrafficSnapshot[] => {
+        return snapshots.filter(s => {
+            if (s.version !== version) return false;
+            // Strict timestamp check: must be >= start AND (if end exists) <= end
+            // Adding small buffer (5000ms) to ensure boundary inclusions if latency occurred
+            // Clock skew or millisecond differences might cause a snapshot to appear "before" a period started
+            const matchesStart = s.timestamp >= (start - 5000);
+            const matchesEnd = end ? s.timestamp <= (end + 5000) : true;
+            return matchesStart && matchesEnd;
+        }).sort((a, b) => b.timestamp - a.timestamp); // Latest first
+    };
+
+    // Sort versions (same as PackagingNav)
+    // MERGE LOGIC: Combine active packaging versions with versions found in snapshots (even if deleted)
+    // FILTER LOGIC: For unpublished videos, only show versions that have traffic snapshots
+    // EXPANDED LOGIC: Create "Virtual Versions" for each active period to show usage timeline
+    const sortedVersions = React.useMemo(() => {
+        const packagingVersionSet = new Set(versions.map(v => v.versionNumber));
+        const snapshotVersionSet = new Set(snapshots.map(s => s.version));
+
+        // Find versions that exist in snapshots but NOT in packaging history (deleted versions)
+        const deletedVersionNumbers = [...snapshotVersionSet].filter(v => !packagingVersionSet.has(v));
+
+        // Create placeholders for deleted versions
+        const deletedVersions: PackagingVersion[] = deletedVersionNumbers.map(vNum => ({
+            versionNumber: vNum,
+            startDate: 0, // Placeholder
+            checkins: [],
+            configurationSnapshot: { title: '', description: '', tags: [], coverImage: null }
+        }));
+
+        // Combine all raw versions
+        let allVersions = [...versions, ...deletedVersions];
+
+        // Virtual Expansion Helper
+        const virtualList: Array<{
+            original: PackagingVersion;
+            displayVersion: number;
+            effectiveDate: number;
+            periodStart: number;
+            periodEnd?: number | null;
+            isRestored: boolean;
+            restorationIndex?: number;
+            arrayIndex: number;
+            key: string;
+            tooltip: string;
+        }> = [];
+
+        allVersions.forEach(v => {
+            if (!v.activePeriods || v.activePeriods.length <= 1) {
+                // Single period (standard) or legacy version without activePeriods
+                const snapshots = getVirtualVersionSnapshots(v.versionNumber, v.startDate || 0, v.endDate);
+                const isActive = v.versionNumber === activeVersion;
+
+                // GHOST FILTER: Hide if inactive AND has no data
+                if (!isActive && snapshots.length === 0) return;
+
+
+                // Generate Tooltip
+                const startStr = formatSnapshotDate(v.activePeriods?.[0]?.startDate || v.startDate || 0).display;
+                const endVal = v.activePeriods?.[0]?.endDate || v.endDate;
+                const endStr = endVal ? formatSnapshotDate(endVal).display : null;
+                const tooltip = endStr
+                    ? `Active: ${startStr} – ${endStr}`
+                    : `Active since ${startStr}`;
+
+                virtualList.push({
+                    original: v,
+                    displayVersion: v.versionNumber,
+                    effectiveDate: (v.activePeriods?.[0]?.startDate || v.startDate || 0) as number,
+                    periodStart: (v.activePeriods?.[0]?.startDate || v.startDate || 0) as number,
+                    periodEnd: v.activePeriods?.[0]?.endDate || v.endDate,
+                    isRestored: false,
+                    arrayIndex: 0,
+                    key: `${v.versionNumber}-0`,
+                    tooltip
+                });
+            } else {
+                // Multiple periods (Restored)
+                v.activePeriods.forEach((period, index) => {
+                    const snapshots = getVirtualVersionSnapshots(v.versionNumber, period.startDate, period.endDate);
+                    const isActive = !period.endDate;
+
+                    // GHOST FILTER REFINED:
+                    // Hide period if it is NOT active AND has NO snapshots
+                    if (!isActive && snapshots.length === 0) return;
+
+
+                    // Restoration count: newest is at index 0, oldest is at index length-1
+                    const rIndex = (v.activePeriods!.length - 1) - index;
+
+                    // Generate Tooltip
+                    const startStr = formatSnapshotDate(period.startDate).display;
+                    const endStr = period.endDate ? formatSnapshotDate(period.endDate).display : null;
+                    const tooltip = endStr
+                        ? `Active: ${startStr} – ${endStr}`
+                        : `Active since ${startStr}`;
+
+                    virtualList.push({
+                        original: v,
+                        displayVersion: v.versionNumber,
+                        effectiveDate: period.startDate as number,
+                        periodStart: period.startDate as number,
+                        periodEnd: period.endDate,
+                        isRestored: rIndex > 0,
+                        restorationIndex: rIndex > 0 ? rIndex : undefined,
+                        arrayIndex: index,
+                        key: `${v.versionNumber}-${index}`,
+                        tooltip
+                    });
+                });
+            }
+        });
+
+        // 2. Count frequencies for conditional badge display
+        const versionCounts: Record<number, number> = {};
+        virtualList.forEach(item => {
+            versionCounts[item.displayVersion] = (versionCounts[item.displayVersion] || 0) + 1;
+        });
+
+        // 3. Final Sort & Decoration
+        const sortedResults = [...virtualList].sort((a, b) => {
+            // Priority 1: Check if this specific PERIOD is active
+            const isActiveA = a.displayVersion === activeVersion && !a.periodEnd;
+            const isActiveB = b.displayVersion === activeVersion && !b.periodEnd;
+
+            if (isActiveA && !isActiveB) return -1;
+            if (!isActiveA && isActiveB) return 1;
+
+            return b.effectiveDate - a.effectiveDate;
+        }).map(item => ({
+            ...item,
+            // Only show restoration index if this version number appears more than once
+            showRestored: versionCounts[item.displayVersion] > 1
+        }));
+
+        return sortedResults;
+    }, [versions, snapshots, activeVersion, isVideoPublished]);
+
+    // Determine if there's content to expand
+    const hasContent = sortedVersions.length > 0;
+
+
+
+
+
+
+
     return (
         <div className="flex flex-col">
             {/* Level 1: Header Row (matches PackagingNav exactly) */}
@@ -175,8 +264,6 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                 <div
                     onClick={() => {
                         onSelect();
-                        // If not expanded, first expand
-                        // If expanded, clicking header goes to active version
                         if (!isExpanded && hasContent) {
                             onToggle();
                         } else {
@@ -215,20 +302,13 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
             {/* Level 2: Version List (expanded) */}
             {isExpanded && hasContent && (
                 <div className="flex flex-col gap-1 py-1">
-                    {/* Draft row (if exists) */}
-                    {hasDraft && (
-                        <SidebarVersionItem
-                            label="Draft"
-                            isViewing={viewingVersion === 'draft' && !selectedSnapshot}
-                            isVideoActive={activeVersion === 'draft'}
-                            onClick={() => onVersionClick('draft')}
-                        />
-                    )}
-
                     {/* Saved versions */}
-                    {sortedVersions.map((version) => {
-                        const versionSnapshots = getVersionSnapshots(version.versionNumber);
-                        const isVersionExpanded = expandedVersions.has(version.versionNumber);
+                    {sortedVersions.map((item) => {
+                        const versionSnapshots = getVirtualVersionSnapshots(item.displayVersion, item.periodStart, item.periodEnd);
+                        // Cast expandedVersions has check to support string keys. 
+                        // Note: Initial state in useState was Set<number|draft>, we are abusing it to hold strings.
+                        // Ideally we should fix the interface or state initialization.
+                        const isVersionExpanded = expandedVersions.has(item.key as any);
                         const hasSnapshots = versionSnapshots.length > 0;
 
                         // Check if packaging was deleted (any snapshot has isPackagingDeleted flag)
@@ -236,19 +316,18 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                         const isPackagingDeleted = !!deletedSnapshot;
                         const packagingData = deletedSnapshot?.packagingSnapshot;
 
-                        // Restoration Logic
-                        const restorationInfo = getRestorationInfo(version);
-                        const displayLabel = restorationInfo
-                            ? `v.${restorationInfo.originalVersion}`
-                            : `v.${version.versionNumber}`;
+                        // Restoration Label
+                        const displayLabel = item.restorationIndex
+                            ? `v.${item.displayVersion}` // We can add " (Clone)" if needed but sidebar item handles badge
+                            : `v.${item.displayVersion}`;
 
                         return (
-                            <div key={version.versionNumber}>
+                            <div key={item.key}>
                                 {/* Version Row with Chevron */}
                                 <div className="relative">
                                     {isPackagingDeleted && packagingData ? (
                                         <PortalTooltip
-                                            content={<PackagingSnapshotTooltip version={version.versionNumber} data={packagingData} />}
+                                            content={<PackagingSnapshotTooltip version={item.displayVersion} data={packagingData} />}
                                             variant="glass"
                                             side="right"
                                             align="center"
@@ -258,11 +337,12 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                                 <SidebarVersionItem
                                                     label={displayLabel}
                                                     isDeleted={true}
-                                                    isViewing={viewingVersion === version.versionNumber && !selectedSnapshot}
-                                                    isVideoActive={activeVersion === version.versionNumber}
-                                                    onClick={() => onVersionClick(version.versionNumber)}
+                                                    isViewing={viewingVersion === item.displayVersion && viewingPeriodIndex === item.arrayIndex && !selectedSnapshot}
+                                                    isVideoActive={activeVersion === item.displayVersion && !item.periodEnd} // Only active if it's the CURRENT period
+                                                    onClick={() => onVersionClick(item.displayVersion, item.arrayIndex)}
                                                     isParentOfSelected={selectedSnapshot !== null && versionSnapshots.some(s => s.id === selectedSnapshot)}
-                                                    restorationIndex={restorationInfo?.index}
+                                                    restorationIndex={item.showRestored ? item.restorationIndex : undefined}
+                                                    tooltip={item.tooltip}
                                                 />
                                             </div>
                                         </PortalTooltip>
@@ -270,18 +350,19 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                         <SidebarVersionItem
                                             label={displayLabel}
                                             isDeleted={isPackagingDeleted}
-                                            isViewing={viewingVersion === version.versionNumber && !selectedSnapshot}
-                                            isVideoActive={activeVersion === version.versionNumber}
-                                            onClick={() => onVersionClick(version.versionNumber)}
+                                            isViewing={viewingVersion === item.displayVersion && viewingPeriodIndex === item.arrayIndex && !selectedSnapshot}
+                                            isVideoActive={activeVersion === item.displayVersion && !item.periodEnd}
+                                            onClick={() => onVersionClick(item.displayVersion, item.arrayIndex)}
                                             isParentOfSelected={selectedSnapshot !== null && versionSnapshots.some(s => s.id === selectedSnapshot)}
-                                            restorationIndex={restorationInfo?.index}
+                                            restorationIndex={item.showRestored ? item.restorationIndex : undefined}
+                                            tooltip={item.tooltip}
                                         />
                                     )}
 
                                     {/* Chevron for snapshots (positioned absolutely) */}
                                     {hasSnapshots && (
                                         <button
-                                            onClick={(e) => toggleVersionSnapshots(version.versionNumber, e)}
+                                            onClick={(e) => toggleVersionSnapshots(item.key, e)}
                                             className="absolute left-[40px] top-1/2 -translate-y-1/2 p-1 text-text-secondary hover:text-text-primary transition-colors"
                                         >
                                             {isVersionExpanded ? (

@@ -58,7 +58,7 @@ export const VersionService = {
      * @returns Обновленные данные после удаления
      */
     calculateDeleteVersionData(
-        versionToDelete: number,
+        versionsToDelete: number[],
         packagingHistory: PackagingVersion[],
         activeVersion: number | 'draft'
     ): {
@@ -66,13 +66,33 @@ export const VersionService = {
         newCurrentVersion: number;
         rollbackUpdates: Partial<VideoDetails>;
         willHaveDraft: boolean;
+        newActiveVersion?: number;
     } {
-        const isActiveDeleted = activeVersion === versionToDelete;
+        const isActiveDeleted = typeof activeVersion === 'number' && versionsToDelete.includes(activeVersion);
 
         // Фильтруем историю
-        const updatedHistory = packagingHistory.filter(
-            v => v.versionNumber !== versionToDelete
+        const remaining = packagingHistory.filter(
+            v => !versionsToDelete.includes(v.versionNumber)
         );
+
+        // Determine the new active version after deletion
+        let newActive: number | 'draft' = 'draft';
+        if (remaining.length > 0) {
+            if (activeVersion !== 'draft' && !versionsToDelete.includes(activeVersion)) {
+                newActive = activeVersion;
+            } else {
+                newActive = Math.max(...remaining.map(v => v.versionNumber));
+            }
+        }
+
+        // Sanitize history and manage active periods
+        const updatedHistory = remaining.map(v => {
+            if (v.versionNumber === newActive && typeof newActive === 'number') {
+                return VersionService.addNewActivePeriod(VersionService.closeAllPeriods(v));
+            }
+            return VersionService.closeAllPeriods(v);
+        });
+
 
         // Вычисляем новую текущую версию
         const newCurrentVersion = updatedHistory.length === 0
@@ -81,9 +101,13 @@ export const VersionService = {
 
         // Если удалили активную версию, откатываем данные к предыдущей
         let rollbackUpdates: Partial<VideoDetails> = {};
+        let newActiveVersion: number | undefined;
+
         if (isActiveDeleted && updatedHistory.length > 0) {
             const latestRemaining = updatedHistory.reduce((max, v) =>
                 v.versionNumber > max.versionNumber ? v : max, updatedHistory[0]);
+
+            newActiveVersion = latestRemaining.versionNumber;
 
             const snapshot = latestRemaining.configurationSnapshot;
             if (snapshot) {
@@ -96,9 +120,13 @@ export const VersionService = {
                     abTestTitles: snapshot.abTestTitles || [],
                     abTestThumbnails: snapshot.abTestThumbnails || [],
                     abTestResults: snapshot.abTestResults || { titles: [], thumbnails: [] },
-                    localizations: snapshot.localizations || {}
+                    localizations: snapshot.localizations || {},
+                    activeVersion: newActiveVersion // IMPORTANT: Persist the new active version
                 };
             }
+        } else if (!isActiveDeleted) {
+            // If we didn't delete the active version, keep the current active version
+            newActiveVersion = typeof activeVersion === 'number' ? activeVersion : undefined;
         }
 
         const willHaveDraft = updatedHistory.length === 0;
@@ -107,7 +135,8 @@ export const VersionService = {
             updatedHistory,
             newCurrentVersion,
             rollbackUpdates,
-            willHaveDraft
+            willHaveDraft,
+            newActiveVersion
         };
     },
 
@@ -137,5 +166,71 @@ export const VersionService = {
             localizations: snapshot.localizations || {},
             activeVersion: versionNumber
         };
+    },
+
+    /**
+     * BUSINESS LOGIC: Period Management Helpers
+     */
+    ensureActivePeriods(version: PackagingVersion): PackagingVersion {
+        const rawPeriods = (version.activePeriods && version.activePeriods.length > 0)
+            ? version.activePeriods
+            : [{
+                startDate: version.startDate,
+                endDate: (version.endDate === undefined || version.endDate === null) ? null : version.endDate,
+                closingSnapshotId: null
+            }];
+
+        const sanitizedPeriods = rawPeriods.map(p => ({
+            ...p,
+            endDate: (p.endDate === undefined || p.endDate === null) ? null : p.endDate,
+            closingSnapshotId: (p.closingSnapshotId === undefined || p.closingSnapshotId === null) ? null : p.closingSnapshotId
+        }));
+
+        return {
+            ...version,
+            endDate: (version.endDate === undefined || version.endDate === null) ? null : version.endDate,
+            activePeriods: sanitizedPeriods
+        };
+    },
+
+    closeAllPeriods(version: PackagingVersion, closingSnapshotId?: string | null): PackagingVersion {
+        const now = Date.now();
+        const versionWithPeriods = VersionService.ensureActivePeriods(version);
+        const periods = versionWithPeriods.activePeriods!;
+
+        const hasOpen = periods.some(p => p.endDate === null || p.endDate === undefined);
+        if (!hasOpen) return versionWithPeriods;
+
+        const updatedPeriods = periods.map(p =>
+            (p.endDate === null || p.endDate === undefined)
+                ? { ...p, endDate: now, closingSnapshotId: closingSnapshotId || null }
+                : p
+        );
+
+        return {
+            ...versionWithPeriods,
+            endDate: now,
+            activePeriods: updatedPeriods
+        };
+    },
+
+    addNewActivePeriod(version: PackagingVersion): PackagingVersion {
+        const now = Date.now();
+        const versionWithPeriods = VersionService.ensureActivePeriods(version);
+        const periods = versionWithPeriods.activePeriods!;
+
+        const newPeriod = {
+            startDate: now,
+            endDate: null,
+            closingSnapshotId: null
+        };
+
+        return {
+            ...versionWithPeriods,
+            startDate: now,
+            endDate: null,
+            activePeriods: [newPeriod, ...periods]
+        };
     }
 };
+

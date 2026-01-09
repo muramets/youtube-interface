@@ -6,9 +6,11 @@ import { loadSnapshotSources } from '../utils/snapshotLoader';
 interface UseTrafficDataLoaderProps {
     trafficData: TrafficData | null;
     viewingVersion?: number | 'draft';
+    viewingPeriodIndex?: number;
     activeVersion: number;
     viewMode: 'cumulative' | 'delta';
     selectedSnapshot?: string | null;
+    packagingHistory?: any[];
 }
 
 /**
@@ -23,9 +25,11 @@ interface UseTrafficDataLoaderProps {
 export const useTrafficDataLoader = ({
     trafficData,
     viewingVersion,
+    viewingPeriodIndex,
     activeVersion,
     viewMode,
-    selectedSnapshot
+    selectedSnapshot,
+    packagingHistory = []
 }: UseTrafficDataLoaderProps) => {
     const [displayedSources, setDisplayedSources] = useState<TrafficSource[]>([]);
     const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(false);
@@ -89,9 +93,43 @@ export const useTrafficDataLoader = ({
                     console.log('[useTrafficDataLoader] Active version has snapshots, loading LATEST snapshot');
                     setIsLoadingSnapshot(true);
                     try {
+                        // Resolve specific period dates
+                        // SMART SELECTION: If viewingPeriodIndex is undefined, find the ACTIVE period (no endDate)
+                        // SMART SELECTION: If viewingPeriodIndex is undefined, find the ACTIVE period (no endDate)
+                        // or the one with the latest startDate to handle legacy data ordering ([Old, New] vs [New, Old])
+                        const versionData = packagingHistory.find(v => v.versionNumber === viewingVersion);
+                        let targetPeriodIndex = viewingPeriodIndex;
+
+                        if (targetPeriodIndex === undefined && versionData?.activePeriods) {
+                            // 1. Try to find open period (no endDate)
+                            const openPeriodIndex = versionData.activePeriods.findIndex(p => !p.endDate);
+                            if (openPeriodIndex !== -1) {
+                                targetPeriodIndex = openPeriodIndex;
+                            } else {
+                                // 2. If all closed, find the Latest one by startDate
+                                let maxStart = -1;
+                                let maxIdx = 0;
+                                versionData.activePeriods.forEach((p, idx) => {
+                                    if (p.startDate > maxStart) {
+                                        maxStart = p.startDate;
+                                        maxIdx = idx;
+                                    }
+                                });
+                                targetPeriodIndex = maxIdx;
+                            }
+                        }
+
+                        // Fallback to 0 if still undefined (shouldn't happen if activePeriods exists)
+                        const finalIndex = targetPeriodIndex ?? 0;
+                        const period = versionData?.activePeriods?.[finalIndex];
+                        const periodStart = period?.startDate;
+                        const periodEnd = period?.endDate;
+
                         const sources = await TrafficService.getVersionSources(
                             viewingVersion as number,
-                            trafficData.snapshots || []
+                            trafficData.snapshots || [],
+                            periodStart,
+                            periodEnd
                         );
                         console.log('[useTrafficDataLoader] Loaded formatted sources from latest snapshot:', sources);
 
@@ -123,9 +161,17 @@ export const useTrafficDataLoader = ({
                 console.log('[useTrafficDataLoader] Loading historical version:', viewingVersion);
                 setIsLoadingSnapshot(true);
                 try {
+                    // Resolve specific period dates for historical version
+                    const versionData = packagingHistory.find(v => v.versionNumber === viewingVersion);
+                    const period = versionData?.activePeriods?.[viewingPeriodIndex || 0];
+                    const periodStart = period?.startDate;
+                    const periodEnd = period?.endDate;
+
                     const sources = await TrafficService.getVersionSources(
                         viewingVersion as number,
-                        trafficData.snapshots || []
+                        trafficData.snapshots || [],
+                        periodStart,
+                        periodEnd
                     );
                     console.log('[useTrafficDataLoader] Loaded historical sources:', sources);
 
@@ -149,7 +195,7 @@ export const useTrafficDataLoader = ({
         };
 
         loadData();
-    }, [trafficData, viewingVersion, activeVersion, viewMode, selectedSnapshot]);
+    }, [trafficData, viewingVersion, viewingPeriodIndex, activeVersion, viewMode, selectedSnapshot, packagingHistory]);
 
     return { displayedSources, isLoadingSnapshot };
 };

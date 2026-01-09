@@ -78,7 +78,7 @@ export const DetailsModals: React.FC<DetailsModalsProps> = ({
                                 </p>
                             </div>
                         ) : (
-                            `Are you sure you want to delete v.${modalState.versionNumber}? This action cannot be undone.`
+                            `Are you sure you want to delete ${'versionLabel' in modalState && modalState.versionLabel ? modalState.versionLabel : `v.${modalState.versionNumber}`}? This action cannot be undone.`
                         )
                     ) : ''
                 }
@@ -95,7 +95,7 @@ export const DetailsModals: React.FC<DetailsModalsProps> = ({
             />
 
             {/* Snapshot Request Modal */}
-            <SnapshotRequestModal
+            < SnapshotRequestModal
                 isOpen={modalState.type === 'SNAPSHOT_REQUEST'}
                 version={activeVersion as number}
                 videoTitle={videoTitle}

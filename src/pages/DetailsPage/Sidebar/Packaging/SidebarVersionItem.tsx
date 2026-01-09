@@ -1,6 +1,7 @@
 import React from 'react';
 import { Trash2 } from 'lucide-react';
 import { Badge } from '../../../../components/ui/atoms/Badge';
+import { PortalTooltip } from '../../../../components/Shared/PortalTooltip';
 
 /**
  * BUSINESS LOGIC: Version Item States
@@ -20,6 +21,7 @@ interface SidebarVersionItemProps {
     isParentOfSelected?: boolean;
     isDeleted?: boolean;
     restorationIndex?: number; // If set, displays "Restored {n}" badge
+    tooltip?: string | React.ReactNode;
 }
 
 export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
@@ -31,8 +33,9 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
     isParentOfSelected = false,
     isDeleted = false,
     restorationIndex,
+    tooltip,
 }) => {
-    return (
+    const content = (
         <div
             onClick={onClick}
             className={`
@@ -90,4 +93,21 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
             )}
         </div>
     );
+
+    if (tooltip) {
+        return (
+            <PortalTooltip
+                content={tooltip}
+                variant="glass"
+                side="right"
+                align="center"
+                triggerClassName="w-full !block"
+                enterDelay={1000}
+            >
+                {content}
+            </PortalTooltip>
+        );
+    }
+
+    return content;
 };

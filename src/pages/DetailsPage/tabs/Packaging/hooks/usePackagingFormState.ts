@@ -92,8 +92,9 @@ export const usePackagingFormState = ({
      * and do not affect the main packaging "dirty" state.
      */
     const isDirty = useMemo(() => {
-        // Old versions are read-only, never dirty
-        if (isViewingOldVersion) return false;
+        // Old versions were previously read-only, but now we allow editing to support "Forking".
+        // So we calculate isDirty normally regardless of isViewingOldVersion.
+        // if (isViewingOldVersion) return false;
 
         const locPayload = localization.getFullPayload();
 
@@ -117,7 +118,6 @@ export const usePackagingFormState = ({
         const { abTestResults: __, ...restLoaded } = loadedSnapshot;
         return !deepEqual(restCurrent, restLoaded);
     }, [
-        isViewingOldVersion,
         localization.getFullPayload,
         customImage,
         customImageName, // Added dependency
