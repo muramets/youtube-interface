@@ -9,20 +9,35 @@ export const TrafficDeltaService = {
      * Рассчитывает дельту трафика для конкретной версии.
      * Вычитает данные предыдущего снапшота из текущих данных.
      */
-    calculateVersionDelta(
+    async calculateVersionDelta(
         currentSources: TrafficSource[],
         version: number,
         snapshots: TrafficSnapshot[]
-    ): TrafficSource[] {
-        // Находим снапшот предыдущей версии
-        const prevSnapshot = snapshots.find(s => s.version === version - 1);
-        if (!prevSnapshot || !prevSnapshot.sources) {
-            return currentSources; // Нет предыдущих данных или данные в Storage
+    ): Promise<TrafficSource[]> {
+        // Находим предыдущую версию (максимальная версия < current)
+        // Это более надежно чем version - 1, т.к. версии могут быть пропущены
+        const previousVersions = snapshots
+            .map(s => s.version)
+            .filter(v => v < version)
+            .sort((a, b) => b - a); // Descending
+
+        const prevVersion = previousVersions[0];
+
+        if (prevVersion === undefined) {
+            return currentSources; // Нет предыдущих версий
+        }
+
+        // Загружаем данные предыдущей версии через сервис (поддержка storage/legacy)
+        const { TrafficSnapshotService } = await import('./TrafficSnapshotService');
+        const prevSources = await TrafficSnapshotService.getVersionSources(prevVersion, snapshots);
+
+        if (prevSources.length === 0) {
+            return currentSources;
         }
 
         // Создаем Map предыдущих данных для быстрого поиска
         const prevData = new Map<string, { views: number, impressions: number, watchTime: number }>();
-        prevSnapshot.sources.forEach(s => {
+        prevSources.forEach(s => {
             if (s.videoId) {
                 prevData.set(s.videoId, {
                     views: s.views || 0,

@@ -96,7 +96,7 @@ export const useTrafficDataLoader = ({
                         console.log('[useTrafficDataLoader] Loaded formatted sources from latest snapshot:', sources);
 
                         if (viewMode === 'delta') {
-                            const delta = TrafficService.calculateVersionDelta(
+                            const delta = await TrafficService.calculateVersionDelta(
                                 sources,
                                 activeVersion,
                                 trafficData.snapshots || []
@@ -128,7 +128,17 @@ export const useTrafficDataLoader = ({
                         trafficData.snapshots || []
                     );
                     console.log('[useTrafficDataLoader] Loaded historical sources:', sources);
-                    setDisplayedSources(sources);
+
+                    if (viewMode === 'delta') {
+                        const delta = await TrafficService.calculateVersionDelta(
+                            sources,
+                            viewingVersion as number,
+                            trafficData.snapshots || []
+                        );
+                        setDisplayedSources(delta);
+                    } else {
+                        setDisplayedSources(sources);
+                    }
                 } catch (error) {
                     console.error('Failed to load version sources:', error);
                     setDisplayedSources([]);
@@ -152,15 +162,16 @@ const calculateSnapshotDelta = async (
     currentSnapshotId: string,
     snapshots: any[]
 ): Promise<TrafficSource[]> => {
-    // Находим предыдущий снапшот по timestamp
-    const currentIndex = snapshots.findIndex((s: any) => s.id === currentSnapshotId);
+    // Сортируем снапшоты по времени для правильного поиска предыдущего
+    const sortedSnapshots = [...snapshots].sort((a, b) => a.timestamp - b.timestamp);
+    const currentIndex = sortedSnapshots.findIndex((s: any) => s.id === currentSnapshotId);
 
     if (currentIndex <= 0) {
         // Это первый снапшот, дельта = все данные
         return currentSources;
     }
 
-    const prevSnapshot = snapshots[currentIndex - 1];
+    const prevSnapshot = sortedSnapshots[currentIndex - 1];
     const prevSources = await loadSnapshotSources(prevSnapshot);
 
     if (prevSources.length === 0) {
