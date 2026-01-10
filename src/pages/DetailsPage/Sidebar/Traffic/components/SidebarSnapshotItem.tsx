@@ -32,6 +32,7 @@ export const SidebarSnapshotItem: React.FC<SidebarSnapshotItemProps> = ({
                 variant="glass"
                 side="right"
                 align="center"
+                triggerClassName="w-full"
             >
                 <div
                     onClick={onClick}
