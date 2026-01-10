@@ -42,14 +42,25 @@ export const PackagingNav: React.FC<PackagingNavProps> = ({
     // Determine if there's content to expand
     const hasContent = hasDraft || versions.length > 0;
 
-    // Standard Sort: Active Top, then Chronological Descending
+    // Standard Sort: Active Top, then by Last Activation Time Descending
     const sortedVersions = React.useMemo(() => {
         return [...versions].sort((a, b) => {
             const isActiveA = a.versionNumber === activeVersion;
             const isActiveB = b.versionNumber === activeVersion;
+
+            // Active version always first
             if (isActiveA && !isActiveB) return -1;
             if (!isActiveA && isActiveB) return 1;
-            return b.versionNumber - a.versionNumber;
+
+            // For non-active versions, sort by last activation time (newest first)
+            const aLastActivation = a.activePeriods && a.activePeriods.length > 0
+                ? a.activePeriods[0].startDate
+                : a.startDate;
+            const bLastActivation = b.activePeriods && b.activePeriods.length > 0
+                ? b.activePeriods[0].startDate
+                : b.startDate;
+
+            return bLastActivation - aLastActivation;
         });
     }, [versions, activeVersion]);
 

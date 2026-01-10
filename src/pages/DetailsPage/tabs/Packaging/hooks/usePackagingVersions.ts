@@ -57,14 +57,25 @@ const { ensureActivePeriods, closeAllPeriods, addNewActivePeriod } = VersionServ
 // Helper: Compute sidebar-sorted versions (active first, then desc by number)
 
 
-// Helper: Compute sidebar-sorted versions (active first, then desc by number)
+// Helper: Compute sidebar-sorted versions (active first, then by last activation time desc)
 function computeNavSorted(history: PackagingVersion[], activeVersion: number | 'draft'): PackagingVersion[] {
     return [...history].sort((a, b) => {
         const aIsActive = a.versionNumber === activeVersion;
         const bIsActive = b.versionNumber === activeVersion;
+
+        // Active version always first
         if (aIsActive && !bIsActive) return -1;
         if (!aIsActive && bIsActive) return 1;
-        return b.versionNumber - a.versionNumber;
+
+        // For non-active versions, sort by last activation time (newest first)
+        const aLastActivation = a.activePeriods && a.activePeriods.length > 0
+            ? a.activePeriods[0].startDate
+            : a.startDate;
+        const bLastActivation = b.activePeriods && b.activePeriods.length > 0
+            ? b.activePeriods[0].startDate
+            : b.startDate;
+
+        return bLastActivation - aLastActivation;
     });
 }
 
