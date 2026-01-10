@@ -25,6 +25,7 @@ export const TrafficFilterChips: React.FC<TrafficFilterChipsProps> = ({
             items={chipItems}
             onClearAll={onClearAll}
             className="mb-4 px-1"
+            chipClassName="bg-sidebar-active"
         />
     );
 };

@@ -10,13 +10,15 @@ export interface FilterChipItem {
 interface FilterChipsProps {
     items: FilterChipItem[];
     onClearAll?: () => void;
-    className?: string;
+    className?: string; // Container class
+    chipClassName?: string; // Individual chip class
 }
 
 export const FilterChips: React.FC<FilterChipsProps> = ({
     items,
     onClearAll,
-    className = ''
+    className = '',
+    chipClassName = 'bg-bg-secondary'
 }) => {
     if (items.length === 0) return null;
 
@@ -25,7 +27,7 @@ export const FilterChips: React.FC<FilterChipsProps> = ({
             {items.map((item) => (
                 <div
                     key={item.id}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-bg-secondary text-sm text-text-primary hover:bg-hover-bg transition-colors cursor-default"
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm text-text-primary hover:bg-hover-bg transition-colors cursor-default ${chipClassName}`}
                 >
                     <span>{item.label}</span>
                     <button
