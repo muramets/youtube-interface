@@ -35,7 +35,7 @@ export const TrafficFilterChips: React.FC<TrafficFilterChipsProps> = ({
                         <RotateCcw size={14} />
                     </button>
                 </TooltipTrigger>
-                <TooltipContent className="border-0">
+                <TooltipContent className="border-0 bg-[#1a1a1a]/85 backdrop-blur-xl">
                     <p>Clear all filters</p>
                 </TooltipContent>
             </Tooltip>
