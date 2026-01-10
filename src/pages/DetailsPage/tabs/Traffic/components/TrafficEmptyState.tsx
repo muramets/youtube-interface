@@ -5,7 +5,7 @@ import type { TrafficSource } from '../../../../../core/types/traffic';
 interface TrafficEmptyStateProps {
     onUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<void>;
     hasExistingSnapshot: boolean;
-    mode?: 'no-data' | 'no-new-data';
+    mode: 'no-data' | 'no-new-data' | 'no-matches';
 }
 
 export const TrafficEmptyState: React.FC<TrafficEmptyStateProps> = ({
@@ -13,6 +13,19 @@ export const TrafficEmptyState: React.FC<TrafficEmptyStateProps> = ({
     hasExistingSnapshot,
     mode = 'no-data'
 }) => {
+    // Mode: no-matches - shown when filters exclude all results
+    if (mode === 'no-matches') {
+        return (
+            <div className="w-full h-full flex items-center justify-center py-16">
+                <div className="text-center">
+                    <h3 className="text-sm font-medium text-text-primary">
+                        Oops! No results match your filters. Try being less specific.
+                    </h3>
+                </div>
+            </div>
+        );
+    }
+
     // Mode: no-new-data - shown when delta/New mode has filtered out all rows
     if (mode === 'no-new-data') {
         return (

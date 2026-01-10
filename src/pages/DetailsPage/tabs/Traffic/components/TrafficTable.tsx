@@ -34,6 +34,9 @@ interface TrafficTableProps {
 
     // View mode to determine empty state type
     viewMode?: 'cumulative' | 'delta';
+
+    // Filters
+    hasActiveFilters?: boolean;
 }
 
 type SortKey = keyof TrafficSource;
@@ -52,7 +55,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
     onUpload,
     hasExistingSnapshot,
     ctrRules = [],
-    viewMode = 'cumulative'
+    viewMode = 'cumulative',
+    hasActiveFilters = false
 }) => {
     // Virtualization refs
     const parentRef = useRef<HTMLDivElement>(null);
@@ -155,9 +159,11 @@ export const TrafficTable = memo<TrafficTableProps>(({
 
     // Determine if we should show the empty state without table structure
     // isInitialEmpty: truly no data uploaded yet (no snapshots exist)
-    // isDeltaEmpty: in delta mode with snapshots but no new data
     const isInitialEmpty = !isLoading && data.length === 0 && !hasExistingSnapshot;
-    const isDeltaEmpty = !isLoading && data.length === 0 && hasExistingSnapshot && viewMode === 'delta';
+
+    // Check if empty due to filters or delta (when not initial empty)
+    const isFilteredEmpty = !isLoading && data.length === 0 && hasActiveFilters;
+    const isDeltaEmpty = !isLoading && data.length === 0 && !hasActiveFilters && viewMode === 'delta';
 
     // If initial empty state (no CSV uploaded yet), show empty state without table
     // IMPORTANT: Only show this if we're certain there are no snapshots
@@ -173,24 +179,22 @@ export const TrafficTable = memo<TrafficTableProps>(({
 
     return (
         <div className="w-full h-full flex flex-col bg-bg-secondary/30 rounded-xl border border-white/5 overflow-hidden">
-            {/* Fixed Header - Show when loading OR when there's data */}
-            {(isLoading || data.length > 0) && (
-                <div className="grid grid-cols-[40px_1fr_100px_100px_120px_100px] gap-4 px-4 py-3 bg-white/5 border-b border-white/5 text-xs font-medium text-text-secondary uppercase tracking-wider flex-shrink-0 group">
-                    <div className="flex items-center justify-center">
-                        <Checkbox
-                            checked={isAllSelected}
-                            indeterminate={isIndeterminate}
-                            onChange={handleHeaderCheckbox}
-                            disabled={isLoading || data.length === 0}
-                        />
-                    </div>
-                    <div>Traffic Source</div>
-                    {renderHeaderCell('Impr.', 'impressions')}
-                    {renderHeaderCell('CTR', 'ctr')}
-                    {renderHeaderCell('Views', 'views')}
-                    {renderHeaderCell('AVD', 'avgViewDuration')}
+            {/* Fixed Header - Show when loading OR when there's data OR when filtered/delta empty */}
+            <div className="grid grid-cols-[40px_1fr_100px_100px_120px_100px] gap-4 px-4 py-3 bg-white/5 border-b border-white/5 text-xs font-medium text-text-secondary uppercase tracking-wider flex-shrink-0 group">
+                <div className="flex items-center justify-center">
+                    <Checkbox
+                        checked={isAllSelected}
+                        indeterminate={isIndeterminate}
+                        onChange={handleHeaderCheckbox}
+                        disabled={isLoading || data.length === 0}
+                    />
                 </div>
-            )}
+                <div>Traffic Source</div>
+                {renderHeaderCell('Impr.', 'impressions')}
+                {renderHeaderCell('CTR', 'ctr')}
+                {renderHeaderCell('Views', 'views')}
+                {renderHeaderCell('AVD', 'avgViewDuration')}
+            </div>
 
             {/* Scrollable Body */}
             <div
@@ -217,6 +221,12 @@ export const TrafficTable = memo<TrafficTableProps>(({
                         </style>
                         Loading traffic data...
                     </div>
+                ) : isFilteredEmpty ? (
+                    <TrafficEmptyState
+                        onUpload={onUpload}
+                        hasExistingSnapshot={hasExistingSnapshot}
+                        mode="no-matches"
+                    />
                 ) : isDeltaEmpty ? (
                     <TrafficEmptyState
                         onUpload={onUpload}

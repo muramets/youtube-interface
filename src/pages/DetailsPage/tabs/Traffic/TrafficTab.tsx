@@ -189,6 +189,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                             viewingVersion={viewingVersion}
                             onUpload={handleUploadWithErrorTracking}
                             hasExistingSnapshot={hasExistingSnapshot}
+                            hasActiveFilters={filters.length > 0}
                         />
                     )}
                 </div>
