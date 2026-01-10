@@ -1,38 +1,76 @@
-import { useState, useCallback, useMemo } from 'react';
-import type { TrafficSource } from '../../../../../core/types/traffic';
-import type { FilterOperator } from '../../../../../core/stores/filterStore';
+import { useCallback } from 'react';
+import type { TrafficSource, TrafficFilter, TrafficFilterType } from '../../../../../core/types/traffic';
 import { durationToSeconds } from '../utils/formatters';
+import { useTrafficFilterStore } from '../../../../../core/stores/trafficFilterStore';
 
-export type TrafficFilterType = 'impressions' | 'ctr' | 'views' | 'avgViewDuration' | 'hideZeroViews' | 'hideZeroImpressions';
+/**
+ * BUSINESS LOGIC: Traffic Filters Hook
+ * 
+ * This hook provides filter management for the Traffic tab with automatic persistence.
+ * 
+ * KEY FEATURES:
+ * 1. Context-Aware Persistence: Filters are saved per version/period/snapshot
+ * 2. Automatic State Sync: Filters load automatically when context changes
+ * 3. Single Filter Per Type: Adding a filter replaces any existing filter of the same type
+ * 
+ * CONTEXT DETERMINATION:
+ * - If viewing a snapshot: contextKey = `snapshot-${snapshotId}`
+ * - If viewing a version period: contextKey = `version-${versionNumber}-period-${periodIndex}`
+ * 
+ * This ensures that:
+ * - Each snapshot maintains its own filter state
+ * - Each version period maintains its own filter state
+ * - Filters persist across page reloads and navigation
+ * - Only explicit user actions (remove/clear) delete filters
+ */
 
-export interface TrafficFilter {
-    id: string;
-    type: TrafficFilterType;
-    operator: FilterOperator;
-    value: any;
-    label: string;
+interface UseTrafficFiltersProps {
+    /**
+     * Current viewing context to determine which filters to load/save.
+     * Format: `snapshot-${id}` or `version-${v}-period-${p}`
+     */
+    contextKey: string;
 }
 
-export const useTrafficFilters = (initialFilters: TrafficFilter[] = []) => {
-    const [filters, setFilters] = useState<TrafficFilter[]>(initialFilters);
+export const useTrafficFilters = ({ contextKey }: UseTrafficFiltersProps) => {
+    // Get store actions and current filters for this context
+    const { filtersByContext, setFilters: setStoreFilters, clearFilters: clearStoreFilters } = useTrafficFilterStore();
+    const filters = filtersByContext[contextKey] || [];
 
+    /**
+     * Add or update a filter for the current context.
+     * If a filter of the same type exists, it will be replaced.
+     */
     const addFilter = useCallback((filter: Omit<TrafficFilter, 'id'>) => {
         const id = `${filter.type}-${Date.now()}`;
-        setFilters(prev => {
-            // Remove existing filter of same type if it exists (single filter per type policy)
-            const others = prev.filter(f => f.type !== filter.type);
-            return [...others, { ...filter, id }];
-        });
-    }, []);
 
+        // Remove existing filter of same type (single filter per type policy)
+        const others = filters.filter(f => f.type !== filter.type);
+        const newFilters = [...others, { ...filter, id }];
+
+        // Persist to store
+        setStoreFilters(contextKey, newFilters);
+    }, [contextKey, filters, setStoreFilters]);
+
+    /**
+     * Remove a specific filter by ID.
+     */
     const removeFilter = useCallback((id: string) => {
-        setFilters(prev => prev.filter(f => f.id !== id));
-    }, []);
+        const newFilters = filters.filter(f => f.id !== id);
+        setStoreFilters(contextKey, newFilters);
+    }, [contextKey, filters, setStoreFilters]);
 
+    /**
+     * Clear all filters for the current context.
+     */
     const clearFilters = useCallback(() => {
-        setFilters([]);
-    }, []);
+        clearStoreFilters(contextKey);
+    }, [contextKey, clearStoreFilters]);
 
+    /**
+     * Apply active filters to a list of traffic sources.
+     * Returns filtered array based on all active filter criteria.
+     */
     const applyFilters = useCallback((sources: TrafficSource[]) => {
         if (filters.length === 0) return sources;
 
@@ -89,3 +127,6 @@ export const useTrafficFilters = (initialFilters: TrafficFilter[] = []) => {
         applyFilters
     };
 };
+
+// Re-export types for convenience
+export type { TrafficFilter, TrafficFilterType };

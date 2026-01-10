@@ -147,3 +147,39 @@ export interface TrafficData {
     totalRow?: TrafficSource;
     snapshots: TrafficSnapshot[]; // History of "freezes"
 }
+
+/**
+ * BUSINESS LOGIC: Traffic Filter Types
+ * 
+ * Filters allow users to narrow down traffic sources by various metrics.
+ * Each filter type corresponds to a TrafficSource property or special behavior.
+ */
+export type TrafficFilterType =
+    | 'impressions'           // Filter by impression count
+    | 'ctr'                   // Filter by click-through rate
+    | 'views'                 // Filter by view count
+    | 'avgViewDuration'       // Filter by average view duration
+    | 'hideZeroViews'         // Special: Hide sources with 0 views
+    | 'hideZeroImpressions';  // Special: Hide sources with 0 impressions
+
+/**
+ * BUSINESS LOGIC: Traffic Filter Persistence
+ * 
+ * Filters are persisted per-context to maintain user preferences across:
+ * - Page reloads
+ * - Navigation between different versions/periods
+ * - Navigation between snapshots
+ * 
+ * Context Key Format:
+ * - For snapshots: `snapshot-${snapshotId}`
+ * - For version periods: `version-${versionNumber}-period-${periodIndex}`
+ * 
+ * This ensures each view maintains its own independent filter state.
+ */
+export interface TrafficFilter {
+    id: string;                    // Unique identifier for this filter instance
+    type: TrafficFilterType;       // Which metric to filter on
+    operator: import('../stores/filterStore').FilterOperator;  // Comparison operator
+    value: any;                    // Filter value (number, range, etc.)
+    label: string;                 // Display label for filter chips
+}

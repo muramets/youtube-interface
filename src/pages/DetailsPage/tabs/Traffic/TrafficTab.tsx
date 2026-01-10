@@ -61,8 +61,23 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
     const { selectedIds, toggleSelection, toggleAll } = useTrafficSelection();
 
-    // Filters Logic
-    const { filters, addFilter, removeFilter, clearFilters, applyFilters } = useTrafficFilters();
+    /**
+     * BUSINESS LOGIC: Filter Context Key
+     * 
+     * Determines the unique context for filter persistence.
+     * Each snapshot or version+period combination gets its own filter state.
+     */
+    const filterContextKey = useMemo(() => {
+        if (selectedSnapshot) {
+            return `snapshot-${selectedSnapshot}`;
+        }
+        return `version-${viewingVersion}-period-${viewingPeriodIndex}`;
+    }, [selectedSnapshot, viewingVersion, viewingPeriodIndex]);
+
+    // Filters Logic with Context-Aware Persistence
+    const { filters, addFilter, removeFilter, clearFilters, applyFilters } = useTrafficFilters({
+        contextKey: filterContextKey
+    });
     const filteredSources = useMemo(() => applyFilters(displayedSources), [displayedSources, applyFilters]);
 
     // Settings (for CTR rules)
