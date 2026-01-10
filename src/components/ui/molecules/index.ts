@@ -10,4 +10,5 @@
  */
 
 // Export molecules here
+export { FilterChips } from './FilterChips';
 // export { TagsInput } from './TagsInput';
