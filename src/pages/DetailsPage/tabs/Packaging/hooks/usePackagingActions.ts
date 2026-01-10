@@ -33,7 +33,7 @@ export const usePackagingActions = ({
     const { cloneSettings } = useSettings();
     const { updateVideo, cloneVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { showToast } = useUIStore();
-    const [isSaving, setIsSaving] = useState(false);
+    const [savingAction, setSavingAction] = useState<'draft' | 'version' | 'metadata' | null>(null);
     const [cloningVersion, setCloningVersion] = useState<number | null>(null);
 
     // Common payload construction
@@ -64,7 +64,7 @@ export const usePackagingActions = ({
             return;
         }
 
-        setIsSaving(true);
+        setSavingAction('draft');
         try {
             const payload = buildSavePayload();
 
@@ -92,7 +92,7 @@ export const usePackagingActions = ({
             console.error('Failed to save video:', error);
             showToast('Failed to save video', 'error');
         } finally {
-            setIsSaving(false);
+            setSavingAction(null);
         }
     }, [user, currentChannel, video.id, buildSavePayload, versionState, updateVideo, formState, showToast]);
 
@@ -117,7 +117,7 @@ export const usePackagingActions = ({
             return;
         }
 
-        setIsSaving(true);
+        setSavingAction('version');
         try {
             const payload = buildSavePayload();
             let closingSnapshotId: string | null | undefined = null;
@@ -129,7 +129,7 @@ export const usePackagingActions = ({
 
                 // If user cancelled the modal (undefined), stop everything
                 if (closingSnapshotId === undefined) {
-                    setIsSaving(false);
+                    setSavingAction(null);
                     return;
                 }
                 // If returned null (Skip), we proceed with creation but closingSnapshotId remains null
@@ -170,7 +170,7 @@ export const usePackagingActions = ({
             console.error('Failed to create version:', error);
             showToast('Failed to create version', 'error');
         } finally {
-            setIsSaving(false);
+            setSavingAction(null);
         }
     }, [user, currentChannel, video.id, video.publishedVideoId, buildSavePayload, versionState, updateVideo, formState, showToast, abTesting, onRequestSnapshot]);
 
@@ -332,7 +332,9 @@ export const usePackagingActions = ({
     }, [user, currentChannel, video.id, updateVideo]);
 
     return {
-        isSaving,
+        isSaving: savingAction === 'draft' || savingAction === 'version', // Backwards compatibility if needed, though we should prefer specific props
+        isSavingDraft: savingAction === 'draft',
+        isSavingNewVersion: savingAction === 'version',
         cloningVersion,
         handleSave,
         handleSaveAsNewVersion,

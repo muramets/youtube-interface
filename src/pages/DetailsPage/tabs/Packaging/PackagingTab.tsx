@@ -274,7 +274,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                                 size="sm"
                                 onClick={actions.handleSave}
                                 disabled={!formState.isDirty || actions.isSaving}
-                                isLoading={actions.isSaving}
+                                isLoading={actions.isSavingDraft}
                             >
                                 {formState.isDirty ? 'Save as draft' : 'Save'}
                             </Button>
@@ -285,6 +285,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                                     size="sm"
                                     onClick={actions.handleSaveAsNewVersion}
                                     disabled={actions.isSaving}
+                                    isLoading={actions.isSavingNewVersion}
                                 >
                                     Save as v.{versionState.nextVisualVersionNumber}
                                 </Button>
