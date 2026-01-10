@@ -16,12 +16,10 @@ export const TrafficEmptyState: React.FC<TrafficEmptyStateProps> = ({
     // Mode: no-matches - shown when filters exclude all results
     if (mode === 'no-matches') {
         return (
-            <div className="w-full h-full flex items-center justify-center py-16">
-                <div className="text-center">
-                    <h3 className="text-sm font-medium text-text-primary">
-                        Oops! No results match your filters. Try being less specific.
-                    </h3>
-                </div>
+            <div className="w-full py-8 text-center">
+                <span className="text-xs text-text-secondary">
+                    Oops! No results match your filters. Try being less specific.
+                </span>
             </div>
         );
     }
