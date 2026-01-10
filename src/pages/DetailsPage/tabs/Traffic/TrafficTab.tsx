@@ -119,7 +119,47 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     const isViewingOldVersion = viewingVersion && viewingVersion !== activeVersion;
     const headerTitle = 'Suggested Traffic';
     const isEmpty = displayedSources.length === 0;
-    const hasExistingSnapshot = (trafficData?.snapshots || []).some((s: any) => s.version === activeVersion);
+
+    /**
+     * BUSINESS LOGIC: Check if current viewing context has a snapshot with data
+     * 
+     * This determines whether to show action buttons (Filter, CTR Settings, Update CSV).
+     * We need to check if there's a snapshot for the CURRENT PERIOD, not just any snapshot for the version.
+     * 
+     * Cases:
+     * 1. Viewing a snapshot directly -> always has data (by definition)
+     * 2. Viewing active version -> check if current period has a snapshot
+     * 3. Viewing historical period -> check if that period has a snapshot
+     */
+    const hasExistingSnapshot = React.useMemo(() => {
+        // If viewing a specific snapshot, it exists by definition
+        if (selectedSnapshot) return true;
+
+        const snapshots = trafficData?.snapshots || [];
+
+        // Find snapshots for the viewing version
+        const versionSnapshots = snapshots.filter((s: any) => s.version === viewingVersion);
+        if (versionSnapshots.length === 0) return false;
+
+        // Get the period we're viewing
+        const versionData = packagingHistory.find((v: any) => v.versionNumber === viewingVersion);
+        if (!versionData?.activePeriods) return false;
+
+        const period = versionData.activePeriods[viewingPeriodIndex];
+        if (!period) return false;
+
+        // Check if any snapshot exists within this period's time range
+        const periodStart = period.startDate;
+        const periodEnd = period.endDate;
+
+        const hasSnapshotInPeriod = versionSnapshots.some((s: any) => {
+            const matchesStart = s.timestamp >= (periodStart - 5000);
+            const matchesEnd = periodEnd ? s.timestamp <= (periodEnd + 5000) : true;
+            return matchesStart && matchesEnd;
+        });
+
+        return hasSnapshotInPeriod;
+    }, [trafficData?.snapshots, viewingVersion, viewingPeriodIndex, selectedSnapshot, packagingHistory]);
 
     // Compute Version Label (with Alias Support)
     // If viewingVersion is "draft", show "Draft"
