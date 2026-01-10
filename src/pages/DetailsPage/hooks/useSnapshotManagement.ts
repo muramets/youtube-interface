@@ -111,15 +111,6 @@ export const useSnapshotManagement = ({
 
             const snapshotId = generateSnapshotId(timestamp, versionNum);
 
-            console.log('[useSnapshotManagement] Creating snapshot:', {
-                versionNum,
-                snapshotId,
-                isForCreateVersion: snapshotRequest.isForCreateVersion,
-                versionToRestore: snapshotRequest.versionToRestore,
-                requestVersionNumber: snapshotRequest.versionNumber,
-                activeVersion: versions.activeVersion
-            });
-
             // Создаем снапшот
             await TrafficService.createVersionSnapshot(
                 user.uid,
