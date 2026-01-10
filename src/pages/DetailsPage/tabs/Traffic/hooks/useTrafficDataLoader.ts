@@ -126,33 +126,45 @@ export const useTrafficDataLoader = ({
                         const periodStart = period?.startDate;
                         const periodEnd = period?.endDate;
 
-                        console.log('[DEBUG] Calling TrafficService.getVersionSources with:', {
-                            version: viewingVersion,
-                            periodStart,
-                            periodEnd,
-                            periodIndex: finalIndex
-                        });
-
                         const sources = await TrafficService.getVersionSources(
                             viewingVersion as number,
                             trafficData.snapshots || [],
                             periodStart,
                             periodEnd
                         );
-
-                        console.log('[DEBUG] TrafficService.getVersionSources returned:', {
-                            sourcesCount: sources.length,
-                            sources: sources.slice(0, 2) // First 2 for inspection
-                        });
                         console.log('[useTrafficDataLoader] Loaded formatted sources from latest snapshot:', sources);
 
                         if (viewMode === 'delta') {
-                            const delta = await TrafficService.calculateVersionDelta(
-                                sources,
-                                activeVersion,
-                                trafficData.snapshots || []
-                            );
-                            setDisplayedSources(delta);
+                            let prevSources: TrafficSource[] = [];
+
+                            // Smart Delta: 
+                            // activePeriods are sorted DESCENDING (Newest First).
+                            // So "Previous Period" (older) is at index + 1.
+                            const nextIndex = finalIndex + 1;
+                            const prevPeriod = versionData?.activePeriods?.[nextIndex];
+
+                            if (prevPeriod) {
+                                prevSources = await TrafficService.getVersionSources(
+                                    viewingVersion as number,
+                                    trafficData.snapshots || [],
+                                    prevPeriod.startDate,
+                                    prevPeriod.endDate
+                                );
+                            }
+
+                            // If no older period found in this version (last item in list) OR fallback
+                            if (prevSources.length === 0) {
+                                const delta = await TrafficService.calculateVersionDelta(
+                                    sources,
+                                    viewingVersion as number, // Use viewingVersion not activeVersion to be safe
+                                    trafficData.snapshots || []
+                                );
+                                setDisplayedSources(delta);
+                            } else {
+                                // Use generic calculation with fetched prevSources
+                                const delta = TrafficService.calculateSourcesDelta(sources, prevSources);
+                                setDisplayedSources(delta);
+                            }
                         } else {
                             setDisplayedSources(sources);
                         }
@@ -176,7 +188,8 @@ export const useTrafficDataLoader = ({
                 try {
                     // Resolve specific period dates for historical version
                     const versionData = packagingHistory.find(v => v.versionNumber === viewingVersion);
-                    const period = versionData?.activePeriods?.[viewingPeriodIndex || 0];
+                    const finalIndex = viewingPeriodIndex || 0;
+                    const period = versionData?.activePeriods?.[finalIndex];
                     const periodStart = period?.startDate;
                     const periodEnd = period?.endDate;
 
@@ -189,12 +202,32 @@ export const useTrafficDataLoader = ({
                     console.log('[useTrafficDataLoader] Loaded historical sources:', sources);
 
                     if (viewMode === 'delta') {
-                        const delta = await TrafficService.calculateVersionDelta(
-                            sources,
-                            viewingVersion as number,
-                            trafficData.snapshots || []
-                        );
-                        setDisplayedSources(delta);
+                        let prevSources: TrafficSource[] = [];
+
+                        // Smart Delta for History (Newest First -> Look at Next Index)
+                        const nextIndex = finalIndex + 1;
+                        const prevPeriod = versionData?.activePeriods?.[nextIndex];
+
+                        if (prevPeriod) {
+                            prevSources = await TrafficService.getVersionSources(
+                                viewingVersion as number,
+                                trafficData.snapshots || [],
+                                prevPeriod.startDate,
+                                prevPeriod.endDate
+                            );
+                        }
+
+                        if (prevSources.length === 0) {
+                            const delta = await TrafficService.calculateVersionDelta(
+                                sources,
+                                viewingVersion as number,
+                                trafficData.snapshots || []
+                            );
+                            setDisplayedSources(delta);
+                        } else {
+                            const delta = TrafficService.calculateSourcesDelta(sources, prevSources);
+                            setDisplayedSources(delta);
+                        }
                     } else {
                         setDisplayedSources(sources);
                     }

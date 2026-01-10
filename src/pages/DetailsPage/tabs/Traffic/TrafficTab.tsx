@@ -1,11 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { TrafficTable } from './components/TrafficTable';
 import { TrafficHeader } from './components/TrafficHeader';
 import { TrafficModals } from './components/TrafficModals';
 import { TrafficEmptyState } from './components/TrafficEmptyState';
+import { TrafficFilterChips } from './components/TrafficFilterChips';
 import type { VideoDetails } from '../../../../core/utils/youtubeApi';
 import { useTrafficDataLoader } from './hooks/useTrafficDataLoader';
 import { useTrafficSelection } from './hooks/useTrafficSelection';
+import { useTrafficFilters } from './hooks/useTrafficFilters';
 import { useSettings } from '../../../../core/hooks/useSettings';
 
 interface TrafficTabProps {
@@ -40,7 +42,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     const [isScrolled, setIsScrolled] = useState(false);
 
     // View Mode State: 'cumulative' shows total views, 'delta' shows new views since last snapshot
-    const [viewMode, setViewMode] = useState<'cumulative' | 'delta'>('cumulative');
+    const [viewMode, setViewMode] = useState<'cumulative' | 'delta'>('delta');
 
     // Modals State
     const [isMapperOpen, setIsMapperOpen] = useState(false);
@@ -58,6 +60,10 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     });
 
     const { selectedIds, toggleSelection, toggleAll } = useTrafficSelection();
+
+    // Filters Logic
+    const { filters, addFilter, removeFilter, clearFilters, applyFilters } = useTrafficFilters();
+    const filteredSources = useMemo(() => applyFilters(displayedSources), [displayedSources, applyFilters]);
 
     // Settings (for CTR rules)
     const { trafficSettings } = useSettings();
@@ -149,11 +155,20 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 hasExistingSnapshot={hasExistingSnapshot}
                 onUpload={handleUploadWithErrorTracking}
                 isScrolled={isScrolled}
+                filters={filters}
+                onAddFilter={addFilter}
+                onRemoveFilter={removeFilter}
             />
 
             {/* Main Content - Table with its own scroll */}
             <div className="px-6 pb-6 pt-6">
                 <div className="max-w-[1050px]" style={{ minHeight: '200px', maxHeight: 'calc(100vh - 200px)' }}>
+                    <TrafficFilterChips
+                        filters={filters}
+                        onRemoveFilter={removeFilter}
+                        onClearAll={clearFilters}
+                    />
+
                     {isEmpty && !isLoading && !isLoadingSnapshot ? (
                         <TrafficEmptyState
                             onUpload={handleUploadWithErrorTracking}
@@ -162,7 +177,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                         />
                     ) : (
                         <TrafficTable
-                            data={displayedSources}
+                            data={filteredSources}
                             groups={trafficData?.groups || []}
                             selectedIds={selectedIds}
                             isLoading={isLoading || isLoadingSnapshot}

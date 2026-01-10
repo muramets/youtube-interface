@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Filter } from 'lucide-react';
 
 interface FilterDropdownProps {
-    children: React.ReactNode;
+    children: React.ReactNode | ((props: { onClose: () => void }) => React.ReactNode);
     title?: string; // Floating title/label for the button (optional)
     badgeCount?: number;
     width?: string; // Custom width for dropdown
@@ -99,7 +99,7 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = ({
                         width: width
                     }}
                 >
-                    {children}
+                    {typeof children === 'function' ? children({ onClose: () => setIsOpen(false) }) : children}
                 </div>,
                 document.body
             )}

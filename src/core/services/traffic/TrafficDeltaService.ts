@@ -6,31 +6,13 @@ import type { TrafficSource, TrafficSnapshot } from '../../types/traffic';
  */
 export const TrafficDeltaService = {
     /**
-     * Рассчитывает дельту трафика для конкретной версии.
-     * Вычитает данные предыдущего снапшота из текущих данных.
+     * Вычисляет разницу между двумя наборами источников.
+     * Generic метод для использования в разных контекстах.
      */
-    async calculateVersionDelta(
+    calculateSourcesDelta(
         currentSources: TrafficSource[],
-        version: number,
-        snapshots: TrafficSnapshot[]
-    ): Promise<TrafficSource[]> {
-        // Находим предыдущую версию (максимальная версия < current)
-        // Это более надежно чем version - 1, т.к. версии могут быть пропущены
-        const previousVersions = snapshots
-            .map(s => s.version)
-            .filter(v => v < version)
-            .sort((a, b) => b - a); // Descending
-
-        const prevVersion = previousVersions[0];
-
-        if (prevVersion === undefined) {
-            return currentSources; // Нет предыдущих версий
-        }
-
-        // Загружаем данные предыдущей версии через сервис (поддержка storage/legacy)
-        const { TrafficSnapshotService } = await import('./TrafficSnapshotService');
-        const prevSources = await TrafficSnapshotService.getVersionSources(prevVersion, snapshots);
-
+        prevSources: TrafficSource[]
+    ): TrafficSource[] {
         if (prevSources.length === 0) {
             return currentSources;
         }
@@ -69,5 +51,34 @@ export const TrafficDeltaService = {
                 };
             })
             .filter(source => !source.videoId || source.views > 0);
+    },
+
+    /**
+     * Рассчитывает дельту трафика для конкретной версии.
+     * Вычитает данные предыдущего снапшота из текущих данных.
+     */
+    async calculateVersionDelta(
+        currentSources: TrafficSource[],
+        version: number,
+        snapshots: TrafficSnapshot[]
+    ): Promise<TrafficSource[]> {
+        // Находим предыдущую версию (максимальная версия < current)
+        // Это более надежно чем version - 1, т.к. версии могут быть пропущены
+        const previousVersions = snapshots
+            .map(s => s.version)
+            .filter(v => v < version)
+            .sort((a, b) => b - a); // Descending
+
+        const prevVersion = previousVersions[0];
+
+        if (prevVersion === undefined) {
+            return currentSources; // Нет предыдущих версий
+        }
+
+        // Загружаем данные предыдущей версии через сервис (поддержка storage/legacy)
+        const { TrafficSnapshotService } = await import('./TrafficSnapshotService');
+        const prevSources = await TrafficSnapshotService.getVersionSources(prevVersion, snapshots);
+
+        return this.calculateSourcesDelta(currentSources, prevSources);
     }
 };

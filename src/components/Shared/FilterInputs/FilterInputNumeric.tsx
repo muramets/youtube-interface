@@ -3,14 +3,19 @@ import type { FilterOperator } from '../../../core/stores/filterStore';
 import { CustomSelect } from '../CustomSelect';
 import { SmartDurationInput } from './SmartDurationInput';
 import { SmartNumericInput } from './SmartNumericInput';
+import { Checkbox } from '../../ui/atoms/Checkbox/Checkbox';
 
 interface FilterInputNumericProps {
     initialOperator?: FilterOperator;
     initialValue?: number;
     initialMaxValue?: number;
-    onApply: (operator: FilterOperator, value: number, maxValue?: number) => void;
+    onApply: (operator: FilterOperator, value: number, maxValue: number | undefined, isHideZero: boolean) => void;
     onRemove?: () => void;
     isDuration?: boolean;
+    // New props for Quick Filter
+    initialIsHideZero?: boolean;
+    showHideZeroOption?: boolean;
+    metricLabel?: string; // e.g. "Views", "Impressions"
 }
 
 export const FilterInputNumeric: React.FC<FilterInputNumericProps> = ({
@@ -19,14 +24,17 @@ export const FilterInputNumeric: React.FC<FilterInputNumericProps> = ({
     initialMaxValue,
     onApply,
     onRemove,
-    isDuration
+    isDuration,
+    initialIsHideZero,
+    showHideZeroOption,
+    metricLabel
 }) => {
     const [operator, setOperator] = useState<FilterOperator>(initialOperator);
+    const [value, setValue] = useState<string | number>(initialValue !== undefined ? initialValue : '');
+    const [maxValue, setMaxValue] = useState<string | number>(initialMaxValue !== undefined ? initialMaxValue : '');
 
-    // For numeric inputs (views), value is string. For duration, we track seconds (number) but SmartDurationInput manages display.
-    // We'll sync local state.
-    const [value, setValue] = useState<string | number>(initialValue || '');
-    const [maxValue, setMaxValue] = useState<string | number>(initialMaxValue || '');
+    // Quick Filter Local State
+    const [isHideZero, setIsHideZero] = useState(initialIsHideZero || false);
 
     const operators = [
         { label: '>=', value: 'gte' },
@@ -38,23 +46,37 @@ export const FilterInputNumeric: React.FC<FilterInputNumericProps> = ({
     ];
 
     const handleApply = () => {
-        // If empty and onRemove exists, trigger remove
-        if (value === '' && onRemove) {
-            onRemove();
-            return;
-        }
-
-        const numValue = Number(value);
-        if (isNaN(numValue) || value === '') return;
-
+        // Prepare numeric values
+        let numValue = NaN;
         let numMax = undefined;
-        if (operator === 'between') {
-            numMax = Number(maxValue);
-            if (isNaN(numMax) || maxValue === '') return;
+
+        if (value !== '') {
+            numValue = Number(value);
         }
 
-        onApply(operator, numValue, numMax);
+        if (operator === 'between' && maxValue !== '') {
+            numMax = Number(maxValue);
+        }
+
+        // Apply if we have a valid numeric filter OR if we are handling the hide zero option
+        // Note: Check for NaN in parent if you want to skip adding the numeric filter when empty
+        onApply(operator, numValue, numMax, isHideZero);
     };
+
+    const hasValidNumeric = value !== '' && !isNaN(Number(value)) && (operator !== 'between' || (maxValue !== '' && !isNaN(Number(maxValue))));
+
+    // Dirty detection
+    const hasChanges =
+        operator !== initialOperator ||
+        String(value) !== String(initialValue !== undefined ? initialValue : '') ||
+        String(maxValue) !== String(initialMaxValue !== undefined ? initialMaxValue : '') ||
+        isHideZero !== (initialIsHideZero || false);
+
+    // Button label logic: 
+    // If we are clearing an existing MAIN filter (value is empty, onRemove exists) AND not setting HideZero... it's a "Remove".
+    // But if we are just changing HideZero, it's "Apply".
+    // If value is empty, and we toggle HideZero, "Apply".
+    const isRemoveAction = value === '' && onRemove && !isHideZero && !initialIsHideZero;
 
     return (
         <div className="p-3 w-full bg-[#1F1F1F]">
@@ -77,7 +99,7 @@ export const FilterInputNumeric: React.FC<FilterInputNumericProps> = ({
                         {isDuration ? (
                             <SmartDurationInput
                                 value={value as number}
-                                onChange={(val) => setValue(val || '')}
+                                onChange={(val) => setValue(val !== undefined ? val : '')}
                                 placeholder="Value"
                                 autoFocus
                                 className="text-center w-full"
@@ -101,7 +123,7 @@ export const FilterInputNumeric: React.FC<FilterInputNumericProps> = ({
                                 {isDuration ? (
                                     <SmartDurationInput
                                         value={maxValue as number}
-                                        onChange={(val) => setMaxValue(val || '')}
+                                        onChange={(val) => setMaxValue(val !== undefined ? val : '')}
                                         placeholder="Max"
                                         className="text-center w-full"
                                     />
@@ -119,15 +141,36 @@ export const FilterInputNumeric: React.FC<FilterInputNumericProps> = ({
                 </div>
             </div>
 
+            {showHideZeroOption && (
+                <>
+                    <div className="h-px bg-[#333333] w-full my-3" />
+                    <div className="mb-3 px-1 flex items-center">
+                        <Checkbox
+                            checked={isHideZero}
+                            onChange={() => setIsHideZero(!isHideZero)}
+                            className="text-xs font-medium text-text-secondary group-hover:text-text-primary"
+                        />
+                        <span
+                            className="ml-2 text-xs font-medium text-text-secondary cursor-pointer select-none hover:text-text-primary"
+                            onClick={() => setIsHideZero(!isHideZero)}
+                        >
+                            Hide 0 {metricLabel || ''}
+                        </span>
+                    </div>
+                </>
+            )}
+
             <div className="flex justify-end mt-2">
                 <button
                     onClick={handleApply}
-                    // Disable if invalid AND (no remove handler OR value is not empty)
-                    // Basically: Enable if valid OR (empty and hasRemove)
-                    disabled={!onRemove && (value === '' || (operator === 'between' && maxValue === ''))}
+                    disabled={
+                        !hasChanges ||
+                        (!hasValidNumeric && !showHideZeroOption && !isRemoveAction) ||
+                        (!hasValidNumeric && showHideZeroOption && !isHideZero && !initialIsHideZero && !isRemoveAction)
+                    }
                     className="bg-[#333333] text-white font-medium px-4 py-2 rounded-full text-sm hover:bg-[#444444] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    {value === '' && onRemove ? 'Remove' : 'Apply'}
+                    {isRemoveAction ? 'Remove' : 'Apply'}
                 </button>
             </div>
         </div>

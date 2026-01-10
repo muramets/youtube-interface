@@ -21,11 +21,8 @@ export const TrafficService = {
     deleteSnapshot: TrafficSnapshotService.delete,
 
     // TrafficDeltaService methods
-    calculateVersionDelta: TrafficDeltaService.calculateVersionDelta as (
-        currentSources: any[],
-        version: number,
-        snapshots: any[]
-    ) => Promise<any[]>
+    calculateVersionDelta: TrafficDeltaService.calculateVersionDelta,
+    calculateSourcesDelta: TrafficDeltaService.calculateSourcesDelta,
 };
 
 // Re-export individual services for direct access

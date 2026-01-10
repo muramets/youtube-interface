@@ -1,10 +1,11 @@
 import React, { useRef, useState } from 'react';
-import { SegmentedControl } from '../../../../../components/ui/molecules/SegmentedControl';
 import { FilterDropdown } from '../../../../../components/ui/molecules/FilterDropdown';
 import { TrafficUploader } from './TrafficUploader';
 import { Settings } from 'lucide-react';
 import { TrafficCTRConfig } from './TrafficCTRConfig';
+import { TrafficFilterMenu } from './TrafficFilterMenu';
 import type { TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficFilter } from '../hooks/useTrafficFilters';
 
 interface TrafficHeaderProps {
     headerTitle: string;
@@ -16,6 +17,11 @@ interface TrafficHeaderProps {
     // View mode
     viewMode: 'cumulative' | 'delta';
     onViewModeChange: (mode: 'cumulative' | 'delta') => void;
+
+    // Filters
+    filters: TrafficFilter[];
+    onAddFilter: (filter: Omit<TrafficFilter, 'id'>) => void;
+    onRemoveFilter: (id: string) => void;
 
     // Upload
     isLoading: boolean;
@@ -38,6 +44,9 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
     shouldShowActions,
     viewMode,
     onViewModeChange,
+    filters,
+    onAddFilter,
+    onRemoveFilter,
     isLoading,
     hasExistingSnapshot,
     onUpload,
@@ -45,6 +54,9 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
 }) => {
     const configBtnRef = useRef<HTMLButtonElement>(null);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
+
+    // Filter badge count (active filters)
+    const badgeCount = filters.length;
 
     return (
         <>
@@ -78,34 +90,19 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
                                 <Settings size={18} />
                             </button>
 
-                            {/* View Mode Filter Menu */}
+                            {/* View Mode & Filter Menu */}
                             {!isLoading && (viewingVersion === 'draft' || viewingVersion === viewingVersion) && (
-                                <FilterDropdown align="right" width="280px">
-                                    <div className="py-2">
-                                        <div className="px-4 py-3 border-b border-[#2a2a2a]">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider">
-                                                    View Mode
-                                                </span>
-                                            </div>
-                                            <SegmentedControl
-                                                options={[
-                                                    { label: 'Total', value: 'cumulative' },
-                                                    { label: 'New', value: 'delta' }
-                                                ]}
-                                                value={viewMode}
-                                                onChange={(v: any) => onViewModeChange(v)}
-                                            />
-                                            <div className="mt-2 text-[10px] text-text-tertiary leading-relaxed grid">
-                                                <span className={`col-start-1 row-start-1 transition-opacity duration-150 ${viewMode === 'cumulative' ? 'opacity-100' : 'opacity-0'}`}>
-                                                    Show total accumulated views
-                                                </span>
-                                                <span className={`col-start-1 row-start-1 transition-opacity duration-150 ${viewMode === 'delta' ? 'opacity-100' : 'opacity-0'}`}>
-                                                    Show new views since last snapshot
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
+                                <FilterDropdown align="right" width="280px" badgeCount={badgeCount}>
+                                    {({ onClose }) => (
+                                        <TrafficFilterMenu
+                                            viewMode={viewMode}
+                                            onViewModeChange={onViewModeChange}
+                                            filters={filters}
+                                            onAddFilter={onAddFilter}
+                                            onRemoveFilter={onRemoveFilter}
+                                            onClose={onClose}
+                                        />
+                                    )}
                                 </FilterDropdown>
                             )}
 
@@ -131,3 +128,14 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
         </>
     );
 };
+
+// Wrapper hack: since we can't easily modify FilterDropdown in this step without a separate tool call (and potential side effects),
+// and I cannot pass onClose.
+// Actually, for now, TrafficFilterMenu's onClose will just do nothing visually if inside FilterDropdown?
+// No, user expects it to close.
+// I will check if I can modify FilterDropdown first or if I should just use the Trends approach here.
+// Trends approach is more robust because `TrafficFilterMenu` needs to modify its height and `FilterDropdown` has fixed positioning logic that might not update? 
+// Actually FilterDropdown has auto-height.
+// BUT `onClose` is critical.
+// I will pause this Edit to Modify FilterDropdown first.
+
