@@ -171,6 +171,7 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                                     restorationIndex={item.showRestored ? item.restorationIndex : undefined}
                                                     periodStart={item.periodStart}
                                                     periodEnd={item.periodEnd}
+                                                    truncatePeriodBadge={true}
                                                 />
                                             </div>
                                         </PortalTooltip>
@@ -185,6 +186,7 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                             restorationIndex={item.showRestored ? item.restorationIndex : undefined}
                                             periodStart={item.periodStart}
                                             periodEnd={item.periodEnd}
+                                            truncatePeriodBadge={true}
                                         />
                                     )}
 

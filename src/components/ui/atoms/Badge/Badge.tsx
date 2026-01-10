@@ -31,13 +31,7 @@ interface BadgeProps {
     children: React.ReactNode;
 
     /**
-     * Включить обрезку текста с многоточием (...) при переполнении.
-     * @default false
-     */
-    truncate?: boolean;
-
-    /**
-     * Максимальная ширина бейджа. Работает вместе с truncate.
+     * Максимальная ширина бейджа. Если не указана, используется max-w-full.
      * @example "80px", "100px"
      */
     maxWidth?: string;
@@ -51,10 +45,11 @@ interface BadgeProps {
  * Базовые классы для всех бейджей.
  */
 const baseStyles = `
-    inline-flex items-center
+    flex items-center
     px-1 py-0.5
     text-[9px] font-bold uppercase tracking-wider
     rounded
+    w-fit
 `;
 
 /**
@@ -124,23 +119,36 @@ export const Badge: React.FC<BadgeProps> = ({
     variant = 'neutral',
     className = '',
     children,
-    truncate = false,
     maxWidth,
 }) => {
     const textRef = React.useRef<HTMLSpanElement>(null);
     const [isTruncated, setIsTruncated] = React.useState(false);
 
     React.useEffect(() => {
-        if (truncate && textRef.current) {
-            const element = textRef.current;
-            setIsTruncated(element.scrollWidth > element.clientWidth);
-        }
-    }, [truncate, children, maxWidth]);
+        if (!textRef.current) return;
+
+        const checkTruncation = () => {
+            if (textRef.current) {
+                const element = textRef.current;
+                const isOverflowing = element.scrollWidth > element.clientWidth;
+                setIsTruncated(isOverflowing);
+            }
+        };
+
+        // Initial check
+        checkTruncation();
+
+        // Observe layout changes
+        const observer = new ResizeObserver(checkTruncation);
+        observer.observe(textRef.current);
+
+        return () => observer.disconnect();
+    }, [children, maxWidth]);
 
     const classes = [
         baseStyles,
         variantStyles[variant],
-        truncate && 'min-w-0',
+        'min-w-0 max-w-full overflow-hidden',
         className,
     ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
 
@@ -148,21 +156,17 @@ export const Badge: React.FC<BadgeProps> = ({
 
     const badgeContent = (
         <span className={classes} style={style} title="">
-            {truncate ? (
-                <span
-                    ref={textRef}
-                    className="overflow-hidden text-ellipsis whitespace-nowrap inline-block max-w-full"
-                >
-                    {children}
-                </span>
-            ) : (
-                children
-            )}
+            <span
+                ref={textRef}
+                className="overflow-hidden text-ellipsis whitespace-nowrap block max-w-full"
+            >
+                {children}
+            </span>
         </span>
     );
 
     // Show tooltip with full text only when actually truncated
-    if (truncate && isTruncated) {
+    if (isTruncated) {
         return (
             <PortalTooltip
                 content={children}

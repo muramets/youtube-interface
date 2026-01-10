@@ -110,16 +110,30 @@ export const PackagingNav: React.FC<PackagingNavProps> = ({
                     )}
 
                     {/* Saved versions */}
-                    {sortedVersions.map((version) => (
-                        <SidebarVersionItem
-                            key={version.versionNumber}
-                            label={`v.${version.versionNumber} `}
-                            isViewing={viewingVersion === version.versionNumber}
-                            isVideoActive={activeVersion === version.versionNumber}
-                            onClick={() => onVersionClick(version.versionNumber)}
-                            onDelete={() => onDeleteVersion(version.versionNumber, `v.${version.versionNumber} `)}
-                        />
-                    ))}
+                    {sortedVersions.map((version) => {
+                        // For non-active versions, show the last activation period
+                        const isActive = activeVersion === version.versionNumber;
+                        const periodStart = !isActive && version.activePeriods && version.activePeriods.length > 0
+                            ? version.activePeriods[0].startDate
+                            : undefined;
+                        const periodEnd = !isActive && version.activePeriods && version.activePeriods.length > 0
+                            ? version.activePeriods[0].endDate
+                            : undefined;
+
+                        return (
+                            <SidebarVersionItem
+                                key={version.versionNumber}
+                                label={`v.${version.versionNumber} `}
+                                isViewing={viewingVersion === version.versionNumber}
+                                isVideoActive={activeVersion === version.versionNumber}
+                                onClick={() => onVersionClick(version.versionNumber)}
+                                onDelete={() => onDeleteVersion(version.versionNumber, `v.${version.versionNumber} `)}
+                                restorationIndex={!isActive && periodStart ? 1 : undefined}
+                                periodStart={periodStart}
+                                periodEnd={periodEnd}
+                            />
+                        );
+                    })}
                 </div>
             )}
         </div>

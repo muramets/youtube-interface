@@ -25,6 +25,7 @@ interface SidebarVersionItemProps {
     periodStart?: number;
     periodEnd?: number | null;
     tooltip?: string | React.ReactNode;
+    truncatePeriodBadge?: boolean; // If true, truncate period badge text (for narrow sidebars)
 }
 
 export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
@@ -39,6 +40,7 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
     periodStart,
     periodEnd,
     tooltip,
+    truncatePeriodBadge = false,
 }) => {
     // Track if user is hovering over a badge to block nav item tooltip
     const [isBadgeHovered, setIsBadgeHovered] = useState(false);
@@ -67,15 +69,14 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
                 {/* RESTORED badge */}
                 {restorationIndex !== undefined && (
                     <div
-                        className="inline-flex items-center flex-shrink min-w-0"
+                        className={`flex items-center min-w-0 ${truncatePeriodBadge ? 'flex-shrink' : 'flex-1'}`}
                         onPointerEnter={() => setIsBadgeHovered(true)}
                         onPointerLeave={() => setIsBadgeHovered(false)}
                     >
                         <Badge
                             variant="warning"
-                            className="px-1.5"
-                            truncate
-                            maxWidth="160px"
+                            className={`px-1.5 ${!truncatePeriodBadge ? 'w-full justify-center' : ''}`}
+                            maxWidth={truncatePeriodBadge ? "160px" : undefined}
                         >
                             {periodStart ? formatPremiumPeriod(periodStart, periodEnd ?? null) : (restorationIndex === 1 ? 'Restored' : `Restored ${restorationIndex}`)}
                         </Badge>
@@ -90,9 +91,11 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
                 )}
 
                 {/* ACTIVE badge */}
-                <div className={`inline-flex items-center transition-opacity duration-200 flex-shrink-0 ${isVideoActive ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                    <Badge variant="success" className="px-1.5">Active</Badge>
-                </div>
+                {isVideoActive && (
+                    <div className="inline-flex items-center flex-shrink-0 transition-opacity duration-200">
+                        <Badge variant="success" className="px-1.5">Active</Badge>
+                    </div>
+                )}
             </div>
 
             {/* Delete button - always present, show on hover via opacity */}
