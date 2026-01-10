@@ -55,29 +55,87 @@ export const TrafficDeltaService = {
 
     /**
      * Рассчитывает дельту трафика для конкретной версии.
-     * Вычитает данные предыдущего снапшота из текущих данных.
+     * 
+     * ЛОГИКА ПОИСКА ПРЕДЫДУЩИХ ДАННЫХ:
+     * 1. Если указан closingSnapshotId (из activePeriods) → используем его (для восстановленных версий)
+     * 2. Иначе ищем предыдущую версию по номеру (version - 1)
+     * 
+     * @param currentSources - Текущие источники трафика
+     * @param version - Номер текущей версии
+     * @param snapshots - Все доступные снапшоты
+     * @param closingSnapshotId - ID снапшота, закрывшего предыдущий период (опционально)
      */
     async calculateVersionDelta(
         currentSources: TrafficSource[],
         version: number,
-        snapshots: TrafficSnapshot[]
+        snapshots: TrafficSnapshot[],
+        closingSnapshotId?: string | null
     ): Promise<TrafficSource[]> {
-        // Находим предыдущую версию (максимальная версия < current)
-        // Это более надежно чем version - 1, т.к. версии могут быть пропущены
-        const previousVersions = snapshots
-            .map(s => s.version)
-            .filter(v => v < version)
-            .sort((a, b) => b - a); // Descending
+        console.log('[TrafficDeltaService] calculateVersionDelta called:', {
+            version,
+            currentSourcesCount: currentSources.length,
+            snapshotsCount: snapshots.length,
+            closingSnapshotId,
+            allVersions: snapshots.map(s => ({ id: s.id, version: s.version }))
+        });
 
-        const prevVersion = previousVersions[0];
+        let prevSources: TrafficSource[] = [];
 
-        if (prevVersion === undefined) {
-            return currentSources; // Нет предыдущих версий
+        // ПРИОРИТЕТ 1: Используем closingSnapshotId если он указан (для восстановленных версий)
+        if (closingSnapshotId) {
+            console.log('[TrafficDeltaService] Using closingSnapshotId to find previous data:', closingSnapshotId);
+            const closingSnapshot = snapshots.find(s => s.id === closingSnapshotId);
+
+            if (closingSnapshot) {
+                const { TrafficSnapshotService } = await import('./TrafficSnapshotService');
+                prevSources = await TrafficSnapshotService.getVersionSources(
+                    closingSnapshot.version,
+                    snapshots,
+                    closingSnapshot.timestamp,
+                    closingSnapshot.timestamp
+                );
+
+                console.log('[TrafficDeltaService] Loaded sources from closingSnapshot:', {
+                    snapshotId: closingSnapshotId,
+                    snapshotVersion: closingSnapshot.version,
+                    prevSourcesCount: prevSources.length
+                });
+            } else {
+                console.warn('[TrafficDeltaService] closingSnapshotId not found in snapshots:', closingSnapshotId);
+            }
         }
 
-        // Загружаем данные предыдущей версии через сервис (поддержка storage/legacy)
-        const { TrafficSnapshotService } = await import('./TrafficSnapshotService');
-        const prevSources = await TrafficSnapshotService.getVersionSources(prevVersion, snapshots);
+        // ПРИОРИТЕТ 2: Если не нашли через closingSnapshotId, ищем по номеру версии
+        if (prevSources.length === 0) {
+            // Находим предыдущую версию (максимальная версия < current)
+            const previousVersions = snapshots
+                .map(s => s.version)
+                .filter(v => v < version)
+                .sort((a, b) => b - a); // Descending
+
+            const prevVersion = previousVersions[0];
+
+            console.log('[TrafficDeltaService] Previous version search by number:', {
+                requestedVersion: version,
+                foundPreviousVersions: previousVersions,
+                selectedPrevVersion: prevVersion
+            });
+
+            if (prevVersion === undefined) {
+                console.log('[TrafficDeltaService] No previous version found, returning current sources as-is');
+                return currentSources; // Нет предыдущих версий
+            }
+
+            // Загружаем данные предыдущей версии
+            const { TrafficSnapshotService } = await import('./TrafficSnapshotService');
+            prevSources = await TrafficSnapshotService.getVersionSources(prevVersion, snapshots);
+
+            console.log('[TrafficDeltaService] Loaded previous version sources:', {
+                prevVersion,
+                prevSourcesCount: prevSources.length,
+                prevVideoIds: prevSources.map(s => s.videoId).slice(0, 5)
+            });
+        }
 
         return this.calculateSourcesDelta(currentSources, prevSources);
     }

@@ -112,7 +112,7 @@ export const TrafficSnapshotService = {
 
         // Если указан временной диапазон (для Restored версий), 
         // берем ПОСЛЕДНИЙ (LIFO) снапшот внутри этого диапазона
-        if (periodStart) {
+        if (periodStart !== undefined) {
             versionSnapshots = versionSnapshots.filter(s => {
                 // Add 5s buffer to start and end as well to handle millisecond-level offsets between client events
                 const matchesStart = s.timestamp >= (periodStart - 5000);

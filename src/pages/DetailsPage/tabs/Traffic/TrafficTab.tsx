@@ -197,6 +197,31 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         return null;
     }, [viewingVersion, viewingPeriodIndex, packagingHistory]);
 
+    /**
+     * BUSINESS LOGIC: Check if there are snapshots in previous versions
+     * 
+     * Determines if this is the "first version with traffic data".
+     * A version is "first" if its oldest active period has closingSnapshotId === null.
+     * This means there was no previous version active when this version was activated.
+     * 
+     * Example: v.2 is first if it was activated without any previous version having data.
+     */
+    const hasPreviousSnapshots = React.useMemo(() => {
+        if (!viewingVersion || viewingVersion === 'draft') return false;
+
+        // Find the current version's data
+        const currentVersionData = packagingHistory.find((v: any) => v.versionNumber === viewingVersion);
+        if (!currentVersionData?.activePeriods || currentVersionData.activePeriods.length === 0) {
+            return false;
+        }
+
+        // Get the oldest period (last in array, since they're sorted newest first)
+        const oldestPeriod = currentVersionData.activePeriods[currentVersionData.activePeriods.length - 1];
+
+        // If closingSnapshotId is not null, there was a previous version with data
+        return oldestPeriod.closingSnapshotId !== null;
+    }, [viewingVersion, packagingHistory]);
+
     // Show actions if: data exists OR (empty but has snapshots - could be delta mode)
     const shouldShowActions = !isEmpty || hasExistingSnapshot;
 
@@ -244,6 +269,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                         viewingVersion={viewingVersion}
                         onUpload={handleUploadWithErrorTracking}
                         hasExistingSnapshot={hasExistingSnapshot}
+                        hasPreviousSnapshots={hasPreviousSnapshots}
                         hasActiveFilters={filters.length > 0}
                     />
                 </div>

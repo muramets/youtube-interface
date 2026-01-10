@@ -202,6 +202,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                         }}
                         onRestoreVersion={versionMgmt.handleRestoreVersion}
                         onRequestSnapshot={snapshotMgmt.handleRequestSnapshot}
+                        trafficData={trafficState.trafficData}
                     />
                 ) : (
                     <TrafficTab

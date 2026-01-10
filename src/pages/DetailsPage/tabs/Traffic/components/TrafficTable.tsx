@@ -28,6 +28,7 @@ interface TrafficTableProps {
     // Upload for Empty State
     onUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<void>;
     hasExistingSnapshot: boolean;
+    hasPreviousSnapshots?: boolean; // Are there snapshots in earlier versions?
 
     // CTR Rules
     ctrRules?: CTRRule[];
@@ -54,6 +55,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
     isLoading,
     onUpload,
     hasExistingSnapshot,
+    hasPreviousSnapshots = false,
     ctrRules = [],
     viewMode = 'cumulative',
     hasActiveFilters = false
@@ -231,6 +233,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                     <TrafficEmptyState
                         onUpload={onUpload}
                         hasExistingSnapshot={hasExistingSnapshot}
+                        hasPreviousSnapshots={hasPreviousSnapshots}
                         mode="no-new-data"
                     />
                 ) : (

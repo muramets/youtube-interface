@@ -154,10 +154,28 @@ export const useTrafficDataLoader = ({
 
                             // If no older period found in this version (last item in list) OR fallback
                             if (prevSources.length === 0) {
+                                // Получаем closingSnapshotId из самого старого периода (последний элемент массива)
+                                console.log('[useTrafficDataLoader] Looking for closingSnapshotId:', {
+                                    viewingVersion,
+                                    versionData: versionData ? {
+                                        versionNumber: versionData.versionNumber,
+                                        activePeriods: versionData.activePeriods
+                                    } : null
+                                });
+
+                                const oldestPeriod = versionData?.activePeriods?.[versionData.activePeriods.length - 1];
+                                const closingSnapshotId = oldestPeriod?.closingSnapshotId;
+
+                                console.log('[useTrafficDataLoader] Extracted closingSnapshotId:', {
+                                    oldestPeriod,
+                                    closingSnapshotId
+                                });
+
                                 const delta = await TrafficService.calculateVersionDelta(
                                     sources,
-                                    viewingVersion as number, // Use viewingVersion not activeVersion to be safe
-                                    trafficData.snapshots || []
+                                    viewingVersion as number,
+                                    trafficData.snapshots || [],
+                                    closingSnapshotId
                                 );
                                 setDisplayedSources(delta);
                             } else {
@@ -218,10 +236,15 @@ export const useTrafficDataLoader = ({
                         }
 
                         if (prevSources.length === 0) {
+                            // Получаем closingSnapshotId из самого старого периода
+                            const oldestPeriod = versionData?.activePeriods?.[versionData.activePeriods.length - 1];
+                            const closingSnapshotId = oldestPeriod?.closingSnapshotId;
+
                             const delta = await TrafficService.calculateVersionDelta(
                                 sources,
                                 viewingVersion as number,
-                                trafficData.snapshots || []
+                                trafficData.snapshots || [],
+                                closingSnapshotId
                             );
                             setDisplayedSources(delta);
                         } else {

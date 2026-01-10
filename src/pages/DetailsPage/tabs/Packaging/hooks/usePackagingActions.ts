@@ -18,6 +18,7 @@ interface UsePackagingActionsProps {
     formState: UsePackagingFormStateResult;
     abTesting: UseABTestingResult;
     onRequestSnapshot?: (versionNumber: number) => Promise<string | null | undefined>; // Returns snapshotId, null (skip), or undefined (cancel)
+    trafficData?: any; // Traffic data for finding snapshots
 }
 
 export const usePackagingActions = ({
@@ -26,7 +27,8 @@ export const usePackagingActions = ({
     localization,
     formState,
     abTesting,
-    onRequestSnapshot
+    onRequestSnapshot,
+    trafficData
 }: UsePackagingActionsProps) => {
     const { user } = useAuth();
     const { currentChannel, setCurrentChannel } = useChannelStore();
@@ -247,12 +249,41 @@ export const usePackagingActions = ({
         }
     }, [cloningVersion, cloneVideo, video, showToast, cloneSettings, formState.isDirty, handleSave]);
 
-    const handleRestore = useCallback(() => {
+    const handleRestore = useCallback(async () => {
         if (versionState.viewingVersion !== 'draft' && typeof versionState.viewingVersion === 'number') {
-            versionState.restoreVersion(versionState.viewingVersion);
+            // Находим closingSnapshotId для закрытия периода текущей активной версии
+            let closingSnapshotId: string | null = null;
+
+            if (typeof versionState.activeVersion === 'number') {
+                // ПРИОРИТЕТ 1: Если есть onRequestSnapshot (для видео с publishedVideoId), запрашиваем CSV
+                if (onRequestSnapshot) {
+                    const snapshotResult = await onRequestSnapshot(versionState.activeVersion);
+
+                    // Если пользователь отменил (undefined), прерываем восстановление
+                    if (snapshotResult === undefined) {
+                        return;
+                    }
+
+                    closingSnapshotId = snapshotResult;
+                }
+                // ПРИОРИТЕТ 2: Для видео без publishedVideoId ищем последний снапшот активной версии
+                else if (trafficData?.snapshots) {
+                    // Находим все снапшоты текущей активной версии
+                    const activeVersionSnapshots = trafficData.snapshots
+                        .filter((s: any) => s.version === versionState.activeVersion)
+                        .sort((a: any, b: any) => b.timestamp - a.timestamp); // Сортируем по убыванию
+
+                    // Берем самый свежий снапшот
+                    if (activeVersionSnapshots.length > 0) {
+                        closingSnapshotId = activeVersionSnapshots[0].id;
+                    }
+                }
+            }
+
+            versionState.restoreVersion(versionState.viewingVersion, closingSnapshotId);
             showToast(`Restored to v.${versionState.viewingVersion}`, 'success');
         }
-    }, [versionState, showToast]);
+    }, [versionState, showToast, onRequestSnapshot, trafficData]);
 
     const handleAddLanguage = useCallback(async (code: string, customName?: string, customFlag?: string) => {
         localization.addLanguage(code, customName, customFlag);
