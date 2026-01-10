@@ -28,7 +28,7 @@ export const FilterChips: React.FC<FilterChipsProps> = ({
                 {items.map((item) => (
                     <div
                         key={item.id}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm text-text-primary hover:bg-hover-bg transition-colors cursor-default ${chipClassName}`}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-text-primary hover:bg-hover-bg transition-colors cursor-default ${chipClassName}`}
                     >
                         <span>{item.label}</span>
                         <button
@@ -45,7 +45,7 @@ export const FilterChips: React.FC<FilterChipsProps> = ({
             {onClearAll && items.length > 1 && (
                 <button
                     onClick={onClearAll}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors"
                     type="button"
                 >
                     <RotateCcw size={14} />
