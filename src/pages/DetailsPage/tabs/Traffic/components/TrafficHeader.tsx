@@ -11,7 +11,7 @@ interface TrafficHeaderProps {
     headerTitle: string;
     isViewingOldVersion: boolean;
     viewingVersion?: number | 'draft';
-    versionLabel?: string; // e.g. "Version 1" (aliased)
+    versionLabel?: { main: string; period: string | null } | null; // Object with main and period parts
     shouldShowActions: boolean;
 
     // View mode
@@ -67,7 +67,10 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
                         {/* Always show version stats info if viewing a specific version */}
                         {versionLabel && (
                             <p className="text-sm text-text-secondary mt-1">
-                                Viewing stats for {versionLabel}
+                                Viewing stats for {versionLabel.main}
+                                {versionLabel.period && (
+                                    <span className="text-text-tertiary italic text-xs"> ({versionLabel.period})</span>
+                                )}
                             </p>
                         )}
                         {!versionLabel && isViewingOldVersion && (

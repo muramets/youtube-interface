@@ -163,13 +163,9 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     }, [trafficData?.snapshots, viewingVersion, viewingPeriodIndex, selectedSnapshot, packagingHistory]);
 
     // Compute Version Label (with Alias Support)
-    // If viewingVersion is "draft", show "Draft"
-    // If viewingVersion is a number, lookup in history for cloneOf alias
-    // Compute Version Label (Visual Mapping)
-    // We want the label to match the sidebar's visual sequence (v.1, v.2, v.3...)
-    // regardless of internal gaps or clones.
+    // Returns object with main label and optional period label for separate styling
     const versionLabel = React.useMemo(() => {
-        if (viewingVersion === 'draft') return 'Draft';
+        if (viewingVersion === 'draft') return { main: 'Draft', period: null };
         if (typeof viewingVersion === 'number') {
             // 1. Build the map (same logic as PackagingNav)
             const map = new Map<number, number>();
@@ -186,20 +182,20 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             const canonicalId = currentVersionData?.cloneOf || viewingVersion;
             const visualNumber = map.get(canonicalId) || canonicalId;
 
-            let label = `Version ${visualNumber}`;
+            const main = `Version ${visualNumber}`;
+            let period: string | null = null;
 
             // 3. Add period label if version has multiple active periods
             if (currentVersionData?.activePeriods && currentVersionData.activePeriods.length > 1) {
-                const period = currentVersionData.activePeriods[viewingPeriodIndex];
-                if (period) {
-                    const periodLabel = formatPremiumPeriod(period.startDate, period.endDate ?? null);
-                    label += ` (${periodLabel})`;
+                const periodData = currentVersionData.activePeriods[viewingPeriodIndex];
+                if (periodData) {
+                    period = formatPremiumPeriod(periodData.startDate, periodData.endDate ?? null);
                 }
             }
 
-            return label;
+            return { main, period };
         }
-        return undefined;
+        return null;
     }, [viewingVersion, viewingPeriodIndex, packagingHistory]);
 
     // Show actions if: data exists OR (empty but has snapshots - could be delta mode)
