@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { TrafficTable } from './components/TrafficTable';
 import { TrafficHeader } from './components/TrafficHeader';
 import { TrafficModals } from './components/TrafficModals';
-import { TrafficEmptyState } from './components/TrafficEmptyState';
 import { TrafficFilterChips } from './components/TrafficFilterChips';
 import type { VideoDetails } from '../../../../core/utils/youtubeApi';
 import { useTrafficDataLoader } from './hooks/useTrafficDataLoader';
@@ -232,29 +231,21 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                         onClearAll={clearFilters}
                     />
 
-                    {isEmpty && !isLoading && !isLoadingSnapshot ? (
-                        <TrafficEmptyState
-                            onUpload={handleUploadWithErrorTracking}
-                            hasExistingSnapshot={hasExistingSnapshot}
-                            mode="no-data"
-                        />
-                    ) : (
-                        <TrafficTable
-                            data={filteredSources}
-                            groups={trafficData?.groups || []}
-                            selectedIds={selectedIds}
-                            isLoading={isLoading || isLoadingSnapshot}
-                            ctrRules={ctrRules}
-                            viewMode={viewMode}
-                            onToggleSelection={toggleSelection}
-                            onToggleAll={toggleAll}
-                            activeVersion={activeVersion}
-                            viewingVersion={viewingVersion}
-                            onUpload={handleUploadWithErrorTracking}
-                            hasExistingSnapshot={hasExistingSnapshot}
-                            hasActiveFilters={filters.length > 0}
-                        />
-                    )}
+                    <TrafficTable
+                        data={filteredSources}
+                        groups={trafficData?.groups || []}
+                        selectedIds={selectedIds}
+                        isLoading={isLoading || isLoadingSnapshot}
+                        ctrRules={ctrRules}
+                        viewMode={viewMode}
+                        onToggleSelection={toggleSelection}
+                        onToggleAll={toggleAll}
+                        activeVersion={activeVersion}
+                        viewingVersion={viewingVersion}
+                        onUpload={handleUploadWithErrorTracking}
+                        hasExistingSnapshot={hasExistingSnapshot}
+                        hasActiveFilters={filters.length > 0}
+                    />
                 </div>
             </div>
 
