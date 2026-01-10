@@ -97,7 +97,7 @@ export const CustomSelect = <T extends string | number>({
             {isOpen && createPortal(
                 <div
                     id="custom-select-dropdown"
-                    className="fixed z-[9999] bg-[#222222] border border-[#333333] rounded-md shadow-xl"
+                    className="fixed z-[9999] bg-[#222222] border border-[#333333] rounded-md shadow-xl ignore-filter-click-outside"
                     style={{
                         top: position.top,
                         left: position.left,
