@@ -9,6 +9,7 @@ import { useTrafficDataLoader } from './hooks/useTrafficDataLoader';
 import { useTrafficSelection } from './hooks/useTrafficSelection';
 import { useTrafficFilters } from './hooks/useTrafficFilters';
 import { useSettings } from '../../../../core/hooks/useSettings';
+import { formatPremiumPeriod } from './utils/dateUtils';
 
 interface TrafficTabProps {
     video: VideoDetails;
@@ -185,10 +186,21 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             const canonicalId = currentVersionData?.cloneOf || viewingVersion;
             const visualNumber = map.get(canonicalId) || canonicalId;
 
-            return `Version ${visualNumber}`;
+            let label = `Version ${visualNumber}`;
+
+            // 3. Add period label if version has multiple active periods
+            if (currentVersionData?.activePeriods && currentVersionData.activePeriods.length > 1) {
+                const period = currentVersionData.activePeriods[viewingPeriodIndex];
+                if (period) {
+                    const periodLabel = formatPremiumPeriod(period.startDate, period.endDate ?? null);
+                    label += ` (${periodLabel})`;
+                }
+            }
+
+            return label;
         }
         return undefined;
-    }, [viewingVersion, packagingHistory]);
+    }, [viewingVersion, viewingPeriodIndex, packagingHistory]);
 
     // Show actions if: data exists OR (empty but has snapshots - could be delta mode)
     const shouldShowActions = !isEmpty || hasExistingSnapshot;
