@@ -14,6 +14,7 @@ interface PortalTooltipProps {
     enterDelay?: number;
     forceOpen?: boolean;
     noAnimation?: boolean;
+    title?: string;
 }
 
 export const PortalTooltip: React.FC<PortalTooltipProps> = ({
@@ -28,7 +29,8 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
     triggerClassName = '',
     enterDelay = 0,
     forceOpen,
-    noAnimation = false
+    noAnimation = false,
+    title
 }) => {
     const [isVisible, setIsVisible] = useState(false); // Controls visual opacity/transform
     const [shouldRender, setShouldRender] = useState(false); // Controls mounting
@@ -77,7 +79,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                 }
 
                 if (side === 'top' || side === 'bottom') {
-                    top = side === 'bottom' ? (rect.bottom || (rect.top + rect.height)) + 8 : rect.top - 8;
+                    top = side === 'bottom' ? (rect.bottom || (rect.top + rect.height)) + 4 : rect.top - 4;
 
                     if (effectiveAlign === 'left') {
                         left = rect.left;
@@ -95,8 +97,8 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
 
                 } else {
                     let effectiveSide = side;
-                    const spaceRight = viewportWidth - (rect.right || (rect.left + rect.width)) - 8 - padding;
-                    const spaceLeft = rect.left - 8 - padding;
+                    const spaceRight = viewportWidth - (rect.right || (rect.left + rect.width)) - 4 - padding;
+                    const spaceLeft = rect.left - 4 - padding;
 
                     if (side === 'right' && spaceRight < minWidth && spaceLeft > spaceRight) {
                         effectiveSide = 'left';
@@ -107,11 +109,11 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                     top = rect.top;
 
                     if (effectiveSide === 'left') {
-                        left = rect.left - 8;
+                        left = rect.left - 4;
                         transform = 'translateX(-100%)';
                         calculatedMaxWidth = left - padding;
                     } else {
-                        left = (rect.right || (rect.left + rect.width)) + 8;
+                        left = (rect.right || (rect.left + rect.width)) + 4;
                         transform = 'none';
                         calculatedMaxWidth = viewportWidth - left - padding;
                     }
@@ -232,6 +234,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
             onPointerEnter={handleMouseEnter}
             onPointerLeave={handleMouseLeave}
             className={`relative flex items-center justify-center ${triggerClassName}`}
+            title={title}
         >
             {children}
             {shouldRender && createPortal(
@@ -250,11 +253,11 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                         ref={tooltipRef}
                         className={`
                             text-white text-[11px] leading-relaxed
-                            whitespace-normal break-all max-w-full text-left border
+                            whitespace-normal break-all max-w-full text-left
                             transition-all ease-out origin-top-right
                             ${variant === 'glass'
-                                ? 'bg-[#1a1a1a]/60 backdrop-blur-xl px-4 py-2 rounded-xl border-white/10 shadow-2xl w-auto max-w-[340px]'
-                                : 'bg-[#1F1F1F] px-3 py-2 rounded-lg border-white/10 shadow-xl'
+                                ? 'bg-[#1a1a1a]/85 backdrop-blur-xl px-2 py-1 rounded-lg shadow-lg w-auto max-w-[340px]'
+                                : 'bg-[#1F1F1F] px-3 py-2 rounded-lg border border-white/10 shadow-xl'
                             }
                             ${noAnimation ? 'duration-0' : 'duration-200'}
                             ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}

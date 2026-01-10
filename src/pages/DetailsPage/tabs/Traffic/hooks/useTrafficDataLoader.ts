@@ -102,14 +102,15 @@ export const useTrafficDataLoader = ({
 
                         if (targetPeriodIndex === undefined && versionData?.activePeriods) {
                             // 1. Try to find open period (no endDate)
-                            const openPeriodIndex = versionData.activePeriods.findIndex(p => !p.endDate);
+                            const openPeriodIndex = versionData.activePeriods.findIndex((p: any) => !p.endDate);
                             if (openPeriodIndex !== -1) {
+                                versionData.activePeriods[openPeriodIndex].endDate = Date.now();
                                 targetPeriodIndex = openPeriodIndex;
                             } else {
                                 // 2. If all closed, find the Latest one by startDate
                                 let maxStart = -1;
                                 let maxIdx = 0;
-                                versionData.activePeriods.forEach((p, idx) => {
+                                versionData.activePeriods.forEach((p: any, idx: number) => {
                                     if (p.startDate > maxStart) {
                                         maxStart = p.startDate;
                                         maxIdx = idx;

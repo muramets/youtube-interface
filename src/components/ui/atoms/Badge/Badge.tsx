@@ -1,30 +1,5 @@
-/**
- * =============================================================================
- * BADGE COMPONENT
- * =============================================================================
- * 
- * Маленький индикатор статуса или категории.
- * 
- * ВАЖНО ДЛЯ ДРУГИХ АГЕНТОВ:
- * Используй этот компонент для статусов и меток!
- * 
- *   import { Badge } from '@/components/ui/atoms/Badge';
- *   <Badge variant="success">Active</Badge>
- * 
- * =============================================================================
- * 
- * 🎨 ВАРИАНТЫ (variant prop):
- * 
- * 1. "success" — Зелёный. Используй для "Active", "Online", "Completed"
- * 2. "warning" — Жёлтый. Используй для "Pending", "Draft"
- * 3. "error"   — Красный. Используй для "Error", "Failed", "Offline"
- * 4. "info"    — Синий. Используй для "New", "Beta", информационных меток
- * 5. "neutral" — Серый. Используй для обычных меток без акцента
- * 
- * =============================================================================
- */
-
 import React from 'react';
+import { PortalTooltip } from '../../../Shared/PortalTooltip';
 
 // -----------------------------------------------------------------------------
 // ТИПЫ
@@ -54,6 +29,18 @@ interface BadgeProps {
      * Содержимое бейджа (текст).
      */
     children: React.ReactNode;
+
+    /**
+     * Включить обрезку текста с многоточием (...) при переполнении.
+     * @default false
+     */
+    truncate?: boolean;
+
+    /**
+     * Максимальная ширина бейджа. Работает вместе с truncate.
+     * @example "80px", "100px"
+     */
+    maxWidth?: string;
 }
 
 // -----------------------------------------------------------------------------
@@ -126,23 +113,72 @@ const variantStyles: Record<BadgeVariant, string> = {
  * @example
  * // Новая функция
  * <Badge variant="info">New</Badge>
+ * 
+ * @example
+ * // С обрезкой текста и tooltip
+ * <Badge variant="warning" truncate maxWidth="80px">
+ *   Restored 3
+ * </Badge>
  */
 export const Badge: React.FC<BadgeProps> = ({
     variant = 'neutral',
     className = '',
     children,
+    truncate = false,
+    maxWidth,
 }) => {
+    const textRef = React.useRef<HTMLSpanElement>(null);
+    const [isTruncated, setIsTruncated] = React.useState(false);
+
+    React.useEffect(() => {
+        if (truncate && textRef.current) {
+            const element = textRef.current;
+            setIsTruncated(element.scrollWidth > element.clientWidth);
+        }
+    }, [truncate, children, maxWidth]);
+
     const classes = [
         baseStyles,
         variantStyles[variant],
+        truncate && 'min-w-0',
         className,
-    ].join(' ').replace(/\s+/g, ' ').trim();
+    ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
 
-    return (
-        <span className={classes}>
-            {children}
+    const style = maxWidth ? { maxWidth } : undefined;
+
+    const badgeContent = (
+        <span className={classes} style={style} title="">
+            {truncate ? (
+                <span
+                    ref={textRef}
+                    className="overflow-hidden text-ellipsis whitespace-nowrap inline-block max-w-full"
+                >
+                    {children}
+                </span>
+            ) : (
+                children
+            )}
         </span>
     );
+
+    // Show tooltip with full text only when actually truncated
+    if (truncate && isTruncated) {
+        return (
+            <PortalTooltip
+                content={children}
+                variant="glass"
+                side="top"
+                align="center"
+                enterDelay={300}
+                triggerClassName="inline-flex min-w-0"
+                title=""
+            >
+                {badgeContent}
+            </PortalTooltip>
+        );
+    }
+
+    return badgeContent;
 };
 
 // Экспорт типов

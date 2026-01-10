@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Badge } from '../../../../components/ui/atoms/Badge';
 import { PortalTooltip } from '../../../../components/Shared/PortalTooltip';
@@ -35,11 +35,14 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
     restorationIndex,
     tooltip,
 }) => {
+    // Track if user is hovering over a badge to block nav item tooltip
+    const [isBadgeHovered, setIsBadgeHovered] = useState(false);
+
     const content = (
         <div
             onClick={onClick}
             className={`
-                group flex items-center justify-between pl-[56px] pr-4 py-1.5 cursor-pointer
+                group flex items-center justify-between pl-11 pr-[18px] py-1.5 cursor-pointer
                 transition-colors rounded-lg ml-6 mr-3
                 ${isViewing
                     ? 'text-text-primary font-medium bg-sidebar-active'
@@ -48,18 +51,27 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
                         : 'text-text-secondary hover:text-text-primary hover:bg-sidebar-hover font-normal'
                 }
             `}
-            style={isParentOfSelected && !isViewing ? { backgroundColor: 'color-mix(in srgb, var(--sidebar-active), transparent 50%)' } : {}}
+            style={isParentOfSelected && !isViewing ? { backgroundColor: 'var(--sidebar-active)' } : {}}
         >
-            <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
                 {/* Version Label: min-width prevents jitter for v.1-v.9, grows for v.10+ */}
-                <div className="flex-shrink-0 min-w-[24px]">
+                <div className="flex-shrink-0">
                     <span className="text-sm block">{label}</span>
                 </div>
 
                 {/* RESTORED badge */}
                 {restorationIndex !== undefined && (
-                    <div className="inline-flex items-center flex-shrink-0">
-                        <Badge variant="warning" className="px-1.5">
+                    <div
+                        className="inline-flex items-center flex-shrink min-w-0"
+                        onPointerEnter={() => setIsBadgeHovered(true)}
+                        onPointerLeave={() => setIsBadgeHovered(false)}
+                    >
+                        <Badge
+                            variant="warning"
+                            className="px-1.5"
+                            truncate
+                            maxWidth="160px"
+                        >
                             {restorationIndex === 1 ? 'Restored' : `Restored ${restorationIndex}`}
                         </Badge>
                     </div>
@@ -72,8 +84,8 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
                     </div>
                 )}
 
-                {/* ACTIVE badge - with reduced left margin for tighter spacing */}
-                <div className={`inline-flex items-center transition-opacity duration-200 flex-shrink-0 -ml-0.5 ${isVideoActive ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                {/* ACTIVE badge */}
+                <div className={`inline-flex items-center transition-opacity duration-200 flex-shrink-0 ${isVideoActive ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                     <Badge variant="success" className="px-1.5">Active</Badge>
                 </div>
             </div>
@@ -94,15 +106,17 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
         </div>
     );
 
+    // Show nav item tooltip only if there's a tooltip AND user is NOT hovering over a badge
     if (tooltip) {
         return (
             <PortalTooltip
                 content={tooltip}
                 variant="glass"
-                side="right"
+                side="top"
                 align="center"
                 triggerClassName="w-full !block"
                 enterDelay={1000}
+                forceOpen={isBadgeHovered ? false : undefined}
             >
                 {content}
             </PortalTooltip>

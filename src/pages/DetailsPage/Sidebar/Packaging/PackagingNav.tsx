@@ -1,7 +1,9 @@
 import React from 'react';
-import { Pencil, ChevronDown, ChevronRight } from 'lucide-react';
+import { Pencil } from 'lucide-react';
 import { SidebarVersionItem } from './SidebarVersionItem';
+import { SidebarNavHeader } from '../SidebarNavHeader';
 import type { PackagingVersion } from '../../../../core/utils/youtubeApi';
+
 
 interface PackagingNavProps {
     versions: PackagingVersion[];
@@ -54,51 +56,33 @@ export const PackagingNav: React.FC<PackagingNavProps> = ({
     return (
         <div className="flex flex-col">
             {/* Header Row */}
-            <div className="px-3">
-                <div
-                    onClick={() => {
-                        onSelect();
-                        // If not expanded, first expand
-                        // If expanded, clicking header goes to draft/current
-                        if (!isExpanded && hasContent) {
-                            onToggle();
-                        } else {
-                            // Go to draft if exists, otherwise latest version
-                            if (hasDraft) {
-                                onVersionClick('draft');
-                            } else if (sortedVersions.length > 0) {
-                                onVersionClick(sortedVersions[0].versionNumber);
-                            }
+            <SidebarNavHeader
+                icon={<Pencil size={24} />}
+                title="Packaging"
+                isActive={isActive}
+                isExpanded={isExpanded}
+                hasContent={hasContent}
+                onClick={() => {
+                    onSelect();
+                    if (!isExpanded && hasContent) {
+                        onToggle();
+                    } else {
+                        // Logic moved from inline:
+                        // If expanded, clicking goes to draft/current
+                        // But wait, the previous logic was: clicking ALWAYS selects, but toggle handles expand
+                        // Let's replicate exact behavior:
+                        if (hasDraft) {
+                            onVersionClick('draft');
+                        } else if (sortedVersions.length > 0) {
+                            onVersionClick(sortedVersions[0].versionNumber);
                         }
-                    }}
-                    className={`
-                        w-full h-12 flex items-center gap-4 px-4 text-sm 
-                        transition-colors rounded-lg cursor-pointer text-text-primary
-                        ${isActive ? 'bg-sidebar-active font-semibold' : 'hover:bg-sidebar-hover font-normal'}
-                    `}
-                >
-                    {/* Icon */}
-                    <span className="flex-shrink-0">
-                        <Pencil size={24} />
-                    </span>
-
-                    {/* Label */}
-                    <span className="flex-1 whitespace-nowrap">Packaging</span>
-
-                    {/* Expand/Collapse Toggle - Right Side */}
-                    {hasContent && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onToggle();
-                            }}
-                            className="p-1 text-text-secondary hover:text-text-primary transition-colors"
-                        >
-                            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                        </button>
-                    )}
-                </div>
-            </div>
+                    }
+                }}
+                onToggle={(e) => {
+                    e.stopPropagation();
+                    onToggle();
+                }}
+            />
 
             {/* Version List (expanded) */}
             {isExpanded && hasContent && (
@@ -118,11 +102,11 @@ export const PackagingNav: React.FC<PackagingNavProps> = ({
                     {sortedVersions.map((version) => (
                         <SidebarVersionItem
                             key={version.versionNumber}
-                            label={`v.${version.versionNumber}`}
+                            label={`v.${version.versionNumber} `}
                             isViewing={viewingVersion === version.versionNumber}
                             isVideoActive={activeVersion === version.versionNumber}
                             onClick={() => onVersionClick(version.versionNumber)}
-                            onDelete={() => onDeleteVersion(version.versionNumber, `v.${version.versionNumber}`)}
+                            onDelete={() => onDeleteVersion(version.versionNumber, `v.${version.versionNumber} `)}
                         />
                     ))}
                 </div>
