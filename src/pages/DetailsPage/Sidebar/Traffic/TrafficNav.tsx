@@ -169,6 +169,8 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                                     onClick={() => onVersionClick(item.displayVersion, item.arrayIndex)}
                                                     isParentOfSelected={selectedSnapshot !== null && versionSnapshots.some(s => s.id === selectedSnapshot)}
                                                     restorationIndex={item.showRestored ? item.restorationIndex : undefined}
+                                                    periodStart={item.periodStart}
+                                                    periodEnd={item.periodEnd}
                                                     tooltip={item.tooltip}
                                                 />
                                             </div>
@@ -182,6 +184,8 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                             onClick={() => onVersionClick(item.displayVersion, item.arrayIndex)}
                                             isParentOfSelected={selectedSnapshot !== null && versionSnapshots.some(s => s.id === selectedSnapshot)}
                                             restorationIndex={item.showRestored ? item.restorationIndex : undefined}
+                                            periodStart={item.periodStart}
+                                            periodEnd={item.periodEnd}
                                             tooltip={item.tooltip}
                                         />
                                     )}

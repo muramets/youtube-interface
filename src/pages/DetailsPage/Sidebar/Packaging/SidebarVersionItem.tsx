@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Badge } from '../../../../components/ui/atoms/Badge';
 import { PortalTooltip } from '../../../../components/Shared/PortalTooltip';
+import { formatPremiumPeriod } from '../../tabs/Traffic/utils/dateUtils';
 
 /**
  * BUSINESS LOGIC: Version Item States
@@ -21,6 +22,8 @@ interface SidebarVersionItemProps {
     isParentOfSelected?: boolean;
     isDeleted?: boolean;
     restorationIndex?: number; // If set, displays "Restored {n}" badge
+    periodStart?: number;
+    periodEnd?: number | null;
     tooltip?: string | React.ReactNode;
 }
 
@@ -33,6 +36,8 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
     isParentOfSelected = false,
     isDeleted = false,
     restorationIndex,
+    periodStart,
+    periodEnd,
     tooltip,
 }) => {
     // Track if user is hovering over a badge to block nav item tooltip
@@ -72,7 +77,7 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
                             truncate
                             maxWidth="160px"
                         >
-                            {restorationIndex === 1 ? 'Restored' : `Restored ${restorationIndex}`}
+                            {periodStart ? formatPremiumPeriod(periodStart, periodEnd ?? null) : (restorationIndex === 1 ? 'Restored' : `Restored ${restorationIndex}`)}
                         </Badge>
                     </div>
                 )}
