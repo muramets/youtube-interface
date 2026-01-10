@@ -38,7 +38,8 @@ export const useVersionManagement = ({
     selectedSnapshot,
     trafficState,
     onOpenSwitchConfirm,
-    onOpenDeleteConfirm
+    onOpenDeleteConfirm,
+    onOpenSnapshotRequest
 }: UseVersionManagementProps) => {
 
     /**
@@ -243,26 +244,72 @@ export const useVersionManagement = ({
             return;
         }
 
-        // 2. Логика восстановления:
-        // Вместо создания новой "версии-клона" (v.3), мы просто "перезапускаем" старую версию (v.1).
-        // Это добавляет новый "Period of Activity" в историю старой версии.
+        // STEP: Определяем активную версию для Snapshot Request
+        let activeVersionToSnapshot: number | null = null;
+        if (typeof versions.activeVersion === 'number') {
+            activeVersionToSnapshot = versions.activeVersion;
+        } else if (versions.activeVersion === 'draft') {
+            // Fallback logic SAME AS usePackagingActions to be consistent
+            if (versions.packagingHistory.length > 0) {
+                const latestByDate = versions.packagingHistory.reduce((best: any, current: any) => {
+                    const currentStart = current.activePeriods?.reduce((max: number, p: any) =>
+                        (p.startDate || 0) > (max || 0) ? (p.startDate || 0) : (max || 0)
+                        , 0) || 0;
+                    const bestStart = best?.activePeriods?.reduce((max: number, p: any) =>
+                        (p.startDate || 0) > (max || 0) ? (p.startDate || 0) : (max || 0)
+                        , 0) || 0;
+                    return currentStart > bestStart ? current : best;
+                }, null);
 
-        // Update Local State (adds new active period to existing version)
-        versions.restoreVersion(versionToRestore);
+                if (latestByDate && (latestByDate.activePeriods?.length || 0) > 0) {
+                    activeVersionToSnapshot = latestByDate.versionNumber;
+                } else {
+                    activeVersionToSnapshot = Math.max(...versions.packagingHistory.map((v: any) => v.versionNumber));
+                }
+            }
+        }
+
+        // 2. Логика восстановления с запросом снепшота
+        let closingSnapshotId: string | null | undefined = null;
+
+        // Если есть активная версия (и это не та, которую мы восстанавливаем), предлагаем сохранить данные
+        if (activeVersionToSnapshot && activeVersionToSnapshot !== versionToRestore && video.publishedVideoId) {
+            const result = await new Promise<string | null | undefined>((resolve) => {
+                onOpenSnapshotRequest({
+                    versionToRestore, // Pass for context if needed, though mostly for legacy logic
+                    isForCreateVersion: false, // It IS for restore, but we use 'false' to trigger restore callback flow? 
+                    // ACTUALLY: The legacy hook logic is complex. 
+                    // Let's keep it simple: We use a Promise here, same as createVersion.
+                    resolveCallback: (id) => resolve(id),
+                    versionNumber: activeVersionToSnapshot!,
+                    context: 'restore'
+                });
+            });
+
+            if (result === undefined) return; // Cancelled
+            closingSnapshotId = result;
+        }
+
+
+        // 3. Update Local State (adds new active period to existing version)
+        // Pass closingSnapshotId to close the PREVIOUS active period
+        versions.restoreVersion(versionToRestore, closingSnapshotId);
+
+        // ... (rest of the restore logic updates UI state)
         versions.setActiveVersion(versionToRestore);
         versions.setHasDraft(false);
 
-        // 3. Update Firestore
+        // 4. Update Firestore
         // We need to calculate the updated history with the new period added to the target version
         // and the previous active version closed.
         const updatedHistory = versions.packagingHistory.map((v: any) => {
             if (v.versionNumber === versionToRestore) {
-                return VersionService.addNewActivePeriod(VersionService.closeAllPeriods(v));
+                return VersionService.addNewActivePeriod(VersionService.closeAllPeriods(v, closingSnapshotId));
             }
-            return VersionService.closeAllPeriods(v);
+            return VersionService.closeAllPeriods(v, closingSnapshotId);
         });
 
-        // 6. Сохраняем в Firestore
+        // 5. Сохраняем в Firestore
         if (user?.uid && currentChannel?.id && video.id) {
             try {
                 await updateVideo({
@@ -281,14 +328,14 @@ export const useVersionManagement = ({
                         localizations: targetVersionData.configurationSnapshot.localizations
                     }
                 });
-                // 4. Toast
+                // 6. Toast
                 showToast(`Restored v.${versionToRestore}`, 'success');
             } catch (error) {
                 console.error("Failed to update video history on restore:", error);
                 showToast("Failed to save restore to server", "error");
             }
         }
-    }, [video, versions, user, currentChannel, updateVideo, showToast]);
+    }, [video, versions, user, currentChannel, updateVideo, showToast, onOpenSnapshotRequest]);
 
     return {
         handleVersionClick,

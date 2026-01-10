@@ -14,6 +14,8 @@ export type ModalState =
         versionToRestore: number | null;
         isForCreateVersion: boolean;
         resolveCallback: ((snapshotId: string | null | undefined) => void) | null;
+        versionNumber?: number; // Explicit version for display/logic (bypasses activeVersion)
+        context?: 'create' | 'restore';
     };
 
 /**
@@ -23,4 +25,6 @@ export interface SnapshotRequestParams {
     versionToRestore: number | null;
     isForCreateVersion: boolean;
     resolveCallback: ((snapshotId: string | null | undefined) => void) | null;
+    versionNumber?: number;
+    context?: 'create' | 'restore';
 }

@@ -20,11 +20,15 @@ interface UseSnapshotManagementProps {
         isForCreateVersion: boolean;
         versionToRestore: number | null;
         resolveCallback: ((snapshotId: string | null | undefined) => void) | null;
+        versionNumber?: number;
+        context?: 'create' | 'restore';
     };
     onOpenSnapshotRequest: (params: {
         versionToRestore: number | null;
         isForCreateVersion: boolean;
         resolveCallback?: ((snapshotId: string | null | undefined) => void) | null;
+        versionNumber?: number;
+        context?: 'create' | 'restore';
     }) => void;
     closeSnapshotModal: () => void;
 }
@@ -71,7 +75,8 @@ export const useSnapshotManagement = ({
             onOpenSnapshotRequest({
                 versionToRestore: null,
                 isForCreateVersion: true,
-                resolveCallback: (snapshotId) => resolve(snapshotId)
+                resolveCallback: (snapshotId) => resolve(snapshotId),
+                versionNumber: versionNumber // Explicit version to prevent "v.draft"
             });
         });
     }, [video.publishedVideoId, video.id, user, currentChannel, trafficState, onOpenSnapshotRequest]);
@@ -86,9 +91,17 @@ export const useSnapshotManagement = ({
             // Парсим CSV
             const { sources, totalRow } = await parseTrafficCsv(file);
             const timestamp = Date.now();
-            const versionNum = snapshotRequest.isForCreateVersion
-                ? (versions.activeVersion === 'draft' ? 0 : (versions.activeVersion || 1)) + 1
-                : (versions.activeVersion as number);
+
+            // Determine correct version number
+            // 1. Prefer explicit versionNumber passed in request (handles Restore context correctly)
+            // 2. Fallbck to activeVersion logic for Create context
+            let versionNum = snapshotRequest.versionNumber;
+
+            if (versionNum === undefined) {
+                versionNum = snapshotRequest.isForCreateVersion
+                    ? (versions.activeVersion === 'draft' ? 0 : (versions.activeVersion || 1)) + 1
+                    : (versions.activeVersion as number);
+            }
 
             const snapshotId = generateSnapshotId(timestamp, versionNum);
 

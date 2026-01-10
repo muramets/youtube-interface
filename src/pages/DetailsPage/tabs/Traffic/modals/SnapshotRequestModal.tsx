@@ -10,6 +10,7 @@ interface SnapshotRequestModalProps {
     onUpload: (file: File) => Promise<void>;
     onSkip: () => void;
     onClose: () => void;
+    context?: 'create' | 'restore'; // Context for text customization
 }
 
 export const SnapshotRequestModal: React.FC<SnapshotRequestModalProps> = ({
@@ -18,7 +19,8 @@ export const SnapshotRequestModal: React.FC<SnapshotRequestModalProps> = ({
     videoTitle,
     onUpload,
     onSkip,
-    onClose
+    onClose,
+    context = 'create'
 }) => {
     const [isUploading, setIsUploading] = useState(false);
 
@@ -58,14 +60,17 @@ export const SnapshotRequestModal: React.FC<SnapshotRequestModalProps> = ({
                 {/* Content */}
                 <div className="p-6 flex flex-col gap-4">
                     {/* Info Message */}
-                    <div className="flex gap-3 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                    <div className="flex gap-3 p-4 bg-yellow-500/10 rounded-lg">
                         <AlertTriangle size={20} className="text-yellow-500 flex-shrink-0 mt-0.5" />
                         <div className="flex-1">
                             <p className="text-sm text-text-primary font-medium mb-1">
-                                Save final traffic data for v.{version}
+                                {context === 'restore'
+                                    ? `Save traffic data for v.${version} before restoring`
+                                    : `Save traffic data for v.${version} before saving`
+                                }
                             </p>
                             <p className="text-xs text-text-secondary">
-                                Upload the latest CSV from YouTube Analytics to create a snapshot of v.{version}'s traffic before restoring the previous version.
+                                Upload the "Traffic source: Suggested video" CSV export from YouTube Analytics to create a final snapshot of v.{version}'s recommendations traffic.
                             </p>
                         </div>
                     </div>
@@ -77,7 +82,7 @@ export const SnapshotRequestModal: React.FC<SnapshotRequestModalProps> = ({
                     </div>
 
                     {/* Uploader */}
-                    <div className="flex flex-col items-center gap-4 py-4">
+                    <div className="flex flex-col gap-4 py-4">
                         <TrafficUploader
                             onUpload={async (_sources: any, _totalRow: any, file?: File) => {
                                 if (file) {

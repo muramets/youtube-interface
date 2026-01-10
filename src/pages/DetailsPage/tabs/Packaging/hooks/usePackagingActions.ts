@@ -122,10 +122,37 @@ export const usePackagingActions = ({
             const payload = buildSavePayload();
             let closingSnapshotId: string | null | undefined = null;
 
+            let versionForSnapshot = versionState.activeVersion;
+
+            // If we are in Draft mode, we need to find the "previous active version" to close its period.
+            if (versionForSnapshot === 'draft' && versionState.packagingHistory.length > 0) {
+                // Strategy 1: Find version with most recent active period start date
+                const latestByDate = versionState.packagingHistory.reduce((best, current) => {
+                    const currentStart = current.activePeriods?.reduce((max, p) =>
+                        (p.startDate || 0) > (max || 0) ? (p.startDate || 0) : (max || 0)
+                        , 0) || 0;
+
+                    const bestStart = best?.activePeriods?.reduce((max, p) =>
+                        (p.startDate || 0) > (max || 0) ? (p.startDate || 0) : (max || 0)
+                        , 0) || 0;
+
+                    return currentStart > bestStart ? current : best;
+                }, null as typeof versionState.packagingHistory[0] | null);
+
+                // Strategy 2: Fallback to max version number if no dates found
+                if (latestByDate && (latestByDate.activePeriods?.length || 0) > 0) {
+                    versionForSnapshot = latestByDate.versionNumber;
+                } else {
+                    const maxVersion = Math.max(...versionState.packagingHistory.map(v => v.versionNumber));
+                    versionForSnapshot = maxVersion;
+                }
+            }
+
             // Request CSV snapshot - always offer to save current traffic state before versioning
-            if (onRequestSnapshot) {
+            // Only proceed if we have a valid numeric version to snapshot against
+            if (onRequestSnapshot && typeof versionForSnapshot === 'number') {
                 // Returns string (snapshotId), null (skip), or undefined (cancel)
-                closingSnapshotId = await onRequestSnapshot(versionState.activeVersion as number);
+                closingSnapshotId = await onRequestSnapshot(versionForSnapshot);
 
                 // If user cancelled the modal (undefined), stop everything
                 if (closingSnapshotId === undefined) {

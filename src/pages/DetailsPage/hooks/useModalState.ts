@@ -12,6 +12,8 @@ type ModalAction =
         versionToRestore: number | null;
         isForCreateVersion: boolean;
         resolveCallback: ((snapshotId: string | null | undefined) => void) | null;
+        versionNumber?: number;
+        context?: 'create' | 'restore';
     }
     | { type: 'CLOSE' };
 
@@ -38,7 +40,9 @@ const modalReducer = (state: ModalState, action: ModalAction): ModalState => {
                 type: 'SNAPSHOT_REQUEST',
                 versionToRestore: action.versionToRestore,
                 isForCreateVersion: action.isForCreateVersion,
-                resolveCallback: action.resolveCallback
+                resolveCallback: action.resolveCallback,
+                versionNumber: action.versionNumber,
+                context: action.context
             };
 
         case 'CLOSE':
@@ -68,12 +72,16 @@ export const useModalState = () => {
         versionToRestore: number | null;
         isForCreateVersion: boolean;
         resolveCallback?: ((snapshotId: string | null | undefined) => void) | null;
+        versionNumber?: number;
+        context?: 'create' | 'restore';
     }) => {
         dispatch({
             type: 'OPEN_SNAPSHOT_REQUEST',
             versionToRestore: params.versionToRestore,
             isForCreateVersion: params.isForCreateVersion,
-            resolveCallback: params.resolveCallback || null
+            resolveCallback: params.resolveCallback || null,
+            versionNumber: params.versionNumber,
+            context: params.context
         });
     }, []);
 

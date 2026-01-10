@@ -97,10 +97,15 @@ export const DetailsModals: React.FC<DetailsModalsProps> = ({
             {/* Snapshot Request Modal */}
             < SnapshotRequestModal
                 isOpen={modalState.type === 'SNAPSHOT_REQUEST'}
-                version={activeVersion as number}
+                version={
+                    (modalState.type === 'SNAPSHOT_REQUEST' && typeof modalState.versionNumber === 'number')
+                        ? modalState.versionNumber
+                        : (activeVersion as number)
+                }
                 videoTitle={videoTitle}
                 onUpload={onSnapshotUpload}
                 onSkip={onSkipSnapshot}
+                context={modalState.type === 'SNAPSHOT_REQUEST' ? modalState.context : undefined}
                 onClose={() => {
                     if (modalState.type === 'SNAPSHOT_REQUEST') {
                         modalState.resolveCallback?.(undefined);

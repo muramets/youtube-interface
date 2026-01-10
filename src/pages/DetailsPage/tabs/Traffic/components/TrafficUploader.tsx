@@ -117,7 +117,7 @@ export const TrafficUploader: React.FC<TrafficUploaderProps> = ({
         <div
             className={`
                 relative h-[200px] flex flex-col items-center justify-center text-center transition-all duration-300
-                border-2 rounded-xl
+                border rounded-xl
                 ${isBusy
                     ? 'border-transparent bg-bg-secondary/50 cursor-wait'
                     : `cursor-pointer border-dashed ${isDragging ? 'border-accent-blue bg-accent-blue/5' : 'border-white/10 hover:border-white bg-transparent'}`

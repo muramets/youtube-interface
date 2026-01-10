@@ -85,11 +85,15 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
         snapshotRequest: modalState.type === 'SNAPSHOT_REQUEST' ? {
             isForCreateVersion: modalState.isForCreateVersion,
             versionToRestore: modalState.versionToRestore,
-            resolveCallback: modalState.resolveCallback
+            resolveCallback: modalState.resolveCallback,
+            versionNumber: modalState.versionNumber,
+            context: modalState.context
         } : {
             isForCreateVersion: false,
             versionToRestore: null,
-            resolveCallback: null
+            resolveCallback: null,
+            versionNumber: undefined,
+            context: undefined
         },
         onOpenSnapshotRequest: openSnapshotRequest,
         closeSnapshotModal: closeModal
