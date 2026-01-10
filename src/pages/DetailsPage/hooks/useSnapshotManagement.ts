@@ -103,7 +103,22 @@ export const useSnapshotManagement = ({
                     : (versions.activeVersion as number);
             }
 
+            // Ensure versionNum is a valid number
+            if (typeof versionNum !== 'number') {
+                console.error('[useSnapshotManagement] Invalid versionNum:', versionNum);
+                return;
+            }
+
             const snapshotId = generateSnapshotId(timestamp, versionNum);
+
+            console.log('[useSnapshotManagement] Creating snapshot:', {
+                versionNum,
+                snapshotId,
+                isForCreateVersion: snapshotRequest.isForCreateVersion,
+                versionToRestore: snapshotRequest.versionToRestore,
+                requestVersionNumber: snapshotRequest.versionNumber,
+                activeVersion: versions.activeVersion
+            });
 
             // Создаем снапшот
             await TrafficService.createVersionSnapshot(

@@ -110,6 +110,15 @@ export const TrafficSnapshotService = {
         // Находим снапшоты для этой версии
         let versionSnapshots = snapshots.filter(s => s.version === version);
 
+        console.log('[TrafficSnapshotService] getVersionSources:', {
+            version,
+            totalSnapshots: snapshots.length,
+            versionSnapshots: versionSnapshots.length,
+            periodStart,
+            periodEnd,
+            snapshotIds: versionSnapshots.map(s => ({ id: s.id, timestamp: s.timestamp, version: s.version }))
+        });
+
         // Если указан временной диапазон (для Restored версий), 
         // берем ПОСЛЕДНИЙ (LIFO) снапшот внутри этого диапазона
         if (periodStart) {
@@ -120,10 +129,22 @@ export const TrafficSnapshotService = {
 
                 return matchesStart && matchesEnd;
             });
+
+            console.log('[TrafficSnapshotService] After period filter:', {
+                filteredCount: versionSnapshots.length,
+                filteredIds: versionSnapshots.map(s => ({ id: s.id, timestamp: s.timestamp }))
+            });
         }
 
         // Берем самый свежий из подходящих
         const snapshot = versionSnapshots[versionSnapshots.length - 1];
+
+        console.log('[TrafficSnapshotService] Selected snapshot:', {
+            snapshotId: snapshot?.id,
+            hasStoragePath: !!snapshot?.storagePath,
+            hasSources: !!snapshot?.sources,
+            sourcesLength: snapshot?.sources?.length || 0
+        });
 
         if (!snapshot) return [];
 
