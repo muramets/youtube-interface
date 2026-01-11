@@ -5,7 +5,7 @@ export interface SuggestedTrafficNiche {
     channelId: string;
     name: string;
     color: string;
-    property: TrafficNicheProperty;
+    property?: TrafficNicheProperty;
     createdAt: number;
 }
 

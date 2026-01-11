@@ -1,5 +1,5 @@
-import React, { memo } from 'react';
-import { ExternalLink } from 'lucide-react';
+import React from 'react';
+import { ExternalLink, ThumbsDown, Trophy, Heart } from 'lucide-react';
 import type { TrafficSource, TrafficGroup } from '../../../../../core/types/traffic';
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { PortalTooltip } from '../../../../../components/Shared/PortalTooltip';
@@ -17,6 +17,8 @@ interface TrafficRowProps {
     activeSortKey?: string;
     onRowClick: (id: string, index: number, e: React.MouseEvent) => void;
     ctrRules?: CTRRule[];
+    gridClassName: string;
+    showPropertyIcon: boolean;
 }
 
 const getCtrColor = (ctr: number | string, rules: CTRRule[]): string | undefined => {
@@ -41,7 +43,7 @@ const getCtrColor = (ctr: number | string, rules: CTRRule[]): string | undefined
 };
 
 
-export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, group, activeSortKey, onRowClick, ctrRules = [] }) => {
+export const TrafficRow = ({ item, index, isSelected, group, activeSortKey, onRowClick, ctrRules = [], gridClassName, showPropertyIcon }: TrafficRowProps) => {
     // Connect to Niche Store
     const { niches, assignments } = useTrafficNicheStore();
 
@@ -54,14 +56,29 @@ export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, grou
         return niches.filter(n => myAssignmentIds.includes(n.id));
     }, [item.videoId, assignments, niches]);
 
+    // Determine property icon based on priority: Desired > Targeted > Unrelated
+    const { icon: PropertyIcon, label: propertyLabel } = React.useMemo(() => {
+        if (!assignedNiches.length) return { icon: null, label: '' };
+
+        const hasProperty = (p: string) => assignedNiches.some(n => n.property === p);
+
+        if (hasProperty('desired')) return { icon: <Heart size={12} className="text-pink-500" />, label: 'Desired' };
+        if (hasProperty('targeted')) return { icon: <Trophy size={12} className="text-yellow-400 drop-shadow-[0_0_3px_rgba(250,204,21,0.5)]" />, label: 'Targeted' };
+        if (hasProperty('unrelated')) return { icon: <ThumbsDown size={12} className="text-stone-400" />, label: 'Unrelated' };
+
+        return { icon: null, label: '' };
+    }, [assignedNiches]);
+
+
+
     return (
         <div
             key={item.videoId || index}
             onClick={(e) => item.videoId && onRowClick(item.videoId, index, e)}
             className={`
-                relative h-full grid grid-cols-[40px_1fr_100px_100px_120px_100px] gap-4 px-4 items-center border-b border-white/5 
+                relative h-full grid ${gridClassName} gap-2 px-4 items-center border-b border-white/5 
                 text-xs transition-colors duration-200 cursor-pointer group select-none
-                ${index % 2 === 0 ? 'bg-white/[0.035]' : 'bg-transparent'} 
+                ${index % 2 === 0 ? 'bg-white/[0.035]' : 'bg-transparent'}  
                 hover:bg-white/[0.05]
             `}
         >
@@ -76,8 +93,20 @@ export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, grou
                 />
             </div>
 
+            {showPropertyIcon && (
+                <div className="flex items-center justify-center">
+                    {PropertyIcon && (
+                        <PortalTooltip content={propertyLabel} enterDelay={300}>
+                            <div className="flex items-center justify-center cursor-help">
+                                {PropertyIcon}
+                            </div>
+                        </PortalTooltip>
+                    )}
+                </div>
+            )}
+
             <div className="min-w-0 flex flex-col justify-center h-full py-1">
-                <div className="flex items-center gap-2 min-w-0 w-full mb-0.5">
+                <div className="flex items-center gap-2 min-w-0 w-full">
                     {group && (
                         <div
                             className="w-2 h-2 rounded-full flex-shrink-0"
@@ -85,7 +114,7 @@ export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, grou
                             title={group.name}
                         />
                     )}
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 flex items-center gap-2 overflow-hidden">
                         <PortalTooltip
                             content={
                                 item.videoId ? (
@@ -93,22 +122,24 @@ export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, grou
                                         videoId={item.videoId}
                                         title={item.sourceTitle}
                                         channelTitle={item.channelTitle}
-                                        className="w-[300px]"
+                                        className="w-[600px]"
                                     />
                                 ) : (
                                     item.sourceTitle
                                 )
                             }
                             enterDelay={500}
-                            triggerClassName="!flex w-full min-w-0 !justify-start"
+                            triggerClassName="!flex min-w-0 !justify-start shrink truncate"
                             variant={item.videoId ? "glass" : "default"}
                             estimatedHeight={item.videoId ? 350 : 80}
-                            fixedWidth={item.videoId ? 340 : undefined}
+                            fixedWidth={item.videoId ? 640 : undefined}
                         >
                             <span className={`truncate block ${activeSortKey === 'sourceTitle' ? 'text-text-primary font-semibold' : 'text-text-primary font-medium'}`}>
                                 {item.sourceTitle}
                             </span>
                         </PortalTooltip>
+
+                        <TrafficRowBadges niches={assignedNiches} />
                     </div>
                     {item.videoId && (
                         <a
@@ -122,9 +153,6 @@ export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, grou
                         </a>
                     )}
                 </div>
-
-                {/* Niche Badges */}
-                <TrafficRowBadges niches={assignedNiches} />
             </div>
 
             <div className={`text-right ${activeSortKey === 'impressions' ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
@@ -147,19 +175,6 @@ export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, grou
             </div>
         </div>
     );
-}, (prevProps, nextProps) => {
-    // Custom comparison function - only re-render if these props change
-    // NOTE: We don't deep compare niche state here because it's managed internally via store subscription 
-    // BUT since we're using the hook inside component, `memo` only protects against parent prop updates.
-    // The hook will trigger re-renders when store updates regardless of memo.
-    return (
-        prevProps.item === nextProps.item &&
-        prevProps.isSelected === nextProps.isSelected &&
-        prevProps.group === nextProps.group &&
-        prevProps.index === nextProps.index &&
-        prevProps.activeSortKey === nextProps.activeSortKey &&
-        prevProps.ctrRules === nextProps.ctrRules
-    );
-});
+};
 
 TrafficRow.displayName = 'TrafficRow';

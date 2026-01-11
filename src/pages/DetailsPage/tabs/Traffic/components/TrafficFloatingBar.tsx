@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Check, Home, FolderPlus, ChevronDown } from 'lucide-react';
+import { Check, Home } from 'lucide-react';
 import type { TrafficSource } from '@/core/types/traffic';
 import { useAuth } from '@/core/hooks/useAuth';
 import { useChannelStore } from '@/core/stores/channelStore';
@@ -97,6 +97,8 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
             if (shouldAdd) {
                 // Add missing ones
                 let addedCount = 0;
+                let quotaUsed = 0; // Track quota usage
+
                 await Promise.all(validVideos.map(async (v) => {
                     if (!v.videoId) return;
                     const isAdded = homeVideos.some(hv => hv.id === v.videoId && !hv.isPlaylistOnly);
@@ -120,9 +122,15 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
 
                         await VideoService.addVideo(user.uid, currentChannel!.id, videoPayload);
                         addedCount++;
+                        quotaUsed++; // Each video.list call costs 1 quota unit
                     }
                 }));
-                showToast(isMultiSelect ? `${addedCount} videos added to Home` : 'Added to Home', 'success');
+
+                // Show quota usage in toast
+                const message = isMultiSelect
+                    ? `${addedCount} videos added to Home (${quotaUsed} quota used)`
+                    : `Added to Home (${quotaUsed} quota used)`;
+                showToast(message, 'success');
             } else {
                 // Remove all
                 await Promise.all(validVideos.map(async (v) => {
@@ -152,6 +160,21 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
         >
             {({ openAbove }) => (
                 <>
+                    {/* Niche Selector Container */}
+                    <div className="relative">
+                        <TrafficNicheSelector
+                            videoIds={videos.map(v => v.videoId!).filter(Boolean)}
+                            isOpen={activeMenu === 'niche'}
+                            openAbove={openAbove}
+                            onToggle={() => setActiveMenu(activeMenu === 'niche' ? null : 'niche')}
+                            onClose={() => setActiveMenu(null)}
+                            onSelectionClear={onClose}
+                        />
+                    </div>
+
+                    {/* Separator */}
+                    <div className="w-px h-4 bg-white/10 mx-1" />
+
                     {/* Home Button with Premium Badge */}
                     <button
                         onClick={handleHomeToggle}
@@ -169,30 +192,6 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
                             </div>
                         )}
                     </button>
-
-                    {/* Niche Selector Container */}
-                    <div className="relative">
-                        <button
-                            onClick={() => setActiveMenu(activeMenu === 'niche' ? null : 'niche')}
-                            className={`
-                                flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap
-                                ${activeMenu === 'niche' ? 'bg-white/10 text-white' : 'text-text-secondary hover:text-white hover:bg-white/5'}
-                            `}
-                        >
-                            <FolderPlus size={16} />
-                            <span>{isMultiSelect ? 'Assign Niches' : 'Assign Niche'}</span>
-                            <ChevronDown size={12} className={`transition-transform duration-200 ${activeMenu === 'niche' ? 'rotate-180' : ''}`} />
-                        </button>
-
-                        <TrafficNicheSelector
-                            videoIds={videos.map(v => v.videoId!).filter(Boolean)}
-                            isOpen={activeMenu === 'niche'}
-                            openAbove={openAbove}
-                            onToggle={() => setActiveMenu(activeMenu === 'niche' ? null : 'niche')}
-                            onClose={() => setActiveMenu(null)}
-                            onSelectionClear={onClose}
-                        />
-                    </div>
 
                     <TrafficPlaylistSelector
                         videos={videos}

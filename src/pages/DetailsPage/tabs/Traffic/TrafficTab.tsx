@@ -11,6 +11,9 @@ import { useTrafficSelection } from './hooks/useTrafficSelection';
 import { useTrafficFilters } from './hooks/useTrafficFilters';
 import { useSettings } from '../../../../core/hooks/useSettings';
 import { formatPremiumPeriod } from './utils/dateUtils';
+import { useTrafficNicheStore } from '../../../../core/stores/useTrafficNicheStore';
+import { useAuth } from '../../../../core/hooks/useAuth';
+import { useChannelStore } from '../../../../core/stores/channelStore';
 
 interface TrafficTabProps {
     video: VideoDetails;
@@ -87,6 +90,21 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     // Settings (for CTR rules)
     const { trafficSettings } = useSettings();
     const ctrRules = trafficSettings?.ctrRules || [];
+
+    // Niche Store Management
+    const { initializeSubscriptions, cleanup } = useTrafficNicheStore();
+    const { user } = useAuth();
+    const { currentChannel } = useChannelStore();
+
+    // Initialize niche subscriptions when user/channel are available
+    useEffect(() => {
+        if (user?.uid && currentChannel?.id) {
+            initializeSubscriptions(user.uid, currentChannel.id);
+        }
+        return () => {
+            cleanup();
+        };
+    }, [user?.uid, currentChannel?.id, initializeSubscriptions, cleanup]);
 
     // Detect scroll for sticky header shadow
     useEffect(() => {
@@ -273,7 +291,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             />
 
             {/* Main Content - Table Area */}
-            <div className="px-6 pb-0 pt-6 min-h-0 flex-1 flex flex-col items-center overflow-hidden">
+            <div className="px-6 pb-0 pt-6 min-h-0 flex-1 flex flex-col overflow-hidden">
                 <div className="w-full max-w-[1050px] relative flex-1 flex flex-col min-h-0">
                     {error ? (
                         <div className="flex-1 min-h-[400px]">

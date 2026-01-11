@@ -45,6 +45,8 @@ export const useVersionManagement = ({
     onOpenDeleteConfirm,
     onOpenSnapshotRequest
 }: UseVersionManagementProps) => {
+    // Initialize query client for cache invalidation
+    const queryClient = useQueryClient();
 
 
     /**

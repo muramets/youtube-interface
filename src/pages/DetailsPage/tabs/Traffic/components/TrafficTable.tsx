@@ -8,6 +8,7 @@ import { TrafficEmptyState } from './TrafficEmptyState';
 import { formatDuration, durationToSeconds } from '../utils/formatters';
 import { TRAFFIC_TABLE } from '../utils/constants';
 import type { CTRRule } from '../../../../../core/services/settingsService';
+import { useTrafficNicheStore } from '../../../../../core/stores/useTrafficNicheStore';
 
 interface TrafficTableProps {
     data: TrafficSource[];
@@ -121,6 +122,25 @@ export const TrafficTable = memo<TrafficTableProps>(({
     const isAllSelected = data.length > 0 && data.every(d => d.videoId && selectedIds.has(d.videoId));
     const isIndeterminate = data.some(d => d.videoId && selectedIds.has(d.videoId)) && !isAllSelected;
 
+
+    const { niches, assignments } = useTrafficNicheStore();
+
+    const showPropertyColumn = useMemo(() => {
+        if (!data.length) return false;
+        return data.some(item => {
+            if (!item.videoId) return false;
+            const myAssignmentIds = assignments
+                .filter(a => a.videoId === item.videoId)
+                .map(a => a.nicheId);
+            const myNiches = niches.filter(n => myAssignmentIds.includes(n.id));
+            return myNiches.some(n => ['desired', 'targeted', 'unrelated'].includes(n.property));
+        });
+    }, [data, niches, assignments]);
+
+    const gridClassName = showPropertyColumn
+        ? "grid-cols-[40px_24px_1fr_80px_70px_70px_80px]"
+        : "grid-cols-[40px_1fr_80px_70px_70px_80px]";
+
     const computedTotal = useMemo(() => {
         if (data.length === 0) return null;
 
@@ -186,7 +206,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
     return (
         <div className="w-full h-full flex flex-col bg-bg-secondary/30 rounded-xl border border-white/5 overflow-hidden relative">
             {/* Fixed Header - Show when loading OR when there's data OR when filtered/delta empty */}
-            <div className="grid grid-cols-[40px_1fr_100px_100px_120px_100px] gap-4 px-4 py-3 bg-white/5 border-b border-white/5 text-xs font-medium text-text-secondary uppercase tracking-wider flex-shrink-0 group">
+            {/* Fixed Header - Show when loading OR when there's data OR when filtered/delta empty */}
+            <div className={`grid ${gridClassName} gap-2 px-4 py-3 bg-white/5 border-b border-white/5 text-xs font-medium text-text-secondary uppercase tracking-wider flex-shrink-0 group`}>
                 <div className="flex items-center justify-center">
                     <Checkbox
                         checked={isAllSelected}
@@ -195,6 +216,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                         disabled={isLoading || data.length === 0}
                     />
                 </div>
+                {showPropertyColumn && <div></div>} {/* Property Icon Column */}
                 <div>Traffic Source</div>
                 {renderHeaderCell('Impr.', 'impressions')}
                 {renderHeaderCell('CTR', 'ctr')}
@@ -243,8 +265,9 @@ export const TrafficTable = memo<TrafficTableProps>(({
                 ) : (
                     <>
                         {computedTotal && (
-                            <div className="sticky top-0 z-10 grid grid-cols-[40px_1fr_100px_100px_120px_100px] gap-4 px-4 py-3 border-b border-white/10 bg-video-edit-bg backdrop-blur-md font-bold text-text-primary text-xs select-none shadow-sm">
+                            <div className={`sticky top-0 z-10 grid ${gridClassName} gap-2 px-4 py-3 border-b border-white/10 bg-video-edit-bg backdrop-blur-md font-bold text-text-primary text-xs select-none shadow-sm`}>
                                 <div />
+                                {showPropertyColumn && <div />}
                                 <div>Total</div>
                                 <div className={`text-right ${sortConfig?.key === 'impressions' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
                                     {computedTotal.impressions.toLocaleString()}
@@ -295,6 +318,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             activeSortKey={sortConfig?.key}
                                             onRowClick={handleRowClick}
                                             ctrRules={ctrRules}
+                                            gridClassName={gridClassName}
+                                            showPropertyIcon={showPropertyColumn}
                                         />
                                     </div>
                                 );

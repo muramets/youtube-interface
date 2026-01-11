@@ -1,26 +1,60 @@
 import React, { useMemo } from 'react';
 import { useTrafficNicheStore } from '@/core/stores/useTrafficNicheStore';
-import type { SuggestedTrafficNiche } from '@/core/types/suggestedTrafficNiches';
+import type { TrafficSource } from '@/core/types/traffic';
 import { TrafficNicheItem } from './TrafficNicheItem';
 import { ChevronDown, ChevronRight, Hash } from 'lucide-react';
 
 interface TrafficSidebarNicheListProps {
-    // We might filter niches relevant to the active snapshot later, 
-    // but for now showing all channel niches is fine/simpler.
+    sources: TrafficSource[]; // Currently displayed sources (already filtered by snapshot/version)
 }
 
-export const TrafficSidebarNicheList: React.FC<TrafficSidebarNicheListProps> = () => {
-    const { niches } = useTrafficNicheStore();
+export const TrafficSidebarNicheList: React.FC<TrafficSidebarNicheListProps> = ({
+    sources
+}) => {
+    const { niches, assignments } = useTrafficNicheStore();
     const [isExpanded, setIsExpanded] = React.useState(true);
 
-    // TODO: Connect to filter logic
-    // const [activeNicheId, setActiveNicheId] = React.useState<string | null>(null);
+    // Calculate impressions per niche from current sources
+    const nicheStats = useMemo(() => {
+        const stats = new Map<string, number>();
+
+        // For each niche, sum impressions from assigned videos
+        niches.forEach(niche => {
+            // Find all video IDs assigned to this niche
+            const assignedVideoIds = assignments
+                .filter(a => a.nicheId === niche.id)
+                .map(a => a.videoId);
+
+            // Sum impressions from sources for these videos
+            const totalImpressions = sources
+                .filter(source => source.videoId && assignedVideoIds.includes(source.videoId))
+                .reduce((sum: number, source: TrafficSource) => sum + (source.impressions || 0), 0);
+
+            stats.set(niche.id, totalImpressions);
+        });
+
+        return stats;
+    }, [niches, assignments, sources]);
+
+    // Filter niches that have assigned videos in current sources
+    const nichesWithData = useMemo(() => {
+        return niches.filter(niche => {
+            const impressions = nicheStats.get(niche.id) || 0;
+            return impressions > 0;
+        });
+    }, [niches, nicheStats]);
 
     const sortedNiches = useMemo(() => {
-        return [...niches].sort((a, b) => a.name.localeCompare(b.name));
-    }, [niches]);
+        return [...nichesWithData].sort((a, b) => {
+            // Sort by impressions descending, then by name
+            const aImpr = nicheStats.get(a.id) || 0;
+            const bImpr = nicheStats.get(b.id) || 0;
+            if (aImpr !== bImpr) return bImpr - aImpr;
+            return a.name.localeCompare(b.name);
+        });
+    }, [nichesWithData, nicheStats]);
 
-    if (niches.length === 0) return null;
+    if (sortedNiches.length === 0) return null;
 
     return (
         <div className="mt-1">
@@ -31,7 +65,7 @@ export const TrafficSidebarNicheList: React.FC<TrafficSidebarNicheListProps> = (
                 {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 <Hash size={14} className="text-text-tertiary" />
                 <span>Niches</span>
-                <span className="ml-auto text-[10px] text-text-tertiary">{niches.length}</span>
+                <span className="ml-auto text-[10px] text-text-tertiary">{sortedNiches.length}</span>
             </button>
 
             {isExpanded && (
@@ -40,11 +74,12 @@ export const TrafficSidebarNicheList: React.FC<TrafficSidebarNicheListProps> = (
                         <TrafficNicheItem
                             key={niche.id}
                             niche={niche}
-                            isActive={false} // TODO: Check if active filter
+                            isActive={false}
                             onClick={() => {
                                 // TODO: Apply filter
                                 console.log('Click niche', niche.id);
                             }}
+                            impressions={nicheStats.get(niche.id)}
                         />
                     ))}
                 </div>

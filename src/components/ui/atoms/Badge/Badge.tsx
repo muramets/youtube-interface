@@ -21,6 +21,12 @@ interface BadgeProps {
     variant?: BadgeVariant;
 
     /**
+     * Кастомный цвет бейджа (HEX, RGB и т.д.).
+     * Если указан, перекрывает цвета варианта.
+     */
+    color?: string;
+
+    /**
      * Дополнительные CSS-классы.
      */
     className?: string;
@@ -117,6 +123,7 @@ const variantStyles: Record<BadgeVariant, string> = {
  */
 export const Badge: React.FC<BadgeProps> = ({
     variant = 'neutral',
+    color,
     className = '',
     children,
     maxWidth,
@@ -147,18 +154,25 @@ export const Badge: React.FC<BadgeProps> = ({
 
     const classes = [
         baseStyles,
-        variantStyles[variant],
+        !color && variantStyles[variant],
         'min-w-0 max-w-full overflow-hidden',
         className,
     ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
 
-    const style = maxWidth ? { maxWidth } : undefined;
+    const style: React.CSSProperties = {
+        ...(maxWidth ? { maxWidth } : {}),
+        ...(color ? {
+            backgroundColor: `${color}33`, // 20% opacity like variantStyles
+            color: color,
+        } : {})
+    };
 
     const badgeContent = (
         <span className={classes} style={style} title="">
             <span
                 ref={textRef}
-                className="overflow-hidden text-ellipsis whitespace-nowrap block max-w-full"
+                className="flex items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap max-w-full"
+                style={color ? { filter: 'brightness(1.5) saturate(1.2)' } : undefined}
             >
                 {children}
             </span>

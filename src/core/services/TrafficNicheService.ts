@@ -5,8 +5,8 @@ import {
     query,
     setDoc,
     deleteDoc,
-    where,
-    writeBatch
+    writeBatch,
+    deleteField
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import type { SuggestedTrafficNiche, TrafficNicheAssignment } from '../types/suggestedTrafficNiches';
@@ -63,7 +63,15 @@ export class TrafficNicheService {
         const path = `users/${userId}/channels/${channelId}/suggested_traffic_niches`;
         const nicheRef = doc(db, path, nicheId);
 
-        await setDoc(nicheRef, updates, { merge: true });
+        // Prepare updates: if value is undefined, use deleteField() to remove it from Firestore
+        const firestoreUpdates: any = { ...updates };
+        Object.keys(firestoreUpdates).forEach(key => {
+            if (firestoreUpdates[key] === undefined) {
+                firestoreUpdates[key] = deleteField();
+            }
+        });
+
+        await setDoc(nicheRef, firestoreUpdates, { merge: true });
     }
 
     static async deleteTrafficNiche(

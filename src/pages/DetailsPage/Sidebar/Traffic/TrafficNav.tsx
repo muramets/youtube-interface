@@ -285,7 +285,8 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                                     {/* Render Niches if this snapshot is selected */}
                                                     {isSnapshotSelected && (
                                                         <div className="ml-2 pl-2 border-l border-white/10 mb-1">
-                                                            <TrafficSidebarNicheList />
+                                                            {/* TODO: Pass actual sources from snapshot for impressions stats */}
+                                                            <TrafficSidebarNicheList sources={[]} />
                                                         </div>
                                                     )}
                                                 </div>

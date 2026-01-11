@@ -1,7 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { MoreVertical, Check, Trash2, Target, Globe } from 'lucide-react';
-import { ConfirmationModal } from '@/components/Shared/ConfirmationModal';
 
 export interface NicheItemBaseProps {
     id: string;
