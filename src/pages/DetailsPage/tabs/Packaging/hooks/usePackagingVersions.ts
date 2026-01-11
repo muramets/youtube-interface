@@ -1,23 +1,9 @@
 import { useReducer, useCallback, useMemo, useEffect } from 'react';
-import type { PackagingVersion, VideoLocalization } from '../../../../../core/utils/youtubeApi';
+import type { PackagingVersion } from '../../../../../core/utils/youtubeApi';
+import type { PackagingSnapshot } from '../../../../../core/types/versioning';
 import { VersionService } from '../../../services/VersionService';
 import { logger } from '../../../../../core/utils/logger';
 
-interface PackagingSnapshot {
-    title: string;
-    description: string;
-    tags: string[];
-    coverImage: string | null;
-    abTestTitles?: string[];
-    abTestThumbnails?: string[];
-    abTestResults?: {
-        titles: number[];
-        thumbnails: number[];
-    };
-    abTestVariants?: string[];
-    localizations?: Record<string, VideoLocalization>;
-    originalName?: string;
-}
 
 interface UsePackagingVersionsOptions {
     initialHistory: PackagingVersion[];

@@ -12,7 +12,7 @@ import { DEFAULT_TAGS, DEFAULT_LOCALIZATIONS, DEFAULT_AB_RESULTS, DEFAULT_COVER_
  * Results are saved immediately to the server in the background via a separate action.
  */
 
-interface PackagingSnapshot {
+interface PackagingFormSnapshot {
     title: string;
     description: string;
     tags: string[];
@@ -70,7 +70,7 @@ export const usePackagingFormState = ({
     const [pendingHistory, setPendingHistory] = useState<CoverVersion[]>(video.coverHistory || DEFAULT_COVER_HISTORY);
 
     // Snapshot of the last saved state (for dirty checking)
-    const [loadedSnapshot, setLoadedSnapshot] = useState<PackagingSnapshot>({
+    const [loadedSnapshot, setLoadedSnapshot] = useState<PackagingFormSnapshot>({
         title: video.title || '',
         description: video.description || '',
         tags: video.tags || DEFAULT_TAGS,
@@ -98,7 +98,7 @@ export const usePackagingFormState = ({
 
         const locPayload = localization.getFullPayload();
 
-        const currentSnapshot: PackagingSnapshot = {
+        const currentSnapshot: PackagingFormSnapshot = {
             title: locPayload.title,
             description: locPayload.description,
             tags: locPayload.tags,
@@ -129,7 +129,7 @@ export const usePackagingFormState = ({
     ]);
 
     // Reset form to a specific snapshot (used when loading versions)
-    const resetToSnapshot = useCallback((snapshot: PackagingSnapshot) => {
+    const resetToSnapshot = useCallback((snapshot: PackagingFormSnapshot) => {
         localization.resetToSnapshot({
             title: snapshot.title,
             description: snapshot.description,
@@ -174,7 +174,7 @@ export const usePackagingFormState = ({
      * the sync loop from resetting locally-saved results before they're
      * persisted to the server.
      */
-    const incomingVideoMatchesSnapshot = useCallback((videoSnapshot: PackagingSnapshot) => {
+    const incomingVideoMatchesSnapshot = useCallback((videoSnapshot: PackagingFormSnapshot) => {
         const { abTestResults: _, ...incomingRest } = videoSnapshot;
         const { abTestResults: __, ...loadedRest } = loadedSnapshot;
         return deepEqual(incomingRest, loadedRest);

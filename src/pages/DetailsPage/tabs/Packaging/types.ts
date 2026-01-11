@@ -45,26 +45,10 @@ export interface ABTestResults {
 // VERSION STATE
 // ============================================================================
 
-/**
- * BUSINESS LOGIC: Packaging Version Snapshot
- * 
- * Immutable snapshot of form state at a point in time.
- * Used for:
- * - Historical versions (read-only viewing)
- * - Dirty state comparison
- * - Undo/Cancel functionality
- */
-export interface PackagingSnapshot {
-    title: string;
-    description: string;
-    tags: string[];
-    coverImage: string | null;
-    abTestTitles?: string[];
-    abTestThumbnails?: string[];
-    abTestResults?: ABTestResults;
-    localizations?: Record<string, VideoLocalization>;
-    originalName?: string;
-}
+import type { PackagingSnapshot } from '../../../../core/types/versioning';
+
+// Exporting the imported type to maintain compatibility with consumers of this file
+export type { PackagingSnapshot };
 
 /**
  * BUSINESS LOGIC: Version State from usePackagingVersions hook
