@@ -96,7 +96,7 @@ export const useVideos = (userId: string, channelId: string) => {
 
     // Update Video
     const updateVideoMutation = useMutation({
-        mutationFn: async ({ videoId, updates, apiKey }: { videoId: string, updates?: Partial<VideoDetails>, apiKey?: string }) => {
+        mutationFn: async ({ videoId, updates, apiKey, expectedRevision }: { videoId: string, updates?: Partial<VideoDetails>, apiKey?: string, expectedRevision?: number }) => {
             // Real update fetch logic
             if (!videoId.startsWith('custom-') && !updates && apiKey) {
                 const details = await fetchVideoDetails(videoId, apiKey);
@@ -140,7 +140,11 @@ export const useVideos = (userId: string, channelId: string) => {
                     finalUpdates.lastFetchAttempt = deleteField() as any;
                 }
 
-                await VideoService.updateVideo(userId, channelId, videoId, finalUpdates);
+                if (expectedRevision !== undefined) {
+                    await VideoService.updateVideoSafe(userId, channelId, videoId, finalUpdates, expectedRevision);
+                } else {
+                    await VideoService.updateVideo(userId, channelId, videoId, finalUpdates);
+                }
                 return true;
             }
             return false;
@@ -232,13 +236,13 @@ export const useVideos = (userId: string, channelId: string) => {
 
     // Packaging Mutations
     const saveDraftMutation = useMutation({
-        mutationFn: async (videoId: string) => {
-            await VideoService.updateVideo(userId, channelId, videoId, { isDraft: true });
+        mutationFn: async ({ videoId, expectedRevision }: { videoId: string, expectedRevision: number }) => {
+            await VideoService.updateVideoSafe(userId, channelId, videoId, { isDraft: true }, expectedRevision);
         }
     });
 
     const createVersionMutation = useMutation({
-        mutationFn: async ({ videoId, snapshot }: { videoId: string, snapshot: PackagingVersion['configurationSnapshot'] }) => {
+        mutationFn: async ({ videoId, snapshot, expectedRevision }: { videoId: string, snapshot: PackagingVersion['configurationSnapshot'], expectedRevision: number }) => {
             const video = (queryClient.getQueryData<VideoDetails[]>(queryKey) || []).find(v => v.id === videoId);
             if (!video) return;
 
@@ -250,7 +254,10 @@ export const useVideos = (userId: string, channelId: string) => {
             const newVersion: PackagingVersion = {
                 versionNumber: nextVersionNumber,
                 startDate: Date.now(),
+                endDate: null,
                 configurationSnapshot: snapshot,
+                revision: 1, // Start revision at 1 for the first snapshot in this version object? 
+                // Wait, packagingRevision is at video level. This is fine.
                 checkins: [{
                     id: `v${nextVersionNumber}-creation`,
                     date: Date.now(),
@@ -264,15 +271,15 @@ export const useVideos = (userId: string, channelId: string) => {
             };
 
             const updatedHistory = [...currentHistory, newVersion];
-            await VideoService.updateVideo(userId, channelId, videoId, {
+            await VideoService.updateVideoSafe(userId, channelId, videoId, {
                 packagingHistory: updatedHistory,
                 isDraft: false
-            });
+            }, expectedRevision);
         }
     });
 
     const addCheckinMutation = useMutation({
-        mutationFn: async ({ videoId, versionNumber, checkin }: { videoId: string, versionNumber: number, checkin: PackagingCheckin }) => {
+        mutationFn: async ({ videoId, versionNumber, checkin, expectedRevision }: { videoId: string, versionNumber: number, checkin: PackagingCheckin, expectedRevision: number }) => {
             const video = (queryClient.getQueryData<VideoDetails[]>(queryKey) || []).find(v => v.id === videoId);
             if (!video || !video.packagingHistory) return;
 
@@ -286,7 +293,7 @@ export const useVideos = (userId: string, channelId: string) => {
                 return version;
             });
 
-            await VideoService.updateVideo(userId, channelId, videoId, { packagingHistory: updatedHistory });
+            await VideoService.updateVideoSafe(userId, channelId, videoId, { packagingHistory: updatedHistory }, expectedRevision);
         }
     });
 

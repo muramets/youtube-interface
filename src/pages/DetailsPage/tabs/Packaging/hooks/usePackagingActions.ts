@@ -91,7 +91,8 @@ export const usePackagingActions = ({
                     currentPackagingVersion: versionPayload.currentPackagingVersion,
                     isDraft: true,
                     activeVersion: 'draft' // Ensure ACTIVE badge shows on draft
-                }
+                },
+                expectedRevision: video.packagingRevision
             });
 
             // Smart Cleanup: Delete removed images from storage IF they aren't in packaging history
@@ -116,13 +117,16 @@ export const usePackagingActions = ({
 
             formState.updateSnapshotToCurrent();
             showToast('Saved as draft', 'success');
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to save video:', error);
-            showToast('Failed to save video', 'error');
-        } finally {
+            if (error?.message === 'VERSION_MISMATCH') {
+                showToast('Data is out of sync. Please refresh the page.', 'error');
+            } else {
+                showToast('Failed to save video', 'error');
+            }
             setSavingAction(null);
         }
-    }, [user, currentChannel, video.id, buildSavePayload, versionState, updateVideo, formState, showToast, video.coverHistory]);
+    }, [user, currentChannel, video.id, buildSavePayload, versionState, updateVideo, formState, showToast, video.coverHistory, video.packagingRevision]);
 
     /**
      * BUSINESS LOGIC: Save As New Version with CSV Snapshot
@@ -222,7 +226,8 @@ export const usePackagingActions = ({
                     currentPackagingVersion: currentPackagingVersion,
                     activeVersion: newVersion.versionNumber,
                     isDraft: false
-                }
+                },
+                expectedRevision: video.packagingRevision
             }).then(() => {
                 // Smart Cleanup after successful server update
                 if (removedImages.length > 0) {
@@ -242,15 +247,22 @@ export const usePackagingActions = ({
                 }
             }).catch(error => {
                 console.error('Failed to create version:', error);
-                showToast('Failed to save to server', 'error');
+                if (error?.message === 'VERSION_MISMATCH') {
+                    showToast('Data is out of sync. Please refresh the page.', 'error');
+                } else {
+                    showToast('Failed to save to server', 'error');
+                }
             });
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to create version:', error);
-            showToast('Failed to create version', 'error');
-        } finally {
+            if (error?.message === 'VERSION_MISMATCH') {
+                showToast('Data is out of sync. Please refresh the page.', 'error');
+            } else {
+                showToast('Failed to create version', 'error');
+            }
             setSavingAction(null);
         }
-    }, [user, currentChannel, video.id, video.publishedVideoId, buildSavePayload, versionState, updateVideo, formState, showToast, abTesting, onRequestSnapshot, video.coverHistory]);
+    }, [user, currentChannel, video.id, video.publishedVideoId, buildSavePayload, versionState, updateVideo, formState, showToast, abTesting, onRequestSnapshot, video.coverHistory, video.packagingRevision]);
 
     const handleCancel = useCallback(() => {
         formState.resetToSnapshot(formState.loadedSnapshot);
@@ -399,7 +411,8 @@ export const usePackagingActions = ({
                 updates: {
                     abTestResults: newResults,
                     packagingHistory: updatedHistory
-                }
+                },
+                expectedRevision: video.packagingRevision
             });
 
             // 3. Update local state to stay in sync

@@ -8,10 +8,12 @@ import {
     deleteDoc,
     query,
     onSnapshot,
+    runTransaction,
     type DocumentData,
     type QueryConstraint,
     type WithFieldValue,
-    type UpdateData
+    type UpdateData,
+    type Transaction
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 
@@ -120,4 +122,62 @@ export const updateDocument = async <T extends DocumentData>(
 export const deleteDocument = async (path: string, id: string) => {
     const docRef = doc(db, path, id);
     await deleteDoc(docRef);
+};
+
+/**
+ * Execute a transaction
+ */
+export const runFirestoreTransaction = async <T>(
+    updateFunction: (transaction: Transaction) => Promise<T>
+): Promise<T> => {
+    return runTransaction(db, updateFunction);
+};
+
+/**
+ * BUSINESS LOGIC: Optimistic Concurrency Update
+ * 
+ * Performs a read-check-increment-write cycle within a transaction.
+ * 
+ * @param path - Collection path
+ * @param id - Document ID
+ * @param revisionField - Name of the field tracking revision (e.g., 'packagingRevision')
+ * @param expectedRevision - The revision the client had when editing started
+ * @param updatesGenerator - Function that returns the data to update based on the current full document data
+ */
+export const runSafeUpdate = async <T extends DocumentData>(
+    path: string,
+    id: string,
+    revisionField: keyof T,
+    expectedRevision: number | undefined,
+    updatesGenerator: (currentData: T) => Partial<T>
+) => {
+    return runFirestoreTransaction(async (transaction) => {
+        const docRef = doc(db, path, id);
+        const docSnapshot = await transaction.get(docRef);
+
+        if (!docSnapshot.exists()) {
+            throw new Error('DOCUMENT_NOT_FOUND');
+        }
+
+        const currentData = docSnapshot.data() as T;
+        const currentRevision = (currentData[revisionField] as number) || 0;
+
+        // Verify revision matches expected (ignore if expected is undefined for new docs)
+        if (expectedRevision !== undefined && currentRevision !== expectedRevision) {
+            console.error('[firestore] Revision mismatch:', { expectedRevision, currentRevision });
+            throw new Error('VERSION_MISMATCH');
+        }
+
+        const updates = updatesGenerator(currentData);
+
+        // Always increment revision on safe update
+        const nextRevision = currentRevision + 1;
+
+        transaction.update(docRef, {
+            ...updates,
+            [revisionField]: nextRevision
+        } as UpdateData<T>);
+
+        return { ...currentData, ...updates, [revisionField]: nextRevision };
+    });
 };

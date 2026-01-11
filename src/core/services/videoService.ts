@@ -83,6 +83,32 @@ export const VideoService = {
         );
     },
 
+    /**
+     * BUSINESS LOGIC: Safe Update with Optimistic Locking
+     * 
+     * Uses packagingRevision to prevent concurrent edit conflicts.
+     */
+    updateVideoSafe: async (
+        userId: string,
+        channelId: string,
+        videoId: string,
+        updates: Partial<VideoDetails>,
+        expectedRevision?: number
+    ) => {
+        const { runSafeUpdate } = await import('./firestore');
+        return runSafeUpdate<VideoDetails>(
+            getVideosPath(userId, channelId),
+            videoId,
+            'packagingRevision',
+            expectedRevision,
+            () => {
+                // Determine if we need to auto-apply revision based on which fields are changing
+                // For now, any explicit call to updateVideoSafe assumes a revision increment is desired.
+                return updates;
+            }
+        );
+    },
+
     deleteVideo: async (
         userId: string,
         channelId: string,
@@ -133,8 +159,10 @@ export const VideoService = {
 
             // Packaging History
             video.packagingHistory?.forEach(v => {
-                addUrl(v.configurationSnapshot.coverImage);
-                v.configurationSnapshot.abTestVariants?.forEach(variant => addUrl(variant));
+                if (v.configurationSnapshot) {
+                    addUrl(v.configurationSnapshot.coverImage);
+                    v.configurationSnapshot.abTestVariants?.forEach(variant => addUrl(variant));
+                }
             });
 
             // A/B Test Variants (if stored at top level)
