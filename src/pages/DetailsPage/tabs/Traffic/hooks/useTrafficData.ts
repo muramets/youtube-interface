@@ -112,6 +112,11 @@ export const useTrafficData = ({ userId, channelId, video }: UseTrafficDataProps
         }
     }, [userId, channelId, video.id]);
 
+    // Action: Update Local Data (Optimistic / External)
+    const updateLocalData = useCallback((newData: TrafficData) => {
+        setData(newData);
+    }, []);
+
     return {
         trafficData: data,
         isLoading,
@@ -120,6 +125,7 @@ export const useTrafficData = ({ userId, channelId, video }: UseTrafficDataProps
         handleCsvUpload,
         handleDeleteSnapshot,
         saveData,
+        updateLocalData, // New exposed method
         refetch
     };
 };

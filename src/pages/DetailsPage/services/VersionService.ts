@@ -77,12 +77,16 @@ export const VersionService = {
 
         // Determine the new active version after deletion
         let newActive: number | 'draft' = 'draft';
-        if (remaining.length > 0) {
-            if (activeVersion !== 'draft' && !versionsToDelete.includes(activeVersion)) {
-                newActive = activeVersion;
-            } else {
-                newActive = Math.max(...remaining.map(v => v.versionNumber));
-            }
+        if (isActiveDeleted && remaining.length > 0) {
+            // Find the version that was active most recently (based on endDate of its latest period)
+            const sortedByRecency = [...remaining].sort((a, b) => {
+                const aEnd = a.activePeriods?.[0]?.endDate || a.endDate || 0;
+                const bEnd = b.activePeriods?.[0]?.endDate || b.endDate || 0;
+                return bEnd - aEnd;
+            });
+            newActive = sortedByRecency[0].versionNumber;
+        } else if (!isActiveDeleted) {
+            newActive = activeVersion;
         }
 
         // Sanitize history and manage active periods
@@ -104,17 +108,22 @@ export const VersionService = {
         let newActiveVersion: number | undefined;
 
         if (isActiveDeleted && updatedHistory.length > 0) {
-            const latestRemaining = updatedHistory.reduce((max, v) =>
-                v.versionNumber > max.versionNumber ? v : max, updatedHistory[0]);
+            // Reuse the recency-based logic from above for rollback determination
+            const sortedByRecency = [...remaining].sort((a, b) => {
+                const aEnd = a.activePeriods?.[0]?.endDate || a.endDate || 0;
+                const bEnd = b.activePeriods?.[0]?.endDate || b.endDate || 0;
+                return bEnd - aEnd;
+            });
+            const latestRemaining = updatedHistory.find(v => v.versionNumber === sortedByRecency[0].versionNumber) || updatedHistory[0];
 
             newActiveVersion = latestRemaining.versionNumber;
 
             const snapshot = latestRemaining.configurationSnapshot;
             if (snapshot) {
                 rollbackUpdates = {
-                    title: snapshot.title,
-                    description: snapshot.description,
-                    tags: snapshot.tags,
+                    title: snapshot.title || '',
+                    description: snapshot.description || '',
+                    tags: snapshot.tags || [],
                     customImage: snapshot.coverImage || '',
                     thumbnail: snapshot.coverImage || '',
                     abTestTitles: snapshot.abTestTitles || [],

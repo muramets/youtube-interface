@@ -8,6 +8,13 @@ import type { TrafficData, TrafficSource } from '../../types/traffic';
  */
 export const TrafficDataService = {
     /**
+     * Gets the document reference for the main traffic data
+     */
+    getMainDocRef(userId: string, channelId: string, videoId: string) {
+        return doc(db, `users/${userId}/channels/${channelId}/videos/${videoId}/traffic/main`);
+    },
+
+    /**
      * Загружает данные трафика для видео
      */
     async fetch(userId: string, channelId: string, videoId: string): Promise<TrafficData | null> {
@@ -113,9 +120,12 @@ export const TrafficDataService = {
         const docRef = doc(db, path);
 
         try {
+            // FIX: Sanitize snapshots to remove undefined fields (like abTestResults)
+            const sanitizedSnapshots = TrafficDataService.sanitize(snapshots);
+
             await setDoc(docRef, {
                 ...currentData,
-                snapshots,
+                snapshots: sanitizedSnapshots,
                 lastUpdated: Date.now()
             }, { merge: true });
         } catch (error) {

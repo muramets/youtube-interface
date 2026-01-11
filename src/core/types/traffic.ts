@@ -82,6 +82,8 @@ export interface TrafficSnapshot extends TrafficSnapshotBase {
         localizations?: Record<string, any>;
         cloneOf?: number; // Preserved restoration metadata
         restoredAt?: number; // Preserved restoration metadata
+        periodStart?: number; // NEW: Preserve period start
+        periodEnd?: number | null; // NEW: Preserve period end
     };
 
     /**

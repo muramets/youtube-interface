@@ -13,12 +13,16 @@ import { orderBy, getDocs, deleteDoc, writeBatch, doc } from 'firebase/firestore
 import { db } from '../../config/firebase';
 import { deleteImageFromStorage } from './storageService';
 
-const getVideosPath = (userId: string, channelId: string) =>
+export const getVideosPath = (userId: string, channelId: string) =>
     `users/${userId}/channels/${channelId}/videos`;
 
 export const VideoService = {
     fetchVideos: async (userId: string, channelId: string) => {
         return fetchCollection<VideoDetails>(getVideosPath(userId, channelId));
+    },
+
+    getVideoDocRef(userId: string, channelId: string, videoId: string) {
+        return doc(db, getVideosPath(userId, channelId), videoId);
     },
 
     getVideo: async (userId: string, channelId: string, videoId: string) => {

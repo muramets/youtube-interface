@@ -1,8 +1,12 @@
 import { useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { VideoDetails } from '../../../core/utils/youtubeApi';
 import type { SnapshotRequestParams } from '../types/versionManagement';
 import { VersionService } from '../services/VersionService';
 import { TrafficDataService } from '../../../core/services/traffic/TrafficDataService';
+import { VideoService } from '../../../core/services/videoService';
+import { db } from '../../../config/firebase';
+import { writeBatch } from 'firebase/firestore';
 
 interface UseVersionManagementProps {
     versions: any; // usePackagingVersions return type
@@ -41,6 +45,7 @@ export const useVersionManagement = ({
     onOpenDeleteConfirm,
     onOpenSnapshotRequest
 }: UseVersionManagementProps) => {
+
 
     /**
      * Обработчик клика на версию в sidebar
@@ -130,20 +135,31 @@ export const useVersionManagement = ({
             versionsToDelete = siblings.map((v: any) => v.versionNumber);
         }
 
-        // PACKAGING SNAPSHOT PRESERVATION for ALL deleted versions
+        // ATOMIC ATTEMPT
         if (user?.uid && currentChannel?.id && video.id) {
-            // Find all snapshots related to ANY of the versions being deleted
+            const batch = writeBatch(db);
+            const videoRef = VideoService.getVideoDocRef(user.uid, currentChannel.id, video.id);
+            const trafficRef = TrafficDataService.getMainDocRef(user.uid, currentChannel.id, video.id);
+
+            // 1. Prepare Traffic Updates if needed
             const snapshotsForVersions = trafficState.trafficData?.snapshots?.filter(
                 (s: any) => versionsToDelete.includes(s.version)
             ) || [];
 
             if (snapshotsForVersions.length > 0) {
-                // For each snapshot, find its corresponding version data to preserve
                 const updatedSnapshots = trafficState.trafficData.snapshots.map((s: any) => {
                     if (versionsToDelete.includes(s.version)) {
                         const versionData = versions.packagingHistory.find(
                             (v: any) => v.versionNumber === s.version
                         );
+
+                        // FIND THE SPECIFIC PERIOD this snapshot belongs to
+                        const period = versionData?.activePeriods?.find((p: any) =>
+                            s.timestamp >= (p.startDate - 5000) &&
+                            (!p.endDate || s.timestamp <= (p.endDate + 5000))
+                        );
+
+
                         const packagingSnapshot = versionData?.configurationSnapshot;
 
                         if (packagingSnapshot) {
@@ -159,7 +175,10 @@ export const useVersionManagement = ({
                                     abTestResults: packagingSnapshot.abTestResults,
                                     localizations: packagingSnapshot.localizations,
                                     cloneOf: versionData.cloneOf,
-                                    restoredAt: versionData.restoredAt
+                                    restoredAt: versionData.restoredAt,
+                                    // NEW: Preserve the specific period context
+                                    periodStart: period?.startDate || versionData.startDate,
+                                    periodEnd: period?.endDate || versionData.endDate || null
                                 },
                                 isPackagingDeleted: true
                             };
@@ -168,57 +187,67 @@ export const useVersionManagement = ({
                     return s;
                 });
 
-                // Update snapshots in Firestore
-                await TrafficDataService.updateSnapshots(
-                    user.uid,
-                    currentChannel.id,
-                    video.id,
-                    updatedSnapshots
-                );
-                await trafficState.refetch();
-            }
-        }
+                // Sanitize whole object before batching to ensure NO undefined values
+                const fullTrafficData = {
+                    ...trafficState.trafficData,
+                    snapshots: updatedSnapshots,
+                    lastUpdated: Date.now()
+                };
 
-        // Calculate delete data for the GROUP
-        const deleteData = VersionService.calculateDeleteVersionData(
-            versionsToDelete, // Pass array
-            versions.packagingHistory,
-            versions.activeVersion
-        );
+                const sanitizedTrafficData = TrafficDataService.sanitize(fullTrafficData);
 
-        // Update UI State
-        // Remove strictly the single version requested
-        versions.deleteVersion(versionNumber);
+                batch.set(trafficRef, sanitizedTrafficData, { merge: true });
 
-        // Update Active Version if we are deleting the active one
-        // and switching to a new one
-        if (deleteData.newCurrentVersion) {
-            versions.setActiveVersion(deleteData.newCurrentVersion);
-        }
-        if (deleteData.newActiveVersion !== undefined) {
-            versions.setActiveVersion(deleteData.newActiveVersion);
-            // If viewing any of the deleted versions, switch to new active
-            if (versionsToDelete.includes(versions.viewingVersion)) {
-                versions.switchToVersion(deleteData.newActiveVersion);
-            }
-        }
 
-        showToast(`Version group deleted`, 'success');
-
-        // Save to Firestore
-        if (user?.uid && currentChannel?.id && video.id) {
-            updateVideo({
-                videoId: video.id,
-                updates: {
-                    ...deleteData.rollbackUpdates,
-                    packagingHistory: deleteData.updatedHistory,
-                    currentPackagingVersion: deleteData.newCurrentVersion,
-                    isDraft: deleteData.willHaveDraft
+                // OPTIMISTIC UPDATE:
+                // Update the local state immediately via the exposed method from useTrafficData.
+                // This ensures the UI reflects the added metadata (periodStart/End) before the 
+                // next fetch cycle, preventing "stale" snapshots from being rendered incorrectly.
+                if (trafficState.updateLocalData) {
+                    trafficState.updateLocalData(sanitizedTrafficData);
                 }
-            }).catch((error: Error) => {
-                console.error('Failed to save deletion:', error);
-                showToast('Failed to save deletion', 'error');
+            }
+
+            // 2. Prepare Video Updates
+            const deleteData = VersionService.calculateDeleteVersionData(
+                versionsToDelete,
+                versions.packagingHistory,
+                versions.activeVersion
+            );
+
+            batch.update(videoRef, {
+                ...deleteData.rollbackUpdates,
+                packagingHistory: deleteData.updatedHistory,
+                currentPackagingVersion: deleteData.newCurrentVersion,
+                isDraft: deleteData.willHaveDraft,
+                packagingRevision: (video.packagingRevision || 0) + 1
             });
+
+            try {
+                // 3. Commit Batch
+                await batch.commit();
+
+                // 4. Update local state
+                versions.deleteVersion(versionNumber);
+                if (deleteData.newCurrentVersion) {
+                    versions.setActiveVersion(deleteData.newCurrentVersion);
+                }
+                if (deleteData.newActiveVersion !== undefined) {
+                    versions.setActiveVersion(deleteData.newActiveVersion);
+                    if (versionsToDelete.includes(versions.viewingVersion)) {
+                        versions.switchToVersion(deleteData.newActiveVersion);
+                    }
+                }
+
+                // 5. Invalidate Queries
+                queryClient.invalidateQueries({ queryKey: ['video', video.id] });
+                queryClient.invalidateQueries({ queryKey: ['traffic', video.id] });
+
+                showToast(`Version group deleted`, 'success');
+            } catch (error) {
+                console.error('Failed to commit atomic deletion batch:', error);
+                showToast('Failed to delete version', 'error');
+            }
         }
     }, [versions, video, user, currentChannel, updateVideo, showToast, trafficState]);
 

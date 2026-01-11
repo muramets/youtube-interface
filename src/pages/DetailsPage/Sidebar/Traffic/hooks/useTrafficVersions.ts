@@ -60,6 +60,8 @@ export const useTrafficVersions = ({
         const deletedVersions: PackagingVersionType[] = deletedVersionNumbers.map(vNum => ({
             versionNumber: vNum,
             startDate: 0,
+            endDate: null,
+            revision: 0,
             checkins: [],
             // Minimal mock of configurationSnapshot to satisfy type
             configurationSnapshot: {
@@ -67,7 +69,9 @@ export const useTrafficVersions = ({
                 description: '',
                 tags: [],
                 coverImage: null
-            } as any
+            } as any,
+            // We'll rely on snapshots[].packagingSnapshot for deleted versions' metadata
+            activePeriods: []
         }));
 
         // Combine all raw versions
@@ -85,47 +89,20 @@ export const useTrafficVersions = ({
             arrayIndex: number;
             key: string;
             tooltip: string;
+            isDeleted?: boolean;
         }> = [];
 
         allVersions.forEach(v => {
-            if (!v.activePeriods || v.activePeriods.length <= 1) {
-                // Single period (standard) or legacy version without activePeriods
-                const snapshots = getVirtualVersionSnapshots(v.versionNumber, v.startDate || 0, v.endDate);
-                const isActive = v.versionNumber === activeVersion;
+            const snapshotsForVersion = snapshots.filter(s => s.version === v.versionNumber);
 
-                // GHOST FILTER: Hide if inactive AND has no data
-                if (!isActive && snapshots.length === 0) return;
-
-                // Generate Tooltip
-                const startStr = formatSnapshotDate(v.activePeriods?.[0]?.startDate || v.startDate || 0).display;
-                const endVal = v.activePeriods?.[0]?.endDate || v.endDate;
-                const endStr = endVal ? formatSnapshotDate(endVal).display : null;
-                const tooltip = endStr
-                    ? `Active: ${startStr} – ${endStr}`
-                    : `Active since ${startStr}`;
-
-                virtualList.push({
-                    original: v,
-                    displayVersion: v.versionNumber,
-                    effectiveDate: (v.activePeriods?.[0]?.startDate || v.startDate || 0) as number,
-                    periodStart: (v.activePeriods?.[0]?.startDate || v.startDate || 0) as number,
-                    // FIX: For the latest/only period of a historical version, we effectively shouldn't cap the end date 
-                    // for VISIBILITY of snapshots, even if the period is technically closed.
-                    // This mirrors the logic in useTrafficDataLoader.
-                    periodEnd: null, // Always treat the SINGLE period view as open-ended for snapshot list
-                    isRestored: false,
-                    arrayIndex: 0,
-                    key: `${v.versionNumber}-0`,
-                    tooltip
-                });
-            } else {
+            if (v.activePeriods && v.activePeriods.length > 0) {
                 // Multiple periods (Restored)
                 v.activePeriods.forEach((period: any, index: number) => {
-                    const snapshots = getVirtualVersionSnapshots(v.versionNumber, period.startDate, period.endDate);
+                    const versionSnapshots = getVirtualVersionSnapshots(v.versionNumber, period.startDate, period.endDate);
                     const isActive = !period.endDate;
 
                     // GHOST FILTER REFINED
-                    if (!isActive && snapshots.length === 0) return;
+                    if (!isActive && versionSnapshots.length === 0) return;
 
                     // Restoration count: newest is at index 0
                     const rIndex = (v.activePeriods!.length - 1) - index;
@@ -151,6 +128,75 @@ export const useTrafficVersions = ({
                         arrayIndex: index,
                         key: `${v.versionNumber}-${index}`,
                         tooltip
+                    });
+                });
+            } else if (v.startDate !== 0) {
+                // Single period (standard) or legacy version without activePeriods
+                const versionSnapshots = getVirtualVersionSnapshots(v.versionNumber, v.startDate || 0, v.endDate);
+                const isActive = v.versionNumber === activeVersion;
+
+                // GHOST FILTER: Hide if inactive AND has no data
+                if (!isActive && versionSnapshots.length === 0) return;
+
+                // Generate Tooltip
+                const startStr = formatSnapshotDate(v.startDate || 0).display;
+                const endStr = v.endDate ? formatSnapshotDate(v.endDate).display : null;
+                const tooltip = endStr
+                    ? `Active: ${startStr} – ${endStr}`
+                    : `Active since ${startStr}`;
+
+                virtualList.push({
+                    original: v,
+                    displayVersion: v.versionNumber,
+                    effectiveDate: (v.startDate || 0) as number,
+                    periodStart: (v.startDate || 0) as number,
+                    periodEnd: null,
+                    isRestored: false,
+                    arrayIndex: 0,
+                    key: `${v.versionNumber}-0`,
+                    tooltip
+                });
+            } else if (snapshotsForVersion.length > 0) {
+                // DELETED VERSION LOGIC:
+                // Group snapshots based on their PRESERVED period metadata
+                const periodsMap = new Map<string, { start: number; end: number | null; snapshots: TrafficSnapshot[] }>();
+
+                snapshotsForVersion.forEach(s => {
+                    const groupKey = `${s.packagingSnapshot?.periodStart}-${s.packagingSnapshot?.periodEnd}`;
+                    if (!periodsMap.has(groupKey)) {
+                        periodsMap.set(groupKey, {
+                            start: s.packagingSnapshot?.periodStart || 0,
+                            end: s.packagingSnapshot?.periodEnd || null,
+                            snapshots: []
+                        });
+                    }
+                    periodsMap.get(groupKey)!.snapshots.push(s);
+                });
+
+
+                const sortedPeriods = [...periodsMap.values()].sort((a, b) => b.start - a.start);
+
+                sortedPeriods.forEach((period, index) => {
+                    const startStr = formatSnapshotDate(period.start).display;
+                    const endStr = period.end ? formatSnapshotDate(period.end).display : null;
+                    const tooltip = endStr
+                        ? `Active: ${startStr} – ${endStr}`
+                        : `Active since ${startStr}`;
+
+                    const isLatestCapturedPeriod = index === 0;
+
+                    virtualList.push({
+                        original: v,
+                        displayVersion: v.versionNumber,
+                        effectiveDate: period.start,
+                        periodStart: period.start,
+                        periodEnd: isLatestCapturedPeriod ? null : period.end,
+                        isRestored: sortedPeriods.length > 1 && index < sortedPeriods.length - 1,
+                        restorationIndex: sortedPeriods.length > 1 ? (sortedPeriods.length - 1 - index) : undefined,
+                        arrayIndex: index,
+                        key: `${v.versionNumber}-${index}-deleted`,
+                        tooltip,
+                        isDeleted: true // Explicitly track deleted state
                     });
                 });
             }

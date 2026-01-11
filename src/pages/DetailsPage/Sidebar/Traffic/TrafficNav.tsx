@@ -171,10 +171,10 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                         const isVersionExpanded = expandedVersions.has(item.key);
                         const hasSnapshots = versionSnapshots.length > 0;
 
-                        // Check if packaging was deleted (any snapshot has isPackagingDeleted flag)
-                        const deletedSnapshot = versionSnapshots.find(s => s.isPackagingDeleted);
-                        const isPackagingDeleted = !!deletedSnapshot;
-                        const packagingData = deletedSnapshot?.packagingSnapshot;
+                        // Check if packaging was deleted (item flag or any snapshot has isPackagingDeleted flag)
+                        const deletedSnapshotCount = versionSnapshots.filter(s => s.isPackagingDeleted).length;
+                        const isPackagingDeleted = item.isDeleted || deletedSnapshotCount > 0;
+                        const packagingData = versionSnapshots.find(s => s.isPackagingDeleted)?.packagingSnapshot;
 
                         // Restoration Label
                         const displayLabel = item.restorationIndex
