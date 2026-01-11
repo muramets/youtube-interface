@@ -1,5 +1,5 @@
-import React, { useState, useRef, useMemo } from 'react';
-import { X, Check, Home, Trash2, RotateCcw } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Check, Home, Trash2, RotateCcw } from 'lucide-react';
 import type { TrendVideo } from '../../../core/types/trends';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
@@ -7,11 +7,12 @@ import { useTrendStore } from '../../../core/stores/trendStore';
 import { useVideos } from '../../../core/hooks/useVideos';
 import { useUIStore } from '../../../core/stores/uiStore';
 import { VideoService } from '../../../core/services/videoService';
-import { useSmartPosition } from './hooks/useSmartPosition';
+// import { useSmartPosition } from './hooks/useSmartPosition'; // REMOVED
 import { NicheSelector } from './components/NicheSelector';
 import { PlaylistSelector } from './components/PlaylistSelector';
 import { trendVideoToVideoDetails } from '../../../core/utils/videoAdapters';
 import { ConfirmationModal } from '../../../components/Shared/ConfirmationModal';
+import { FloatingBar } from '@/components/Shared/FloatingBar';
 
 interface TrendsFloatingBarProps {
     videos: TrendVideo[];
@@ -60,7 +61,6 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
         onActiveMenuChange?.(activeMenu !== null);
     }, [activeMenu, onActiveMenuChange]);
 
-    const barRef = useRef<HTMLDivElement>(null);
     const isMultiSelect = videos.length > 1;
     const shouldDock = isMultiSelect || isDocked;
 
@@ -124,20 +124,6 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
             document.removeEventListener('keydown', handleKeyDown);
         };
     }, [activeMenu, isConfirmOpen, onClose]);
-
-    // Smart Positioning Hook (only used for single selection or anchor)
-    // We still run it to have coords ready for when we undock
-    const { coords } = useSmartPosition({
-        targetPos: position, // Should be the anchor position (click point)
-        elementRef: barRef,
-        width: 300,
-        offsetY: 60
-    });
-
-    // Unified Dropdown Direction
-    // For docked (bottom fixed), always open above
-    // For floating (single), depend on position
-    const dropdownsOpenAbove = shouldDock ? true : coords.y > window.innerHeight / 2;
 
     // Check if ALL videos are already in home
     const areAllAddedToHome = useMemo(() => {
@@ -206,100 +192,68 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
         onClose(); // Close bar after action
     };
 
-    // Style for fixed positioning vs smart positioning
-    // We use transition-all to smooth the jump if possible.
-    // Note: switching between left/top and left/bottom might be jerky without calc.
-    // But fixed bottom is robust for UI.
-    const style: React.CSSProperties = shouldDock
-        ? {
-            left: '50%',
-            bottom: '40px',
-            transform: 'translateX(-50%)',
-            position: 'absolute'
-        }
-        : {
-            left: coords.x,
-            top: coords.y,
-            position: 'fixed'
-        };
-
     const title = isMultiSelect ? `${videos.length} selected` : videos[0]?.title;
 
     return (
-        <div
-            ref={barRef}
-            className="flex items-center gap-2 bg-bg-secondary/90 backdrop-blur-md border border-border shadow-lg rounded-full px-4 py-2 z-[1000]"
-            style={style}
-            onMouseDown={(e) => e.stopPropagation()}
-            onMouseMove={(e) => e.stopPropagation()}
-            onMouseUp={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => e.stopPropagation()}
-            onWheel={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
-        >
-            <div className="flex items-center gap-3 pr-3 border-r border-white/10">
-                <span className="text-sm font-medium text-white whitespace-nowrap max-w-[150px] truncate">
-                    {title}
-                </span>
-                <button
-                    onClick={onClose}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    className="text-text-secondary hover:text-white transition-colors"
-                >
-                    <X size={16} />
-                </button>
-            </div>
+        <>
+            <FloatingBar
+                title={title}
+                position={position}
+                onClose={onClose}
+                isDocked={shouldDock}
+            >
+                {({ openAbove }) => (
+                    <>
+                        {/* Home Button with Premium Badge */}
+                        <button
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={handleHomeToggle}
+                            disabled={isProcessing}
+                            className={`relative p-1.5 rounded-full transition-all ${areAllAddedToHome
+                                ? 'text-white hover:bg-red-500/20 hover:text-red-300'
+                                : 'text-text-secondary hover:text-white hover:bg-white/10'
+                                } ${isProcessing ? 'opacity-50' : ''}`}
+                            title={areAllAddedToHome ? 'Remove from Home' : 'Add to Home'}
+                        >
+                            <Home size={16} />
+                            {/* Checkmark Badge */}
+                            {areAllAddedToHome && (
+                                <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full flex items-center justify-center shadow-sm">
+                                    <Check size={8} className="text-white" strokeWidth={3} />
+                                </div>
+                            )}
+                        </button>
 
-            {/* Niche Dropdown (Disable in Trash Mode?) -> Maybe user wants to assign niche before restoring? Let's keep enabled */}
-            <NicheSelector
-                videos={videos}
-                isOpen={activeMenu === 'niche'}
-                openAbove={dropdownsOpenAbove}
-                onToggle={() => setActiveMenu(activeMenu === 'niche' ? null : 'niche')}
-                onClose={() => setActiveMenu(null)}
-                onSelectionClear={onClose}
-            />
+                        <NicheSelector
+                            videos={videos}
+                            isOpen={activeMenu === 'niche'}
+                            openAbove={openAbove}
+                            onToggle={() => setActiveMenu(activeMenu === 'niche' ? null : 'niche')}
+                            onClose={() => setActiveMenu(null)}
+                            onSelectionClear={onClose}
+                        />
 
-            {/* Actions */}
-            <div className="flex items-center gap-1 border-l border-white/10 pl-2 ml-1">
-                {/* Home Button with Premium Badge */}
-                <button
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={handleHomeToggle}
-                    disabled={isProcessing}
-                    className={`relative p-1.5 rounded-full transition-all ${areAllAddedToHome
-                        ? 'text-white hover:bg-red-500/20 hover:text-red-300'
-                        : 'text-text-secondary hover:text-white hover:bg-white/10'
-                        } ${isProcessing ? 'opacity-50' : ''}`}
-                    title={areAllAddedToHome ? 'Remove from Home' : 'Add to Home'}
-                >
-                    <Home size={16} />
-                    {/* Checkmark Badge */}
-                    {areAllAddedToHome && (
-                        <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full flex items-center justify-center shadow-sm">
-                            <Check size={8} className="text-white" strokeWidth={3} />
-                        </div>
-                    )}
-                </button>
+                        <PlaylistSelector
+                            videos={videos}
+                            isOpen={activeMenu === 'playlist'}
+                            openAbove={openAbove}
+                            onToggle={() => setActiveMenu(activeMenu === 'playlist' ? null : 'playlist')}
+                        />
 
-                <PlaylistSelector
-                    videos={videos}
-                    isOpen={activeMenu === 'playlist'}
-                    openAbove={dropdownsOpenAbove}
-                    onToggle={() => setActiveMenu(activeMenu === 'playlist' ? null : 'playlist')}
-                />
+                        <div className="w-px h-4 bg-white/10 mx-1" />
 
-                {/* Trash / Restore Button */}
-                <button
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={() => setIsConfirmOpen(true)}
-                    className="p-1.5 rounded-full transition-all text-text-secondary hover:text-white hover:bg-white/10 ml-1"
-                    title={isTrashMode ? 'Restore to timeline' : 'Move to Untracked'}
-                >
-                    {isTrashMode ? <RotateCcw size={16} /> : <Trash2 size={16} />}
-                </button>
-            </div>
+                        {/* Trash / Restore Button */}
+                        <button
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={() => setIsConfirmOpen(true)}
+                            className="p-1.5 rounded-full transition-all text-text-secondary hover:text-white hover:bg-white/10"
+                            title={isTrashMode ? 'Restore to timeline' : 'Move to Untracked'}
+                        >
+                            {isTrashMode ? <RotateCcw size={16} /> : <Trash2 size={16} />}
+                        </button>
+                    </>
+                )}
+            </FloatingBar>
 
             <ConfirmationModal
                 isOpen={isConfirmOpen}
@@ -312,6 +266,6 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                 }
                 confirmLabel={isTrashMode ? 'Restore' : 'Hide'}
             />
-        </div>
+        </>
     );
 };

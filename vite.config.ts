@@ -38,6 +38,11 @@ export default defineConfig({
       manifest: false,
     }),
   ],
+  resolve: {
+    alias: {
+      '@': '/src',
+    },
+  },
   build: {
     rollupOptions: {
       output: {

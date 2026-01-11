@@ -6,6 +6,8 @@ import { PortalTooltip } from '../../../../../components/Shared/PortalTooltip';
 import { VideoPreviewTooltip } from '../../../../../components/Shared/VideoPreviewTooltip';
 import { formatDuration } from '../utils/formatters';
 import type { CTRRule } from '../../../../../core/services/settingsService';
+import { useTrafficNicheStore } from '../../../../../core/stores/useTrafficNicheStore';
+import { TrafficRowBadges } from './TrafficRowBadges';
 
 interface TrafficRowProps {
     item: TrafficSource;
@@ -40,6 +42,18 @@ const getCtrColor = (ctr: number | string, rules: CTRRule[]): string | undefined
 
 
 export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, group, activeSortKey, onRowClick, ctrRules = [] }) => {
+    // Connect to Niche Store
+    const { niches, assignments } = useTrafficNicheStore();
+
+    // Derived state: find niches assigned to this video
+    const assignedNiches = React.useMemo(() => {
+        if (!item.videoId) return [];
+        const myAssignmentIds = assignments
+            .filter(a => a.videoId === item.videoId)
+            .map(a => a.nicheId);
+        return niches.filter(n => myAssignmentIds.includes(n.id));
+    }, [item.videoId, assignments, niches]);
+
     return (
         <div
             key={item.videoId || index}
@@ -62,8 +76,8 @@ export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, grou
                 />
             </div>
 
-            <div className="min-w-0 flex items-center">
-                <div className="flex items-center gap-2 min-w-0 w-full">
+            <div className="min-w-0 flex flex-col justify-center h-full py-1">
+                <div className="flex items-center gap-2 min-w-0 w-full mb-0.5">
                     {group && (
                         <div
                             className="w-2 h-2 rounded-full flex-shrink-0"
@@ -79,6 +93,7 @@ export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, grou
                                         videoId={item.videoId}
                                         title={item.sourceTitle}
                                         channelTitle={item.channelTitle}
+                                        className="w-[300px]"
                                     />
                                 ) : (
                                     item.sourceTitle
@@ -87,6 +102,8 @@ export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, grou
                             enterDelay={500}
                             triggerClassName="!flex w-full min-w-0 !justify-start"
                             variant={item.videoId ? "glass" : "default"}
+                            estimatedHeight={item.videoId ? 350 : 80}
+                            fixedWidth={item.videoId ? 340 : undefined}
                         >
                             <span className={`truncate block ${activeSortKey === 'sourceTitle' ? 'text-text-primary font-semibold' : 'text-text-primary font-medium'}`}>
                                 {item.sourceTitle}
@@ -105,6 +122,9 @@ export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, grou
                         </a>
                     )}
                 </div>
+
+                {/* Niche Badges */}
+                <TrafficRowBadges niches={assignedNiches} />
             </div>
 
             <div className={`text-right ${activeSortKey === 'impressions' ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
@@ -129,6 +149,9 @@ export const TrafficRow = memo<TrafficRowProps>(({ item, index, isSelected, grou
     );
 }, (prevProps, nextProps) => {
     // Custom comparison function - only re-render if these props change
+    // NOTE: We don't deep compare niche state here because it's managed internally via store subscription 
+    // BUT since we're using the hook inside component, `memo` only protects against parent prop updates.
+    // The hook will trigger re-renders when store updates regardless of memo.
     return (
         prevProps.item === nextProps.item &&
         prevProps.isSelected === nextProps.isSelected &&

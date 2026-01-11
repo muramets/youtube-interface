@@ -39,6 +39,7 @@ interface TrafficTableProps {
 
     // Filters
     hasActiveFilters?: boolean;
+    children?: React.ReactNode;
 }
 
 type SortKey = keyof TrafficSource;
@@ -60,7 +61,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
     isFirstSnapshot = false,
     ctrRules = [],
     viewMode = 'cumulative',
-    hasActiveFilters = false
+    hasActiveFilters = false,
+    children
 }) => {
     // Virtualization refs
     const parentRef = useRef<HTMLDivElement>(null);
@@ -182,7 +184,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
     }
 
     return (
-        <div className="w-full h-full flex flex-col bg-bg-secondary/30 rounded-xl border border-white/5 overflow-hidden">
+        <div className="w-full h-full flex flex-col bg-bg-secondary/30 rounded-xl border border-white/5 overflow-hidden relative">
             {/* Fixed Header - Show when loading OR when there's data OR when filtered/delta empty */}
             <div className="grid grid-cols-[40px_1fr_100px_100px_120px_100px] gap-4 px-4 py-3 bg-white/5 border-b border-white/5 text-xs font-medium text-text-secondary uppercase tracking-wider flex-shrink-0 group">
                 <div className="flex items-center justify-center">
@@ -200,10 +202,9 @@ export const TrafficTable = memo<TrafficTableProps>(({
                 {renderHeaderCell('AVD', 'avgViewDuration')}
             </div>
 
-            {/* Scrollable Body */}
             <div
                 ref={parentRef}
-                className="flex-1 overflow-y-auto min-h-0 relative"
+                className="flex-1 overflow-y-auto min-h-0 relative custom-scrollbar"
             >
                 {isLoading ? (
                     <div className="px-4 py-3 text-xs font-medium text-center bg-clip-text text-transparent flex justify-center items-center"
@@ -265,6 +266,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                 height: `${rowVirtualizer.getTotalSize()}px`,
                                 width: '100%',
                                 position: 'relative',
+                                paddingBottom: '80px',
                             }}
                         >
                             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
@@ -301,6 +303,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                     </>
                 )}
             </div>
+            {children}
         </div>
     );
 });

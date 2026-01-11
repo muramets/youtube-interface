@@ -4,6 +4,7 @@ import { TrafficHeader } from './components/TrafficHeader';
 import { TrafficModals } from './components/TrafficModals';
 import { TrafficFilterChips } from './components/TrafficFilterChips';
 import { TrafficErrorState } from './components/TrafficErrorState';
+import { TrafficFloatingBar } from './components/TrafficFloatingBar';
 import type { VideoDetails } from '../../../../core/utils/youtubeApi';
 import { useTrafficDataLoader } from './hooks/useTrafficDataLoader';
 import { useTrafficSelection } from './hooks/useTrafficSelection';
@@ -250,7 +251,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     const shouldShowActions = !isEmpty || hasExistingSnapshot;
 
     return (
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-h-0">
             <div ref={sentinelRef} className="h-0" />
 
             {/* Sticky Header */}
@@ -271,11 +272,11 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 onRemoveFilter={removeFilter}
             />
 
-            {/* Main Content - Table with its own scroll */}
-            <div className="px-6 pb-6 pt-6">
-                <div className="max-w-[1050px]" style={{ minHeight: '200px', maxHeight: 'calc(100vh - 200px)' }}>
+            {/* Main Content - Table Area */}
+            <div className="px-6 pb-0 pt-6 min-h-0 flex-1 flex flex-col items-center overflow-hidden">
+                <div className="w-full max-w-[1050px] relative flex-1 flex flex-col min-h-0">
                     {error ? (
-                        <div className="h-full min-h-[400px]">
+                        <div className="flex-1 min-h-[400px]">
                             <TrafficErrorState error={error} onRetry={retry} />
                         </div>
                     ) : (
@@ -285,24 +286,36 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                                 onRemoveFilter={removeFilter}
                                 onClearAll={clearFilters}
                             />
-
-                            <TrafficTable
-                                data={filteredSources}
-                                groups={trafficData?.groups || []}
-                                selectedIds={selectedIds}
-                                isLoading={isLoading || isLoadingSnapshot}
-                                ctrRules={ctrRules}
-                                viewMode={viewMode}
-                                onToggleSelection={toggleSelection}
-                                onToggleAll={toggleAll}
-                                activeVersion={activeVersion}
-                                viewingVersion={viewingVersion}
-                                onUpload={handleUploadWithErrorTracking}
-                                hasExistingSnapshot={hasExistingSnapshot}
-                                hasPreviousSnapshots={hasPreviousSnapshots}
-                                isFirstSnapshot={isFirstSnapshot}
-                                hasActiveFilters={filters.length > 0}
-                            />
+                            <div className="flex-1 min-h-0 relative w-full flex flex-col">
+                                <TrafficTable
+                                    data={filteredSources}
+                                    groups={trafficData?.groups || []}
+                                    selectedIds={selectedIds}
+                                    isLoading={isLoading || isLoadingSnapshot}
+                                    ctrRules={ctrRules}
+                                    viewMode={viewMode}
+                                    onToggleSelection={toggleSelection}
+                                    onToggleAll={toggleAll}
+                                    activeVersion={activeVersion}
+                                    viewingVersion={viewingVersion}
+                                    onUpload={handleUploadWithErrorTracking}
+                                    hasExistingSnapshot={hasExistingSnapshot}
+                                    hasPreviousSnapshots={hasPreviousSnapshots}
+                                    isFirstSnapshot={isFirstSnapshot}
+                                    hasActiveFilters={filters.length > 0}
+                                >
+                                    {/* Floating Action Bar - Absolute position relative to TrafficTable root */}
+                                    {selectedIds.size > 0 && (
+                                        <TrafficFloatingBar
+                                            videos={displayedSources.filter(s => s.videoId && selectedIds.has(s.videoId))}
+                                            position={{ x: 0, y: 0 }}
+                                            onClose={() => toggleAll([])}
+                                            isDocked={true}
+                                            dockingStrategy="absolute"
+                                        />
+                                    )}
+                                </TrafficTable>
+                            </div>
                         </>
                     )}
                 </div>

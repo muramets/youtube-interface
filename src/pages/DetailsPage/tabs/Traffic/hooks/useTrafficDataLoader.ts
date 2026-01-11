@@ -436,6 +436,6 @@ const calculateSnapshotDelta = async (
                 ctr: parseFloat(ctrDelta.toFixed(2))
             };
         })
-        // Фильтруем источники без новых просмотров в Delta mode
-        .filter((source: TrafficSource) => !source.videoId || source.views > 0);
+        // Фильтруем источники без новой активности в Delta mode
+        .filter((source: TrafficSource) => !source.videoId || source.views > 0 || source.impressions > 0);
 };

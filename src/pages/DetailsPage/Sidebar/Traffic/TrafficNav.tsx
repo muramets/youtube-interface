@@ -9,6 +9,7 @@ import { useTrafficVersions } from './hooks/useTrafficVersions';
 import type { PackagingVersion } from '../../../../core/utils/youtubeApi';
 import type { TrafficSnapshot } from '../../../../core/types/traffic';
 import { SnapshotContextMenu } from './SnapshotContextMenu';
+import { TrafficSidebarNicheList } from '../../tabs/Traffic/components/Niches/TrafficSidebarNicheList';
 import { ConfirmationModal } from '../../../../components/Shared/ConfirmationModal';
 
 interface TrafficNavProps {
@@ -260,27 +261,34 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                             const isLatest = snapshot.timestamp === globalLatestTimestamp;
 
                                             return (
-                                                <SidebarSnapshotItem
-                                                    key={snapshot.id}
-                                                    id={snapshot.id}
-                                                    displayDate={display}
-                                                    tooltip={tooltip}
-                                                    isSelected={isSnapshotSelected}
-                                                    isLatest={isLatest}
-                                                    canDelete={!!onDeleteSnapshot}
-                                                    onClick={() => onSnapshotClick(snapshot.id)}
-                                                    menuOpenSnapshotId={menuState.snapshotId}
-                                                    onMenuTrigger={(e, id) => {
-                                                        const rect = e.currentTarget.getBoundingClientRect();
-                                                        setMenuState({
-                                                            snapshotId: id,
-                                                            position: {
-                                                                x: rect.right + 5,
-                                                                y: rect.top
-                                                            }
-                                                        });
-                                                    }}
-                                                />
+                                                <div key={snapshot.id}>
+                                                    <SidebarSnapshotItem
+                                                        id={snapshot.id}
+                                                        displayDate={display}
+                                                        tooltip={tooltip}
+                                                        isSelected={isSnapshotSelected}
+                                                        isLatest={isLatest}
+                                                        canDelete={!!onDeleteSnapshot}
+                                                        onClick={() => onSnapshotClick(snapshot.id)}
+                                                        menuOpenSnapshotId={menuState.snapshotId}
+                                                        onMenuTrigger={(e, id) => {
+                                                            const rect = e.currentTarget.getBoundingClientRect();
+                                                            setMenuState({
+                                                                snapshotId: id,
+                                                                position: {
+                                                                    x: rect.right + 5,
+                                                                    y: rect.top
+                                                                }
+                                                            });
+                                                        }}
+                                                    />
+                                                    {/* Render Niches if this snapshot is selected */}
+                                                    {isSnapshotSelected && (
+                                                        <div className="ml-2 pl-2 border-l border-white/10 mb-1">
+                                                            <TrafficSidebarNicheList />
+                                                        </div>
+                                                    )}
+                                                </div>
                                             );
                                         })}
                                     </div>

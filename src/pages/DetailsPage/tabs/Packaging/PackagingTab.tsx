@@ -233,7 +233,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
 
 
     return (
-        <div className="flex-1">
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
             <div ref={sentinelRef} className="h-0" />
 
             {/* Sticky Header */}

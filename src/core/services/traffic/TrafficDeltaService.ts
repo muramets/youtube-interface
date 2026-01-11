@@ -50,7 +50,7 @@ export const TrafficDeltaService = {
                     ctr: parseFloat(ctrDelta.toFixed(2))
                 };
             })
-            .filter(source => !source.videoId || source.views > 0);
+            .filter(source => !source.videoId || source.views > 0 || (source.impressions || 0) > 0);
     },
 
     /**

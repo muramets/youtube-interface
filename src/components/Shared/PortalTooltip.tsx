@@ -15,6 +15,8 @@ interface PortalTooltipProps {
     forceOpen?: boolean;
     noAnimation?: boolean;
     title?: string;
+    estimatedHeight?: number;
+    fixedWidth?: number;
 }
 
 export const PortalTooltip: React.FC<PortalTooltipProps> = ({
@@ -30,7 +32,9 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
     enterDelay = 0,
     forceOpen,
     noAnimation = false,
-    title
+    title,
+    estimatedHeight = 80,
+    fixedWidth
 }) => {
     const [isVisible, setIsVisible] = useState(false); // Controls visual opacity/transform
     const [shouldRender, setShouldRender] = useState(false); // Controls mounting
@@ -55,6 +59,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
             const rect = anchorRect || (triggerRef.current?.getBoundingClientRect());
             if (rect) {
                 const viewportWidth = document.documentElement.clientWidth;
+                const viewportHeight = document.documentElement.clientHeight;
                 const padding = 16;
                 const minWidth = 200;
 
@@ -64,49 +69,32 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                 let transform = 'none';
 
                 let effectiveAlign = align;
+                let effectiveSide = side;
 
-                if (side === 'left' || side === 'right') {
-                    // ...
-                } else {
-                    const spaceRight = viewportWidth - rect.left - padding;
-                    const spaceLeft = (rect.right || (rect.left + rect.width)) - padding;
+                // Vertical Flipping logic for 'top'/'bottom' sides
+                if (side === 'bottom' || side === 'top') {
+                    const spaceBottom = viewportHeight - (rect.bottom || (rect.top + rect.height)) - 4 - padding;
+                    const spaceTop = rect.top - 4 - padding;
 
-                    if (align === 'left' && spaceRight < minWidth && spaceLeft > spaceRight) {
-                        effectiveAlign = 'right';
-                    } else if (align === 'right' && spaceLeft < minWidth && spaceRight > spaceLeft) {
-                        effectiveAlign = 'left';
+                    if (side === 'bottom' && spaceBottom < estimatedHeight && spaceTop > spaceBottom) {
+                        effectiveSide = 'top';
+                    } else if (side === 'top' && spaceTop < estimatedHeight && spaceBottom > spaceTop) {
+                        effectiveSide = 'bottom';
                     }
                 }
 
-                if (side === 'top' || side === 'bottom') {
-                    top = side === 'bottom' ? (rect.bottom || (rect.top + rect.height)) + 4 : rect.top - 4;
+                if (effectiveSide === 'left' || effectiveSide === 'right') {
+                    // Vertical alignment for left/right sides
+                    top = rect.top;
 
-                    if (effectiveAlign === 'left') {
-                        left = rect.left;
-                        transform = side === 'top' ? 'translateY(-100%)' : 'none';
-                        calculatedMaxWidth = viewportWidth - left - padding;
-                    } else if (effectiveAlign === 'right') {
-                        left = (rect.right || (rect.left + rect.width));
-                        transform = `translateX(-100%) ${side === 'top' ? 'translateY(-100%)' : ''}`;
-                        calculatedMaxWidth = left - padding;
-                    } else { // center
-                        left = rect.left + (rect.width / 2);
-                        transform = `translateX(-50%) ${side === 'top' ? 'translateY(-100%)' : ''}`;
-                        calculatedMaxWidth = Math.min(left - padding, viewportWidth - left - padding) * 2;
-                    }
-
-                } else {
-                    let effectiveSide = side;
                     const spaceRight = viewportWidth - (rect.right || (rect.left + rect.width)) - 4 - padding;
                     const spaceLeft = rect.left - 4 - padding;
 
-                    if (side === 'right' && spaceRight < minWidth && spaceLeft > spaceRight) {
+                    if (effectiveSide === 'right' && spaceRight < minWidth && spaceLeft > spaceRight) {
                         effectiveSide = 'left';
-                    } else if (side === 'left' && spaceLeft < minWidth && spaceRight > spaceLeft) {
+                    } else if (effectiveSide === 'left' && spaceLeft < minWidth && spaceRight > spaceLeft) {
                         effectiveSide = 'right';
                     }
-
-                    top = rect.top;
 
                     if (effectiveSide === 'left') {
                         left = rect.left - 4;
@@ -116,6 +104,32 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                         left = (rect.right || (rect.left + rect.width)) + 4;
                         transform = 'none';
                         calculatedMaxWidth = viewportWidth - left - padding;
+                    }
+                } else {
+                    // Horizontal alignment for top/bottom sides
+                    top = effectiveSide === 'bottom' ? (rect.bottom || (rect.top + rect.height)) + 4 : rect.top - 4;
+
+                    const spaceRight = viewportWidth - rect.left - padding;
+                    const spaceLeft = (rect.right || (rect.left + rect.width)) - padding;
+
+                    if (align === 'left' && spaceRight < minWidth && spaceLeft > spaceRight) {
+                        effectiveAlign = 'right';
+                    } else if (align === 'right' && spaceLeft < minWidth && spaceRight > spaceLeft) {
+                        effectiveAlign = 'left';
+                    }
+
+                    if (effectiveAlign === 'left') {
+                        left = rect.left;
+                        transform = effectiveSide === 'top' ? 'translateY(-100%)' : 'none';
+                        calculatedMaxWidth = viewportWidth - left - padding;
+                    } else if (effectiveAlign === 'right') {
+                        left = (rect.right || (rect.left + rect.width));
+                        transform = `translateX(-100%) ${effectiveSide === 'top' ? 'translateY(-100%)' : ''}`;
+                        calculatedMaxWidth = left - padding;
+                    } else { // center
+                        left = rect.left + (rect.width / 2);
+                        transform = `translateX(-50%) ${effectiveSide === 'top' ? 'translateY(-100%)' : ''}`;
+                        calculatedMaxWidth = Math.min(left - padding, viewportWidth - left - padding) * 2;
                     }
                 }
 
@@ -244,7 +258,8 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                         top: Math.round(position.top),
                         left: Math.round(position.left),
                         transform: finalTransform,
-                        maxWidth: maxWidth ? Math.round(maxWidth) : undefined,
+                        maxWidth: fixedWidth ? undefined : (maxWidth ? Math.round(maxWidth) : undefined),
+                        width: fixedWidth ? `${fixedWidth}px` : undefined,
                     }}
                     onPointerEnter={handleMouseEnter} // Keep open when hovering tooltip
                     onPointerLeave={handleMouseLeave}
