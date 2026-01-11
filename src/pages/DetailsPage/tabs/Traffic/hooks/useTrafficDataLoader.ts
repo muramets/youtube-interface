@@ -95,8 +95,7 @@ export const useTrafficDataLoader = ({
                     try {
                         // Resolve specific period dates
                         // SMART SELECTION: If viewingPeriodIndex is undefined, find the ACTIVE period (no endDate)
-                        // SMART SELECTION: If viewingPeriodIndex is undefined, find the ACTIVE period (no endDate)
-                        // or the one with the latest startDate to handle legacy data ordering ([Old, New] vs [New, Old])
+                        // or the one with the latest startDate to handle legacy data ordering.
                         const versionData = packagingHistory.find(v => v.versionNumber === viewingVersion);
                         let targetPeriodIndex = viewingPeriodIndex;
 
@@ -126,8 +125,7 @@ export const useTrafficDataLoader = ({
                         const periodStart = period?.startDate;
 
                         // FIX: If viewing the LATEST period (index 0), ignore the end date.
-                        // This allows snapshots uploaded AFTER the version became inactive (e.g. via "Save Traffic Snapshot" modal)
-                        // to still be visible.
+                        // This allows snapshots uploaded AFTER the version became inactive.
                         const isLatestPeriod = finalIndex === 0;
                         const periodEnd = isLatestPeriod ? null : period?.endDate;
 
@@ -140,48 +138,87 @@ export const useTrafficDataLoader = ({
                         console.log('[useTrafficDataLoader] Loaded formatted sources from latest snapshot:', sources);
 
                         if (viewMode === 'delta') {
-                            let prevSources: TrafficSource[] = [];
+                            const allSnapshots = trafficData.snapshots || [];
+                            // 0. Setup: Sort all snapshots for accurate timestamp checks
+                            const sortedGlobal = [...allSnapshots].sort((a: any, b: any) => b.timestamp - a.timestamp);
 
-                            // Smart Delta: 
-                            // activePeriods are sorted DESCENDING (Newest First).
-                            // So "Previous Period" (older) is at index + 1.
+                            // 1. Candidate A: Local Predecessor (Previous Period of SAME version)
+                            let localPredecessorSource: TrafficSource[] = [];
+                            let localPredecessorTimestamp = 0;
+
                             const nextIndex = finalIndex + 1;
                             const prevPeriod = versionData?.activePeriods?.[nextIndex];
-
                             if (prevPeriod) {
-                                prevSources = await TrafficService.getVersionSources(
+                                localPredecessorSource = await TrafficService.getVersionSources(
                                     viewingVersion as number,
-                                    trafficData.snapshots || [],
+                                    allSnapshots,
                                     prevPeriod.startDate,
                                     prevPeriod.endDate
                                 );
+                                // Find the actual snapshot used for accurate timestamp comparison
+                                const localSnap = sortedGlobal.find(s =>
+                                    s.version === viewingVersion &&
+                                    s.timestamp >= prevPeriod.startDate &&
+                                    (!prevPeriod.endDate || s.timestamp <= prevPeriod.endDate)
+                                );
+                                localPredecessorTimestamp = localSnap?.timestamp || 0;
                             }
 
-                            // If no older period found, check GLOBAL history
-                            if (prevSources.length === 0) {
-                                // GLOBAL TIME-BASED DIFF:
-                                // Find the latest snapshot in the ENTIRE history that occurred BEFORE the current period start.
-                                // This handles restored versions correctly (comparing V.1 Restored vs V.3).
-                                const allSnapshots = trafficData.snapshots || [];
-                                const sortedGlobal = [...allSnapshots].sort((a: any, b: any) => a.timestamp - b.timestamp);
+                            // 2. Candidate B: Global Predecessor (Latest snapshot of ANY OTHER version strictly before current)
+                            let globalPredecessorSource: TrafficSource[] = [];
+                            let globalPredecessorTimestamp = 0;
 
-                                // Find the latest snapshot strictly before periodStart
-                                // (periodStart is the start of the ACTIVE period for this version)
-                                const globalPredecessor = sortedGlobal.reverse().find((s: any) => s.timestamp < (periodStart || 0));
+                            // Scope currentSnapshot to VIEWING VERSION AND PERIOD
+                            // CRITICAL: Use snapshot from the CURRENT PERIOD, not the latest snapshot of the version
+                            const currentSnapshot = selectedSnapshot
+                                ? allSnapshots.find(s => s.id === selectedSnapshot)
+                                : sortedGlobal.find(s =>
+                                    s.version === viewingVersion &&
+                                    s.timestamp >= periodStart &&
+                                    (!periodEnd || s.timestamp <= periodEnd)
+                                ) || null;
 
-                                if (globalPredecessor) {
-                                    console.log('[useTrafficDataLoader] Found global predecessor:', globalPredecessor.id);
-                                    const predSources = await loadSnapshotSources(globalPredecessor);
-                                    const delta = TrafficService.calculateSourcesDelta(sources, predSources);
-                                    setDisplayedSources(delta);
-                                } else {
-                                    // Truly first version ever -> Empty UI ("First Version")
-                                    setDisplayedSources([]);
+                            const referenceTimestamp = currentSnapshot ? currentSnapshot.timestamp : Date.now();
+                            console.log('[useTrafficDataLoader] Active Ref Timestamp:', referenceTimestamp, 'Current:', currentSnapshot?.id, 'Period:', periodStart, '-', periodEnd);
+
+                            const globalSnap = sortedGlobal.find(s =>
+                                s.timestamp < referenceTimestamp && s.version !== viewingVersion
+                            );
+
+                            if (globalSnap) {
+                                globalPredecessorTimestamp = globalSnap.timestamp;
+                            }
+
+                            // 3. Decision: Pick the NEWER predecessor
+                            let baselineSources: TrafficSource[] = [];
+
+                            // If Global is strictly newer than Local (and exists), use it
+                            if (globalPredecessorTimestamp > localPredecessorTimestamp) {
+                                if (globalSnap) {
+                                    console.log(`[useTrafficDataLoader] Using Global Predecessor (Newer): ${globalSnap.id}`);
+                                    globalPredecessorSource = await loadSnapshotSources(globalSnap);
+                                    baselineSources = globalPredecessorSource;
                                 }
                             } else {
-                                // Normal Case: Compare with previous period of same version
-                                const delta = TrafficService.calculateSourcesDelta(sources, prevSources);
+                                // Local is newer or equal, OR Global doesn't exist
+                                if (localPredecessorSource.length > 0) {
+                                    console.log(`[useTrafficDataLoader] Using Local Predecessor (Newer/Equal)`);
+                                    baselineSources = localPredecessorSource;
+                                } else if (globalSnap) {
+                                    // Fallback: Local was empty/invalid, try Global
+                                    console.log(`[useTrafficDataLoader] Local empty, fallback to Global: ${globalSnap.id}`);
+                                    globalPredecessorSource = await loadSnapshotSources(globalSnap);
+                                    baselineSources = globalPredecessorSource;
+                                }
+                            }
+
+                            // 4. Calculate Delta
+                            if (baselineSources.length > 0) {
+                                const delta = TrafficService.calculateSourcesDelta(sources, baselineSources);
                                 setDisplayedSources(delta);
+                            } else {
+                                console.log('[useTrafficDataLoader] No baseline found (First Version)');
+                                setDisplayedSources([]); // Empty state
                             }
                         } else {
                             setDisplayedSources(sources);
@@ -195,12 +232,11 @@ export const useTrafficDataLoader = ({
                     }
                 } else {
                     // No snapshots for active version → show EMPTY STATE
-                    // NOTE: Do NOT use trafficData.sources - they may be from a different version!
                     console.log('[useTrafficDataLoader] No snapshots for active version, showing empty state');
                     setDisplayedSources([]);
                 }
             } else {
-                // Приоритет 3: Историческая версия
+                // Priority 3: Historical Version
                 console.log('[useTrafficDataLoader] Loading historical version:', viewingVersion);
                 setIsLoadingSnapshot(true);
                 try {
@@ -211,7 +247,6 @@ export const useTrafficDataLoader = ({
                     const periodStart = period?.startDate;
 
                     // FIX: If viewing the LATEST period (index 0), ignore the end date.
-                    // This ensures manually uploaded snapshots for historical versions are visible.
                     const isLatestPeriod = finalIndex === 0;
                     const periodEnd = isLatestPeriod ? null : period?.endDate;
 
@@ -224,39 +259,76 @@ export const useTrafficDataLoader = ({
                     console.log('[useTrafficDataLoader] Loaded historical sources:', sources);
 
                     if (viewMode === 'delta') {
-                        let prevSources: TrafficSource[] = [];
+                        const allSnapshots = trafficData.snapshots || [];
+                        const sortedGlobal = [...allSnapshots].sort((a: any, b: any) => b.timestamp - a.timestamp);
 
-                        // Smart Delta for History (Newest First -> Look at Next Index)
+                        // 1. Candidate A: Local Predecessor
+                        let localPredecessorSource: TrafficSource[] = [];
+                        let localPredecessorTimestamp = 0;
+
                         const nextIndex = finalIndex + 1;
                         const prevPeriod = versionData?.activePeriods?.[nextIndex];
-
                         if (prevPeriod) {
-                            prevSources = await TrafficService.getVersionSources(
+                            localPredecessorSource = await TrafficService.getVersionSources(
                                 viewingVersion as number,
-                                trafficData.snapshots || [],
+                                allSnapshots,
                                 prevPeriod.startDate,
                                 prevPeriod.endDate
                             );
+                            const localSnap = sortedGlobal.find(s =>
+                                s.version === viewingVersion &&
+                                s.timestamp >= prevPeriod.startDate &&
+                                (!prevPeriod.endDate || s.timestamp <= prevPeriod.endDate)
+                            );
+                            localPredecessorTimestamp = localSnap?.timestamp || 0;
                         }
 
-                        if (prevSources.length === 0) {
-                            // GLOBAL TIME-BASED DIFF (For Historical Views):
-                            const allSnapshots = trafficData.snapshots || [];
-                            const sortedGlobal = [...allSnapshots].sort((a: any, b: any) => a.timestamp - b.timestamp);
+                        // 2. Candidate B: Global Predecessor
+                        let globalPredecessorSource: TrafficSource[] = [];
+                        let globalPredecessorTimestamp = 0;
 
-                            const globalPredecessor = sortedGlobal.reverse().find((s: any) => s.timestamp < (periodStart || 0));
+                        // FIX: Scope currentSnapshot to VIEWING VERSION
+                        const currentSnapshot = selectedSnapshot
+                            ? allSnapshots.find(s => s.id === selectedSnapshot)
+                            : (sortedGlobal.find(s => s.version === viewingVersion) || null);
 
-                            if (globalPredecessor) {
-                                console.log('[useTrafficDataLoader] Found global predecessor (historical):', globalPredecessor.id);
-                                const predSources = await loadSnapshotSources(globalPredecessor);
-                                const delta = TrafficService.calculateSourcesDelta(sources, predSources);
-                                setDisplayedSources(delta);
-                            } else {
-                                setDisplayedSources([]);
+                        const referenceTimestamp = currentSnapshot ? currentSnapshot.timestamp : Date.now();
+                        console.log('[useTrafficDataLoader] Historical Ref Timestamp:', referenceTimestamp, 'Current:', currentSnapshot?.id);
+
+                        const globalSnap = sortedGlobal.find(s =>
+                            s.timestamp < referenceTimestamp && s.version !== viewingVersion
+                        );
+
+                        if (globalSnap) {
+                            globalPredecessorTimestamp = globalSnap.timestamp;
+                        }
+
+                        // 3. Decision
+                        let baselineSources: TrafficSource[] = [];
+
+                        if (globalPredecessorTimestamp > localPredecessorTimestamp) {
+                            if (globalSnap) {
+                                console.log(`[useTrafficDataLoader] Using Global Predecessor (Historical/Newer): ${globalSnap.id}`);
+                                globalPredecessorSource = await loadSnapshotSources(globalSnap);
+                                baselineSources = globalPredecessorSource;
                             }
                         } else {
-                            const delta = TrafficService.calculateSourcesDelta(sources, prevSources);
+                            if (localPredecessorSource.length > 0) {
+                                console.log(`[useTrafficDataLoader] Using Local Predecessor (Historical/Newer)`);
+                                baselineSources = localPredecessorSource;
+                            } else if (globalSnap) {
+                                console.log(`[useTrafficDataLoader] Local empty, fallback to Global: ${globalSnap.id}`);
+                                globalPredecessorSource = await loadSnapshotSources(globalSnap);
+                                baselineSources = globalPredecessorSource;
+                            }
+                        }
+
+                        if (baselineSources.length > 0) {
+                            const delta = TrafficService.calculateSourcesDelta(sources, baselineSources);
                             setDisplayedSources(delta);
+                        } else {
+                            console.log(`[useTrafficDataLoader] No baseline found for historical version `);
+                            setDisplayedSources([]);
                         }
                     } else {
                         setDisplayedSources(sources);
@@ -289,16 +361,16 @@ const calculateSnapshotDelta = async (
     const currentIndex = sortedSnapshots.findIndex((s: any) => s.id === currentSnapshotId);
 
     if (currentIndex <= 0) {
-        // Это первый снапшот, дельта = пустой массив для показа Emtpy State
+        // Это первый снапшот, дельта = пустой массив для показа Empty State
         return [];
     }
 
     const prevSnapshot = sortedSnapshots[currentIndex - 1];
+
     const prevSources = await loadSnapshotSources(prevSnapshot);
 
     if (prevSources.length === 0) {
         // This is the first snapshot -> return empty array to trigger Empty State
-        // (Empty State will handle showing "First Snapshot" message/UI)
         return [];
     }
 

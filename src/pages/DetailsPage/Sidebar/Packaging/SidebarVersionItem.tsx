@@ -26,6 +26,7 @@ interface SidebarVersionItemProps {
     periodEnd?: number | null;
     tooltip?: string | React.ReactNode;
     truncatePeriodBadge?: boolean; // If true, truncate period badge text (for narrow sidebars)
+    action?: React.ReactNode; // Custom action element (e.g. Chevron) to render at the end
 }
 
 export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
@@ -41,6 +42,7 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
     periodEnd,
     tooltip,
     truncatePeriodBadge = false,
+    action,
 }) => {
     // Track if user is hovering over a badge to block nav item tooltip
     const [isBadgeHovered, setIsBadgeHovered] = useState(false);
@@ -116,6 +118,13 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
                     >
                         <Trash2 size={12} />
                     </button>
+                </div>
+            )}
+
+            {/* Custom Action (e.g. Chevron) - Always visible, participates in flex flow */}
+            {action && (
+                <div className="flex-shrink-0 ml-1">
+                    {action}
                 </div>
             )}
         </div>

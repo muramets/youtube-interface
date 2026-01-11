@@ -42,20 +42,22 @@ export const TrafficEmptyState: React.FC<TrafficEmptyStateProps> = ({
                         No New Data
                     </h3>
                     <p className="text-text-secondary text-sm leading-relaxed">
-                        {isFirstSnapshot ? (
-                            <>
-                                This is the first snapshot with traffic data.
-                                Switch to <strong>Total</strong> view to see all sources.
-                            </>
-                        ) : hasPreviousSnapshots ? (
-                            <>
-                                All traffic sources in this CSV are identical to the previous CSV.
-                                Switch to <strong>Total</strong> view to see all data.
-                            </>
+                        {hasPreviousSnapshots ? (
+                            isFirstSnapshot ? (
+                                <>
+                                    Traffic data is identical to the previous version.
+                                    <br />Switch to <strong>Total</strong> view to see inherited data.
+                                </>
+                            ) : (
+                                <>
+                                    All traffic sources in this CSV are identical to the previous CSV.
+                                    <br />Switch to <strong>Total</strong> view to see all data.
+                                </>
+                            )
                         ) : (
                             <>
-                                This is the first version with traffic data.
-                                Switch to <strong>Total</strong> view to see all sources.
+                                This is the first snapshot with traffic data.
+                                <br />Switch to <strong>Total</strong> view to see all sources.
                             </>
                         )}
                     </p>

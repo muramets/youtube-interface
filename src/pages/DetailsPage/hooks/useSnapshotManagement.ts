@@ -167,6 +167,9 @@ export const useSnapshotManagement = ({
                 }
             });
 
+            // FIX: Refresh traffic data to show the new snapshot in sidebar immediately
+            await trafficState.refetch();
+
             closeSnapshotModal();
             showToast(snapshotId
                 ? `Snapshot saved & restored to v.${snapshotRequest.versionToRestore}`

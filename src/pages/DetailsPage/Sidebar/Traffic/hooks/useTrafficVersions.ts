@@ -21,7 +21,13 @@ export const useTrafficVersions = ({
         return snapshots.filter(s => {
             if (s.version !== version) return false;
             // Strict timestamp check: must be >= start AND (if end exists) <= end
-            // Adding small buffer (5000ms) to ensure boundary inclusions
+            // EXCEPTION: If end is null/undefined, we accept all future snapshots (e.g. for active version)
+            // BUT: For historical versions, we usually pass an 'end'.
+            // To support "late-arriving" snapshots for the LATEST period of a historical version,
+            // we should interpret the 'end' parameter carefully.
+            // If the caller passes 'end', we respect it. 
+            // The Logic fix needs to be passed in from the caller (the loop below).
+
             const matchesStart = s.timestamp >= (start - 5000);
             const matchesEnd = end ? s.timestamp <= (end + 5000) : true;
             return matchesStart && matchesEnd;
@@ -103,7 +109,10 @@ export const useTrafficVersions = ({
                     displayVersion: v.versionNumber,
                     effectiveDate: (v.activePeriods?.[0]?.startDate || v.startDate || 0) as number,
                     periodStart: (v.activePeriods?.[0]?.startDate || v.startDate || 0) as number,
-                    periodEnd: v.activePeriods?.[0]?.endDate || v.endDate,
+                    // FIX: For the latest/only period of a historical version, we effectively shouldn't cap the end date 
+                    // for VISIBILITY of snapshots, even if the period is technically closed.
+                    // This mirrors the logic in useTrafficDataLoader.
+                    periodEnd: null, // Always treat the SINGLE period view as open-ended for snapshot list
                     isRestored: false,
                     arrayIndex: 0,
                     key: `${v.versionNumber}-0`,
@@ -127,12 +136,16 @@ export const useTrafficVersions = ({
                         ? `Active: ${startStr} – ${endStr}`
                         : `Active since ${startStr}`;
 
+                    // FIX: If this is the LATEST period of the version (index 0), treat it as open-ended
+                    // so snapshots uploaded after the version was "closed" (e.g. by partial restore) are still visible.
+                    const isLatestPeriod = index === 0;
+
                     virtualList.push({
                         original: v,
                         displayVersion: v.versionNumber,
                         effectiveDate: period.startDate as number,
                         periodStart: period.startDate as number,
-                        periodEnd: period.endDate,
+                        periodEnd: isLatestPeriod ? null : period.endDate,
                         isRestored: rIndex > 0,
                         restorationIndex: rIndex > 0 ? rIndex : undefined,
                         arrayIndex: index,

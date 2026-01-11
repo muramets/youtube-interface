@@ -62,11 +62,6 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
         new Set([`${activeVersion}-0`])
     );
 
-    // Effect to auto-expand active version on mount or change
-    React.useEffect(() => {
-        // Auto-expansion logic can be refined here if needed
-    }, [activeVersion]);
-
     // Snapshot context menu state
     const [menuState, setMenuState] = useState<{
         snapshotId: string | null;
@@ -105,6 +100,44 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
 
     // Determine if there's content to expand
     const hasContent = sortedVersions.length > 0;
+
+    // Effect to auto-expand active version on mount or auto-expand when a snapshot is selected
+    React.useEffect(() => {
+        // 1. If a snapshot is selected, find which version contains it and expand that version
+        if (selectedSnapshot) {
+            const itemsToExpand = new Set<string>();
+
+            // Check each sorted version for the selected snapshot
+            sortedVersions.forEach(versionItem => {
+                const snapshotsInVersion = getVirtualVersionSnapshots(
+                    versionItem.displayVersion,
+                    versionItem.periodStart,
+                    versionItem.periodEnd
+                );
+
+                if (snapshotsInVersion.some(s => s.id === selectedSnapshot)) {
+                    itemsToExpand.add(versionItem.key);
+                }
+            });
+
+            if (itemsToExpand.size > 0) {
+                setExpandedVersions(prev => {
+                    // Only update if we have new items to expand that aren't already expanded
+                    const next = new Set(prev);
+                    let changed = false;
+
+                    itemsToExpand.forEach(key => {
+                        if (!next.has(key)) {
+                            next.add(key);
+                            changed = true;
+                        }
+                    });
+
+                    return changed ? next : prev;
+                });
+            }
+        }
+    }, [selectedSnapshot, sortedVersions, getVirtualVersionSnapshots]);
 
     return (
         <div className="flex flex-col">
@@ -151,7 +184,7 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                         return (
                             <div key={item.key}>
                                 {/* Version Row with Chevron */}
-                                <div className="relative">
+                                <div>
                                     {isPackagingDeleted && packagingData ? (
                                         <PortalTooltip
                                             content={<PackagingSnapshotTooltip version={item.displayVersion} data={packagingData} />}
@@ -165,13 +198,25 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                                     label={displayLabel}
                                                     isDeleted={true}
                                                     isViewing={viewingVersion === item.displayVersion && viewingPeriodIndex === item.arrayIndex && !selectedSnapshot}
-                                                    isVideoActive={activeVersion === item.displayVersion && !item.periodEnd} // Only active if it's the CURRENT period
+                                                    isVideoActive={activeVersion === item.displayVersion && !item.periodEnd}
                                                     onClick={() => onVersionClick(item.displayVersion, item.arrayIndex)}
                                                     isParentOfSelected={selectedSnapshot !== null && versionSnapshots.some(s => s.id === selectedSnapshot)}
                                                     restorationIndex={item.showRestored ? item.restorationIndex : undefined}
                                                     periodStart={item.periodStart}
                                                     periodEnd={item.periodEnd}
                                                     truncatePeriodBadge={true}
+                                                    action={hasSnapshots && (
+                                                        <button
+                                                            onClick={(e) => toggleVersionSnapshots(item.key, e)}
+                                                            className="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
+                                                        >
+                                                            {isVersionExpanded ? (
+                                                                <ChevronDown size={12} />
+                                                            ) : (
+                                                                <ChevronRight size={12} />
+                                                            )}
+                                                        </button>
+                                                    )}
                                                 />
                                             </div>
                                         </PortalTooltip>
@@ -187,21 +232,19 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                             periodStart={item.periodStart}
                                             periodEnd={item.periodEnd}
                                             truncatePeriodBadge={true}
-                                        />
-                                    )}
-
-                                    {/* Chevron for snapshots - RIGHT SIDE */}
-                                    {hasSnapshots && (
-                                        <button
-                                            onClick={(e) => toggleVersionSnapshots(item.key, e)}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-text-secondary hover:text-text-primary transition-colors"
-                                        >
-                                            {isVersionExpanded ? (
-                                                <ChevronDown size={12} />
-                                            ) : (
-                                                <ChevronRight size={12} />
+                                            action={hasSnapshots && (
+                                                <button
+                                                    onClick={(e) => toggleVersionSnapshots(item.key, e)}
+                                                    className="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
+                                                >
+                                                    {isVersionExpanded ? (
+                                                        <ChevronDown size={12} />
+                                                    ) : (
+                                                        <ChevronRight size={12} />
+                                                    )}
+                                                </button>
                                             )}
-                                        </button>
+                                        />
                                     )}
                                 </div>
 
