@@ -1,35 +1,44 @@
 import type { TrafficSnapshot, TrafficSource } from '../../../../../core/types/traffic';
+import { logger } from '../../../../../core/utils/logger';
 
 /**
  * Загружает источники трафика из снапшота.
- * Поддерживает гибридное хранилище:
- * - Если есть storagePath: загружает CSV из Cloud Storage
- * - Если есть sources: возвращает напрямую (legacy)
+ * Поддерживает гибридное хранилище (CSV в Cloud Storage).
  * 
  * @param snapshot - Снапшот для загрузки
- * @returns Promise с массивом источников трафика
- * 
- * @example
- * const sources = await loadSnapshotSources(snapshot);
+ * @returns Promise с объектом { sources, totalRow }
  */
-export const loadSnapshotSources = async (snapshot: TrafficSnapshot): Promise<TrafficSource[]> => {
+export const loadSnapshotSources = async (snapshot: TrafficSnapshot): Promise<{ sources: TrafficSource[]; totalRow?: TrafficSource }> => {
     // Приоритет 1: Загрузка из Cloud Storage (новый подход)
     if (snapshot.storagePath) {
-        const { downloadCsvSnapshot } = await import('../../../../../core/services/storageService');
-        const { parseTrafficCsv } = await import('./csvParser');
+        try {
+            const { downloadCsvSnapshot } = await import('../../../../../core/services/storageService');
+            const { parseTrafficCsv } = await import('./csvParser');
 
-        const blob = await downloadCsvSnapshot(snapshot.storagePath);
-        const file = new File([blob], 'snapshot.csv', { type: 'text/csv' });
-        const { sources } = await parseTrafficCsv(file);
+            const blob = await downloadCsvSnapshot(snapshot.storagePath);
+            const file = new File([blob], 'snapshot.csv', { type: 'text/csv' });
+            const { sources, totalRow } = await parseTrafficCsv(file);
 
-        return sources;
+            return { sources, totalRow };
+        } catch (error) {
+            logger.error('Failed to load snapshot from Storage', {
+                component: 'snapshotLoader',
+                snapshotId: snapshot.id,
+                storagePath: snapshot.storagePath,
+                error
+            });
+            return { sources: [] };
+        }
     }
 
-    // Приоритет 2: Legacy - данные в Firestore
-    if (snapshot.sources) {
-        return snapshot.sources;
-    }
+    // LEGACY REMOVED: No longer checking snapshot.sources
+
+    logger.warn('Snapshot missing storagePath', {
+        component: 'snapshotLoader',
+        snapshotId: snapshot.id,
+        version: snapshot.version
+    });
 
     // Fallback: пустой массив
-    return [];
+    return { sources: [] };
 };

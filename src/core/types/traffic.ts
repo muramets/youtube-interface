@@ -90,15 +90,7 @@ export interface TrafficSnapshot extends TrafficSnapshotBase {
      */
     isPackagingDeleted?: boolean;
 
-    /**
-     * LEGACY: Complete traffic data (for backward compatibility).
-     * New snapshots store data in Cloud Storage instead.
-     * If `storagePath` exists, this field may be omitted to save Firestore space.
-     * 
-     * NOTE: This will be removed in future versions. All new snapshots must use storagePath.
-     */
-    sources?: TrafficSource[];
-    totalRow?: TrafficSource;
+    // LEGACY REMOVED: sources and totalRow fields removed. Use storagePath for all snapshots.
 }
 
 export interface TrafficVersionInfo {

@@ -2,6 +2,7 @@ import type { TrafficData, TrafficSource, TrafficSnapshot } from '../../types/tr
 import { generateSnapshotId } from '../../utils/snapshotUtils';
 import { uploadCsvSnapshot, downloadCsvSnapshot, deleteCsvSnapshot } from '../storageService';
 import { TrafficDataService } from './TrafficDataService';
+import { logger } from '../../utils/logger';
 
 /**
  * Сервис для управления снапшотами трафика.
@@ -10,17 +11,6 @@ import { TrafficDataService } from './TrafficDataService';
 export const TrafficSnapshotService = {
     /**
      * Создает снапшот версии с ГИБРИДНЫМ ХРАНИЛИЩЕМ.
-     * 
-     * ГИБРИДНЫЙ ПОДХОД:
-     * 1. Загружает CSV файл в Cloud Storage
-     * 2. Вычисляет сводную статистику
-     * 3. Сохраняет метаданные + сводку в Firestore (НЕ полные sources)
-     * 
-     * Преимущества:
-     * - Нет лимита Firestore в 1MB на документ
-     * - Быстрые запросы (только метаданные)
-     * - Дешевле хранение
-     * - Оригинальный CSV сохранен
      */
     async create(
         userId: string,
@@ -45,7 +35,6 @@ export const TrafficSnapshotService = {
 
         let storagePath: string | undefined;
 
-        // Загружаем CSV в Cloud Storage если файл предоставлен
         if (csvFile) {
             try {
                 const uploadResult = await uploadCsvSnapshot(
@@ -57,9 +46,20 @@ export const TrafficSnapshotService = {
                 );
                 storagePath = uploadResult.storagePath;
             } catch (error) {
-                console.error('Failed to upload CSV to Storage:', error);
-                // Продолжаем без storage path (сохраним sources в Firestore как fallback)
+                logger.error('Failed to upload CSV to Storage', {
+                    component: 'TrafficSnapshotService',
+                    snapshotId,
+                    error
+                });
+                throw new Error('FAILED_TO_UPLOAD_SNAPSHOT');
             }
+        } else {
+            // If no CSV file provided, we cannot create a valid snapshot in the new system
+            logger.error('No CSV file provided for snapshot', {
+                component: 'TrafficSnapshotService',
+                snapshotId
+            });
+            throw new Error('CSV_FILE_REQUIRED');
         }
 
         // Создаем метаданные снапшота
@@ -76,10 +76,8 @@ export const TrafficSnapshotService = {
                 totalWatchTime,
                 sourcesCount: sources.length,
                 topSource: topSource?.sourceTitle
-            },
-
-            // Legacy: включаем sources только если загрузка CSV не удалась
-            ...(storagePath ? {} : { sources, totalRow })
+            }
+            // LEGACY REMOVED: No longer saving sources/totalRow to Firestore
         };
 
         const updated: TrafficData = {
@@ -91,6 +89,15 @@ export const TrafficSnapshotService = {
         };
 
         await TrafficDataService.save(userId, channelId, videoId, updated);
+
+        logger.info('Traffic snapshot created', {
+            component: 'TrafficSnapshotService',
+            snapshotId,
+            version,
+            hasStoragePath: !!storagePath,
+            sourcesCount: sources.length
+        });
+
         return snapshotId;
     },
 
@@ -98,15 +105,14 @@ export const TrafficSnapshotService = {
      * Получает sources для конкретной исторической версии из снапшота.
      * 
      * ГИБРИДНОЕ ХРАНИЛИЩЕ:
-     * - Если у снапшота есть storagePath: загружает CSV из Storage и парсит
-     * - Если у снапшота есть sources: возвращает напрямую (legacy)
+     * - Загружает CSV из Storage и парсит
      */
     async getVersionSources(
         version: number,
         snapshots: TrafficSnapshot[],
         periodStart?: number,
         periodEnd?: number | null
-    ): Promise<TrafficSource[]> {
+    ): Promise<{ sources: TrafficSource[]; totalRow?: TrafficSource }> {
         // Находим снапшоты для этой версии
         let versionSnapshots = snapshots.filter(s => s.version === version);
 
@@ -125,12 +131,9 @@ export const TrafficSnapshotService = {
         // Берем самый свежий из подходящих
         const snapshot = versionSnapshots[versionSnapshots.length - 1];
 
-        if (!snapshot) return [];
+        if (!snapshot) return { sources: [] };
 
-        // Legacy: sources хранятся в Firestore
-        if (snapshot.sources) {
-            return snapshot.sources;
-        }
+        // LEGACY REMOVED: Removed check for snapshot.sources (Firestore storage)
 
         // Гибрид: sources в Cloud Storage
         if (snapshot.storagePath) {
@@ -139,16 +142,27 @@ export const TrafficSnapshotService = {
 
                 const blob = await downloadCsvSnapshot(snapshot.storagePath);
                 const file = new File([blob], 'snapshot.csv', { type: 'text/csv' });
-                const { sources } = await parseTrafficCsv(file);
+                const { sources, totalRow } = await parseTrafficCsv(file);
 
-                return sources;
+                return { sources, totalRow };
             } catch (error) {
-                console.error('Failed to load snapshot from Storage:', error);
-                return [];
+                logger.error('Failed to load snapshot from Storage', {
+                    component: 'TrafficSnapshotService',
+                    snapshotId: snapshot.id,
+                    storagePath: snapshot.storagePath,
+                    error
+                });
+                return { sources: [] };
             }
         }
 
-        return [];
+        logger.warn('Snapshot missing storagePath', {
+            component: 'TrafficSnapshotService',
+            snapshotId: snapshot.id,
+            version
+        });
+
+        return { sources: [] };
     },
 
     /**
@@ -189,13 +203,13 @@ export const TrafficSnapshotService = {
 
         if (previousSnapshot) {
             // Откатываемся к данным предыдущего снапшота
-            const prevSources = await this.getVersionSources(previousSnapshot.version, currentData.snapshots);
+            const { sources: prevSources, totalRow: prevTotalRow } = await this.getVersionSources(previousSnapshot.version, currentData.snapshots);
 
             updated = {
                 ...currentData,
                 lastUpdated: previousSnapshot.timestamp,
                 sources: prevSources,
-                totalRow: previousSnapshot.totalRow,
+                totalRow: prevTotalRow,
                 snapshots: currentData.snapshots.filter(s => s.id !== snapshotId)
             };
         } else {

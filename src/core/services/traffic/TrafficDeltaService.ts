@@ -88,12 +88,13 @@ export const TrafficDeltaService = {
 
             if (closingSnapshot) {
                 const { TrafficSnapshotService } = await import('./TrafficSnapshotService');
-                prevSources = await TrafficSnapshotService.getVersionSources(
+                const { sources } = await TrafficSnapshotService.getVersionSources(
                     closingSnapshot.version,
                     snapshots,
                     closingSnapshot.timestamp,
                     closingSnapshot.timestamp
                 );
+                prevSources = sources;
 
                 console.log('[TrafficDeltaService] Loaded sources from closingSnapshot:', {
                     snapshotId: closingSnapshotId,
@@ -128,7 +129,8 @@ export const TrafficDeltaService = {
 
             // Загружаем данные предыдущей версии
             const { TrafficSnapshotService } = await import('./TrafficSnapshotService');
-            prevSources = await TrafficSnapshotService.getVersionSources(prevVersion, snapshots);
+            const { sources } = await TrafficSnapshotService.getVersionSources(prevVersion, snapshots);
+            prevSources = sources;
 
             console.log('[TrafficDeltaService] Loaded previous version sources:', {
                 prevVersion,

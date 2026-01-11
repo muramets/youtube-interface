@@ -61,7 +61,7 @@ export const useTrafficDataLoader = ({
                     const snapshot = trafficData.snapshots?.find((s: TrafficSnapshot) => s.id === selectedSnapshot);
                     if (snapshot) {
                         // Загружаем текущий снапшот
-                        let currentSources = await loadSnapshotSources(snapshot);
+                        let { sources: currentSources } = await loadSnapshotSources(snapshot);
 
                         // Применяем Delta mode если включен
                         if (viewMode === 'delta' && currentSources.length > 0) {
@@ -132,7 +132,7 @@ export const useTrafficDataLoader = ({
                         const isLatestPeriod = finalIndex === 0;
                         const periodEnd = isLatestPeriod ? null : period?.endDate;
 
-                        const sources = await TrafficService.getVersionSources(
+                        const { sources } = await TrafficService.getVersionSources(
                             viewingVersion as number,
                             trafficData.snapshots || [],
                             periodStart,
@@ -152,12 +152,13 @@ export const useTrafficDataLoader = ({
                             const nextIndex = finalIndex + 1;
                             const prevPeriod = versionData?.activePeriods?.[nextIndex];
                             if (prevPeriod) {
-                                localPredecessorSource = await TrafficService.getVersionSources(
+                                const { sources: lpSource } = await TrafficService.getVersionSources(
                                     viewingVersion as number,
                                     allSnapshots,
                                     prevPeriod.startDate,
                                     prevPeriod.endDate
                                 );
+                                localPredecessorSource = lpSource;
                                 // Find the actual snapshot used for accurate timestamp comparison
                                 const localSnap = sortedGlobal.find(s =>
                                     s.version === viewingVersion &&
@@ -199,7 +200,8 @@ export const useTrafficDataLoader = ({
                             if (globalPredecessorTimestamp > localPredecessorTimestamp) {
                                 if (globalSnap) {
                                     logger.debug('Using global predecessor (newer)', { component: 'useTrafficDataLoader', snapshotId: globalSnap.id, globalTimestamp: globalSnap.timestamp, localTimestamp: localPredecessorTimestamp });
-                                    globalPredecessorSource = await loadSnapshotSources(globalSnap);
+                                    const { sources: gpSource } = await loadSnapshotSources(globalSnap);
+                                    globalPredecessorSource = gpSource;
                                     baselineSources = globalPredecessorSource;
                                 }
                             } else {
@@ -210,7 +212,8 @@ export const useTrafficDataLoader = ({
                                 } else if (globalSnap) {
                                     // Fallback: Local was empty/invalid, try Global
                                     logger.debug('Local empty, fallback to global', { component: 'useTrafficDataLoader', snapshotId: globalSnap.id });
-                                    globalPredecessorSource = await loadSnapshotSources(globalSnap);
+                                    const { sources: gpSource } = await loadSnapshotSources(globalSnap);
+                                    globalPredecessorSource = gpSource;
                                     baselineSources = globalPredecessorSource;
                                 }
                             }
@@ -253,7 +256,7 @@ export const useTrafficDataLoader = ({
                     const isLatestPeriod = finalIndex === 0;
                     const periodEnd = isLatestPeriod ? null : period?.endDate;
 
-                    const sources = await TrafficService.getVersionSources(
+                    const { sources } = await TrafficService.getVersionSources(
                         viewingVersion as number,
                         trafficData.snapshots || [],
                         periodStart,
@@ -272,12 +275,13 @@ export const useTrafficDataLoader = ({
                         const nextIndex = finalIndex + 1;
                         const prevPeriod = versionData?.activePeriods?.[nextIndex];
                         if (prevPeriod) {
-                            localPredecessorSource = await TrafficService.getVersionSources(
+                            const { sources: lpSource } = await TrafficService.getVersionSources(
                                 viewingVersion as number,
                                 allSnapshots,
                                 prevPeriod.startDate,
                                 prevPeriod.endDate
                             );
+                            localPredecessorSource = lpSource;
                             const localSnap = sortedGlobal.find(s =>
                                 s.version === viewingVersion &&
                                 s.timestamp >= prevPeriod.startDate &&
@@ -312,7 +316,8 @@ export const useTrafficDataLoader = ({
                         if (globalPredecessorTimestamp > localPredecessorTimestamp) {
                             if (globalSnap) {
                                 logger.debug('Using global predecessor (historical/newer)', { component: 'useTrafficDataLoader', snapshotId: globalSnap.id, globalTimestamp: globalSnap.timestamp, localTimestamp: localPredecessorTimestamp });
-                                globalPredecessorSource = await loadSnapshotSources(globalSnap);
+                                const { sources: gpSource } = await loadSnapshotSources(globalSnap);
+                                globalPredecessorSource = gpSource;
                                 baselineSources = globalPredecessorSource;
                             }
                         } else {
@@ -321,7 +326,8 @@ export const useTrafficDataLoader = ({
                                 baselineSources = localPredecessorSource;
                             } else if (globalSnap) {
                                 logger.debug('Local empty, fallback to global (historical)', { component: 'useTrafficDataLoader', snapshotId: globalSnap.id });
-                                globalPredecessorSource = await loadSnapshotSources(globalSnap);
+                                const { sources: gpSource } = await loadSnapshotSources(globalSnap);
+                                globalPredecessorSource = gpSource;
                                 baselineSources = globalPredecessorSource;
                             }
                         }
@@ -370,7 +376,7 @@ const calculateSnapshotDelta = async (
 
     const prevSnapshot = sortedSnapshots[currentIndex - 1];
 
-    const prevSources = await loadSnapshotSources(prevSnapshot);
+    const { sources: prevSources } = await loadSnapshotSources(prevSnapshot);
 
     if (prevSources.length === 0) {
         // This is the first snapshot -> return empty array to trigger Empty State
