@@ -14,7 +14,7 @@ import { ABTestingModal } from '../../../../components/Shared/ABTesting';
 interface AddCustomVideoModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (videoData: Omit<VideoDetails, 'id'>, shouldClose?: boolean) => Promise<string | void>;
+    onSave: (videoData: Omit<VideoDetails, 'id'>, shouldClose?: boolean, expectedRevision?: number) => Promise<string | void>;
     onClone?: (originalVideo: VideoDetails, version: CoverVersion) => Promise<void>;
     initialData?: VideoDetails;
     initialTab?: 'details';

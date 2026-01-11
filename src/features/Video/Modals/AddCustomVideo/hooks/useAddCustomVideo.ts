@@ -19,7 +19,7 @@ import { useABTesting, type ABTestingSaveData } from '../../../../../components/
 export interface UseAddCustomVideoProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (videoData: Omit<VideoDetails, 'id'>, shouldClose?: boolean) => Promise<string | void>;
+    onSave: (videoData: Omit<VideoDetails, 'id'>, shouldClose?: boolean, expectedRevision?: number) => Promise<string | void>;
     onClone?: (originalVideo: VideoDetails, version: CoverVersion) => Promise<void>;
     initialData?: VideoDetails;
     initialTab?: 'details';
@@ -196,6 +196,7 @@ export function useAddCustomVideo({
         }
 
         const isContentIdentical = (() => {
+            if (!snapshot) return false;
             if (effectiveDefaultTitle !== snapshot.title) return false;
             if ((effectiveDefaultDescription || '') !== (snapshot.description || '')) return false;
             if (JSON.stringify(effectiveDefaultTags || []) !== JSON.stringify(snapshot.tags || [])) return false;
@@ -405,9 +406,9 @@ export function useAddCustomVideo({
 
             const packagingPromises = effectivePackagingHistory.map(async (version, index) => {
                 // Upload cover image if base64
-                if (version.configurationSnapshot.coverImage?.startsWith('data:image')) {
+                if (version.configurationSnapshot?.coverImage?.startsWith('data:image')) {
                     const newUrl = await uploadBase64ToStorage(version.configurationSnapshot.coverImage, user?.uid || 'anonymous');
-                    effectivePackagingHistory[index].configurationSnapshot.coverImage = newUrl;
+                    effectivePackagingHistory[index].configurationSnapshot!.coverImage = newUrl;
                     hasPackagingUpdates = true;
                 }
 
@@ -518,7 +519,8 @@ export function useAddCustomVideo({
                 shouldClose
             });
 
-            const newId = await onSave(videoData, shouldClose);
+            const expectedRevision = initialData?.packagingRevision;
+            const newId = await onSave(videoData, shouldClose, expectedRevision);
             const targetId = (typeof newId === 'string' ? newId : initialData?.id);
 
             if (targetId && user && currentChannel) {
@@ -615,6 +617,7 @@ export function useAddCustomVideo({
         const newHistoryItem: PackagingVersion = {
             versionNumber: currentPackagingVersion,
             startDate: Date.now(),
+            endDate: null,
             checkins: [],
             configurationSnapshot: {
                 title: snapshotTitle,
@@ -625,7 +628,8 @@ export function useAddCustomVideo({
                 abTestThumbnails: abTestVariants,
                 abTestVariants: abTestVariants, // Backward compatibility
                 localizations: localizations
-            }
+            },
+            revision: 1
         };
 
         const newHistory = [...packagingHistory, newHistoryItem];

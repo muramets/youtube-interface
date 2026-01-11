@@ -341,7 +341,11 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                     onClose={() => setShowEditModal(false)}
                     onSave={async (updatedVideo) => {
                         if (user && currentChannel) {
-                            await updateVideo({ videoId: video.id, updates: updatedVideo });
+                            await updateVideo({
+                                videoId: video.id,
+                                updates: updatedVideo,
+                                expectedRevision: video.packagingRevision
+                            });
                         }
                         setShowEditModal(false);
                     }}

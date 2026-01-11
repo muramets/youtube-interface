@@ -197,7 +197,7 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
                 <AddCustomVideoModal
                     isOpen={true}
                     onClose={() => setActiveModal(null)}
-                    onSave={async (videoData) => {
+                    onSave={async (videoData, _shouldClose, _expectedRevision) => {
                         if (user && currentChannel) {
                             return await addCustomVideo(videoData);
                         }

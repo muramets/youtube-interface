@@ -124,6 +124,7 @@ export const usePackagingActions = ({
             } else {
                 showToast('Failed to save video', 'error');
             }
+        } finally {
             setSavingAction(null);
         }
     }, [user, currentChannel, video.id, buildSavePayload, versionState, updateVideo, formState, showToast, video.coverHistory, video.packagingRevision]);
@@ -260,6 +261,7 @@ export const usePackagingActions = ({
             } else {
                 showToast('Failed to create version', 'error');
             }
+        } finally {
             setSavingAction(null);
         }
     }, [user, currentChannel, video.id, video.publishedVideoId, buildSavePayload, versionState, updateVideo, formState, showToast, abTesting, onRequestSnapshot, video.coverHistory, video.packagingRevision]);
@@ -443,13 +445,14 @@ export const usePackagingActions = ({
         try {
             await updateVideo({
                 videoId: video.id,
-                updates: metadata
+                updates: metadata,
+                expectedRevision: video.packagingRevision
             });
         } catch (error) {
             console.error('Failed to auto-save metadata:', error);
             // Silent fail - don't show toast for auto-save
         }
-    }, [user, currentChannel, video.id, updateVideo]);
+    }, [user, currentChannel, video.id, video.packagingRevision, updateVideo]);
 
     return {
         isSaving: savingAction === 'draft' || savingAction === 'version', // Backwards compatibility if needed, though we should prefer specific props
