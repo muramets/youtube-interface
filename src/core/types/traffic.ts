@@ -23,9 +23,9 @@ export interface TrafficGroup {
 }
 
 /**
- * BUSINESS LOGIC: Traffic Snapshot Attribution (Hybrid Storage)
+ * BUSINESS LOGIC: Traffic Snapshot Attribution
  * 
- * HYBRID APPROACH:
+ * STORAGE STRATEGY:
  * - Metadata stored in Firestore (fast queries, small size)
  * - Full CSV stored in Cloud Storage (no size limits, cheaper)
  * 

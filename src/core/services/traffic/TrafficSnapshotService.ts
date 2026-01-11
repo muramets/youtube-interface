@@ -6,11 +6,14 @@ import { logger } from '../../utils/logger';
 
 /**
  * Сервис для управления снапшотами трафика.
- * Использует гибридное хранилище: метаданные в Firestore, CSV в Cloud Storage.
+ * Архитектура:
+ * - Метаданные (размер < 1MB) -> Firestore
+ * - Полные данные (CSV) -> Cloud Storage
  */
 export const TrafficSnapshotService = {
     /**
-     * Создает снапшот версии с ГИБРИДНЫМ ХРАНИЛИЩЕМ.
+     * Создает снапшот версии.
+     * Обязательно загружает CSV в Cloud Storage.
      */
     async create(
         userId: string,
