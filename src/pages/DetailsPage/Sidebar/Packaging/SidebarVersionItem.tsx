@@ -45,11 +45,16 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
     // Track if user is hovering over a badge to block nav item tooltip
     const [isBadgeHovered, setIsBadgeHovered] = useState(false);
 
+    // NOTE: truncatePeriodBadge is currently unused in the simplified compact logic,
+    // but kept in props interface for backward compatibility with callers.
+    void truncatePeriodBadge;
+
+
     const content = (
         <div
             onClick={onClick}
             className={`
-                group flex items-center justify-between pl-11 pr-[18px] py-1.5 cursor-pointer
+                group flex items-center justify-between pl-11 pr-2 py-1.5 cursor-pointer
                 transition-colors rounded-lg ml-6 mr-3
                 ${isViewing
                     ? 'text-text-primary font-medium bg-sidebar-active'
@@ -69,14 +74,14 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
                 {/* RESTORED badge */}
                 {restorationIndex !== undefined && (
                     <div
-                        className={`flex items-center min-w-0 ${truncatePeriodBadge ? 'flex-shrink' : 'flex-1'}`}
+                        className="flex items-center min-w-0 flex-shrink"
                         onPointerEnter={() => setIsBadgeHovered(true)}
                         onPointerLeave={() => setIsBadgeHovered(false)}
                     >
                         <Badge
                             variant="warning"
-                            className={`px-1.5 ${!truncatePeriodBadge ? 'w-full justify-center' : ''}`}
-                            maxWidth={truncatePeriodBadge ? "160px" : undefined}
+                            className="px-1.5 justify-center"
+                            maxWidth="100%"
                         >
                             {periodStart ? formatPremiumPeriod(periodStart, periodEnd ?? null) : (restorationIndex === 1 ? 'Restored' : `Restored ${restorationIndex}`)}
                         </Badge>
@@ -98,18 +103,20 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
                 )}
             </div>
 
-            {/* Delete button - always present, show on hover via opacity */}
+            {/* Smart Delete Action: Collapsed by default (w-0), expands on hover */}
             {onDelete && (
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete();
-                    }}
-                    className="p-1 text-text-secondary hover:text-red-500 rounded transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
-                    title="Delete version"
-                >
-                    <Trash2 size={12} />
-                </button>
+                <div className="flex items-center overflow-hidden max-w-0 opacity-0 group-hover:max-w-[40px] group-hover:opacity-100 transition-all duration-300 ease-in-out">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete();
+                        }}
+                        className="p-1 text-text-secondary hover:text-red-500 rounded transition-colors flex-shrink-0 ml-2"
+                        title="Delete version"
+                    >
+                        <Trash2 size={12} />
+                    </button>
+                </div>
             )}
         </div>
     );
