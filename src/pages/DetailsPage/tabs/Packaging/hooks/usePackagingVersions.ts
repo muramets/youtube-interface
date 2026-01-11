@@ -34,6 +34,7 @@ interface VersionsState {
     viewingVersion: number | 'draft';
     viewingPeriodIndex?: number;
     navSortedVersions: PackagingVersion[]; // Pre-computed for atomic updates
+    packagingRevision: number; // Track revision to detect stale props
 }
 
 // Actions
@@ -85,6 +86,18 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
         case 'SYNC_FROM_PROPS': {
             const { history, currentVersion, isDraft, initialActiveVersion } = action.payload;
 
+            // Calculate incoming revision from props
+            // Revision is stored in each PackagingVersion, we take the max
+            const incomingRevision = history.length > 0
+                ? Math.max(...history.map(v => v.revision || 0))
+                : 0;
+
+            // If local revision is newer, keep local state (optimistic update in progress)
+            if (state.packagingRevision > incomingRevision) {
+                console.log('[usePackagingVersions] Local state is newer (revision:', state.packagingRevision, '> incoming:', incomingRevision, '), ignoring stale props');
+                return state;
+            }
+
             // Priority: 
             // 1. initialActiveVersion from props (if provided)
             // 2. 'draft' if isDraft is true
@@ -98,7 +111,9 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
                 isDraft,
                 initialActiveVersion,
                 computedActive,
-                historyCount: history.length
+                historyCount: history.length,
+                incomingRevision,
+                localRevision: state.packagingRevision
             });
 
             // Smart sync: preserve local selection if still valid AND we are not forcing a specific initialActiveVersion
@@ -109,27 +124,11 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
 
             // If we have an explicit initialActiveVersion from props (e.g. from fresh data fetch), use it.
             // Otherwise, if our local state is valid, keep it.
-            // This prevents "flicker" where props might temporarily show old state (isDraft=true) 
-            // after we locally set it to false.
             let newActive = computedActive;
             if (initialActiveVersion !== undefined && initialActiveVersion !== null) {
                 newActive = initialActiveVersion;
             } else if (isActiveValid) {
                 newActive = state.activeVersion;
-            }
-
-            // Fix for "Draft persisting after Restore" race condition:
-            // 1. If local history has more items than props history, it means we just created/restored a version locally (Immutable)
-            // 2. If local hasDraft is false but props say true, but the active version is a number matching our local, it's stale (Legacy Restore)
-            let newHasDraft = isDraft;
-            const isLocalHistoryAhead = state.packagingHistory.length > history.length;
-            const isStaleDraftProp = state.hasDraft === false &&
-                isDraft === true &&
-                typeof state.activeVersion === 'number' &&
-                newActive === state.activeVersion;
-
-            if (isLocalHistoryAhead || isStaleDraftProp) {
-                newHasDraft = state.hasDraft;
             }
 
             // Sanitize history: ensure at most one version is active (has open period)
@@ -150,16 +149,18 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
             return {
                 packagingHistory: sanitizedHistory,
                 currentVersionNumber: currentVersion,
-                hasDraft: newHasDraft,
+                hasDraft: isDraft,
                 activeVersion: newActive,
                 viewingVersion: isViewingValid ? state.viewingVersion : computedActive,
                 viewingPeriodIndex: isViewingValid ? state.viewingPeriodIndex : 0,
-                navSortedVersions: computeNavSorted(sanitizedHistory, newActive)
+                navSortedVersions: computeNavSorted(sanitizedHistory, newActive),
+                packagingRevision: incomingRevision
             };
         }
 
         case 'CREATE_VERSION': {
             const { newVersion, updatedHistory } = action.payload;
+            const newRevision = state.packagingRevision + 1;
 
             return {
                 ...state,
@@ -169,7 +170,8 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
                 activeVersion: newVersion.versionNumber,
                 viewingVersion: newVersion.versionNumber,
                 viewingPeriodIndex: 0,
-                navSortedVersions: computeNavSorted(updatedHistory, newVersion.versionNumber)
+                navSortedVersions: computeNavSorted(updatedHistory, newVersion.versionNumber),
+                packagingRevision: newRevision
             };
         }
 
@@ -212,7 +214,8 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
                     ? (newest ?? 'draft')
                     : state.viewingVersion,
                 viewingPeriodIndex: isViewingDeleted ? 0 : state.viewingPeriodIndex,
-                navSortedVersions: computeNavSorted(updatedHistory, newActive)
+                navSortedVersions: computeNavSorted(updatedHistory, newActive),
+                packagingRevision: state.packagingRevision + 1
             };
         }
 
@@ -251,7 +254,8 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
                 activeVersion: versionNumber,
                 viewingVersion: versionNumber,
                 viewingPeriodIndex: 0, // Latest period after restore
-                navSortedVersions: computeNavSorted(updatedHistory, versionNumber)
+                navSortedVersions: computeNavSorted(updatedHistory, versionNumber),
+                packagingRevision: state.packagingRevision + 1
             };
         }
 
@@ -276,7 +280,8 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
                 activeVersion: 'draft',
                 viewingVersion: 'draft',
                 viewingPeriodIndex: 0,
-                navSortedVersions: computeNavSorted(updatedHistory, 'draft')
+                navSortedVersions: computeNavSorted(updatedHistory, 'draft'),
+                packagingRevision: state.packagingRevision + 1
             };
         }
 
@@ -306,7 +311,8 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
                 ...state,
                 packagingHistory: updatedHistory,
                 activeVersion: versionNumber,
-                navSortedVersions: computeNavSorted(updatedHistory, versionNumber)
+                navSortedVersions: computeNavSorted(updatedHistory, versionNumber),
+                packagingRevision: state.packagingRevision + 1
             };
         }
 
@@ -332,6 +338,11 @@ export const usePackagingVersions = ({
         historyCount: initialHistory.length
     });
 
+    // Calculate initial revision from history
+    const initialRevision = initialHistory.length > 0
+        ? Math.max(...initialHistory.map(v => v.revision || 0))
+        : 0;
+
     // Single reducer for atomic state management
     const [state, dispatch] = useReducer(versionsReducer, {
         packagingHistory: initialHistory,
@@ -340,7 +351,8 @@ export const usePackagingVersions = ({
         activeVersion: initialActive,
         viewingVersion: initialActive,
         viewingPeriodIndex: 0,
-        navSortedVersions: computeNavSorted(initialHistory, initialActive)
+        navSortedVersions: computeNavSorted(initialHistory, initialActive),
+        packagingRevision: initialRevision
     });
 
     // Sync with props
@@ -405,7 +417,8 @@ export const usePackagingVersions = ({
                 closingSnapshotId: null
             }],
             checkins: [],
-            configurationSnapshot: snapshot
+            configurationSnapshot: snapshot,
+            revision: state.packagingRevision + 1
         };
 
         updatedHistory = [...updatedHistory, newVersion];

@@ -46,6 +46,7 @@ export interface VideoDetails {
     packagingHistory?: PackagingVersion[];
     currentPackagingVersion?: number;
     activeVersion?: number | 'draft'; // The packaging version currently active for this video
+    packagingRevision?: number; // Incremented on every packaging change to detect stale state
     ctrRules?: CTRRule[];
     // Retry state for private/unavailable videos
     fetchRetryCount?: number;
