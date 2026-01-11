@@ -1,4 +1,5 @@
 import type { TrafficSource } from '../../../../../core/types/traffic';
+import { logger } from '../../../../../core/utils/logger';
 
 export interface CsvMapping {
     sourceId: number;
@@ -91,7 +92,12 @@ export const parseTrafficCsv = async (
                     }
 
                     activeMapping = detectedMapping!;
-                    console.log('Smart CSV Parser: Auto-detected columns', activeMapping);
+                    logger.debug('CSV columns auto-detected', {
+                        component: 'csvParser',
+                        mapping: activeMapping,
+                        sourceIdCol: activeMapping.sourceId,
+                        viewsCol: activeMapping.views
+                    });
                 }
 
                 // 2. Data Parsing
@@ -158,7 +164,12 @@ export const parseTrafficCsv = async (
                 resolve({ sources, totalRow });
 
             } catch (err) {
-                console.error('Smart CSV CSV Parser Error:', err);
+                logger.error('CSV parsing failed', {
+                    component: 'csvParser',
+                    error: err,
+                    fileName: file?.name,
+                    errorType: err instanceof Error ? err.message : 'Unknown'
+                });
                 reject(err);
             }
         };

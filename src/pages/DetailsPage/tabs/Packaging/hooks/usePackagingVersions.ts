@@ -1,6 +1,7 @@
 import { useReducer, useCallback, useMemo, useEffect } from 'react';
 import type { PackagingVersion, VideoLocalization } from '../../../../../core/utils/youtubeApi';
 import { VersionService } from '../../../services/VersionService';
+import { logger } from '../../../../../core/utils/logger';
 
 interface PackagingSnapshot {
     title: string;
@@ -94,7 +95,11 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
 
             // If local revision is newer, keep local state (optimistic update in progress)
             if (state.packagingRevision > incomingRevision) {
-                console.log('[usePackagingVersions] Local state is newer (revision:', state.packagingRevision, '> incoming:', incomingRevision, '), ignoring stale props');
+                logger.debug('Preserving newer local state (optimistic update)', {
+                    component: 'usePackagingVersions',
+                    localRevision: state.packagingRevision,
+                    incomingRevision
+                });
                 return state;
             }
 
@@ -107,7 +112,8 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
                 ? Math.max(...history.map(v => v.versionNumber))
                 : 'draft'));
 
-            console.log('[usePackagingVersions] SYNC_FROM_PROPS:', {
+            logger.debug('SYNC_FROM_PROPS', {
+                component: 'usePackagingVersions',
                 isDraft,
                 initialActiveVersion,
                 computedActive,
@@ -162,6 +168,13 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
             const { newVersion, updatedHistory } = action.payload;
             const newRevision = state.packagingRevision + 1;
 
+            logger.info('Version created', {
+                component: 'usePackagingVersions',
+                versionNumber: newVersion.versionNumber,
+                revision: newRevision,
+                title: newVersion.configurationSnapshot?.title
+            });
+
             return {
                 ...state,
                 packagingHistory: updatedHistory,
@@ -202,6 +215,13 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
                     return addNewActivePeriod(closeAllPeriods(v));
                 }
                 return closeAllPeriods(v);
+            });
+
+            logger.info('Version(s) deleted', {
+                component: 'usePackagingVersions',
+                deletedVersions: versionNumbers,
+                newActiveVersion: newActive,
+                remainingCount: remaining.length
             });
 
             return {
@@ -245,6 +265,13 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
                     return addNewActivePeriod(closeAllPeriods(v, closingSnapshotId));
                 }
                 return closeAllPeriods(v, closingSnapshotId);
+            });
+
+            logger.info('Version restored', {
+                component: 'usePackagingVersions',
+                versionNumber,
+                closingSnapshotId,
+                previousActiveVersion: state.activeVersion
             });
 
             return {
@@ -331,7 +358,8 @@ export const usePackagingVersions = ({
         ? Math.max(...initialHistory.map(v => v.versionNumber))
         : 'draft'));
 
-    console.log('[usePackagingVersions] Initializing hook:', {
+    logger.debug('Initializing usePackagingVersions', {
+        component: 'usePackagingVersions',
         initialIsDraft,
         initialActiveVersion,
         initialActive,

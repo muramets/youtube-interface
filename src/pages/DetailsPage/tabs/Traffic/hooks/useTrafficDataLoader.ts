@@ -3,6 +3,7 @@ import type { TrafficData, TrafficSource, TrafficSnapshot } from '../../../../..
 import type { PackagingVersion, ActivePeriod } from '../../../../../core/types/versioning';
 import { TrafficService } from '../../../../../core/services/traffic';
 import { loadSnapshotSources } from '../utils/snapshotLoader';
+import { logger } from '../../../../../core/utils/logger';
 
 interface UseTrafficDataLoaderProps {
     trafficData: TrafficData | null;
@@ -37,7 +38,8 @@ export const useTrafficDataLoader = ({
 
     useEffect(() => {
         const loadData = async () => {
-            console.log('[useTrafficDataLoader] loadData triggered:', {
+            logger.debug('Traffic data loader triggered', {
+                component: 'useTrafficDataLoader',
                 viewingVersion,
                 activeVersion,
                 selectedSnapshot,
@@ -46,14 +48,14 @@ export const useTrafficDataLoader = ({
             });
 
             if (!trafficData?.sources) {
-                console.log('[useTrafficDataLoader] No sources in trafficData, setting empty');
+                logger.debug('No sources in trafficData, setting empty', { component: 'useTrafficDataLoader' });
                 setDisplayedSources([]);
                 return;
             }
 
             // Приоритет 1: Конкретный снапшот выбран
             if (selectedSnapshot) {
-                console.log('[useTrafficDataLoader] Loading specific snapshot:', selectedSnapshot);
+                logger.debug('Loading specific snapshot', { component: 'useTrafficDataLoader', selectedSnapshot });
                 setIsLoadingSnapshot(true);
                 try {
                     const snapshot = trafficData.snapshots?.find((s: TrafficSnapshot) => s.id === selectedSnapshot);
@@ -75,7 +77,7 @@ export const useTrafficDataLoader = ({
                         setDisplayedSources([]);
                     }
                 } catch (error) {
-                    console.error('Failed to load snapshot:', error);
+                    logger.error('Failed to load snapshot', { component: 'useTrafficDataLoader', error, selectedSnapshot });
                     setDisplayedSources([]);
                 } finally {
                     setIsLoadingSnapshot(false);
@@ -91,7 +93,7 @@ export const useTrafficDataLoader = ({
 
                 // Если есть снапшоты, загружаем из последнего для точности
                 if (versionSnapshots.length > 0) {
-                    console.log('[useTrafficDataLoader] Active version has snapshots, loading LATEST snapshot');
+                    logger.debug('Active version has snapshots, loading latest', { component: 'useTrafficDataLoader', viewingVersion, snapshotCount: versionSnapshots.length });
                     setIsLoadingSnapshot(true);
                     try {
                         // Resolve specific period dates
@@ -136,7 +138,7 @@ export const useTrafficDataLoader = ({
                             periodStart,
                             periodEnd
                         );
-                        console.log('[useTrafficDataLoader] Loaded formatted sources from latest snapshot:', sources);
+                        logger.debug('Loaded sources from latest snapshot', { component: 'useTrafficDataLoader', viewingVersion, sourcesCount: sources.length });
 
                         if (viewMode === 'delta') {
                             const allSnapshots = trafficData.snapshots || [];
@@ -180,7 +182,7 @@ export const useTrafficDataLoader = ({
                                 ) || null;
 
                             const referenceTimestamp = currentSnapshot ? currentSnapshot.timestamp : Date.now();
-                            console.log('[useTrafficDataLoader] Active Ref Timestamp:', referenceTimestamp, 'Current:', currentSnapshot?.id, 'Period:', periodStart, '-', periodEnd);
+                            logger.debug('Active version reference timestamp', { component: 'useTrafficDataLoader', referenceTimestamp, currentSnapshotId: currentSnapshot?.id, periodStart, periodEnd });
 
                             const globalSnap = sortedGlobal.find(s =>
                                 s.timestamp < referenceTimestamp && s.version !== viewingVersion
@@ -196,18 +198,18 @@ export const useTrafficDataLoader = ({
                             // If Global is strictly newer than Local (and exists), use it
                             if (globalPredecessorTimestamp > localPredecessorTimestamp) {
                                 if (globalSnap) {
-                                    console.log(`[useTrafficDataLoader] Using Global Predecessor (Newer): ${globalSnap.id}`);
+                                    logger.debug('Using global predecessor (newer)', { component: 'useTrafficDataLoader', snapshotId: globalSnap.id, globalTimestamp: globalSnap.timestamp, localTimestamp: localPredecessorTimestamp });
                                     globalPredecessorSource = await loadSnapshotSources(globalSnap);
                                     baselineSources = globalPredecessorSource;
                                 }
                             } else {
                                 // Local is newer or equal, OR Global doesn't exist
                                 if (localPredecessorSource.length > 0) {
-                                    console.log(`[useTrafficDataLoader] Using Local Predecessor (Newer/Equal)`);
+                                    logger.debug('Using local predecessor (newer/equal)', { component: 'useTrafficDataLoader', localTimestamp: localPredecessorTimestamp, globalTimestamp: globalPredecessorTimestamp });
                                     baselineSources = localPredecessorSource;
                                 } else if (globalSnap) {
                                     // Fallback: Local was empty/invalid, try Global
-                                    console.log(`[useTrafficDataLoader] Local empty, fallback to Global: ${globalSnap.id}`);
+                                    logger.debug('Local empty, fallback to global', { component: 'useTrafficDataLoader', snapshotId: globalSnap.id });
                                     globalPredecessorSource = await loadSnapshotSources(globalSnap);
                                     baselineSources = globalPredecessorSource;
                                 }
@@ -218,14 +220,14 @@ export const useTrafficDataLoader = ({
                                 const delta = TrafficService.calculateSourcesDelta(sources, baselineSources);
                                 setDisplayedSources(delta);
                             } else {
-                                console.log('[useTrafficDataLoader] No baseline found (First Version)');
+                                logger.debug('No baseline found (first version)', { component: 'useTrafficDataLoader', viewingVersion });
                                 setDisplayedSources([]); // Empty state
                             }
                         } else {
                             setDisplayedSources(sources);
                         }
                     } catch (error) {
-                        console.error('Failed to load version sources:', error);
+                        logger.error('Failed to load version sources', { component: 'useTrafficDataLoader', error, viewingVersion });
                         // Fallback к sources если загрузка снапшота не удалась
                         setDisplayedSources(trafficData.sources || []);
                     } finally {
@@ -233,12 +235,12 @@ export const useTrafficDataLoader = ({
                     }
                 } else {
                     // No snapshots for active version → show EMPTY STATE
-                    console.log('[useTrafficDataLoader] No snapshots for active version, showing empty state');
+                    logger.debug('No snapshots for active version, showing empty', { component: 'useTrafficDataLoader', viewingVersion });
                     setDisplayedSources([]);
                 }
             } else {
                 // Priority 3: Historical Version
-                console.log('[useTrafficDataLoader] Loading historical version:', viewingVersion);
+                logger.debug('Loading historical version', { component: 'useTrafficDataLoader', viewingVersion, viewingPeriodIndex });
                 setIsLoadingSnapshot(true);
                 try {
                     // Resolve specific period dates for historical version
@@ -257,7 +259,7 @@ export const useTrafficDataLoader = ({
                         periodStart,
                         periodEnd
                     );
-                    console.log('[useTrafficDataLoader] Loaded historical sources:', sources);
+                    logger.debug('Loaded historical sources', { component: 'useTrafficDataLoader', viewingVersion, sourcesCount: sources.length });
 
                     if (viewMode === 'delta') {
                         const allSnapshots = trafficData.snapshots || [];
@@ -294,7 +296,7 @@ export const useTrafficDataLoader = ({
                             : (sortedGlobal.find(s => s.version === viewingVersion) || null);
 
                         const referenceTimestamp = currentSnapshot ? currentSnapshot.timestamp : Date.now();
-                        console.log('[useTrafficDataLoader] Historical Ref Timestamp:', referenceTimestamp, 'Current:', currentSnapshot?.id);
+                        logger.debug('Historical version reference timestamp', { component: 'useTrafficDataLoader', referenceTimestamp, currentSnapshotId: currentSnapshot?.id });
 
                         const globalSnap = sortedGlobal.find(s =>
                             s.timestamp < referenceTimestamp && s.version !== viewingVersion
@@ -309,16 +311,16 @@ export const useTrafficDataLoader = ({
 
                         if (globalPredecessorTimestamp > localPredecessorTimestamp) {
                             if (globalSnap) {
-                                console.log(`[useTrafficDataLoader] Using Global Predecessor (Historical/Newer): ${globalSnap.id}`);
+                                logger.debug('Using global predecessor (historical/newer)', { component: 'useTrafficDataLoader', snapshotId: globalSnap.id, globalTimestamp: globalSnap.timestamp, localTimestamp: localPredecessorTimestamp });
                                 globalPredecessorSource = await loadSnapshotSources(globalSnap);
                                 baselineSources = globalPredecessorSource;
                             }
                         } else {
                             if (localPredecessorSource.length > 0) {
-                                console.log(`[useTrafficDataLoader] Using Local Predecessor (Historical/Newer)`);
+                                logger.debug('Using local predecessor (historical/newer)', { component: 'useTrafficDataLoader', localTimestamp: localPredecessorTimestamp, globalTimestamp: globalPredecessorTimestamp });
                                 baselineSources = localPredecessorSource;
                             } else if (globalSnap) {
-                                console.log(`[useTrafficDataLoader] Local empty, fallback to Global: ${globalSnap.id}`);
+                                logger.debug('Local empty, fallback to global (historical)', { component: 'useTrafficDataLoader', snapshotId: globalSnap.id });
                                 globalPredecessorSource = await loadSnapshotSources(globalSnap);
                                 baselineSources = globalPredecessorSource;
                             }
@@ -328,14 +330,14 @@ export const useTrafficDataLoader = ({
                             const delta = TrafficService.calculateSourcesDelta(sources, baselineSources);
                             setDisplayedSources(delta);
                         } else {
-                            console.log(`[useTrafficDataLoader] No baseline found for historical version `);
+                            logger.debug('No baseline found for historical version', { component: 'useTrafficDataLoader', viewingVersion });
                             setDisplayedSources([]);
                         }
                     } else {
                         setDisplayedSources(sources);
                     }
                 } catch (error) {
-                    console.error('Failed to load version sources:', error);
+                    logger.error('Failed to load historical version sources', { component: 'useTrafficDataLoader', error, viewingVersion });
                     setDisplayedSources([]);
                 } finally {
                     setIsLoadingSnapshot(false);
