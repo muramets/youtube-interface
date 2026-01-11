@@ -29,6 +29,7 @@ interface TrafficTableProps {
     onUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<void>;
     hasExistingSnapshot: boolean;
     hasPreviousSnapshots?: boolean; // Are there snapshots in earlier versions?
+    isFirstSnapshot?: boolean; // Is this the very first snapshot of the current version?
 
     // CTR Rules
     ctrRules?: CTRRule[];
@@ -56,6 +57,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
     onUpload,
     hasExistingSnapshot,
     hasPreviousSnapshots = false,
+    isFirstSnapshot = false,
     ctrRules = [],
     viewMode = 'cumulative',
     hasActiveFilters = false
@@ -234,6 +236,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                         onUpload={onUpload}
                         hasExistingSnapshot={hasExistingSnapshot}
                         hasPreviousSnapshots={hasPreviousSnapshots}
+                        isFirstSnapshot={isFirstSnapshot}
                         mode="no-new-data"
                     />
                 ) : (

@@ -7,13 +7,15 @@ interface TrafficEmptyStateProps {
     hasExistingSnapshot: boolean;
     mode: 'no-data' | 'no-new-data' | 'no-matches';
     hasPreviousSnapshots?: boolean; // Есть ли снапшоты у предыдущих версий
+    isFirstSnapshot?: boolean; // Это первый снапшот внутри версии
 }
 
 export const TrafficEmptyState: React.FC<TrafficEmptyStateProps> = ({
     onUpload,
     hasExistingSnapshot,
     mode = 'no-data',
-    hasPreviousSnapshots = false
+    hasPreviousSnapshots = false,
+    isFirstSnapshot = false
 }) => {
     // Mode: no-matches - shown when filters exclude all results
     if (mode === 'no-matches') {
@@ -40,7 +42,12 @@ export const TrafficEmptyState: React.FC<TrafficEmptyStateProps> = ({
                         No New Data
                     </h3>
                     <p className="text-text-secondary text-sm leading-relaxed">
-                        {hasPreviousSnapshots ? (
+                        {isFirstSnapshot ? (
+                            <>
+                                This is the first snapshot with traffic data.
+                                Switch to <strong>Total</strong> view to see all sources.
+                            </>
+                        ) : hasPreviousSnapshots ? (
                             <>
                                 All traffic sources in this CSV are identical to the previous CSV.
                                 Switch to <strong>Total</strong> view to see all data.

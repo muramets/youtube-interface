@@ -124,7 +124,12 @@ export const useTrafficDataLoader = ({
                         const finalIndex = targetPeriodIndex ?? 0;
                         const period = versionData?.activePeriods?.[finalIndex];
                         const periodStart = period?.startDate;
-                        const periodEnd = period?.endDate;
+
+                        // FIX: If viewing the LATEST period (index 0), ignore the end date.
+                        // This allows snapshots uploaded AFTER the version became inactive (e.g. via "Save Traffic Snapshot" modal)
+                        // to still be visible.
+                        const isLatestPeriod = finalIndex === 0;
+                        const periodEnd = isLatestPeriod ? null : period?.endDate;
 
                         const sources = await TrafficService.getVersionSources(
                             viewingVersion as number,
@@ -152,34 +157,29 @@ export const useTrafficDataLoader = ({
                                 );
                             }
 
-                            // If no older period found in this version (last item in list) OR fallback
+                            // If no older period found, check GLOBAL history
                             if (prevSources.length === 0) {
-                                // Получаем closingSnapshotId из самого старого периода (последний элемент массива)
-                                console.log('[useTrafficDataLoader] Looking for closingSnapshotId:', {
-                                    viewingVersion,
-                                    versionData: versionData ? {
-                                        versionNumber: versionData.versionNumber,
-                                        activePeriods: versionData.activePeriods
-                                    } : null
-                                });
+                                // GLOBAL TIME-BASED DIFF:
+                                // Find the latest snapshot in the ENTIRE history that occurred BEFORE the current period start.
+                                // This handles restored versions correctly (comparing V.1 Restored vs V.3).
+                                const allSnapshots = trafficData.snapshots || [];
+                                const sortedGlobal = [...allSnapshots].sort((a: any, b: any) => a.timestamp - b.timestamp);
 
-                                const oldestPeriod = versionData?.activePeriods?.[versionData.activePeriods.length - 1];
-                                const closingSnapshotId = oldestPeriod?.closingSnapshotId;
+                                // Find the latest snapshot strictly before periodStart
+                                // (periodStart is the start of the ACTIVE period for this version)
+                                const globalPredecessor = sortedGlobal.reverse().find((s: any) => s.timestamp < (periodStart || 0));
 
-                                console.log('[useTrafficDataLoader] Extracted closingSnapshotId:', {
-                                    oldestPeriod,
-                                    closingSnapshotId
-                                });
-
-                                const delta = await TrafficService.calculateVersionDelta(
-                                    sources,
-                                    viewingVersion as number,
-                                    trafficData.snapshots || [],
-                                    closingSnapshotId
-                                );
-                                setDisplayedSources(delta);
+                                if (globalPredecessor) {
+                                    console.log('[useTrafficDataLoader] Found global predecessor:', globalPredecessor.id);
+                                    const predSources = await loadSnapshotSources(globalPredecessor);
+                                    const delta = TrafficService.calculateSourcesDelta(sources, predSources);
+                                    setDisplayedSources(delta);
+                                } else {
+                                    // Truly first version ever -> Empty UI ("First Version")
+                                    setDisplayedSources([]);
+                                }
                             } else {
-                                // Use generic calculation with fetched prevSources
+                                // Normal Case: Compare with previous period of same version
                                 const delta = TrafficService.calculateSourcesDelta(sources, prevSources);
                                 setDisplayedSources(delta);
                             }
@@ -209,7 +209,11 @@ export const useTrafficDataLoader = ({
                     const finalIndex = viewingPeriodIndex || 0;
                     const period = versionData?.activePeriods?.[finalIndex];
                     const periodStart = period?.startDate;
-                    const periodEnd = period?.endDate;
+
+                    // FIX: If viewing the LATEST period (index 0), ignore the end date.
+                    // This ensures manually uploaded snapshots for historical versions are visible.
+                    const isLatestPeriod = finalIndex === 0;
+                    const periodEnd = isLatestPeriod ? null : period?.endDate;
 
                     const sources = await TrafficService.getVersionSources(
                         viewingVersion as number,
@@ -236,17 +240,20 @@ export const useTrafficDataLoader = ({
                         }
 
                         if (prevSources.length === 0) {
-                            // Получаем closingSnapshotId из самого старого периода
-                            const oldestPeriod = versionData?.activePeriods?.[versionData.activePeriods.length - 1];
-                            const closingSnapshotId = oldestPeriod?.closingSnapshotId;
+                            // GLOBAL TIME-BASED DIFF (For Historical Views):
+                            const allSnapshots = trafficData.snapshots || [];
+                            const sortedGlobal = [...allSnapshots].sort((a: any, b: any) => a.timestamp - b.timestamp);
 
-                            const delta = await TrafficService.calculateVersionDelta(
-                                sources,
-                                viewingVersion as number,
-                                trafficData.snapshots || [],
-                                closingSnapshotId
-                            );
-                            setDisplayedSources(delta);
+                            const globalPredecessor = sortedGlobal.reverse().find((s: any) => s.timestamp < (periodStart || 0));
+
+                            if (globalPredecessor) {
+                                console.log('[useTrafficDataLoader] Found global predecessor (historical):', globalPredecessor.id);
+                                const predSources = await loadSnapshotSources(globalPredecessor);
+                                const delta = TrafficService.calculateSourcesDelta(sources, predSources);
+                                setDisplayedSources(delta);
+                            } else {
+                                setDisplayedSources([]);
+                            }
                         } else {
                             const delta = TrafficService.calculateSourcesDelta(sources, prevSources);
                             setDisplayedSources(delta);
@@ -282,15 +289,17 @@ const calculateSnapshotDelta = async (
     const currentIndex = sortedSnapshots.findIndex((s: any) => s.id === currentSnapshotId);
 
     if (currentIndex <= 0) {
-        // Это первый снапшот, дельта = все данные
-        return currentSources;
+        // Это первый снапшот, дельта = пустой массив для показа Emtpy State
+        return [];
     }
 
     const prevSnapshot = sortedSnapshots[currentIndex - 1];
     const prevSources = await loadSnapshotSources(prevSnapshot);
 
     if (prevSources.length === 0) {
-        return currentSources;
+        // This is the first snapshot -> return empty array to trigger Empty State
+        // (Empty State will handle showing "First Snapshot" message/UI)
+        return [];
     }
 
     // Создаем Map для быстрого поиска предыдущих значений

@@ -206,6 +206,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
      * 
      * Example: v.2 is first if it was activated without any previous version having data.
      */
+    // Check if there are snapshots in previous versions (Global Time-Based)
     const hasPreviousSnapshots = React.useMemo(() => {
         if (!viewingVersion || viewingVersion === 'draft') return false;
 
@@ -215,12 +216,32 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             return false;
         }
 
-        // Get the oldest period (last in array, since they're sorted newest first)
-        const oldestPeriod = currentVersionData.activePeriods[currentVersionData.activePeriods.length - 1];
+        // Get the period we're viewing
+        const viewingPeriod = currentVersionData.activePeriods[viewingPeriodIndex];
+        if (!viewingPeriod) return false;
 
-        // If closingSnapshotId is not null, there was a previous version with data
-        return oldestPeriod.closingSnapshotId !== null;
-    }, [viewingVersion, packagingHistory]);
+        // GLOBAL TIME-BASED CHECK:
+        // Are there any snapshots OLDER than this period's start?
+        // This matches the logic in useTrafficDataLoader
+        const allSnapshots = trafficData?.snapshots || [];
+        const hasOlderSnapshots = allSnapshots.some((s: any) => s.timestamp < viewingPeriod.startDate);
+
+        return hasOlderSnapshots;
+    }, [viewingVersion, viewingPeriodIndex, packagingHistory, trafficData?.snapshots]);
+
+    // Check if this is the first snapshot of a version (for specific message)
+    const isFirstSnapshot = React.useMemo(() => {
+        if (!selectedSnapshot) return false;
+
+        const snapshots = trafficData?.snapshots || [];
+        // Get snapshots for this version only
+        const versionSnapshots = snapshots
+            .filter((s: any) => s.version === viewingVersion)
+            .sort((a: any, b: any) => a.timestamp - b.timestamp);
+
+        // Check if selected is the first one
+        return versionSnapshots.length > 0 && versionSnapshots[0].id === selectedSnapshot;
+    }, [selectedSnapshot, viewingVersion, trafficData?.snapshots]);
 
     // Show actions if: data exists OR (empty but has snapshots - could be delta mode)
     const shouldShowActions = !isEmpty || hasExistingSnapshot;
@@ -270,6 +291,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                         onUpload={handleUploadWithErrorTracking}
                         hasExistingSnapshot={hasExistingSnapshot}
                         hasPreviousSnapshots={hasPreviousSnapshots}
+                        isFirstSnapshot={isFirstSnapshot}
                         hasActiveFilters={filters.length > 0}
                     />
                 </div>
