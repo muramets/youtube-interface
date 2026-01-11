@@ -399,7 +399,17 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
 
                             // History Props
                             coverHistory={formState.pendingHistory}
-                            onDeleteHistoryVersion={(ts) => formState.setPendingHistory(prev => prev.filter(v => v.timestamp !== ts))}
+                            onDeleteHistoryVersion={(ts) => {
+                                // Find version number for the timestamp to use handleRemoveThumbnail
+                                const item = formState.pendingHistory.find(v => v.timestamp === ts);
+                                if (item) {
+                                    // Remove from local state immediately for visual feedback
+                                    formState.setPendingHistory(prev => prev.filter(v => v.timestamp !== ts));
+                                    // Note: Smart storage cleanup will happen either via handleRemoveThumbnail (direct)
+                                    // or handleSave (deferred). In this modal context, we keep it as local removal
+                                    // and let handleSave handle the storage cleanup if the user clicks Save.
+                                }
+                            }}
                             onCloneFromVersion={actions.handleCloneFromVersion}
                             cloningVersion={actions.cloningVersion}
                             currentVersionInfo={{

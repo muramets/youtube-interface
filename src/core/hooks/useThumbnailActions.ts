@@ -3,6 +3,7 @@ import { deleteField } from 'firebase/firestore';
 import { useAuth } from './useAuth';
 import { useChannelStore } from '../stores/channelStore';
 import { useVideos } from './useVideos';
+import { deleteImageFromStorage } from '../services/storageService';
 
 /**
  * Hook for managing thumbnail version actions (like, remove)
@@ -65,8 +66,32 @@ export const useThumbnailActions = (videoId: string) => {
         }
 
         // For regular videos: remove from history and delete associated clones
+        const itemToRemove = (video.coverHistory || []).find(v => v.version === version);
+        const urlToCleanup = itemToRemove?.url;
+
         const updatedHistory = (video.coverHistory || []).filter(v => v.version !== version);
         console.log('[useThumbnailActions] Updated history:', updatedHistory);
+
+        // Smart Cleanup: Only delete from Storage if NOT referenced in packaging or current
+        if (urlToCleanup && urlToCleanup.includes('firebasestorage.googleapis.com')) {
+            const isUsedInPackaging = (video.packagingHistory || []).some(v =>
+                v.configurationSnapshot?.coverImage === urlToCleanup ||
+                v.configurationSnapshot?.abTestVariants?.includes(urlToCleanup)
+            );
+            const isCurrent = video.customImage === urlToCleanup;
+
+            if (!isUsedInPackaging && !isCurrent) {
+                console.log('[useThumbnailActions] Smart Cleanup: Deleting unused file from storage', urlToCleanup);
+                deleteImageFromStorage(urlToCleanup).catch((err: any) =>
+                    console.error('[useThumbnailActions] Failed to cleanup storage:', err)
+                );
+            } else {
+                console.log('[useThumbnailActions] Smart Cleanup: Preserving image (in use)', {
+                    isUsedInPackaging,
+                    isCurrent
+                });
+            }
+        }
 
         // Find and remove associated clone
         const cloneToRemove = videos.find(v =>

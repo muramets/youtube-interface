@@ -1,11 +1,12 @@
 import { useState, useCallback } from 'react';
-import { type VideoDetails, type CoverVersion } from '../../../../../core/utils/youtubeApi';
+import { type VideoDetails, type CoverVersion, type PackagingVersion } from '../../../../../core/utils/youtubeApi';
 import { useUIStore } from '../../../../../core/stores/uiStore';
 import { useVideos } from '../../../../../core/hooks/useVideos';
 import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';
 import { useSettings } from '../../../../../core/hooks/useSettings';
 import { ChannelService } from '../../../../../core/services/channelService';
+import { deleteImageFromStorage } from '../../../../../core/services/storageService';
 import { type VersionState } from '../types';
 import { type UsePackagingLocalizationResult } from './usePackagingLocalization';
 import { type UsePackagingFormStateResult } from './usePackagingFormState';
@@ -71,8 +72,13 @@ export const usePackagingActions = ({
             const payload = buildSavePayload();
 
             // Mark as draft -> switches sidebar to Draft
-            const { updatedHistory } = versionState.saveDraft();
+            const { updatedHistory: updatedPackagingHistory } = versionState.saveDraft();
             const versionPayload = versionState.getVersionsPayload();
+
+            // Prepare for cleanup: identify images removed from coverHistory
+            const removedImages = (video.coverHistory || [])
+                .filter(old => !payload.coverHistory.some(curr => curr.url === old.url))
+                .map(item => item.url);
 
             await updateVideo({
                 videoId: video.id,
@@ -81,12 +87,32 @@ export const usePackagingActions = ({
                     // Keep thumbnail in sync with customImage (use empty string if deliberately cleared)
                     thumbnail: payload.customImage,
                     // Version data
-                    packagingHistory: updatedHistory,
+                    packagingHistory: updatedPackagingHistory,
                     currentPackagingVersion: versionPayload.currentPackagingVersion,
                     isDraft: true,
                     activeVersion: 'draft' // Ensure ACTIVE badge shows on draft
                 }
             });
+
+            // Smart Cleanup: Delete removed images from storage IF they aren't in packaging history
+            if (removedImages.length > 0) {
+                const combinedPackagingHistory = updatedPackagingHistory;
+                const currentImage = payload.customImage;
+
+                removedImages.forEach(url => {
+                    if (url && url.includes('firebasestorage.googleapis.com')) {
+                        const isInUse = combinedPackagingHistory.some(v =>
+                            v.configurationSnapshot?.coverImage === url ||
+                            v.configurationSnapshot?.abTestVariants?.includes(url)
+                        ) || currentImage === url;
+
+                        if (!isInUse) {
+                            console.log('[usePackagingActions] Safe Cleanup: Deleting unused file', url);
+                            deleteImageFromStorage(url).catch(e => console.error(e));
+                        }
+                    }
+                });
+            }
 
             formState.updateSnapshotToCurrent();
             showToast('Saved as draft', 'success');
@@ -96,7 +122,7 @@ export const usePackagingActions = ({
         } finally {
             setSavingAction(null);
         }
-    }, [user, currentChannel, video.id, buildSavePayload, versionState, updateVideo, formState, showToast]);
+    }, [user, currentChannel, video.id, buildSavePayload, versionState, updateVideo, formState, showToast, video.coverHistory]);
 
     /**
      * BUSINESS LOGIC: Save As New Version with CSV Snapshot
@@ -126,6 +152,7 @@ export const usePackagingActions = ({
 
             let versionForSnapshot = versionState.activeVersion;
 
+            // ... (rest of snapshot logic)
             // If we are in Draft mode, we need to find the "previous active version" to close its period.
             if (versionForSnapshot === 'draft' && versionState.packagingHistory.length > 0) {
                 // Strategy 1: Find version with most recent active period start date
@@ -165,7 +192,7 @@ export const usePackagingActions = ({
             }
 
             // Create new version - this updates local state via reducer
-            const { newVersion, updatedHistory, currentPackagingVersion } = versionState.createVersion({
+            const { newVersion, updatedHistory: updatedPackagingHistory, currentPackagingVersion } = versionState.createVersion({
                 title: payload.title,
                 description: payload.description,
                 tags: payload.tags,
@@ -175,6 +202,11 @@ export const usePackagingActions = ({
                 abTestResults: abTesting.results,
                 localizations: payload.localizations
             }, closingSnapshotId || null);
+
+            // Prepare for cleanup: identify images removed from coverHistory
+            const removedImages = (video.coverHistory || [])
+                .filter(old => !payload.coverHistory.some(curr => curr.url === old.url))
+                .map(item => item.url);
 
             // Update snapshot and show toast
             formState.updateSnapshotToCurrent();
@@ -186,10 +218,27 @@ export const usePackagingActions = ({
                 updates: {
                     ...payload,
                     thumbnail: payload.customImage,
-                    packagingHistory: updatedHistory,
+                    packagingHistory: updatedPackagingHistory,
                     currentPackagingVersion: currentPackagingVersion,
                     activeVersion: newVersion.versionNumber,
                     isDraft: false
+                }
+            }).then(() => {
+                // Smart Cleanup after successful server update
+                if (removedImages.length > 0) {
+                    removedImages.forEach(url => {
+                        if (url && url.includes('firebasestorage.googleapis.com')) {
+                            const isInUse = updatedPackagingHistory.some(v =>
+                                v.configurationSnapshot?.coverImage === url ||
+                                v.configurationSnapshot?.abTestVariants?.includes(url)
+                            ) || payload.customImage === url;
+
+                            if (!isInUse) {
+                                console.log('[usePackagingActions] Safe Cleanup: Deleting unused file', url);
+                                deleteImageFromStorage(url).catch(e => console.error(e));
+                            }
+                        }
+                    });
                 }
             }).catch(error => {
                 console.error('Failed to create version:', error);
@@ -201,7 +250,7 @@ export const usePackagingActions = ({
         } finally {
             setSavingAction(null);
         }
-    }, [user, currentChannel, video.id, video.publishedVideoId, buildSavePayload, versionState, updateVideo, formState, showToast, abTesting, onRequestSnapshot]);
+    }, [user, currentChannel, video.id, video.publishedVideoId, buildSavePayload, versionState, updateVideo, formState, showToast, abTesting, onRequestSnapshot, video.coverHistory]);
 
     const handleCancel = useCallback(() => {
         formState.resetToSnapshot(formState.loadedSnapshot);
@@ -332,7 +381,7 @@ export const usePackagingActions = ({
             let updatedHistory = [...(video.packagingHistory || [])];
             if (versionState.activeVersion !== 'draft') {
                 updatedHistory = updatedHistory.map(v =>
-                    v.versionNumber === versionState.activeVersion
+                    v.versionNumber === versionState.activeVersion && v.configurationSnapshot
                         ? {
                             ...v,
                             configurationSnapshot: {
@@ -341,7 +390,7 @@ export const usePackagingActions = ({
                             }
                         }
                         : v
-                );
+                ) as PackagingVersion[];
             }
 
             // 2. Perform Update to Firestore
