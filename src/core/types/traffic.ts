@@ -1,3 +1,5 @@
+import type { TrafficSnapshotBase } from './versioning';
+
 export interface TrafficSource {
     sourceType: string;
     sourceTitle: string;
@@ -40,43 +42,7 @@ export interface TrafficGroup {
  * - Create v.2 on Day 2 → Upload CSV → Creates snapshot that closes v.1's period
  * - v.1 views = (Day 2 snapshot) - (Day 1 initial data)
  */
-export interface TrafficSnapshot {
-    /**
-     * Unique ID for referencing from PackagingVersion.activePeriods.
-     * Format: "snap_" + timestamp + "_v" + versionNumber
-     * Example: "snap_1704672000000_v2"
-     */
-    id: string;
-
-    /**
-     * The packaging version this snapshot is associated with.
-     * This is the version whose data is being captured, NOT necessarily
-     * the version being closed.
-     */
-    version: number;
-
-    timestamp: number; // When this snapshot was created
-    createdAt: string; // ISO date for display
-
-    /**
-     * HYBRID STORAGE: Path to CSV file in Cloud Storage.
-     * Format: "users/{userId}/channels/{channelId}/videos/{videoId}/snapshots/{snapshotId}.csv"
-     * 
-     * If present, full data is in Storage. If missing, data is in `sources` field (legacy).
-     */
-    storagePath?: string;
-
-    /**
-     * HYBRID STORAGE: Summary data for quick display (stored in Firestore).
-     * Allows showing snapshot list without downloading CSV files.
-     */
-    summary?: {
-        totalViews: number;      // Total views across all sources
-        totalWatchTime: number;  // Total watch time in seconds
-        sourcesCount: number;    // Number of traffic sources
-        topSource?: string;      // Name of top traffic source
-    };
-
+export interface TrafficSnapshot extends TrafficSnapshotBase {
     /**
      * Metadata about which version period this snapshot closes.
      * 
@@ -128,6 +94,8 @@ export interface TrafficSnapshot {
      * LEGACY: Complete traffic data (for backward compatibility).
      * New snapshots store data in Cloud Storage instead.
      * If `storagePath` exists, this field may be omitted to save Firestore space.
+     * 
+     * NOTE: This will be removed in future versions. All new snapshots must use storagePath.
      */
     sources?: TrafficSource[];
     totalRow?: TrafficSource;

@@ -1,3 +1,5 @@
+import type { PackagingVersion as BasePackagingVersion } from '../types/versioning';
+
 export interface VideoDetails {
     id: string;
     title: string;
@@ -97,53 +99,8 @@ export interface PackagingCheckin {
  * When calculating views for "v.1 period 2", we subtract the snapshot that
  * closed v.2, NOT the snapshot that closed "v.1 period 1".
  */
-export interface PackagingVersion {
-    versionNumber: number;
-
-    // DEPRECATED: Use activePeriods[0].startDate instead
-    // Kept for backward compatibility with existing data
-    startDate: number;
-
-    // DEPRECATED: Use activePeriods[last].endDate instead
-    // Kept for backward compatibility with existing data
-    endDate?: number | null;
-
-    /**
-     * Array of all time periods when this version was active.
-     * Multiple periods occur when a version is restored after being replaced.
-     * 
-     * Each period has:
-     * - startDate: When this version became active
-     * - endDate: When this version was replaced (undefined if currently active)
-     * - closingSnapshotId: ID of the traffic snapshot that closed this period
-     * 
-     * Example for v.1 with 2 activation periods:
-     * activePeriods: [
-     *   { startDate: Day1, endDate: Day2, closingSnapshotId: "snap_csv2" },
-     *   { startDate: Day4, endDate: undefined } // Currently active
-     * ]
-     */
-    activePeriods?: Array<{
-        startDate: number;
-        endDate?: number | null;
-        closingSnapshotId?: string | null; // References TrafficSnapshot.id
-    }>;
-
+export interface PackagingVersion extends BasePackagingVersion {
     checkins: PackagingCheckin[];
-    configurationSnapshot: {
-        title: string;
-        description: string;
-        tags: string[];
-        coverImage: string | null;
-        abTestTitles?: string[];
-        abTestThumbnails?: string[];
-        abTestResults?: {
-            titles: number[];
-            thumbnails: number[];
-        };
-        abTestVariants?: string[];
-        localizations?: Record<string, VideoLocalization>;
-    };
 
     /**
      * IMMUTABLE DATA: Restoration Metadata.
@@ -152,6 +109,7 @@ export interface PackagingVersion {
     cloneOf?: number; // References the original versionNumber
     restoredAt?: number; // Timestamp of restoration
 }
+
 
 export interface VideoLocalization {
     languageCode: string;

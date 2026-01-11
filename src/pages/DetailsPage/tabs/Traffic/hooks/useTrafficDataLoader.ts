@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import type { TrafficData, TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficData, TrafficSource, TrafficSnapshot } from '../../../../../core/types/traffic';
+import type { PackagingVersion, ActivePeriod } from '../../../../../core/types/versioning';
 import { TrafficService } from '../../../../../core/services/traffic';
 import { loadSnapshotSources } from '../utils/snapshotLoader';
 
@@ -10,7 +11,7 @@ interface UseTrafficDataLoaderProps {
     activeVersion: number;
     viewMode: 'cumulative' | 'delta';
     selectedSnapshot?: string | null;
-    packagingHistory?: any[];
+    packagingHistory: PackagingVersion[]; // CHANGED: strict type instead of any[]
 }
 
 /**
@@ -55,7 +56,7 @@ export const useTrafficDataLoader = ({
                 console.log('[useTrafficDataLoader] Loading specific snapshot:', selectedSnapshot);
                 setIsLoadingSnapshot(true);
                 try {
-                    const snapshot = trafficData.snapshots?.find((s: any) => s.id === selectedSnapshot);
+                    const snapshot = trafficData.snapshots?.find((s: TrafficSnapshot) => s.id === selectedSnapshot);
                     if (snapshot) {
                         // Загружаем текущий снапшот
                         let currentSources = await loadSnapshotSources(snapshot);
@@ -85,7 +86,7 @@ export const useTrafficDataLoader = ({
             // Приоритет 2: Активная версия (draft или текущая)
             if (viewingVersion === 'draft' || viewingVersion === activeVersion) {
                 const versionSnapshots = (trafficData.snapshots || []).filter(
-                    (s: any) => s.version === viewingVersion
+                    (s: TrafficSnapshot) => s.version === viewingVersion
                 );
 
                 // Если есть снапшоты, загружаем из последнего для точности
@@ -101,7 +102,7 @@ export const useTrafficDataLoader = ({
 
                         if (targetPeriodIndex === undefined && versionData?.activePeriods) {
                             // 1. Try to find open period (no endDate)
-                            const openPeriodIndex = versionData.activePeriods.findIndex((p: any) => !p.endDate);
+                            const openPeriodIndex = versionData.activePeriods.findIndex((p: ActivePeriod) => !p.endDate);
                             if (openPeriodIndex !== -1) {
                                 versionData.activePeriods[openPeriodIndex].endDate = Date.now();
                                 targetPeriodIndex = openPeriodIndex;
@@ -109,7 +110,7 @@ export const useTrafficDataLoader = ({
                                 // 2. If all closed, find the Latest one by startDate
                                 let maxStart = -1;
                                 let maxIdx = 0;
-                                versionData.activePeriods.forEach((p: any, idx: number) => {
+                                versionData.activePeriods.forEach((p: ActivePeriod, idx: number) => {
                                     if (p.startDate > maxStart) {
                                         maxStart = p.startDate;
                                         maxIdx = idx;
@@ -122,7 +123,7 @@ export const useTrafficDataLoader = ({
                         // Fallback to 0 if still undefined (shouldn't happen if activePeriods exists)
                         const finalIndex = targetPeriodIndex ?? 0;
                         const period = versionData?.activePeriods?.[finalIndex];
-                        const periodStart = period?.startDate;
+                        const periodStart = period?.startDate ?? Date.now();
 
                         // FIX: If viewing the LATEST period (index 0), ignore the end date.
                         // This allows snapshots uploaded AFTER the version became inactive.
@@ -140,7 +141,7 @@ export const useTrafficDataLoader = ({
                         if (viewMode === 'delta') {
                             const allSnapshots = trafficData.snapshots || [];
                             // 0. Setup: Sort all snapshots for accurate timestamp checks
-                            const sortedGlobal = [...allSnapshots].sort((a: any, b: any) => b.timestamp - a.timestamp);
+                            const sortedGlobal = [...allSnapshots].sort((a: TrafficSnapshot, b: TrafficSnapshot) => b.timestamp - a.timestamp);
 
                             // 1. Candidate A: Local Predecessor (Previous Period of SAME version)
                             let localPredecessorSource: TrafficSource[] = [];
@@ -260,7 +261,7 @@ export const useTrafficDataLoader = ({
 
                     if (viewMode === 'delta') {
                         const allSnapshots = trafficData.snapshots || [];
-                        const sortedGlobal = [...allSnapshots].sort((a: any, b: any) => b.timestamp - a.timestamp);
+                        const sortedGlobal = [...allSnapshots].sort((a: TrafficSnapshot, b: TrafficSnapshot) => b.timestamp - a.timestamp);
 
                         // 1. Candidate A: Local Predecessor
                         let localPredecessorSource: TrafficSource[] = [];
@@ -354,11 +355,11 @@ export const useTrafficDataLoader = ({
 const calculateSnapshotDelta = async (
     currentSources: TrafficSource[],
     currentSnapshotId: string,
-    snapshots: any[]
+    snapshots: TrafficSnapshot[]
 ): Promise<TrafficSource[]> => {
     // Сортируем снапшоты по времени для правильного поиска предыдущего
     const sortedSnapshots = [...snapshots].sort((a, b) => a.timestamp - b.timestamp);
-    const currentIndex = sortedSnapshots.findIndex((s: any) => s.id === currentSnapshotId);
+    const currentIndex = sortedSnapshots.findIndex((s: TrafficSnapshot) => s.id === currentSnapshotId);
 
     if (currentIndex <= 0) {
         // Это первый снапшот, дельта = пустой массив для показа Empty State
@@ -376,7 +377,7 @@ const calculateSnapshotDelta = async (
 
     // Создаем Map для быстрого поиска предыдущих значений
     const prevData = new Map<string, { views: number; impressions: number; watchTime: number }>();
-    prevSources.forEach((s: any) => {
+    prevSources.forEach((s: TrafficSource) => {
         if (s.videoId) {
             prevData.set(s.videoId, {
                 views: s.views || 0,
@@ -388,7 +389,7 @@ const calculateSnapshotDelta = async (
 
     // Вычисляем дельту
     return currentSources
-        .map((source: any) => {
+        .map((source: TrafficSource) => {
             if (!source.videoId) return source;
 
             const prev = prevData.get(source.videoId) || { views: 0, impressions: 0, watchTime: 0 };
@@ -409,5 +410,5 @@ const calculateSnapshotDelta = async (
             };
         })
         // Фильтруем источники без новых просмотров в Delta mode
-        .filter((source: any) => !source.videoId || source.views > 0);
+        .filter((source: TrafficSource) => !source.videoId || source.views > 0);
 };

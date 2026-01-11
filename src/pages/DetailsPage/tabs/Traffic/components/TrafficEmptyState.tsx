@@ -55,10 +55,20 @@ export const TrafficEmptyState: React.FC<TrafficEmptyStateProps> = ({
                                 </>
                             )
                         ) : (
-                            <>
-                                This is the first snapshot with traffic data.
-                                <br />Switch to <strong>Total</strong> view to see all sources.
-                            </>
+                            // No previous snapshots - this is the first version/snapshot with data
+                            isFirstSnapshot ? (
+                                // Viewing a specific snapshot
+                                <>
+                                    This is the first snapshot with traffic data.
+                                    <br />Switch to <strong>Total</strong> view to see all sources.
+                                </>
+                            ) : (
+                                // Viewing a version (not a specific snapshot)
+                                <>
+                                    This is the first version with traffic data.
+                                    <br />Switch to <strong>Total</strong> view to see all sources.
+                                </>
+                            )
                         )}
                     </p>
                 </div>
