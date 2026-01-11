@@ -27,7 +27,7 @@ export const loadSnapshotSources = async (snapshot: TrafficSnapshot): Promise<{ 
                 storagePath: snapshot.storagePath,
                 error
             });
-            return { sources: [] };
+            throw error;
         }
     }
 

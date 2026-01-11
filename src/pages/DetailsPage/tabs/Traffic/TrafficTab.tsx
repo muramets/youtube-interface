@@ -3,6 +3,7 @@ import { TrafficTable } from './components/TrafficTable';
 import { TrafficHeader } from './components/TrafficHeader';
 import { TrafficModals } from './components/TrafficModals';
 import { TrafficFilterChips } from './components/TrafficFilterChips';
+import { TrafficErrorState } from './components/TrafficErrorState';
 import type { VideoDetails } from '../../../../core/utils/youtubeApi';
 import { useTrafficDataLoader } from './hooks/useTrafficDataLoader';
 import { useTrafficSelection } from './hooks/useTrafficSelection';
@@ -49,7 +50,9 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     const [failedFile, setFailedFile] = useState<File | null>(null);
 
     // Custom hooks
-    const { displayedSources, isLoadingSnapshot } = useTrafficDataLoader({
+    // BUSINESS LOGIC: Data Loading & Error Handling
+    // Now exposes error state and retry capability
+    const { displayedSources, isLoadingSnapshot, error, retry } = useTrafficDataLoader({
         trafficData,
         viewingVersion,
         viewingPeriodIndex,
@@ -271,29 +274,37 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             {/* Main Content - Table with its own scroll */}
             <div className="px-6 pb-6 pt-6">
                 <div className="max-w-[1050px]" style={{ minHeight: '200px', maxHeight: 'calc(100vh - 200px)' }}>
-                    <TrafficFilterChips
-                        filters={filters}
-                        onRemoveFilter={removeFilter}
-                        onClearAll={clearFilters}
-                    />
+                    {error ? (
+                        <div className="h-full min-h-[400px]">
+                            <TrafficErrorState error={error} onRetry={retry} />
+                        </div>
+                    ) : (
+                        <>
+                            <TrafficFilterChips
+                                filters={filters}
+                                onRemoveFilter={removeFilter}
+                                onClearAll={clearFilters}
+                            />
 
-                    <TrafficTable
-                        data={filteredSources}
-                        groups={trafficData?.groups || []}
-                        selectedIds={selectedIds}
-                        isLoading={isLoading || isLoadingSnapshot}
-                        ctrRules={ctrRules}
-                        viewMode={viewMode}
-                        onToggleSelection={toggleSelection}
-                        onToggleAll={toggleAll}
-                        activeVersion={activeVersion}
-                        viewingVersion={viewingVersion}
-                        onUpload={handleUploadWithErrorTracking}
-                        hasExistingSnapshot={hasExistingSnapshot}
-                        hasPreviousSnapshots={hasPreviousSnapshots}
-                        isFirstSnapshot={isFirstSnapshot}
-                        hasActiveFilters={filters.length > 0}
-                    />
+                            <TrafficTable
+                                data={filteredSources}
+                                groups={trafficData?.groups || []}
+                                selectedIds={selectedIds}
+                                isLoading={isLoading || isLoadingSnapshot}
+                                ctrRules={ctrRules}
+                                viewMode={viewMode}
+                                onToggleSelection={toggleSelection}
+                                onToggleAll={toggleAll}
+                                activeVersion={activeVersion}
+                                viewingVersion={viewingVersion}
+                                onUpload={handleUploadWithErrorTracking}
+                                hasExistingSnapshot={hasExistingSnapshot}
+                                hasPreviousSnapshots={hasPreviousSnapshots}
+                                isFirstSnapshot={isFirstSnapshot}
+                                hasActiveFilters={filters.length > 0}
+                            />
+                        </>
+                    )}
                 </div>
             </div>
 

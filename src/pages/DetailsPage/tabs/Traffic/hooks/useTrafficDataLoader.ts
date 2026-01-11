@@ -36,15 +36,31 @@ export const useTrafficDataLoader = ({
     const [displayedSources, setDisplayedSources] = useState<TrafficSource[]>([]);
     const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(false);
 
+    // BUSINESS LOGIC: Error Handling & Recovery
+    // Stores any error encountered during the data loading process.
+    // retryCount is used as a dependency to force re-execution of the effect when user clicks Retry.
+    const [error, setError] = useState<Error | null>(null);
+    const [retryCount, setRetryCount] = useState(0);
+
+    const retry = () => {
+        logger.info('User initiated retry for traffic data loading', { component: 'useTrafficDataLoader' });
+        setError(null);
+        setRetryCount(prev => prev + 1);
+    };
+
     useEffect(() => {
         const loadData = async () => {
+            // Reset error at start of new load attempt
+            setError(null);
+
             logger.debug('Traffic data loader triggered', {
                 component: 'useTrafficDataLoader',
                 viewingVersion,
                 activeVersion,
                 selectedSnapshot,
                 dataSourcesLen: trafficData?.sources?.length,
-                snapshotsLen: trafficData?.snapshots?.length
+                snapshotsLen: trafficData?.snapshots?.length,
+                retryCount
             });
 
             if (!trafficData?.sources) {
@@ -78,6 +94,7 @@ export const useTrafficDataLoader = ({
                     }
                 } catch (error) {
                     logger.error('Failed to load snapshot', { component: 'useTrafficDataLoader', error, selectedSnapshot });
+                    setError(error instanceof Error ? error : new Error('Unknown error'));
                     setDisplayedSources([]);
                 } finally {
                     setIsLoadingSnapshot(false);
@@ -231,7 +248,8 @@ export const useTrafficDataLoader = ({
                         }
                     } catch (error) {
                         logger.error('Failed to load version sources', { component: 'useTrafficDataLoader', error, viewingVersion });
-                        // Fallback к sources если загрузка снапшота не удалась
+                        setError(error instanceof Error ? error : new Error('Unknown error loading active version'));
+                        // Fallback к sources если загрузка снапшота не удалась (legacy behavior preserved but tracked as error)
                         setDisplayedSources(trafficData.sources || []);
                     } finally {
                         setIsLoadingSnapshot(false);
@@ -344,6 +362,7 @@ export const useTrafficDataLoader = ({
                     }
                 } catch (error) {
                     logger.error('Failed to load historical version sources', { component: 'useTrafficDataLoader', error, viewingVersion });
+                    setError(error instanceof Error ? error : new Error('Unknown error loading historical version'));
                     setDisplayedSources([]);
                 } finally {
                     setIsLoadingSnapshot(false);
@@ -352,9 +371,9 @@ export const useTrafficDataLoader = ({
         };
 
         loadData();
-    }, [trafficData, viewingVersion, viewingPeriodIndex, activeVersion, viewMode, selectedSnapshot, packagingHistory]);
+    }, [trafficData, viewingVersion, viewingPeriodIndex, activeVersion, viewMode, selectedSnapshot, packagingHistory, retryCount]);
 
-    return { displayedSources, isLoadingSnapshot };
+    return { displayedSources, isLoadingSnapshot, error, retry };
 };
 
 /**

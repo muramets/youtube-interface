@@ -111,18 +111,54 @@ export const uploadCsvSnapshot = async (
  * @param storagePath - Full storage path (e.g., "users/.../snap_v1.csv")
  * @returns CSV file as Blob
  */
+// Helper to timeout a promise
+const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> => {
+    let timeoutId: any;
+    const timeoutPromise = new Promise<T>((_, reject) => {
+        timeoutId = setTimeout(() => {
+            reject(new Error(errorMessage));
+        }, timeoutMs);
+    });
+
+    return Promise.race([
+        promise.then((res) => {
+            clearTimeout(timeoutId);
+            return res;
+        }),
+        timeoutPromise
+    ]);
+};
+
+/**
+ * Download a CSV file from Cloud Storage.
+ * 
+ * @param storagePath - Full storage path (e.g., "users/.../snap_v1.csv")
+ * @returns CSV file as Blob
+ */
 export const downloadCsvSnapshot = async (storagePath: string): Promise<Blob> => {
     try {
         const storageRef = ref(storage, storagePath);
-        const downloadUrl = await getDownloadURL(storageRef);
 
-        // Fetch the file
-        const response = await fetch(downloadUrl);
-        if (!response.ok) {
-            throw new Error(`Failed to download CSV: ${response.statusText}`);
-        }
+        // Add 15s timeout for getting URL
+        const downloadUrl = await withTimeout(
+            getDownloadURL(storageRef),
+            15000,
+            'Timeout getting download URL'
+        );
 
-        return await response.blob();
+        // Fetch the file with 30s timeout
+        const fetchPromise = fetch(downloadUrl).then(async (response) => {
+            if (!response.ok) {
+                throw new Error(`Failed to download CSV: ${response.statusText}`);
+            }
+            return response.blob();
+        });
+
+        return await withTimeout(
+            fetchPromise,
+            30000,
+            'Timeout downloading CSV file'
+        );
     } catch (error) {
         console.error('Error downloading CSV from Storage:', error);
         throw error;

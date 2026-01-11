@@ -155,7 +155,7 @@ export const TrafficSnapshotService = {
                     storagePath: snapshot.storagePath,
                     error
                 });
-                return { sources: [] };
+                throw error;
             }
         }
 

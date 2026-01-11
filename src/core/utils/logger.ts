@@ -9,7 +9,7 @@
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
-interface LogContext {
+export interface LogContext {
     userId?: string;
     channelId?: string;
     videoId?: string;
@@ -110,4 +110,4 @@ class ScopedLogger {
 export const logger = new Logger();
 
 // Export types for use in other modules
-export type { LogContext };
+
