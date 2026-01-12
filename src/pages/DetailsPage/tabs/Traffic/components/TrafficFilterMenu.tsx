@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, X, Eye, Clock, BarChart3, Percent } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Eye, Clock, BarChart3, Percent, Layers } from 'lucide-react';
 import { SegmentedControl } from '../../../../../components/ui/molecules/SegmentedControl';
 import { FilterInputNumeric } from '../../../../../components/Shared/FilterInputs/FilterInputNumeric';
+import { TrafficFilterInputNiche, UNASSIGNED_NICHE_ID } from './TrafficFilterInputNiche';
 import type { TrafficFilterType, TrafficFilter } from '../hooks/useTrafficFilters';
 import type { FilterOperator } from '../../../../../core/stores/filterStore';
+import type { TrafficGroup, TrafficSource } from '../../../../../core/types/traffic';
 import { formatDuration } from '../utils/formatters';
 
 interface TrafficFilterMenuProps {
@@ -13,6 +15,8 @@ interface TrafficFilterMenuProps {
     onAddFilter: (filter: Omit<TrafficFilter, 'id'>) => void;
     onRemoveFilter: (id: string) => void;
     onClose: () => void;
+    groups?: TrafficGroup[];
+    sources?: TrafficSource[];
 }
 
 export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
@@ -21,7 +25,9 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
     filters,
     onAddFilter,
     onRemoveFilter,
-    onClose
+    onClose,
+    groups,
+    sources
 }) => {
     // Navigation State
     const [activeView, setActiveView] = useState<TrafficFilterType | 'main'>('main');
@@ -31,6 +37,7 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
         { type: 'ctr', label: 'CTR', icon: Percent },
         { type: 'views', label: 'Views', icon: BarChart3 },
         { type: 'avgViewDuration', label: 'Average View Duration', icon: Clock },
+        { type: 'niche', label: 'Niche', icon: Layers },
     ];
 
     const getTitleForView = (view: TrafficFilterType) => {
@@ -164,6 +171,43 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                             );
                         })}
                     </div>
+                ) : activeView === 'niche' ? (
+                    groups ? (
+                        <TrafficFilterInputNiche
+                            groups={groups}
+                            sources={sources || []}
+                            initialSelected={existingFilter?.value || []}
+                            onApply={(selectedIds) => {
+                                if (existingFilter) {
+                                    onRemoveFilter(existingFilter.id);
+                                }
+                                if (selectedIds.length > 0) {
+                                    // Format label
+                                    const names = groups
+                                        .filter(g => selectedIds.includes(g.id))
+                                        .map(g => g.name);
+
+                                    if (selectedIds.includes(UNASSIGNED_NICHE_ID)) {
+                                        names.push('Unassigned');
+                                    }
+
+                                    const label = names.length === 1
+                                        ? `Niche: ${names[0]}`
+                                        : `Niche: ${names.length} selected`;
+
+                                    onAddFilter({
+                                        type: 'niche',
+                                        operator: 'contains',
+                                        value: selectedIds,
+                                        label
+                                    });
+                                }
+                                // Don't close immediately to allow multi-select
+                            }}
+                        />
+                    ) : (
+                        <div className="p-4 text-xs text-text-tertiary">Data not available</div>
+                    )
                 ) : (
                     <div className="animate-fade-in">
                         <FilterInputNumeric

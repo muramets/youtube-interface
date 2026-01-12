@@ -15,11 +15,14 @@ export interface TrafficSource {
     publishedAt?: string;
 }
 
+import type { TrafficNicheProperty } from './suggestedTrafficNiches';
+
 export interface TrafficGroup {
     id: string;
     name: string;
     color: string; // Hex code
     videoIds: string[]; // List of video IDs assigned to this group
+    property?: TrafficNicheProperty;
 }
 
 /**
@@ -122,7 +125,8 @@ export type TrafficFilterType =
     | 'views'                 // Filter by view count
     | 'avgViewDuration'       // Filter by average view duration
     | 'hideZeroViews'         // Special: Hide sources with 0 views
-    | 'hideZeroImpressions';  // Special: Hide sources with 0 impressions
+    | 'hideZeroImpressions'   // Special: Hide sources with 0 impressions
+    | 'niche';                // Filter by Niche assignment
 
 /**
  * BUSINESS LOGIC: Traffic Filter Persistence

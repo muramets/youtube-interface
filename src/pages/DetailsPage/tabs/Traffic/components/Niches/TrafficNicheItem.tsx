@@ -13,7 +13,7 @@ interface TrafficNicheItemProps {
     niche: SuggestedTrafficNiche;
     status?: 'all' | 'some' | 'none';
     isActive: boolean; // Controls whether this item's menu is open
-    isHighlighted?: boolean;
+    isSelected?: boolean; // Controls visual selection state (filter active)
     onClick: () => void;
     onToggleMenu?: () => void;
     onCloseMenu?: () => void;
@@ -25,7 +25,7 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
     niche,
     status = 'none',
     isActive,
-    isHighlighted,
+    isSelected,
     onClick,
     onToggleMenu,
     onCloseMenu,
@@ -119,15 +119,37 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
     };
 
     const isAssigned = status === 'all';
+    // Menu open or color picker open
     const isInteracting = isActive || isColorPickerOpen;
+
+    // --- Truncation Logic ---
+    const nameRef = useRef<HTMLSpanElement>(null);
+    const [isTruncated, setIsTruncated] = useState(false);
+    const [isNameHovered, setIsNameHovered] = useState(false);
+    const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+
+    useEffect(() => {
+        const el = nameRef.current;
+        if (!el) return;
+        const check = () => setIsTruncated(el.scrollWidth > el.clientWidth);
+        check();
+        const ro = new ResizeObserver(check);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [niche.name]);
 
     return (
         <>
             <div
                 className={`
-                    group relative w-full text-left px-3 py-2 text-xs rounded-lg flex items-center justify-between transition-colors
-                    ${isAssigned ? 'text-white' : 'text-text-secondary hover:text-white'}
-                    ${isInteracting ? 'bg-white/5 z-20' : isHighlighted ? 'bg-white/10 text-white' : 'hover:bg-white/5'}
+                    group relative w-full text-left px-3 py-1.5 text-xs rounded-lg flex items-center justify-between transition-colors gap-3 select-none
+                    ${isAssigned ? 'text-white' : ''}
+                    ${isInteracting
+                        ? 'bg-white/5 z-20 text-text-primary'
+                        : isSelected
+                            ? 'bg-sidebar-active text-text-primary font-medium'
+                            : 'text-text-tertiary hover:text-text-secondary hover:bg-sidebar-hover'
+                    }
                 `}
                 onClick={() => !isEditing && !isInteracting && onClick()}
             >
@@ -195,16 +217,46 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
                             className="bg-transparent border-b border-white/40 outline-none text-white w-full"
                         />
                     ) : (
-                        <span className="truncate">{niche.name}</span>
+                        <span
+                            ref={nameRef}
+                            className="truncate cursor-default"
+                            onMouseEnter={() => {
+                                if (nameRef.current) {
+                                    const rect = nameRef.current.getBoundingClientRect();
+                                    setTooltipPos({ x: rect.left, y: rect.top - 4 });
+                                }
+                                setIsNameHovered(true);
+                            }}
+                            onMouseLeave={() => setIsNameHovered(false)}
+                        >
+                            {niche.name}
+                        </span>
                     )}
                 </div>
+
+                {/* Name Tooltip (Only if truncated) */}
+                {isNameHovered && isTruncated && !isEditing && createPortal(
+                    <div
+                        className="fixed z-[9999] px-2 py-1 bg-[#1a1a1a] rounded-md shadow-xl text-xs text-white whitespace-nowrap pointer-events-none animate-fade-in"
+                        style={{ left: tooltipPos.x, top: tooltipPos.y, transform: 'translateY(-100%)' }}
+                    >
+                        {niche.name}
+                    </div>,
+                    document.body
+                )}
 
                 <div className="flex items-center gap-2">
                     {/* View Count (Impressions) */}
                     {impressions !== undefined && (
-                        <span className="text-[10px] text-text-tertiary leading-none">
-                            {formatNumber(impressions)}
-                        </span>
+                        <div className="relative group/impressions">
+                            <span className="text-[10px] text-text-tertiary leading-none cursor-help">
+                                {formatNumber(impressions)}
+                            </span>
+                            {/* Simple tooltip for impressions */}
+                            <div className="absolute bottom-full right-0 mb-1 px-2 py-1 bg-[#1a1a1a] rounded text-[10px] text-white opacity-0 group-hover/impressions:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                                Impressions
+                            </div>
+                        </div>
                     )}
 
                     {/* Assigned Check */}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ExternalLink, ThumbsDown, Trophy, Heart } from 'lucide-react';
-import type { TrafficSource, TrafficGroup } from '../../../../../core/types/traffic';
+import type { TrafficSource } from '../../../../../core/types/traffic';
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { PortalTooltip } from '../../../../../components/Shared/PortalTooltip';
 import { VideoPreviewTooltip } from '../../../../../components/Shared/VideoPreviewTooltip';
@@ -13,7 +13,6 @@ interface TrafficRowProps {
     item: TrafficSource;
     index: number;
     isSelected: boolean;
-    group?: TrafficGroup;
     activeSortKey?: string;
     onRowClick: (id: string, index: number, e: React.MouseEvent) => void;
     ctrRules?: CTRRule[];
@@ -43,7 +42,7 @@ const getCtrColor = (ctr: number | string, rules: CTRRule[]): string | undefined
 };
 
 
-export const TrafficRow = ({ item, index, isSelected, group, activeSortKey, onRowClick, ctrRules = [], gridClassName, showPropertyIcon }: TrafficRowProps) => {
+export const TrafficRow = ({ item, index, isSelected, activeSortKey, onRowClick, ctrRules = [], gridClassName, showPropertyIcon }: TrafficRowProps) => {
     // Connect to Niche Store
     const { niches, assignments } = useTrafficNicheStore();
 
@@ -107,13 +106,6 @@ export const TrafficRow = ({ item, index, isSelected, group, activeSortKey, onRo
 
             <div className="min-w-0 flex flex-col justify-center h-full py-1">
                 <div className="flex items-center gap-2 min-w-0 w-full">
-                    {group && (
-                        <div
-                            className="w-2 h-2 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: group.color }}
-                            title={group.name}
-                        />
-                    )}
                     <div className="min-w-0 flex-1 flex items-center gap-2 overflow-hidden">
                         <PortalTooltip
                             content={

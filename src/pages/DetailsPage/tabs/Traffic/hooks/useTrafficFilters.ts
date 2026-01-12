@@ -70,9 +70,27 @@ export const useTrafficFilters = ({ contextKey }: UseTrafficFiltersProps) => {
     /**
      * Apply active filters to a list of traffic sources.
      * Returns filtered array based on all active filter criteria.
+     * 
+     * @param sources List of traffic sources to filter
+     * @param groups Optional list of groups (niches) needed for 'niche' filter
      */
-    const applyFilters = useCallback((sources: TrafficSource[]) => {
+    const applyFilters = useCallback((sources: TrafficSource[], groups?: import('../../../../../core/types/traffic').TrafficGroup[]) => {
         if (filters.length === 0) return sources;
+
+        // Pre-compute VideoID -> Set<NicheID> map if Niche filter is active, for O(1) lookup
+        const nicheFilter = filters.find(f => f.type === 'niche');
+        let videoIdToGroupIds: Map<string, Set<string>> | undefined;
+
+        if (nicheFilter && groups) {
+            videoIdToGroupIds = new Map();
+            groups.forEach(g => {
+                g.videoIds.forEach(vid => {
+                    const set = videoIdToGroupIds!.get(vid) || new Set();
+                    set.add(g.id);
+                    videoIdToGroupIds!.set(vid, set);
+                });
+            });
+        }
 
         return sources.filter(source => {
             return filters.every(filter => {
@@ -82,6 +100,34 @@ export const useTrafficFilters = ({ contextKey }: UseTrafficFiltersProps) => {
                 }
                 if (filter.type === 'hideZeroImpressions') {
                     return (source.impressions || 0) > 0;
+                }
+
+                if (filter.type === 'niche') {
+                    // Logic: source.videoId must belong to one of the selected niches
+                    // UNASSIGNED handling: if 'UNASSIGNED' is selected, include sources with no videoId OR videoId not in any group.
+                    if (!groups || !videoIdToGroupIds || !Array.isArray(filter.value)) return true; // Can't filter without groups or value
+
+                    const selectedIds = filter.value as string[];
+                    const sourceVideoId = source.videoId;
+
+                    // Is source Unassigned?
+                    const isUnassigned = !sourceVideoId || !videoIdToGroupIds.has(sourceVideoId);
+
+                    // If source is unassigned and UNASSIGNED is selected -> keep
+                    if (isUnassigned && selectedIds.includes('UNASSIGNED')) return true;
+
+                    // If source is assigned, check if its group is selected
+                    if (!isUnassigned && sourceVideoId) {
+                        const sourceGroupIds = videoIdToGroupIds.get(sourceVideoId);
+                        if (sourceGroupIds) {
+                            // Does source belong to ANY selected group?
+                            for (const gid of sourceGroupIds) {
+                                if (selectedIds.includes(gid)) return true;
+                            }
+                        }
+                    }
+
+                    return false;
                 }
 
                 let itemValue: any = source[filter.type as keyof TrafficSource];

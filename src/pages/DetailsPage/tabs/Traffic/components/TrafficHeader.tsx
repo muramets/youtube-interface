@@ -27,9 +27,13 @@ interface TrafficHeaderProps {
     isLoading: boolean;
     hasExistingSnapshot: boolean;
     onUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<void>;
-
     // Scroll state
     isScrolled: boolean;
+
+
+    // Data for Niche Filtering
+    groups?: import('../../../../../core/types/traffic').TrafficGroup[];
+    trafficSources?: import('../../../../../core/types/traffic').TrafficSource[];
 }
 
 /**
@@ -50,7 +54,9 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
     isLoading,
     hasExistingSnapshot,
     onUpload,
-    isScrolled
+    isScrolled,
+    groups,
+    trafficSources
 }) => {
     const configBtnRef = useRef<HTMLButtonElement>(null);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -104,6 +110,8 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
                                             onAddFilter={onAddFilter}
                                             onRemoveFilter={onRemoveFilter}
                                             onClose={onClose}
+                                            groups={groups}
+                                            sources={trafficSources}
                                         />
                                     )}
                                 </FilterDropdown>

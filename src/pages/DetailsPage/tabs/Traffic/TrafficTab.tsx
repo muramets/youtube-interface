@@ -6,15 +6,16 @@ import { TrafficFilterChips } from './components/TrafficFilterChips';
 import { TrafficErrorState } from './components/TrafficErrorState';
 import { TrafficFloatingBar } from './components/TrafficFloatingBar';
 import type { VideoDetails } from '../../../../core/utils/youtubeApi';
-import { useTrafficDataLoader } from './hooks/useTrafficDataLoader';
+
 import { useTrafficSelection } from './hooks/useTrafficSelection';
-import { useTrafficFilters } from './hooks/useTrafficFilters';
 import { useSettings } from '../../../../core/hooks/useSettings';
 import { formatPremiumPeriod } from './utils/dateUtils';
 import { useTrafficNicheStore } from '../../../../core/stores/useTrafficNicheStore';
 import { useAuth } from '../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../core/stores/channelStore';
 import { useVideos } from '../../../../core/hooks/useVideos';
+
+import type { TrafficSource } from '../../../../core/types/traffic';
 
 interface TrafficTabProps {
     video: VideoDetails;
@@ -29,6 +30,21 @@ interface TrafficTabProps {
     handleCsvUpload: (sources: any[], totalRow?: any, file?: File) => Promise<string | null>;
     onSnapshotClick?: (id: string) => void;
     packagingHistory?: any[]; // Passed to resolve version aliases
+    // Lifted Props
+    displayedSources: TrafficSource[];
+    viewMode: 'cumulative' | 'delta';
+    onViewModeChange: (mode: 'cumulative' | 'delta') => void;
+    isLoadingSnapshot: boolean;
+    error: Error | null;
+    retry: () => void;
+    // Niche Data
+    groups: import('../../../../core/types/traffic').TrafficGroup[];
+    // Filter Props (Lifted)
+    filters: import('../../../../core/types/traffic').TrafficFilter[];
+    onAddFilter: (filter: Omit<import('../../../../core/types/traffic').TrafficFilter, 'id'>) => void;
+    onRemoveFilter: (id: string) => void;
+    onClearFilters: () => void;
+    applyFilters: (sources: import('../../../../core/types/traffic').TrafficSource[], groups?: import('../../../../core/types/traffic').TrafficGroup[]) => import('../../../../core/types/traffic').TrafficSource[];
 }
 
 export const TrafficTab: React.FC<TrafficTabProps> = ({
@@ -41,58 +57,41 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     isLoadingData: isLoading,
     handleCsvUpload,
     onSnapshotClick,
-    packagingHistory = []
+    packagingHistory = [],
+    // Lifted props
+    displayedSources,
+    viewMode,
+    onViewModeChange: setViewMode,
+    isLoadingSnapshot,
+    error,
+    retry,
+    groups,
+    filters,
+    onAddFilter: addFilter,
+    onRemoveFilter: removeFilter,
+    onClearFilters: clearFilters,
+    applyFilters
 }) => {
     // Scroll detection for sticky header
     const sentinelRef = useRef<HTMLDivElement>(null);
     const [isScrolled, setIsScrolled] = useState(false);
 
-    // View Mode State: 'cumulative' shows total views, 'delta' shows new views since last snapshot
-    const [viewMode, setViewMode] = useState<'cumulative' | 'delta'>('delta');
-
     // Modals State
     const [isMapperOpen, setIsMapperOpen] = useState(false);
     const [failedFile, setFailedFile] = useState<File | null>(null);
 
-    // Custom hooks
-    // BUSINESS LOGIC: Data Loading & Error Handling
-    // Now exposes error state and retry capability
-    const { displayedSources, isLoadingSnapshot, error, retry } = useTrafficDataLoader({
-        trafficData,
-        viewingVersion,
-        viewingPeriodIndex,
-        activeVersion,
-        viewMode,
-        selectedSnapshot,
-        packagingHistory
-    });
+    // Filter Logic and Selection...
 
     const { selectedIds, toggleSelection, toggleAll } = useTrafficSelection();
 
-    /**
-     * BUSINESS LOGIC: Filter Context Key
-     * 
-     * Determines the unique context for filter persistence.
-     * Each snapshot or version+period combination gets its own filter state.
-     */
-    const filterContextKey = useMemo(() => {
-        if (selectedSnapshot) {
-            return `snapshot-${selectedSnapshot}`;
-        }
-        return `version-${viewingVersion}-period-${viewingPeriodIndex}`;
-    }, [selectedSnapshot, viewingVersion, viewingPeriodIndex]);
-
-    // Filters Logic with Context-Aware Persistence
-    const { filters, addFilter, removeFilter, clearFilters, applyFilters } = useTrafficFilters({
-        contextKey: filterContextKey
-    });
-    const filteredSources = useMemo(() => applyFilters(displayedSources), [displayedSources, applyFilters]);
+    // Filters are now managed by parent (DetailsLayout)
+    const filteredSources = useMemo(() => applyFilters(displayedSources, groups), [displayedSources, applyFilters, groups]);
 
     // OPTIMIZATION: Memoize array props to prevent TrafficTable re-renders.
     // Without memoization, `|| []` creates a new array reference each render.
     const { trafficSettings } = useSettings();
     const ctrRules = useMemo(() => trafficSettings?.ctrRules || [], [trafficSettings?.ctrRules]);
-    const groups = useMemo(() => trafficData?.groups || [], [trafficData?.groups]);
+    // groups is now passed as prop
 
     // Niche Store Management
     const { initializeSubscriptions, cleanup } = useTrafficNicheStore();
@@ -300,6 +299,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 filters={filters}
                 onAddFilter={addFilter}
                 onRemoveFilter={removeFilter}
+                groups={groups}
+                trafficSources={displayedSources}
             />
 
             {/* Main Content - Table Area */}
@@ -319,7 +320,6 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                             <div className="flex-1 min-h-0 relative w-full flex flex-col">
                                 <TrafficTable
                                     data={filteredSources}
-                                    groups={groups}
                                     selectedIds={selectedIds}
                                     isLoading={isLoading || isLoadingSnapshot}
                                     ctrRules={ctrRules}

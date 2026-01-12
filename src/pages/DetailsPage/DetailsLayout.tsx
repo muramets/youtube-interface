@@ -4,7 +4,13 @@ import { DetailsSidebar } from './Sidebar/DetailsSidebar';
 import { PackagingTab } from './tabs/Packaging/PackagingTab';
 import { TrafficTab } from './tabs/Traffic/TrafficTab';
 import { usePackagingVersions } from './tabs/Packaging/hooks/usePackagingVersions';
+import { useTrafficFilters } from './tabs/Traffic/hooks/useTrafficFilters';
 import { useTrafficData } from './tabs/Traffic/hooks/useTrafficData';
+import { useTrafficDataLoader } from './tabs/Traffic/hooks/useTrafficDataLoader';
+
+// ... existing imports ...
+
+
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useVideos } from '../../core/hooks/useVideos';
@@ -12,6 +18,7 @@ import { useVersionManagement } from './hooks/useVersionManagement';
 import { useSnapshotManagement } from './hooks/useSnapshotManagement';
 import { useModalState } from './hooks/useModalState';
 import { DetailsModals } from './components/DetailsModals';
+import { useTrafficNicheStore } from '../../core/stores/useTrafficNicheStore';
 
 interface DetailsLayoutProps {
     video: VideoDetails;
@@ -52,11 +59,66 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
         video
     });
 
+    // Niche Data (Live from Store)
+    const { niches, assignments } = useTrafficNicheStore();
+
+    // Convert store data to TrafficGroup[] for Sidebar consumption
+    const groups = useMemo(() => {
+        return niches.map(niche => ({
+            id: niche.id,
+            name: niche.name,
+            color: niche.color,
+            property: niche.property,
+            videoIds: assignments
+                .filter(a => a.nicheId === niche.id)
+                .map(a => a.videoId)
+        }));
+    }, [niches, assignments]);
+
     // OPTIMIZATION: Stabilize references to prevent useTrafficDataLoader effect re-runs.
     // Defense-in-depth: useTrafficDataLoader also has skip logic, but stable references
     // prevent the effect from running at all when parent re-renders due to useVideos.
     const memoizedTrafficData = useMemo(() => trafficState.trafficData, [trafficState.trafficData]);
     const memoizedPackagingHistory = useMemo(() => versions.packagingHistory, [versions.packagingHistory]);
+
+    // Traffic View Mode (Lifted State from TrafficTab)
+    const [trafficViewMode, setTrafficViewMode] = useState<'cumulative' | 'delta'>('delta');
+
+    /**
+     * BUSINESS LOGIC: Filter Context Key
+     * Lifted from TrafficTab to share filter state between Tab and Sidebar.
+     */
+    const filterContextKey = useMemo(() => {
+        if (selectedSnapshot) {
+            return `snapshot-${selectedSnapshot}`;
+        }
+        return `version-${versions.viewingVersion}-period-${versions.viewingPeriodIndex}`;
+    }, [selectedSnapshot, versions.viewingVersion, versions.viewingPeriodIndex]);
+
+    // Filters Logic with Context-Aware Persistence
+    const { filters, addFilter, removeFilter, clearFilters, applyFilters } = useTrafficFilters({
+        contextKey: filterContextKey
+    });
+
+    // Determine Active Niche ID from filters
+    const activeNicheId = useMemo(() => {
+        const nicheFilter = filters.find(f => f.type === 'niche');
+        if (nicheFilter && Array.isArray(nicheFilter.value) && nicheFilter.value.length > 0) {
+            return nicheFilter.value[0];
+        }
+        return null;
+    }, [filters]);
+
+    // Traffic Data Loader (Lifted to provide data to Sidebar)
+    const trafficLoader = useTrafficDataLoader({
+        trafficData: memoizedTrafficData,
+        viewingVersion: versions.viewingVersion,
+        viewingPeriodIndex: versions.viewingPeriodIndex,
+        activeVersion: typeof versions.activeVersion === 'number' ? versions.activeVersion : 0,
+        viewMode: trafficViewMode,
+        selectedSnapshot,
+        packagingHistory: memoizedPackagingHistory
+    });
 
     // Version management handlers
     const versionMgmt = useVersionManagement({
@@ -175,6 +237,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
         }
     };
 
+
     return (
         <div className="flex-1 flex overflow-hidden bg-video-edit-bg">
             {/* Left Sidebar */}
@@ -194,6 +257,12 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                 onDeleteSnapshot={snapshotMgmt.handleDeleteSnapshot}
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
+                // NEW: Pass live calculated groups (niches)
+                groups={groups}
+                displayedSources={trafficLoader.displayedSources}
+                // Filter control for sidebar interactions
+                onAddFilter={addFilter}
+                activeNicheId={activeNicheId}
             />
 
             {/* Main Content Area */}
@@ -204,7 +273,6 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                         versionState={versions}
                         onDirtyChange={(dirty) => {
                             setIsFormDirty(dirty);
-                            // We could also use isDataDifferent here if we wanted auto-dirty
                         }}
                         onRestoreVersion={versionMgmt.handleRestoreVersion}
                         onRequestSnapshot={snapshotMgmt.handleRequestSnapshot}
@@ -223,6 +291,20 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                         handleCsvUpload={trafficState.handleCsvUpload}
                         onSnapshotClick={snapshotMgmt.handleSnapshotClick}
                         packagingHistory={memoizedPackagingHistory}
+                        // Lifted props
+                        displayedSources={trafficLoader.displayedSources}
+                        viewMode={trafficViewMode}
+                        onViewModeChange={setTrafficViewMode}
+                        isLoadingSnapshot={trafficLoader.isLoadingSnapshot}
+                        error={trafficLoader.error}
+                        retry={trafficLoader.retry}
+                        groups={groups}
+                        // Filter props
+                        filters={filters}
+                        onAddFilter={addFilter}
+                        onRemoveFilter={removeFilter}
+                        onClearFilters={clearFilters}
+                        applyFilters={applyFilters}
                     />
                 )}
             </div>

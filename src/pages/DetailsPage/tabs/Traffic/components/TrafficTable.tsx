@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState, useMemo, memo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowUp, ArrowDown } from 'lucide-react';
-import type { TrafficSource, TrafficGroup } from '../../../../../core/types/traffic';
+import type { TrafficSource } from '../../../../../core/types/traffic';
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { TrafficRow } from './TrafficRow';
 import { TrafficEmptyState } from './TrafficEmptyState';
@@ -12,7 +12,6 @@ import { useTrafficNicheStore } from '../../../../../core/stores/useTrafficNiche
 
 interface TrafficTableProps {
     data: TrafficSource[];
-    groups: TrafficGroup[];
     isLoading: boolean;
     // Selection for grouping
     selectedIds: Set<string>;
@@ -50,7 +49,6 @@ interface SortConfig {
 
 export const TrafficTable = memo<TrafficTableProps>(({
     data,
-    groups,
     selectedIds,
     onToggleSelection,
     onToggleAll,
@@ -294,7 +292,6 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                 const item = sortedData[virtualRow.index];
                                 const index = virtualRow.index;
                                 const isSelected = item.videoId ? selectedIds.has(item.videoId) : false;
-                                const group = groups.find(g => item.videoId && g.videoIds.includes(item.videoId));
 
                                 return (
                                     <div
@@ -312,7 +309,6 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             item={item}
                                             index={index}
                                             isSelected={isSelected}
-                                            group={group}
                                             activeSortKey={sortConfig?.key}
                                             onRowClick={handleRowClick}
                                             ctrRules={ctrRules}

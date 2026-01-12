@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { type VideoDetails, type PackagingVersion } from '../../../core/utils/youtubeApi';
-import { type TrafficSnapshot } from '../../../core/types/traffic';
+import { type TrafficSnapshot, type TrafficGroup, type TrafficSource } from '../../../core/types/traffic';
 import { SidebarVideoPreview } from './SidebarVideoPreview';
 import { SidebarNavItem } from './SidebarNavItem';
 import { PackagingNav } from './Packaging/PackagingNav';
@@ -24,9 +24,15 @@ interface DetailsSidebarProps {
     selectedSnapshot: string | null;
     onSnapshotClick: (snapshotId: string) => void;
     onDeleteSnapshot?: (snapshotId: string) => void;
+    // Niche Data (Calculated in Layout)
+    groups: TrafficGroup[];
+    displayedSources: TrafficSource[];
+    // Filter Control
+    onAddFilter?: (filter: Omit<import('../../../core/types/traffic').TrafficFilter, 'id'>) => void;
     // Tab Navigation
     activeTab: 'packaging' | 'traffic';
     onTabChange: (tab: 'packaging' | 'traffic') => void;
+    activeNicheId?: string | null;
 }
 
 export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
@@ -43,9 +49,17 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
     selectedSnapshot,
     onSnapshotClick,
     onDeleteSnapshot,
+    groups,
+    displayedSources,
+    onAddFilter,
     activeTab,
-    onTabChange
+    onTabChange,
+    activeNicheId
 }) => {
+    // ... (rest is same until TrafficNav)
+
+    // ...
+
     const navigate = useNavigate();
 
     // ============================================================================
@@ -62,6 +76,26 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
 
     const handleToggleSection = (section: 'packaging' | 'traffic') => {
         setExpandedSection(prev => prev === section ? null : section);
+    };
+
+    const handleNicheClick = (nicheId: string) => {
+        if (onAddFilter && groups) {
+            // Find niche name for label
+            const niche = groups.find(g => g.id === nicheId);
+            const label = niche ? `Niche: ${niche.name}` : 'Niche Filter';
+
+            onAddFilter({
+                type: 'niche',
+                operator: 'contains',
+                value: [nicheId], // Exclusive selection
+                label
+            });
+
+            // Ensure we are viewing the Traffic tab
+            if (activeTab !== 'traffic') {
+                onTabChange('traffic');
+            }
+        }
     };
 
     return (
@@ -106,6 +140,8 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
                 <TrafficNav
                     versions={versions}
                     snapshots={snapshots}
+                    groups={groups}
+                    displayedSources={displayedSources}
                     viewingVersion={viewingVersion}
                     viewingPeriodIndex={viewingPeriodIndex}
                     activeVersion={activeVersion}
@@ -124,6 +160,8 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
                     isExpanded={expandedSection === 'traffic'}
                     onToggle={() => handleToggleSection('traffic')}
                     onSelect={() => onTabChange('traffic')}
+                    onNicheClick={handleNicheClick}
+                    activeNicheId={activeNicheId || null}
                 />
             </nav>
         </aside>

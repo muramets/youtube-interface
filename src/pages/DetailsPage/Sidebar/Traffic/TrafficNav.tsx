@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { BarChart3, ChevronDown, ChevronRight } from 'lucide-react';
 import { SidebarVersionItem } from '../Packaging/SidebarVersionItem';
 import { SidebarNavHeader } from '../SidebarNavHeader';
@@ -7,14 +7,15 @@ import { PortalTooltip } from '../../../../components/Shared/PortalTooltip';
 import { PackagingSnapshotTooltip } from './components/PackagingSnapshotTooltip';
 import { useTrafficVersions } from './hooks/useTrafficVersions';
 import type { PackagingVersion } from '../../../../core/utils/youtubeApi';
-import type { TrafficSnapshot } from '../../../../core/types/traffic';
+import type { TrafficSnapshot, TrafficGroup, TrafficSource } from '../../../../core/types/traffic';
 import { SnapshotContextMenu } from './SnapshotContextMenu';
-import { TrafficSidebarNicheList } from '../../tabs/Traffic/components/Niches/TrafficSidebarNicheList';
 import { ConfirmationModal } from '../../../../components/Shared/ConfirmationModal';
 
 interface TrafficNavProps {
     versions: PackagingVersion[];
     snapshots: TrafficSnapshot[];
+    groups: TrafficGroup[]; // NEW: For niche calculation
+    displayedSources: TrafficSource[]; // NEW: Current data for stats
     viewingVersion: number | 'draft';
     viewingPeriodIndex?: number;
     activeVersion: number | 'draft';
@@ -27,6 +28,8 @@ interface TrafficNavProps {
     isActive: boolean;
     isExpanded: boolean;
     onToggle: () => void;
+    onNicheClick: (nicheId: string) => void;
+    activeNicheId: string | null;
 }
 
 /**
@@ -42,6 +45,8 @@ interface TrafficNavProps {
 export const TrafficNav: React.FC<TrafficNavProps> = ({
     versions,
     snapshots,
+    groups,
+    displayedSources,
     viewingVersion,
     viewingPeriodIndex,
     activeVersion,
@@ -53,7 +58,9 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
     onSelect,
     isActive,
     isExpanded,
-    onToggle
+    onToggle,
+    onNicheClick,
+    activeNicheId
 }) => {
     // Main expand/collapse state (managed by parent)
 
@@ -74,6 +81,27 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
         isOpen: boolean;
         snapshotId: string | null;
     }>({ isOpen: false, snapshotId: null });
+
+    // Calculate Niche Stats for the SELECTED snapshot
+    // We rely on displayedSources being the source of truth (already filtered by view mode)
+    const selectedSnapshotNicheStats = useMemo(() => {
+        if (!selectedSnapshot || !groups || !displayedSources) return {};
+
+        const stats: Record<string, number> = {};
+
+        displayedSources.forEach(source => {
+            if (!source.videoId) return;
+
+            // Find which groups this video belongs to
+            const videoGroups = groups.filter(g => g.videoIds.includes(source.videoId!));
+
+            videoGroups.forEach(g => {
+                stats[g.id] = (stats[g.id] || 0) + (source.impressions || 0);
+            });
+        });
+
+        return stats;
+    }, [selectedSnapshot, groups, displayedSources]);
 
     // Toggle version's snapshots expansion (using composite key)
     const toggleVersionSnapshots = (key: string, e: React.MouseEvent) => {
@@ -281,14 +309,12 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                                                 }
                                                             });
                                                         }}
+                                                        // Pass niche stats only if selected
+                                                        nicheImpressions={isSnapshotSelected ? selectedSnapshotNicheStats : undefined}
+                                                        groups={groups}
+                                                        onNicheClick={onNicheClick}
+                                                        activeNicheId={activeNicheId}
                                                     />
-                                                    {/* Render Niches if this snapshot is selected */}
-                                                    {isSnapshotSelected && (
-                                                        <div className="ml-2 pl-2 border-l border-white/10 mb-1">
-                                                            {/* TODO: Pass actual sources from snapshot for impressions stats */}
-                                                            <TrafficSidebarNicheList sources={[]} />
-                                                        </div>
-                                                    )}
                                                 </div>
                                             );
                                         })}
