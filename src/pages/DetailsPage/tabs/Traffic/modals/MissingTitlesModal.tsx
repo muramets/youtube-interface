@@ -56,9 +56,9 @@ export const MissingTitlesModal: React.FC<MissingTitlesModalProps> = ({
                         <p className="text-sm text-text-secondary leading-relaxed">
                             {isAssistant ? (
                                 <>
-                                    Smart Assistant works best with rich data. We found <span className="font-semibold text-text-primary">{missingCount} videos</span> missing crucial details.
+                                    Smart Assistant works best with rich data (channel's info for each video). <span className="font-semibold text-text-primary">{missingCount} videos</span> are missing these and other details.
                                     <br /><br />
-                                    Please sync with YouTube to enable intelligent channel prediction.
+                                    Sync with YouTube to enable intelligent niche prediction.
                                 </>
                             ) : (
                                 <>

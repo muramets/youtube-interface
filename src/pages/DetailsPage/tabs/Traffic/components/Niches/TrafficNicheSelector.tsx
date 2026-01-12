@@ -49,6 +49,10 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
     const [activeNicheMenuId, setActiveNicheMenuId] = useState<string | null>(null);
     const [menuPosition, setMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
+    // Rename State
+    const [editingNicheId, setEditingNicheId] = useState<string | null>(null);
+    const [editValue, setEditValue] = useState('');
+
     const buttonRef = useRef<HTMLButtonElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
@@ -252,6 +256,21 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
         }));
     };
 
+    const handleRenameSubmit = async (nicheId: string) => {
+        const trimmed = editValue.trim();
+        if (!trimmed || !user || !currentChannel) {
+            setEditingNicheId(null);
+            return;
+        }
+
+        try {
+            await updateTrafficNiche(nicheId, { name: trimmed }, user.uid, currentChannel.id);
+            setEditingNicheId(null);
+        } catch (error) {
+            console.error("Failed to rename niche:", error);
+        }
+    };
+
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (filteredNiches.length === 0) return;
 
@@ -380,10 +399,30 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                                             </div>
                                         )}
 
-                                        {/* Name */}
-                                        <span className="truncate" title={niche.name}>
-                                            {niche.name}
-                                        </span>
+                                        {/* Name / Rename Input */}
+                                        {editingNicheId === niche.id ? (
+                                            <input
+                                                autoFocus
+                                                type="text"
+                                                className="bg-transparent text-white text-xs px-0 py-0.5 border-b border-white/30 focus:outline-none focus:border-white/60 w-full rounded-none"
+                                                value={editValue}
+                                                onChange={(e) => setEditValue(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        handleRenameSubmit(niche.id);
+                                                    } else if (e.key === 'Escape') {
+                                                        setEditingNicheId(null);
+                                                    }
+                                                }}
+                                                onBlur={() => handleRenameSubmit(niche.id)}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                        ) : (
+                                            <span className="truncate" title={niche.name}>
+                                                {niche.name}
+                                            </span>
+                                        )}
                                     </div>
 
                                     {/* Actions / Status */}
@@ -414,7 +453,11 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                                                 isOpen={true}
                                                 onClose={() => setActiveNicheMenuId(null)}
                                                 position={menuPosition}
-                                                onRename={() => { }}
+                                                onRename={() => {
+                                                    setEditingNicheId(niche.id);
+                                                    setEditValue(niche.name);
+                                                    setActiveNicheMenuId(null);
+                                                }}
                                                 onDelete={() => {
                                                     deleteTrafficNiche(niche.id, user?.uid || '', currentChannel?.id || '');
                                                 }}
