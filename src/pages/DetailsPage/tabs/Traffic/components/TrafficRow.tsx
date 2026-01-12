@@ -117,55 +117,55 @@ export const TrafficRow = ({ item, index, isSelected, activeSortKey, onRowClick,
             <div className="min-w-0 flex flex-col justify-center h-full py-1">
                 <div className="flex items-center gap-2 min-w-0 w-full">
                     <div className="min-w-0 flex-1 flex items-center gap-2 overflow-hidden">
-                        {/* Title - No longer has tooltip */}
-                        <span className={`truncate block ${activeSortKey === 'sourceTitle' ? 'text-text-primary font-semibold' : 'text-text-primary font-medium'}`}>
-                            {item.sourceTitle}
-                        </span>
+                        {/* Title Group: Title + Info Icon */}
+                        <div className="min-w-0 flex items-center gap-1.5">
+                            <span className={`truncate block ${activeSortKey === 'sourceTitle' ? 'text-text-primary font-semibold' : 'text-text-primary font-medium'}`}>
+                                {item.sourceTitle}
+                            </span>
 
-                        <TrafficRowBadges niches={assignedNiches} />
+                            {/* Info Icon - Moved here, visible on group hover */}
+                            {item.videoId && !isThisVideoMinimized && (
+                                <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity inline-flex">
+                                    <PortalTooltip
+                                        content={
+                                            <VideoPreviewTooltip
+                                                videoId={item.videoId}
+                                                title={videoDetails?.title || item.sourceTitle}
+                                                channelTitle={videoDetails?.channelTitle || item.channelTitle}
+                                                viewCount={videoDetails?.viewCount ? parseInt(videoDetails.viewCount) : undefined}
+                                                publishedAt={videoDetails?.publishedAt}
+                                                description={videoDetails?.description}
+                                                tags={videoDetails?.tags}
+                                                className="w-[600px]"
+                                            />
+                                        }
+                                        enterDelay={200}
+                                        triggerClassName="flex items-center justify-center"
+                                        variant="glass"
+                                        side="top"
+                                        align="center"
+                                        estimatedHeight={480}
+                                        fixedWidth={640}
+                                    >
+                                        <div
+                                            className="text-text-secondary hover:text-white cursor-pointer transition-colors"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            <Info size={14} />
+                                        </div>
+                                    </PortalTooltip>
+                                </div>
+                            )}
+                        </div>
                     </div>
+
+                    {/* Niche Badges - Fixed Position (Before External Link) */}
+                    <TrafficRowBadges niches={assignedNiches} />
 
                     {/* Actions Group - Appears on Row Hover */}
                     <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                         {item.videoId && (
                             <>
-                                {/* Info Icon with Preview Tooltip */}
-                                <div className="relative flex items-center justify-center">
-                                    {item.videoId && !isThisVideoMinimized ? (
-                                        <PortalTooltip
-                                            content={
-                                                <VideoPreviewTooltip
-                                                    videoId={item.videoId}
-                                                    title={videoDetails?.title || item.sourceTitle}
-                                                    channelTitle={videoDetails?.channelTitle || item.channelTitle}
-                                                    viewCount={videoDetails?.viewCount ? parseInt(videoDetails.viewCount) : undefined}
-                                                    publishedAt={videoDetails?.publishedAt}
-                                                    description={videoDetails?.description}
-                                                    tags={videoDetails?.tags}
-                                                    className="w-[600px]"
-                                                />
-                                            }
-                                            enterDelay={200}
-                                            triggerClassName="flex items-center justify-center"
-                                            variant="glass"
-                                            side="top"
-                                            align="center"
-                                            estimatedHeight={350}
-                                            fixedWidth={640}
-                                        >
-                                            <div
-                                                className="p-1.5 -m-1.5 text-text-secondary hover:text-white cursor-pointer transition-colors"
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <Info size={14} />
-                                            </div>
-                                        </PortalTooltip>
-                                    ) : (
-                                        // Fallback if no details? Usually we just don't show info if minimized or invalid
-                                        null
-                                    )}
-                                </div>
-
                                 {/* External Link */}
                                 <a
                                     href={`https://youtu.be/${item.videoId}`}

@@ -60,7 +60,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
             if (rect) {
                 const viewportWidth = document.documentElement.clientWidth;
                 const viewportHeight = document.documentElement.clientHeight;
-                const padding = 16;
+                const padding = 32; // Increased buffer to trigger flip earlier
                 const minWidth = 200;
 
                 let top = 0;
@@ -71,14 +71,17 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                 let effectiveAlign = align;
                 let effectiveSide = side;
 
+                // Dynamic Height Measurement: Use actual height if rendered, else estimate
+                const currentHeight = tooltipRef.current?.offsetHeight || estimatedHeight;
+
                 // Vertical Flipping logic for 'top'/'bottom' sides
                 if (side === 'bottom' || side === 'top') {
                     const spaceBottom = viewportHeight - (rect.bottom || (rect.top + rect.height)) - 4 - padding;
                     const spaceTop = rect.top - 4 - padding;
 
-                    if (side === 'bottom' && spaceBottom < estimatedHeight && spaceTop > spaceBottom) {
+                    if (side === 'bottom' && spaceBottom < currentHeight && spaceTop > spaceBottom) {
                         effectiveSide = 'top';
-                    } else if (side === 'top' && spaceTop < estimatedHeight && spaceBottom > spaceTop) {
+                    } else if (side === 'top' && spaceTop < currentHeight && spaceBottom > spaceTop) {
                         effectiveSide = 'bottom';
                     }
                 }
@@ -86,6 +89,11 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                 if (effectiveSide === 'left' || effectiveSide === 'right') {
                     // Vertical alignment for left/right sides
                     top = rect.top;
+
+                    // Clamping for Left/Right Logic (keep vertical in bounds)
+                    const currentHeight = tooltipRef.current?.offsetHeight || estimatedHeight;
+                    const maxTop = viewportHeight - currentHeight - padding;
+                    top = Math.max(padding, Math.min(top, maxTop));
 
                     const spaceRight = viewportWidth - (rect.right || (rect.left + rect.width)) - 4 - padding;
                     const spaceLeft = rect.left - 4 - padding;
@@ -108,6 +116,28 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                 } else {
                     // Horizontal alignment for top/bottom sides
                     top = effectiveSide === 'bottom' ? (rect.bottom || (rect.top + rect.height)) + 4 : rect.top - 4;
+
+                    // Vertical Clamping Logic
+                    // We need to know the visual top/bottom to clamp.
+                    // If side=top, visualTop = top - height.
+                    // If side=bottom, visualTop = top.
+
+                    const height = tooltipRef.current?.offsetHeight || estimatedHeight;
+
+                    if (effectiveSide === 'top') {
+                        // Visual Top is (top - height). We want (top - height) >= padding.
+                        // So top >= padding + height.
+                        if (top - height < padding) {
+                            top = padding + height;
+                        }
+                    } else {
+                        // Visual Bottom is (top + height). We want (top + height) <= viewportHeight - padding.
+                        // So top <= viewportHeight - padding - height.
+                        if (top + height > viewportHeight - padding) {
+                            top = viewportHeight - padding - height;
+                        }
+                    }
+
 
                     const spaceRight = viewportWidth - rect.left - padding;
                     const spaceLeft = (rect.right || (rect.left + rect.width)) - padding;
@@ -276,7 +306,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                             whitespace-normal break-all max-w-full text-left
                             transition-all ease-out origin-top-right
                             ${variant === 'glass'
-                                ? 'bg-[#1a1a1a]/85 backdrop-blur-xl px-2 py-1 rounded-lg shadow-lg w-auto max-w-[340px]'
+                                ? 'bg-[#1a1a1a]/85 backdrop-blur-xl p-2 rounded-lg shadow-lg w-auto max-w-[340px]'
                                 : 'bg-[#1F1F1F] px-3 py-2 rounded-lg border border-white/10 shadow-xl'
                             }
                             ${noAnimation ? 'duration-0' : 'duration-200'}
