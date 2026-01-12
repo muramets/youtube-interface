@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Check, Home, Loader2 } from 'lucide-react';
 import type { TrafficSource } from '@/core/types/traffic';
 import { useAuth } from '@/core/hooks/useAuth';
@@ -89,6 +89,32 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
             .filter(v => v.videoId)
             .every(v => homeVideos.some(hv => hv.id === v.videoId && !hv.isPlaylistOnly));
     }, [homeVideos, videos]);
+
+    // --- Keyboard Shortcuts ---
+    useEffect(() => {
+        // The FloatingBar is always "open" when rendered, so no need for an `isOpen` check here.
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Check if user is typing in an input
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+                return;
+            }
+
+            if (e.key === 'Enter') {
+                // Prevent default if it might submit a form, though usually detached
+                e.preventDefault();
+
+                // Only open if selectors aren't already open
+                if (activeMenu === null) { // Check if no menu is currently active
+                    setActiveMenu('niche'); // Open the Niche Selector
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [activeMenu]); // Depend on activeMenu to re-evaluate if a menu is open
 
     const handleHomeToggle = async () => {
         // Prevent double-clicks silently (no visual feedback to keep UI feeling light)
