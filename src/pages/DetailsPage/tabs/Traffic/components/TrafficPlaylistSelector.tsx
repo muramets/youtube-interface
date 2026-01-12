@@ -231,49 +231,54 @@ export const TrafficPlaylistSelector: React.FC<TrafficPlaylistSelectorProps> = (
                 width={256}
             >
                 <div data-portal-wrapper className="flex flex-col h-full min-h-0">
-                    <div className="p-2 border-b border-white/10">
-                        <form onSubmit={handleCreatePlaylist} className="relative">
-                            <input
-                                ref={inputRef}
-                                type="text"
-                                placeholder="Create playlist..."
-                                className="w-full bg-bg-primary text-white text-xs px-3 py-2 pl-8 rounded-lg focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-text-secondary"
-                                value={newPlaylistName}
-                                onChange={(e) => setNewPlaylistName(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Escape') {
-                                        e.preventDefault();
-                                        onToggle(); // Close dropdown
-                                    }
-                                }}
-                            />
-                            <Plus size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary" />
-                        </form>
-                    </div>
-                    <div className="overflow-y-auto custom-scrollbar p-1 flex-1">
-                        {playlists.map(playlist => {
-                            const status = getPlaylistStatus(playlist);
-                            const isChecked = status === 'all';
-                            // We treat 'some' as unchecked for toggle action (add remaining)
+                    <div data-portal-wrapper className="flex flex-col h-full min-h-0">
+                        {/* List Section (Now First, Reverse Column) */}
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-1 flex flex-col-reverse">
+                            {playlists.map(playlist => {
+                                const status = getPlaylistStatus(playlist);
+                                const isChecked = status === 'all';
+                                // We treat 'some' as unchecked for toggle action (add remaining)
 
-                            return (
-                                <button
-                                    key={playlist.id}
-                                    onClick={() => handlePlaylistToggle(playlist.id, playlist.name, isChecked)}
-                                    className={`w-full text-left px-3 py-2 text-xs hover:bg-white/5 rounded-lg flex items-center gap-2 transition-colors justify-between ${isChecked ? 'text-white' : 'text-text-secondary hover:text-white'
-                                        }`}
-                                >
-                                    <div className="flex items-center gap-2 truncate">
-                                        <ListVideo size={14} />
-                                        <span className="truncate">{playlist.name}</span>
-                                    </div>
-                                    {isChecked && <Check size={12} className="text-green-400 flex-shrink-0" />}
-                                </button>
-                            );
-                        })}
-                        {playlists.length === 0 && (
-                            <div className="text-center py-3 text-xs text-text-tertiary">No playlists</div>
-                        )}
+                                return (
+                                    <button
+                                        key={playlist.id}
+                                        onClick={() => handlePlaylistToggle(playlist.id, playlist.name, isChecked)}
+                                        className={`w-full text-left px-3 py-2 text-xs hover:bg-white/5 rounded-lg flex items-center gap-2 transition-colors justify-between shrink-0 ${isChecked ? 'text-white' : 'text-text-secondary hover:text-white'
+                                            }`}
+                                    >
+                                        <div className="flex items-center gap-2 truncate">
+                                            <ListVideo size={14} />
+                                            <span className="truncate">{playlist.name}</span>
+                                        </div>
+                                        {isChecked && <Check size={12} className="text-green-400 flex-shrink-0" />}
+                                    </button>
+                                );
+                            })}
+                            {playlists.length === 0 && (
+                                <div className="text-center py-3 text-xs text-text-tertiary">No playlists</div>
+                            )}
+                        </div>
+
+                        {/* Input Section (Now Last/Bottom) */}
+                        <div className="p-2 border-t border-white/10 bg-white/5 shrink-0 z-10">
+                            <form onSubmit={handleCreatePlaylist} className="relative">
+                                <input
+                                    ref={inputRef}
+                                    type="text"
+                                    placeholder="Create playlist..."
+                                    className="w-full bg-bg-primary text-white text-xs px-3 py-2 pl-8 rounded-lg focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-text-secondary"
+                                    value={newPlaylistName}
+                                    onChange={(e) => setNewPlaylistName(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Escape') {
+                                            e.preventDefault();
+                                            onToggle(); // Close dropdown
+                                        }
+                                    }}
+                                />
+                                <Plus size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary" />
+                            </form>
+                        </div>
                     </div>
                 </div>
             </FloatingDropdownPortal>

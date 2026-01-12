@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, ThumbsDown, Trophy, Heart, FolderPlus, ChevronDown, GitBranch } from 'lucide-react';
+import { Plus, ThumbsDown, Trophy, Heart, FolderPlus, ChevronDown, GitBranch, Check, MoreVertical } from 'lucide-react';
 import { useTrafficNicheStore } from '@/core/stores/useTrafficNicheStore';
 import { useAuth } from '@/core/hooks/useAuth';
 import { useChannelStore } from '@/core/stores/channelStore';
 import type { TrafficNicheProperty } from '@/core/types/suggestedTrafficNiches';
 import { generateNicheColor } from '@/core/stores/trendStore';
-import { TrafficNicheItem } from './TrafficNicheItem';
+import { TrafficNicheContextMenu } from './TrafficNicheContextMenu';
 import { FloatingDropdownPortal } from '@/components/Shared/FloatingDropdownPortal';
 import { NicheColorPickerGrid } from './NicheColorPickerGrid';
 
@@ -30,6 +30,8 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
         niches,
         assignments,
         addTrafficNiche,
+        updateTrafficNiche,
+        deleteTrafficNiche,
         assignVideoToTrafficNiche,
         removeVideoFromTrafficNiche
     } = useTrafficNicheStore();
@@ -99,14 +101,36 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
 
     // Filter niches based on input
     const filteredNiches = useMemo(() => {
-        if (!inputValue.trim()) return niches;
+        // 1. Calculate Last Used map
+        const lastUsedMap = new Map<string, number>();
+        assignments.forEach(a => {
+            const current = lastUsedMap.get(a.nicheId) || 0;
+            if (a.addedAt > current) {
+                lastUsedMap.set(a.nicheId, a.addedAt);
+            }
+        });
+
+        // 2. Sort all niches
+        const sorted = [...niches].sort((a, b) => {
+            const lastUsedA = lastUsedMap.get(a.id) || 0;
+            const lastUsedB = lastUsedMap.get(b.id) || 0;
+
+            if (lastUsedA !== lastUsedB) {
+                return lastUsedB - lastUsedA; // Recent first
+            }
+            // Fallback to creation time
+            return b.createdAt - a.createdAt;
+        });
+
+        // 3. Filter
+        if (!inputValue.trim()) return sorted;
 
         const searchTerms = inputValue.toLowerCase().trim().split(/\s+/);
-        return niches.filter(n => {
+        return sorted.filter(n => {
             const nameLower = n.name.toLowerCase();
             return searchTerms.every(term => nameLower.includes(term));
         });
-    }, [niches, inputValue]);
+    }, [niches, inputValue, assignments]);
 
     // Fast Create UI Logic
     const exactMatch = useMemo(() => {
@@ -228,21 +252,40 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'ArrowDown') {
+        if (filteredNiches.length === 0) return;
+
+        if (e.key === 'ArrowUp') {
             e.preventDefault();
-            setHighlightedIndex(prev => Math.min(prev + 1, filteredNiches.length - 1));
-        } else if (e.key === 'ArrowUp') {
+            // INVERTED LOGIC: Arrow UP goes "visually up", which means deeper into the array (index increments)
+            // Input -> Index 0 -> Index 1 -> ...
+            setHighlightedIndex(prev => {
+                const next = prev + 1;
+                return next >= filteredNiches.length ? prev : next;
+            });
+        }
+        else if (e.key === 'ArrowDown') {
             e.preventDefault();
-            setHighlightedIndex(prev => Math.max(prev - 1, -1));
-        } else if (e.key === 'Enter') {
-            if (highlightedIndex >= 0 && filteredNiches[highlightedIndex]) {
-                e.preventDefault();
-                e.stopPropagation();
+            // INVERTED LOGIC: Arrow DOWN goes "visually down", which means towards the input (index decrements)
+            // Index 1 -> Index 0 -> Input (-1)
+            setHighlightedIndex(prev => {
+                const next = prev - 1;
+                return next < -1 ? -1 : next;
+            });
+        }
+        else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (highlightedIndex >= 0) {
                 const niche = filteredNiches[highlightedIndex];
-                const status = nicheStatusMap[niche.id] || 'none';
-                handleToggleAssignment(niche.id, status);
+                if (niche) {
+                    const status = nicheStatusMap[niche.id];
+                    handleToggleAssignment(niche.id, status);
+                }
+            } else if (inputValue.trim()) {
+                // Submit form if input has value (Create)
+                handleCreateSubmit(e as any);
             }
-        } else if (e.key === 'Escape') {
+        }
+        else if (e.key === 'Escape') {
             e.preventDefault();
             onToggle();
         }
@@ -290,7 +333,106 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                 width={240}
             >
                 <div data-portal-wrapper className="flex flex-col h-full min-h-0">
-                    <div className="p-2 border-b border-white/10 bg-white/5">
+                    {/* List Section (Now First in DOM, taking remaining space) */}
+                    {/* flex-col-reverse puts the first item (Index 0 - Most Recent) at the bottom, near the input */}
+                    <div
+                        ref={listRef}
+                        className="flex-1 overflow-y-auto custom-scrollbar p-1 flex flex-col-reverse"
+                    >
+                        {filteredNiches.map((niche, index) => {
+                            const status = nicheStatusMap[niche.id];
+                            const isHighlighted = index === highlightedIndex;
+
+                            // Helper for property icon
+                            const getPropertyIcon = (prop?: TrafficNicheProperty) => {
+                                switch (prop) {
+                                    case 'unrelated': return <ThumbsDown size={12} className="text-stone-400" />;
+                                    case 'adjacent': return <GitBranch size={12} className="text-purple-400" />;
+                                    case 'targeted': return <Trophy size={12} className="text-yellow-400" />;
+                                    case 'desired': return <Heart size={12} className="text-pink-500" />;
+                                    default: return null;
+                                }
+                            };
+
+                            return (
+                                <div
+                                    key={niche.id}
+                                    role="button"
+                                    onClick={() => handleToggleAssignment(niche.id, status)}
+                                    // Use standard compact padding matching PlaylistSelector
+                                    className={`
+                                        group flex items-center justify-between px-3 py-2 text-xs rounded-lg cursor-pointer transition-all duration-200 shrink-0
+                                        ${isHighlighted ? 'bg-white/10 text-white' : 'text-text-secondary hover:text-white hover:bg-white/5'}
+                                    `}
+                                >
+                                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        {/* Color Dot */}
+                                        <div
+                                            className="w-2 h-2 rounded-full flex-shrink-0"
+                                            style={{ backgroundColor: niche.color }}
+                                        />
+
+                                        {/* Property Icon */}
+                                        {niche.property && (
+                                            <div className="flex-shrink-0 opacity-80">
+                                                {getPropertyIcon(niche.property)}
+                                            </div>
+                                        )}
+
+                                        {/* Name */}
+                                        <span className="truncate" title={niche.name}>
+                                            {niche.name}
+                                        </span>
+                                    </div>
+
+                                    {/* Actions / Status */}
+                                    <div className="flex items-center gap-2 pl-2">
+                                        {status === 'all' && <Check size={14} className="text-green-400" />}
+                                        {status === 'some' && <div className="w-2 h-2 rounded-full bg-text-secondary" />}
+
+                                        {/* Context Menu Trigger */}
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setActiveNicheMenuId(activeNicheMenuId === niche.id ? null : niche.id);
+                                            }}
+                                            className={`p-1 rounded-md text-text-tertiary hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all
+                                                ${activeNicheMenuId === niche.id ? 'opacity-100 bg-white/10 text-white' : ''}
+                                            `}
+                                        >
+                                            <MoreVertical size={12} />
+                                        </button>
+
+                                        {/* Dropdown Menu Portal */}
+                                        {activeNicheMenuId === niche.id && (
+                                            <TrafficNicheContextMenu
+                                                niche={niche}
+                                                isOpen={true}
+                                                onClose={() => setActiveNicheMenuId(null)}
+                                                position={{ x: 0, y: 0 }}
+                                                onRename={() => { }}
+                                                onDelete={() => {
+                                                    deleteTrafficNiche(niche.id, user?.uid || '', currentChannel?.id || '');
+                                                }}
+                                                onUpdateProperty={(prop) => {
+                                                    updateTrafficNiche(niche.id, { property: prop }, user?.uid || '', currentChannel?.id || '');
+                                                }}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {filteredNiches.length === 0 && (
+                            <div className="p-4 text-center text-xs text-text-tertiary">
+                                {inputValue ? 'Create new niche below...' : 'Start typing to create...'}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Input Section (Now at the Bottom) */}
+                    <div className="p-2 border-t border-white/10 bg-white/5 shrink-0 z-10">
                         <form onSubmit={handleCreateSubmit} className="relative flex flex-col gap-2">
                             <div className="relative">
                                 <input
@@ -300,6 +442,7 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                                     className="w-full bg-bg-primary text-white text-xs px-3 py-2 pl-8 rounded-lg focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-text-secondary"
                                     value={inputValue}
                                     onChange={(e) => setInputValue(e.target.value)}
+                                    // Don't override handler, use the one defined in component which handles ArrowUp/Down
                                     onKeyDown={handleKeyDown}
                                     onClick={() => setActiveNicheMenuId(null)}
                                     onFocus={() => setActiveNicheMenuId(null)}
@@ -308,7 +451,7 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                             </div>
 
                             {showCreateUI && (
-                                <div className="flex items-center gap-2 px-1 py-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                                <div className="flex items-center gap-2 px-1 py-1 animate-in fade-in slide-in-from-bottom-1 duration-200">
                                     {/* Property Switcher - Compact & Premium */}
                                     <div className="relative flex bg-white/5 rounded-full p-0.5 border border-white/10 backdrop-blur-sm h-6 flex-shrink-0">
                                         {/* Highlight Pill */}
@@ -374,7 +517,7 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                                         </div>
                                     </div>
 
-                                    {/* Color Picker - Minimal Dot - Positioned AFTER switcher */}
+                                    {/* Color Picker Trigger */}
                                     <div className="relative">
                                         <button
                                             type="button"
@@ -425,35 +568,13 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                                     {/* Create Button - Subtle */}
                                     <button
                                         type="submit"
-                                        className="text-[10px] font-medium px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 hover:text-blue-300 transition-all border border-blue-500/20 whitespace-nowrap"
+                                        className="h-6 px-3 bg-white/10 hover:bg-white/20 text-white text-[10px] font-medium rounded-full transition-colors flex items-center gap-1"
                                     >
                                         Create
                                     </button>
                                 </div>
                             )}
                         </form>
-                    </div>
-
-                    <div ref={listRef} className="overflow-y-auto custom-scrollbar p-1 flex-1">
-                        {filteredNiches.map((niche, index) => {
-                            const status = nicheStatusMap[niche.id] || 'none';
-
-                            return (
-                                <TrafficNicheItem
-                                    key={niche.id}
-                                    niche={niche}
-                                    status={status}
-                                    isActive={activeNicheMenuId === niche.id}
-                                    isHighlighted={index === highlightedIndex}
-                                    onClick={() => handleToggleAssignment(niche.id, status)}
-                                    onToggleMenu={() => setActiveNicheMenuId(current => current === niche.id ? null : niche.id)}
-                                    onCloseMenu={() => setActiveNicheMenuId(null)}
-                                />
-                            );
-                        })}
-                        {filteredNiches.length === 0 && !inputValue && (
-                            <div className="text-center py-3 text-xs text-text-tertiary">No niches found</div>
-                        )}
                     </div>
                 </div>
             </FloatingDropdownPortal>
