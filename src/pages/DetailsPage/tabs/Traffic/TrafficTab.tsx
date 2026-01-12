@@ -477,6 +477,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                                     hasPreviousSnapshots={hasPreviousSnapshots}
                                     isFirstSnapshot={isFirstSnapshot}
                                     hasActiveFilters={filters.length > 0}
+                                    onSwitchToTotal={() => setViewMode('cumulative')}
                                     videos={allVideos}
                                 />
 

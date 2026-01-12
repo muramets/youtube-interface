@@ -42,6 +42,9 @@ interface TrafficTableProps {
     // Filters
     hasActiveFilters?: boolean;
 
+    // View switch
+    onSwitchToTotal?: () => void;
+
     // Rich Data
     videos?: VideoDetails[];
 }
@@ -65,6 +68,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
     ctrRules = [],
     viewMode = 'cumulative',
     hasActiveFilters = false,
+    onSwitchToTotal,
     videos = []
 }) => {
     // Virtualization refs
@@ -208,6 +212,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                 onUpload={onUpload}
                 hasExistingSnapshot={hasExistingSnapshot}
                 mode="no-data"
+                onSwitchToTotal={onSwitchToTotal}
             />
         );
     }
@@ -262,6 +267,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                         onUpload={onUpload}
                         hasExistingSnapshot={hasExistingSnapshot}
                         mode="no-matches"
+                        onSwitchToTotal={onSwitchToTotal}
                     />
                 ) : isDeltaEmpty ? (
                     <TrafficEmptyState
@@ -270,6 +276,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                         hasPreviousSnapshots={hasPreviousSnapshots}
                         isFirstSnapshot={isFirstSnapshot}
                         mode="no-new-data"
+                        onSwitchToTotal={onSwitchToTotal}
                     />
                 ) : (
                     <>

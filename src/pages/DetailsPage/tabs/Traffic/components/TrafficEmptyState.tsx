@@ -8,6 +8,7 @@ interface TrafficEmptyStateProps {
     mode: 'no-data' | 'no-new-data' | 'no-matches';
     hasPreviousSnapshots?: boolean; // Есть ли снапшоты у предыдущих версий
     isFirstSnapshot?: boolean; // Это первый снапшот внутри версии
+    onSwitchToTotal?: () => void;
 }
 
 export const TrafficEmptyState: React.FC<TrafficEmptyStateProps> = ({
@@ -15,8 +16,19 @@ export const TrafficEmptyState: React.FC<TrafficEmptyStateProps> = ({
     hasExistingSnapshot,
     mode = 'no-data',
     hasPreviousSnapshots = false,
-    isFirstSnapshot = false
+    isFirstSnapshot = false,
+    onSwitchToTotal
 }) => {
+    // Helper to render the interactive link
+    const renderTotalLink = () => (
+        <button
+            onClick={() => onSwitchToTotal?.()}
+            className="font-bold text-text-secondary hover:text-text-primary underline underline-offset-2 decoration-text-secondary/30 hover:decoration-text-primary transition-all cursor-pointer bg-transparent border-none p-0 inline align-baseline"
+        >
+            Total
+        </button>
+    );
+
     // Mode: no-matches - shown when filters exclude all results
     if (mode === 'no-matches') {
         return (
@@ -46,12 +58,12 @@ export const TrafficEmptyState: React.FC<TrafficEmptyStateProps> = ({
                             isFirstSnapshot ? (
                                 <>
                                     Traffic data is identical to the previous version.
-                                    <br />Switch to <strong>Total</strong> view to see inherited data.
+                                    <br />Switch to {renderTotalLink()} view to see inherited data.
                                 </>
                             ) : (
                                 <>
                                     All traffic sources in this CSV are identical to the previous CSV.
-                                    <br />Switch to <strong>Total</strong> view to see all data.
+                                    <br />Switch to {renderTotalLink()} view to see all data.
                                 </>
                             )
                         ) : (
@@ -60,13 +72,13 @@ export const TrafficEmptyState: React.FC<TrafficEmptyStateProps> = ({
                                 // Viewing a specific snapshot
                                 <>
                                     This is the first snapshot with traffic data.
-                                    <br />Switch to <strong>Total</strong> view to see all sources.
+                                    <br />Switch to {renderTotalLink()} view to see all sources.
                                 </>
                             ) : (
                                 // Viewing a version (not a specific snapshot)
                                 <>
                                     This is the first version with traffic data.
-                                    <br />Switch to <strong>Total</strong> view to see all sources.
+                                    <br />Switch to {renderTotalLink()} view to see all sources.
                                 </>
                             )
                         )}
