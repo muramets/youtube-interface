@@ -202,6 +202,11 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
             enterTimeoutRef.current = null;
         }
 
+        // If already rendered/visible, we don't need to queue another show
+        if (shouldRender) {
+            return;
+        }
+
         if (enterDelay > 0) {
             enterTimeoutRef.current = setTimeout(showTooltip, enterDelay);
         } else {

@@ -27,6 +27,8 @@ import { useAutoCleanup } from './core/hooks/useAutoCleanup';
 import { useFilterChannelSync } from './core/hooks/useFilterChannelSync';
 import { useTrendSubscription } from './pages/Trends/hooks/useTrendSubscription';
 import { useUserPersistence } from './core/hooks/useUserPersistence';
+import { VideoPlayerProvider } from './core/contexts/VideoPlayerContext';
+import { GlobalMiniPlayer } from './components/Shared/GlobalMiniPlayer';
 import { TrendsDndProvider } from './pages/Trends/TrendsDndProvider';
 
 function AppContent() {
@@ -92,6 +94,7 @@ function AppContent() {
           </ProtectedRoute>
         } />
       </Routes>
+      <GlobalMiniPlayer />
     </div >
   );
 }
@@ -100,10 +103,10 @@ function App() {
   useStoreInitialization();
 
   return (
-    <>
+    <VideoPlayerProvider>
       <AppContent />
       <ToastWrapper />
-    </>
+    </VideoPlayerProvider>
   );
 }
 

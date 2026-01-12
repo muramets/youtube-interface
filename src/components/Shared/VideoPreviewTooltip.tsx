@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Copy, Check, Calendar, Tag, AlignLeft } from 'lucide-react';
+import { useVideoPlayer } from '../../core/contexts/VideoPlayerContext';
 
 interface VideoPreviewTooltipProps {
     videoId: string;
@@ -29,6 +30,21 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
     const [isTagsCopied, setIsTagsCopied] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
     const [areTagsExpanded, setAreTagsExpanded] = useState(false);
+    const { minimize, activeVideoId, isMinimized } = useVideoPlayer();
+
+    // Delayed loading state to prevent iframe from killing the tooltip on mount
+    const [canLoad, setCanLoad] = useState(false);
+
+    useEffect(() => {
+        const timer = setTimeout(() => setCanLoad(true), 300);
+        return () => clearTimeout(timer);
+    }, []);
+
+    // If this video is currently active in the mini-player, we hide the tooltip content.
+    // This effectively "closes" it or prevents it from showing duplicate/conflicting UI.
+    if (isMinimized && activeVideoId === videoId) {
+        return null;
+    }
 
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
@@ -37,18 +53,48 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
 
     return (
         <div className={`flex flex-col gap-3 w-full ${className}`}>
+            {/* Header with Minimize Action */}
+            <div className="flex items-center justify-between px-0.5">
+                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5">
+                    Video Preview
+                </span>
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        minimize(videoId, title);
+                    }}
+                    className="flex items-center gap-1.5 text-[10px] bg-white/5 hover:bg-white/10 text-text-secondary hover:text-text-primary px-2 py-1 rounded-md transition-colors border border-white/5"
+                    title="Minimize player"
+                >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+                        <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+                        <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+                        <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+                    </svg>
+                    <span>Minimize</span>
+                </button>
+            </div>
+
             {/* Thumbnail / Mini Player */}
-            <div className="aspect-video w-full rounded-lg bg-black/40 overflow-hidden border border-border shrink-0 relative z-10">
-                <iframe
-                    width="100%"
-                    height="100%"
-                    src={`https://www.youtube.com/embed/${videoId}?autoplay=0&rel=0&modestbranding=1&controls=1`}
-                    title={title}
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    className="w-full h-full"
-                ></iframe>
+            <div className="aspect-video w-full rounded-lg bg-black/40 overflow-hidden border border-border shrink-0 relative z-10 group/player">
+                {canLoad ? (
+                    <iframe
+                        width="100%"
+                        height="100%"
+                        src={`https://www.youtube.com/embed/${videoId}?autoplay=0&mute=0&rel=0&modestbranding=1&controls=1`}
+                        title={title}
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        className="w-full h-full"
+                    ></iframe>
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-black/20">
+                        <div className="w-8 h-8 rounded-full border-2 border-white/10 border-t-white/50 animate-spin" />
+                    </div>
+                )}
             </div>
 
             {/* Title & Channel */}
@@ -88,10 +134,10 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
 
                     {percentileGroup && (
                         <span className={`font-bold px-2 py-1 rounded-full whitespace-nowrap ${percentileGroup.includes('Top 1%') ? 'text-emerald-700 dark:text-white bg-emerald-500/30 border border-emerald-500/50' :
-                                percentileGroup.includes('Top 5%') ? 'text-lime-700 dark:text-white bg-lime-500/30 border border-lime-500/50' :
-                                    percentileGroup.includes('Top 20%') ? 'text-blue-700 dark:text-white bg-blue-500/30 border border-blue-500/50' :
-                                        percentileGroup.includes('Middle') ? 'text-purple-700 dark:text-white bg-purple-500/20 border border-purple-500/30' :
-                                            'text-red-700 dark:text-white bg-red-500/30 border border-red-500/50'
+                            percentileGroup.includes('Top 5%') ? 'text-lime-700 dark:text-white bg-lime-500/30 border border-lime-500/50' :
+                                percentileGroup.includes('Top 20%') ? 'text-blue-700 dark:text-white bg-blue-500/30 border border-blue-500/50' :
+                                    percentileGroup.includes('Middle') ? 'text-purple-700 dark:text-white bg-purple-500/20 border border-purple-500/30' :
+                                        'text-red-700 dark:text-white bg-red-500/30 border border-red-500/50'
                             }`}>
                             {percentileGroup}
                         </span>

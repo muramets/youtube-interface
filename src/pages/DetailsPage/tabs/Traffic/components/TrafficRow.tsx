@@ -8,6 +8,7 @@ import { formatDuration } from '../utils/formatters';
 import type { CTRRule } from '../../../../../core/services/settingsService';
 import { useTrafficNicheStore } from '../../../../../core/stores/useTrafficNicheStore';
 import { TrafficRowBadges } from './TrafficRowBadges';
+import { useVideoPlayer } from '../../../../../core/contexts/VideoPlayerContext';
 
 interface TrafficRowProps {
     item: TrafficSource;
@@ -45,6 +46,11 @@ const getCtrColor = (ctr: number | string, rules: CTRRule[]): string | undefined
 export const TrafficRow = ({ item, index, isSelected, activeSortKey, onRowClick, ctrRules = [], gridClassName, showPropertyIcon }: TrafficRowProps) => {
     // Connect to Niche Store
     const { niches, assignments } = useTrafficNicheStore();
+    // Connect to Video Player mainly to check if this video is minimized
+    const { activeVideoId, isMinimized } = useVideoPlayer();
+
+    // Check if THIS specific video is providing the mini-player content
+    const isThisVideoMinimized = isMinimized && activeVideoId === item.videoId;
 
     // Derived state: find niches assigned to this video
     const assignedNiches = React.useMemo(() => {
@@ -109,7 +115,7 @@ export const TrafficRow = ({ item, index, isSelected, activeSortKey, onRowClick,
                     <div className="min-w-0 flex-1 flex items-center gap-2 overflow-hidden">
                         <PortalTooltip
                             content={
-                                item.videoId ? (
+                                item.videoId && !isThisVideoMinimized ? (
                                     <VideoPreviewTooltip
                                         videoId={item.videoId}
                                         title={item.sourceTitle}
@@ -120,11 +126,11 @@ export const TrafficRow = ({ item, index, isSelected, activeSortKey, onRowClick,
                                     item.sourceTitle
                                 )
                             }
-                            enterDelay={500}
+                            enterDelay={200}
                             triggerClassName="!flex min-w-0 !justify-start shrink truncate"
-                            variant={item.videoId ? "glass" : "default"}
-                            estimatedHeight={item.videoId ? 350 : 80}
-                            fixedWidth={item.videoId ? 640 : undefined}
+                            variant={item.videoId && !isThisVideoMinimized ? "glass" : "default"}
+                            estimatedHeight={item.videoId && !isThisVideoMinimized ? 350 : 80}
+                            fixedWidth={item.videoId && !isThisVideoMinimized ? 640 : undefined}
                         >
                             <span className={`truncate block ${activeSortKey === 'sourceTitle' ? 'text-text-primary font-semibold' : 'text-text-primary font-medium'}`}>
                                 {item.sourceTitle}
