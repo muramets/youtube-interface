@@ -1,5 +1,5 @@
 import React from 'react';
-import { ExternalLink, ThumbsDown, Trophy, Heart, GitBranch } from 'lucide-react';
+import { ExternalLink, ThumbsDown, Trophy, Heart, GitBranch, Info } from 'lucide-react';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { PortalTooltip } from '../../../../../components/Shared/PortalTooltip';
@@ -117,47 +117,68 @@ export const TrafficRow = ({ item, index, isSelected, activeSortKey, onRowClick,
             <div className="min-w-0 flex flex-col justify-center h-full py-1">
                 <div className="flex items-center gap-2 min-w-0 w-full">
                     <div className="min-w-0 flex-1 flex items-center gap-2 overflow-hidden">
-                        <PortalTooltip
-                            content={
-                                item.videoId && !isThisVideoMinimized ? (
-                                    <VideoPreviewTooltip
-                                        videoId={item.videoId}
-                                        title={videoDetails?.title || item.sourceTitle}
-                                        channelTitle={videoDetails?.channelTitle || item.channelTitle}
-                                        viewCount={videoDetails?.viewCount ? parseInt(videoDetails.viewCount) : undefined}
-                                        publishedAt={videoDetails?.publishedAt}
-                                        description={videoDetails?.description}
-                                        tags={videoDetails?.tags}
-                                        className="w-[600px]"
-                                    />
-                                ) : (
-                                    item.sourceTitle
-                                )
-                            }
-                            enterDelay={200}
-                            triggerClassName="!flex min-w-0 !justify-start shrink truncate"
-                            variant={item.videoId && !isThisVideoMinimized ? "glass" : "default"}
-                            estimatedHeight={item.videoId && !isThisVideoMinimized ? 350 : 80}
-                            fixedWidth={item.videoId && !isThisVideoMinimized ? 640 : undefined}
-                        >
-                            <span className={`truncate block ${activeSortKey === 'sourceTitle' ? 'text-text-primary font-semibold' : 'text-text-primary font-medium'}`}>
-                                {item.sourceTitle}
-                            </span>
-                        </PortalTooltip>
+                        {/* Title - No longer has tooltip */}
+                        <span className={`truncate block ${activeSortKey === 'sourceTitle' ? 'text-text-primary font-semibold' : 'text-text-primary font-medium'}`}>
+                            {item.sourceTitle}
+                        </span>
 
                         <TrafficRowBadges niches={assignedNiches} />
                     </div>
-                    {item.videoId && (
-                        <a
-                            href={`https://youtu.be/${item.videoId}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="opacity-0 group-hover:opacity-100 text-text-secondary hover:text-white transition-opacity flex-shrink-0"
-                        >
-                            <ExternalLink size={12} />
-                        </a>
-                    )}
+
+                    {/* Actions Group - Appears on Row Hover */}
+                    <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                        {item.videoId && (
+                            <>
+                                {/* Info Icon with Preview Tooltip */}
+                                <div className="relative flex items-center justify-center">
+                                    {item.videoId && !isThisVideoMinimized ? (
+                                        <PortalTooltip
+                                            content={
+                                                <VideoPreviewTooltip
+                                                    videoId={item.videoId}
+                                                    title={videoDetails?.title || item.sourceTitle}
+                                                    channelTitle={videoDetails?.channelTitle || item.channelTitle}
+                                                    viewCount={videoDetails?.viewCount ? parseInt(videoDetails.viewCount) : undefined}
+                                                    publishedAt={videoDetails?.publishedAt}
+                                                    description={videoDetails?.description}
+                                                    tags={videoDetails?.tags}
+                                                    className="w-[600px]"
+                                                />
+                                            }
+                                            enterDelay={200}
+                                            triggerClassName="flex items-center justify-center"
+                                            variant="glass"
+                                            side="top"
+                                            align="center"
+                                            estimatedHeight={350}
+                                            fixedWidth={640}
+                                        >
+                                            <div
+                                                className="p-1.5 -m-1.5 text-text-secondary hover:text-white cursor-pointer transition-colors"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <Info size={14} />
+                                            </div>
+                                        </PortalTooltip>
+                                    ) : (
+                                        // Fallback if no details? Usually we just don't show info if minimized or invalid
+                                        null
+                                    )}
+                                </div>
+
+                                {/* External Link */}
+                                <a
+                                    href={`https://youtu.be/${item.videoId}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="p-1.5 -m-1.5 text-text-secondary hover:text-white transition-colors flex items-center justify-center"
+                                >
+                                    <ExternalLink size={14} />
+                                </a>
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
 
