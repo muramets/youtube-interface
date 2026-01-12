@@ -1,11 +1,13 @@
 import React, { useRef, useState } from 'react';
 import { FilterDropdown } from '../../../../../components/ui/molecules/FilterDropdown';
 import { TrafficUploader } from './TrafficUploader';
-import { Settings } from 'lucide-react';
+import { Settings, CloudDownload } from 'lucide-react';
 import { TrafficCTRConfig } from './TrafficCTRConfig';
 import { TrafficFilterMenu } from './TrafficFilterMenu';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import type { TrafficFilter } from '../hooks/useTrafficFilters';
+
+
 
 interface TrafficHeaderProps {
     headerTitle: string;
@@ -34,6 +36,10 @@ interface TrafficHeaderProps {
     // Data for Niche Filtering
     groups?: import('../../../../../core/types/traffic').TrafficGroup[];
     trafficSources?: import('../../../../../core/types/traffic').TrafficSource[];
+
+    // Missing Titles Sync
+    missingTitlesCount?: number;
+    onOpenMissingTitles?: () => void;
 }
 
 /**
@@ -56,10 +62,13 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
     onUpload,
     isScrolled,
     groups,
-    trafficSources
+    trafficSources,
+    missingTitlesCount = 0,
+    onOpenMissingTitles
 }) => {
     const configBtnRef = useRef<HTMLButtonElement>(null);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
+
 
     // Filter badge count (active filters)
     const badgeCount = filters.length;
@@ -89,6 +98,17 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
                     {/* Actions - Show if data exists OR has existing snapshots (for delta empty state) */}
                     {shouldShowActions && (
                         <div className="flex gap-2">
+                            {/* Sync Missing Titles Button */}
+                            {missingTitlesCount > 0 && onOpenMissingTitles && (
+                                <button
+                                    onClick={onOpenMissingTitles}
+                                    className="w-[34px] h-[34px] rounded-full flex items-center justify-center transition-colors border-0 cursor-pointer bg-transparent text-text-primary hover:text-blue-500 hover:bg-blue-500/10"
+                                    title={`Sync ${missingTitlesCount} missing titles`}
+                                >
+                                    <CloudDownload size={18} />
+                                </button>
+                            )}
+
                             {/* CTR Settings */}
                             <button
                                 ref={configBtnRef}

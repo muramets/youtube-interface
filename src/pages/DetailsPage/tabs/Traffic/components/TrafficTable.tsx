@@ -10,6 +10,8 @@ import { TRAFFIC_TABLE } from '../utils/constants';
 import type { CTRRule } from '../../../../../core/services/settingsService';
 import { useTrafficNicheStore } from '../../../../../core/stores/useTrafficNicheStore';
 
+import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
+
 interface TrafficTableProps {
     data: TrafficSource[];
     isLoading: boolean;
@@ -39,6 +41,9 @@ interface TrafficTableProps {
 
     // Filters
     hasActiveFilters?: boolean;
+
+    // Rich Data
+    videos?: VideoDetails[];
 }
 
 type SortKey = keyof TrafficSource;
@@ -59,11 +64,19 @@ export const TrafficTable = memo<TrafficTableProps>(({
     isFirstSnapshot = false,
     ctrRules = [],
     viewMode = 'cumulative',
-    hasActiveFilters = false
+    hasActiveFilters = false,
+    videos = []
 }) => {
     // Virtualization refs
     const parentRef = useRef<HTMLDivElement>(null);
     const [sortConfig, setSortConfig] = useState<SortConfig | null>({ key: 'views', direction: 'desc' });
+
+    // Lookup map for rich video details
+    const videoMap = useMemo(() => {
+        const map = new Map<string, VideoDetails>();
+        videos.forEach(v => map.set(v.id, v));
+        return map;
+    }, [videos]);
 
     const sortedData = useMemo(() => {
         if (!sortConfig) return data;
@@ -292,6 +305,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                 const item = sortedData[virtualRow.index];
                                 const index = virtualRow.index;
                                 const isSelected = item.videoId ? selectedIds.has(item.videoId) : false;
+                                const videoDetails = item.videoId ? videoMap.get(item.videoId) : undefined;
 
                                 return (
                                     <div
@@ -314,6 +328,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             ctrRules={ctrRules}
                                             gridClassName={gridClassName}
                                             showPropertyIcon={showPropertyColumn}
+                                            videoDetails={videoDetails}
                                         />
                                     </div>
                                 );

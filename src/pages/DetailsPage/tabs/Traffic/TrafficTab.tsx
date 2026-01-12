@@ -5,6 +5,15 @@ import { TrafficModals } from './components/TrafficModals';
 import { TrafficFilterChips } from './components/TrafficFilterChips';
 import { TrafficErrorState } from './components/TrafficErrorState';
 import { TrafficFloatingBar } from './components/TrafficFloatingBar';
+import { MissingTitlesModal } from './components/MissingTitlesModal';
+import { useMissingTitles, repairTrafficSources } from './hooks/useMissingTitles';
+import { generateTrafficCsv } from './utils/csvGenerator';
+import { useApiKey } from '../../../../core/hooks/useApiKey';
+import { useSuggestedVideos } from './hooks/useSuggestedVideos';
+
+
+// ... imports
+
 import type { VideoDetails } from '../../../../core/utils/youtubeApi';
 
 import { useTrafficSelection } from './hooks/useTrafficSelection';
@@ -79,6 +88,73 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     // Modals State
     const [isMapperOpen, setIsMapperOpen] = useState(false);
     const [failedFile, setFailedFile] = useState<File | null>(null);
+    const [isMissingTitlesModalOpen, setIsMissingTitlesModalOpen] = useState(false);
+
+    // Pending Upload State (for Pre-Upload Checks)
+    const [pendingUpload, setPendingUpload] = useState<{
+        sources: TrafficSource[],
+        totalRow?: any,
+        file?: File
+    } | null>(null);
+
+    // Initial Auth & API Key
+    const { user } = useAuth();
+    const { apiKey } = useApiKey();
+    const { currentChannel } = useChannelStore();
+
+    // Video Data: Home Videos + Suggested Videos
+    const { videos: homeVideos } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const { suggestedVideos } = useSuggestedVideos(user?.uid || '', currentChannel?.id || '');
+
+    // OPTIMIZATION: Merge home videos and suggested videos for tooltip lookup
+    const allVideos = useMemo(() => {
+        return [...homeVideos, ...suggestedVideos];
+    }, [homeVideos, suggestedVideos]);
+
+    // 1. Existing/Post-Load Missing Titles Logic
+    const {
+        missingCount: existingMissingCount,
+        estimatedQuota: existingEstimatedQuota,
+        fetchMissingTitles: fetchExistingMissingTitles,
+        isRestoring: isRestoringExisting
+    } = useMissingTitles({
+        displayedSources,
+        userId: user?.uid || '',
+        channelId: currentChannel?.id || '',
+        trafficVideoId: _video.id,
+        activeVersion,
+        apiKey: apiKey || '',
+        onDataRestored: (_newSources, newSnapshotId) => {
+            setIsMissingTitlesModalOpen(false);
+            if (onSnapshotClick) {
+                onSnapshotClick(newSnapshotId); // Reload with new snapshot
+            }
+        }
+    });
+
+    // 2. Pre-Upload Pending Logic
+    const pendingMissingCount = useMemo(() => {
+        if (!pendingUpload) return 0;
+        return pendingUpload.sources.filter(s => s.videoId && (!s.sourceTitle || s.sourceTitle.trim() === '')).length;
+    }, [pendingUpload]);
+
+    const pendingEstimatedQuota = Math.ceil(pendingMissingCount / 50) * 7;
+    const [isRestoringPending, setIsRestoringPending] = useState(false);
+
+    // Determines which "mode" the modal is in
+    const isPendingMode = !!pendingUpload;
+    const missingCount = isPendingMode ? pendingMissingCount : existingMissingCount;
+    const estimatedQuota = isPendingMode ? pendingEstimatedQuota : existingEstimatedQuota;
+    const isRestoring = isPendingMode ? isRestoringPending : isRestoringExisting;
+
+    // Auto-open modal if missing titles detected in displayed data (only if not pending)
+    // AND if user has not explicitly dismissed/handled it (could add flag, but current logic is fine)
+    useEffect(() => {
+        if (!pendingUpload && existingMissingCount > 0 && !isRestoringExisting) {
+            setIsMissingTitlesModalOpen(true);
+        }
+    }, [existingMissingCount, isRestoringExisting, pendingUpload]);
+
 
     // Filter Logic and Selection...
 
@@ -95,9 +171,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
     // Niche Store Management
     const { initializeSubscriptions, cleanup } = useTrafficNicheStore();
-    const { user } = useAuth();
-    const { currentChannel } = useChannelStore();
-    const { videos: homeVideos } = useVideos(user?.uid || '', currentChannel?.id || '');
+    // user and currentChannel hooks moved up
 
     // Initialize niche subscriptions when user/channel are available
     useEffect(() => {
@@ -130,6 +204,14 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             return;
         }
 
+        // PRE-CHECK: Missing Titles
+        const hasMissingTitles = sources.some((s: any) => s.videoId && (!s.sourceTitle || s.sourceTitle.trim() === ''));
+        if (hasMissingTitles && file) {
+            setPendingUpload({ sources, totalRow, file });
+            setIsMissingTitlesModalOpen(true);
+            return;
+        }
+
         try {
             const newSnapshotId = await handleCsvUpload(sources, totalRow, file);
             if (newSnapshotId && onSnapshotClick) {
@@ -139,6 +221,66 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             console.error('Upload failed:', error);
         }
     }, [handleCsvUpload, onSnapshotClick]);
+
+    // Handler for Syncing Pending Upload
+    const handleConfirmPendingSync = async () => {
+        if (!pendingUpload) return;
+        setIsRestoringPending(true);
+        try {
+            // Repair sources
+            const repairedSources = await repairTrafficSources(
+                pendingUpload.sources,
+                user?.uid || '',
+                currentChannel?.id || '',
+                apiKey || ''
+            );
+
+            // Generate new CSV from repaired sources to ensure data consistency
+            // (We upload the repaired data as if it came from the file)
+            // Actually, handleCsvUpload expects sources + file. 
+            // If we pass the original file, it might be stored? TrafficSnapshotService usually stores the file.
+            // So we should ideally create a NEW File object with the repaired content.
+            const newCsvContent = generateTrafficCsv(repairedSources);
+            const repairedFile = new File([newCsvContent], pendingUpload.file?.name || 'traffic_data.csv', { type: "text/csv" });
+
+            // Proceed with upload
+            const newSnapshotId = await handleCsvUpload(repairedSources, pendingUpload.totalRow, repairedFile);
+
+            if (newSnapshotId && onSnapshotClick) {
+                onSnapshotClick(newSnapshotId);
+            }
+
+            // Cleanup
+            setPendingUpload(null);
+            setIsMissingTitlesModalOpen(false);
+
+        } catch (err) {
+            console.error("Failed to repair pending upload:", err);
+            // Optionally show error toast
+        } finally {
+            setIsRestoringPending(false);
+        }
+    };
+
+    // Handler for Skipping Pending Sync (Upload as is)
+    const handleSkipPendingSync = async () => {
+        if (!pendingUpload) return;
+
+        try {
+            // Upload original tainted data
+            const newSnapshotId = await handleCsvUpload(pendingUpload.sources, pendingUpload.totalRow, pendingUpload.file);
+
+            if (newSnapshotId && onSnapshotClick) {
+                onSnapshotClick(newSnapshotId);
+            }
+        } catch (err) {
+            console.error('Upload failed:', err);
+        } finally {
+            setPendingUpload(null);
+            setIsMissingTitlesModalOpen(false);
+        }
+    };
+
 
     // Derived UI State
     const isViewingOldVersion = viewingVersion && viewingVersion !== activeVersion;
@@ -301,6 +443,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 onRemoveFilter={removeFilter}
                 groups={groups}
                 trafficSources={displayedSources}
+                missingTitlesCount={existingMissingCount}
+                onOpenMissingTitles={() => setIsMissingTitlesModalOpen(true)}
             />
 
             {/* Main Content - Table Area */}
@@ -333,6 +477,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                                     hasPreviousSnapshots={hasPreviousSnapshots}
                                     isFirstSnapshot={isFirstSnapshot}
                                     hasActiveFilters={filters.length > 0}
+                                    videos={allVideos}
                                 />
 
                                 {/* Floating Action Bar - Positioned absolutely relative to parent container */}
@@ -358,6 +503,21 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 failedFile={failedFile}
                 onMapperClose={() => setIsMapperOpen(false)}
                 onCsvUpload={handleCsvUpload}
+            />
+
+            <MissingTitlesModal
+                isOpen={isMissingTitlesModalOpen}
+                missingCount={missingCount}
+                estimatedQuota={estimatedQuota}
+                onConfirm={isPendingMode ? handleConfirmPendingSync : fetchExistingMissingTitles}
+                onClose={() => {
+                    if (isPendingMode) {
+                        handleSkipPendingSync();
+                    } else {
+                        setIsMissingTitlesModalOpen(false);
+                    }
+                }}
+                isRestoring={isRestoring}
             />
         </div>
     );

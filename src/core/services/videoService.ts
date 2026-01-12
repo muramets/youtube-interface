@@ -16,9 +16,16 @@ import { deleteImageFromStorage } from './storageService';
 export const getVideosPath = (userId: string, channelId: string) =>
     `users/${userId}/channels/${channelId}/videos`;
 
+export const getSuggestedVideosPath = (userId: string, channelId: string) =>
+    `users/${userId}/channels/${channelId}/cached_suggested_traffic_videos`;
+
 export const VideoService = {
     fetchVideos: async (userId: string, channelId: string) => {
         return fetchCollection<VideoDetails>(getVideosPath(userId, channelId));
+    },
+
+    fetchSuggestedVideos: async (userId: string, channelId: string) => {
+        return fetchCollection<VideoDetails>(getSuggestedVideosPath(userId, channelId));
     },
 
     getVideoDocRef(userId: string, channelId: string, videoId: string) {
@@ -76,6 +83,19 @@ export const VideoService = {
         const batch = writeBatch(db);
         updates.forEach(({ videoId, data }) => {
             const docRef = doc(db, getVideosPath(userId, channelId), videoId);
+            batch.set(docRef, data, { merge: true });
+        });
+        await batch.commit();
+    },
+
+    batchUpdateSuggestedVideos: async (
+        userId: string,
+        channelId: string,
+        updates: { videoId: string; data: Partial<VideoDetails> }[]
+    ) => {
+        const batch = writeBatch(db);
+        updates.forEach(({ videoId, data }) => {
+            const docRef = doc(db, getSuggestedVideosPath(userId, channelId), videoId);
             batch.set(docRef, data, { merge: true });
         });
         await batch.commit();

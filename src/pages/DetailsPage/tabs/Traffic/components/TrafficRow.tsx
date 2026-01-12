@@ -10,6 +10,8 @@ import { useTrafficNicheStore } from '../../../../../core/stores/useTrafficNiche
 import { TrafficRowBadges } from './TrafficRowBadges';
 import { useVideoPlayer } from '../../../../../core/contexts/VideoPlayerContext';
 
+import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
+
 interface TrafficRowProps {
     item: TrafficSource;
     index: number;
@@ -19,6 +21,7 @@ interface TrafficRowProps {
     ctrRules?: CTRRule[];
     gridClassName: string;
     showPropertyIcon: boolean;
+    videoDetails?: VideoDetails;
 }
 
 const getCtrColor = (ctr: number | string, rules: CTRRule[]): string | undefined => {
@@ -43,7 +46,7 @@ const getCtrColor = (ctr: number | string, rules: CTRRule[]): string | undefined
 };
 
 
-export const TrafficRow = ({ item, index, isSelected, activeSortKey, onRowClick, ctrRules = [], gridClassName, showPropertyIcon }: TrafficRowProps) => {
+export const TrafficRow = ({ item, index, isSelected, activeSortKey, onRowClick, ctrRules = [], gridClassName, showPropertyIcon, videoDetails }: TrafficRowProps) => {
     // Connect to Niche Store
     const { niches, assignments } = useTrafficNicheStore();
     // Connect to Video Player mainly to check if this video is minimized
@@ -118,8 +121,12 @@ export const TrafficRow = ({ item, index, isSelected, activeSortKey, onRowClick,
                                 item.videoId && !isThisVideoMinimized ? (
                                     <VideoPreviewTooltip
                                         videoId={item.videoId}
-                                        title={item.sourceTitle}
-                                        channelTitle={item.channelTitle}
+                                        title={videoDetails?.title || item.sourceTitle}
+                                        channelTitle={videoDetails?.channelTitle || item.channelTitle}
+                                        viewCount={videoDetails?.viewCount ? parseInt(videoDetails.viewCount) : undefined}
+                                        publishedAt={videoDetails?.publishedAt}
+                                        description={videoDetails?.description}
+                                        tags={videoDetails?.tags}
                                         className="w-[600px]"
                                     />
                                 ) : (
