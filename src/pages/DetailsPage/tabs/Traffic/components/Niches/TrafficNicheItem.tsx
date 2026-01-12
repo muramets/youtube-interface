@@ -5,9 +5,9 @@ import type { SuggestedTrafficNiche, TrafficNicheProperty } from '@/core/types/s
 import { useTrafficNicheStore } from '@/core/stores/useTrafficNicheStore';
 import { useAuth } from '@/core/hooks/useAuth';
 import { useChannelStore } from '@/core/stores/channelStore';
-import { MANUAL_NICHE_PALETTE } from '@/core/stores/trendStore';
 import { TrafficNicheContextMenu } from './TrafficNicheContextMenu';
 import { ConfirmationModal } from '@/components/Shared/ConfirmationModal';
+import { NicheColorPickerGrid } from './NicheColorPickerGrid';
 
 interface TrafficNicheItemProps {
     niche: SuggestedTrafficNiche;
@@ -170,30 +170,20 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
                         />
                         {isColorPickerOpen && createPortal(
                             <div
-                                className="fixed z-[9999] bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-fade-in"
+                                className="fixed z-[9999] bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-fade-in w-[240px]"
                                 style={{
                                     left: colorPickerRef.current?.getBoundingClientRect().left,
                                     top: (colorPickerRef.current?.getBoundingClientRect().bottom || 0) + 8,
                                 }}
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(5, min-content)' }}>
-                                    {MANUAL_NICHE_PALETTE.map(color => (
-                                        <button
-                                            key={color}
-                                            onClick={() => {
-                                                handleUpdate({ color });
-                                                setIsColorPickerOpen(false);
-                                            }}
-                                            className="w-6 h-6 rounded-full transition-shadow relative hover:ring-2 hover:ring-white/50 ring-offset-1 ring-offset-[#1a1a1a]"
-                                            style={{ backgroundColor: color }}
-                                        >
-                                            {niche.color === color && (
-                                                <Check size={12} className="absolute inset-0 m-auto text-white drop-shadow-sm" strokeWidth={3} />
-                                            )}
-                                        </button>
-                                    ))}
-                                </div>
+                                <NicheColorPickerGrid
+                                    selectedColor={niche.color}
+                                    onSelect={(color) => {
+                                        handleUpdate({ color });
+                                        setIsColorPickerOpen(false);
+                                    }}
+                                />
                             </div>,
                             document.body
                         )}

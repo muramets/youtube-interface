@@ -641,16 +641,50 @@ export const useTrendStore = create<TrendStore>()(
 
 // Manual Palette for user selection (10 distinct colors)
 export const MANUAL_NICHE_PALETTE = [
-    '#EF4444',
-    '#F97316',
-    '#F59E0B',
-    '#84CC16',
-    '#10B981',
-    '#06B6D4',
-    '#3B82F6',
-    '#6366F1',
-    '#8B5CF6',
-    '#EC4899',
+    // Slate
+    '#64748b', '#475569',
+    // Gray
+    '#6b7280', '#4b5563',
+    // Zinc
+    '#71717a', '#52525b',
+    // Neutral
+    '#737373', '#525252',
+    // Stone
+    '#78716c', '#57534e',
+    // Red
+    '#ef4444', '#dc2626',
+    // Orange
+    '#f97316', '#ea580c',
+    // Amber
+    '#f59e0b', '#d97706',
+    // Yellow
+    '#eab308', '#ca8a04',
+    // Lime
+    '#84cc16', '#65a30d',
+    // Green
+    '#22c55e', '#16a34a',
+    // Emerald
+    '#10b981', '#059669',
+    // Teal
+    '#14b8a6', '#0d9488',
+    // Cyan
+    '#06b6d4', '#0891b2',
+    // Sky
+    '#0ea5e9', '#0284c7',
+    // Blue
+    '#3b82f6', '#2563eb',
+    // Indigo
+    '#6366f1', '#4f46e5',
+    // Violet
+    '#8b5cf6', '#7c3aed',
+    // Purple
+    '#a855f7', '#9333ea',
+    // Fuchsia
+    '#d946ef', '#c026d3',
+    // Pink
+    '#ec4899', '#db2777',
+    // Rose
+    '#f43f5e', '#e11d48',
 ];
 
 // Auto Palette

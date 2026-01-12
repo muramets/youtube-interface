@@ -5,9 +5,10 @@ import { useTrafficNicheStore } from '@/core/stores/useTrafficNicheStore';
 import { useAuth } from '@/core/hooks/useAuth';
 import { useChannelStore } from '@/core/stores/channelStore';
 import type { TrafficNicheProperty } from '@/core/types/suggestedTrafficNiches';
-import { generateNicheColor, MANUAL_NICHE_PALETTE } from '@/core/stores/trendStore';
+import { generateNicheColor } from '@/core/stores/trendStore';
 import { TrafficNicheItem } from './TrafficNicheItem';
 import { FloatingDropdownPortal } from '@/components/Shared/FloatingDropdownPortal';
+import { NicheColorPickerGrid } from './NicheColorPickerGrid';
 
 interface TrafficNicheSelectorProps {
     videoIds: string[]; // Selected videos to assign
@@ -398,28 +399,21 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                                                     onClick={() => setIsColorPickerOpen(false)}
                                                 />
                                                 <div
-                                                    className="fixed z-[9999] p-1.5 bg-[#1F1F1F] border border-white/10 rounded-lg shadow-xl grid grid-cols-5 gap-1.5 w-[110px] animate-in zoom-in-95 duration-100"
+                                                    className="fixed z-[9999] bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-in zoom-in-95 duration-100 w-[240px]"
                                                     style={{
-                                                        top: pickerTriggerRef.current.getBoundingClientRect().bottom + 8,
-                                                        left: pickerTriggerRef.current.getBoundingClientRect().left - 45 // Center align roughly
+                                                        bottom: window.innerHeight - pickerTriggerRef.current.getBoundingClientRect().top + 8,
+                                                        left: pickerTriggerRef.current.getBoundingClientRect().left - 110 // Center align (240/2 - 20/2 approx)
                                                     }}
                                                     onClick={(e) => e.stopPropagation()}
                                                 >
-                                                    {MANUAL_NICHE_PALETTE.map((color) => (
-                                                        <button
-                                                            key={color}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setSelectedColor(color);
-                                                                setIsColorPickerOpen(false);
-                                                            }}
-                                                            className={`
-                                                                w-4 h-4 rounded-full transition-all hover:scale-110
-                                                                ${selectedColor === color ? 'ring-1 ring-white ring-offset-1 ring-offset-[#1F1F1F]' : 'hover:ring-1 hover:ring-white/30'}
-                                                            `}
-                                                            style={{ backgroundColor: color }}
-                                                        />
-                                                    ))}
+                                                    <div className="text-[10px] uppercase text-text-tertiary font-bold mb-2 tracking-wider px-1">Select Color</div>
+                                                    <NicheColorPickerGrid
+                                                        selectedColor={selectedColor}
+                                                        onSelect={(color) => {
+                                                            setSelectedColor(color);
+                                                            setIsColorPickerOpen(false);
+                                                        }}
+                                                    />
                                                 </div>
                                             </>,
                                             document.body
