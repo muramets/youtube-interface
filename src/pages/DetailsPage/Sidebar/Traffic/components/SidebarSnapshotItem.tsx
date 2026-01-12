@@ -100,7 +100,7 @@ export const SidebarSnapshotItem: React.FC<SidebarSnapshotItemProps> = ({
 
             {/* Render Niches if this snapshot is selected */}
             {isSelected && hasNiches && nicheImpressions && groups && (
-                <div className="ml-12 mb-1 pr-3 mt-0.5">
+                <div className="ml-12 pr-3 mt-2">
                     <TrafficSidebarNicheList
                         nicheImpressions={nicheImpressions}
                         groups={groups}

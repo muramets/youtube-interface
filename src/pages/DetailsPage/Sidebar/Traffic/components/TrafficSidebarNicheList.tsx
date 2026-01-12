@@ -38,7 +38,7 @@ export const TrafficSidebarNicheList: React.FC<TrafficSidebarNicheListProps> = (
     const hasMore = hiddenCount > 0;
 
     return (
-        <ul className="space-y-0.5 mt-0.5">
+        <ul className="space-y-0.5">
             {visibleNiches.map(niche => (
                 <li key={niche.id} className="relative">
                     <TrafficNicheItem
