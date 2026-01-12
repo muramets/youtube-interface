@@ -22,7 +22,7 @@ export const DetailsPage: React.FC = () => {
     const { channelId, videoId } = useParams<{ channelId: string; videoId: string }>();
     const navigate = useNavigate();
     const { user } = useAuth();
-    const { currentChannel, setCurrentChannel } = useChannelStore();
+    const { setCurrentChannel } = useChannelStore();
     const channelsQuery = useChannels(user?.uid || '');
     const channels = channelsQuery.data || [];
 
@@ -34,11 +34,11 @@ export const DetailsPage: React.FC = () => {
     useEffect(() => {
         if (channelId && channels.length > 0) {
             const urlChannel = channels.find((c: { id: string }) => c.id === channelId);
-            if (urlChannel && (!currentChannel || currentChannel.id !== channelId)) {
+            if (urlChannel) {
                 setCurrentChannel(urlChannel);
             }
         }
-    }, [channelId, channels, currentChannel, setCurrentChannel]);
+    }, [channelId, channels, setCurrentChannel]);
 
     const video = videos.find(v => v.id === videoId);
 

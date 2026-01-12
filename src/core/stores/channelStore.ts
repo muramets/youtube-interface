@@ -17,7 +17,9 @@ export const useChannelStore = create<ChannelState>()(
         (set) => ({
             currentChannel: null,
 
-            setCurrentChannel: (channel) => set({ currentChannel: channel }),
+            setCurrentChannel: (channel) => {
+                set({ currentChannel: channel });
+            },
 
             addChannel: async (userId, name, avatarUrl) => {
                 const handle = `@${name.replace(/\s+/g, '').toLowerCase()}${Math.floor(Math.random() * 1000)}`;

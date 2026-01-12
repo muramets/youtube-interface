@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { User, LogOut, Plus, Check, Settings, Target } from 'lucide-react';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useTrendStore } from '../../core/stores/trendStore';
@@ -66,6 +67,8 @@ export const ChannelDropdown: React.FC<ChannelDropdownProps> = ({ onClose, ancho
     } = useTrendStore();
     const { user, logout } = useAuth();
     const { generalSettings, updateGeneralSettings } = useSettings();
+    const navigate = useNavigate();
+
 
     // Use TanStack Query hook for channels
     const { data: channels = [] } = useChannels(user?.uid || '');
@@ -106,6 +109,7 @@ export const ChannelDropdown: React.FC<ChannelDropdownProps> = ({ onClose, ancho
             setHiddenVideos([]);
 
             setCurrentChannel(channel);
+            navigate('/');
         }
         onClose();
     };

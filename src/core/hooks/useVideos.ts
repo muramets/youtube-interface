@@ -37,7 +37,9 @@ export const useVideos = (userId: string, channelId: string) => {
             const filteredData = data.filter(v => !terminatingVideoIds.has(v.id));
             queryClient.setQueryData(queryKey, filteredData);
         });
-        return () => unsubscribe();
+        return () => {
+            unsubscribe();
+        }
     }, [userId, channelId, queryClient, queryKey]);
 
     // 2. Mutations
