@@ -51,15 +51,17 @@ export const usePlaylists = (userId: string, channelId: string) => {
         }
     });
 
-    const addVideoToPlaylistMutation = useMutation({
-        mutationFn: async ({ playlistId, videoId }: { playlistId: string, videoId: string }) => {
-            await PlaylistService.addVideoToPlaylist(userId, channelId, playlistId, videoId);
+
+
+    const addVideosToPlaylistMutation = useMutation({
+        mutationFn: async ({ playlistId, videoIds }: { playlistId: string, videoIds: string[] }) => {
+            await PlaylistService.addVideosToPlaylist(userId, channelId, playlistId, videoIds);
         }
     });
 
-    const removeVideoFromPlaylistMutation = useMutation({
-        mutationFn: async ({ playlistId, videoId }: { playlistId: string, videoId: string }) => {
-            await PlaylistService.removeVideoFromPlaylist(userId, channelId, playlistId, videoId);
+    const removeVideosFromPlaylistMutation = useMutation({
+        mutationFn: async ({ playlistId, videoIds }: { playlistId: string, videoIds: string[] }) => {
+            await PlaylistService.removeVideosFromPlaylist(userId, channelId, playlistId, videoIds);
         }
     });
 
@@ -82,8 +84,8 @@ export const usePlaylists = (userId: string, channelId: string) => {
         createPlaylist: createPlaylistMutation.mutateAsync,
         updatePlaylist: updatePlaylistMutation.mutateAsync,
         deletePlaylist: deletePlaylistMutation.mutateAsync,
-        addVideoToPlaylist: addVideoToPlaylistMutation.mutateAsync,
-        removeVideoFromPlaylist: removeVideoFromPlaylistMutation.mutateAsync,
+        addVideosToPlaylist: addVideosToPlaylistMutation.mutateAsync,
+        removeVideosFromPlaylist: removeVideosFromPlaylistMutation.mutateAsync,
         reorderPlaylists: reorderPlaylistsMutation.mutateAsync,
         reorderPlaylistVideos: reorderPlaylistVideosMutation.mutateAsync
     };

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { TrafficData, TrafficSource, TrafficSnapshot } from '../../../../../core/types/traffic';
 import type { PackagingVersion, ActivePeriod } from '../../../../../core/types/versioning';
 import { TrafficService } from '../../../../../core/services/traffic';
@@ -42,14 +42,30 @@ export const useTrafficDataLoader = ({
     const [error, setError] = useState<Error | null>(null);
     const [retryCount, setRetryCount] = useState(0);
 
+    // OPTIMIZATION: Track last loaded state to skip unnecessary reloads
+    const lastLoadedKeyRef = useRef<string | null>(null);
+
     const retry = () => {
         logger.info('User initiated retry for traffic data loading', { component: 'useTrafficDataLoader' });
         setError(null);
+        lastLoadedKeyRef.current = null; // Force reload on retry
         setRetryCount(prev => prev + 1);
     };
 
     useEffect(() => {
         const loadData = async () => {
+            // OPTIMIZATION: Build a key for current load request
+            // If this key matches the last loaded key, skip the reload
+            const loadKey = `${selectedSnapshot || ''}-${viewingVersion}-${viewingPeriodIndex}-${viewMode}`;
+
+            if (loadKey === lastLoadedKeyRef.current && displayedSources.length > 0) {
+                logger.debug('Skipping reload - same snapshot already loaded', {
+                    component: 'useTrafficDataLoader',
+                    loadKey
+                });
+                return;
+            }
+
             // Reset error at start of new load attempt
             setError(null);
 
@@ -60,7 +76,8 @@ export const useTrafficDataLoader = ({
                 selectedSnapshot,
                 dataSourcesLen: trafficData?.sources?.length,
                 snapshotsLen: trafficData?.snapshots?.length,
-                retryCount
+                retryCount,
+                loadKey
             });
 
             if (!trafficData?.sources) {
@@ -89,8 +106,10 @@ export const useTrafficDataLoader = ({
                         }
 
                         setDisplayedSources(currentSources);
+                        lastLoadedKeyRef.current = loadKey;
                     } else {
                         setDisplayedSources([]);
+                        lastLoadedKeyRef.current = loadKey;
                     }
                 } catch (error) {
                     logger.error('Failed to load snapshot', { component: 'useTrafficDataLoader', error, selectedSnapshot });
@@ -246,6 +265,7 @@ export const useTrafficDataLoader = ({
                         } else {
                             setDisplayedSources(sources);
                         }
+                        lastLoadedKeyRef.current = loadKey;
                     } catch (error) {
                         logger.error('Failed to load version sources', { component: 'useTrafficDataLoader', error, viewingVersion });
                         setError(error instanceof Error ? error : new Error('Unknown error loading active version'));
@@ -360,6 +380,7 @@ export const useTrafficDataLoader = ({
                     } else {
                         setDisplayedSources(sources);
                     }
+                    lastLoadedKeyRef.current = loadKey;
                 } catch (error) {
                     logger.error('Failed to load historical version sources', { component: 'useTrafficDataLoader', error, viewingVersion });
                     setError(error instanceof Error ? error : new Error('Unknown error loading historical version'));

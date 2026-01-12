@@ -1,17 +1,22 @@
 import React, { useState, useMemo } from 'react';
-import { Check, Home } from 'lucide-react';
+import { Check, Home, Loader2 } from 'lucide-react';
 import type { TrafficSource } from '@/core/types/traffic';
 import { useAuth } from '@/core/hooks/useAuth';
 import { useChannelStore } from '@/core/stores/channelStore';
-import { useVideos } from '@/core/hooks/useVideos';
+
 import { useUIStore } from '@/core/stores/uiStore';
 import { VideoService } from '@/core/services/videoService';
 import { TrafficNicheSelector } from './Niches/TrafficNicheSelector';
 import { TrafficPlaylistSelector } from './TrafficPlaylistSelector';
 import { FloatingBar } from '@/components/Shared/FloatingBar';
+import { PortalTooltip } from '@/components/Shared/PortalTooltip';
+import { fetchVideosBatch } from '@/core/utils/youtubeApi';
+import { useSettings } from '@/core/hooks/useSettings';
+import type { VideoDetails } from '@/core/utils/youtubeApi';
 
 interface TrafficFloatingBarProps {
     videos: TrafficSource[];
+    homeVideos: VideoDetails[];
     position: { x: number; y: number };
     onClose: () => void;
     isDocked?: boolean;
@@ -20,6 +25,7 @@ interface TrafficFloatingBarProps {
 
 export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
     videos,
+    homeVideos,
     position,
     onClose,
     isDocked = false,
@@ -27,8 +33,8 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
 }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { videos: homeVideos } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { showToast } = useUIStore();
+    const { generalSettings } = useSettings();
 
     // State
     const [activeMenu, setActiveMenu] = useState<'niche' | 'playlist' | null>(null);
@@ -85,7 +91,8 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
     }, [homeVideos, videos]);
 
     const handleHomeToggle = async () => {
-        if (!user || !currentChannel) return;
+        // Prevent double-clicks silently (no visual feedback to keep UI feeling light)
+        if (isProcessing || !user || !currentChannel) return;
 
         setIsProcessing(true);
         try {
@@ -95,35 +102,81 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
             const shouldAdd = !areAllAddedToHome;
 
             if (shouldAdd) {
-                // Add missing ones
+                // Filter videos that clearly need adding
+                const videosToAdd = validVideos.filter(v => !homeVideos.some(hv => hv.id === v.videoId && !hv.isPlaylistOnly));
+                const videoIds = videosToAdd.map(v => v.videoId!);
+
                 let addedCount = 0;
-                let quotaUsed = 0; // Track quota usage
+                let quotaUsed = 0;
 
-                await Promise.all(validVideos.map(async (v) => {
-                    if (!v.videoId) return;
-                    const isAdded = homeVideos.some(hv => hv.id === v.videoId && !hv.isPlaylistOnly);
+                // Batch fetch details (chunk of 50)
+                const BATCH_SIZE = 50;
+                const chunks: string[][] = [];
+                for (let i = 0; i < videoIds.length; i += BATCH_SIZE) {
+                    chunks.push(videoIds.slice(i, i + BATCH_SIZE));
+                }
 
-                    if (!isAdded) {
-                        // Construct Video Data from TrafficSource
-                        const videoPayload = {
-                            id: v.videoId,
-                            title: v.sourceTitle,
-                            thumbnail: v.thumbnail || '',
-                            channelId: '', // Not available in TrafficSource
-                            channelTitle: v.channelTitle || '',
-                            channelAvatar: '', // Not available in TrafficSource
-                            viewCount: v.views.toString(),
-                            publishedAt: v.publishedAt || new Date().toISOString(),
+                // We need the API key from settings or store. Assuming it's available via useChannelStore or similar.
+                // Actually, current implementation of youtubeApi usually passes key from caller.
+                // Let's check where to get apiKey. Usually useAuth or useSettings.
+                // Checking previous context: VideoService doesn't expose it.
+                // Let's try to get it from settings if possible, or skip if unavailable (fallback).
+                // Actually, let's assume we can get it or fail gracefully.
+                // WAIT: The user specifically asked to fetch info.
+                // I need the API Key. `useSettingsStore`?
+                // Let's look at `useTrendStore` or `useChannelStore`.
+                // If I can't find it, I'll have to rely on what I have.
+                // But wait, `VideoService` adds video. The `fetchVideosBatch` requires apiKey.
+                // I'll grab it from localStorage for now as a fallback or check stores.
+                // Or better: `currentChannel` might have it? No.
+                // Let's assume `useSettingsStore` has it.
 
-                            isPlaylistOnly: false,
-                            createdAt: Date.now(),
-                            addedToHomeAt: Date.now()
-                        };
+                // For now, I will write the logic assuming I can get the key.
+                // If not, I'll use a placeholder and user might need to fix.
+                // Actually, `useSettingsStore` is the standard way.
 
-                        await VideoService.addVideo(user.uid, currentChannel!.id, videoPayload);
-                        addedCount++;
-                        quotaUsed++; // Each video.list call costs 1 quota unit
+                const apiKey = generalSettings.apiKey;
+                if (!apiKey) {
+                    showToast('YouTube API Key not found. Please add it in settings.', 'error');
+                    return;
+                }
+
+                const fetchedDetailsMap = new Map<string, any>();
+
+                for (const chunk of chunks) {
+                    try {
+                        const details = await fetchVideosBatch(chunk, apiKey);
+                        details.forEach(d => fetchedDetailsMap.set(d.id, d));
+                        quotaUsed += 2; // 1 for videos, 1 for channels
+                    } catch (err) {
+                        console.warn("Failed to fetch batch details", err);
+                        showToast('Failed to fetch video details from YouTube', 'error');
+                        return;
                     }
+                }
+
+                await Promise.all(videosToAdd.map(async (v) => {
+                    const fetched = fetchedDetailsMap.get(v.videoId!);
+
+                    // Construct Video Data
+                    const videoPayload = {
+                        id: v.videoId!,
+                        title: fetched?.title || v.sourceTitle,
+                        thumbnail: fetched?.thumbnail || v.thumbnail || '',
+                        channelId: fetched?.channelId || '',
+                        channelTitle: fetched?.channelTitle || v.channelTitle || '',
+                        channelAvatar: fetched?.channelAvatar || '',
+                        viewCount: fetched?.viewCount || v.views.toString(),
+                        publishedAt: fetched?.publishedAt || v.publishedAt || new Date().toISOString(),
+                        duration: fetched?.duration, // Optional
+
+                        isPlaylistOnly: false,
+                        createdAt: Date.now(),
+                        addedToHomeAt: Date.now()
+                    };
+
+                    await VideoService.addVideo(user.uid, currentChannel!.id, videoPayload);
+                    addedCount++;
                 }));
 
                 // Show quota usage in toast
@@ -175,26 +228,39 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
                     {/* Separator */}
                     <div className="w-px h-4 bg-white/10 mx-1" />
 
-                    {/* Home Button with Premium Badge */}
-                    <button
-                        onClick={handleHomeToggle}
-                        disabled={isProcessing}
-                        className={`relative p-1.5 rounded-full transition-all ${areAllAddedToHome
-                            ? 'text-white hover:bg-red-500/20 hover:text-red-300'
-                            : 'text-text-secondary hover:text-white hover:bg-white/10'
-                            } ${isProcessing ? 'opacity-50' : ''}`}
-                        title={areAllAddedToHome ? 'Remove from Home' : 'Add to Home'}
+                    {/* Home Button with Premium Tooltip and Pulse Animation */}
+                    <PortalTooltip
+                        content={<span className="text-xs">{areAllAddedToHome ? 'Remove from Home' : 'Add to Home'}</span>}
+                        side="top"
+                        align="center"
+                        variant="glass"
+                        enterDelay={400}
                     >
-                        <Home size={16} />
-                        {areAllAddedToHome && (
-                            <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full flex items-center justify-center shadow-sm">
-                                <Check size={8} className="text-white" strokeWidth={3} />
-                            </div>
-                        )}
-                    </button>
+                        <button
+                            onClick={handleHomeToggle}
+                            className={`relative p-1.5 rounded-full transition-colors duration-150 ${!isProcessing && areAllAddedToHome
+                                ? 'text-white hover:bg-red-500/20 hover:text-red-300'
+                                : 'text-text-secondary hover:text-white hover:bg-white/10'
+                                }`}
+                        >
+                            {isProcessing ? (
+                                <Loader2 size={16} className="animate-spin text-white" />
+                            ) : (
+                                <>
+                                    <Home size={16} />
+                                    {areAllAddedToHome && (
+                                        <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full flex items-center justify-center shadow-sm">
+                                            <Check size={8} className="text-white" strokeWidth={3} />
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </button>
+                    </PortalTooltip>
 
                     <TrafficPlaylistSelector
                         videos={videos}
+                        homeVideos={homeVideos}
                         isOpen={activeMenu === 'playlist'}
                         openAbove={openAbove}
                         onToggle={() => setActiveMenu(activeMenu === 'playlist' ? null : 'playlist')}

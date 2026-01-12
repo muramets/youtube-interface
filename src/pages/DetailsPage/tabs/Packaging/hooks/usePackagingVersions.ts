@@ -344,13 +344,15 @@ export const usePackagingVersions = ({
         ? Math.max(...initialHistory.map(v => v.versionNumber))
         : 'draft'));
 
-    logger.debug('Initializing usePackagingVersions', {
-        component: 'usePackagingVersions',
-        initialIsDraft,
-        initialActiveVersion,
-        initialActive,
-        historyCount: initialHistory.length
-    });
+    useEffect(() => {
+        logger.debug('Initializing usePackagingVersions', {
+            component: 'usePackagingVersions',
+            initialIsDraft,
+            initialActiveVersion,
+            initialActive,
+            historyCount: initialHistory.length
+        });
+    }, []);
 
     // Calculate initial revision from history
     const initialRevision = initialHistory.length > 0

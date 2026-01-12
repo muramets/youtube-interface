@@ -1,17 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ListVideo, Plus, Check } from 'lucide-react';
+import { ListVideo, Plus, Check, Loader2 } from 'lucide-react';
 import { FloatingDropdownPortal } from '@/components/Shared/FloatingDropdownPortal';
+import { PortalTooltip } from '@/components/Shared/PortalTooltip';
 import { useAuth } from '@/core/hooks/useAuth';
 import { useChannelStore } from '@/core/stores/channelStore';
 import { usePlaylists } from '@/core/hooks/usePlaylists';
-import { useVideos } from '@/core/hooks/useVideos';
+
 import { useUIStore } from '@/core/stores/uiStore';
 import { VideoService } from '@/core/services/videoService';
 import { PlaylistService } from '@/core/services/playlistService';
+import { fetchVideosBatch } from '@/core/utils/youtubeApi';
 import type { TrafficSource } from '@/core/types/traffic';
+import { useSettings } from '@/core/hooks/useSettings';
+import type { VideoDetails } from '@/core/utils/youtubeApi';
 
 interface TrafficPlaylistSelectorProps {
     videos: TrafficSource[];
+    homeVideos: VideoDetails[];
     isOpen: boolean;
     openAbove: boolean;
     onToggle: () => void;
@@ -19,15 +24,20 @@ interface TrafficPlaylistSelectorProps {
 
 export const TrafficPlaylistSelector: React.FC<TrafficPlaylistSelectorProps> = ({
     videos,
+    homeVideos,
     isOpen,
     openAbove,
     onToggle
 }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { playlists, addVideoToPlaylist, removeVideoFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
-    const { videos: homeVideos } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const { playlists, addVideosToPlaylist, removeVideosFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+    // ...
+
+    // ... inside handlePlaylistToggle
+
     const { showToast } = useUIStore();
+    const { generalSettings, isLoading: isSettingsLoading } = useSettings();
 
     const [newPlaylistName, setNewPlaylistName] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
@@ -35,19 +45,32 @@ export const TrafficPlaylistSelector: React.FC<TrafficPlaylistSelectorProps> = (
     const buttonRef = useRef<HTMLButtonElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const isMultiSelect = videos.length > 1;
+
 
     // Auto-focus input when opening
     useEffect(() => {
         if (isOpen) setTimeout(() => inputRef.current?.focus(), 50);
     }, [isOpen]);
 
+
+    const isMounted = useRef(true);
+
+    useEffect(() => {
+        return () => {
+            isMounted.current = false;
+        };
+    }, []);
+
     const handleQuickAction = async (action: () => Promise<void>) => {
         setIsProcessing(true);
         try {
             await action();
+        } catch (e) {
+            console.error('Playlist action failed:', e);
         } finally {
-            setIsProcessing(false);
+            if (isMounted.current) {
+                setIsProcessing(false);
+            }
         }
     };
 
@@ -55,27 +78,68 @@ export const TrafficPlaylistSelector: React.FC<TrafficPlaylistSelectorProps> = (
     const ensureVideosExist = async (videosToProcess: TrafficSource[]) => {
         if (!user || !currentChannel) return;
 
-        await Promise.all(videosToProcess.map(async (v) => {
-            if (!v.videoId) return;
+        // If settings are still loading, wait a bit or warn? 
+        // Realistically, they should be loaded by now, but let's be safe.
+        if (isSettingsLoading && !generalSettings.apiKey) {
+            showToast('Loading settings, please try again in a moment...', 'error');
+            throw new Error('SETTINGS_LOADING');
+        }
 
-            const videoExists = homeVideos.some(hv => hv.id === v.videoId);
-            if (!videoExists) {
-                // Construct Video Data
-                const videoPayload = {
-                    id: v.videoId,
-                    title: v.sourceTitle,
-                    thumbnail: v.thumbnail || '',
-                    channelId: '',
-                    channelTitle: v.channelTitle || '',
-                    channelAvatar: '',
-                    viewCount: v.views.toString(),
-                    publishedAt: v.publishedAt || new Date().toISOString(),
-                    isPlaylistOnly: true, // Mark as playlist-only initially
-                    createdAt: Date.now()
-                };
-                await VideoService.addVideo(user.uid, currentChannel.id, videoPayload);
+        const videosMissing = videosToProcess.filter(v => v.videoId && !homeVideos.some(hv => hv.id === v.videoId));
+        if (videosMissing.length === 0) return;
+
+        const apiKey = generalSettings.apiKey;
+        if (!apiKey) {
+            showToast('YouTube API Key not found. Please add it in settings.', 'error');
+            throw new Error('API_KEY_MISSING');
+        }
+
+        const videoIds = videosMissing.map(v => v.videoId!);
+        const fetchedDetailsMap = new Map<string, any>();
+        let quotaUsed = 0;
+
+        // Batch fetch
+        const BATCH_SIZE = 50;
+        for (let i = 0; i < videoIds.length; i += BATCH_SIZE) {
+            const chunk = videoIds.slice(i, i + BATCH_SIZE);
+            try {
+                const details = await fetchVideosBatch(chunk, apiKey);
+                details.forEach(d => fetchedDetailsMap.set(d.id, d));
+                quotaUsed += 2;
+            } catch (err) {
+                console.error("Failed to fetch batch details for playlist", err);
+                showToast('Failed to fetch video details', 'error');
+                throw err;
             }
+        }
+
+        await Promise.all(videosMissing.map(async (v) => {
+            const fetched = fetchedDetailsMap.get(v.videoId!);
+            if (!fetched) {
+                console.warn(`Could not fetch details for ${v.videoId}, skipping add to home logic but proceeding with playlist.`);
+                return;
+            }
+
+            const videoPayload = {
+                id: v.videoId!,
+                title: fetched.title, // Use fetched title
+                thumbnail: fetched.thumbnail || v.thumbnail || '',
+                channelId: fetched.channelId || '',
+                channelTitle: fetched.channelTitle || v.channelTitle || '',
+                channelAvatar: fetched.channelAvatar || '',
+                viewCount: fetched.viewCount || v.views.toString(),
+                publishedAt: fetched.publishedAt || v.publishedAt || new Date().toISOString(),
+                duration: fetched.duration,
+
+                isPlaylistOnly: true, // Mark as playlist-only initially
+                createdAt: Date.now()
+            };
+            await VideoService.addVideo(user.uid, currentChannel!.id, videoPayload);
         }));
+
+        if (quotaUsed > 0) {
+            showToast(`Fetched ${videosMissing.length} videos details`, 'success');
+        }
     };
 
     const handleCreatePlaylist = async (e: React.FormEvent) => {
@@ -94,29 +158,28 @@ export const TrafficPlaylistSelector: React.FC<TrafficPlaylistSelectorProps> = (
                 createdAt: Date.now()
             });
 
-            showToast(`Created "${newPlaylistName}" with ${videos.length} videos`, 'success');
+            showToast(`Created "${newPlaylistName}"`, 'success');
             setNewPlaylistName('');
             onToggle(); // Close after create
         });
     };
 
-    const handlePlaylistToggle = async (playlistId: string, playlistName: string, isInPlaylist: boolean) => {
+    const handlePlaylistToggle = async (playlistId: string, _playlistName: string, isInPlaylist: boolean) => {
         if (!user || !currentChannel) return;
 
         await handleQuickAction(async () => {
+            const videoIds = videos.map(v => v.videoId).filter((id): id is string => !!id);
+            if (videoIds.length === 0) return;
+
             if (isInPlaylist) {
-                // Remove ALL from playlist
-                await Promise.all(videos.map(v => v.videoId && removeVideoFromPlaylist({ playlistId, videoId: v.videoId })));
-                showToast(isMultiSelect ? `Removed ${videos.length} videos from "${playlistName}"` : `Removed from "${playlistName}"`, 'success');
+                // Remove ALL from playlist (Bulk Operation)
+                await removeVideosFromPlaylist({ playlistId, videoIds });
+                showToast('Removed from playlist', 'success');
             } else {
-                // Add to playlist
+                // Add to playlist (Bulk Operation)
                 await ensureVideosExist(videos);
-                await Promise.all(videos.map(async (v) => {
-                    if (v.videoId) {
-                        await addVideoToPlaylist({ playlistId, videoId: v.videoId });
-                    }
-                }));
-                showToast(isMultiSelect ? `Added ${videos.length} videos to "${playlistName}"` : `Added to "${playlistName}"`, 'success');
+                await addVideosToPlaylist({ playlistId, videoIds });
+                showToast('Added to playlist', 'success');
             }
         });
     };
@@ -140,16 +203,26 @@ export const TrafficPlaylistSelector: React.FC<TrafficPlaylistSelectorProps> = (
 
     return (
         <div className="relative">
-            <button
-                ref={buttonRef}
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={onToggle}
-                disabled={isProcessing}
-                className={`p-1.5 rounded-full transition-colors ${isOpen ? 'bg-white text-black' : 'text-text-secondary hover:text-white hover:bg-white/10'} ${isProcessing ? 'opacity-50' : ''}`}
-                title="Add to Playlist"
+            <PortalTooltip
+                content={<span className="text-xs">Add to Playlist</span>}
+                side="top"
+                align="center"
+                variant="glass"
+                enterDelay={400}
             >
-                <ListVideo size={16} />
-            </button>
+                <button
+                    ref={buttonRef}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={onToggle}
+                    className={`p-1.5 rounded-full transition-colors ${isOpen ? 'bg-white text-black' : 'text-text-secondary hover:text-white hover:bg-white/10'}`}
+                >
+                    {isProcessing ? (
+                        <Loader2 size={16} className="animate-spin text-text-secondary" />
+                    ) : (
+                        <ListVideo size={16} />
+                    )}
+                </button>
+            </PortalTooltip>
 
             <FloatingDropdownPortal
                 isOpen={isOpen}

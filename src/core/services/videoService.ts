@@ -46,11 +46,19 @@ export const VideoService = {
         channelId: string,
         video: VideoDetails
     ) => {
-        const videoWithTimestamp = {
-            ...video,
-            // Auto-set addedToHomeAt if not provided and video is not playlist-only
-            addedToHomeAt: video.addedToHomeAt || (!video.isPlaylistOnly ? Date.now() : undefined)
-        };
+        const videoWithTimestamp = { ...video };
+
+        // Auto-set addedToHomeAt if not provided and video is not playlist-only.
+        // If it is playlist-only, we do NOT want this field (it stays undefined/missing).
+        // Firestore setDoc throws on 'undefined', so we must ensure it's not present in the object.
+        if (video.addedToHomeAt) {
+            videoWithTimestamp.addedToHomeAt = video.addedToHomeAt;
+        } else if (!video.isPlaylistOnly) {
+            videoWithTimestamp.addedToHomeAt = Date.now();
+        } else {
+            // Explicitly delete if it exists as undefined to be safe
+            delete videoWithTimestamp.addedToHomeAt;
+        }
 
         await setDocument(
             getVideosPath(userId, channelId),

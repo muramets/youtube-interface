@@ -74,49 +74,48 @@ export const useVideoFetchRetry = () => {
                                 lastFetchAttempt: undefined
                             }
                         });
-
-                        // Clear any existing retry notification for this video
-                        // (We don't need to notify success as data is now available)
                     } else {
-                        // Failed to fetch
-                        const newRetryCount = retryCount + 1;
-
-                        await updateVideo({
-                            videoId: video.id,
-                            updates: {
-                                fetchStatus: newRetryCount >= MAX_RETRY_ATTEMPTS ? 'failed' : 'pending',
-                                fetchRetryCount: newRetryCount,
-                                lastFetchAttempt: now
-                            }
-                        });
-
-                        // Show appropriate notification
-                        if (retryCount === 0 && !initialCheckDoneRef.current) {
-                            // First immediate failure - show toast
-                            showToast('Video not available yet. Will retry in 24 hours.', 'error');
-                        } else if (newRetryCount >= MAX_RETRY_ATTEMPTS) {
-                            // Final attempt failed
-                            await addNotification({
-                                title: 'Video Fetch Failed',
-                                message: `Stopped trying to fetch "${video.title}" after ${MAX_RETRY_ATTEMPTS} attempts. Update the link to try again.`,
-                                type: 'error',
-                                internalId: `fetch-failed-final-${video.id}`,
-                                link: `/video/${video.id}`,
-                                isPersistent: true
-                            });
-                        } else {
-                            // Retry failed (attempts 2-6)
-                            await addNotification({
-                                title: 'Video Fetch Retry Failed',
-                                message: `Retry #${newRetryCount} for "${video.title}" failed. Will try again in 24 hours.`,
-                                type: 'info',
-                                internalId: `fetch-retry-${video.id}-${newRetryCount}`,
-                                link: `/video/${video.id}`
-                            });
-                        }
+                        // Failed to fetch (null return) - treat as failure
+                        throw new Error('Video details returned null');
                     }
                 } catch (error) {
                     console.error(`Failed to fetch video ${video.id}:`, error);
+
+                    // Handle failure (both threw Error or returned null)
+                    const newRetryCount = retryCount + 1;
+                    const isFinalAttempt = newRetryCount >= MAX_RETRY_ATTEMPTS;
+
+                    await updateVideo({
+                        videoId: video.id,
+                        updates: {
+                            fetchStatus: isFinalAttempt ? 'failed' : 'pending',
+                            fetchRetryCount: newRetryCount,
+                            lastFetchAttempt: now
+                        }
+                    });
+
+                    // Show appropriate notification
+                    if (retryCount === 0 && !initialCheckDoneRef.current) {
+                        showToast('Video not available yet. Will retry in 24 hours.', 'error');
+                    } else if (isFinalAttempt) {
+                        await addNotification({
+                            title: 'Video Fetch Failed',
+                            message: `Stopped trying to fetch "${video.title}" after ${MAX_RETRY_ATTEMPTS} attempts. Update the link to try again.`,
+                            type: 'error',
+                            internalId: `fetch-failed-final-${video.id}`,
+                            link: `/video/${video.id}`,
+                            isPersistent: true
+                        });
+                    } else {
+                        // Silent retry failure (info notification)
+                        await addNotification({
+                            title: 'Video Fetch Retry Failed',
+                            message: `Retry #${newRetryCount} for "${video.title}" failed. Will try again in 24 hours.`,
+                            type: 'info',
+                            internalId: `fetch-retry-${video.id}-${newRetryCount}`,
+                            link: `/video/${video.id}`
+                        });
+                    }
                 } finally {
                     processingRef.current.delete(video.id);
                 }

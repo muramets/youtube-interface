@@ -14,6 +14,7 @@ import { formatPremiumPeriod } from './utils/dateUtils';
 import { useTrafficNicheStore } from '../../../../core/stores/useTrafficNicheStore';
 import { useAuth } from '../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../core/stores/channelStore';
+import { useVideos } from '../../../../core/hooks/useVideos';
 
 interface TrafficTabProps {
     video: VideoDetails;
@@ -87,14 +88,17 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     });
     const filteredSources = useMemo(() => applyFilters(displayedSources), [displayedSources, applyFilters]);
 
-    // Settings (for CTR rules)
+    // OPTIMIZATION: Memoize array props to prevent TrafficTable re-renders.
+    // Without memoization, `|| []` creates a new array reference each render.
     const { trafficSettings } = useSettings();
-    const ctrRules = trafficSettings?.ctrRules || [];
+    const ctrRules = useMemo(() => trafficSettings?.ctrRules || [], [trafficSettings?.ctrRules]);
+    const groups = useMemo(() => trafficData?.groups || [], [trafficData?.groups]);
 
     // Niche Store Management
     const { initializeSubscriptions, cleanup } = useTrafficNicheStore();
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
+    const { videos: homeVideos } = useVideos(user?.uid || '', currentChannel?.id || '');
 
     // Initialize niche subscriptions when user/channel are available
     useEffect(() => {
@@ -118,8 +122,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         return () => observer.disconnect();
     }, []);
 
-    // Wrapper to catch upload errors and open mapper
-    const handleUploadWithErrorTracking = async (sources: any[], totalRow?: any, file?: File) => {
+    // Wrapper to catch upload errors and open mapper - memoized to prevent re-renders
+    const handleUploadWithErrorTracking = React.useCallback(async (sources: any[], totalRow?: any, file?: File) => {
         // If sources is empty and we have a file, it means parsing failed
         if (sources.length === 0 && file) {
             setFailedFile(file);
@@ -135,12 +139,20 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         } catch (error) {
             console.error('Upload failed:', error);
         }
-    };
+    }, [handleCsvUpload, onSnapshotClick]);
 
     // Derived UI State
     const isViewingOldVersion = viewingVersion && viewingVersion !== activeVersion;
     const headerTitle = 'Suggested Traffic';
     const isEmpty = displayedSources.length === 0;
+
+    // OPTIMIZATION: Memoize FloatingBar props to prevent re-renders from affecting TrafficTable.
+    // These are stable references that only change when selection or data actually changes.
+    const selectedTrafficVideos = useMemo(
+        () => displayedSources.filter(s => s.videoId && selectedIds.has(s.videoId)),
+        [displayedSources, selectedIds]
+    );
+    const clearFloatingBar = React.useCallback(() => toggleAll([]), [toggleAll]);
 
     /**
      * BUSINESS LOGIC: Check if current viewing context has a snapshot with data
@@ -307,7 +319,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                             <div className="flex-1 min-h-0 relative w-full flex flex-col">
                                 <TrafficTable
                                     data={filteredSources}
-                                    groups={trafficData?.groups || []}
+                                    groups={groups}
                                     selectedIds={selectedIds}
                                     isLoading={isLoading || isLoadingSnapshot}
                                     ctrRules={ctrRules}
@@ -321,18 +333,19 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                                     hasPreviousSnapshots={hasPreviousSnapshots}
                                     isFirstSnapshot={isFirstSnapshot}
                                     hasActiveFilters={filters.length > 0}
-                                >
-                                    {/* Floating Action Bar - Absolute position relative to TrafficTable root */}
-                                    {selectedIds.size > 0 && (
-                                        <TrafficFloatingBar
-                                            videos={displayedSources.filter(s => s.videoId && selectedIds.has(s.videoId))}
-                                            position={{ x: 0, y: 0 }}
-                                            onClose={() => toggleAll([])}
-                                            isDocked={true}
-                                            dockingStrategy="absolute"
-                                        />
-                                    )}
-                                </TrafficTable>
+                                />
+
+                                {/* Floating Action Bar - Positioned absolutely relative to parent container */}
+                                {selectedIds.size > 0 && (
+                                    <TrafficFloatingBar
+                                        videos={selectedTrafficVideos}
+                                        homeVideos={homeVideos}
+                                        position={{ x: 0, y: 0 }}
+                                        onClose={clearFloatingBar}
+                                        isDocked={true}
+                                        dockingStrategy="absolute"
+                                    />
+                                )}
                             </div>
                         </>
                     )}

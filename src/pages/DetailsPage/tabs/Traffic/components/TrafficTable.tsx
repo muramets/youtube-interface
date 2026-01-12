@@ -40,7 +40,6 @@ interface TrafficTableProps {
 
     // Filters
     hasActiveFilters?: boolean;
-    children?: React.ReactNode;
 }
 
 type SortKey = keyof TrafficSource;
@@ -62,8 +61,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
     isFirstSnapshot = false,
     ctrRules = [],
     viewMode = 'cumulative',
-    hasActiveFilters = false,
-    children
+    hasActiveFilters = false
 }) => {
     // Virtualization refs
     const parentRef = useRef<HTMLDivElement>(null);
@@ -133,7 +131,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                 .filter(a => a.videoId === item.videoId)
                 .map(a => a.nicheId);
             const myNiches = niches.filter(n => myAssignmentIds.includes(n.id));
-            return myNiches.some(n => ['desired', 'targeted', 'unrelated'].includes(n.property));
+            return myNiches.some(n => n.property && ['desired', 'targeted', 'unrelated'].includes(n.property));
         });
     }, [data, niches, assignments]);
 
@@ -328,7 +326,6 @@ export const TrafficTable = memo<TrafficTableProps>(({
                     </>
                 )}
             </div>
-            {children}
         </div>
     );
 });

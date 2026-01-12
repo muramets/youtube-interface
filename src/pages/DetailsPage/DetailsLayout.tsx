@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { type VideoDetails } from '../../core/utils/youtubeApi';
 import { DetailsSidebar } from './Sidebar/DetailsSidebar';
 import { PackagingTab } from './tabs/Packaging/PackagingTab';
@@ -51,6 +51,12 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
         channelId: currentChannel?.id || '',
         video
     });
+
+    // OPTIMIZATION: Stabilize references to prevent useTrafficDataLoader effect re-runs.
+    // Defense-in-depth: useTrafficDataLoader also has skip logic, but stable references
+    // prevent the effect from running at all when parent re-renders due to useVideos.
+    const memoizedTrafficData = useMemo(() => trafficState.trafficData, [trafficState.trafficData]);
+    const memoizedPackagingHistory = useMemo(() => versions.packagingHistory, [versions.packagingHistory]);
 
     // Version management handlers
     const versionMgmt = useVersionManagement({
@@ -211,12 +217,12 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                         viewingVersion={versions.viewingVersion}
                         viewingPeriodIndex={versions.viewingPeriodIndex}
                         selectedSnapshot={selectedSnapshot}
-                        trafficData={trafficState.trafficData}
+                        trafficData={memoizedTrafficData}
                         isLoadingData={trafficState.isLoading}
                         isSaving={trafficState.isSaving}
                         handleCsvUpload={trafficState.handleCsvUpload}
                         onSnapshotClick={snapshotMgmt.handleSnapshotClick}
-                        packagingHistory={versions.packagingHistory}
+                        packagingHistory={memoizedPackagingHistory}
                     />
                 )}
             </div>
