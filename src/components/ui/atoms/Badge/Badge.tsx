@@ -137,7 +137,8 @@ export const Badge: React.FC<BadgeProps> = ({
         const checkTruncation = () => {
             if (textRef.current) {
                 const element = textRef.current;
-                const isOverflowing = element.scrollWidth > element.clientWidth;
+                const isOverflowing = element.scrollWidth > element.clientWidth ||
+                    Array.from(element.children).some(child => child.scrollWidth > child.clientWidth);
                 setIsTruncated(isOverflowing);
             }
         };
@@ -174,7 +175,12 @@ export const Badge: React.FC<BadgeProps> = ({
                 className="flex items-center gap-1 overflow-hidden text-ellipsis whitespace-nowrap max-w-full"
                 style={color ? { filter: 'brightness(1.5) saturate(1.2)' } : undefined}
             >
-                {children}
+                {React.Children.map(children, child => {
+                    if (typeof child === 'string' || typeof child === 'number') {
+                        return <span className="truncate min-w-0">{child}</span>;
+                    }
+                    return child;
+                })}
             </span>
         </span>
     );

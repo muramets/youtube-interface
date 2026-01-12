@@ -24,9 +24,7 @@ export const TrafficRowBadges: React.FC<TrafficRowBadgesProps> = ({ niches }) =>
                     className="!px-1.5 !py-0.5"
                     maxWidth="120px"
                 >
-                    <span>
-                        {niche.name}
-                    </span>
+                    {niche.name}
                 </Badge>
             ))}
         </div>
