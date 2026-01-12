@@ -10,6 +10,7 @@ interface MissingTitlesModalProps {
     onConfirm: () => void;
     onClose: () => void;
     isRestoring: boolean;
+    variant?: 'sync' | 'assistant';
 }
 
 export const MissingTitlesModal: React.FC<MissingTitlesModalProps> = ({
@@ -18,9 +19,12 @@ export const MissingTitlesModal: React.FC<MissingTitlesModalProps> = ({
     estimatedQuota,
     onConfirm,
     onClose,
-    isRestoring
+    isRestoring,
+    variant = 'sync'
 }) => {
     if (!isOpen) return null;
+
+    const isAssistant = variant === 'assistant';
 
     return createPortal(
         <div
@@ -34,7 +38,7 @@ export const MissingTitlesModal: React.FC<MissingTitlesModalProps> = ({
                 {/* Header */}
                 <div className="px-6 py-4 flex items-center justify-between border-b border-border">
                     <h2 className="text-xl font-bold text-text-primary m-0">
-                        Update missing data
+                        {isAssistant ? 'Smart Assistant Needs Data' : 'Update missing data'}
                     </h2>
                     {!isRestoring && (
                         <button
@@ -50,8 +54,18 @@ export const MissingTitlesModal: React.FC<MissingTitlesModalProps> = ({
                 <div className="p-6 flex flex-col gap-6">
                     <div className="px-1">
                         <p className="text-sm text-text-secondary leading-relaxed">
-                            This snapshot contains <span className="font-semibold text-text-primary">{missingCount} videos</span> without titles.
-                            Syncing with YouTube will enable full insights and detailed tooltips.
+                            {isAssistant ? (
+                                <>
+                                    Smart Assistant works best with rich data. We found <span className="font-semibold text-text-primary">{missingCount} videos</span> missing crucial details.
+                                    <br /><br />
+                                    Please sync with YouTube to enable intelligent channel prediction.
+                                </>
+                            ) : (
+                                <>
+                                    This snapshot contains <span className="font-semibold text-text-primary">{missingCount} videos</span> without titles.
+                                    Syncing with YouTube will enable full insights and detailed tooltips.
+                                </>
+                            )}
                         </p>
                     </div>
 

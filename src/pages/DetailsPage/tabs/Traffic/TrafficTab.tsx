@@ -1,11 +1,11 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { TrafficTable, type SortConfig, type SortKey } from './components/TrafficTable';
 import { TrafficHeader } from './components/TrafficHeader';
 import { TrafficModals } from './components/TrafficModals';
 import { TrafficFilterChips } from './components/TrafficFilterChips';
 import { TrafficErrorState } from './components/TrafficErrorState';
 import { TrafficFloatingBar } from './components/TrafficFloatingBar';
-import { MissingTitlesModal } from './components/MissingTitlesModal';
+// MissingTitlesModal is now wrapped in TrafficModals
 import { useMissingTitles, repairTrafficSources } from './hooks/useMissingTitles';
 import { generateTrafficCsv } from './utils/csvGenerator';
 import { useApiKey } from '../../../../core/hooks/useApiKey';
@@ -23,6 +23,7 @@ import { useTrafficNicheStore } from '../../../../core/stores/useTrafficNicheSto
 import { useAuth } from '../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../core/stores/channelStore';
 import { useVideos } from '../../../../core/hooks/useVideos';
+import { useSmartNicheSuggestions } from './hooks/useSmartNicheSuggestions';
 
 import type { TrafficSource } from '../../../../core/types/traffic';
 
@@ -95,6 +96,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     const [isMapperOpen, setIsMapperOpen] = useState(false);
     const [failedFile, setFailedFile] = useState<File | null>(null);
     const [isMissingTitlesModalOpen, setIsMissingTitlesModalOpen] = useState(false);
+    const [missingTitlesVariant, setMissingTitlesVariant] = useState<'sync' | 'assistant'>('sync');
 
     // Pending Upload State (for Pre-Upload Checks)
     const [pendingUpload, setPendingUpload] = useState<{
@@ -149,7 +151,6 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
     // Determines which "mode" the modal is in
     const isPendingMode = !!pendingUpload;
-    const missingCount = isPendingMode ? pendingMissingCount : existingMissingCount;
     const estimatedQuota = isPendingMode ? pendingEstimatedQuota : existingEstimatedQuota;
     const isRestoring = isPendingMode ? isRestoringPending : isRestoringExisting;
 
@@ -200,6 +201,58 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         observer.observe(sentinel);
         return () => observer.disconnect();
     }, []);
+
+    // -------------------------------------------------------------------------
+    // SMART ASSISTANT LOGIC
+    // -------------------------------------------------------------------------
+    const [isAssistantEnabled, setIsAssistantEnabled] = useState(false);
+
+    // Connect to the Store to get assignment history
+    const { niches: allNiches, assignments: allAssignments, assignVideoToTrafficNiche } = useTrafficNicheStore();
+
+    const { getSuggestion } = useSmartNicheSuggestions(
+        displayedSources,
+        allAssignments,
+        allNiches,
+        allVideos
+    );
+
+    // Wrapper to respect the toggle state
+    const getActiveSuggestion = useCallback((videoId: string) => {
+        if (!isAssistantEnabled) return null;
+        const suggestion = getSuggestion(videoId);
+        return suggestion ? suggestion.targetNiche : null;
+    }, [isAssistantEnabled, getSuggestion]);
+
+    // Handle Confirmation (Single or Bulk)
+    const handleConfirmSuggestion = useCallback(async (videoId: string, targetNiche: import('../../../../core/types/suggestedTrafficNiches').SuggestedTrafficNiche) => {
+        if (!user?.uid || !currentChannel?.id) return;
+
+        // Check if we have multiple selected items including this one
+        const isBulkAction = selectedIds.has(videoId) && selectedIds.size > 1;
+
+        if (isBulkAction) {
+            // Bulk Confirm: Apply to ALL selected videos that have THIS SAME suggestion
+            // Logic: Iterate selected IDs -> check if they have a suggestion -> if match targetNiche -> assign
+            const promises: Promise<void>[] = [];
+
+            selectedIds.forEach(selectedId => {
+                const suggestion = getActiveSuggestion(selectedId);
+                // We confirm for all selected videos that are suggested the SAME niche
+                if (suggestion && suggestion.id === targetNiche.id) {
+                    promises.push(assignVideoToTrafficNiche(selectedId, targetNiche.id, user.uid, currentChannel!.id));
+                }
+            });
+
+            await Promise.all(promises);
+            // Optionally clear selection? keeping it seems better flow
+        } else {
+            // Single Confirm
+            await assignVideoToTrafficNiche(videoId, targetNiche.id, user.uid, currentChannel.id);
+        }
+    }, [user?.uid, currentChannel?.id, selectedIds, getActiveSuggestion, assignVideoToTrafficNiche]);
+
+    // -------------------------------------------------------------------------
 
     // Wrapper to catch upload errors and open mapper - memoized to prevent re-renders
     const handleUploadWithErrorTracking = React.useCallback(async (sources: any[], totalRow?: any, file?: File) => {
@@ -265,6 +318,15 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             // Optionally show error toast
         } finally {
             setIsRestoringPending(false);
+        }
+    };
+
+    const handleRepairConfirm = async () => {
+        await fetchExistingMissingTitles();
+        setIsMissingTitlesModalOpen(false);
+        // If we were prompted by the Assistant, auto-enable it after successful sync
+        if (missingTitlesVariant === 'assistant') {
+            setIsAssistantEnabled(true);
         }
     };
 
@@ -450,7 +512,20 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 groups={groups}
                 trafficSources={displayedSources}
                 missingTitlesCount={existingMissingCount}
-                onOpenMissingTitles={() => setIsMissingTitlesModalOpen(true)}
+                onOpenMissingTitles={() => {
+                    setMissingTitlesVariant('sync');
+                    setIsMissingTitlesModalOpen(true);
+                }}
+                isAssistantEnabled={isAssistantEnabled}
+                onToggleAssistant={() => {
+                    // Smart Check: If we have missing titles, prompt to sync first
+                    if (!isAssistantEnabled && existingMissingCount > 0) {
+                        setMissingTitlesVariant('assistant');
+                        setIsMissingTitlesModalOpen(true);
+                        return;
+                    }
+                    setIsAssistantEnabled(prev => !prev);
+                }}
             />
 
             {/* Main Content - Table Area */}
@@ -487,6 +562,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                                     videos={allVideos}
                                     sortConfig={sortConfig}
                                     onSort={onSort}
+                                    getSuggestion={getActiveSuggestion}
+                                    onConfirmSuggestion={handleConfirmSuggestion}
                                 />
 
                                 {/* Floating Action Bar - Positioned absolutely relative to parent container */}
@@ -512,21 +589,21 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 failedFile={failedFile}
                 onMapperClose={() => setIsMapperOpen(false)}
                 onCsvUpload={handleCsvUpload}
-            />
 
-            <MissingTitlesModal
-                isOpen={isMissingTitlesModalOpen}
-                missingCount={missingCount}
+                // Missing Titles Props
+                isMissingTitlesOpen={isMissingTitlesModalOpen}
+                missingTitlesCount={isPendingMode ? pendingMissingCount : existingMissingCount}
                 estimatedQuota={estimatedQuota}
-                onConfirm={isPendingMode ? handleConfirmPendingSync : fetchExistingMissingTitles}
-                onClose={() => {
+                onMissingTitlesConfirm={isPendingMode ? handleConfirmPendingSync : handleRepairConfirm}
+                onMissingTitlesClose={() => {
                     if (isPendingMode) {
                         handleSkipPendingSync();
                     } else {
                         setIsMissingTitlesModalOpen(false);
                     }
                 }}
-                isRestoring={isRestoring}
+                isRestoringTitles={isRestoring}
+                missingTitlesVariant={missingTitlesVariant}
             />
         </div>
     );

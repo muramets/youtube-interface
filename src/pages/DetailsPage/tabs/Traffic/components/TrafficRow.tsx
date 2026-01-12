@@ -9,6 +9,7 @@ import type { CTRRule } from '../../../../../core/services/settingsService';
 import { useTrafficNicheStore } from '../../../../../core/stores/useTrafficNicheStore';
 import { TrafficRowBadges } from './TrafficRowBadges';
 import { useVideoPlayer } from '../../../../../core/contexts/VideoPlayerContext';
+import type { SuggestedTrafficNiche } from '../../../../../core/types/suggestedTrafficNiches';
 
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 
@@ -22,6 +23,9 @@ interface TrafficRowProps {
     gridClassName: string;
     showPropertyIcon: boolean;
     videoDetails?: VideoDetails;
+    // Smart Assistant Props
+    suggestedNiche?: SuggestedTrafficNiche;
+    onConfirmSuggestion?: (videoId: string, niche: SuggestedTrafficNiche) => void;
 }
 
 const getCtrColor = (ctr: number | string, rules: CTRRule[]): string | undefined => {
@@ -46,7 +50,7 @@ const getCtrColor = (ctr: number | string, rules: CTRRule[]): string | undefined
 };
 
 
-export const TrafficRow = ({ item, index, isSelected, activeSortKey, onRowClick, ctrRules = [], gridClassName, showPropertyIcon, videoDetails }: TrafficRowProps) => {
+export const TrafficRow = ({ item, index, isSelected, activeSortKey, onRowClick, ctrRules = [], gridClassName, showPropertyIcon, videoDetails, suggestedNiche, onConfirmSuggestion }: TrafficRowProps) => {
     // Connect to Niche Store
     const { niches, assignments } = useTrafficNicheStore();
     // Connect to Video Player mainly to check if this video is minimized
@@ -160,7 +164,11 @@ export const TrafficRow = ({ item, index, isSelected, activeSortKey, onRowClick,
                     </div>
 
                     {/* Niche Badges - Fixed Position (Before External Link) */}
-                    <TrafficRowBadges niches={assignedNiches} />
+                    <TrafficRowBadges
+                        niches={assignedNiches}
+                        suggested={suggestedNiche}
+                        onConfirmSuggestion={(niche) => item.videoId && onConfirmSuggestion?.(item.videoId, niche)}
+                    />
 
                     {/* Actions Group - Appears on Row Hover */}
                     <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">

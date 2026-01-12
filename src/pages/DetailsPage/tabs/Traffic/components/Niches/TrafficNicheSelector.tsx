@@ -47,6 +47,7 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
 
     // Active menu state for mutually exclusive item menus
     const [activeNicheMenuId, setActiveNicheMenuId] = useState<string | null>(null);
+    const [menuPosition, setMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
     const buttonRef = useRef<HTMLButtonElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -395,6 +396,8 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                                             type="button"
                                             onClick={(e) => {
                                                 e.stopPropagation();
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                setMenuPosition({ x: rect.left, y: rect.bottom });
                                                 setActiveNicheMenuId(activeNicheMenuId === niche.id ? null : niche.id);
                                             }}
                                             className={`p-1 rounded-md text-text-tertiary hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all
@@ -410,7 +413,7 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                                                 niche={niche}
                                                 isOpen={true}
                                                 onClose={() => setActiveNicheMenuId(null)}
-                                                position={{ x: 0, y: 0 }}
+                                                position={menuPosition}
                                                 onRename={() => { }}
                                                 onDelete={() => {
                                                     deleteTrafficNiche(niche.id, user?.uid || '', currentChannel?.id || '');

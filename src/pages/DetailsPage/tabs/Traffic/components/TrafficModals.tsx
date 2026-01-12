@@ -1,5 +1,6 @@
 import React from 'react';
 import { ColumnMapperModal } from '../modals/ColumnMapperModal';
+import { MissingTitlesModal } from '../modals/MissingTitlesModal';
 import { parseTrafficCsv } from '../utils/csvParser';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import type { CsvMapping } from '../utils/csvParser';
@@ -10,6 +11,15 @@ interface TrafficModalsProps {
     failedFile: File | null;
     onMapperClose: () => void;
     onCsvUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<string | null>;
+
+    // Missing Titles Modal
+    isMissingTitlesOpen: boolean;
+    missingTitlesCount: number;
+    estimatedQuota: number;
+    onMissingTitlesConfirm: () => void;
+    onMissingTitlesClose: () => void;
+    isRestoringTitles: boolean;
+    missingTitlesVariant?: 'sync' | 'assistant';
 }
 
 /**
@@ -20,7 +30,16 @@ export const TrafficModals: React.FC<TrafficModalsProps> = ({
     isMapperOpen,
     failedFile,
     onMapperClose,
-    onCsvUpload
+    onCsvUpload,
+
+    // Missing Titles Props
+    isMissingTitlesOpen,
+    missingTitlesCount,
+    estimatedQuota,
+    onMissingTitlesConfirm,
+    onMissingTitlesClose,
+    isRestoringTitles,
+    missingTitlesVariant = 'sync'
 }) => {
     const handleMapperConfirm = async (mapping: CsvMapping) => {
         if (!failedFile) return;
@@ -35,11 +54,23 @@ export const TrafficModals: React.FC<TrafficModalsProps> = ({
     };
 
     return (
-        <ColumnMapperModal
-            isOpen={isMapperOpen}
-            onClose={onMapperClose}
-            file={failedFile}
-            onConfirm={handleMapperConfirm}
-        />
+        <>
+            <ColumnMapperModal
+                isOpen={isMapperOpen}
+                onClose={onMapperClose}
+                file={failedFile}
+                onConfirm={handleMapperConfirm}
+            />
+
+            <MissingTitlesModal
+                isOpen={isMissingTitlesOpen}
+                missingCount={missingTitlesCount}
+                estimatedQuota={estimatedQuota}
+                onConfirm={onMissingTitlesConfirm}
+                onClose={onMissingTitlesClose}
+                isRestoring={isRestoringTitles}
+                variant={missingTitlesVariant}
+            />
+        </>
     );
 };

@@ -10,6 +10,8 @@ import { TRAFFIC_TABLE } from '../utils/constants';
 import type { CTRRule } from '../../../../../core/services/settingsService';
 import { useTrafficNicheStore } from '../../../../../core/stores/useTrafficNicheStore';
 
+import type { SuggestedTrafficNiche } from '../../../../../core/types/suggestedTrafficNiches';
+
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 
 interface TrafficTableProps {
@@ -94,6 +96,10 @@ interface TrafficTableProps {
     // Sorting (Controlled)
     sortConfig: SortConfig | null;
     onSort: (key: SortKey) => void;
+
+    // Smart Assistant
+    getSuggestion?: (videoId: string) => SuggestedTrafficNiche | null;
+    onConfirmSuggestion?: (videoId: string, niche: SuggestedTrafficNiche) => void;
 }
 
 export const TrafficTable = memo<TrafficTableProps>(({
@@ -112,7 +118,9 @@ export const TrafficTable = memo<TrafficTableProps>(({
     onSwitchToTotal,
     videos = [],
     sortConfig,
-    onSort
+    onSort,
+    getSuggestion,
+    onConfirmSuggestion
 }) => {
     // Virtualization refs
     const parentRef = useRef<HTMLDivElement>(null);
@@ -375,6 +383,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             gridClassName={gridClassName}
                                             showPropertyIcon={showPropertyColumn}
                                             videoDetails={videoDetails}
+                                            suggestedNiche={item.videoId ? getSuggestion?.(item.videoId) || undefined : undefined}
+                                            onConfirmSuggestion={onConfirmSuggestion}
                                         />
                                     </div>
                                 );

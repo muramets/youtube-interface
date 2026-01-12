@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { FilterDropdown } from '../../../../../components/ui/molecules/FilterDropdown';
 import { TrafficUploader } from './TrafficUploader';
-import { Settings, CloudDownload } from 'lucide-react';
+import { Settings, CloudDownload, Wand2 } from 'lucide-react';
 import { TrafficCTRConfig } from './TrafficCTRConfig';
 import { TrafficFilterMenu } from './TrafficFilterMenu';
 import type { TrafficSource } from '../../../../../core/types/traffic';
@@ -40,6 +40,10 @@ interface TrafficHeaderProps {
     // Missing Titles Sync
     missingTitlesCount?: number;
     onOpenMissingTitles?: () => void;
+
+    // Smart Assistant Toggle
+    isAssistantEnabled?: boolean;
+    onToggleAssistant?: () => void;
 }
 
 /**
@@ -64,7 +68,9 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
     groups,
     trafficSources,
     missingTitlesCount = 0,
-    onOpenMissingTitles
+    onOpenMissingTitles,
+    isAssistantEnabled = false,
+    onToggleAssistant
 }) => {
     const configBtnRef = useRef<HTMLButtonElement>(null);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -98,6 +104,19 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
                     {/* Actions - Show if data exists OR has existing snapshots (for delta empty state) */}
                     {shouldShowActions && (
                         <div className="flex gap-2">
+                            {/* Smart Assistant Toggle */}
+                            {onToggleAssistant && (
+                                <button
+                                    onClick={onToggleAssistant}
+                                    className={`w-[34px] h-[34px] rounded-full flex items-center justify-center transition-all border-none cursor-pointer ${isAssistantEnabled
+                                        ? 'bg-blue-500 text-white shadow-[0_0_10px_rgba(59,130,246,0.5)]'
+                                        : 'bg-transparent text-text-primary hover:bg-hover-bg'}`}
+                                    title={isAssistantEnabled ? "Disable Smart Assistant" : "Enable Smart Assistant"}
+                                >
+                                    <Wand2 size={18} className={isAssistantEnabled ? "animate-pulse" : ""} />
+                                </button>
+                            )}
+
                             {/* Sync Missing Titles Button */}
                             {missingTitlesCount > 0 && onOpenMissingTitles && (
                                 <button
