@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, ThumbsDown, Trophy, Heart, FolderPlus, ChevronDown, GitBranch, Check, MoreVertical } from 'lucide-react';
+import { Plus, ThumbsDown, Trophy, Heart, FolderPlus, ChevronDown, GitBranch, Check, MoreVertical, Trash2 } from 'lucide-react';
 import { useTrafficNicheStore } from '@/core/stores/useTrafficNicheStore';
 import { useAuth } from '@/core/hooks/useAuth';
 import { useChannelStore } from '@/core/stores/channelStore';
@@ -116,16 +116,19 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
         });
 
         // 2. Sort all niches
-        const sorted = [...niches].sort((a, b) => {
-            const lastUsedA = lastUsedMap.get(a.id) || 0;
-            const lastUsedB = lastUsedMap.get(b.id) || 0;
+        const sorted = [...niches]
+            // Filter out Trash from this selector as it has a designated button
+            .filter(n => n.name.trim().toLowerCase() !== 'trash')
+            .sort((a, b) => {
+                const lastUsedA = lastUsedMap.get(a.id) || 0;
+                const lastUsedB = lastUsedMap.get(b.id) || 0;
 
-            if (lastUsedA !== lastUsedB) {
-                return lastUsedB - lastUsedA; // Recent first
-            }
-            // Fallback to creation time
-            return b.createdAt - a.createdAt;
-        });
+                if (lastUsedA !== lastUsedB) {
+                    return lastUsedB - lastUsedA; // Recent first
+                }
+                // Fallback to creation time
+                return b.createdAt - a.createdAt;
+            });
 
         // 3. Filter
         if (!inputValue.trim()) return sorted;
@@ -374,6 +377,10 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                                 }
                             };
 
+                            // Special styling for Trash at the bottom (Index 0 in col-reverse)
+                            const isTrash = niche.name.trim().toLowerCase() === 'trash';
+                            const showSeparator = isTrash && index === 0 && filteredNiches.length > 1;
+
                             return (
                                 <div
                                     key={niche.id}
@@ -383,24 +390,31 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                                     className={`
                                         group flex items-center justify-between px-3 py-2 text-xs rounded-lg cursor-pointer transition-all duration-200 shrink-0
                                         ${isHighlighted ? 'bg-white/10 text-white' : 'text-text-secondary hover:text-white hover:bg-white/5'}
+                                        ${showSeparator ? 'mt-2 border-t border-white/10 pt-2 rounded-t-none' : ''}
                                     `}
                                 >
                                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                                        {/* Color Dot */}
-                                        <div
-                                            className="w-2 h-2 rounded-full flex-shrink-0"
-                                            style={{ backgroundColor: niche.color }}
-                                        />
+                                        {/* Color Dot or Trash Icon */}
+                                        {isTrash ? (
+                                            <div className="w-4 flex justify-center shrink-0">
+                                                <Trash2 size={12} className="text-text-secondary" />
+                                            </div>
+                                        ) : (
+                                            <div
+                                                className="w-2 h-2 rounded-full flex-shrink-0"
+                                                style={{ backgroundColor: niche.color }}
+                                            />
+                                        )}
 
                                         {/* Property Icon */}
-                                        {niche.property && (
+                                        {!isTrash && niche.property && (
                                             <div className="flex-shrink-0 opacity-80">
                                                 {getPropertyIcon(niche.property)}
                                             </div>
                                         )}
 
                                         {/* Name / Rename Input */}
-                                        {editingNicheId === niche.id ? (
+                                        {!isTrash && editingNicheId === niche.id ? (
                                             <input
                                                 autoFocus
                                                 type="text"
@@ -420,7 +434,7 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                                             />
                                         ) : (
                                             <span className="truncate" title={niche.name}>
-                                                {niche.name}
+                                                {isTrash ? 'Trash' : niche.name}
                                             </span>
                                         )}
                                     </div>
@@ -430,21 +444,23 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                                         {status === 'all' && <Check size={14} className="text-green-400" />}
                                         {status === 'some' && <div className="w-2 h-2 rounded-full bg-text-secondary" />}
 
-                                        {/* Context Menu Trigger */}
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                const rect = e.currentTarget.getBoundingClientRect();
-                                                setMenuPosition({ x: rect.left, y: rect.bottom });
-                                                setActiveNicheMenuId(activeNicheMenuId === niche.id ? null : niche.id);
-                                            }}
-                                            className={`p-1 rounded-md text-text-tertiary hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all
-                                                ${activeNicheMenuId === niche.id ? 'opacity-100 bg-white/10 text-white' : ''}
-                                            `}
-                                        >
-                                            <MoreVertical size={12} />
-                                        </button>
+                                        {/* Context Menu Trigger (Hide for Trash) */}
+                                        {!isTrash && (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    setMenuPosition({ x: rect.left, y: rect.bottom });
+                                                    setActiveNicheMenuId(activeNicheMenuId === niche.id ? null : niche.id);
+                                                }}
+                                                className={`p-1 rounded-md text-text-tertiary hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all
+                                                    ${activeNicheMenuId === niche.id ? 'opacity-100 bg-white/10 text-white' : ''}
+                                                `}
+                                            >
+                                                <MoreVertical size={12} />
+                                            </button>
+                                        )}
 
                                         {/* Dropdown Menu Portal */}
                                         {activeNicheMenuId === niche.id && (

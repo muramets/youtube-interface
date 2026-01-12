@@ -29,7 +29,15 @@ export const TrafficSidebarNicheList: React.FC<TrafficSidebarNicheListProps> = (
             ...group,
             impressions: nicheImpressions[group.id] || 0
         }))
-        .sort((a, b) => b.impressions - a.impressions); // Sort by impressions desc
+        .sort((a, b) => {
+            const aIsTrash = a.name.trim().toLowerCase() === 'trash';
+            const bIsTrash = b.name.trim().toLowerCase() === 'trash';
+
+            if (aIsTrash) return 1; // Trash to bottom
+            if (bIsTrash) return -1;
+
+            return b.impressions - a.impressions;
+        }); // Sort by impressions desc, but Trash always last
 
     if (activeNiches.length === 0) return null;
 
@@ -39,29 +47,32 @@ export const TrafficSidebarNicheList: React.FC<TrafficSidebarNicheListProps> = (
 
     return (
         <ul className="space-y-0.5">
-            {visibleNiches.map(niche => (
+            {visibleNiches.map((niche, index) => (
                 <li key={niche.id} className="relative">
-                    <TrafficNicheItem
-                        niche={{
-                            id: niche.id,
-                            name: niche.name,
-                            color: niche.color,
-                            property: niche.property,
-                            channelId: '', // Passed via currentChannel context in store actions
-                            createdAt: 0
-                        }}
-                        isActive={activeMenuId === niche.id}
-                        onClick={() => {
-                            if (onNicheClick) {
-                                onNicheClick(niche.id);
-                            }
-                        }}
-                        onToggleMenu={() => setActiveMenuId(activeMenuId === niche.id ? null : niche.id)}
-                        onCloseMenu={() => setActiveMenuId(null)}
-                        impressions={niche.impressions}
-                        status="none"
-                        isSelected={activeNicheId === niche.id}
-                    />
+                    <div className={niche.name.trim().toLowerCase() === 'trash' && index > 0 ? 'mt-2 border-t border-white/10 pt-2' : ''}>
+                        <TrafficNicheItem
+                            niche={{
+                                id: niche.id,
+                                name: niche.name,
+                                color: niche.color,
+                                property: niche.property,
+                                channelId: '',
+                                createdAt: 0
+                            }}
+                            isActive={activeMenuId === niche.id}
+                            onClick={() => {
+                                if (onNicheClick) {
+                                    onNicheClick(niche.id);
+                                }
+                            }}
+                            onToggleMenu={() => setActiveMenuId(activeMenuId === niche.id ? null : niche.id)}
+                            onCloseMenu={() => setActiveMenuId(null)}
+                            impressions={niche.impressions}
+                            status="none"
+                            isSelected={activeNicheId === niche.id}
+                            isTrash={niche.name.trim().toLowerCase() === 'trash'}
+                        />
+                    </div>
                 </li>
             ))}
 

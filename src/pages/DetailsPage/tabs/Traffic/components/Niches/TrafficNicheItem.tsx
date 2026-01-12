@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ThumbsDown, Trophy, Heart, MoreVertical, GitBranch } from 'lucide-react';
+import { Check, ThumbsDown, Trophy, Heart, MoreVertical, GitBranch, Trash2 } from 'lucide-react';
 import type { SuggestedTrafficNiche, TrafficNicheProperty } from '@/core/types/suggestedTrafficNiches';
 import { useTrafficNicheStore } from '@/core/stores/useTrafficNicheStore';
 import { useAuth } from '@/core/hooks/useAuth';
@@ -20,6 +20,7 @@ interface TrafficNicheItemProps {
     onCloseMenu?: () => void;
     // Optional stats for sidebar display
     impressions?: number;
+    isTrash?: boolean;
 }
 
 export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
@@ -31,7 +32,8 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
     onClick,
     onToggleMenu,
     onCloseMenu,
-    impressions
+    impressions,
+    isTrash = false
 }) => {
     // Stores & Hooks
     const { updateTrafficNiche, deleteTrafficNiche } = useTrafficNicheStore();
@@ -161,37 +163,43 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
             >
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                     {/* Color Dot / Picker Trigger */}
-                    <div ref={colorPickerRef} className="relative shrink-0 flex items-center">
-                        <div
-                            role="button"
-                            onClick={handleColorClick}
-                            className="w-2 h-2 rounded-full cursor-pointer hover:scale-125 transition-transform hover:ring-2 hover:ring-white/20"
-                            style={{ backgroundColor: niche.color }}
-                        />
-                        {isColorPickerOpen && createPortal(
-                            <div
-                                className="fixed z-[9999] bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-fade-in w-[240px]"
-                                style={{
-                                    left: colorPickerRef.current?.getBoundingClientRect().left,
-                                    top: (colorPickerRef.current?.getBoundingClientRect().bottom || 0) + 8,
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <NicheColorPickerGrid
-                                    selectedColor={niche.color}
-                                    onSelect={(color) => {
-                                        handleUpdate({ color });
-                                        setIsColorPickerOpen(false);
-                                    }}
+                    <div ref={colorPickerRef} className="relative shrink-0 flex items-center w-4 justify-center">
+                        {isTrash ? (
+                            <Trash2 size={12} className={`${isSelected ? 'text-white' : 'text-text-secondary group-hover:text-white'}`} />
+                        ) : (
+                            <>
+                                <div
+                                    role="button"
+                                    onClick={handleColorClick}
+                                    className="w-2 h-2 rounded-full cursor-pointer hover:scale-125 transition-transform hover:ring-2 hover:ring-white/20"
+                                    style={{ backgroundColor: niche.color }}
                                 />
-                            </div>,
-                            document.body
+                                {isColorPickerOpen && createPortal(
+                                    <div
+                                        className="fixed z-[9999] bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-fade-in w-[240px]"
+                                        style={{
+                                            left: colorPickerRef.current?.getBoundingClientRect().left,
+                                            top: (colorPickerRef.current?.getBoundingClientRect().bottom || 0) + 8,
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <NicheColorPickerGrid
+                                            selectedColor={niche.color}
+                                            onSelect={(color) => {
+                                                handleUpdate({ color });
+                                                setIsColorPickerOpen(false);
+                                            }}
+                                        />
+                                    </div>,
+                                    document.body
+                                )}
+                            </>
                         )}
                     </div>
 
                     {/* Property Icon */}
                     <div className="flex-shrink-0">
-                        {getPropertyIcon(niche.property)}
+                        {!isTrash && getPropertyIcon(niche.property)}
                     </div>
 
                     {/* Name */}
@@ -225,7 +233,7 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
                             }}
                             onMouseLeave={() => setIsNameHovered(false)}
                         >
-                            {niche.name}
+                            {isTrash ? 'Trash' : niche.name}
                         </span>
                     )}
                 </div>
@@ -258,8 +266,8 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
                     {/* Assigned Check */}
                     {isAssigned && <Check size={12} className="text-green-400 flex-shrink-0" />}
 
-                    {/* More Menu */}
-                    {onToggleMenu && (
+                    {/* More Menu (Hide for Trash) */}
+                    {onToggleMenu && !isTrash && (
                         <div className="relative">
                             <button
                                 ref={menuButtonRef}

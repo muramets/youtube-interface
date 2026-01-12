@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Check, Home, Loader2 } from 'lucide-react';
+import { Check, Home, Loader2, Trash2 } from 'lucide-react';
 import type { TrafficSource } from '@/core/types/traffic';
 import { useAuth } from '@/core/hooks/useAuth';
+import { useTrafficNicheStore } from '@/core/stores/useTrafficNicheStore';
 import { useChannelStore } from '@/core/stores/channelStore';
 
 import { useUIStore } from '@/core/stores/uiStore';
@@ -35,6 +36,7 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
     const { currentChannel } = useChannelStore();
     const { showToast } = useUIStore();
     const { generalSettings } = useSettings();
+    const { niches, assignments, addTrafficNiche, assignVideoToTrafficNiche, removeVideoFromTrafficNiche } = useTrafficNicheStore();
 
     // State
     const [activeMenu, setActiveMenu] = useState<'niche' | 'playlist' | null>(null);
@@ -227,6 +229,77 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
         }
     };
 
+    // Check if videos are already in Trash
+    const { isInTrash, trashNicheId } = useMemo(() => {
+        const trashNiche = niches.find(n => n.name.trim().toLowerCase() === 'trash');
+        if (!trashNiche) return { isInTrash: false, trashNicheId: null };
+
+        const validVidIds = videos.map(v => v.videoId).filter(Boolean);
+        if (validVidIds.length === 0) return { isInTrash: false, trashNicheId: trashNiche.id };
+
+        // Check if ALL valid videos are assigned to the trash niche
+        const allInTrash = validVidIds.every(vidId =>
+            assignments.some(a => a.videoId === vidId && a.nicheId === trashNiche.id)
+        );
+
+        return {
+            isInTrash: allInTrash,
+            trashNicheId: trashNiche.id
+        };
+    }, [niches, videos, assignments]);
+
+    const handleTrash = async () => {
+        if (!user || !currentChannel) return;
+        setIsProcessing(true);
+        try {
+            // Find or create 'Trash' niche (robust check)
+            let trashNiche = niches.find(n => n.name.trim().toLowerCase() === 'trash');
+            let targetNicheId = trashNiche?.id;
+
+            if (!targetNicheId) {
+                const newId = crypto.randomUUID();
+                await addTrafficNiche({
+                    id: newId,
+                    name: 'Trash',
+                    channelId: currentChannel.id,
+                    color: '#ef4444' // Red color for trash
+                }, user.uid, currentChannel.id);
+                targetNicheId = newId;
+            }
+
+            const validVideos = videos.filter(v => v.videoId);
+
+            // Check current status based on latest data at click time
+            // Re-fetch assignments from store (or rely on updated props if reactive)
+            // But we can check `isInTrash` computed value if we fix the hook usage.
+
+            if (isInTrash && targetNicheId) {
+                // REMOVE from Trash
+                await Promise.all(validVideos.map(async (v) => {
+                    if (v.videoId) {
+                        await removeVideoFromTrafficNiche(v.videoId, targetNicheId!, user.uid, currentChannel!.id);
+                    }
+                }));
+                showToast('Restored from Trash', 'success');
+            } else {
+                // ADD to Trash
+                await Promise.all(validVideos.map(async (v) => {
+                    if (v.videoId) {
+                        await assignVideoToTrafficNiche(v.videoId, targetNicheId!, user.uid, currentChannel!.id);
+                    }
+                }));
+                showToast('Moved to Trash', 'success');
+                onClose();
+            }
+
+        } catch (e) {
+            console.error(e);
+            showToast('Failed to update trash status', 'error');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
     const title = isMultiSelect ? `${videos.length} selected` : (videos[0]?.sourceTitle || 'Selected Video');
 
     return (
@@ -291,6 +364,32 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
                         openAbove={openAbove}
                         onToggle={() => setActiveMenu(activeMenu === 'playlist' ? null : 'playlist')}
                     />
+
+                    {/* Trash Button */}
+                    <PortalTooltip
+                        content={<span className="text-xs">{isInTrash ? 'Restore from Trash' : 'Move to Trash'}</span>}
+                        side="top"
+                        align="center"
+                        variant="glass"
+                        enterDelay={400}
+                    >
+                        <button
+                            onClick={handleTrash}
+                            disabled={isProcessing}
+                            className={`p-1.5 rounded-full transition-colors duration-150 disabled:opacity-50
+                                ${isInTrash
+                                    ? 'text-red-400 bg-red-500/10 hover:bg-red-500/20'
+                                    : 'text-text-secondary hover:text-red-400 hover:bg-white/10'
+                                }
+                            `}
+                        >
+                            {isProcessing ? (
+                                <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                                <Trash2 size={16} className={isInTrash ? "fill-red-400/20" : ""} />
+                            )}
+                        </button>
+                    </PortalTooltip>
                 </>
             )}
         </FloatingBar>
