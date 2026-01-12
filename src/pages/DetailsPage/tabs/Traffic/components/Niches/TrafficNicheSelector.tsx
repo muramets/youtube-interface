@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Plus, ThumbsDown, Trophy, Heart, FolderPlus, ChevronDown } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Plus, ThumbsDown, Trophy, Heart, FolderPlus, ChevronDown, GitBranch } from 'lucide-react';
 import { useTrafficNicheStore } from '@/core/stores/useTrafficNicheStore';
 import { useAuth } from '@/core/hooks/useAuth';
 import { useChannelStore } from '@/core/stores/channelStore';
 import type { TrafficNicheProperty } from '@/core/types/suggestedTrafficNiches';
-import { generateNicheColor } from '@/core/stores/trendStore';
+import { generateNicheColor, MANUAL_NICHE_PALETTE } from '@/core/stores/trendStore';
 import { TrafficNicheItem } from './TrafficNicheItem';
 import { FloatingDropdownPortal } from '@/components/Shared/FloatingDropdownPortal';
 
@@ -38,6 +39,8 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
     // Single input for search AND create
     const [inputValue, setInputValue] = useState('');
     const [selectedProperty, setSelectedProperty] = useState<TrafficNicheProperty | undefined>(undefined);
+    const [selectedColor, setSelectedColor] = useState<string>('#3B82F6'); // Default init
+    const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
 
     // Active menu state for mutually exclusive item menus
     const [activeNicheMenuId, setActiveNicheMenuId] = useState<string | null>(null);
@@ -45,6 +48,7 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
     const buttonRef = useRef<HTMLButtonElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
+    const pickerTriggerRef = useRef<HTMLButtonElement>(null);
 
     // Keyboard navigation
     const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -110,7 +114,29 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
         return niches.find(n => n.name.toLowerCase() === trimmed.toLowerCase());
     }, [niches, inputValue]);
 
+    // Initial random color when showing Create UI
+    useEffect(() => {
+        if (inputValue.trim() && !exactMatch) {
+            // Only set if we haven't manually picked one? 
+            // Better: just set a random one once when invalid -> valid transition happens
+            // Or just on mount? No.
+            // Let's just rely on the user or default.
+            // Actually, let's pick a random one on input start if not set.
+            // But state persistence is tricky.
+            // Let's just generate one when `showCreateUI` becomes true.
+        }
+    }, [inputValue, exactMatch]);
+
     const showCreateUI = inputValue.trim() && !exactMatch;
+
+    // Better approach: when showCreateUI becomes true, set a random color if not already set or randomized recently.
+    // For simplicity, let's just use a memoized random color or effect.
+    useEffect(() => {
+        if (showCreateUI) {
+            const existingColors = niches.map(n => n.color);
+            setSelectedColor(generateNicheColor(existingColors));
+        }
+    }, [showCreateUI]); // Reset when UI appears
 
     // --- Effects ---
 
@@ -126,6 +152,7 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
         if (!isOpen) {
             setInputValue('');
             setSelectedProperty(undefined);
+            setIsColorPickerOpen(false);
             setHighlightedIndex(-1);
             setActiveNicheMenuId(null);
         }
@@ -155,18 +182,15 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
 
         try {
             const newId = crypto.randomUUID();
-            const existingColors = niches.map(n => n.color);
-            const newColor = generateNicheColor(existingColors);
-
-            // Optimistic UI
-            onToggle();
-            onSelectionClear?.();
+            // Use selected color
+            const newColor = selectedColor;
 
             await addTrafficNiche({
                 id: newId,
                 name: trimmed,
                 channelId: currentChannel.id,
-                property: selectedProperty,
+                // Only include property if defined (Firestore rejects undefined)
+                ...(selectedProperty ? { property: selectedProperty } : {}),
                 color: newColor
             }, user.uid, currentChannel.id);
 
@@ -174,6 +198,9 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                 assignVideoToTrafficNiche(vidId, newId, user.uid, currentChannel.id)
             ));
 
+            // Close UI only AFTER success
+            onToggle();
+            onSelectionClear?.();
             setInputValue('');
             setSelectedProperty(undefined);
 
@@ -280,62 +307,131 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                             </div>
 
                             {showCreateUI && (
-                                <div className="flex items-center justify-between px-1 gap-3">
-                                    <div className="relative flex bg-white/5 rounded-full p-0.5 border border-white/10 backdrop-blur-sm">
-                                        {/* Highlight Pill (Only visible if selected) */}
+                                <div className="flex items-center gap-2 px-1 py-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                                    {/* Property Switcher - Compact & Premium */}
+                                    <div className="relative flex bg-white/5 rounded-full p-0.5 border border-white/10 backdrop-blur-sm h-6 flex-shrink-0">
+                                        {/* Highlight Pill */}
                                         <div
                                             className={`
-                                                absolute top-0.5 h-[calc(100%-4px)] w-[calc(33.333%-2px)] rounded-full transition-all duration-300 ease-out shadow-sm
+                                                absolute top-0.5 bottom-0.5 rounded-full transition-all duration-300 ease-out shadow-sm
                                                 ${!selectedProperty ? 'opacity-0 scale-90' : 'opacity-100 scale-100'}
-                                                ${selectedProperty === 'unrelated' ? 'bg-gradient-to-r from-stone-600 to-stone-700' : ''}
-                                                ${selectedProperty === 'targeted' ? 'bg-gradient-to-r from-yellow-300 to-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.5)]' : ''}
-                                                ${selectedProperty === 'desired' ? 'bg-gradient-to-r from-pink-500 to-pink-600 shadow-[0_0_15px_rgba(236,72,153,0.5)]' : ''}
+                                                ${selectedProperty === 'unrelated' ? 'bg-gradient-to-r from-stone-600 to-stone-700 w-[24px]' : ''}
+                                                ${selectedProperty === 'adjacent' ? 'bg-gradient-to-r from-purple-500 to-purple-600 shadow-[0_0_10px_rgba(168,85,247,0.4)] w-[24px]' : ''}
+                                                ${selectedProperty === 'targeted' ? 'bg-gradient-to-r from-yellow-300 to-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.4)] w-[24px]' : ''}
+                                                ${selectedProperty === 'desired' ? 'bg-gradient-to-r from-pink-500 to-pink-600 shadow-[0_0_10px_rgba(236,72,153,0.4)] w-[24px]' : ''}
                                             `}
                                             style={{
                                                 left: selectedProperty === 'unrelated' ? '2px' :
-                                                    selectedProperty === 'targeted' ? 'calc(33.333% + 1px)' :
-                                                        'calc(66.666% + 2px)'
+                                                    selectedProperty === 'adjacent' ? '30px' :
+                                                        selectedProperty === 'targeted' ? '58px' :
+                                                            '86px'
                                             }}
                                         />
 
                                         {/* Buttons */}
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedProperty('unrelated')}
-                                            className={`relative z-10 flex items-center gap-1 text-[10px] px-2 py-1 rounded-full transition-all duration-200 
-                                                ${selectedProperty === 'unrelated' ? 'text-white font-medium' : 'text-stone-400 hover:text-stone-300 hover:bg-white/5'}
-                                                ${!selectedProperty ? 'grayscale brightness-75 hover:grayscale-0 hover:brightness-100' : ''}
-                                            `}
-                                            title="Unrelated"
-                                        >
-                                            <ThumbsDown size={9} className="flex-shrink-0" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedProperty('targeted')}
-                                            className={`relative z-10 flex items-center gap-1 text-[10px] px-2 py-1 rounded-full transition-all duration-200 
-                                                ${selectedProperty === 'targeted' ? 'text-black/80 font-bold' : 'text-white/40 hover:text-yellow-400 hover:drop-shadow-[0_0_5px_rgba(250,204,21,0.5)] hover:bg-white/5'}
-                                                ${!selectedProperty ? 'grayscale brightness-75 hover:grayscale-0 hover:brightness-100' : ''}
-                                            `}
-                                            title="Targeted"
-                                        >
-                                            <Trophy size={9} className="flex-shrink-0" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedProperty('desired')}
-                                            className={`relative z-10 flex items-center gap-1 text-[10px] px-2 py-1 rounded-full transition-all duration-200 
-                                                ${selectedProperty === 'desired' ? 'text-white font-bold' : 'text-white/40 hover:text-pink-500 hover:bg-white/5'}
-                                                ${!selectedProperty ? 'grayscale brightness-75 hover:grayscale-0 hover:brightness-100' : ''}
-                                            `}
-                                            title="Desired"
-                                        >
-                                            <Heart size={9} className="flex-shrink-0" />
-                                        </button>
+                                        <div className="flex gap-1 relative z-10">
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedProperty('unrelated')}
+                                                className={`w-6 h-5 flex items-center justify-center rounded-full transition-all duration-200 
+                                                    ${selectedProperty === 'unrelated' ? 'text-white' : 'text-stone-400 hover:text-stone-300 hover:bg-white/5'}
+                                                `}
+                                                title="Unrelated"
+                                            >
+                                                <ThumbsDown size={10} className={selectedProperty === 'unrelated' ? 'scale-110' : ''} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedProperty('adjacent')}
+                                                className={`w-6 h-5 flex items-center justify-center rounded-full transition-all duration-200 
+                                                    ${selectedProperty === 'adjacent' ? 'text-white' : 'text-white/40 hover:text-purple-400 hover:bg-white/5'}
+                                                `}
+                                                title="Adjacent"
+                                            >
+                                                <GitBranch size={10} className={selectedProperty === 'adjacent' ? 'scale-110' : ''} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedProperty('targeted')}
+                                                className={`w-6 h-5 flex items-center justify-center rounded-full transition-all duration-200 
+                                                    ${selectedProperty === 'targeted' ? 'text-black/80' : 'text-white/40 hover:text-yellow-400 hover:bg-white/5'}
+                                                `}
+                                                title="Targeted"
+                                            >
+                                                <Trophy size={10} className={selectedProperty === 'targeted' ? 'scale-110' : ''} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedProperty('desired')}
+                                                className={`w-6 h-5 flex items-center justify-center rounded-full transition-all duration-200 
+                                                    ${selectedProperty === 'desired' ? 'text-white' : 'text-white/40 hover:text-pink-500 hover:bg-white/5'}
+                                                `}
+                                                title="Desired"
+                                            >
+                                                <Heart size={10} className={selectedProperty === 'desired' ? 'scale-110' : ''} />
+                                            </button>
+                                        </div>
                                     </div>
+
+                                    {/* Color Picker - Minimal Dot - Positioned AFTER switcher */}
+                                    <div className="relative">
+                                        <button
+                                            type="button"
+                                            ref={pickerTriggerRef}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setIsColorPickerOpen(!isColorPickerOpen);
+                                            }}
+                                            className="group relative w-5 h-5 flex items-center justify-center focus:outline-none"
+                                        >
+                                            <div
+                                                className="w-2.5 h-2.5 rounded-full shadow-sm ring-1 ring-white/20 group-hover:ring-white/40 transition-all group-hover:scale-110"
+                                                style={{ backgroundColor: selectedColor }}
+                                            />
+                                        </button>
+
+                                        {/* Color Palette Portal to avoid clipping */}
+                                        {isColorPickerOpen && pickerTriggerRef.current && createPortal(
+                                            <>
+                                                <div
+                                                    className="fixed inset-0 z-[9998]"
+                                                    onClick={() => setIsColorPickerOpen(false)}
+                                                />
+                                                <div
+                                                    className="fixed z-[9999] p-1.5 bg-[#1F1F1F] border border-white/10 rounded-lg shadow-xl grid grid-cols-5 gap-1.5 w-[110px] animate-in zoom-in-95 duration-100"
+                                                    style={{
+                                                        top: pickerTriggerRef.current.getBoundingClientRect().bottom + 8,
+                                                        left: pickerTriggerRef.current.getBoundingClientRect().left - 45 // Center align roughly
+                                                    }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    {MANUAL_NICHE_PALETTE.map((color) => (
+                                                        <button
+                                                            key={color}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setSelectedColor(color);
+                                                                setIsColorPickerOpen(false);
+                                                            }}
+                                                            className={`
+                                                                w-4 h-4 rounded-full transition-all hover:scale-110
+                                                                ${selectedColor === color ? 'ring-1 ring-white ring-offset-1 ring-offset-[#1F1F1F]' : 'hover:ring-1 hover:ring-white/30'}
+                                                            `}
+                                                            style={{ backgroundColor: color }}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </>,
+                                            document.body
+                                        )}
+                                    </div>
+
+                                    <div className="flex-1" />
+
+                                    {/* Create Button - Subtle */}
                                     <button
                                         type="submit"
-                                        className="text-[10px] font-medium px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 hover:text-blue-300 transition-all border border-blue-500/20"
+                                        className="text-[10px] font-medium px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 hover:text-blue-300 transition-all border border-blue-500/20 whitespace-nowrap"
                                     >
                                         Create
                                     </button>

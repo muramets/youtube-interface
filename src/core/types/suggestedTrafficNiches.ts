@@ -1,4 +1,4 @@
-export type TrafficNicheProperty = 'unrelated' | 'targeted' | 'desired';
+export type TrafficNicheProperty = 'unrelated' | 'adjacent' | 'targeted' | 'desired';
 
 export interface SuggestedTrafficNiche {
     id: string;

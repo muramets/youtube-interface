@@ -1,6 +1,6 @@
 import React, { useState, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Pencil, Trash2, ThumbsDown, Trophy, Heart, Tag, ChevronLeft } from 'lucide-react';
+import { Pencil, Trash2, ThumbsDown, Trophy, Heart, Tag, ChevronLeft, GitBranch } from 'lucide-react';
 import type { SuggestedTrafficNiche, TrafficNicheProperty } from '@/core/types/suggestedTrafficNiches';
 
 interface TrafficNicheContextMenuProps {
@@ -112,6 +112,15 @@ export const TrafficNicheContextMenu: React.FC<TrafficNicheContextMenuProps> = (
             >
                 <ThumbsDown size={12} className={`transition-colors ${niche.property === 'unrelated' ? 'text-stone-400' : 'text-text-secondary group-hover:text-stone-400'}`} />
                 <span className={niche.property === 'unrelated' ? 'text-white font-medium' : ''}>Unrelated</span>
+            </button>
+
+            <button
+                key="adjacent"
+                onClick={() => { onUpdateProperty('adjacent'); onClose(); }}
+                className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2 rounded-md group"
+            >
+                <GitBranch size={12} className={`transition-colors ${niche.property === 'adjacent' ? 'text-purple-400' : 'text-text-secondary group-hover:text-purple-400'}`} />
+                <span className={niche.property === 'adjacent' ? 'text-white font-medium' : ''}>Adjacent</span>
             </button>
 
             <button

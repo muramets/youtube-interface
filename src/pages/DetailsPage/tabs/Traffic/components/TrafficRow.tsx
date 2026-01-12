@@ -1,5 +1,5 @@
 import React from 'react';
-import { ExternalLink, ThumbsDown, Trophy, Heart } from 'lucide-react';
+import { ExternalLink, ThumbsDown, Trophy, Heart, GitBranch } from 'lucide-react';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { PortalTooltip } from '../../../../../components/Shared/PortalTooltip';
@@ -72,6 +72,7 @@ export const TrafficRow = ({ item, index, isSelected, activeSortKey, onRowClick,
 
         if (hasProperty('desired')) return { icon: <Heart size={12} className="text-pink-500" />, label: 'Desired' };
         if (hasProperty('targeted')) return { icon: <Trophy size={12} className="text-yellow-400 drop-shadow-[0_0_3px_rgba(250,204,21,0.5)]" />, label: 'Targeted' };
+        if (hasProperty('adjacent')) return { icon: <GitBranch size={12} className="text-purple-400" />, label: 'Adjacent' };
         if (hasProperty('unrelated')) return { icon: <ThumbsDown size={12} className="text-stone-400" />, label: 'Unrelated' };
 
         return { icon: null, label: '' };

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ThumbsDown, Trophy, Heart, MoreVertical } from 'lucide-react';
+import { Check, ThumbsDown, Trophy, Heart, MoreVertical, GitBranch } from 'lucide-react';
 import type { SuggestedTrafficNiche, TrafficNicheProperty } from '@/core/types/suggestedTrafficNiches';
 import { useTrafficNicheStore } from '@/core/stores/useTrafficNicheStore';
 import { useAuth } from '@/core/hooks/useAuth';
@@ -14,6 +14,7 @@ interface TrafficNicheItemProps {
     status?: 'all' | 'some' | 'none';
     isActive: boolean; // Controls whether this item's menu is open
     isSelected?: boolean; // Controls visual selection state (filter active)
+    isHighlighted?: boolean; // Controls keyboard navigation highlight
     onClick: () => void;
     onToggleMenu?: () => void;
     onCloseMenu?: () => void;
@@ -26,6 +27,7 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
     status = 'none',
     isActive,
     isSelected,
+    isHighlighted,
     onClick,
     onToggleMenu,
     onCloseMenu,
@@ -79,6 +81,8 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
         switch (prop) {
             case 'unrelated':
                 return <ThumbsDown size={12} className="text-stone-400 drop-shadow-[0_0_3px_rgba(168,162,158,0.5)]" />;
+            case 'adjacent':
+                return <GitBranch size={12} className="text-purple-400" />;
             case 'targeted':
                 return <Trophy size={12} className="text-yellow-400 drop-shadow-[0_0_3px_rgba(250,204,21,0.5)]" />;
             case 'desired':
@@ -148,7 +152,9 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
                         ? 'bg-white/5 z-20 text-text-primary'
                         : isSelected
                             ? 'bg-sidebar-active text-text-primary font-medium'
-                            : 'text-text-tertiary hover:text-text-secondary hover:bg-sidebar-hover'
+                            : isHighlighted
+                                ? 'bg-white/10 text-white' // Highlight style
+                                : 'text-text-tertiary hover:text-text-secondary hover:bg-sidebar-hover'
                     }
                 `}
                 onClick={() => !isEditing && !isInteracting && onClick()}
