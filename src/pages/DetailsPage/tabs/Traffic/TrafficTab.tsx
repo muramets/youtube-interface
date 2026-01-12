@@ -132,6 +132,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         trafficVideoId: _video.id,
         activeVersion,
         apiKey: apiKey || '',
+        cachedVideos: allVideos,
         onDataRestored: (_newSources, newSnapshotId) => {
             setIsMissingTitlesModalOpen(false);
             if (onSnapshotClick) {
@@ -291,7 +292,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 pendingUpload.sources,
                 user?.uid || '',
                 currentChannel?.id || '',
-                apiKey || ''
+                apiKey || '',
+                allVideos
             );
 
             // Generate new CSV from repaired sources to ensure data consistency

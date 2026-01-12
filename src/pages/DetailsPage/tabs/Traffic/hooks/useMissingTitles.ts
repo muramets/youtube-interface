@@ -13,6 +13,7 @@ interface UseMissingTitlesProps {
     trafficVideoId: string; // The ID of the video whose traffic we are viewing
     activeVersion: number;
     apiKey: string;
+    cachedVideos?: VideoDetails[];
     onDataRestored?: (newSources: TrafficSource[], newSnapshotId: string) => void;
 }
 
@@ -24,55 +25,62 @@ export const repairTrafficSources = async (
     sources: TrafficSource[],
     userId: string,
     channelId: string,
-    apiKey: string
+    apiKey: string,
+    cachedVideos: VideoDetails[] = []
 ): Promise<TrafficSource[]> => {
     // 1. Identify missing
     const missingSources = sources.filter(s => s.videoId && (!s.sourceTitle || s.sourceTitle.trim() === ''));
     if (missingSources.length === 0) return sources;
 
-    const videoIds = missingSources.map(s => s.videoId!);
+    const uniqueVideoIds = Array.from(new Set(missingSources.map(s => s.videoId!)));
 
-    // 2. Batch Fetch
-    const chunks = [];
-    for (let i = 0; i < videoIds.length; i += 50) {
-        chunks.push(videoIds.slice(i, i + 50));
-    }
+    // 2. Filter out already cached videos
+    const cachedMap = new Map<string, VideoDetails>(cachedVideos.map(v => [v.id, v]));
+    const videoIdsToFetch = uniqueVideoIds.filter((id: string) => !cachedMap.has(id));
 
-    let allFetchedVideos: VideoDetails[] = [];
-    for (const chunk of chunks) {
-        const batch = await fetchVideosBatch(chunk, apiKey);
-        allFetchedVideos = [...allFetchedVideos, ...batch];
-    }
+    const fetchedMap = new Map<string, VideoDetails>();
 
-    // 3. Persist to Firestore (Rich Metadata)
-    const batchWrites = allFetchedVideos.map(video => {
-        // Firestore determines undefined as invalid. We must strip them or convert to null.
-        // JSON stringify/parse is a robust way to strip undefined fields from the object.
-        const cleanData = JSON.parse(JSON.stringify(video));
+    if (videoIdsToFetch.length > 0) {
+        // 3. Batch Fetch from YouTube
+        const chunks = [];
+        for (let i = 0; i < videoIdsToFetch.length; i += 50) {
+            chunks.push(videoIdsToFetch.slice(i, i + 50));
+        }
 
-        return {
-            videoId: video.id,
-            data: {
-                ...cleanData,
-                lastUpdated: Date.now()
-            }
-        };
-    });
+        for (const chunk of chunks) {
+            const batch = await fetchVideosBatch(chunk, apiKey);
+            batch.forEach(v => fetchedMap.set(v.id, v));
+        }
 
-    if (batchWrites.length > 0) {
-        await VideoService.batchUpdateSuggestedVideos(userId, channelId, batchWrites);
-    }
-
-    // 4. Update Sources
-    const videoMap = new Map(allFetchedVideos.map(v => [v.id, v]));
-
-    return sources.map(source => {
-        if (source.videoId && videoMap.has(source.videoId)) {
-            const details = videoMap.get(source.videoId)!;
+        // 4. Persist newly fetched to Firestore (Rich Metadata)
+        const allFetchedVideos = Array.from(fetchedMap.values());
+        const batchWrites = allFetchedVideos.map(video => {
+            const cleanData = JSON.parse(JSON.stringify(video));
             return {
-                ...source,
-                sourceTitle: details.title
+                videoId: video.id,
+                data: {
+                    ...cleanData,
+                    lastUpdated: Date.now()
+                }
             };
+        });
+
+        if (batchWrites.length > 0) {
+            await VideoService.batchUpdateSuggestedVideos(userId, channelId, batchWrites);
+        }
+    }
+
+    // 5. Update Sources (Merging results from YouTube and Cache)
+    return sources.map(source => {
+        if (source.videoId) {
+            // Priority: newly fetched > cached
+            const details = fetchedMap.get(source.videoId) || cachedMap.get(source.videoId);
+            if (details && details.title) {
+                return {
+                    ...source,
+                    sourceTitle: details.title
+                };
+            }
         }
         return source;
     });
@@ -85,6 +93,7 @@ export const useMissingTitles = ({
     trafficVideoId,
     activeVersion,
     apiKey,
+    cachedVideos = [],
     onDataRestored
 }: UseMissingTitlesProps) => {
     const [isRestoring, setIsRestoring] = useState(false);
@@ -106,7 +115,7 @@ export const useMissingTitles = ({
         setIsRestoring(true);
         try {
             // Use the extracted logic
-            const updatedSources = await repairTrafficSources(displayedSources, userId, channelId, apiKey);
+            const updatedSources = await repairTrafficSources(displayedSources, userId, channelId, apiKey, cachedVideos);
 
             // D. Regenerate CSV & Update Snapshot
             const csvContent = generateTrafficCsv(updatedSources);
