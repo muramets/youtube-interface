@@ -7,6 +7,7 @@ import { usePackagingVersions } from './tabs/Packaging/hooks/usePackagingVersion
 import { useTrafficFilters } from './tabs/Traffic/hooks/useTrafficFilters';
 import { useTrafficData } from './tabs/Traffic/hooks/useTrafficData';
 import { useTrafficDataLoader } from './tabs/Traffic/hooks/useTrafficDataLoader';
+import { type SortConfig, type SortKey } from './tabs/Traffic/components/TrafficTable';
 
 // ... existing imports ...
 
@@ -84,6 +85,9 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
     // Traffic View Mode (Lifted State from TrafficTab)
     const [trafficViewMode, setTrafficViewMode] = useState<'cumulative' | 'delta'>('delta');
 
+    // Sort State (Lifted)
+    const [sortConfig, setSortConfig] = useState<SortConfig | null>({ key: 'views', direction: 'desc' });
+
     /**
      * BUSINESS LOGIC: Filter Context Key
      * Lifted from TrafficTab to share filter state between Tab and Sidebar.
@@ -100,11 +104,15 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
         contextKey: filterContextKey
     });
 
-    // Determine Active Niche ID from filters
+    // Determine Active Niche ID from filters (use LAST applied niche filter to reflect current navigation state)
     const activeNicheId = useMemo(() => {
-        const nicheFilter = filters.find(f => f.type === 'niche');
-        if (nicheFilter && Array.isArray(nicheFilter.value) && nicheFilter.value.length > 0) {
-            return nicheFilter.value[0];
+        // Search in reverse to find the most recently added niche filter
+        // useful if user has 'Unassigned' (old) + 'Niche X' (new)
+        for (let i = filters.length - 1; i >= 0; i--) {
+            const f = filters[i];
+            if (f.type === 'niche' && Array.isArray(f.value) && f.value.length > 0) {
+                return f.value[0];
+            }
         }
         return null;
     }, [filters]);
@@ -238,6 +246,41 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
     };
 
 
+    // State to track the "previous" niche filter for restoration on "Back" navigation
+    const previousNicheFilterRef = React.useRef<import('../../core/types/traffic').TrafficFilter | null>(null);
+    const previousSortConfigRef = React.useRef<SortConfig | null>(null);
+
+    // Context-sensitive Add Filter for Sidebar
+    const handleSidebarAddFilter = React.useCallback((filter: Omit<import('../../core/types/traffic').TrafficFilter, 'id'>) => {
+        if (filter.type === 'niche') {
+            // If we are starting a navigation chain (ref is null), save the current state
+
+            // Save Sort Config if not already saved (first jump)
+            if (previousSortConfigRef.current === null) {
+                previousSortConfigRef.current = sortConfig;
+            }
+
+            if (previousNicheFilterRef.current === null) {
+                const activeNicheFilter = filters.find(f => f.type === 'niche');
+                if (activeNicheFilter) {
+                    previousNicheFilterRef.current = activeNicheFilter;
+                }
+            }
+        }
+        addFilter(filter);
+    }, [filters, addFilter, sortConfig]);
+
+    // Context-sensitive Remove Filter to clear restoration state
+    const handleRemoveFilter = React.useCallback((id: string) => {
+        // If user manually removes the active niche filter, we reset our "Back" restoration state
+        const removedFilter = filters.find(f => f.id === id);
+        if (removedFilter?.type === 'niche') {
+            previousNicheFilterRef.current = null;
+            previousSortConfigRef.current = null;
+        }
+        removeFilter(id);
+    }, [filters, removeFilter]);
+
     return (
         <div className="flex-1 flex overflow-hidden bg-video-edit-bg">
             {/* Left Sidebar */}
@@ -253,7 +296,35 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                 onDeleteDraft={handleDeleteDraft}
                 snapshots={trafficState.trafficData?.snapshots || []}
                 selectedSnapshot={selectedSnapshot}
-                onSnapshotClick={snapshotMgmt.handleSnapshotClick}
+                onSnapshotClick={(snapshotId) => {
+                    // FIX: Return to previous niche state (e.g. Unassigned) if it existed, otherwise just clear current niche
+                    if (activeNicheId) {
+                        if (previousNicheFilterRef.current) {
+                            // Restore the saved "Base" filter (e.g. Unassigned)
+                            // We use addFilter which will replace the current Niche filter
+                            const { id, ...filterProps } = previousNicheFilterRef.current;
+                            addFilter(filterProps);
+                            previousNicheFilterRef.current = null; // Reset after restore
+                        } else {
+                            // No previous state saved, just clear current niche
+                            const nicheFilter = filters.find(f =>
+                                f.type === 'niche' &&
+                                Array.isArray(f.value) &&
+                                f.value.includes(activeNicheId)
+                            );
+                            if (nicheFilter) {
+                                removeFilter(nicheFilter.id);
+                            }
+                        }
+
+                        // Restore Sort
+                        if (previousSortConfigRef.current) {
+                            setSortConfig(previousSortConfigRef.current);
+                            previousSortConfigRef.current = null;
+                        }
+                    }
+                    snapshotMgmt.handleSnapshotClick(snapshotId);
+                }}
                 onDeleteSnapshot={snapshotMgmt.handleDeleteSnapshot}
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
@@ -261,7 +332,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                 groups={groups}
                 displayedSources={trafficLoader.displayedSources}
                 // Filter control for sidebar interactions
-                onAddFilter={addFilter}
+                onAddFilter={handleSidebarAddFilter}
                 activeNicheId={activeNicheId}
             />
 
@@ -302,9 +373,17 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                         // Filter props
                         filters={filters}
                         onAddFilter={addFilter}
-                        onRemoveFilter={removeFilter}
+
+                        onRemoveFilter={handleRemoveFilter}
                         onClearFilters={clearFilters}
                         applyFilters={applyFilters}
+                        sortConfig={sortConfig}
+                        onSort={(key) => setSortConfig(current => {
+                            if (current?.key === key) {
+                                return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
+                            }
+                            return { key, direction: 'desc' };
+                        })}
                     />
                 )}
             </div>

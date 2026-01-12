@@ -49,10 +49,51 @@ interface TrafficTableProps {
     videos?: VideoDetails[];
 }
 
-type SortKey = keyof TrafficSource;
-interface SortConfig {
+export type SortKey = keyof TrafficSource;
+export interface SortConfig {
     key: SortKey;
     direction: 'asc' | 'desc';
+}
+
+interface TrafficTableProps {
+    data: TrafficSource[];
+    isLoading: boolean;
+    // Selection for grouping
+    selectedIds: Set<string>;
+    onToggleSelection: (id: string) => void;
+    onToggleAll: (ids: string[]) => void;
+
+    // For Drag and Drop Grouping (future) or just Visuals
+    activeGroupId?: string; // If filtering by group
+
+    // Versioning
+    viewingVersion?: number | 'draft';
+    activeVersion: number;
+
+    // Upload for Empty State
+    onUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<void>;
+    hasExistingSnapshot: boolean;
+    hasPreviousSnapshots?: boolean; // Are there snapshots in earlier versions?
+    isFirstSnapshot?: boolean; // Is this the very first snapshot of the current version?
+
+    // CTR Rules
+    ctrRules?: CTRRule[];
+
+    // View mode to determine empty state type
+    viewMode?: 'cumulative' | 'delta';
+
+    // Filters
+    hasActiveFilters?: boolean;
+
+    // View switch
+    onSwitchToTotal?: () => void;
+
+    // Rich Data
+    videos?: VideoDetails[];
+
+    // Sorting (Controlled)
+    sortConfig: SortConfig | null;
+    onSort: (key: SortKey) => void;
 }
 
 export const TrafficTable = memo<TrafficTableProps>(({
@@ -69,11 +110,13 @@ export const TrafficTable = memo<TrafficTableProps>(({
     viewMode = 'cumulative',
     hasActiveFilters = false,
     onSwitchToTotal,
-    videos = []
+    videos = [],
+    sortConfig,
+    onSort
 }) => {
     // Virtualization refs
     const parentRef = useRef<HTMLDivElement>(null);
-    const [sortConfig, setSortConfig] = useState<SortConfig | null>({ key: 'views', direction: 'desc' });
+    // Local sort state removed in favor of props
 
     // Lookup map for rich video details
     const videoMap = useMemo(() => {
@@ -123,13 +166,9 @@ export const TrafficTable = memo<TrafficTableProps>(({
         onToggleAll(allIds);
     }, [data, onToggleAll]);
 
+    // handleSort uses prop now
     const handleSort = (key: SortKey) => {
-        setSortConfig(current => {
-            if (current?.key === key) {
-                return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
-            }
-            return { key, direction: 'desc' };
-        });
+        onSort(key);
     };
 
     const isAllSelected = data.length > 0 && data.every(d => d.videoId && selectedIds.has(d.videoId));

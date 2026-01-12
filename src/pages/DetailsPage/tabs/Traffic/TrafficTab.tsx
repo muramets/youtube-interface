@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { TrafficTable } from './components/TrafficTable';
+import { TrafficTable, type SortConfig, type SortKey } from './components/TrafficTable';
 import { TrafficHeader } from './components/TrafficHeader';
 import { TrafficModals } from './components/TrafficModals';
 import { TrafficFilterChips } from './components/TrafficFilterChips';
@@ -54,6 +54,9 @@ interface TrafficTabProps {
     onRemoveFilter: (id: string) => void;
     onClearFilters: () => void;
     applyFilters: (sources: import('../../../../core/types/traffic').TrafficSource[], groups?: import('../../../../core/types/traffic').TrafficGroup[]) => import('../../../../core/types/traffic').TrafficSource[];
+    // Sorting (Lifted)
+    sortConfig: SortConfig | null;
+    onSort: (key: SortKey) => void;
 }
 
 export const TrafficTab: React.FC<TrafficTabProps> = ({
@@ -79,7 +82,10 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     onAddFilter: addFilter,
     onRemoveFilter: removeFilter,
     onClearFilters: clearFilters,
-    applyFilters
+
+    applyFilters,
+    sortConfig,
+    onSort
 }) => {
     // Scroll detection for sticky header
     const sentinelRef = useRef<HTMLDivElement>(null);
@@ -479,6 +485,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                                     hasActiveFilters={filters.length > 0}
                                     onSwitchToTotal={() => setViewMode('cumulative')}
                                     videos={allVideos}
+                                    sortConfig={sortConfig}
+                                    onSort={onSort}
                                 />
 
                                 {/* Floating Action Bar - Positioned absolutely relative to parent container */}
