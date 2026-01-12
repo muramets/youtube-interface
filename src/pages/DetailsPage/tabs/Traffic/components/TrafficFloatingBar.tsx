@@ -230,7 +230,7 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
     };
 
     // Check if videos are already in Trash
-    const { isInTrash, trashNicheId } = useMemo(() => {
+    const { isInTrash } = useMemo(() => {
         const trashNiche = niches.find(n => n.name.trim().toLowerCase() === 'trash');
         if (!trashNiche) return { isInTrash: false, trashNicheId: null };
 

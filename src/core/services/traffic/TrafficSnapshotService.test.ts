@@ -34,19 +34,19 @@ describe('TrafficSnapshotService', () => {
             const sources = await TrafficSnapshotService.getVersionSources(1, snapshots as any);
 
             // Для версии 1 есть два снапшота. Должен выбраться самый поздний (V1 End).
-            expect(sources[0].sourceTitle).toBe('V1 End');
+            expect(sources.sources[0].sourceTitle).toBe('V1 End');
         });
 
         it('должен правильно выбирать снапшот внутри указанного периода (важно для Restored версий)', async () => {
             // Ищем версию 1, но именно в периоде между 0 и 5000
             const sources = await TrafficSnapshotService.getVersionSources(1, snapshots as any, 0, 5000);
 
-            expect(sources[0].sourceTitle).toBe('V1 Start');
+            expect(sources.sources[0].sourceTitle).toBe('V1 Start');
         });
 
         it('должен возвращать пустой список, если снапшотов для версии нет', async () => {
             const sources = await TrafficSnapshotService.getVersionSources(99, snapshots as any);
-            expect(sources).toEqual([]);
+            expect(sources.sources).toEqual([]);
         });
 
         it('должен поддерживать "гибридную" загрузку (из Cloud Storage), если данных нет в базе', async () => {
@@ -57,7 +57,7 @@ describe('TrafficSnapshotService', () => {
             const sources = await TrafficSnapshotService.getVersionSources(3, hybridSnapshots as any);
 
             // Мы замокали парсер выше, он должен вернуть 'CSV Data'
-            expect(sources[0].sourceTitle).toBe('CSV Data');
+            expect(sources.sources[0].sourceTitle).toBe('CSV Data');
         });
     });
 });

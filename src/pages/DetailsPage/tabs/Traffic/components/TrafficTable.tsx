@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState, useMemo, memo } from 'react';
+import React, { useCallback, useRef, useMemo, memo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 import type { TrafficSource } from '../../../../../core/types/traffic';

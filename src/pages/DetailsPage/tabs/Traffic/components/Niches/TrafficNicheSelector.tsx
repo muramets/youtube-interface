@@ -43,7 +43,12 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
     const [inputValue, setInputValue] = useState('');
     const [selectedProperty, setSelectedProperty] = useState<TrafficNicheProperty | undefined>(undefined);
     const [selectedColor, setSelectedColor] = useState<string>('#3B82F6'); // Default init
-    const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+    // Centralized Color Picker State
+    const [colorPickerState, setColorPickerState] = useState<{
+        type: 'create' | 'edit';
+        nicheId?: string;
+        rect: DOMRect;
+    } | null>(null);
 
     // Active menu state for mutually exclusive item menus
     const [activeNicheMenuId, setActiveNicheMenuId] = useState<string | null>(null);
@@ -56,7 +61,6 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
     const buttonRef = useRef<HTMLButtonElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
-    const pickerTriggerRef = useRef<HTMLButtonElement>(null);
 
     // Keyboard navigation
     const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -185,7 +189,7 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
         if (!isOpen) {
             setInputValue('');
             setSelectedProperty(undefined);
-            setIsColorPickerOpen(false);
+            setColorPickerState(null);
             setHighlightedIndex(-1);
             setActiveNicheMenuId(null);
         }
@@ -272,6 +276,19 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
         } catch (error) {
             console.error("Failed to rename niche:", error);
         }
+    };
+
+    const handleColorSelect = async (color: string) => {
+        if (!colorPickerState) return;
+
+        if (colorPickerState.type === 'create') {
+            setSelectedColor(color);
+        } else if (colorPickerState.type === 'edit' && colorPickerState.nicheId) {
+            if (user && currentChannel) {
+                await updateTrafficNiche(colorPickerState.nicheId, { color }, user.uid, currentChannel.id);
+            }
+        }
+        setColorPickerState(null);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -400,8 +417,18 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                                                 <Trash2 size={12} className="text-text-secondary" />
                                             </div>
                                         ) : (
-                                            <div
-                                                className="w-2 h-2 rounded-full flex-shrink-0"
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setColorPickerState({
+                                                        type: 'edit',
+                                                        nicheId: niche.id,
+                                                        rect: e.currentTarget.getBoundingClientRect()
+                                                    });
+                                                    setActiveNicheMenuId(null);
+                                                }}
+                                                className="w-2 h-2 rounded-full flex-shrink-0 transition-transform hover:scale-125 hover:ring-2 hover:ring-white/20"
                                                 style={{ backgroundColor: niche.color }}
                                             />
                                         )}
@@ -583,10 +610,12 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                                     <div className="relative">
                                         <button
                                             type="button"
-                                            ref={pickerTriggerRef}
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                setIsColorPickerOpen(!isColorPickerOpen);
+                                                setColorPickerState(colorPickerState?.type === 'create' ? null : {
+                                                    type: 'create',
+                                                    rect: e.currentTarget.getBoundingClientRect()
+                                                });
                                             }}
                                             className="group relative w-5 h-5 flex items-center justify-center focus:outline-none"
                                         >
@@ -595,34 +624,6 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                                                 style={{ backgroundColor: selectedColor }}
                                             />
                                         </button>
-
-                                        {/* Color Palette Portal to avoid clipping */}
-                                        {isColorPickerOpen && pickerTriggerRef.current && createPortal(
-                                            <>
-                                                <div
-                                                    className="fixed inset-0 z-[9998]"
-                                                    onClick={() => setIsColorPickerOpen(false)}
-                                                />
-                                                <div
-                                                    className="fixed z-[9999] bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-in zoom-in-95 duration-100 w-[240px]"
-                                                    style={{
-                                                        bottom: window.innerHeight - pickerTriggerRef.current.getBoundingClientRect().top + 8,
-                                                        left: pickerTriggerRef.current.getBoundingClientRect().left - 110 // Center align (240/2 - 20/2 approx)
-                                                    }}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                >
-                                                    <div className="text-[10px] uppercase text-text-tertiary font-bold mb-2 tracking-wider px-1">Select Color</div>
-                                                    <NicheColorPickerGrid
-                                                        selectedColor={selectedColor}
-                                                        onSelect={(color) => {
-                                                            setSelectedColor(color);
-                                                            setIsColorPickerOpen(false);
-                                                        }}
-                                                    />
-                                                </div>
-                                            </>,
-                                            document.body
-                                        )}
                                     </div>
 
                                     <div className="flex-1" />
@@ -640,6 +641,37 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                     </div>
                 </div>
             </FloatingDropdownPortal>
+
+            {/* Centralized Color Picker Portal */}
+            {colorPickerState && createPortal(
+                <>
+                    <div
+                        className="fixed inset-0 z-[100050]"
+                        onClick={() => setColorPickerState(null)}
+                    />
+                    <div
+                        className="fixed z-[100051] bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-in zoom-in-95 duration-100 w-[240px]"
+                        style={{
+                            top: Math.min(window.innerHeight - 200, colorPickerState.rect.bottom + 8),
+                            left: Math.max(8, Math.min(window.innerWidth - 248, colorPickerState.rect.left - 110))
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="text-[10px] uppercase text-text-tertiary font-bold mb-2 tracking-wider px-1">
+                            {colorPickerState.type === 'create' ? 'Select Color' : 'Edit Color'}
+                        </div>
+                        <NicheColorPickerGrid
+                            selectedColor={
+                                colorPickerState.type === 'edit'
+                                    ? (niches.find(n => n.id === colorPickerState.nicheId)?.color || selectedColor)
+                                    : selectedColor
+                            }
+                            onSelect={handleColorSelect}
+                        />
+                    </div>
+                </>,
+                document.body
+            )}
         </div>
     );
 };

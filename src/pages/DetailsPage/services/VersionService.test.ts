@@ -16,7 +16,8 @@ describe('VersionService', () => {
             channelId: 'ch1',
             channelTitle: 'Channel',
             channelAvatar: '',
-            publishedAt: ''
+            publishedAt: '',
+            thumbnail: ''
         };
 
         it('должен возвращать true, если истории версий еще нет (это наше первое видео)', () => {
@@ -34,7 +35,9 @@ describe('VersionService', () => {
                     description: 'Описание 1',
                     tags: ['тег1'],
                     coverImage: 'image1.jpg'
-                }
+                },
+                endDate: null,
+                revision: 1
             }];
 
             const hasDraft = VersionService.computeDraftState(mockVideo, history);
@@ -51,7 +54,9 @@ describe('VersionService', () => {
                     description: 'Описание 1',
                     tags: ['тег1'],
                     coverImage: 'image1.jpg'
-                }
+                },
+                endDate: null,
+                revision: 1
             }];
 
             const hasDraft = VersionService.computeDraftState(mockVideo, history);
@@ -67,13 +72,17 @@ describe('VersionService', () => {
                 versionNumber: 1,
                 startDate: 100,
                 checkins: [],
-                configurationSnapshot: { title: 'V1', description: '', tags: [], coverImage: '' }
+                configurationSnapshot: { title: 'V1', description: '', tags: [], coverImage: '' },
+                endDate: null,
+                revision: 1
             },
             {
                 versionNumber: 2,
                 startDate: 200,
                 checkins: [],
-                configurationSnapshot: { title: 'V2', description: '', tags: [], coverImage: '' }
+                configurationSnapshot: { title: 'V2', description: '', tags: [], coverImage: '' },
+                endDate: null,
+                revision: 1
             }
         ];
 
@@ -108,7 +117,9 @@ describe('VersionService', () => {
             startDate: 100,
             checkins: [],
             configurationSnapshot: { title: 'V1', description: '', tags: [], coverImage: '' },
-            activePeriods: [{ startDate: 100, endDate: null, closingSnapshotId: null }]
+            activePeriods: [{ startDate: 100, endDate: null, closingSnapshotId: null }],
+            endDate: null,
+            revision: 1
         };
 
         it('closeAllPeriods должен устанавливать endDate для всех открытых периодов', () => {

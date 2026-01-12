@@ -168,8 +168,32 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
     const { selectedIds, toggleSelection, toggleAll } = useTrafficSelection();
 
+    // Niche Store Management - Consolidated
+    const {
+        niches: allNiches,
+        assignments: allAssignments,
+        assignVideoToTrafficNiche,
+        initializeSubscriptions,
+        cleanup
+    } = useTrafficNicheStore();
+
     // Filters are now managed by parent (DetailsLayout)
-    const filteredSources = useMemo(() => applyFilters(displayedSources, groups), [displayedSources, applyFilters, groups]);
+    const filteredSources = useMemo(() => {
+        let sources = applyFilters(displayedSources, groups);
+
+        // Global Trash Filter: Hide videos assigned to Trash
+        const trashNiche = allNiches.find(n => n.name.trim().toLowerCase() === 'trash');
+        if (trashNiche) {
+            const trashVideoIds = new Set(
+                allAssignments
+                    .filter(a => a.nicheId === trashNiche.id)
+                    .map(a => a.videoId)
+            );
+            sources = sources.filter(s => !s.videoId || !trashVideoIds.has(s.videoId));
+        }
+
+        return sources;
+    }, [displayedSources, applyFilters, groups, allNiches, allAssignments]);
 
     // OPTIMIZATION: Memoize array props to prevent TrafficTable re-renders.
     // Without memoization, `|| []` creates a new array reference each render.
@@ -177,8 +201,6 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     const ctrRules = useMemo(() => trafficSettings?.ctrRules || [], [trafficSettings?.ctrRules]);
     // groups is now passed as prop
 
-    // Niche Store Management
-    const { initializeSubscriptions, cleanup } = useTrafficNicheStore();
     // user and currentChannel hooks moved up
 
     // Initialize niche subscriptions when user/channel are available
@@ -208,8 +230,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     // -------------------------------------------------------------------------
     const [isAssistantEnabled, setIsAssistantEnabled] = useState(false);
 
-    // Connect to the Store to get assignment history
-    const { niches: allNiches, assignments: allAssignments, assignVideoToTrafficNiche } = useTrafficNicheStore();
+    // Connect to the Store to get assignment history - ALREADY DESTRUCTURED ABOVE
 
     const { getSuggestion } = useSmartNicheSuggestions(
         displayedSources,

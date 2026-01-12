@@ -405,10 +405,14 @@ export function useAddCustomVideo({
             effectivePackagingHistory = JSON.parse(JSON.stringify(effectivePackagingHistory));
 
             const packagingPromises = effectivePackagingHistory.map(async (version, index) => {
+                if (!version.configurationSnapshot) return;
+
                 // Upload cover image if base64
-                if (version.configurationSnapshot?.coverImage?.startsWith('data:image')) {
+                if (version.configurationSnapshot.coverImage?.startsWith('data:image')) {
                     const newUrl = await uploadBase64ToStorage(version.configurationSnapshot.coverImage, user?.uid || 'anonymous');
-                    effectivePackagingHistory[index].configurationSnapshot!.coverImage = newUrl;
+                    if (effectivePackagingHistory[index]?.configurationSnapshot) {
+                        effectivePackagingHistory[index].configurationSnapshot!.coverImage = newUrl;
+                    }
                     hasPackagingUpdates = true;
                 }
 
@@ -425,7 +429,7 @@ export function useAddCustomVideo({
                                     return await uploadImageToStorage(blob, path);
                                 } catch (e) {
                                     console.error('Failed to upload blob variant:', e);
-                                    return variant; // Fallback? Or fail? Best to return variant and let error handling upstream deal with it, or empty string.
+                                    return variant;
                                 }
                             } else if (variant.startsWith('data:image')) {
                                 return await uploadBase64ToStorage(variant, user?.uid || 'anonymous');
@@ -434,7 +438,9 @@ export function useAddCustomVideo({
                         return variant;
                     });
                     const newVariants = await Promise.all(variantPromises);
-                    effectivePackagingHistory[index].configurationSnapshot.abTestVariants = newVariants;
+                    if (effectivePackagingHistory[index]?.configurationSnapshot) {
+                        effectivePackagingHistory[index].configurationSnapshot.abTestVariants = newVariants;
+                    }
                     hasPackagingUpdates = true;
                 }
             });

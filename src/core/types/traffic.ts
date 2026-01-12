@@ -11,6 +11,7 @@ export interface TrafficSource {
     watchTimeHours: number;
     // API fetched data (optional, populated later)
     thumbnail?: string;
+    channelId?: string;
     channelTitle?: string;
     publishedAt?: string;
 }

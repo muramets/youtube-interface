@@ -69,7 +69,7 @@ describe('usePackagingActions - closingSnapshotId logic', () => {
     it('должен возвращать null, если trafficData пустой', () => {
         const activeVersion = 3;
         const trafficData = {
-            snapshots: []
+            snapshots: [] as any[]
         };
 
         const activeVersionSnapshots = trafficData.snapshots

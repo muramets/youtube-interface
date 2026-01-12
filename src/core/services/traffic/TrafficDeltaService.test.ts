@@ -15,13 +15,13 @@ describe('TrafficDeltaService', () => {
     // Тест самого расчета разницы
     describe('calculateSourcesDelta', () => {
         const currentData: TrafficSource[] = [
-            { sourceTitle: 'Поиск', views: 100, impressions: 1000, watchTimeHours: 10, ctr: 10, videoId: 'v1' },
-            { sourceTitle: 'Рекомендации', views: 50, impressions: 500, watchTimeHours: 5, ctr: 10, videoId: 'v2' }
+            { sourceTitle: 'Поиск', views: 100, impressions: 1000, watchTimeHours: 10, ctr: 10, videoId: 'v1', sourceType: 'TEST', avgViewDuration: '0:00' },
+            { sourceTitle: 'Рекомендации', views: 50, impressions: 500, watchTimeHours: 5, ctr: 10, videoId: 'v2', sourceType: 'TEST', avgViewDuration: '0:00' }
         ];
 
         const previousData: TrafficSource[] = [
-            { sourceTitle: 'Поиск', views: 60, impressions: 800, watchTimeHours: 6, ctr: 7.5, videoId: 'v1' },
-            { sourceTitle: 'Рекомендации', views: 50, impressions: 500, watchTimeHours: 5, ctr: 10, videoId: 'v2' }
+            { sourceTitle: 'Поиск', views: 60, impressions: 800, watchTimeHours: 6, ctr: 7.5, videoId: 'v1', sourceType: 'TEST', avgViewDuration: '0:00' },
+            { sourceTitle: 'Рекомендации', views: 50, impressions: 500, watchTimeHours: 5, ctr: 10, videoId: 'v2', sourceType: 'TEST', avgViewDuration: '0:00' }
         ];
 
         it('должен правильно вычитать просмотры и пересчитывать CTR', () => {
@@ -51,7 +51,7 @@ describe('TrafficDeltaService', () => {
 
     // Тест выбора версии для расчета разницы
     describe('calculateVersionDelta', () => {
-        const currentSources: TrafficSource[] = [{ sourceTitle: 'X', views: 10, videoId: '1' }];
+        const currentSources: TrafficSource[] = [{ sourceTitle: 'X', views: 10, videoId: '1', sourceType: 'TEST', avgViewDuration: '0:00', impressions: 100, ctr: 10, watchTimeHours: 1 }];
 
         it('если предыдущей версии нет, должен вернуть текущие данные', async () => {
             const delta = await TrafficDeltaService.calculateVersionDelta(currentSources, 1, []);

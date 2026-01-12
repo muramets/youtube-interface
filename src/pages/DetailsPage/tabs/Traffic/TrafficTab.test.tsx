@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import type { PackagingVersion } from '../../../../core/utils/youtubeApi';
 
 describe('TrafficTab - hasPreviousSnapshots logic', () => {
     /**
@@ -8,7 +9,7 @@ describe('TrafficTab - hasPreviousSnapshots logic', () => {
 
     it('должен возвращать false для версии без activePeriods', () => {
         const viewingVersion = 2;
-        const packagingHistory = [
+        const packagingHistory: Partial<PackagingVersion>[] = [
             {
                 versionNumber: 2,
                 activePeriods: undefined // Нет периодов
@@ -25,7 +26,7 @@ describe('TrafficTab - hasPreviousSnapshots logic', () => {
 
     it('должен возвращать false для первой версии с данными (closingSnapshotId === null)', () => {
         const viewingVersion = 2;
-        const packagingHistory = [
+        const packagingHistory: Partial<PackagingVersion>[] = [
             {
                 versionNumber: 2,
                 activePeriods: [
@@ -43,7 +44,7 @@ describe('TrafficTab - hasPreviousSnapshots logic', () => {
 
     it('должен возвращать true для версии с предыдущими данными (closingSnapshotId !== null)', () => {
         const viewingVersion = 3;
-        const packagingHistory = [
+        const packagingHistory: Partial<PackagingVersion>[] = [
             {
                 versionNumber: 3,
                 activePeriods: [
@@ -61,7 +62,7 @@ describe('TrafficTab - hasPreviousSnapshots logic', () => {
 
     it('должен проверять САМЫЙ СТАРЫЙ период для версии с несколькими периодами', () => {
         const viewingVersion = 1;
-        const packagingHistory = [
+        const packagingHistory: Partial<PackagingVersion>[] = [
             {
                 versionNumber: 1,
                 activePeriods: [
@@ -81,7 +82,7 @@ describe('TrafficTab - hasPreviousSnapshots logic', () => {
     });
 
     it('должен корректно работать для сценария: v.2 → v.3 → v.1', () => {
-        const packagingHistory = [
+        const packagingHistory: Partial<PackagingVersion>[] = [
             {
                 versionNumber: 1,
                 activePeriods: [

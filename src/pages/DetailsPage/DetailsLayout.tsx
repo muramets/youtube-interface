@@ -7,7 +7,7 @@ import { usePackagingVersions } from './tabs/Packaging/hooks/usePackagingVersion
 import { useTrafficFilters } from './tabs/Traffic/hooks/useTrafficFilters';
 import { useTrafficData } from './tabs/Traffic/hooks/useTrafficData';
 import { useTrafficDataLoader } from './tabs/Traffic/hooks/useTrafficDataLoader';
-import { type SortConfig, type SortKey } from './tabs/Traffic/components/TrafficTable';
+import { type SortConfig } from './tabs/Traffic/components/TrafficTable';
 
 // ... existing imports ...
 

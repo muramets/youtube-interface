@@ -4,11 +4,9 @@ import {
     doc,
     getDocs,
     collection,
-    query,
-    where
 } from 'firebase/firestore';
-import { db } from '../../../../../config/firebase';
-import { getVideosPath, getSuggestedVideosPath } from '../../../../../core/services/videoService';
+import { db } from '../../../config/firebase';
+import { getVideosPath, getSuggestedVideosPath } from '../../../core/services/videoService';
 
 /**
  * MIGRATION SCRIPT: Move Suggested Videos

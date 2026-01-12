@@ -84,10 +84,13 @@ class Logger {
  * Scoped Logger - pre-fills context for a specific component/module
  */
 class ScopedLogger {
-    constructor(
-        private logger: Logger,
-        private defaultContext: LogContext
-    ) { }
+    private logger: Logger;
+    private defaultContext: LogContext;
+
+    constructor(logger: Logger, defaultContext: LogContext) {
+        this.logger = logger;
+        this.defaultContext = defaultContext;
+    }
 
     debug(message: string, additionalContext?: LogContext) {
         this.logger.debug(message, { ...this.defaultContext, ...additionalContext });

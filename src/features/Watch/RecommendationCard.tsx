@@ -31,7 +31,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
     const { currentChannel } = useChannelStore();
     const { removeVideo, updateVideo, cloneVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { syncVideo } = useVideoSync(user?.uid || '', currentChannel?.id || '');
-    const { removeVideoFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+    const { removeVideosFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
     const { generalSettings, cloneSettings } = useSettings();
     const apiKey = generalSettings.apiKey;
     const { setSettingsOpen } = useUIStore();
@@ -175,7 +175,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
         if (!user || !currentChannel) return;
 
         if (confirmation.action === 'removeFromPlaylist' && playlistId) {
-            removeVideoFromPlaylist({ playlistId, videoId: video.id });
+            removeVideosFromPlaylist({ playlistId, videoIds: [video.id] });
         } else if (confirmation.action === 'deleteCustom' || confirmation.action === 'removeVideo') {
             removeVideo(video.id);
         }
