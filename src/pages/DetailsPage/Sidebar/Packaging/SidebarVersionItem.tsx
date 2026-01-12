@@ -56,7 +56,7 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
         <div
             onClick={onClick}
             className={`
-                group flex items-center justify-between pl-11 pr-2 py-1.5 cursor-pointer
+                group flex items-center justify-between pl-3 pr-2 py-1.5 cursor-pointer
                 transition-colors rounded-lg ml-6 mr-3
                 ${isViewing
                     ? 'text-text-primary font-medium bg-sidebar-active'
