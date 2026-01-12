@@ -234,28 +234,32 @@ export const TrafficPlaylistSelector: React.FC<TrafficPlaylistSelectorProps> = (
                     <div data-portal-wrapper className="flex flex-col h-full min-h-0">
                         {/* List Section (Now First, Reverse Column) */}
                         <div className="flex-1 overflow-y-auto custom-scrollbar p-1 flex flex-col-reverse">
-                            {playlists.map(playlist => {
-                                const status = getPlaylistStatus(playlist);
-                                const isChecked = status === 'all';
-                                // We treat 'some' as unchecked for toggle action (add remaining)
+                            {playlists
+                                .filter(p => p.name.toLowerCase().includes(newPlaylistName.toLowerCase()))
+                                .map(playlist => {
+                                    const status = getPlaylistStatus(playlist);
+                                    const isChecked = status === 'all';
 
-                                return (
-                                    <button
-                                        key={playlist.id}
-                                        onClick={() => handlePlaylistToggle(playlist.id, playlist.name, isChecked)}
-                                        className={`w-full text-left px-3 py-2 text-xs hover:bg-white/5 rounded-lg flex items-center gap-2 transition-colors justify-between shrink-0 ${isChecked ? 'text-white' : 'text-text-secondary hover:text-white'
-                                            }`}
-                                    >
-                                        <div className="flex items-center gap-2 truncate">
-                                            <ListVideo size={14} />
-                                            <span className="truncate">{playlist.name}</span>
-                                        </div>
-                                        {isChecked && <Check size={12} className="text-green-400 flex-shrink-0" />}
-                                    </button>
-                                );
-                            })}
+                                    return (
+                                        <button
+                                            key={playlist.id}
+                                            onClick={() => handlePlaylistToggle(playlist.id, playlist.name, isChecked)}
+                                            className={`w-full text-left px-3 py-2 text-xs hover:bg-white/5 rounded-lg flex items-center gap-2 transition-colors justify-between shrink-0 ${isChecked ? 'text-white' : 'text-text-secondary hover:text-white'
+                                                }`}
+                                        >
+                                            <div className="flex items-center gap-2 truncate">
+                                                <ListVideo size={14} />
+                                                <span className="truncate">{playlist.name}</span>
+                                            </div>
+                                            {isChecked && <Check size={12} className="text-green-400 flex-shrink-0" />}
+                                        </button>
+                                    );
+                                })}
                             {playlists.length === 0 && (
                                 <div className="text-center py-3 text-xs text-text-tertiary">No playlists</div>
+                            )}
+                            {playlists.length > 0 && playlists.filter(p => p.name.toLowerCase().includes(newPlaylistName.toLowerCase())).length === 0 && (
+                                <div className="text-center py-3 text-xs text-text-tertiary">No matching playlists</div>
                             )}
                         </div>
 
@@ -274,9 +278,17 @@ export const TrafficPlaylistSelector: React.FC<TrafficPlaylistSelectorProps> = (
                                             e.preventDefault();
                                             onToggle(); // Close dropdown
                                         }
+                                        e.stopPropagation(); // Prevent bubbling to parent handlers
                                     }}
                                 />
-                                <Plus size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary" />
+                                <button
+                                    type="submit"
+                                    className="absolute left-1 top-1/2 -translate-y-1/2 p-1.5 text-text-secondary hover:text-white transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={!newPlaylistName.trim()}
+                                    title="Create playlist"
+                                >
+                                    <Plus size={14} />
+                                </button>
                             </form>
                         </div>
                     </div>
