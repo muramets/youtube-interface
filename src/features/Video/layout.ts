@@ -9,5 +9,5 @@ export const GRID_LAYOUT = {
     SCROLLBAR_WIDTH: 15,
     // Card height calculation constants
     // Height = (Width * 9/16) + CARD_CONTENT_HEIGHT
-    CARD_CONTENT_HEIGHT: 88,
+    CARD_CONTENT_HEIGHT: 108,
 };

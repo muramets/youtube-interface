@@ -229,7 +229,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   return (
     <>
       <div
-        className={`flex flex-col gap-2 cursor-pointer group relative p-[6px] rounded-xl z-0 focus:outline-none transition-all duration-150 ease-in-out ${isOverlay ? 'shadow-2xl bg-bg-secondary' : ''}`}
+        className={`flex flex-col gap-2 cursor-pointer group relative p-[6px] rounded-xl z-0 focus:outline-none transition-all duration-150 ease-in-out h-full ${isOverlay ? 'shadow-2xl bg-bg-secondary' : ''}`}
         style={{
           transform: isFlipping ? 'rotateY(90deg)' : 'rotateY(0deg)',
           transformStyle: 'preserve-3d',

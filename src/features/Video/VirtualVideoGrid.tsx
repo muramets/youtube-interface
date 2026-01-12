@@ -58,10 +58,18 @@ const InnerGrid: React.FC<InnerGridProps> = ({
 
         // Safety check
         const safeCardWidth = Math.max(0, cardWidth);
-
         const thumbnailHeight = safeCardWidth * (9 / 16);
-        const cardHeight = thumbnailHeight + GRID_LAYOUT.CARD_CONTENT_HEIGHT;
-        const rowHeight = cardHeight + 4; // Smaller vertical gap between rows (Total: 6+4+6 = 16px)
+
+        // Dynamic content height based on density to handle text wrapping
+        const getCardContentHeight = (cols: number) => {
+            if (cols >= 6) return 150; // High density: More text wrapping needs more space
+            if (cols <= 3) return 96;  // Low density: Less wrapping needs less space
+            return 108;                // Medium density: Default
+        };
+
+        const contentHeight = getCardContentHeight(columnCount);
+        const cardHeight = thumbnailHeight + contentHeight;
+        const rowHeight = cardHeight + GRID_LAYOUT.GAP; // Total vertical space matches grid gap
 
         return { columnCount, safeCardWidth, rowHeight };
     }, [containerWidth, cardsPerRow]);
@@ -154,7 +162,7 @@ const InnerGrid: React.FC<InnerGridProps> = ({
                         }}
                     >
                         {rowVideos.map((video) => (
-                            <div key={video.id} style={{ width: safeCardWidth }}>
+                            <div key={video.id} style={{ width: safeCardWidth, height: virtualRow.size - GRID_LAYOUT.GAP }}>
                                 {isDraggable ? (
                                     <SortableVideoCard
                                         video={video}
