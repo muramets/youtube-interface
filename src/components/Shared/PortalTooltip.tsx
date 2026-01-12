@@ -233,7 +233,13 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
         }
 
         // If already rendered/visible, we don't need to queue another show
+        // BUT if it's rendered but NOT visible (e.g. in the middle of closing animation), 
+        // we MUST restore visibility immediately.
         if (shouldRender) {
+            if (!isVisible) {
+                setIsVisible(true);
+                onOpenChange?.(true);
+            }
             return;
         }
 
