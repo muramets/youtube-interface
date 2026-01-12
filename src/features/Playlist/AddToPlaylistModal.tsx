@@ -13,25 +13,26 @@ interface AddToPlaylistModalProps {
 export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoId, onClose }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { playlists, createPlaylist, addVideoToPlaylist, removeVideoFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+    const { playlists, createPlaylist, addVideosToPlaylist, removeVideosFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
     const [isCreating, setIsCreating] = React.useState(false);
     const [newPlaylistName, setNewPlaylistName] = React.useState('');
 
     const handleCreate = (e: React.FormEvent) => {
         e.preventDefault();
         if (newPlaylistName.trim() && user && currentChannel) {
-            createPlaylist({ name: newPlaylistName.trim() });
+            createPlaylist({ name: newPlaylistName.trim(), videoIds: [videoId] });
             setNewPlaylistName('');
             setIsCreating(false);
         }
     };
-
+    // ...
+    // ...
     const togglePlaylist = (playlistId: string, isInPlaylist: boolean) => {
         if (!user || !currentChannel) return;
         if (!isInPlaylist) {
-            addVideoToPlaylist({ playlistId, videoId });
+            addVideosToPlaylist({ playlistId, videoIds: [videoId] });
         } else {
-            removeVideoFromPlaylist({ playlistId, videoId });
+            removeVideosFromPlaylist({ playlistId, videoIds: [videoId] });
         }
     };
 

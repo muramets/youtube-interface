@@ -28,7 +28,8 @@ export const PlaylistSelector: React.FC<PlaylistSelectorProps> = ({
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { channels } = useTrendStore();
-    const { playlists, addVideoToPlaylist, removeVideoFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+    const { playlists, addVideosToPlaylist, removeVideosFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+
     const { videos: homeVideos } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { showToast } = useUIStore();
 
@@ -95,12 +96,18 @@ export const PlaylistSelector: React.FC<PlaylistSelectorProps> = ({
         if (!user || !currentChannel) return;
 
         await handleQuickAction(async () => {
+            const videoIds = videos.map(v => v.id);
+
             if (isInPlaylist) {
-                // Remove ALL from playlist
-                await Promise.all(videos.map(v => removeVideoFromPlaylist({ playlistId, videoId: v.id })));
+                // Remove ALL from playlist (Bulk Operation)
+                if (videoIds.length > 0) {
+                    await removeVideosFromPlaylist({ playlistId, videoIds });
+                }
                 showToast(isMultiSelect ? `Removed ${videos.length} videos from "${playlistName}"` : `Removed from "${playlistName}"`, 'success');
             } else {
                 // Add to playlist
+
+                // Ensure videos exist in DB
                 await Promise.all(videos.map(async (video) => {
                     const videoExists = homeVideos.some(v => v.id === video.id);
                     if (!videoExists) {
@@ -111,8 +118,12 @@ export const PlaylistSelector: React.FC<PlaylistSelectorProps> = ({
                             createdAt: Date.now()
                         });
                     }
-                    await addVideoToPlaylist({ playlistId, videoId: video.id });
                 }));
+
+                // Bulk Add
+                if (videoIds.length > 0) {
+                    await addVideosToPlaylist({ playlistId, videoIds });
+                }
                 showToast(isMultiSelect ? `Added ${videos.length} videos to "${playlistName}"` : `Added to "${playlistName}"`, 'success');
             }
         });

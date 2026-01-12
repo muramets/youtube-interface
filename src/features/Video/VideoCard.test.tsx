@@ -27,7 +27,7 @@ vi.mock('../../core/hooks/useSettings', () => ({
 
 // Простой мок для хуков, которые нам не важны в этом тесте
 vi.mock('../../core/hooks/useVideoSync', () => ({ useVideoSync: () => ({ syncVideo: vi.fn() }) }));
-vi.mock('../../core/hooks/usePlaylists', () => ({ usePlaylists: () => ({ removeVideoFromPlaylist: vi.fn() }) }));
+vi.mock('../../core/hooks/usePlaylists', () => ({ usePlaylists: () => ({ removeVideosFromPlaylist: vi.fn() }) }));
 vi.mock('../../core/hooks/useThumbnailActions', () => ({ useThumbnailActions: () => ({ handleLikeThumbnail: vi.fn(), handleRemoveThumbnail: vi.fn() }) }));
 
 describe('VideoCard', () => {

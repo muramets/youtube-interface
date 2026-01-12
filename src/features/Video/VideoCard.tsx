@@ -35,7 +35,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
 
   const { syncVideo } = useVideoSync(user?.uid || '', currentChannel?.id || '');
 
-  const { removeVideoFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+  const { removeVideosFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
   const { generalSettings } = useSettings();
   const apiKey = generalSettings.apiKey;
 
@@ -141,7 +141,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     e.stopPropagation();
     handleMenuClose();
     if (playlistId) {
-      await removeVideoFromPlaylist({ playlistId, videoId: video.id });
+      await removeVideosFromPlaylist({ playlistId, videoIds: [video.id] });
     }
   };
 
