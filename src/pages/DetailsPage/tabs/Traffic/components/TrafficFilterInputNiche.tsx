@@ -98,16 +98,23 @@ export const TrafficFilterInputNiche: React.FC<TrafficFilterInputNicheProps> = (
     }, [sources, groups]);
 
     // 2. Sort niches: View Count (desc), then Name (asc)
+    // Identify Trash Group
+    const trashGroup = useMemo(() => {
+        return groups.find(g => g.name.trim().toLowerCase() === 'trash');
+    }, [groups]);
+
+    // 2. Sort niches: View Count (desc), then Name (asc)
     const sortedNiches = useMemo(() => {
-        return [...groups].sort((a, b) => {
+        const otherGroups = trashGroup ? groups.filter(g => g.id !== trashGroup.id) : groups;
+        return [...otherGroups].sort((a, b) => {
             const statsA = nicheStats.get(a.id) || { views: 0 };
             const statsB = nicheStats.get(b.id) || { views: 0 };
             if (statsA.views !== statsB.views) return statsB.views - statsA.views;
             return a.name.localeCompare(b.name);
         });
-    }, [groups, nicheStats]);
+    }, [groups, nicheStats, trashGroup]);
 
-    // ... search logic (filteredNiches) remains same ...
+    // Filter logic (Applied to sortedNiches which now excludes Trash)
     const filteredNiches = useMemo(() => {
         if (!searchQuery.trim()) return sortedNiches;
         const lowerQuery = searchQuery.toLowerCase();
@@ -118,6 +125,12 @@ export const TrafficFilterInputNiche: React.FC<TrafficFilterInputNicheProps> = (
         if (!searchQuery.trim()) return true;
         return 'unassigned'.includes(searchQuery.toLowerCase());
     }, [searchQuery]);
+
+    const showTrash = useMemo(() => {
+        if (!trashGroup) return false;
+        if (!searchQuery.trim()) return true;
+        return trashGroup.name.toLowerCase().includes(searchQuery.toLowerCase());
+    }, [searchQuery, trashGroup]);
 
     // ... select all logic remains same ...
     const handleSelectAll = () => {
@@ -217,14 +230,26 @@ export const TrafficFilterInputNiche: React.FC<TrafficFilterInputNicheProps> = (
                 </div>
 
                 {/* Unassigned option */}
-                {showUnassigned && (
+                {/* Unassigned & Trash Block */}
+                {(showUnassigned || showTrash) && (
                     <>
-                        {renderItem(UNASSIGNED_NICHE_ID, 'Unassigned', undefined, unassignedStats, true)}
-                        <div className="mx-2 my-1 h-px bg-white/5" />
+                        {showUnassigned && renderItem(UNASSIGNED_NICHE_ID, 'Unassigned', undefined, unassignedStats, true)}
+
+                        {showTrash && trashGroup && (
+                            renderItem(
+                                trashGroup.id,
+                                'Trash',
+                                trashGroup.color,
+                                nicheStats.get(trashGroup.id) || { views: 0, impressions: 0 },
+                                false
+                            )
+                        )}
+
+                        {filteredNiches.length > 0 && <div className="mx-2 my-1 h-px bg-white/5" />}
                     </>
                 )}
 
-                {filteredNiches.length === 0 && !showUnassigned ? (
+                {filteredNiches.length === 0 && !showUnassigned && !showTrash ? (
                     <div className="px-4 py-8 text-center text-text-tertiary text-xs">
                         No niches found
                     </div>
