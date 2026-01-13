@@ -22,6 +22,18 @@ export const DataRepairModal: React.FC<DataRepairModalProps> = ({
     isRestoring,
     variant = 'sync'
 }) => {
+    // Frozen values to prevent UI jumping while syncing
+    const [frozenMissingCount, setFrozenMissingCount] = React.useState<number>(missingCount);
+    const [frozenEstimatedQuota, setFrozenEstimatedQuota] = React.useState<number>(estimatedQuota);
+
+    // Update frozen values ONLY when the modal is opened
+    React.useEffect(() => {
+        if (isOpen) {
+            setFrozenMissingCount(missingCount);
+            setFrozenEstimatedQuota(estimatedQuota);
+        }
+    }, [isOpen]); // We purposefully omit missingCount/estimatedQuota to only update on open
+
     if (!isOpen) return null;
 
     const isAssistant = variant === 'assistant';
@@ -56,13 +68,13 @@ export const DataRepairModal: React.FC<DataRepairModalProps> = ({
                         <p className="text-sm text-text-secondary leading-relaxed">
                             {isAssistant ? (
                                 <>
-                                    Smart Assistant works best with rich data (channel's info for each video). <span className="font-semibold text-text-primary">{missingCount} videos</span> are missing these and other details.
+                                    Smart Assistant works best with rich data (channel's info for each video). <span className="font-semibold text-text-primary">{frozenMissingCount} videos</span> are missing these and other details.
                                     <br /><br />
                                     Sync with YouTube to enable intelligent niche prediction.
                                 </>
                             ) : (
                                 <>
-                                    This snapshot contains <span className="font-semibold text-text-primary">{missingCount} videos</span> without titles.
+                                    This snapshot contains <span className="font-semibold text-text-primary">{frozenMissingCount} videos</span> without titles.
                                     Syncing with YouTube will enable full insights and detailed tooltips.
                                 </>
                             )}
@@ -77,7 +89,7 @@ export const DataRepairModal: React.FC<DataRepairModalProps> = ({
                         <div className="flex-1">
                             <p className="text-[10px] text-yellow-600/80 dark:text-yellow-500/80 uppercase tracking-widest font-bold mb-0.5">ESTIMATED USAGE OF YT API QUOTA</p>
                             <p className="text-sm text-text-primary font-medium">
-                                {estimatedQuota} <span className="text-text-secondary font-normal">of 10,000 daily units</span>
+                                {frozenEstimatedQuota} <span className="text-text-secondary font-normal">of 10,000 daily units</span>
                             </p>
                         </div>
                     </div>
