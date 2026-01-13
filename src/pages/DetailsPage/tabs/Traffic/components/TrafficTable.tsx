@@ -109,6 +109,27 @@ export const TrafficTable = memo<TrafficTableProps>(({
     const parentRef = useRef<HTMLDivElement>(null);
     // Local sort state removed in favor of props
 
+    // State for controlled tooltips (SmartTrafficTooltip)
+    const [hoveredTooltipId, setHoveredTooltipId] = React.useState<string | null>(null);
+    const tooltipTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+    const handleTooltipEnter = useCallback((id: string) => {
+        if (tooltipTimeoutRef.current) {
+            clearTimeout(tooltipTimeoutRef.current);
+            tooltipTimeoutRef.current = null;
+        }
+        setHoveredTooltipId(id);
+    }, []);
+
+    const handleTooltipLeave = useCallback(() => {
+        if (tooltipTimeoutRef.current) clearTimeout(tooltipTimeoutRef.current);
+
+        tooltipTimeoutRef.current = setTimeout(() => {
+            setHoveredTooltipId(null);
+            tooltipTimeoutRef.current = null;
+        }, 300);
+    }, []);
+
     // Lookup map for rich video details
     const videoMap = useMemo(() => {
         const map = new Map<string, VideoDetails>();
@@ -328,6 +349,9 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             trashValue={trashMetrics?.impressions}
                                             deltaContext={deltaContext?.impressions}
                                             isIncomplete={deltaContext?.isIncomplete}
+                                            forceOpen={hoveredTooltipId === 'total-impressions'}
+                                            onMouseEnter={() => handleTooltipEnter('total-impressions')}
+                                            onMouseLeave={handleTooltipLeave}
                                         />
                                     )}
                                     {computedTotal.impressions.toLocaleString()}
@@ -343,6 +367,9 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             trashValue={trashMetrics?.views}
                                             deltaContext={deltaContext?.views}
                                             isIncomplete={deltaContext?.isIncomplete}
+                                            forceOpen={hoveredTooltipId === 'total-views'}
+                                            onMouseEnter={() => handleTooltipEnter('total-views')}
+                                            onMouseLeave={handleTooltipLeave}
                                         />
                                     )}
                                     {computedTotal.views.toLocaleString()}
@@ -396,6 +423,9 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             onConfirmSuggestion={onConfirmSuggestion}
                                             trafficType={trafficType}
                                             onToggleTrafficType={onToggleTrafficType}
+                                            activeTooltipId={hoveredTooltipId}
+                                            onTooltipEnter={handleTooltipEnter}
+                                            onTooltipLeave={handleTooltipLeave}
                                         />
                                     </div>
                                 );

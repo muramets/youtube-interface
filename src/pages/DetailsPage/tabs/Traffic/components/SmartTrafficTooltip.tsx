@@ -8,6 +8,9 @@ interface SmartTrafficTooltipProps {
     trashValue?: number;
     deltaContext?: MetricDelta; // Generic metric delta (impressions OR views)
     isIncomplete?: boolean; // Signal strictly for missing total row
+    forceOpen?: boolean;
+    onMouseEnter?: () => void;
+    onMouseLeave?: () => void;
 }
 
 export const SmartTrafficTooltip: React.FC<SmartTrafficTooltipProps> = ({
@@ -15,7 +18,10 @@ export const SmartTrafficTooltip: React.FC<SmartTrafficTooltipProps> = ({
     tableSum,
     trashValue = 0,
     deltaContext,
-    isIncomplete
+    isIncomplete,
+    forceOpen,
+    onMouseEnter,
+    onMouseLeave
 }) => {
     let content: React.ReactNode;
     let isSignificantRef = false;
@@ -26,7 +32,11 @@ export const SmartTrafficTooltip: React.FC<SmartTrafficTooltipProps> = ({
     if (isIncomplete) {
         // ERROR STATE: Total Row Missing
         content = (
-            <div className="flex flex-col gap-2 p-1 max-w-[320px]">
+            <div
+                className="flex flex-col gap-2 p-1 max-w-[320px]"
+                onMouseEnter={onMouseEnter}
+                onMouseLeave={onMouseLeave}
+            >
                 <div className="flex items-center gap-2 font-medium text-sm border-b pb-2 mb-1 border-white/10 text-red-400">
                     <AlertTriangle className="w-4 h-4" />
                     <span>Comparison Unavailable</span>
@@ -175,8 +185,17 @@ export const SmartTrafficTooltip: React.FC<SmartTrafficTooltipProps> = ({
             content={content}
             side="top"
             align="center"
+            forceOpen={forceOpen}
         >
-            <div className={`cursor-help inline-flex items-center justify-center mr-1 opacity-60 hover:opacity-100 transition-opacity ${isIncomplete ? 'text-red-400 opacity-100' : ''}`}>
+            <div
+                className={`cursor-help inline-flex items-center justify-center mr-1 opacity-60 hover:opacity-100 transition-opacity ${isIncomplete ? 'text-red-400 opacity-100' : ''}`}
+                onMouseEnter={() => {
+                    onMouseEnter?.();
+                }}
+                onMouseLeave={() => {
+                    onMouseLeave?.();
+                }}
+            >
                 {isSignificantRef ? (
                     <AlertTriangle className={`w-3.5 h-3.5 ${isIncomplete ? 'text-red-400' : 'text-amber-400'}`} />
                 ) : (

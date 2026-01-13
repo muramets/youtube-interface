@@ -30,6 +30,10 @@ interface TrafficRowProps {
     // Traffic Type Props
     trafficType?: TrafficType;
     onToggleTrafficType?: (videoId: string, currentType?: TrafficType) => void;
+    // Tooltip Control
+    activeTooltipId?: string | null;
+    onTooltipEnter?: (id: string) => void;
+    onTooltipLeave?: () => void;
 }
 
 const getCtrColor = (ctr: number | string, rules: CTRRule[]): string | undefined => {
@@ -67,7 +71,10 @@ export const TrafficRow = ({
     suggestedNiche,
     onConfirmSuggestion,
     trafficType,
-    onToggleTrafficType
+    onToggleTrafficType,
+    activeTooltipId,
+    onTooltipEnter,
+    onTooltipLeave
 }: TrafficRowProps) => {
     // Connect to Niche Store
     const { niches, assignments } = useTrafficNicheStore();
@@ -180,19 +187,37 @@ export const TrafficRow = ({
 
                             {/* Info Icon - Moved here, visible on group hover */}
                             {item.videoId && !isThisVideoMinimized && (
-                                <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity inline-flex">
+                                <div
+                                    className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity inline-flex"
+                                    onMouseEnter={() => {
+                                        if (onTooltipEnter) onTooltipEnter(`preview-${item.videoId}`);
+                                    }}
+                                    onMouseLeave={() => {
+                                        if (onTooltipLeave) onTooltipLeave();
+                                    }}
+                                >
                                     <PortalTooltip
                                         content={
-                                            <VideoPreviewTooltip
-                                                videoId={item.videoId}
-                                                title={videoDetails?.title || item.sourceTitle}
-                                                channelTitle={videoDetails?.channelTitle || item.channelTitle}
-                                                viewCount={videoDetails?.viewCount ? parseInt(videoDetails.viewCount) : undefined}
-                                                publishedAt={videoDetails?.publishedAt}
-                                                description={videoDetails?.description}
-                                                tags={videoDetails?.tags}
-                                                className="w-[600px]"
-                                            />
+                                            <div
+                                                className="pointer-events-auto inline-block relative"
+                                                onMouseEnter={() => {
+                                                    if (onTooltipEnter) onTooltipEnter(`preview-${item.videoId}`);
+                                                }}
+                                                onMouseLeave={() => {
+                                                    if (onTooltipLeave) onTooltipLeave();
+                                                }}
+                                            >
+                                                <VideoPreviewTooltip
+                                                    videoId={item.videoId}
+                                                    title={videoDetails?.title || item.sourceTitle}
+                                                    channelTitle={videoDetails?.channelTitle || item.channelTitle}
+                                                    viewCount={videoDetails?.viewCount ? parseInt(videoDetails.viewCount) : undefined}
+                                                    publishedAt={videoDetails?.publishedAt}
+                                                    description={videoDetails?.description}
+                                                    tags={videoDetails?.tags}
+                                                    className="w-[600px]"
+                                                />
+                                            </div>
                                         }
                                         enterDelay={200}
                                         triggerClassName="flex items-center justify-center"
@@ -201,6 +226,7 @@ export const TrafficRow = ({
                                         align="center"
                                         estimatedHeight={480}
                                         fixedWidth={640}
+                                        forceOpen={activeTooltipId === `preview-${item.videoId}`}
                                     >
                                         <div
                                             className="text-text-secondary hover:text-white cursor-pointer transition-colors"
