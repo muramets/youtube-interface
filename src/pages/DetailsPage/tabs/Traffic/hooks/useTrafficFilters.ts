@@ -78,10 +78,12 @@ export const useTrafficFilters = ({ contextKey }: UseTrafficFiltersProps) => {
         if (filters.length === 0) return sources;
 
         // Pre-compute VideoID -> Set<NicheID> map if Niche filter is active, for O(1) lookup
+        // Pre-compute VideoID -> Set<NicheID> map if Niche or NicheProperty filter is active
         const nicheFilter = filters.find(f => f.type === 'niche');
+        const nichePropertyFilter = filters.find(f => f.type === 'nicheProperty');
         let videoIdToGroupIds: Map<string, Set<string>> | undefined;
 
-        if (nicheFilter && groups) {
+        if ((nicheFilter || nichePropertyFilter) && groups) {
             videoIdToGroupIds = new Map();
             groups.forEach(g => {
                 g.videoIds.forEach(vid => {

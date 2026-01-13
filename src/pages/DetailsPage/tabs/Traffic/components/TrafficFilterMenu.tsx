@@ -246,8 +246,8 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                                                         if (existingFilter) onRemoveFilter(existingFilter.id);
                                                     } else {
                                                         const label = newSelection.length === 1
-                                                            ? `Property: ${option.label}`
-                                                            : `Property: ${newSelection.length} selected`;
+                                                            ? `Niche Type: ${option.label}`
+                                                            : `Niche Type: ${newSelection.length} selected`;
 
                                                         onAddFilter({
                                                             type: 'nicheProperty',

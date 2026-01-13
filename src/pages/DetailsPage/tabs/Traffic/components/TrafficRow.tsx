@@ -195,7 +195,7 @@ export const TrafficRow = ({
             onClick={(e) => item.videoId && onRowClick(item.videoId, index, e)}
             className={`
                 relative h-full grid ${gridClassName} gap-2 px-4 items-center border-b border-white/5 
-                text-xs transition-colors duration-200 cursor-pointer group select-none
+                text-xs cursor-pointer group select-none
                 ${index % 2 === 0 ? 'bg-white/[0.035]' : 'bg-transparent'}  
                 hover:bg-white/[0.05]
             `}
