@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { CloudDownload, X, Info } from 'lucide-react';
 import { Button } from '../../../../../components/ui/atoms/Button/Button';
 
-interface MissingTitlesModalProps {
+interface DataRepairModalProps {
     isOpen: boolean;
     missingCount: number;
     estimatedQuota: number;
@@ -13,7 +13,7 @@ interface MissingTitlesModalProps {
     variant?: 'sync' | 'assistant';
 }
 
-export const MissingTitlesModal: React.FC<MissingTitlesModalProps> = ({
+export const DataRepairModal: React.FC<DataRepairModalProps> = ({
     isOpen,
     missingCount,
     estimatedQuota,
@@ -85,7 +85,10 @@ export const MissingTitlesModal: React.FC<MissingTitlesModalProps> = ({
                     {/* Consequence text */}
                     <div className="px-1">
                         <p className="text-sm text-text-secondary leading-relaxed">
-                            If you skip sync, these videos will have empty titles in the table.
+                            {isAssistant
+                                ? "If you skip sync, Smart Assistant won't be able to make niche suggestions for these videos."
+                                : "If you skip sync, these videos will have empty titles in the table."
+                            }
                         </p>
                     </div>
                 </div>

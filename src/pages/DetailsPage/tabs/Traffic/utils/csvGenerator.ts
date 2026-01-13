@@ -1,6 +1,9 @@
 import type { TrafficSource } from '../../../../../core/types/traffic';
+import { csvLogger } from '../../../../../core/utils/logger';
 
 export const generateTrafficCsv = (sources: TrafficSource[], totalRow?: TrafficSource): string => {
+    csvLogger.debug('Starting generation', { sourcesCount: sources.length, hasTotalRow: !!totalRow });
+
     // 1. Headers (Standard YouTube Format)
     const headers = [
         "Traffic source",
@@ -10,7 +13,8 @@ export const generateTrafficCsv = (sources: TrafficSource[], totalRow?: TrafficS
         "Impressions click-through rate (%)",
         "Views",
         "Average view duration",
-        "Watch time (hours)"
+        "Watch time (hours)",
+        "Channel ID"
     ];
 
     const rows = [];
@@ -26,7 +30,8 @@ export const generateTrafficCsv = (sources: TrafficSource[], totalRow?: TrafficS
             totalRow.ctr,
             totalRow.views,
             totalRow.avgViewDuration,
-            totalRow.watchTimeHours
+            totalRow.watchTimeHours,
+            ""
         ].join(','));
     }
 
@@ -35,6 +40,10 @@ export const generateTrafficCsv = (sources: TrafficSource[], totalRow?: TrafficS
         // Format ID: if it has videoId, it's YT_RELATED + videoId, otherwise maybe it's something else?
         // In this app, we filtered for YT_RELATED only.
         const sourceId = source.videoId ? `YT_RELATED.${source.videoId}` : '';
+
+        if (!source.videoId) {
+            csvLogger.warn('Source missing videoId', { source });
+        }
 
         // Escape quotes in title
         const escape = (s: string) => `"${s.replace(/"/g, '""')}"`;
@@ -47,10 +56,12 @@ export const generateTrafficCsv = (sources: TrafficSource[], totalRow?: TrafficS
             source.ctr,
             source.views,
             source.avgViewDuration || '0:00:00',
-            source.watchTimeHours
+            source.watchTimeHours,
+            source.channelId || ''
         ];
         rows.push(row.join(','));
     });
 
+    csvLogger.debug('Generation complete', { rowsCount: rows.length });
     return rows.join('\n');
 };

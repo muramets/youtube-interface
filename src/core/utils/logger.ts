@@ -112,5 +112,14 @@ class ScopedLogger {
 // Export singleton instance
 export const logger = new Logger();
 
-// Export types for use in other modules
+// Domain-Scoped Loggers for centralized control
+export const trafficLogger = logger.scope({ component: 'Traffic' });
+export const assistantLogger = logger.scope({ component: 'SmartAssistant' });
+export const snapshotLogger = logger.scope({ component: 'TrafficSnapshot' });
+export const csvLogger = logger.scope({ component: 'CsvProcessing' });
+export const storageLogger = logger.scope({ component: 'Storage' });
+export const youtubeLogger = logger.scope({ component: 'YouTubeAPI' });
+
+// Legacy/Compatibility exports if needed
+export default logger;
 

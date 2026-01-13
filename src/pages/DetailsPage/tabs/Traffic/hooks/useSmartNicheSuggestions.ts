@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 import type { SuggestedTrafficNiche, TrafficNicheAssignment } from '../../../../../core/types/suggestedTrafficNiches';
+import { assistantLogger } from '../../../../../core/utils/logger';
 
 interface SmartSuggestion {
     nicheId: string;
@@ -96,8 +97,14 @@ export const useSmartNicheSuggestions = (
             }
         });
 
+        assistantLogger.debug('Preference calculation', {
+            channelsMapped: assignmentsByChannel.size,
+            preferencesSize: prefs.size,
+            videoToChannelSize: videoToChannel.size
+        });
+
         return prefs;
-    }, [sources, assignments]);
+    }, [sources, assignments, videos, niches]);
 
     // 2. Helper to get suggestion for a video
     const getSuggestion = (videoId: string): SmartSuggestion | null => {
@@ -122,13 +129,19 @@ export const useSmartNicheSuggestions = (
         const niche = niches.find(n => n.id === pref.nicheId);
         if (!niche) return null;
 
-        return {
+        const suggestion: SmartSuggestion = {
             nicheId: pref.nicheId,
             targetNiche: niche,
             confidence: pref.score > 1.5 ? 'high' : 'medium',
             reason: 'hybrid',
             score: pref.score
         };
+
+        assistantLogger.debug(`Suggestion found for ${videoId}`, {
+            suggestion
+        });
+
+        return suggestion;
     };
 
     return {

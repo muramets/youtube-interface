@@ -1,6 +1,6 @@
 import React from 'react';
 import { ColumnMapperModal } from '../modals/ColumnMapperModal';
-import { MissingTitlesModal } from '../modals/MissingTitlesModal';
+import { DataRepairModal } from '../modals/DataRepairModal';
 import { parseTrafficCsv } from '../utils/csvParser';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import type { CsvMapping } from '../utils/csvParser';
@@ -62,7 +62,7 @@ export const TrafficModals: React.FC<TrafficModalsProps> = ({
                 onConfirm={handleMapperConfirm}
             />
 
-            <MissingTitlesModal
+            <DataRepairModal
                 isOpen={isMissingTitlesOpen}
                 missingCount={missingTitlesCount}
                 estimatedQuota={estimatedQuota}

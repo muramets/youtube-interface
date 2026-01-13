@@ -24,6 +24,7 @@ import { useAuth } from '../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../core/stores/channelStore';
 import { useVideos } from '../../../../core/hooks/useVideos';
 import { useSmartNicheSuggestions } from './hooks/useSmartNicheSuggestions';
+import { assistantLogger } from '../../../../core/utils/logger';
 
 import type { TrafficSource } from '../../../../core/types/traffic';
 
@@ -122,6 +123,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     // 1. Existing/Post-Load Missing Titles Logic
     const {
         missingCount: existingMissingCount,
+        unenrichedCount: existingUnenrichedCount,
         estimatedQuota: existingEstimatedQuota,
         fetchMissingTitles: fetchExistingMissingTitles,
         isRestoring: isRestoringExisting
@@ -132,13 +134,21 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         trafficVideoId: _video.id,
         activeVersion,
         apiKey: apiKey || '',
+        currentSnapshotId: selectedSnapshot,
         cachedVideos: allVideos,
         onDataRestored: (_newSources, newSnapshotId) => {
             setIsMissingTitlesModalOpen(false);
+
+            // Force reload of traffic data (CSV) because in-place update won't change ID
+            if (retry) {
+                retry();
+            }
+
             if (onSnapshotClick) {
                 onSnapshotClick(newSnapshotId); // Reload with new snapshot
             }
-        }
+        },
+        trafficData
     });
 
     // 2. Pre-Upload Pending Logic
@@ -541,12 +551,20 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 }}
                 isAssistantEnabled={isAssistantEnabled}
                 onToggleAssistant={() => {
-                    // Smart Check: If we have missing titles, prompt to sync first
-                    if (!isAssistantEnabled && existingMissingCount > 0) {
+                    assistantLogger.debug('onToggleAssistant clicked', {
+                        currentEnabled: isAssistantEnabled,
+                        missingCount: existingMissingCount,
+                        unenrichedCount: existingUnenrichedCount
+                    });
+
+                    // Smart Check: If we have missing titles OR unenriched data, prompt to sync first
+                    if (!isAssistantEnabled && (existingMissingCount > 0 || existingUnenrichedCount > 0)) {
+                        assistantLogger.info('Blocking assistant activation, prompting for sync');
                         setMissingTitlesVariant('assistant');
                         setIsMissingTitlesModalOpen(true);
                         return;
                     }
+                    assistantLogger.debug('Toggling assistant state');
                     setIsAssistantEnabled(prev => !prev);
                 }}
             />
@@ -615,7 +633,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
                 // Missing Titles Props
                 isMissingTitlesOpen={isMissingTitlesModalOpen}
-                missingTitlesCount={isPendingMode ? pendingMissingCount : existingMissingCount}
+                missingTitlesCount={isPendingMode ? pendingMissingCount : (existingMissingCount + existingUnenrichedCount)}
                 estimatedQuota={estimatedQuota}
                 onMissingTitlesConfirm={isPendingMode ? handleConfirmPendingSync : handleRepairConfirm}
                 onMissingTitlesClose={() => {

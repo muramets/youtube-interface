@@ -99,18 +99,22 @@ export const useTrafficData = ({ userId, channelId, video }: UseTrafficDataProps
         if (!userId || !video.id) return;
         setIsSaving(true);
         try {
-            await TrafficService.deleteSnapshot(userId, channelId, video.id, snapshotId);
+            const updated = await TrafficService.deleteSnapshot(userId, channelId, video.id, snapshotId);
 
-            // Optimistically update local state
-            const updated = await TrafficService.fetchTrafficData(userId, channelId, video.id);
-            setData(updated);
+            if (updated) {
+                setData(updated);
+            } else {
+                // Fallback refetch if service didn't return data (shouldn't happen with updated service)
+                await refetch();
+            }
+
         } catch (err) {
             console.error('[useTrafficData] Snapshot deletion failed:', err);
             setError("Failed to delete snapshot");
         } finally {
             setIsSaving(false);
         }
-    }, [userId, channelId, video.id]);
+    }, [userId, channelId, video.id, refetch]);
 
     // Action: Update Local Data (Optimistic / External)
     const updateLocalData = useCallback((newData: TrafficData) => {

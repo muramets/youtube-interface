@@ -10,6 +10,7 @@ export interface CsvMapping {
     views: number;
     avgDuration: number;
     watchTime: number;
+    channelId?: number; // Optional, added for Smart Assistant enrichment persistence
 }
 
 // Default mapping based on standard YouTube Analytics export
@@ -22,7 +23,8 @@ export const DEFAULT_MAPPING: CsvMapping = {
     ctr: 4,            // "Impressions click-through rate (%)"
     views: 5,          // "Views"
     avgDuration: 6,    // "Average view duration"
-    watchTime: 7       // "Watch time (hours)"
+    watchTime: 7,      // "Watch time (hours)"
+    channelId: 8       // "Channel ID" (Custom enriched column)
 };
 
 // Known headers for auto-detection
@@ -34,7 +36,8 @@ const HEADER_KEYWORDS: Record<keyof CsvMapping, string[]> = {
     ctr: ['Impressions click-through rate', 'CTR'],
     views: ['Views'],
     avgDuration: ['Average view duration', 'Duration'],
-    watchTime: ['Watch time (hours)', 'Watch time', 'Hours']
+    watchTime: ['Watch time (hours)', 'Watch time', 'Hours'],
+    channelId: ['Channel ID', 'Channel Id', 'channel_id']
 };
 
 /**
@@ -72,6 +75,13 @@ export const parseTrafficCsv = async (
                 // If no user mapping is provided, try to auto-detect from headers
                 if (!activeMapping) {
                     const detectedMapping = detectMapping(headers);
+
+                    // DEBUG: Log detected mapping in detail
+                    logger.debug('CSV parsing auto-detect', {
+                        component: 'csvParser',
+                        headers,
+                        detectedMapping
+                    });
 
                     // Check if detection was successful for ALL required columns
                     // We require all columns to be present to safely import.
@@ -125,6 +135,11 @@ export const parseTrafficCsv = async (
                     // Skip invalid rows (e.g. malformed CSV tail)
                     if (!sourceId && cols.every(c => !c.trim())) continue;
 
+                    let channelId = null;
+                    if (activeMapping.channelId !== undefined && activeMapping.channelId !== -1) {
+                        channelId = clean(cols[activeMapping.channelId] || '');
+                    }
+
                     const source: TrafficSource = {
                         sourceType: clean(cols[activeMapping!.sourceType] || ''),
                         sourceTitle: clean(cols[activeMapping!.sourceTitle] || ''),
@@ -133,7 +148,8 @@ export const parseTrafficCsv = async (
                         ctr: parseFloat(clean(cols[activeMapping!.ctr] || '0').replace('%', '') || '0'),
                         views: parseInt(clean(cols[activeMapping!.views] || '0').replace(/[^0-9]/g, '') || '0'),
                         avgViewDuration: clean(cols[activeMapping!.avgDuration] || ''),
-                        watchTimeHours: parseFloat(clean(cols[activeMapping!.watchTime] || '0').replace(/[^0-9.]/g, '') || '0')
+                        watchTimeHours: parseFloat(clean(cols[activeMapping!.watchTime] || '0').replace(/[^0-9.]/g, '') || '0'),
+                        channelId: channelId || undefined
                     };
 
                     // 3. Row Classification / Strict Validation

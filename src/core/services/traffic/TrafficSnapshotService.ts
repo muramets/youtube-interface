@@ -2,7 +2,7 @@ import type { TrafficData, TrafficSource, TrafficSnapshot } from '../../types/tr
 import { generateSnapshotId } from '../../utils/snapshotUtils';
 import { uploadCsvSnapshot, downloadCsvSnapshot, deleteCsvSnapshot } from '../storageService';
 import { TrafficDataService } from './TrafficDataService';
-import { logger } from '../../utils/logger';
+import { logger, snapshotLogger } from '../../utils/logger';
 
 /**
  * Сервис для управления снапшотами трафика.
@@ -169,6 +169,101 @@ export const TrafficSnapshotService = {
     },
 
     /**
+     * Updates an existing snapshot.
+     * Used for in-place enrichment/repair without creating new history entries.
+     */
+    async update(
+        userId: string,
+        channelId: string,
+        videoId: string,
+        snapshotId: string,
+        sources: TrafficSource[],
+        totalRow?: TrafficSource,
+        csvFile?: File
+    ): Promise<void> {
+        logger.info('Starting snapshot update', {
+            component: 'TrafficSnapshotService',
+            snapshotId,
+            sourcesCount: sources.length,
+            hasTotalRow: !!totalRow,
+            hasCsvFile: !!csvFile
+        });
+
+        const currentData = await TrafficDataService.fetch(userId, channelId, videoId);
+        if (!currentData) throw new Error('DATA_NOT_FOUND');
+
+        const snapshotIndex = currentData.snapshots.findIndex(s => s.id === snapshotId);
+        if (snapshotIndex === -1) throw new Error('SNAPSHOT_NOT_FOUND');
+
+        const snapshot = currentData.snapshots[snapshotIndex];
+
+        // 1. Upload new CSV (overwrite or new path)
+        let storagePath = snapshot.storagePath;
+        if (csvFile) {
+            try {
+                // If we have an existing path, we can potentially overwrite it or just upload new
+                // To be safe and avoid caching issues, we'll upload as a new file (same ID logic though)
+                const uploadResult = await uploadCsvSnapshot(
+                    userId,
+                    channelId,
+                    videoId,
+                    snapshotId,
+                    csvFile
+                );
+                storagePath = uploadResult.storagePath;
+
+                logger.debug('CSV uploaded during update', {
+                    component: 'TrafficSnapshotService',
+                    snapshotId,
+                    storagePath
+                });
+            } catch (error) {
+                logger.error('Failed to update CSV in Storage', { error });
+                throw new Error('FAILED_TO_UPLOAD_SNAPSHOT');
+            }
+        }
+
+        // 2. Update Metadata
+        const totalViews = sources.reduce((sum, s) => sum + (s.views || 0), 0);
+        const totalWatchTime = sources.reduce((sum, s) => sum + (s.watchTimeHours || 0), 0);
+        const topSource = sources.reduce((max, s) =>
+            (s.views || 0) > (max.views || 0) ? s : max,
+            sources[0]
+        );
+
+        const updatedSnapshot: TrafficSnapshot = {
+            ...snapshot,
+            storagePath,
+            summary: {
+                totalViews,
+                totalWatchTime,
+                sourcesCount: sources.length,
+                topSource: topSource?.sourceTitle
+            }
+        };
+
+        const newSnapshots = [...currentData.snapshots];
+        newSnapshots[snapshotIndex] = updatedSnapshot;
+
+        const updatedData: TrafficData = {
+            ...currentData,
+            lastUpdated: Date.now(),
+            snapshots: newSnapshots,
+            // Also update current/preview data if this snapshot is the active/latest one
+            // Ideally TrafficTab reloads using onDataRestored, but good to keep consistency
+            sources: snapshotIndex === newSnapshots.length - 1 ? sources : currentData.sources,
+            totalRow: snapshotIndex === newSnapshots.length - 1 ? (totalRow || currentData.totalRow) : currentData.totalRow
+        };
+
+        await TrafficDataService.save(userId, channelId, videoId, updatedData);
+
+        logger.info('Traffic snapshot updated', {
+            component: 'TrafficSnapshotService',
+            snapshotId
+        });
+    },
+
+    /**
      * Удаляет последний снапшот трафика.
      * Реализует стратегию "UNDO": откатывает данные к предыдущему снапшоту.
      * 
@@ -179,53 +274,93 @@ export const TrafficSnapshotService = {
         channelId: string,
         videoId: string,
         snapshotId: string
-    ): Promise<void> {
+    ): Promise<TrafficData | null> {
         // 1. Получаем текущие данные
         const currentData = await TrafficDataService.fetch(userId, channelId, videoId);
-        if (!currentData) return;
+        if (!currentData) return null;
 
         // 2. Находим снапшот для удаления
         const snapshotIndex = currentData.snapshots.findIndex(s => s.id === snapshotId);
-        if (snapshotIndex === -1) return;
+        if (snapshotIndex === -1) return currentData;
 
         const snapshot = currentData.snapshots[snapshotIndex];
+        const isLatest = snapshotIndex === currentData.snapshots.length - 1;
 
         // 3. Удаляем CSV из Cloud Storage (если существует)
         if (snapshot.storagePath) {
             try {
                 await deleteCsvSnapshot(snapshot.storagePath);
             } catch (error) {
-                console.error('Failed to delete CSV from Storage:', error);
-                // Продолжаем удаление из Firestore даже если удаление из Storage не удалось
+                snapshotLogger.error('Failed to delete CSV from Storage', {
+                    component: 'TrafficSnapshotService',
+                    snapshotId,
+                    storagePath: snapshot.storagePath,
+                    error
+                });
             }
         }
 
-        // 4. UNDO: Откатываемся к предыдущему снапшоту
-        const previousSnapshot = currentData.snapshots[snapshotIndex - 1];
+        // 4. Update Snapshot List
+        const updatedSnapshots = currentData.snapshots.filter(s => s.id !== snapshotId);
+
         let updated: TrafficData;
 
-        if (previousSnapshot) {
-            // Откатываемся к данным предыдущего снапшота
-            const { sources: prevSources, totalRow: prevTotalRow } = await this.getVersionSources(previousSnapshot.version, currentData.snapshots);
+        // 5. Revert Current State if we deleted the LATEST snapshot
+        if (isLatest) {
+            const newLatestSnapshot = updatedSnapshots[updatedSnapshots.length - 1];
 
-            updated = {
-                ...currentData,
-                lastUpdated: previousSnapshot.timestamp,
-                sources: prevSources,
-                totalRow: prevTotalRow,
-                snapshots: currentData.snapshots.filter(s => s.id !== snapshotId)
-            };
+            if (newLatestSnapshot) {
+                // Откатываемся к данным предыдущего снапшота
+                let prevSources: TrafficSource[] = [];
+                let prevTotalRow: TrafficSource | undefined;
+
+                try {
+                    // CRITICAL FIX: Pass updatedSnapshots (which doesn't contain the deleted one)
+                    // so getVersionSources doesn't pick it back up if it has the same version.
+                    const result = await this.getVersionSources(newLatestSnapshot.version, updatedSnapshots);
+                    prevSources = result.sources;
+                    prevTotalRow = result.totalRow;
+                } catch (err) {
+                    snapshotLogger.warn('Failed to restore previous snapshot data during deletion (likely missing CSV)', {
+                        component: 'TrafficSnapshotService',
+                        snapshotId: newLatestSnapshot.id,
+                        error: err
+                    });
+                }
+
+                updated = {
+                    ...currentData,
+                    lastUpdated: newLatestSnapshot.timestamp,
+                    sources: prevSources,
+                    totalRow: prevTotalRow,
+                    snapshots: updatedSnapshots
+                };
+            } else {
+                // Нет предыдущего снапшота -> Сбрасываем в пустое состояние
+                updated = {
+                    ...currentData,
+                    lastUpdated: Date.now(),
+                    sources: [],
+                    totalRow: undefined,
+                    snapshots: []
+                };
+            }
         } else {
-            // Нет предыдущего снапшота -> Сбрасываем в пустое состояние
+            // Deleted a historical snapshot from the middle - NO CHANGE to current active data (sources)
+            // Just remove it from the snapshots array.
             updated = {
                 ...currentData,
-                lastUpdated: Date.now(),
-                sources: [],
-                totalRow: undefined,
-                snapshots: []
+                snapshots: updatedSnapshots
             };
+
+            snapshotLogger.info('Deleted historical snapshot (middle)', {
+                component: 'TrafficSnapshotService',
+                snapshotId,
+                remainingCount: updatedSnapshots.length
+            });
         }
 
         await TrafficDataService.save(userId, channelId, videoId, updated);
+        return updated;
     }
 };
