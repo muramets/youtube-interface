@@ -25,7 +25,6 @@ import { useChannelStore } from '../../../../core/stores/channelStore';
 import { useVideos } from '../../../../core/hooks/useVideos';
 import { useSmartNicheSuggestions } from './hooks/useSmartNicheSuggestions';
 import { assistantLogger } from '../../../../core/utils/logger';
-import { assistantLogger } from '../../../../core/utils/logger';
 import { useTrafficTypeStore } from '../../../../core/stores/useTrafficTypeStore';
 import { useSmartTrafficAutoApply } from './hooks/useSmartTrafficAutoApply';
 

@@ -286,7 +286,14 @@ export const TrafficRow = ({
                                 ${typeColor} ${activeClass}
                             `}
                         >
-                            <TypeIcon size={14} className={trafficType === 'autoplay' ? 'animate-pulse' : ''} />
+                            <div className="relative">
+                                <TypeIcon size={14} className={trafficType === 'autoplay' ? 'animate-pulse' : ''} />
+                                {trafficSource === 'smart_assistant' && (
+                                    <div className="absolute -top-1 -right-1">
+                                        <Sparkles className="w-2.5 h-2.5 text-blue-400 fill-blue-400 drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]" />
+                                    </div>
+                                )}
+                            </div>
                         </button>
                     </PortalTooltip>
                 </div>

@@ -111,7 +111,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
 
     // State for controlled tooltips (SmartTrafficTooltip)
     const [hoveredTooltipId, setHoveredTooltipId] = React.useState<string | null>(null);
-    const tooltipTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+    const tooltipTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const handleTooltipEnter = useCallback((id: string) => {
         if (tooltipTimeoutRef.current) {
@@ -419,9 +419,10 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             gridClassName={gridClassName}
                                             showPropertyIcon={showPropertyColumn}
                                             videoDetails={videoDetails}
-                                            suggestedNiche={item.videoId ? getSuggestion?.(item.videoId) || undefined : undefined}
+                                            suggestedNiche={suggestion ? suggestion : undefined}
                                             onConfirmSuggestion={onConfirmSuggestion}
-                                            trafficType={trafficType}
+                                            trafficType={item.videoId && trafficEdges ? trafficEdges[item.videoId]?.type : undefined}
+                                            trafficSource={item.videoId && trafficEdges ? trafficEdges[item.videoId]?.source : undefined}
                                             onToggleTrafficType={onToggleTrafficType}
                                             activeTooltipId={hoveredTooltipId}
                                             onTooltipEnter={handleTooltipEnter}
