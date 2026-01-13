@@ -17,6 +17,7 @@ interface PortalTooltipProps {
     title?: string;
     estimatedHeight?: number;
     fixedWidth?: number;
+    disabled?: boolean;
 }
 
 export const PortalTooltip: React.FC<PortalTooltipProps> = ({
@@ -34,7 +35,8 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
     noAnimation = false,
     title,
     estimatedHeight = 80,
-    fixedWidth
+    fixedWidth,
+    disabled
 }) => {
     const [isVisible, setIsVisible] = useState(false); // Controls visual opacity/transform
     const [shouldRender, setShouldRender] = useState(false); // Controls mounting
@@ -198,6 +200,18 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
 
     // Handle External Control
     useEffect(() => {
+        if (disabled) {
+            hideTooltip();
+            return;
+        }
+
+        // If disabled state changes to false and we are STILL hovered, re-show
+        if (!disabled && isHoveredRef.current && !forceOpen) {
+            // We can optionally check enterDelay here, but immediate show feels more responsive
+            // for these kinds of interactions (e.g. moving out of a sub-menu).
+            showTooltip();
+        }
+
         if (forceOpen !== undefined) {
             if (forceOpen) {
                 // Clear closing timeouts
@@ -212,10 +226,11 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                 hideTooltip();
             }
         }
-    }, [forceOpen, showTooltip, hideTooltip]);
+    }, [forceOpen, disabled, showTooltip, hideTooltip]);
 
 
     const handleMouseEnter = () => {
+        if (disabled) return;
         if (forceOpen !== undefined) return; // Ignore internal hover if forced
         isHoveredRef.current = true;
 

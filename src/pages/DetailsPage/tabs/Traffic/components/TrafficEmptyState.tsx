@@ -8,6 +8,7 @@ interface TrafficEmptyStateProps {
     mode: 'no-data' | 'no-new-data' | 'no-matches';
     hasPreviousSnapshots?: boolean; // Есть ли снапшоты у предыдущих версий
     isFirstSnapshot?: boolean; // Это первый снапшот внутри версии
+    isViewingSnapshot?: boolean; // Viewing specific snapshot vs whole version
     onSwitchToTotal?: () => void;
 }
 
@@ -17,6 +18,7 @@ export const TrafficEmptyState: React.FC<TrafficEmptyStateProps> = ({
     mode = 'no-data',
     hasPreviousSnapshots = false,
     isFirstSnapshot = false,
+    isViewingSnapshot = false,
     onSwitchToTotal
 }) => {
     // Helper to render the interactive link
@@ -45,6 +47,7 @@ export const TrafficEmptyState: React.FC<TrafficEmptyStateProps> = ({
         return (
             <div className="w-full h-full flex items-center justify-center py-16">
                 <div className="text-center max-w-md">
+                    {/* ... icon and title ... */}
                     <div className="mb-4">
                         <svg className="w-16 h-16 mx-auto text-text-tertiary opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -68,7 +71,7 @@ export const TrafficEmptyState: React.FC<TrafficEmptyStateProps> = ({
                             )
                         ) : (
                             // No previous snapshots - this is the first version/snapshot with data
-                            isFirstSnapshot ? (
+                            isViewingSnapshot ? (
                                 // Viewing a specific snapshot
                                 <>
                                     This is the first snapshot with traffic data.

@@ -39,6 +39,10 @@ export const SidebarSnapshotItem: React.FC<SidebarSnapshotItemProps> = ({
     // We treat "Selected" as "Expanded" for the niche list
     const hasNiches = groups && groups.length > 0 && nicheImpressions && Object.keys(nicheImpressions).length > 0;
 
+    // Track if mouse is over the "More" button to prevent tooltip
+    const [isButtonHovered, setIsButtonHovered] = React.useState(false);
+    const isMenuOpen = menuOpenSnapshotId === id;
+
     return (
         <React.Fragment>
             <PortalTooltip
@@ -47,6 +51,7 @@ export const SidebarSnapshotItem: React.FC<SidebarSnapshotItemProps> = ({
                 side="right"
                 align="center"
                 triggerClassName="w-full !block group/snapshot"
+                disabled={isMenuOpen || isButtonHovered}
             >
                 <div
                     onClick={onClick}
@@ -75,6 +80,8 @@ export const SidebarSnapshotItem: React.FC<SidebarSnapshotItemProps> = ({
                                     e.stopPropagation();
                                     onMenuTrigger(e, id);
                                 }}
+                                onMouseEnter={() => setIsButtonHovered(true)}
+                                onMouseLeave={() => setIsButtonHovered(false)}
                                 className={`
                                     p-0.5 rounded-full transition-all flex-shrink-0
                                     ${menuOpenSnapshotId === id

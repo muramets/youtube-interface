@@ -61,6 +61,7 @@ interface TrafficTabProps {
     onSort: (key: SortKey) => void;
     actualTotalRow?: TrafficSource;
     trashMetrics?: import('./hooks/useTrafficDataLoader').TrashMetrics;
+    deltaContext?: import('./hooks/useTrafficDataLoader').DeltaContext;
 }
 
 export const TrafficTab: React.FC<TrafficTabProps> = ({
@@ -91,7 +92,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     sortConfig,
     onSort,
     actualTotalRow,
-    trashMetrics
+    trashMetrics,
+    deltaContext
 }) => {
     // Scroll detection for sticky header
     const sentinelRef = useRef<HTMLDivElement>(null);
@@ -191,8 +193,40 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         cleanup
     } = useTrafficNicheStore();
 
+    // Check if this is the first snapshot of a version (for specific message)
+    const isFirstSnapshot = React.useMemo(() => {
+        // 1. Specific Snapshot Selection
+        if (selectedSnapshot) {
+            const snapshots = trafficData?.snapshots || [];
+            const versionSnapshots = snapshots
+                .filter((s: any) => s.version === viewingVersion)
+                .sort((a: any, b: any) => a.timestamp - b.timestamp);
+            return versionSnapshots.length > 0 && versionSnapshots[0].id === selectedSnapshot;
+        }
+
+        // 2. Viewing a Version (History Mode)
+        if (viewingVersion !== 'draft' && packagingHistory.length > 0) {
+            // Sort history to find the absolute oldest version
+            const sortedHistory = [...packagingHistory].sort((a, b) => a.versionNumber - b.versionNumber);
+            const isOldestVersion = sortedHistory[0].versionNumber === viewingVersion;
+
+            // If we are viewing the oldest version AND the first period (start of time)
+            // Then this is effectively the "First Snapshot" state
+            if (isOldestVersion && (!viewingPeriodIndex || viewingPeriodIndex === 0)) {
+                return true;
+            }
+        }
+
+        return false;
+    }, [selectedSnapshot, viewingVersion, trafficData?.snapshots, packagingHistory, viewingPeriodIndex]);
+
     // Filters are now managed by parent (DetailsLayout)
     const filteredSources = useMemo(() => {
+        // Force empty if First Version in Delta Mode (Growth Analysis requires history)
+        if (viewMode === 'delta' && isFirstSnapshot) {
+            return [];
+        }
+
         let sources = applyFilters(displayedSources, groups);
 
         // Global Trash Filter: Hide videos assigned to Trash
@@ -207,7 +241,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         }
 
         return sources;
-    }, [displayedSources, applyFilters, groups, allNiches, allAssignments]);
+    }, [displayedSources, applyFilters, groups, allNiches, allAssignments, viewMode, isFirstSnapshot]);
 
     // OPTIMIZATION: Memoize array props to prevent TrafficTable re-renders.
     // Without memoization, `|| []` creates a new array reference each render.
@@ -336,7 +370,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             // If we patched any data, we MUST regenerate the CSV file so that the
             // patches are persisted in Storage (the source of truth)
             if (wasPatched && file) {
-                const newCsvContent = generateTrafficCsv(patchedSources);
+                const newCsvContent = generateTrafficCsv(patchedSources, totalRow);
                 finalFile = new File([newCsvContent], file.name, { type: "text/csv" });
                 console.log('[TrafficTab] Regenerated CSV with patched titles from cache');
             }
@@ -366,7 +400,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             );
 
             // Generate new CSV from repaired sources
-            const newCsvContent = generateTrafficCsv(repairedSources);
+            const newCsvContent = generateTrafficCsv(repairedSources, pendingUpload.totalRow);
             const repairedFile = new File([newCsvContent], pendingUpload.file?.name || 'traffic_data.csv', { type: "text/csv" });
 
             // Proceed with upload
@@ -542,18 +576,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     }, [viewingVersion, viewingPeriodIndex, packagingHistory, trafficData?.snapshots]);
 
     // Check if this is the first snapshot of a version (for specific message)
-    const isFirstSnapshot = React.useMemo(() => {
-        if (!selectedSnapshot) return false;
 
-        const snapshots = trafficData?.snapshots || [];
-        // Get snapshots for this version only
-        const versionSnapshots = snapshots
-            .filter((s: any) => s.version === viewingVersion)
-            .sort((a: any, b: any) => a.timestamp - b.timestamp);
-
-        // Check if selected is the first one
-        return versionSnapshots.length > 0 && versionSnapshots[0].id === selectedSnapshot;
-    }, [selectedSnapshot, viewingVersion, trafficData?.snapshots]);
 
     // Show actions if: data exists OR (empty but has snapshots - could be delta mode)
     const shouldShowActions = !isEmpty || hasExistingSnapshot;
@@ -634,6 +657,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                                     hasExistingSnapshot={hasExistingSnapshot}
                                     hasPreviousSnapshots={hasPreviousSnapshots}
                                     isFirstSnapshot={isFirstSnapshot}
+                                    isViewingSnapshot={!!selectedSnapshot}
                                     hasActiveFilters={filters.length > 0}
                                     onSwitchToTotal={() => setViewMode('cumulative')}
                                     videos={allVideos}
@@ -643,6 +667,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                                     onConfirmSuggestion={handleConfirmSuggestion}
                                     actualTotalRow={actualTotalRow}
                                     trashMetrics={trashMetrics}
+                                    deltaContext={deltaContext}
                                 />
 
                                 {/* Floating Action Bar - Positioned absolutely relative to parent container */}

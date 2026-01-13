@@ -372,6 +372,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                         retry={trafficLoader.retry}
                         actualTotalRow={trafficLoader.actualTotalRow}
                         trashMetrics={trafficLoader.trashMetrics}
+                        deltaContext={trafficLoader.deltaContext}
                         groups={groups}
                         // Filter props
                         filters={filters}

@@ -21,8 +21,22 @@ export interface TrashMetrics {
     views: number;
 }
 
+export interface MetricDelta {
+    previous: number;
+    current: number;
+    delta: number;
+}
+
+export interface DeltaContext {
+    impressions?: MetricDelta;
+    views?: MetricDelta;
+    isIncomplete?: boolean;
+}
+
+
+
 /**
- * Хук для загрузки и отображения данных трафика.
+ * Hook for loading and displaying traffic data.
  */
 export const useTrafficDataLoader = ({
     trafficData,
@@ -41,6 +55,9 @@ export const useTrafficDataLoader = ({
     const [error, setError] = useState<Error | null>(null);
     const [retryCount, setRetryCount] = useState(0);
     const lastLoadedKeyRef = useRef<string | null>(null);
+
+    // Context for Delta Mode (Previous -> Current)
+    const [deltaContext, setDeltaContext] = useState<DeltaContext | undefined>(undefined);
 
     // Business Logic: Identify Trash videos
     const trashGroup = groups.find(g => g.name.trim().toLowerCase() === 'trash');
@@ -109,11 +126,13 @@ export const useTrafficDataLoader = ({
                             setTrashMetrics(calculateTrashMetrics(result.sources));
                             setDisplayedSources(result.sources);
                             setActualTotalRow(result.totalRow);
+                            setDeltaContext(result.deltaContext);
                         } else {
                             // Cumulative mode
                             setTrashMetrics(calculateTrashMetrics(currentSources));
                             setDisplayedSources(currentSources);
                             setActualTotalRow(currentTotal || trafficData.totalRow);
+                            setDeltaContext(undefined);
                         }
                         lastLoadedKeyRef.current = loadKey;
                     } else {
@@ -174,6 +193,7 @@ export const useTrafficDataLoader = ({
                             setTrashMetrics(calculateTrashMetrics(result.sources));
                             setDisplayedSources(result.sources);
                             setActualTotalRow(result.totalRow);
+                            setDeltaContext(result.deltaContext);
                         } else {
                             let { sources, totalRow: currentTotal } = await TrafficService.getVersionSources(
                                 viewingVersion as number,
@@ -185,6 +205,7 @@ export const useTrafficDataLoader = ({
                             setTrashMetrics(calculateTrashMetrics(sources));
                             setDisplayedSources(sources);
                             setActualTotalRow(currentTotal || trafficData.totalRow);
+                            setDeltaContext(undefined);
                         }
                         lastLoadedKeyRef.current = loadKey;
                     } catch (err) {
@@ -232,6 +253,7 @@ export const useTrafficDataLoader = ({
                     setTrashMetrics(calculateTrashMetrics(result.sources));
                     setDisplayedSources(result.sources);
                     setActualTotalRow(result.totalRow);
+                    setDeltaContext(result.deltaContext);
                 } else {
                     let { sources, totalRow: currentTotal } = await TrafficService.getVersionSources(
                         viewingVersion as number,
@@ -243,6 +265,7 @@ export const useTrafficDataLoader = ({
                     setTrashMetrics(calculateTrashMetrics(sources));
                     setDisplayedSources(sources);
                     setActualTotalRow(currentTotal || trafficData.totalRow);
+                    setDeltaContext(undefined);
                 }
                 lastLoadedKeyRef.current = loadKey;
             } catch (err) {
@@ -258,11 +281,11 @@ export const useTrafficDataLoader = ({
         loadData();
     }, [trafficData, viewingVersion, viewingPeriodIndex, activeVersion, viewMode, selectedSnapshot, packagingHistory, retryCount, trashVideoIds.size]);
 
-    return { displayedSources, actualTotalRow, trashMetrics, isLoadingSnapshot, error, retry };
+    return { displayedSources, actualTotalRow, trashMetrics, isLoadingSnapshot, error, retry, deltaContext };
 };
 
 /**
- * Вспомогательная функция для расчета дельты между снапшотами.
+ * Helper function to calculate delta between snapshots.
  */
 const calculateSnapshotDelta = async (
     currentSources: TrafficSource[],
@@ -270,7 +293,7 @@ const calculateSnapshotDelta = async (
     currentSnapshotId: string,
     snapshots: TrafficSnapshot[],
     _trashVideoIds: Set<string> = new Set()
-): Promise<{ sources: TrafficSource[], totalRow?: TrafficSource }> => {
+): Promise<{ sources: TrafficSource[], totalRow?: TrafficSource, deltaContext?: DeltaContext }> => {
     const sortedSnapshots = [...snapshots].sort((a, b) => a.timestamp - b.timestamp);
     const currentIndex = sortedSnapshots.findIndex(s => s.id === currentSnapshotId);
 
@@ -284,6 +307,8 @@ const calculateSnapshotDelta = async (
     if (prevSources.length === 0) {
         return { sources: [], totalRow: undefined };
     }
+
+
 
     const prevData = new Map<string, { views: number; impressions: number, watchTime: number }>();
     prevSources.forEach(s => {
@@ -318,7 +343,11 @@ const calculateSnapshotDelta = async (
         .filter(source => !source.videoId || source.views > 0 || source.impressions > 0);
 
     let totalRow: TrafficSource | undefined = currentTotal;
+    let deltaContext: DeltaContext | undefined = undefined;
+
+    // Ensure we have both totals to calculate context
     if (currentTotal && prevTotal) {
+        // Calculate Total Delta
         const viewsDelta = Math.max(0, currentTotal.views - prevTotal.views);
         const impressionsDelta = Math.max(0, (currentTotal.impressions || 0) - (prevTotal.impressions || 0));
         const watchTimeDelta = Math.max(0, (currentTotal.watchTimeHours || 0) - (prevTotal.watchTimeHours || 0));
@@ -331,7 +360,31 @@ const calculateSnapshotDelta = async (
             watchTimeHours: watchTimeDelta,
             ctr: parseFloat(ctrDelta.toFixed(2))
         };
+
+        // Populate Delta Context for Tooltip
+        deltaContext = {
+            impressions: {
+                previous: prevTotal.impressions || 0,
+                current: currentTotal.impressions || 0,
+                delta: impressionsDelta
+            },
+            views: {
+                previous: prevTotal.views || 0,
+                current: currentTotal.views || 0,
+                delta: viewsDelta
+            }
+        };
+    } else {
+        // Explicitly signal that we cannot calculate context due to missing Total row
+        deltaContext = {
+            isIncomplete: true
+        };
+        logger.warn('Missing total row for delta context calculation', {
+            component: 'useTrafficDataLoader',
+            hasCurrentTotal: !!currentTotal,
+            hasPrevTotal: !!prevTotal
+        });
     }
 
-    return { sources, totalRow };
+    return { sources, totalRow, deltaContext };
 };

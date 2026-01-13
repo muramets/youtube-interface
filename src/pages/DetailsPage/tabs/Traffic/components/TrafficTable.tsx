@@ -42,6 +42,7 @@ interface TrafficTableProps {
     hasExistingSnapshot: boolean;
     hasPreviousSnapshots?: boolean; // Are there snapshots in earlier versions?
     isFirstSnapshot?: boolean; // Is this the very first snapshot of the current version?
+    isViewingSnapshot?: boolean;
 
     // CTR Rules
     ctrRules?: CTRRule[];
@@ -69,6 +70,7 @@ interface TrafficTableProps {
     // Discrepancy reporting
     actualTotalRow?: TrafficSource;
     trashMetrics?: import('../hooks/useTrafficDataLoader').TrashMetrics;
+    deltaContext?: import('../hooks/useTrafficDataLoader').DeltaContext;
 }
 
 export const TrafficTable = memo<TrafficTableProps>(({
@@ -81,6 +83,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
     hasExistingSnapshot,
     hasPreviousSnapshots = false,
     isFirstSnapshot = false,
+    isViewingSnapshot = false,
     ctrRules = [],
     viewMode = 'cumulative',
     hasActiveFilters = false,
@@ -91,7 +94,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
     getSuggestion,
     onConfirmSuggestion,
     actualTotalRow,
-    trashMetrics
+    trashMetrics,
+    deltaContext
 }) => {
     // Virtualization refs
     const parentRef = useRef<HTMLDivElement>(null);
@@ -293,6 +297,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                         hasExistingSnapshot={hasExistingSnapshot}
                         hasPreviousSnapshots={hasPreviousSnapshots}
                         isFirstSnapshot={isFirstSnapshot}
+                        isViewingSnapshot={isViewingSnapshot}
                         mode="no-new-data"
                         onSwitchToTotal={onSwitchToTotal}
                     />
@@ -309,6 +314,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             actualTotal={Number(actualTotalRow.impressions)}
                                             tableSum={computedTotal.impressions}
                                             trashValue={trashMetrics?.impressions}
+                                            deltaContext={deltaContext?.impressions}
+                                            isIncomplete={deltaContext?.isIncomplete}
                                         />
                                     )}
                                     {computedTotal.impressions.toLocaleString()}
@@ -322,6 +329,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             actualTotal={Number(actualTotalRow.views)}
                                             tableSum={computedTotal.views}
                                             trashValue={trashMetrics?.views}
+                                            deltaContext={deltaContext?.views}
+                                            isIncomplete={deltaContext?.isIncomplete}
                                         />
                                     )}
                                     {computedTotal.views.toLocaleString()}
