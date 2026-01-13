@@ -40,7 +40,7 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
         { type: 'avgViewDuration', label: 'Average View Duration', icon: Clock },
         { type: 'niche', label: 'Niche', icon: Layers },
         { type: 'trafficType', label: 'Traffic Type', icon: Sparkles },
-        { type: 'viewerType', label: 'User Type', icon: Users },
+        { type: 'viewerType', label: 'Viewer Type', icon: Users },
     ];
 
     const getTitleForView = (view: TrafficFilterType) => {
