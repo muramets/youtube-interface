@@ -70,7 +70,7 @@ export const useTrafficDataLoader = ({
 
     useEffect(() => {
         const loadData = async () => {
-            const loadKey = `${selectedSnapshot || ''}-${viewingVersion}-${viewingPeriodIndex}-${viewMode}-${trashVideoIds.size}`;
+            const loadKey = `${selectedSnapshot || ''}-${viewingVersion}-${viewingPeriodIndex}-${viewMode}-${trashVideoIds.size}-${trafficData?.lastUpdated}-${trafficData?.snapshots?.length}`;
 
             if (loadKey === lastLoadedKeyRef.current && displayedSources.length > 0) {
                 // IMPORTANT: If groups changed but loadKey didn't (size same), we still might need to recalculate trashMetrics
