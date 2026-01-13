@@ -127,7 +127,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
         tooltipTimeoutRef.current = setTimeout(() => {
             setHoveredTooltipId(null);
             tooltipTimeoutRef.current = null;
-        }, 300);
+        }, 500); // 500ms Grace Period: Sufficient bridge to survive heavy iframe renders and mouse flickers
     }, []);
 
     // Lookup map for rich video details

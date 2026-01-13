@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { ExternalLink, ThumbsDown, Trophy, Heart, GitBranch, Info, Sparkles, MousePointerClick, HelpCircle, Wand2 } from 'lucide-react';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import type { TrafficType } from '../../../../../core/types/videoTrafficType';
@@ -80,6 +80,8 @@ export const TrafficRow = ({
 }: TrafficRowProps) => {
     // Connect to Niche Store
     const { niches, assignments } = useTrafficNicheStore();
+    const enterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const wrapperRef = useRef<HTMLDivElement>(null);
     // Connect to Video Player mainly to check if this video is minimized
     const { activeVideoId, isMinimized } = useVideoPlayer();
 
@@ -190,22 +192,41 @@ export const TrafficRow = ({
                             {/* Info Icon - Moved here, visible on group hover */}
                             {item.videoId && !isThisVideoMinimized && (
                                 <div
+                                    ref={wrapperRef}
                                     className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity inline-flex"
                                     onMouseEnter={() => {
-                                        if (onTooltipEnter) onTooltipEnter(`preview-${item.videoId}`);
+                                        if (enterTimeoutRef.current) clearTimeout(enterTimeoutRef.current);
+                                        enterTimeoutRef.current = setTimeout(() => {
+                                            if (onTooltipEnter) onTooltipEnter(`preview-${item.videoId}`);
+                                        }, 500);
                                     }}
                                     onMouseLeave={() => {
+                                        // Tooltip Stability Bridge: Start a grace period in TrafficTable.tsx 
+                                        // to handle iframe-induced focus flickers.
+                                        if (enterTimeoutRef.current) {
+                                            clearTimeout(enterTimeoutRef.current);
+                                            enterTimeoutRef.current = null;
+                                        }
                                         if (onTooltipLeave) onTooltipLeave();
                                     }}
                                 >
                                     <PortalTooltip
                                         content={
                                             <div
-                                                className="pointer-events-auto inline-block relative"
+                                                className="pointer-events-auto w-full relative p-6"
                                                 onMouseEnter={() => {
+                                                    // Maintain open state if hovering content
+                                                    // Note: We don't need delay here because it's already open
+                                                    if (enterTimeoutRef.current) clearTimeout(enterTimeoutRef.current);
                                                     if (onTooltipEnter) onTooltipEnter(`preview-${item.videoId}`);
                                                 }}
-                                                onMouseLeave={() => {
+                                                onMouseLeave={(e: any) => {
+                                                    // IGNORE LEAVE if we are moving back to our own trigger icon
+                                                    // This prevents the "flicker loop" where hovering the icon underneath closes the tooltip
+                                                    if (wrapperRef.current && wrapperRef.current.contains(e.relatedTarget as Node)) {
+                                                        return;
+                                                    }
+
                                                     if (onTooltipLeave) onTooltipLeave();
                                                 }}
                                             >
@@ -217,17 +238,18 @@ export const TrafficRow = ({
                                                     publishedAt={videoDetails?.publishedAt}
                                                     description={videoDetails?.description}
                                                     tags={videoDetails?.tags}
-                                                    className="w-[600px]"
+                                                    className="w-full"
                                                 />
                                             </div>
                                         }
-                                        enterDelay={200}
+                                        enterDelay={0}
                                         triggerClassName="flex items-center justify-center"
                                         variant="glass"
                                         side="top"
                                         align="center"
                                         estimatedHeight={480}
                                         fixedWidth={640}
+                                        className="!p-0"
                                         forceOpen={activeTooltipId === `preview-${item.videoId}`}
                                     >
                                         <div

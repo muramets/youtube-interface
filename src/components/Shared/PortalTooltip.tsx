@@ -318,7 +318,9 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                         width: fixedWidth ? `${fixedWidth}px` : undefined,
                     }}
                     onPointerEnter={handleMouseEnter} // Keep open when hovering tooltip
-                    onPointerLeave={handleMouseLeave}
+                    onPointerLeave={() => {
+                        if (forceOpen === undefined) handleMouseLeave();
+                    }}
                 >
                     <div
                         ref={tooltipRef}
