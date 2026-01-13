@@ -290,6 +290,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
     // -------------------------------------------------------------------------
 
+    const [isSkipping, setIsSkipping] = useState(false);
+
     // Wrapper to catch upload errors and open mapper - memoized to prevent re-renders
     const handleUploadWithErrorTracking = React.useCallback(async (sources: any[], totalRow?: any, file?: File) => {
         // If sources is empty and we have a file, it means parsing failed
@@ -299,23 +301,42 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             return;
         }
 
-        // PRE-CHECK: Missing Titles
-        const hasMissingTitles = sources.some((s: any) => s.videoId && (!s.sourceTitle || s.sourceTitle.trim() === ''));
+        // OPTIMIZATION: Try to patch missing titles from cache (allVideos) before checking
+        // This prevents the assistant modal from appearing if we already know the data
+        const patchedSources = sources.map(s => {
+            if (s.videoId && (!s.sourceTitle || s.sourceTitle.trim() === '')) {
+                const cachedVideo = allVideos.find(v => v.id === s.videoId);
+                if (cachedVideo) {
+                    return {
+                        ...s,
+                        sourceTitle: cachedVideo.title || s.sourceTitle,
+                        channelId: cachedVideo.channelId || s.channelId,
+                        // We can also patch other fields if needed
+                    };
+                }
+            }
+            return s;
+        });
+
+        // PRE-CHECK: Missing Titles (on patched data)
+        const hasMissingTitles = patchedSources.some((s: any) => s.videoId && (!s.sourceTitle || s.sourceTitle.trim() === ''));
+
         if (hasMissingTitles && file) {
-            setPendingUpload({ sources, totalRow, file });
+            setPendingUpload({ sources: patchedSources, totalRow, file });
             setIsMissingTitlesModalOpen(true);
             return;
         }
 
         try {
-            const newSnapshotId = await handleCsvUpload(sources, totalRow, file);
+            // Upload the patched sources
+            const newSnapshotId = await handleCsvUpload(patchedSources, totalRow, file);
             if (newSnapshotId && onSnapshotClick) {
                 onSnapshotClick(newSnapshotId);
             }
         } catch (error) {
             console.error('Upload failed:', error);
         }
-    }, [handleCsvUpload, onSnapshotClick]);
+    }, [handleCsvUpload, onSnapshotClick, allVideos]);
 
     // Handler for Syncing Pending Upload
     const handleConfirmPendingSync = async () => {
@@ -331,11 +352,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 allVideos
             );
 
-            // Generate new CSV from repaired sources to ensure data consistency
-            // (We upload the repaired data as if it came from the file)
-            // Actually, handleCsvUpload expects sources + file. 
-            // If we pass the original file, it might be stored? TrafficSnapshotService usually stores the file.
-            // So we should ideally create a NEW File object with the repaired content.
+            // Generate new CSV from repaired sources
             const newCsvContent = generateTrafficCsv(repairedSources);
             const repairedFile = new File([newCsvContent], pendingUpload.file?.name || 'traffic_data.csv', { type: "text/csv" });
 
@@ -369,10 +386,11 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
     // Handler for Skipping Pending Sync (Upload as is)
     const handleSkipPendingSync = async () => {
-        if (!pendingUpload) return;
+        if (!pendingUpload || isSkipping || isRestoringPending) return;
 
+        setIsSkipping(true);
         try {
-            // Upload original tainted data
+            // Upload original data (or whatever was patched before determining it was still incomplete)
             const newSnapshotId = await handleCsvUpload(pendingUpload.sources, pendingUpload.totalRow, pendingUpload.file);
 
             if (newSnapshotId && onSnapshotClick) {
@@ -383,6 +401,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         } finally {
             setPendingUpload(null);
             setIsMissingTitlesModalOpen(false);
+            setIsSkipping(false);
         }
     };
 
