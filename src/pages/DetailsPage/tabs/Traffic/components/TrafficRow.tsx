@@ -1,5 +1,27 @@
 import React from 'react';
-import { ExternalLink, ThumbsDown, Trophy, Heart, GitBranch, Info, Sparkles, MousePointerClick, HelpCircle } from 'lucide-react';
+import { ExternalLink, ThumbsDown, Trophy, Heart, GitBranch, Info, Sparkles, MousePointerClick, HelpCircle, Wand2 } from 'lucide-react';
+
+// ... (existing imports)
+
+// ... (inside TrafficRow component)
+
+<button
+    onClick={handleTypeClick}
+    className={`
+                                p-1.5 rounded-full transition-all duration-200
+                                hover:bg-white/10 active:scale-95
+                                ${typeColor} ${activeClass}
+                            `}
+>
+    <div className="relative">
+        <TypeIcon size={14} className={trafficType === 'autoplay' ? 'animate-pulse' : ''} />
+        {trafficSource === 'smart_assistant' && (
+            <div className="absolute -bottom-1 -right-1">
+                <Wand2 className="w-2.5 h-2.5 text-blue-500 fill-blue-500 drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]" />
+            </div>
+        )}
+    </div>
+</button>
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import type { TrafficType } from '../../../../../core/types/videoTrafficType';
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
