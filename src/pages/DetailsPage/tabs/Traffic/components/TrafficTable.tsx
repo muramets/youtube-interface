@@ -395,7 +395,10 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                 const videoDetails = item.videoId ? videoMap.get(item.videoId) : undefined;
 
                                 // Lookup Traffic Type
-                                const trafficType = item.videoId && trafficEdges ? trafficEdges[item.videoId] : undefined;
+                                const trafficEdge = item.videoId && trafficEdges ? trafficEdges[item.videoId] : undefined;
+
+                                // Lookup Smart Suggestion
+                                const suggestion = item.videoId && getSuggestion ? getSuggestion(item.videoId) : null;
 
                                 return (
                                     <div
@@ -421,8 +424,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             videoDetails={videoDetails}
                                             suggestedNiche={suggestion ? suggestion : undefined}
                                             onConfirmSuggestion={onConfirmSuggestion}
-                                            trafficType={item.videoId && trafficEdges ? trafficEdges[item.videoId]?.type : undefined}
-                                            trafficSource={item.videoId && trafficEdges ? trafficEdges[item.videoId]?.source : undefined}
+                                            trafficType={trafficEdge?.type}
+                                            trafficSource={trafficEdge?.source}
                                             onToggleTrafficType={onToggleTrafficType}
                                             activeTooltipId={hoveredTooltipId}
                                             onTooltipEnter={handleTooltipEnter}
