@@ -106,42 +106,47 @@ export const useSmartNicheSuggestions = (
         return prefs;
     }, [sources, assignments, videos, niches]);
 
-    // 2. Helper to get suggestion for a video
-    const getSuggestion = (videoId: string): SmartSuggestion | null => {
-        // Find channel for this video - Try our internal map logic or direct lookup
-        let channelId: string | undefined;
+    // 2. Build a Lookup Map for Video -> Suggestion (Optimization)
+    // This allows O(1) access during virtualization render cycles instead of searching arrays
+    const videoSuggestionMap = useMemo(() => {
+        const map = new Map<string, SmartSuggestion>();
 
-        // Try getting from video details array (most reliable)
-        const video = videos.find(v => v.id === videoId);
-        if (video?.channelId) {
-            channelId = video.channelId;
-        } else {
-            // Fallback to source
-            const source = sources.find(s => s.videoId === videoId);
-            channelId = source?.channelId;
-        }
+        // We need to map every known video ID to a suggestion if its channel has a preference
+        const processVideo = (videoId: string, channelId?: string) => {
+            if (!videoId || !channelId) return;
 
-        if (!channelId) return null;
+            const pref = channelPreferences.get(channelId);
+            if (!pref) return;
 
-        const pref = channelPreferences.get(channelId);
-        if (!pref) return null;
+            const niche = niches.find(n => n.id === pref.nicheId);
+            if (!niche) return;
 
-        const niche = niches.find(n => n.id === pref.nicheId);
-        if (!niche) return null;
-
-        const suggestion: SmartSuggestion = {
-            nicheId: pref.nicheId,
-            targetNiche: niche,
-            confidence: pref.score > 1.5 ? 'high' : 'medium',
-            reason: 'hybrid',
-            score: pref.score
+            map.set(videoId, {
+                nicheId: pref.nicheId,
+                targetNiche: niche,
+                confidence: pref.score > 1.5 ? 'high' : 'medium',
+                reason: 'hybrid',
+                score: pref.score
+            });
         };
 
-        assistantLogger.debug(`Suggestion found for ${videoId}`, {
-            suggestion
+        // 1. Process Rich Video Details
+        videos.forEach(v => processVideo(v.id, v.channelId));
+
+        // 2. Process Sources (fallback for items not in details)
+        sources.forEach(s => {
+            // Only process if we haven't already (video details take precedence)
+            if (s.videoId && !map.has(s.videoId)) {
+                processVideo(s.videoId, s.channelId);
+            }
         });
 
-        return suggestion;
+        return map;
+    }, [channelPreferences, videos, sources, niches]);
+
+    // 3. Helper to get suggestion for a video (O(1) lookup)
+    const getSuggestion = (videoId: string): SmartSuggestion | null => {
+        return videoSuggestionMap.get(videoId) || null;
     };
 
     return {
