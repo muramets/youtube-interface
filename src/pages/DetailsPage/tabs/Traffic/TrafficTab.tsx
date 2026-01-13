@@ -25,7 +25,9 @@ import { useChannelStore } from '../../../../core/stores/channelStore';
 import { useVideos } from '../../../../core/hooks/useVideos';
 import { useSmartNicheSuggestions } from './hooks/useSmartNicheSuggestions';
 import { assistantLogger } from '../../../../core/utils/logger';
+import { assistantLogger } from '../../../../core/utils/logger';
 import { useTrafficTypeStore } from '../../../../core/stores/useTrafficTypeStore';
+import { useSmartTrafficAutoApply } from './hooks/useSmartTrafficAutoApply';
 
 import type { TrafficSource } from '../../../../core/types/traffic';
 
@@ -250,7 +252,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         // BETTER: Enrich here so "applyFilters" could potentially filter by type in future.
         const enrichedSources = displayedSources.map(s => ({
             ...s,
-            trafficType: s.videoId ? trafficEdges[s.videoId] : undefined
+            trafficType: s.videoId ? trafficEdges[s.videoId]?.type : undefined
         }));
 
         let sources = applyFilters(enrichedSources, groups);
@@ -283,9 +285,9 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         // 3-State Cycle: Unknown -> Autoplay -> Click -> Unknown (delete)
 
         if (!currentType) {
-            toggleTrafficType(videoId, 'autoplay');
+            toggleTrafficType(videoId, 'autoplay', 'manual');
         } else if (currentType === 'autoplay') {
-            toggleTrafficType(videoId, 'user_click');
+            toggleTrafficType(videoId, 'user_click', 'manual');
         } else if (currentType === 'user_click') {
             // Cycle back to unset
             deleteTrafficType(videoId);
@@ -326,6 +328,9 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     // SMART ASSISTANT LOGIC
     // -------------------------------------------------------------------------
     const [isAssistantEnabled, setIsAssistantEnabled] = useState(false);
+
+    // Auto-Apply Logic: Automatically tag videos as "Autoplay" if 0 Imp / >0 Views
+    useSmartTrafficAutoApply(isAssistantEnabled, filteredSources);
 
     // Connect to the Store to get assignment history - ALREADY DESTRUCTURED ABOVE
 

@@ -9,5 +9,6 @@ export interface TrafficTypeEdge {
     sourceVideoId: string; // The video sending traffic (OTHER video)
 
     type: TrafficType;
+    source?: 'manual' | 'smart_assistant';
     updatedAt: number;
 }

@@ -29,6 +29,7 @@ interface TrafficRowProps {
     onConfirmSuggestion?: (videoId: string, niche: SuggestedTrafficNiche) => void;
     // Traffic Type Props
     trafficType?: TrafficType;
+    trafficSource?: 'manual' | 'smart_assistant';
     onToggleTrafficType?: (videoId: string, currentType?: TrafficType) => void;
     // Tooltip Control
     activeTooltipId?: string | null;
@@ -71,6 +72,7 @@ export const TrafficRow = ({
     suggestedNiche,
     onConfirmSuggestion,
     trafficType,
+    trafficSource,
     onToggleTrafficType,
     activeTooltipId,
     onTooltipEnter,
@@ -81,7 +83,7 @@ export const TrafficRow = ({
     // Connect to Video Player mainly to check if this video is minimized
     const { activeVideoId, isMinimized } = useVideoPlayer();
 
-    // Check if THIS specific video is providing the mini-player content
+    // Check if THIS specific video is minimized
     const isThisVideoMinimized = isMinimized && activeVideoId === item.videoId;
 
     // Traffic Type Icon Logic

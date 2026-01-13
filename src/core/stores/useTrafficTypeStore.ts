@@ -3,8 +3,8 @@ import { TrafficTypeService } from '../services/TrafficTypeService';
 import type { TrafficType } from '../types/videoTrafficType';
 
 interface TrafficTypeState {
-    // Map of sourceVideoId -> TrafficType for O(1) lookup in the table
-    edges: Record<string, TrafficType>;
+    // Map of sourceVideoId -> TrafficType information for O(1) lookup
+    edges: Record<string, { type: TrafficType; source?: 'manual' | 'smart_assistant' }>;
     isLoading: boolean;
 
     // The current target video we are viewing
@@ -15,7 +15,7 @@ interface TrafficTypeState {
 
     // Actions
     initialize: (targetVideoId: string) => void;
-    setTrafficType: (sourceVideoId: string, type: TrafficType) => Promise<void>;
+    setTrafficType: (sourceVideoId: string, type: TrafficType, source?: 'manual' | 'smart_assistant') => Promise<void>;
     deleteTrafficType: (sourceVideoId: string) => Promise<void>;
     cleanup: () => void;
 }
@@ -38,9 +38,9 @@ export const useTrafficTypeStore = create<TrafficTypeState>((set, get) => ({
 
         const unsub = TrafficTypeService.subscribeToEdges(targetVideoId, (newEdges) => {
             // Convert array to map for easy lookup
-            const edgesMap: Record<string, TrafficType> = {};
+            const edgesMap: Record<string, { type: TrafficType; source?: 'manual' | 'smart_assistant' }> = {};
             newEdges.forEach(edge => {
-                edgesMap[edge.sourceVideoId] = edge.type;
+                edgesMap[edge.sourceVideoId] = { type: edge.type, source: edge.source };
             });
 
             set({ edges: edgesMap, isLoading: false });
@@ -49,17 +49,17 @@ export const useTrafficTypeStore = create<TrafficTypeState>((set, get) => ({
         set({ unsubscribe: unsub });
     },
 
-    setTrafficType: async (sourceVideoId: string, type: TrafficType) => {
+    setTrafficType: async (sourceVideoId: string, type: TrafficType, source: 'manual' | 'smart_assistant' = 'manual') => {
         const { currentTargetVideoId, edges } = get();
         if (!currentTargetVideoId) return;
 
         // Optimistic update
         set({
-            edges: { ...edges, [sourceVideoId]: type }
+            edges: { ...edges, [sourceVideoId]: { type, source } }
         });
 
         try {
-            await TrafficTypeService.setEdgeType(currentTargetVideoId, sourceVideoId, type);
+            await TrafficTypeService.setEdgeType(currentTargetVideoId, sourceVideoId, type, source);
         } catch (error) {
             console.error('Failed to set traffic type:', error);
             // Revert on error (optional, or just Refetch)

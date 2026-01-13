@@ -37,6 +37,7 @@ export const TrafficTypeService = {
                     targetVideoId: data.targetVideoId,
                     sourceVideoId: data.sourceVideoId,
                     type: data.type,
+                    source: data.source,
                     updatedAt: data.updatedAt?.toMillis() || Date.now()
                 });
             });
@@ -51,7 +52,8 @@ export const TrafficTypeService = {
     setEdgeType: async (
         targetVideoId: string,
         sourceVideoId: string,
-        type: TrafficType
+        type: TrafficType,
+        source: 'manual' | 'smart_assistant' = 'manual'
     ) => {
         if (!targetVideoId || !sourceVideoId) return;
 
@@ -62,6 +64,7 @@ export const TrafficTypeService = {
             targetVideoId,
             sourceVideoId,
             type,
+            source,
             updatedAt: serverTimestamp()
         }, { merge: true });
     },

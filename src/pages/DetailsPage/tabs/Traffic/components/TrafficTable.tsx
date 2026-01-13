@@ -70,7 +70,7 @@ interface TrafficTableProps {
     onConfirmSuggestion?: (videoId: string, niche: SuggestedTrafficNiche) => void;
 
     // Traffic Types
-    trafficEdges?: Record<string, TrafficType>;
+    trafficEdges?: Record<string, { type: TrafficType; source?: 'manual' | 'smart_assistant' }>;
     onToggleTrafficType?: (videoId: string, currentType?: TrafficType) => void;
 
     // Discrepancy reporting
@@ -99,11 +99,11 @@ export const TrafficTable = memo<TrafficTableProps>(({
     onSort,
     getSuggestion,
     onConfirmSuggestion,
-    trafficEdges,
-    onToggleTrafficType,
     actualTotalRow,
     trashMetrics,
-    deltaContext
+    deltaContext,
+    trafficEdges,
+    onToggleTrafficType
 }) => {
     // Virtualization refs
     const parentRef = useRef<HTMLDivElement>(null);
