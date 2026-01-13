@@ -16,6 +16,7 @@ interface SidebarSnapshotItemProps {
     menuOpenSnapshotId: string | null;
     // New props for niches
     nicheImpressions?: Record<string, number>;
+    metricType?: 'impressions' | 'views'; // Added to support fallback logic label
     groups?: TrafficGroup[];
     onNicheClick?: (nicheId: string) => void;
     activeNicheId?: string | null;
@@ -32,6 +33,7 @@ export const SidebarSnapshotItem: React.FC<SidebarSnapshotItemProps> = ({
     onMenuTrigger,
     menuOpenSnapshotId,
     nicheImpressions,
+    metricType = 'impressions',
     groups,
     onNicheClick,
     activeNicheId
@@ -106,14 +108,15 @@ export const SidebarSnapshotItem: React.FC<SidebarSnapshotItemProps> = ({
             </PortalTooltip>
 
             {/* Render Niches if this snapshot is selected */}
+            {/* Render Niches if this snapshot is selected */}
             {isSelected && hasNiches && nicheImpressions && groups && (
-                <div className="ml-12 pr-3 mt-1">
+                <div className="ml-8 pr-3 mt-1 mb-1 animate-in slide-in-from-left-2 duration-200">
                     <TrafficSidebarNicheList
                         nicheImpressions={nicheImpressions}
                         groups={groups}
-                        limit={5}
                         onNicheClick={onNicheClick}
                         activeNicheId={activeNicheId}
+                        metricType={metricType}
                     />
                 </div>
             )}

@@ -309,7 +309,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                 {showPropertyColumn && <div />}
                                 <div>Total</div>
                                 <div className={`text-right flex items-center justify-end gap-1.5 ${sortConfig?.key === 'impressions' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
-                                    {actualTotalRow && Number(actualTotalRow.impressions || 0) > (computedTotal.impressions + 1) && (
+                                    {actualTotalRow && !hasActiveFilters && Number(actualTotalRow.impressions || 0) > (computedTotal.impressions + 1) && (
                                         <SmartTrafficTooltip
                                             actualTotal={Number(actualTotalRow.impressions)}
                                             tableSum={computedTotal.impressions}
@@ -324,7 +324,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                     {computedTotal.ctr}%
                                 </div>
                                 <div className={`text-right flex items-center justify-end gap-1.5 ${sortConfig?.key === 'views' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
-                                    {actualTotalRow && Number(actualTotalRow.views || 0) > (computedTotal.views + 1) && (
+                                    {actualTotalRow && !hasActiveFilters && Number(actualTotalRow.views || 0) > (computedTotal.views + 1) && (
                                         <SmartTrafficTooltip
                                             actualTotal={Number(actualTotalRow.views)}
                                             tableSum={computedTotal.views}

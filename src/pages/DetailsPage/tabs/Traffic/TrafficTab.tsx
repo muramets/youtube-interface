@@ -230,8 +230,17 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         let sources = applyFilters(displayedSources, groups);
 
         // Global Trash Filter: Hide videos assigned to Trash
+        // UNLESS we are explicitly filtering for the Trash niche
         const trashNiche = allNiches.find(n => n.name.trim().toLowerCase() === 'trash');
-        if (trashNiche) {
+        const isFilteringTrash = trashNiche && filters.some(f => {
+            if (f.type !== 'niche') return false;
+            if (Array.isArray(f.value)) {
+                return f.value.includes(trashNiche.id);
+            }
+            return f.value === trashNiche.id;
+        });
+
+        if (trashNiche && !isFilteringTrash) {
             const trashVideoIds = new Set(
                 allAssignments
                     .filter(a => a.nicheId === trashNiche.id)
@@ -241,7 +250,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         }
 
         return sources;
-    }, [displayedSources, applyFilters, groups, allNiches, allAssignments, viewMode, isFirstSnapshot]);
+    }, [displayedSources, applyFilters, groups, allNiches, allAssignments, viewMode, isFirstSnapshot, filters]);
 
     // OPTIMIZATION: Memoize array props to prevent TrafficTable re-renders.
     // Without memoization, `|| []` creates a new array reference each render.

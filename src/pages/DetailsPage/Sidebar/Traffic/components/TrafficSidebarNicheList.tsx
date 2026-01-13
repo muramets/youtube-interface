@@ -10,6 +10,7 @@ interface TrafficSidebarNicheListProps {
     limit?: number;
     onNicheClick?: (nicheId: string) => void;
     activeNicheId?: string | null;
+    metricType?: 'impressions' | 'views';
 }
 
 export const TrafficSidebarNicheList: React.FC<TrafficSidebarNicheListProps> = ({
@@ -17,12 +18,13 @@ export const TrafficSidebarNicheList: React.FC<TrafficSidebarNicheListProps> = (
     groups,
     limit = 5,
     onNicheClick,
-    activeNicheId
+    activeNicheId,
+    metricType = 'impressions'
 }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
-    // Filter groups that have impressions
+    // Filter groups that have impressions (or views if fallback)
     const activeNiches = groups
         .filter(group => (nicheImpressions[group.id] || 0) > 0)
         .map(group => ({
@@ -37,7 +39,7 @@ export const TrafficSidebarNicheList: React.FC<TrafficSidebarNicheListProps> = (
             if (bIsTrash) return -1;
 
             return b.impressions - a.impressions;
-        }); // Sort by impressions desc, but Trash always last
+        }); // Sort by metric desc, but Trash always last
 
     if (activeNiches.length === 0) return null;
 
@@ -68,6 +70,7 @@ export const TrafficSidebarNicheList: React.FC<TrafficSidebarNicheListProps> = (
                             onToggleMenu={() => setActiveMenuId(activeMenuId === niche.id ? null : niche.id)}
                             onCloseMenu={() => setActiveMenuId(null)}
                             impressions={niche.impressions}
+                            metricType={metricType}
                             status="none"
                             isSelected={activeNicheId === niche.id}
                             isTrash={niche.name.trim().toLowerCase() === 'trash'}

@@ -33,8 +33,6 @@ export interface DeltaContext {
     isIncomplete?: boolean;
 }
 
-
-
 /**
  * Hook for loading and displaying traffic data.
  */
@@ -55,6 +53,7 @@ export const useTrafficDataLoader = ({
     const [error, setError] = useState<Error | null>(null);
     const [retryCount, setRetryCount] = useState(0);
     const lastLoadedKeyRef = useRef<string | null>(null);
+    const lastLoadContextRef = useRef<{ snapshotId?: string | null; viewMode?: string, versionKey?: string } | null>(null);
 
     // Context for Delta Mode (Previous -> Current)
     const [deltaContext, setDeltaContext] = useState<DeltaContext | undefined>(undefined);
@@ -96,6 +95,20 @@ export const useTrafficDataLoader = ({
                 return;
             }
 
+            // Determine if this is a "soft update" (only trash metrics/context changed)
+            // or a "hard update" (snapshot switched, version switched, etc.)
+            const currentContext = {
+                snapshotId: selectedSnapshot,
+                viewMode,
+                versionKey: `${viewingVersion}-${viewingPeriodIndex}`
+            };
+
+            const isSoftUpdate = lastLoadContextRef.current &&
+                lastLoadContextRef.current.snapshotId === currentContext.snapshotId &&
+                lastLoadContextRef.current.viewMode === currentContext.viewMode &&
+                lastLoadContextRef.current.versionKey === currentContext.versionKey &&
+                displayedSources.length > 0;
+
             setError(null);
 
             if (!trafficData?.sources) {
@@ -107,7 +120,7 @@ export const useTrafficDataLoader = ({
 
             // Priority 1: Specific snapshot selected
             if (selectedSnapshot) {
-                setIsLoadingSnapshot(true);
+                if (!isSoftUpdate) setIsLoadingSnapshot(true);
                 try {
                     const snapshot = trafficData.snapshots?.find((s: TrafficSnapshot) => s.id === selectedSnapshot);
                     if (snapshot) {
@@ -135,11 +148,13 @@ export const useTrafficDataLoader = ({
                             setDeltaContext(undefined);
                         }
                         lastLoadedKeyRef.current = loadKey;
+                        lastLoadContextRef.current = currentContext;
                     } else {
                         setDisplayedSources([]);
                         setActualTotalRow(undefined);
                         setTrashMetrics({ impressions: 0, views: 0 });
                         lastLoadedKeyRef.current = loadKey;
+                        lastLoadContextRef.current = currentContext;
                     }
                 } catch (err) {
                     logger.error('Failed to load snapshot', { component: 'useTrafficDataLoader', error: err, selectedSnapshot });
@@ -147,7 +162,7 @@ export const useTrafficDataLoader = ({
                     setDisplayedSources([]);
                     setActualTotalRow(undefined);
                 } finally {
-                    setIsLoadingSnapshot(false);
+                    if (!isSoftUpdate) setIsLoadingSnapshot(false);
                 }
                 return;
             }
@@ -159,7 +174,7 @@ export const useTrafficDataLoader = ({
                 );
 
                 if (versionSnapshots.length > 0) {
-                    setIsLoadingSnapshot(true);
+                    if (!isSoftUpdate) setIsLoadingSnapshot(true);
                     try {
                         const versionData = packagingHistory.find(v => v.versionNumber === viewingVersion);
                         let targetPeriodIndex = viewingPeriodIndex;
@@ -208,20 +223,21 @@ export const useTrafficDataLoader = ({
                             setDeltaContext(undefined);
                         }
                         lastLoadedKeyRef.current = loadKey;
+                        lastLoadContextRef.current = currentContext;
                     } catch (err) {
                         logger.error('Failed to load active version sources', { component: 'useTrafficDataLoader', error: err, viewingVersion });
                         setError(err instanceof Error ? err : new Error('Unknown error loading active version'));
                         setDisplayedSources(trafficData.sources || []);
                         setActualTotalRow(trafficData.totalRow);
                     } finally {
-                        setIsLoadingSnapshot(false);
+                        if (!isSoftUpdate) setIsLoadingSnapshot(false);
                     }
                     return;
                 }
             }
 
             // Priority 3: Historical Version
-            setIsLoadingSnapshot(true);
+            if (!isSoftUpdate) setIsLoadingSnapshot(true);
             try {
                 const versionData = packagingHistory.find(v => v.versionNumber === viewingVersion);
                 const finalIndex = viewingPeriodIndex || 0;
@@ -268,13 +284,14 @@ export const useTrafficDataLoader = ({
                     setDeltaContext(undefined);
                 }
                 lastLoadedKeyRef.current = loadKey;
+                lastLoadContextRef.current = currentContext;
             } catch (err) {
                 logger.error('Failed to load historical version sources', { component: 'useTrafficDataLoader', error: err, viewingVersion });
                 setError(err instanceof Error ? err : new Error('Unknown error loading historical version'));
                 setDisplayedSources([]);
                 setActualTotalRow(undefined);
             } finally {
-                setIsLoadingSnapshot(false);
+                if (!isSoftUpdate) setIsLoadingSnapshot(false);
             }
         };
 

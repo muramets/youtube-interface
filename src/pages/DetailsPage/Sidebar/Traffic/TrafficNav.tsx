@@ -85,9 +85,13 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
     // Calculate Niche Stats for the SELECTED snapshot
     // We rely on displayedSources being the source of truth (already filtered by view mode)
     const selectedSnapshotNicheStats = useMemo(() => {
-        if (!selectedSnapshot || !groups || !displayedSources) return {};
+        if (!selectedSnapshot || !groups || !displayedSources) return { stats: {}, metricType: 'impressions' as const };
 
         const stats: Record<string, number> = {};
+
+        // Check if we have valid impressions in the dataset
+        const hasImpressions = displayedSources.some(s => (s.impressions || 0) > 0);
+        const metricType = hasImpressions ? 'impressions' as const : 'views' as const;
 
         displayedSources.forEach(source => {
             if (!source.videoId) return;
@@ -96,11 +100,13 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
             const videoGroups = groups.filter(g => g.videoIds.includes(source.videoId!));
 
             videoGroups.forEach(g => {
-                stats[g.id] = (stats[g.id] || 0) + (source.impressions || 0);
+                // FALLBACK LOGIC: If we determined we are using views, use views. Otherwise use impressions.
+                const weight = metricType === 'views' ? (source.views || 0) : (source.impressions || 0);
+                stats[g.id] = (stats[g.id] || 0) + weight;
             });
         });
 
-        return stats;
+        return { stats, metricType };
     }, [selectedSnapshot, groups, displayedSources]);
 
     // Toggle version's snapshots expansion (using composite key)
@@ -310,7 +316,8 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                                             });
                                                         }}
                                                         // Pass niche stats only if selected
-                                                        nicheImpressions={isSnapshotSelected ? selectedSnapshotNicheStats : undefined}
+                                                        nicheImpressions={isSnapshotSelected ? selectedSnapshotNicheStats.stats : undefined}
+                                                        metricType={isSnapshotSelected ? selectedSnapshotNicheStats.metricType : undefined}
                                                         groups={groups}
                                                         onNicheClick={onNicheClick}
                                                         activeNicheId={activeNicheId}

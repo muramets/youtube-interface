@@ -20,6 +20,7 @@ interface TrafficNicheItemProps {
     onCloseMenu?: () => void;
     // Optional stats for sidebar display
     impressions?: number;
+    metricType?: 'impressions' | 'views';
     isTrash?: boolean;
 }
 
@@ -33,6 +34,7 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
     onToggleMenu,
     onCloseMenu,
     impressions,
+    metricType = 'impressions',
     isTrash = false
 }) => {
     // Stores & Hooks
@@ -256,9 +258,9 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
                             <span className="text-[10px] text-text-tertiary leading-none cursor-help">
                                 {formatNumber(impressions)}
                             </span>
-                            {/* Simple tooltip for impressions */}
+                            {/* Simple tooltip for stats */}
                             <div className="absolute bottom-full right-0 mb-1 px-2 py-1 bg-[#1a1a1a] rounded text-[10px] text-white opacity-0 group-hover/impressions:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                                Impressions
+                                {metricType.charAt(0).toUpperCase() + metricType.slice(1)}
                             </div>
                         </div>
                     )}
