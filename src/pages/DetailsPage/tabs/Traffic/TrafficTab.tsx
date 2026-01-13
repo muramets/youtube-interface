@@ -220,7 +220,6 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         }
 
         return false;
-        return false;
     }, [selectedSnapshot, viewingVersion, trafficData?.snapshots, packagingHistory, viewingPeriodIndex]);
 
     // Traffic Type Store
@@ -251,7 +250,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         // BETTER: Enrich here so "applyFilters" could potentially filter by type in future.
         const enrichedSources = displayedSources.map(s => ({
             ...s,
-            trafficType: s.videoId ? trafficEdges[s.videoId]?.type : undefined
+            trafficType: s.videoId ? trafficEdges[s.videoId]?.type : undefined,
+            trafficSource: s.videoId ? trafficEdges[s.videoId]?.source : undefined
         }));
 
         let sources = applyFilters(enrichedSources, groups);

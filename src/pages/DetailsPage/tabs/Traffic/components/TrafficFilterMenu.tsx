@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, X, Eye, Clock, BarChart3, Percent, Layers, Sparkles, MousePointerClick, HelpCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Eye, Clock, BarChart3, Percent, Layers, Sparkles, MousePointerClick, HelpCircle, Wand2 } from 'lucide-react';
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { SegmentedControl } from '../../../../../components/ui/molecules/SegmentedControl';
 import { FilterInputNumeric } from '../../../../../components/Shared/FilterInputs/FilterInputNumeric';
@@ -222,6 +222,7 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                                     {[
                                         { id: 'autoplay', label: 'Suggested (Autoplay)', icon: Sparkles, color: 'text-purple-400' },
                                         { id: 'user_click', label: 'User Intent (Click)', icon: MousePointerClick, color: 'text-emerald-400' },
+                                        { id: 'smart_assistant', label: 'Set by Smart Assistant', icon: Wand2, color: 'text-blue-500' },
                                         { id: 'unknown', label: 'Unset', icon: HelpCircle, color: 'text-text-tertiary' }
                                     ].map(opt => {
                                         const currentVal = existingFilter?.value;

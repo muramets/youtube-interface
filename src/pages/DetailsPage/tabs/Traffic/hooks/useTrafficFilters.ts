@@ -131,12 +131,27 @@ export const useTrafficFilters = ({ contextKey }: UseTrafficFiltersProps) => {
                 }
 
                 if (filter.type === 'trafficType') {
-                    // We expect source to have 'trafficType' property injected in TrafficTab
+                    // We expect source to have 'trafficType' (and now 'trafficSource') injected
                     const actualType = (source as any).trafficType || 'unknown';
-                    // 'unknown' handles undefined/null cases
+                    const actualSource = (source as any).trafficSource;
 
-                    const selectedTypes = Array.isArray(filter.value) ? filter.value : [filter.value];
-                    return selectedTypes.includes(actualType);
+                    const selectedValues = Array.isArray(filter.value) ? filter.value : [filter.value];
+
+                    // Split checking: "Smart Assistant" refers to SOURCE, others refer to TYPE
+                    const isSmartAssistantSelected = selectedValues.includes('smart_assistant');
+                    const selectedMainTypes = selectedValues.filter((v: string) => v !== 'smart_assistant');
+
+                    // 1. Check Source Match
+                    if (isSmartAssistantSelected && actualSource === 'smart_assistant') {
+                        return true;
+                    }
+
+                    // 2. Check Type Match
+                    if (selectedMainTypes.includes(actualType)) {
+                        return true;
+                    }
+
+                    return false;
                 }
 
                 let itemValue: any = source[filter.type as keyof TrafficSource];

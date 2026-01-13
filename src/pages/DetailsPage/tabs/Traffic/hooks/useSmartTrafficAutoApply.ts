@@ -30,19 +30,17 @@ export const useSmartTrafficAutoApply = (
             if (isZeroImpressions && hasViews) {
                 const currentEdge = edges[source.videoId];
 
-                // Only apply if not already set (or if we want to overwrite 'manual' which is risky, 
-                // but user said "if assistant enabled... apply". 
-                // Let's settle on: Apply if NOT set, OR if set by assistant previously. 
-                // But safest is: Apply if undefined.
-                // Re-reading user request: "нужно проставлять и везде сохранять в базе" 
-                // and "если... smart assistant все еще включен - он все меняет и для них traffic type"
-                // This implies aggressive setting.
+                // OPTIMIZATION: Check if traffic type is already set.
+                // The Smart Assistant should ONLY fill in missing data to avoid:
+                // 1. Overwriting manual user decisions
+                // 2. Unnecessary processing load
+                // 3. Redundant store updates
+                if (currentEdge?.type) return;
 
-                // Let's just check if it's NOT already 'autoplay'.
-                if (!currentEdge || currentEdge.type !== 'autoplay') {
-                    setTrafficType(source.videoId, 'autoplay', 'smart_assistant');
-                    appliedCount++;
-                }
+                // Rule: 0 Impressions, >0 Views IMPLIES Autoplay
+                // Logic: High views with zero visibility means users didn't click (0 imp) but watched (autoplay).
+                setTrafficType(source.videoId, 'autoplay', 'smart_assistant');
+                appliedCount++;
             }
         });
 
