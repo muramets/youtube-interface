@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, X, Eye, Clock, BarChart3, Percent, Layers, Sparkles, MousePointerClick, HelpCircle, Wand2, Users, Zap, ZapOff, Compass, Target, Coffee } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Eye, Clock, BarChart3, Percent, Layers, Sparkles, MousePointerClick, HelpCircle, Wand2, Users, Zap, ZapOff, Compass, Target, Coffee, Flag, CircleOff, Check } from 'lucide-react';
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { SegmentedControl } from '../../../../../components/ui/molecules/SegmentedControl';
 import { FilterInputNumeric } from '../../../../../components/Shared/FilterInputs/FilterInputNumeric';
@@ -41,6 +41,7 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
         { type: 'niche', label: 'Niche', icon: Layers },
         { type: 'trafficType', label: 'Traffic Type', icon: Sparkles },
         { type: 'viewerType', label: 'Viewer Type', icon: Users },
+        { type: 'nicheProperty', label: 'Niche Type', icon: Flag },
     ];
 
     const getTitleForView = (view: TrafficFilterType) => {
@@ -216,6 +217,68 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                             <div className="p-4 text-xs text-text-tertiary">Data not available</div>
                         );
 
+                    case 'nicheProperty':
+                        const currentNichePropertyVal = existingFilter?.value;
+                        const selectedNicheProperties: string[] = Array.isArray(currentNichePropertyVal) ? currentNichePropertyVal : (currentNichePropertyVal ? [currentNichePropertyVal] : []);
+
+                        return (
+                            <div className="flex flex-col h-full overflow-hidden">
+                                <div className="overflow-y-auto flex-1 p-1 custom-scrollbar">
+                                    {[
+                                        { id: 'desired', label: 'Desired', icon: Flag, color: 'text-emerald-400', hover: 'group-hover:text-emerald-400' },
+                                        { id: 'targeted', label: 'Targeted', icon: Target, color: 'text-blue-400', hover: 'group-hover:text-blue-400' },
+                                        { id: 'adjacent', label: 'Adjacent', icon: Layers, color: 'text-yellow-400', hover: 'group-hover:text-yellow-400' },
+                                        { id: 'unrelated', label: 'Unrelated', icon: CircleOff, color: 'text-red-400', hover: 'group-hover:text-red-400' }
+                                    ].map(option => {
+                                        const isSelected = selectedNicheProperties.includes(option.id);
+                                        return (
+                                            <div
+                                                key={option.id}
+                                                onClick={() => {
+                                                    let newSelection: string[] = [...selectedNicheProperties];
+                                                    if (isSelected) {
+                                                        newSelection = newSelection.filter((v: string) => v !== option.id);
+                                                    } else {
+                                                        newSelection.push(option.id);
+                                                    }
+
+                                                    if (newSelection.length === 0) {
+                                                        if (existingFilter) onRemoveFilter(existingFilter.id);
+                                                    } else {
+                                                        const label = newSelection.length === 1
+                                                            ? `Property: ${option.label}`
+                                                            : `Property: ${newSelection.length} selected`;
+
+                                                        onAddFilter({
+                                                            type: 'nicheProperty',
+                                                            operator: 'contains',
+                                                            value: newSelection,
+                                                            label
+                                                        });
+                                                    }
+                                                }}
+                                                className="px-3 py-2 flex items-center gap-3 cursor-pointer transition-colors rounded-lg text-text-primary text-sm hover:bg-[#2a2a2a] group"
+                                            >
+                                                <div
+                                                    className={`w-[16px] h-[16px] rounded border flex items-center justify-center flex-shrink-0 transition-colors ${isSelected
+                                                        ? 'bg-text-primary border-text-primary'
+                                                        : 'bg-transparent border-text-secondary group-hover:border-text-primary'
+                                                        }`}
+                                                >
+                                                    {isSelected && <Check size={10} className="text-bg-primary" strokeWidth={3} />}
+                                                </div>
+                                                <option.icon
+                                                    size={14}
+                                                    className={`transition-colors ${isSelected ? option.color : 'text-text-tertiary'} ${option.hover}`}
+                                                />
+                                                <span className="flex-1">{option.label}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+
                     case 'viewerType':
                         return (
                             <div className="flex flex-col h-full overflow-hidden">
@@ -231,14 +294,14 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                                      * - Passive: > 95%
                                      */}
                                     {[
-                                        { id: 'bouncer', label: 'Bouncer (< 1%)', icon: ZapOff, color: 'text-red-400' },
-                                        { id: 'trialist', label: 'Trialist (1.1% – 10%)', icon: Zap, color: 'text-orange-400' },
-                                        { id: 'explorer', label: 'Explorer (10.1% – 30%)', icon: Compass, color: 'text-amber-400' },
-                                        { id: 'interested', label: 'Interested (30.1% – 60%)', icon: Eye, color: 'text-blue-400' },
-                                        { id: 'core', label: 'Core Audience (60.1% – 95%)', icon: Target, color: 'text-emerald-400' },
-                                        { id: 'passive', label: 'Passive (> 95%)', icon: Coffee, color: 'text-purple-400' },
-                                        { id: 'smart_assistant', label: 'Set by Smart Assistant', icon: Wand2, color: 'text-blue-500' },
-                                        { id: 'unknown', label: 'Unset', icon: HelpCircle, color: 'text-text-tertiary' }
+                                        { id: 'bouncer', label: 'Bouncer (< 1%)', icon: ZapOff, color: 'text-red-400', hover: 'group-hover:text-red-400' },
+                                        { id: 'trialist', label: 'Trialist (1.1% – 10%)', icon: Zap, color: 'text-orange-400', hover: 'group-hover:text-orange-400' },
+                                        { id: 'explorer', label: 'Explorer (10.1% – 30%)', icon: Compass, color: 'text-amber-400', hover: 'group-hover:text-amber-400' },
+                                        { id: 'interested', label: 'Interested (30.1% – 60%)', icon: Eye, color: 'text-blue-400', hover: 'group-hover:text-blue-400' },
+                                        { id: 'core', label: 'Core Audience (60.1% – 95%)', icon: Target, color: 'text-emerald-400', hover: 'group-hover:text-emerald-400' },
+                                        { id: 'passive', label: 'Passive (> 95%)', icon: Coffee, color: 'text-purple-400', hover: 'group-hover:text-purple-400' },
+                                        { id: 'smart_assistant', label: 'Set by Smart Assistant', icon: Wand2, color: 'text-blue-500', hover: 'group-hover:text-blue-500' },
+                                        { id: 'unknown', label: 'Unset', icon: HelpCircle, color: 'text-text-tertiary', hover: 'group-hover:text-text-primary' }
                                     ].map(opt => {
                                         const currentVal = existingFilter?.value;
                                         const isSelected = Array.isArray(currentVal)
@@ -277,7 +340,10 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                                             >
                                                 <Checkbox checked={isSelected} onChange={() => { }} className="flex-shrink-0" />
 
-                                                <TypeIcon size={12} className={`${opt.color} flex-shrink-0`} />
+                                                <TypeIcon
+                                                    size={12}
+                                                    className={`flex-shrink-0 transition-colors ${isSelected ? opt.color : 'text-text-tertiary'} ${opt.hover}`}
+                                                />
 
                                                 <span className={`flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs transition-colors ${isSelected ? 'text-text-primary font-medium' : 'text-text-secondary group-hover:text-text-primary'}`}>
                                                     {opt.label}
@@ -294,10 +360,10 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                             <div className="flex flex-col h-full overflow-hidden">
                                 <div className="overflow-y-auto flex-1 p-1 custom-scrollbar">
                                     {[
-                                        { id: 'autoplay', label: 'Suggested (Autoplay)', icon: Sparkles, color: 'text-purple-400' },
-                                        { id: 'user_click', label: 'User Intent (Click)', icon: MousePointerClick, color: 'text-emerald-400' },
-                                        { id: 'smart_assistant', label: 'Set by Smart Assistant', icon: Wand2, color: 'text-blue-500' },
-                                        { id: 'unknown', label: 'Unset', icon: HelpCircle, color: 'text-text-tertiary' }
+                                        { id: 'autoplay', label: 'Suggested (Autoplay)', icon: Sparkles, color: 'text-purple-400', hover: 'group-hover:text-purple-400' },
+                                        { id: 'user_click', label: 'User Intent (Click)', icon: MousePointerClick, color: 'text-emerald-400', hover: 'group-hover:text-emerald-400' },
+                                        { id: 'smart_assistant', label: 'Set by Smart Assistant', icon: Wand2, color: 'text-blue-500', hover: 'group-hover:text-blue-500' },
+                                        { id: 'unknown', label: 'Unset', icon: HelpCircle, color: 'text-text-tertiary', hover: 'group-hover:text-text-primary' }
                                     ].map(opt => {
                                         const currentVal = existingFilter?.value;
                                         const isSelected = Array.isArray(currentVal)
@@ -336,7 +402,10 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                                             >
                                                 <Checkbox checked={isSelected} onChange={() => { }} className="flex-shrink-0" />
 
-                                                <TypeIcon size={12} className={`${opt.color} flex-shrink-0`} />
+                                                <TypeIcon
+                                                    size={12}
+                                                    className={`flex-shrink-0 transition-colors ${isSelected ? opt.color : 'text-text-tertiary'} ${opt.hover}`}
+                                                />
 
                                                 <span className={`flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs transition-colors ${isSelected ? 'text-text-primary font-medium' : 'text-text-secondary group-hover:text-text-primary'}`}>
                                                     {opt.label}

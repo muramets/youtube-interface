@@ -129,7 +129,8 @@ export type TrafficFilterType =
     | 'hideZeroImpressions'   // Special: Hide sources with 0 impressions
     | 'niche'                 // Filter by Niche assignment
     | 'trafficType'           // Filter by Traffic Type (autoplay/user_click)
-    | 'viewerType';            // Filter by Viewer Type (bouncer/core/etc.)
+    | 'viewerType'            // Filter by Viewer Type (bouncer/core/etc.)
+    | 'nicheProperty';        // Filter by Niche Property (Desired/Targeted/etc.)
 
 /**
  * BUSINESS LOGIC: Traffic Filter Persistence

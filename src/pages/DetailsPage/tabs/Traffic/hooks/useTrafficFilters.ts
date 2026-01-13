@@ -159,6 +159,27 @@ export const useTrafficFilters = ({ contextKey }: UseTrafficFiltersProps) => {
                     return false;
                 }
 
+                if (filter.type === 'nicheProperty') {
+                    if (!groups || !videoIdToGroupIds) return true; // Can't filter without context
+
+                    const selectedProperties = Array.isArray(filter.value) ? filter.value : [filter.value];
+                    const sourceVideoId = source.videoId;
+
+                    if (!sourceVideoId) return false;
+
+                    const sourceGroupIds = videoIdToGroupIds.get(sourceVideoId);
+                    if (!sourceGroupIds) return false; // Not in any niche -> no property property
+
+                    // Check if *any* of the assigned niches has one of the selected properties
+                    for (const gid of sourceGroupIds) {
+                        const group = groups.find(g => g.id === gid);
+                        if (group && group.property && selectedProperties.includes(group.property)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+
                 let itemValue: any = source[filter.type as keyof TrafficSource];
 
                 // Special handling for AVD (string "HH:MM:SS" -> seconds)
