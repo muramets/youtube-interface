@@ -25,6 +25,7 @@ import { useChannelStore } from '../../../../core/stores/channelStore';
 import { useVideos } from '../../../../core/hooks/useVideos';
 import { useSmartNicheSuggestions } from './hooks/useSmartNicheSuggestions';
 import { assistantLogger } from '../../../../core/utils/logger';
+import { useTrafficTypeStore } from '../../../../core/stores/useTrafficTypeStore';
 
 import type { TrafficSource } from '../../../../core/types/traffic';
 
@@ -218,7 +219,23 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         }
 
         return false;
+        return false;
     }, [selectedSnapshot, viewingVersion, trafficData?.snapshots, packagingHistory, viewingPeriodIndex]);
+
+    // Traffic Type Store
+    const {
+        edges: trafficEdges,
+        initialize: initTrafficTypes,
+        setTrafficType: toggleTrafficType,
+        deleteTrafficType
+    } = useTrafficTypeStore();
+
+    // Initialize store when video changes
+    useEffect(() => {
+        if (_video.id) {
+            initTrafficTypes(_video.id);
+        }
+    }, [_video.id, initTrafficTypes]);
 
     // Filters are now managed by parent (DetailsLayout)
     const filteredSources = useMemo(() => {
@@ -227,13 +244,22 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             return [];
         }
 
-        let sources = applyFilters(displayedSources, groups);
+        // Inject Traffic Type for Sorting/Filtering before applying other filters
+        // We do this by creating a synthetic property on the source objects if needed, 
+        // but sorting is handled by the table using the edges map or we can enrich here.
+        // BETTER: Enrich here so "applyFilters" could potentially filter by type in future.
+        const enrichedSources = displayedSources.map(s => ({
+            ...s,
+            trafficType: s.videoId ? trafficEdges[s.videoId] : undefined
+        }));
+
+        let sources = applyFilters(enrichedSources, groups);
 
         // Global Trash Filter: Hide videos assigned to Trash
-        // UNLESS we are explicitly filtering for the Trash niche
         const trashNiche = allNiches.find(n => n.name.trim().toLowerCase() === 'trash');
         const isFilteringTrash = trashNiche && filters.some(f => {
             if (f.type !== 'niche') return false;
+            // Check for array or single value
             if (Array.isArray(f.value)) {
                 return f.value.includes(trashNiche.id);
             }
@@ -250,7 +276,21 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         }
 
         return sources;
-    }, [displayedSources, applyFilters, groups, allNiches, allAssignments, viewMode, isFirstSnapshot, filters]);
+    }, [displayedSources, applyFilters, groups, allNiches, allAssignments, viewMode, isFirstSnapshot, filters, trafficEdges]);
+
+    // Handle Traffic Type Toggle
+    const handleToggleTrafficType = useCallback((videoId: string, currentType?: import('../../../../core/types/videoTrafficType').TrafficType) => {
+        // 3-State Cycle: Unknown -> Autoplay -> Click -> Unknown (delete)
+
+        if (!currentType) {
+            toggleTrafficType(videoId, 'autoplay');
+        } else if (currentType === 'autoplay') {
+            toggleTrafficType(videoId, 'user_click');
+        } else if (currentType === 'user_click') {
+            // Cycle back to unset
+            deleteTrafficType(videoId);
+        }
+    }, [toggleTrafficType, deleteTrafficType]);
 
     // OPTIMIZATION: Memoize array props to prevent TrafficTable re-renders.
     // Without memoization, `|| []` creates a new array reference each render.
@@ -677,6 +717,9 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                                     actualTotalRow={actualTotalRow}
                                     trashMetrics={trashMetrics}
                                     deltaContext={deltaContext}
+                                    // Traffic Type Props
+                                    trafficEdges={trafficEdges}
+                                    onToggleTrafficType={handleToggleTrafficType}
                                 />
 
                                 {/* Floating Action Bar - Positioned absolutely relative to parent container */}

@@ -16,6 +16,8 @@ import type { SuggestedTrafficNiche } from '../../../../../core/types/suggestedT
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 
 
+import type { TrafficType } from '../../../../../core/types/videoTrafficType';
+
 export type SortKey = keyof TrafficSource;
 export interface SortConfig {
     key: SortKey;
@@ -67,6 +69,10 @@ interface TrafficTableProps {
     getSuggestion?: (videoId: string) => SuggestedTrafficNiche | null;
     onConfirmSuggestion?: (videoId: string, niche: SuggestedTrafficNiche) => void;
 
+    // Traffic Types
+    trafficEdges?: Record<string, TrafficType>;
+    onToggleTrafficType?: (videoId: string, currentType?: TrafficType) => void;
+
     // Discrepancy reporting
     actualTotalRow?: TrafficSource;
     trashMetrics?: import('../hooks/useTrafficDataLoader').TrashMetrics;
@@ -93,6 +99,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
     onSort,
     getSuggestion,
     onConfirmSuggestion,
+    trafficEdges,
+    onToggleTrafficType,
     actualTotalRow,
     trashMetrics,
     deltaContext
@@ -173,8 +181,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
     }, [data, niches, assignments]);
 
     const gridClassName = showPropertyColumn
-        ? "grid-cols-[40px_24px_1fr_80px_70px_70px_80px]"
-        : "grid-cols-[40px_1fr_80px_70px_70px_80px]";
+        ? "grid-cols-[40px_24px_1fr_40px_80px_70px_70px_80px]"
+        : "grid-cols-[40px_1fr_40px_80px_70px_70px_80px]";
 
     const computedTotal = useMemo(() => {
         if (data.length === 0) return null;
@@ -254,6 +262,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
                 </div>
                 {showPropertyColumn && <div></div>} {/* Property Icon Column */}
                 <div>Traffic Source</div>
+                {/* Traffic Type Header (Empty/Placeholder) */}
+                <div></div>
                 {renderHeaderCell('Impr.', 'impressions')}
                 {renderHeaderCell('CTR', 'ctr')}
                 {renderHeaderCell('Views', 'views')}
@@ -308,6 +318,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                 <div />
                                 {showPropertyColumn && <div />}
                                 <div>Total</div>
+                                {/* Traffic Type Total Cell (Empty) */}
+                                <div />
                                 <div className={`text-right flex items-center justify-end gap-1.5 ${sortConfig?.key === 'impressions' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
                                     {actualTotalRow && !hasActiveFilters && Number(actualTotalRow.impressions || 0) > (computedTotal.impressions + 1) && (
                                         <SmartTrafficTooltip
@@ -355,6 +367,9 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                 const isSelected = item.videoId ? selectedIds.has(item.videoId) : false;
                                 const videoDetails = item.videoId ? videoMap.get(item.videoId) : undefined;
 
+                                // Lookup Traffic Type
+                                const trafficType = item.videoId && trafficEdges ? trafficEdges[item.videoId] : undefined;
+
                                 return (
                                     <div
                                         key={item.videoId || virtualRow.key}
@@ -379,6 +394,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             videoDetails={videoDetails}
                                             suggestedNiche={item.videoId ? getSuggestion?.(item.videoId) || undefined : undefined}
                                             onConfirmSuggestion={onConfirmSuggestion}
+                                            trafficType={trafficType}
+                                            onToggleTrafficType={onToggleTrafficType}
                                         />
                                     </div>
                                 );

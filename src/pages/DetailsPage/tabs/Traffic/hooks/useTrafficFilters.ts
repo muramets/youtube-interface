@@ -130,6 +130,15 @@ export const useTrafficFilters = ({ contextKey }: UseTrafficFiltersProps) => {
                     return false;
                 }
 
+                if (filter.type === 'trafficType') {
+                    // We expect source to have 'trafficType' property injected in TrafficTab
+                    const actualType = (source as any).trafficType || 'unknown';
+                    // 'unknown' handles undefined/null cases
+
+                    const selectedTypes = Array.isArray(filter.value) ? filter.value : [filter.value];
+                    return selectedTypes.includes(actualType);
+                }
+
                 let itemValue: any = source[filter.type as keyof TrafficSource];
 
                 // Special handling for AVD (string "HH:MM:SS" -> seconds)

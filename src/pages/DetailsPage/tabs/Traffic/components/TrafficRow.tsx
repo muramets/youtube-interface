@@ -1,6 +1,7 @@
 import React from 'react';
-import { ExternalLink, ThumbsDown, Trophy, Heart, GitBranch, Info } from 'lucide-react';
+import { ExternalLink, ThumbsDown, Trophy, Heart, GitBranch, Info, Sparkles, MousePointerClick, HelpCircle } from 'lucide-react';
 import type { TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficType } from '../../../../../core/types/videoTrafficType';
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { PortalTooltip } from '../../../../../components/Shared/PortalTooltip';
 import { VideoPreviewTooltip } from '../../../../../components/Shared/VideoPreviewTooltip';
@@ -26,6 +27,9 @@ interface TrafficRowProps {
     // Smart Assistant Props
     suggestedNiche?: SuggestedTrafficNiche;
     onConfirmSuggestion?: (videoId: string, niche: SuggestedTrafficNiche) => void;
+    // Traffic Type Props
+    trafficType?: TrafficType;
+    onToggleTrafficType?: (videoId: string, currentType?: TrafficType) => void;
 }
 
 const getCtrColor = (ctr: number | string, rules: CTRRule[]): string | undefined => {
@@ -50,7 +54,21 @@ const getCtrColor = (ctr: number | string, rules: CTRRule[]): string | undefined
 };
 
 
-export const TrafficRow = ({ item, index, isSelected, activeSortKey, onRowClick, ctrRules = [], gridClassName, showPropertyIcon, videoDetails, suggestedNiche, onConfirmSuggestion }: TrafficRowProps) => {
+export const TrafficRow = ({
+    item,
+    index,
+    isSelected,
+    activeSortKey,
+    onRowClick,
+    ctrRules = [],
+    gridClassName,
+    showPropertyIcon,
+    videoDetails,
+    suggestedNiche,
+    onConfirmSuggestion,
+    trafficType,
+    onToggleTrafficType
+}: TrafficRowProps) => {
     // Connect to Niche Store
     const { niches, assignments } = useTrafficNicheStore();
     // Connect to Video Player mainly to check if this video is minimized
@@ -58,6 +76,39 @@ export const TrafficRow = ({ item, index, isSelected, activeSortKey, onRowClick,
 
     // Check if THIS specific video is providing the mini-player content
     const isThisVideoMinimized = isMinimized && activeVideoId === item.videoId;
+
+    // Traffic Type Icon Logic
+    const { icon: TypeIcon, label: typeLabel, color: typeColor, activeClass } = React.useMemo(() => {
+        if (trafficType === 'autoplay') {
+            return {
+                icon: Sparkles,
+                label: 'Suggested (Autoplay)',
+                color: 'text-purple-400',
+                activeClass: 'opacity-100'
+            };
+        }
+        if (trafficType === 'user_click') {
+            return {
+                icon: MousePointerClick,
+                label: 'User Intent (Click)',
+                color: 'text-emerald-400',
+                activeClass: 'opacity-100'
+            };
+        }
+        return {
+            icon: HelpCircle,
+            label: 'Set Traffic Type',
+            color: 'text-white/20',
+            activeClass: 'opacity-0 group-hover:opacity-100' // Only show on hover if unset
+        };
+    }, [trafficType]);
+
+    // Handle Type Click
+    const handleTypeClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!item.videoId || !onToggleTrafficType) return;
+        onToggleTrafficType(item.videoId, trafficType);
+    };
 
     // Derived state: find niches assigned to this video
     const assignedNiches = React.useMemo(() => {
@@ -189,6 +240,29 @@ export const TrafficRow = ({ item, index, isSelected, activeSortKey, onRowClick,
                     </div>
                 </div>
             </div>
+
+            {/* Traffic Type Indicator */}
+            {onToggleTrafficType && (
+                <div className="flex items-center justify-center">
+                    <PortalTooltip
+                        content={typeLabel}
+                        enterDelay={300}
+                        side="top"
+                        className="!px-2.5 !py-1 !border-none !shadow-xl !bg-[#1F1F1F]"
+                    >
+                        <button
+                            onClick={handleTypeClick}
+                            className={`
+                                p-1.5 rounded-full transition-all duration-200
+                                hover:bg-white/10 active:scale-95
+                                ${typeColor} ${activeClass}
+                            `}
+                        >
+                            <TypeIcon size={14} className={trafficType === 'autoplay' ? 'animate-pulse' : ''} />
+                        </button>
+                    </PortalTooltip>
+                </div>
+            )}
 
             <div className={`text-right ${activeSortKey === 'impressions' ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
                 {item.impressions.toLocaleString()}

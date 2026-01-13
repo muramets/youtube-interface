@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, X, Eye, Clock, BarChart3, Percent, Layers } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Eye, Clock, BarChart3, Percent, Layers, Sparkles, MousePointerClick, HelpCircle } from 'lucide-react';
+import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { SegmentedControl } from '../../../../../components/ui/molecules/SegmentedControl';
 import { FilterInputNumeric } from '../../../../../components/Shared/FilterInputs/FilterInputNumeric';
 import { TrafficFilterInputNiche, UNASSIGNED_NICHE_ID } from './TrafficFilterInputNiche';
@@ -38,6 +39,7 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
         { type: 'views', label: 'Views', icon: BarChart3 },
         { type: 'avgViewDuration', label: 'Average View Duration', icon: Clock },
         { type: 'niche', label: 'Niche', icon: Layers },
+        { type: 'trafficType', label: 'Traffic Type', icon: Sparkles },
     ];
 
     const getTitleForView = (view: TrafficFilterType) => {
@@ -111,159 +113,225 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                 </div>
             )}
 
-            {/* Content Area */}
-            <div className="flex flex-col">
-                {activeView === 'main' ? (
-                    <div className="py-2">
-                        {/* View Mode Section */}
-                        <div className="px-4 py-3 mb-1">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider">
-                                    View Mode
-                                </span>
-                            </div>
-                            <SegmentedControl
-                                options={[
-                                    { label: 'Total', value: 'cumulative' },
-                                    { label: 'New', value: 'delta' }
-                                ]}
-                                value={viewMode}
-                                onChange={(v: any) => onViewModeChange(v)}
-                            />
-                            <div className="mt-2 text-[10px] text-text-tertiary leading-relaxed grid">
-                                <span className={`col-start-1 row-start-1 transition-opacity duration-150 ${viewMode === 'cumulative' ? 'opacity-100' : 'opacity-0'}`}>
-                                    Show total accumulated views
-                                </span>
-                                <span className={`col-start-1 row-start-1 transition-opacity duration-150 ${viewMode === 'delta' ? 'opacity-100' : 'opacity-0'}`}>
-                                    Show new views since last snapshot
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Separator */}
-                        <div className="h-px bg-[#2a2a2a] mx-4 mb-1.5" />
-
-                        {/* Add Filter Section - COMPACT SPACING */}
-                        <div className="px-4 pt-1.5 pb-0">
-                            <div className="flex items-center justify-between mb-0.5">
-                                <span className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider">
-                                    Add Filter
-                                </span>
-                            </div>
-                        </div>
-
-                        {filterTypes.map(({ type, label, icon: Icon }) => {
-                            // Check if filter exists
-                            const isActive = filters.some(f => f.type === type);
-
-                            return (
-                                <button
-                                    key={type}
-                                    onClick={() => setActiveView(type)}
-                                    className="w-full text-left px-4 py-2.5 text-sm font-medium flex items-center justify-between gap-8 transition-colors border-none cursor-pointer text-text-primary hover:bg-[#161616] bg-transparent group"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <Icon size={16} className={`transition-colors ${isActive ? 'text-accent-blue' : 'text-text-secondary group-hover:text-text-primary'}`} />
-                                        <span className={isActive ? 'text-accent-blue' : ''}>{label}</span>
+            {/* View Content Switcher */}
+            {(() => {
+                switch (activeView) {
+                    case 'main':
+                        return (
+                            <div className="py-2">
+                                {/* View Mode Section */}
+                                <div className="px-4 py-3 mb-1">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider">
+                                            View Mode
+                                        </span>
                                     </div>
-                                    <ChevronRight size={16} className="text-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
-                                </button>
-                            );
-                        })}
-                    </div>
-                ) : activeView === 'niche' ? (
-                    groups ? (
-                        <TrafficFilterInputNiche
-                            groups={groups}
-                            sources={sources || []}
-                            initialSelected={existingFilter?.value || []}
-                            onApply={(selectedIds) => {
-                                if (existingFilter) {
-                                    onRemoveFilter(existingFilter.id);
-                                }
-                                if (selectedIds.length > 0) {
-                                    // Format label
-                                    const names = groups
-                                        .filter(g => selectedIds.includes(g.id))
-                                        .map(g => g.name);
+                                    <SegmentedControl
+                                        options={[
+                                            { label: 'Total', value: 'cumulative' },
+                                            { label: 'New', value: 'delta' }
+                                        ]}
+                                        value={viewMode}
+                                        onChange={(v: any) => onViewModeChange(v)}
+                                    />
+                                    <div className="mt-2 text-[10px] text-text-tertiary leading-relaxed grid">
+                                        <span className={`col-start-1 row-start-1 transition-opacity duration-150 ${viewMode === 'cumulative' ? 'opacity-100' : 'opacity-0'}`}>
+                                            Show total accumulated views
+                                        </span>
+                                        <span className={`col-start-1 row-start-1 transition-opacity duration-150 ${viewMode === 'delta' ? 'opacity-100' : 'opacity-0'}`}>
+                                            Show new views since last snapshot
+                                        </span>
+                                    </div>
+                                </div>
 
-                                    if (selectedIds.includes(UNASSIGNED_NICHE_ID)) {
-                                        names.push('Unassigned');
+                                {/* Separator */}
+                                <div className="h-px bg-[#2a2a2a] mx-4 mb-1.5" />
+
+                                {/* Add Filter Section - COMPACT SPACING */}
+                                <div className="px-4 pt-1.5 pb-0">
+                                    <div className="flex items-center justify-between mb-0.5">
+                                        <span className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider">
+                                            Add Filter
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {filterTypes.map(({ type, label, icon: Icon }) => {
+                                    // Check if filter exists
+                                    const isActive = filters.some(f => f.type === type);
+
+                                    return (
+                                        <button
+                                            key={type}
+                                            onClick={() => setActiveView(type)}
+                                            className="w-full text-left px-4 py-2.5 text-sm font-medium flex items-center justify-between gap-8 transition-colors border-none cursor-pointer text-text-primary hover:bg-[#161616] bg-transparent group"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <Icon size={16} className={`transition-colors ${isActive ? 'text-accent-blue' : 'text-text-secondary group-hover:text-text-primary'}`} />
+                                                <span className={isActive ? 'text-accent-blue' : ''}>{label}</span>
+                                            </div>
+                                            <ChevronRight size={16} className="text-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        );
+
+                    case 'niche':
+                        return groups ? (
+                            <TrafficFilterInputNiche
+                                groups={groups}
+                                sources={sources || []}
+                                initialSelected={existingFilter?.value || []}
+                                onApply={(selectedIds) => {
+                                    if (existingFilter) {
+                                        onRemoveFilter(existingFilter.id);
                                     }
+                                    if (selectedIds.length > 0) {
+                                        // Format label
+                                        const names = groups
+                                            .filter(g => selectedIds.includes(g.id))
+                                            .map(g => g.name);
 
-                                    const label = names.length === 1
-                                        ? `Niche: ${names[0]}`
-                                        : `Niche: ${names.length} selected`;
+                                        if (selectedIds.includes(UNASSIGNED_NICHE_ID)) {
+                                            names.push('Unassigned');
+                                        }
 
-                                    onAddFilter({
-                                        type: 'niche',
-                                        operator: 'contains',
-                                        value: selectedIds,
-                                        label
-                                    });
-                                }
-                                // Don't close immediately to allow multi-select
-                            }}
-                        />
-                    ) : (
-                        <div className="p-4 text-xs text-text-tertiary">Data not available</div>
-                    )
-                ) : (
-                    <div className="animate-fade-in">
-                        <FilterInputNumeric
-                            initialOperator={existingFilter?.operator || 'gte'}
-                            initialValue={isRange ? initialVal[0] : initialVal}
-                            initialMaxValue={isRange ? initialVal[1] : undefined}
-                            isDuration={activeView === 'avgViewDuration'}
-                            // Independent Hide Zero Logic - Apply Based
-                            initialIsHideZero={
-                                activeView === 'views'
-                                    ? filters.some(f => f.type === 'hideZeroViews')
-                                    : activeView === 'impressions'
-                                        ? filters.some(f => f.type === 'hideZeroImpressions')
-                                        : undefined
-                            }
-                            showHideZeroOption={activeView === 'views' || activeView === 'impressions'}
-                            metricLabel={activeView === 'views' ? 'Views' : activeView === 'impressions' ? 'Impressions' : undefined}
-                            onApply={(op, val, max, isHideZero) => {
-                                // 1. Handle Main Filter
-                                if (!isNaN(val)) {
-                                    handleApplyFilter(activeView, op, val, max);
-                                } else {
-                                    // If value is clean (NaN), remove existing main filter if present
-                                    const mainFilter = filters.find(f => f.type === activeView);
-                                    if (mainFilter) {
-                                        onRemoveFilter(mainFilter.id);
-                                    }
-                                }
+                                        const label = names.length === 1
+                                            ? `Niche: ${names[0]}`
+                                            : `Niche: ${names.length} selected`;
 
-                                // 2. Handle Independent Hide Zero Filter
-                                if (activeView === 'views' || activeView === 'impressions') {
-                                    const hideType = activeView === 'views' ? 'hideZeroViews' : 'hideZeroImpressions';
-                                    const existingHideFilter = filters.find(f => f.type === hideType);
-
-                                    if (isHideZero && !existingHideFilter) {
                                         onAddFilter({
-                                            type: hideType as any,
-                                            operator: 'gt',
-                                            value: 0,
-                                            label: activeView === 'views' ? 'Hide 0 Views' : 'Hide 0 Impr.'
+                                            type: 'niche',
+                                            operator: 'contains',
+                                            value: selectedIds,
+                                            label
                                         });
-                                    } else if (!isHideZero && existingHideFilter) {
-                                        onRemoveFilter(existingHideFilter.id);
                                     }
-                                }
+                                    // Don't close immediately to allow multi-select
+                                }}
+                            />
+                        ) : (
+                            <div className="p-4 text-xs text-text-tertiary">Data not available</div>
+                        );
 
-                                onClose();
-                            }}
-                            onRemove={existingFilter ? () => {
-                                onRemoveFilter(existingFilter.id);
-                                onClose();
-                            } : undefined}
-                        />
-                    </div>
-                )}
-            </div>
+                    case 'trafficType':
+                        return (
+                            <div className="flex flex-col h-full overflow-hidden">
+                                <div className="overflow-y-auto flex-1 p-1 custom-scrollbar">
+                                    {[
+                                        { id: 'autoplay', label: 'Suggested (Autoplay)', icon: Sparkles, color: 'text-purple-400' },
+                                        { id: 'user_click', label: 'User Intent (Click)', icon: MousePointerClick, color: 'text-emerald-400' },
+                                        { id: 'unknown', label: 'Unset', icon: HelpCircle, color: 'text-text-tertiary' }
+                                    ].map(opt => {
+                                        const currentVal = existingFilter?.value;
+                                        const isSelected = Array.isArray(currentVal)
+                                            ? currentVal.includes(opt.id)
+                                            : currentVal === opt.id;
+                                        const TypeIcon = opt.icon;
+
+                                        return (
+                                            <div
+                                                key={opt.id}
+                                                onClick={() => {
+                                                    let newVal: string[] = Array.isArray(currentVal) ? [...currentVal] : (currentVal ? [currentVal] : []);
+
+                                                    if (isSelected) {
+                                                        newVal = newVal.filter(v => v !== opt.id);
+                                                    } else {
+                                                        newVal.push(opt.id);
+                                                    }
+
+                                                    if (newVal.length === 0) {
+                                                        if (existingFilter) onRemoveFilter(existingFilter.id);
+                                                    } else {
+                                                        const label = newVal.length === 1
+                                                            ? `Type: ${opt.label}`
+                                                            : `Type: ${newVal.length} selected`;
+
+                                                        onAddFilter({
+                                                            type: 'trafficType',
+                                                            operator: 'contains',
+                                                            value: newVal,
+                                                            label
+                                                        });
+                                                    }
+                                                }}
+                                                className="px-3 py-2 flex items-center gap-3 cursor-pointer transition-colors rounded-lg text-text-primary text-sm hover:bg-[#2a2a2a] group"
+                                            >
+                                                <Checkbox checked={isSelected} onChange={() => { }} className="flex-shrink-0" />
+
+                                                <TypeIcon size={12} className={`${opt.color} flex-shrink-0`} />
+
+                                                <span className={`flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs transition-colors ${isSelected ? 'text-text-primary font-medium' : 'text-text-secondary group-hover:text-text-primary'}`}>
+                                                    {opt.label}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+
+                    default:
+                        // Numeric Filters (Impressions, Views, CTR, AVD)
+                        return (
+                            <div className="animate-fade-in">
+                                <FilterInputNumeric
+                                    initialOperator={existingFilter?.operator || 'gte'}
+                                    initialValue={isRange ? initialVal[0] : initialVal}
+                                    initialMaxValue={isRange ? initialVal[1] : undefined}
+                                    isDuration={activeView === 'avgViewDuration'}
+                                    // Independent Hide Zero Logic - Apply Based
+                                    initialIsHideZero={
+                                        activeView === 'views'
+                                            ? filters.some(f => f.type === 'hideZeroViews')
+                                            : activeView === 'impressions'
+                                                ? filters.some(f => f.type === 'hideZeroImpressions')
+                                                : undefined
+                                    }
+                                    showHideZeroOption={activeView === 'views' || activeView === 'impressions'}
+                                    metricLabel={activeView === 'views' ? 'Views' : activeView === 'impressions' ? 'Impressions' : undefined}
+                                    onApply={(op, val, max, isHideZero) => {
+                                        // 1. Handle Main Filter
+                                        if (!isNaN(val)) {
+                                            handleApplyFilter(activeView as TrafficFilterType, op, val, max);
+                                        } else {
+                                            // If value is clean (NaN), remove existing main filter if present
+                                            const mainFilter = filters.find(f => f.type === activeView);
+                                            if (mainFilter) {
+                                                onRemoveFilter(mainFilter.id);
+                                            }
+                                        }
+
+                                        // 2. Handle Independent Hide Zero Filter
+                                        if (activeView === 'views' || activeView === 'impressions') {
+                                            const hideType = activeView === 'views' ? 'hideZeroViews' : 'hideZeroImpressions';
+                                            const existingHideFilter = filters.find(f => f.type === hideType);
+
+                                            if (isHideZero && !existingHideFilter) {
+                                                onAddFilter({
+                                                    type: hideType as any,
+                                                    operator: 'gt',
+                                                    value: 0,
+                                                    label: activeView === 'views' ? 'Hide 0 Views' : 'Hide 0 Impr.'
+                                                });
+                                            } else if (!isHideZero && existingHideFilter) {
+                                                onRemoveFilter(existingHideFilter.id);
+                                            }
+                                        }
+
+                                        onClose();
+                                    }}
+                                    onRemove={existingFilter ? () => {
+                                        onRemoveFilter(existingFilter.id);
+                                        onClose();
+                                    } : undefined}
+                                />
+                            </div>
+                        );
+                }
+            })()}
         </div>
     );
 };
