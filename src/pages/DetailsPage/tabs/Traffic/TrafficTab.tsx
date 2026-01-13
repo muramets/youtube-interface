@@ -301,12 +301,15 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             return;
         }
 
+        let wasPatched = false;
+
         // OPTIMIZATION: Try to patch missing titles from cache (allVideos) before checking
         // This prevents the assistant modal from appearing if we already know the data
         const patchedSources = sources.map(s => {
             if (s.videoId && (!s.sourceTitle || s.sourceTitle.trim() === '')) {
                 const cachedVideo = allVideos.find(v => v.id === s.videoId);
                 if (cachedVideo) {
+                    wasPatched = true;
                     return {
                         ...s,
                         sourceTitle: cachedVideo.title || s.sourceTitle,
@@ -328,8 +331,18 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         }
 
         try {
-            // Upload the patched sources
-            const newSnapshotId = await handleCsvUpload(patchedSources, totalRow, file);
+            let finalFile = file;
+
+            // If we patched any data, we MUST regenerate the CSV file so that the
+            // patches are persisted in Storage (the source of truth)
+            if (wasPatched && file) {
+                const newCsvContent = generateTrafficCsv(patchedSources);
+                finalFile = new File([newCsvContent], file.name, { type: "text/csv" });
+                console.log('[TrafficTab] Regenerated CSV with patched titles from cache');
+            }
+
+            // Upload the patched sources and potentially regenerated file
+            const newSnapshotId = await handleCsvUpload(patchedSources, totalRow, finalFile);
             if (newSnapshotId && onSnapshotClick) {
                 onSnapshotClick(newSnapshotId);
             }
