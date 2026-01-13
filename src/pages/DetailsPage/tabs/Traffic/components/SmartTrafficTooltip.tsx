@@ -46,11 +46,13 @@ export const SmartTrafficTooltip: React.FC<SmartTrafficTooltipProps> = ({
         // NORMAL STATE: Growth Analysis
         const { previous = 0, current = 0, delta = 0 } = deltaContext;
 
-        // tableSum (computed Total) ALREADY includes trashValue because trash sources are rows in the table.
-        // So: Visible Table Growth = Top Videos Growth + Trash Growth
+        // tableSum = Visible Table Growth (Top Videos) - ALREADY excludes Trash (filtered out)
+        // trashValue = Trash Growth (passed explicitly)
         const trashChange = trashValue;
-        const nonTrashTableGrowth = Math.max(0, tableSum - trashChange);
-        const unaccountedGrowth = Math.max(0, delta - tableSum);
+        const nonTrashTableGrowth = tableSum;
+
+        // Unaccounted = Total Report Delta - (Visible Table Growth + Trash Growth)
+        const unaccountedGrowth = Math.max(0, delta - (nonTrashTableGrowth + trashChange));
 
         const isSignificantGrowth = delta > 0 && unaccountedGrowth > (delta * 0.1);
         isSignificantRef = isSignificantGrowth;
@@ -87,7 +89,7 @@ export const SmartTrafficTooltip: React.FC<SmartTrafficTooltipProps> = ({
                         {trashChange > 0 && (
                             <div className="flex justify-between text-white/60 text-[12px]">
                                 <span>Trash Traffic Variation:</span>
-                                <span className="font-mono">+{trashChange.toLocaleString()}</span>
+                                <span>+{trashChange.toLocaleString()}</span>
                             </div>
                         )}
                     </div>
@@ -111,10 +113,11 @@ export const SmartTrafficTooltip: React.FC<SmartTrafficTooltipProps> = ({
         // -------------------------------------------------------------------------
         // RENDER MODE 2: CUMULATIVE DISCREPANCY (All Time)
         // -------------------------------------------------------------------------
-        // tableSum ALREADY includes trashValue.
-        // actualTotal (Report Total) = tableSum + longTail
-        const nonTrashTable = Math.max(0, tableSum - trashValue);
-        const longTail = Math.max(0, actualTotal - tableSum);
+        // tableSum = Visible Top Videos (Trash is filtered out)
+        // actualTotal = Report Total
+        // Long Tail = Report Total - (Visible + Trash)
+        const nonTrashTable = tableSum;
+        const longTail = Math.max(0, actualTotal - (nonTrashTable + trashValue));
 
         const isSignificant = longTail > actualTotal * 0.05;
         isSignificantRef = isSignificant;
