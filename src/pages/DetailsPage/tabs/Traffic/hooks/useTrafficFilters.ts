@@ -130,10 +130,15 @@ export const useTrafficFilters = ({ contextKey }: UseTrafficFiltersProps) => {
                     return false;
                 }
 
-                if (filter.type === 'trafficType') {
-                    // We expect source to have 'trafficType' (and now 'trafficSource') injected
-                    const actualType = (source as any).trafficType || 'unknown';
-                    const actualSource = (source as any).trafficSource;
+                if (filter.type === 'trafficType' || filter.type === 'viewerType') {
+                    // Inject property check
+                    const actualType = filter.type === 'trafficType'
+                        ? (source as any).trafficType
+                        : (source as any).viewerType;
+
+                    const actualSource = filter.type === 'trafficType'
+                        ? (source as any).trafficSource
+                        : (source as any).viewerSource;
 
                     const selectedValues = Array.isArray(filter.value) ? filter.value : [filter.value];
 
@@ -147,7 +152,7 @@ export const useTrafficFilters = ({ contextKey }: UseTrafficFiltersProps) => {
                     }
 
                     // 2. Check Type Match
-                    if (selectedMainTypes.includes(actualType)) {
+                    if (selectedMainTypes.includes(actualType || 'unknown')) {
                         return true;
                     }
 

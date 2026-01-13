@@ -77,7 +77,6 @@ export const TrafficSidebarNicheList: React.FC<TrafficSidebarNicheListProps> = (
                             isActive={false}
                             onClick={() => {
                                 // TODO: Apply filter
-                                console.log('Click niche', niche.id);
                             }}
                             impressions={nicheStats.get(niche.id)}
                         />

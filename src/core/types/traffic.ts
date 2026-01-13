@@ -127,9 +127,9 @@ export type TrafficFilterType =
     | 'avgViewDuration'       // Filter by average view duration
     | 'hideZeroViews'         // Special: Hide sources with 0 views
     | 'hideZeroImpressions'   // Special: Hide sources with 0 impressions
-    | 'hideZeroImpressions'   // Special: Hide sources with 0 impressions
     | 'niche'                 // Filter by Niche assignment
-    | 'trafficType';          // Filter by Traffic Type (autoplay/user_click)
+    | 'trafficType'           // Filter by Traffic Type (autoplay/user_click)
+    | 'viewerType';            // Filter by Viewer Type (bouncer/core/etc.)
 
 /**
  * BUSINESS LOGIC: Traffic Filter Persistence

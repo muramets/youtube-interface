@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, X, Eye, Clock, BarChart3, Percent, Layers, Sparkles, MousePointerClick, HelpCircle, Wand2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Eye, Clock, BarChart3, Percent, Layers, Sparkles, MousePointerClick, HelpCircle, Wand2, Users, Zap, ZapOff, Compass, Target, Coffee } from 'lucide-react';
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { SegmentedControl } from '../../../../../components/ui/molecules/SegmentedControl';
 import { FilterInputNumeric } from '../../../../../components/Shared/FilterInputs/FilterInputNumeric';
@@ -40,6 +40,7 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
         { type: 'avgViewDuration', label: 'Average View Duration', icon: Clock },
         { type: 'niche', label: 'Niche', icon: Layers },
         { type: 'trafficType', label: 'Traffic Type', icon: Sparkles },
+        { type: 'viewerType', label: 'User Type', icon: Users },
     ];
 
     const getTitleForView = (view: TrafficFilterType) => {
@@ -213,6 +214,79 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                             />
                         ) : (
                             <div className="p-4 text-xs text-text-tertiary">Data not available</div>
+                        );
+
+                    case 'viewerType':
+                        return (
+                            <div className="flex flex-col h-full overflow-hidden">
+                                <div className="overflow-y-auto flex-1 p-1 custom-scrollbar">
+                                    {/**
+                                     * BUSINESS LOGIC: Viewer Type Classification
+                                     * Categories are based on Average View Duration as a percentage of Total Video Duration:
+                                     * - Bouncer: < 1%
+                                     * - Trialist: 1.1% – 10%
+                                     * - Explorer: 10.1% – 30%
+                                     * - Interested: 30.1% – 60%
+                                     * - Core: 60.1% – 95%
+                                     * - Passive: > 95%
+                                     */}
+                                    {[
+                                        { id: 'bouncer', label: 'Bouncer (< 1%)', icon: ZapOff, color: 'text-red-400' },
+                                        { id: 'trialist', label: 'Trialist (1.1% – 10%)', icon: Zap, color: 'text-orange-400' },
+                                        { id: 'explorer', label: 'Explorer (10.1% – 30%)', icon: Compass, color: 'text-amber-400' },
+                                        { id: 'interested', label: 'Interested (30.1% – 60%)', icon: Eye, color: 'text-blue-400' },
+                                        { id: 'core', label: 'Core Audience (60.1% – 95%)', icon: Target, color: 'text-emerald-400' },
+                                        { id: 'passive', label: 'Passive (> 95%)', icon: Coffee, color: 'text-purple-400' },
+                                        { id: 'smart_assistant', label: 'Set by Smart Assistant', icon: Wand2, color: 'text-blue-500' },
+                                        { id: 'unknown', label: 'Unset', icon: HelpCircle, color: 'text-text-tertiary' }
+                                    ].map(opt => {
+                                        const currentVal = existingFilter?.value;
+                                        const isSelected = Array.isArray(currentVal)
+                                            ? currentVal.includes(opt.id)
+                                            : currentVal === opt.id;
+                                        const TypeIcon = opt.icon;
+
+                                        return (
+                                            <div
+                                                key={opt.id}
+                                                onClick={() => {
+                                                    let newVal: string[] = Array.isArray(currentVal) ? [...currentVal] : (currentVal ? [currentVal] : []);
+
+                                                    if (isSelected) {
+                                                        newVal = newVal.filter(v => v !== opt.id);
+                                                    } else {
+                                                        newVal.push(opt.id);
+                                                    }
+
+                                                    if (newVal.length === 0) {
+                                                        if (existingFilter) onRemoveFilter(existingFilter.id);
+                                                    } else {
+                                                        const label = newVal.length === 1
+                                                            ? `Viewer: ${opt.label}`
+                                                            : `Viewer: ${newVal.length} selected`;
+
+                                                        onAddFilter({
+                                                            type: 'viewerType',
+                                                            operator: 'contains',
+                                                            value: newVal,
+                                                            label
+                                                        });
+                                                    }
+                                                }}
+                                                className="px-3 py-2 flex items-center gap-3 cursor-pointer transition-colors rounded-lg text-text-primary text-sm hover:bg-[#2a2a2a] group"
+                                            >
+                                                <Checkbox checked={isSelected} onChange={() => { }} className="flex-shrink-0" />
+
+                                                <TypeIcon size={12} className={`${opt.color} flex-shrink-0`} />
+
+                                                <span className={`flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs transition-colors ${isSelected ? 'text-text-primary font-medium' : 'text-text-secondary group-hover:text-text-primary'}`}>
+                                                    {opt.label}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         );
 
                     case 'trafficType':

@@ -17,8 +17,9 @@ import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 
 
 import type { TrafficType } from '../../../../../core/types/videoTrafficType';
+import type { ViewerType } from '../../../../../core/types/viewerType';
 
-export type SortKey = keyof TrafficSource;
+export type SortKey = keyof TrafficSource | 'trafficType' | 'viewerType';
 export interface SortConfig {
     key: SortKey;
     direction: 'asc' | 'desc';
@@ -73,6 +74,10 @@ interface TrafficTableProps {
     trafficEdges?: Record<string, { type: TrafficType; source?: 'manual' | 'smart_assistant' }>;
     onToggleTrafficType?: (videoId: string, currentType?: TrafficType) => void;
 
+    // Viewer Types
+    viewerEdges?: Record<string, { type: ViewerType; source?: 'manual' | 'smart_assistant' }>;
+    onToggleViewerType?: (videoId: string, currentType?: ViewerType) => void;
+
     // Discrepancy reporting
     actualTotalRow?: TrafficSource;
     trashMetrics?: import('../hooks/useTrafficDataLoader').TrashMetrics;
@@ -103,7 +108,9 @@ export const TrafficTable = memo<TrafficTableProps>(({
     trashMetrics,
     deltaContext,
     trafficEdges,
-    onToggleTrafficType
+    onToggleTrafficType,
+    viewerEdges,
+    onToggleViewerType
 }) => {
     // Virtualization refs
     const parentRef = useRef<HTMLDivElement>(null);
@@ -141,8 +148,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
         if (!sortConfig) return data;
 
         return [...data].sort((a, b) => {
-            const aVal = a[sortConfig.key];
-            const bVal = b[sortConfig.key];
+            const aVal = (a as any)[sortConfig.key];
+            const bVal = (b as any)[sortConfig.key];
 
             let comparison = 0;
             if (sortConfig.key === 'avgViewDuration') {
@@ -151,6 +158,13 @@ export const TrafficTable = memo<TrafficTableProps>(({
                 comparison = aVal - bVal;
             } else if (typeof aVal === 'string' && typeof bVal === 'string') {
                 comparison = aVal.localeCompare(bVal);
+            } else if (aVal && bVal) {
+                // For synthetic types like viewerType/trafficType which might be strings
+                comparison = String(aVal).localeCompare(String(bVal));
+            } else if (aVal) {
+                comparison = 1;
+            } else if (bVal) {
+                comparison = -1;
             }
 
             return sortConfig.direction === 'asc' ? comparison : -comparison;
@@ -202,8 +216,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
     }, [data, niches, assignments]);
 
     const gridClassName = showPropertyColumn
-        ? "grid-cols-[40px_24px_1fr_40px_80px_70px_70px_80px]"
-        : "grid-cols-[40px_1fr_40px_80px_70px_70px_80px]";
+        ? "grid-cols-[40px_24px_1fr_22px_22px_70px_60px_70px_80px]"
+        : "grid-cols-[40px_1fr_22px_22px_70px_60px_70px_80px]";
 
     const computedTotal = useMemo(() => {
         if (data.length === 0) return null;
@@ -283,8 +297,10 @@ export const TrafficTable = memo<TrafficTableProps>(({
                 </div>
                 {showPropertyColumn && <div></div>} {/* Property Icon Column */}
                 <div>Traffic Source</div>
-                {/* Traffic Type Header (Empty/Placeholder) */}
-                <div></div>
+                {/* Traffic Type Header */}
+                {renderHeaderCell('', 'trafficType', 'left')}
+                {/* Viewer Type Header */}
+                {renderHeaderCell('', 'viewerType', 'left')}
                 {renderHeaderCell('Impr.', 'impressions')}
                 {renderHeaderCell('CTR', 'ctr')}
                 {renderHeaderCell('Views', 'views')}
@@ -340,6 +356,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                 {showPropertyColumn && <div />}
                                 <div>Total</div>
                                 {/* Traffic Type Total Cell (Empty) */}
+                                <div />
+                                {/* Viewer Type Total Cell (Empty) */}
                                 <div />
                                 <div className={`text-right flex items-center justify-end gap-1.5 ${sortConfig?.key === 'impressions' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
                                     {actualTotalRow && !hasActiveFilters && Number(actualTotalRow.impressions || 0) > (computedTotal.impressions + 1) && (
@@ -397,6 +415,9 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                 // Lookup Traffic Type
                                 const trafficEdge = item.videoId && trafficEdges ? trafficEdges[item.videoId] : undefined;
 
+                                // Lookup Viewer Type
+                                const viewerEdge = item.videoId && viewerEdges ? viewerEdges[item.videoId] : undefined;
+
                                 // Lookup Smart Suggestion
                                 const suggestion = item.videoId && getSuggestion ? getSuggestion(item.videoId) : null;
 
@@ -427,6 +448,9 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             trafficType={trafficEdge?.type}
                                             trafficSource={trafficEdge?.source}
                                             onToggleTrafficType={onToggleTrafficType}
+                                            viewerType={viewerEdge?.type}
+                                            viewerSource={viewerEdge?.source}
+                                            onToggleViewerType={onToggleViewerType}
                                             activeTooltipId={hoveredTooltipId}
                                             onTooltipEnter={handleTooltipEnter}
                                             onTooltipLeave={handleTooltipLeave}

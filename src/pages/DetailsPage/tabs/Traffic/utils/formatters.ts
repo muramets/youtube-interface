@@ -33,8 +33,33 @@ export const formatDuration = (duration: string): string => {
  * durationToSeconds("01:01:01") // 3661
  * durationToSeconds("3661") // 3661
  */
+/**
+ * Parses ISO 8601 duration (e.g., PT1H2M10S) to total seconds.
+ */
+export const parseISODuration = (duration: string): number => {
+    const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!match) return 0;
+
+    const hours = parseInt(match[1] || '0');
+    const minutes = parseInt(match[2] || '0');
+    const seconds = parseInt(match[3] || '0');
+
+    return hours * 3600 + minutes * 60 + seconds;
+};
+
+/**
+ * Конвертирует длительность в секунды для сортировки
+ * 
+ * @param duration - Длительность в формате HH:MM:SS, ISO 8601 или секундах
+ * @returns Количество секунд
+ */
 export const durationToSeconds = (duration: string): number => {
     if (!duration) return 0;
+
+    // ISO 8601 format (PT...)
+    if (duration.startsWith('PT')) {
+        return parseISODuration(duration);
+    }
 
     // Если уже в секундах
     if (!duration.includes(':')) return parseInt(duration) || 0;

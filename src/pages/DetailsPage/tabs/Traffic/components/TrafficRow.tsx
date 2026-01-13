@@ -1,7 +1,11 @@
 import React, { useRef } from 'react';
-import { ExternalLink, ThumbsDown, Trophy, Heart, GitBranch, Info, Sparkles, MousePointerClick, HelpCircle, Wand2 } from 'lucide-react';
+import {
+    ExternalLink, ThumbsDown, Trophy, Heart, GitBranch, Info, Sparkles,
+    MousePointerClick, HelpCircle, Wand2, ZapOff, Zap, Compass, Eye, Target, Coffee, User
+} from 'lucide-react';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import type { TrafficType } from '../../../../../core/types/videoTrafficType';
+import type { ViewerType } from '../../../../../core/types/viewerType';
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { PortalTooltip } from '../../../../../components/Shared/PortalTooltip';
 import { VideoPreviewTooltip } from '../../../../../components/Shared/VideoPreviewTooltip';
@@ -31,6 +35,10 @@ interface TrafficRowProps {
     trafficType?: TrafficType;
     trafficSource?: 'manual' | 'smart_assistant';
     onToggleTrafficType?: (videoId: string, currentType?: TrafficType) => void;
+    // Viewer Type Props
+    viewerType?: ViewerType;
+    viewerSource?: 'manual' | 'smart_assistant';
+    onToggleViewerType?: (videoId: string, currentType?: ViewerType) => void;
     // Tooltip Control
     activeTooltipId?: string | null;
     onTooltipEnter?: (id: string) => void;
@@ -74,6 +82,9 @@ export const TrafficRow = ({
     trafficType,
     trafficSource,
     onToggleTrafficType,
+    viewerType,
+    viewerSource,
+    onToggleViewerType,
     activeTooltipId,
     onTooltipEnter,
     onTooltipLeave
@@ -89,7 +100,7 @@ export const TrafficRow = ({
     const isThisVideoMinimized = isMinimized && activeVideoId === item.videoId;
 
     // Traffic Type Icon Logic
-    const { icon: TypeIcon, label: typeLabel, color: typeColor, activeClass } = React.useMemo(() => {
+    const { icon: TypeIcon, label: typeLabel, color: typeColor, activeClass: typeActiveClass } = React.useMemo(() => {
         if (trafficType === 'autoplay') {
             return {
                 icon: Sparkles,
@@ -114,11 +125,43 @@ export const TrafficRow = ({
         };
     }, [trafficType]);
 
+    // Viewer Type Icon Logic
+    const { icon: ViewerIcon, label: viewerLabel, color: viewerColor, activeClass: viewerActiveClass } = React.useMemo(() => {
+        switch (viewerType) {
+            case 'bouncer':
+                return { icon: ZapOff, label: 'Bouncer: < 1% Watch Duration', color: 'text-red-400', activeClass: 'opacity-100' };
+            case 'trialist':
+                return { icon: Zap, label: 'Trialist: 1.1% – 10% Watch Duration', color: 'text-orange-400', activeClass: 'opacity-100' };
+            case 'explorer':
+                return { icon: Compass, label: 'Explorer: 10.1% – 30% Watch Duration', color: 'text-amber-400', activeClass: 'opacity-100' };
+            case 'interested':
+                return { icon: Eye, label: 'Interested: 30.1% – 60% Watch Duration', color: 'text-blue-400', activeClass: 'opacity-100' };
+            case 'core':
+                return { icon: Target, label: 'Core Audience: 60.1% – 95% Watch Duration', color: 'text-emerald-400', activeClass: 'opacity-100' };
+            case 'passive':
+                return { icon: Coffee, label: 'Passive: > 95% Watch Duration', color: 'text-purple-400', activeClass: 'opacity-100' };
+            default:
+                return {
+                    icon: User,
+                    label: 'Set Viewer Type',
+                    color: 'text-white/20',
+                    activeClass: 'opacity-0 group-hover:opacity-100'
+                };
+        }
+    }, [viewerType]);
+
     // Handle Type Click
     const handleTypeClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (!item.videoId || !onToggleTrafficType) return;
         onToggleTrafficType(item.videoId, trafficType);
+    };
+
+    // Handle Viewer Click
+    const handleViewerClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!item.videoId || !onToggleViewerType) return;
+        onToggleViewerType(item.videoId, viewerType);
     };
 
     // Derived state: find niches assigned to this video
@@ -305,12 +348,42 @@ export const TrafficRow = ({
                             className={`
                                 p-1.5 rounded-full transition-transform duration-200
                                 hover:bg-white/10 active:scale-95
-                                ${typeColor} ${activeClass}
+                                ${typeColor} ${typeActiveClass}
                             `}
                         >
                             <div className="relative">
                                 <TypeIcon size={14} className={trafficType === 'autoplay' ? 'animate-pulse' : ''} />
                                 {trafficSource === 'smart_assistant' && (
+                                    <div className="absolute -bottom-1 -right-1">
+                                        <Wand2 className="w-2.5 h-2.5 text-blue-500 fill-blue-500 drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]" />
+                                    </div>
+                                )}
+                            </div>
+                        </button>
+                    </PortalTooltip>
+                </div>
+            )}
+
+            {/* Viewer Type Indicator */}
+            {onToggleViewerType && (
+                <div className="flex items-center justify-center">
+                    <PortalTooltip
+                        content={viewerLabel}
+                        enterDelay={300}
+                        side="top"
+                        className="!px-2.5 !py-1 !border-none !shadow-xl !bg-[#1F1F1F]"
+                    >
+                        <button
+                            onClick={handleViewerClick}
+                            className={`
+                                p-1.5 rounded-full transition-transform duration-200
+                                hover:bg-white/10 active:scale-95
+                                ${viewerColor} ${viewerActiveClass}
+                            `}
+                        >
+                            <div className="relative">
+                                <ViewerIcon size={14} />
+                                {viewerSource === 'smart_assistant' && (
                                     <div className="absolute -bottom-1 -right-1">
                                         <Wand2 className="w-2.5 h-2.5 text-blue-500 fill-blue-500 drop-shadow-[0_0_2px_rgba(0,0,0,0.8)]" />
                                     </div>

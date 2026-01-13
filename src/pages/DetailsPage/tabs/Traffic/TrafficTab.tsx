@@ -27,6 +27,8 @@ import { useSmartNicheSuggestions } from './hooks/useSmartNicheSuggestions';
 import { assistantLogger } from '../../../../core/utils/logger';
 import { useTrafficTypeStore } from '../../../../core/stores/useTrafficTypeStore';
 import { useSmartTrafficAutoApply } from './hooks/useSmartTrafficAutoApply';
+import { useViewerTypeStore } from '../../../../core/stores/useViewerTypeStore';
+import { useSmartViewerTypeAutoApply } from './hooks/useSmartViewerTypeAutoApply';
 
 import type { TrafficSource } from '../../../../core/types/traffic';
 
@@ -230,12 +232,21 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         deleteTrafficType
     } = useTrafficTypeStore();
 
+    // Viewer Type Store
+    const {
+        edges: viewerEdges,
+        initialize: initViewerTypes,
+        setViewerType: updateViewerType,
+        deleteViewerType: deleteViewerTypeRecord
+    } = useViewerTypeStore();
+
     // Initialize store when video changes
     useEffect(() => {
         if (_video.id) {
             initTrafficTypes(_video.id);
+            initViewerTypes(_video.id);
         }
-    }, [_video.id, initTrafficTypes]);
+    }, [_video.id, initTrafficTypes, initViewerTypes]);
 
     // Filters are now managed by parent (DetailsLayout)
     const filteredSources = useMemo(() => {
@@ -251,7 +262,9 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         const enrichedSources = displayedSources.map(s => ({
             ...s,
             trafficType: s.videoId ? trafficEdges[s.videoId]?.type : undefined,
-            trafficSource: s.videoId ? trafficEdges[s.videoId]?.source : undefined
+            trafficSource: s.videoId ? trafficEdges[s.videoId]?.source : undefined,
+            viewerType: s.videoId ? viewerEdges[s.videoId]?.type : undefined,
+            viewerSource: s.videoId ? viewerEdges[s.videoId]?.source : undefined
         }));
 
         let sources = applyFilters(enrichedSources, groups);
@@ -277,7 +290,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         }
 
         return sources;
-    }, [displayedSources, applyFilters, groups, allNiches, allAssignments, viewMode, isFirstSnapshot, filters, trafficEdges]);
+    }, [displayedSources, applyFilters, groups, allNiches, allAssignments, viewMode, isFirstSnapshot, filters, trafficEdges, viewerEdges]);
 
     // Handle Traffic Type Toggle
     const handleToggleTrafficType = useCallback((videoId: string, currentType?: import('../../../../core/types/videoTrafficType').TrafficType) => {
@@ -292,6 +305,23 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             deleteTrafficType(videoId);
         }
     }, [toggleTrafficType, deleteTrafficType]);
+
+    // Handle Viewer Type Toggle
+    const handleToggleViewerType = useCallback((videoId: string, currentType?: import('../../../../core/types/viewerType').ViewerType) => {
+        // Cycle: bouncer -> trialist -> explorer -> interested -> core -> passive -> unset
+        const types: import('../../../../core/types/viewerType').ViewerType[] = ['bouncer', 'trialist', 'explorer', 'interested', 'core', 'passive'];
+
+        if (!currentType) {
+            updateViewerType(videoId, types[0], 'manual');
+        } else {
+            const index = types.indexOf(currentType);
+            if (index === types.length - 1) {
+                deleteViewerTypeRecord(videoId);
+            } else {
+                updateViewerType(videoId, types[index + 1], 'manual');
+            }
+        }
+    }, [updateViewerType, deleteViewerTypeRecord]);
 
     // OPTIMIZATION: Memoize array props to prevent TrafficTable re-renders.
     // Without memoization, `|| []` creates a new array reference each render.
@@ -330,6 +360,9 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
     // Auto-Apply Logic: Automatically tag videos as "Autoplay" if 0 Imp / >0 Views
     useSmartTrafficAutoApply(isAssistantEnabled, filteredSources);
+
+    // Auto-Apply Viewer Types Logic
+    useSmartViewerTypeAutoApply(isAssistantEnabled, filteredSources, _video);
 
     // Connect to the Store to get assignment history - ALREADY DESTRUCTURED ABOVE
 
@@ -425,7 +458,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             if (wasPatched && file) {
                 const newCsvContent = generateTrafficCsv(patchedSources, totalRow);
                 finalFile = new File([newCsvContent], file.name, { type: "text/csv" });
-                console.log('[TrafficTab] Regenerated CSV with patched titles from cache');
+                assistantLogger.info('Regenerated CSV with patched titles from cache');
             }
 
             // Upload the patched sources and potentially regenerated file
@@ -724,6 +757,9 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                                     // Traffic Type Props
                                     trafficEdges={trafficEdges}
                                     onToggleTrafficType={handleToggleTrafficType}
+                                    // Viewer Type Props
+                                    viewerEdges={viewerEdges}
+                                    onToggleViewerType={handleToggleViewerType}
                                 />
 
                                 {/* Floating Action Bar - Positioned absolutely relative to parent container */}
