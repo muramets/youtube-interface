@@ -1,6 +1,6 @@
 import React, { useState, useLayoutEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Pencil, Trash2, ThumbsDown, Trophy, Heart, Tag, ChevronLeft, GitBranch } from 'lucide-react';
+import { Pencil, Trash2, Tag, ChevronLeft, CircleOff, Target, Flag, Layers } from 'lucide-react';
 import type { SuggestedTrafficNiche, TrafficNicheProperty } from '@/core/types/suggestedTrafficNiches';
 
 interface TrafficNicheContextMenuProps {
@@ -110,7 +110,7 @@ export const TrafficNicheContextMenu: React.FC<TrafficNicheContextMenuProps> = (
                 onClick={() => { onUpdateProperty('unrelated'); onClose(); }}
                 className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2 rounded-md group"
             >
-                <ThumbsDown size={12} className={`transition-colors ${niche.property === 'unrelated' ? 'text-stone-400' : 'text-text-secondary group-hover:text-stone-400'}`} />
+                <CircleOff size={12} className={`transition-colors ${niche.property === 'unrelated' ? 'text-red-400' : 'text-text-secondary group-hover:text-red-400'}`} />
                 <span className={niche.property === 'unrelated' ? 'text-white font-medium' : ''}>Unrelated</span>
             </button>
 
@@ -119,7 +119,7 @@ export const TrafficNicheContextMenu: React.FC<TrafficNicheContextMenuProps> = (
                 onClick={() => { onUpdateProperty('adjacent'); onClose(); }}
                 className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2 rounded-md group"
             >
-                <GitBranch size={12} className={`transition-colors ${niche.property === 'adjacent' ? 'text-purple-400' : 'text-text-secondary group-hover:text-purple-400'}`} />
+                <Layers size={12} className={`transition-colors ${niche.property === 'adjacent' ? 'text-blue-400' : 'text-text-secondary group-hover:text-blue-400'}`} />
                 <span className={niche.property === 'adjacent' ? 'text-white font-medium' : ''}>Adjacent</span>
             </button>
 
@@ -128,7 +128,7 @@ export const TrafficNicheContextMenu: React.FC<TrafficNicheContextMenuProps> = (
                 onClick={() => { onUpdateProperty('targeted'); onClose(); }}
                 className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2 rounded-md group"
             >
-                <Trophy size={12} className={`transition-all ${niche.property === 'targeted' ? 'text-yellow-400 drop-shadow-[0_0_3px_rgba(250,204,21,0.5)]' : 'text-text-secondary group-hover:text-yellow-400 group-hover:drop-shadow-[0_0_3px_rgba(250,204,21,0.5)]'}`} />
+                <Target size={12} className={`transition-all ${niche.property === 'targeted' ? 'text-yellow-400' : 'text-text-secondary group-hover:text-yellow-400'}`} />
                 <span className={niche.property === 'targeted' ? 'text-white font-medium' : ''}>Targeted</span>
             </button>
 
@@ -137,7 +137,7 @@ export const TrafficNicheContextMenu: React.FC<TrafficNicheContextMenuProps> = (
                 onClick={() => { onUpdateProperty('desired'); onClose(); }}
                 className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2 rounded-md group"
             >
-                <Heart size={12} className={`transition-colors ${niche.property === 'desired' ? 'text-pink-500' : 'text-text-secondary group-hover:text-pink-500'}`} />
+                <Flag size={12} className={`transition-colors ${niche.property === 'desired' ? 'text-emerald-400' : 'text-text-secondary group-hover:text-emerald-400'}`} />
                 <span className={niche.property === 'desired' ? 'text-white font-medium' : ''}>Desired</span>
             </button>
 

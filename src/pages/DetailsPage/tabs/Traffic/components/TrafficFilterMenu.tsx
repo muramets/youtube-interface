@@ -226,8 +226,8 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                                 <div className="overflow-y-auto flex-1 p-1 custom-scrollbar">
                                     {[
                                         { id: 'desired', label: 'Desired', icon: Flag, color: 'text-emerald-400', hover: 'group-hover:text-emerald-400' },
-                                        { id: 'targeted', label: 'Targeted', icon: Target, color: 'text-blue-400', hover: 'group-hover:text-blue-400' },
-                                        { id: 'adjacent', label: 'Adjacent', icon: Layers, color: 'text-yellow-400', hover: 'group-hover:text-yellow-400' },
+                                        { id: 'targeted', label: 'Targeted', icon: Target, color: 'text-yellow-400', hover: 'group-hover:text-yellow-400' },
+                                        { id: 'adjacent', label: 'Adjacent', icon: Layers, color: 'text-blue-400', hover: 'group-hover:text-blue-400' },
                                         { id: 'unrelated', label: 'Unrelated', icon: CircleOff, color: 'text-red-400', hover: 'group-hover:text-red-400' }
                                     ].map(option => {
                                         const isSelected = selectedNicheProperties.includes(option.id);

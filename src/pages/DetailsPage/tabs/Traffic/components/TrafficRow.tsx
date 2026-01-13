@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import {
-    ExternalLink, ThumbsDown, Trophy, Heart, GitBranch, Info, Sparkles,
-    MousePointerClick, HelpCircle, Wand2, ZapOff, Zap, Compass, Eye, Target, Coffee, User
+    ExternalLink, Info, Sparkles, Flag, CircleOff, Layers, Target,
+    MousePointerClick, HelpCircle, Wand2, ZapOff, Zap, Compass, Eye, Coffee, User
 } from 'lucide-react';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import type { TrafficType } from '../../../../../core/types/videoTrafficType';
@@ -179,10 +179,10 @@ export const TrafficRow = ({
 
         const hasProperty = (p: string) => assignedNiches.some(n => n.property === p);
 
-        if (hasProperty('desired')) return { icon: <Heart size={12} className="text-pink-500" />, label: 'Desired' };
-        if (hasProperty('targeted')) return { icon: <Trophy size={12} className="text-yellow-400 drop-shadow-[0_0_3px_rgba(250,204,21,0.5)]" />, label: 'Targeted' };
-        if (hasProperty('adjacent')) return { icon: <GitBranch size={12} className="text-purple-400" />, label: 'Adjacent' };
-        if (hasProperty('unrelated')) return { icon: <ThumbsDown size={12} className="text-stone-400" />, label: 'Unrelated' };
+        if (hasProperty('desired')) return { icon: <Flag size={12} className="text-emerald-400" />, label: 'Desired' };
+        if (hasProperty('targeted')) return { icon: <Target size={12} className="text-yellow-400" />, label: 'Targeted' };
+        if (hasProperty('adjacent')) return { icon: <Layers size={12} className="text-blue-400" />, label: 'Adjacent' };
+        if (hasProperty('unrelated')) return { icon: <CircleOff size={12} className="text-red-400" />, label: 'Unrelated' };
 
         return { icon: null, label: '' };
     }, [assignedNiches]);

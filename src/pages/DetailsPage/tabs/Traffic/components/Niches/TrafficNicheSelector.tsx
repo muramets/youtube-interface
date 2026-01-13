@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, ThumbsDown, Trophy, Heart, FolderPlus, ChevronDown, GitBranch, Check, MoreVertical, Trash2 } from 'lucide-react';
+import { Plus, CircleOff, Target, Flag, FolderPlus, ChevronDown, Layers, Check, MoreVertical, Trash2 } from 'lucide-react';
 import { useTrafficNicheStore } from '@/core/stores/useTrafficNicheStore';
 import { useAuth } from '@/core/hooks/useAuth';
 import { useChannelStore } from '@/core/stores/channelStore';
@@ -386,10 +386,10 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                             // Helper for property icon
                             const getPropertyIcon = (prop?: TrafficNicheProperty) => {
                                 switch (prop) {
-                                    case 'unrelated': return <ThumbsDown size={12} className="text-stone-400" />;
-                                    case 'adjacent': return <GitBranch size={12} className="text-purple-400" />;
-                                    case 'targeted': return <Trophy size={12} className="text-yellow-400" />;
-                                    case 'desired': return <Heart size={12} className="text-pink-500" />;
+                                    case 'unrelated': return <CircleOff size={12} className="text-red-400" />;
+                                    case 'adjacent': return <Layers size={12} className="text-blue-400" />;
+                                    case 'targeted': return <Target size={12} className="text-yellow-400" />;
+                                    case 'desired': return <Flag size={12} className="text-emerald-400" />;
                                     default: return null;
                                 }
                             };
@@ -548,10 +548,10 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                                             className={`
                                                 absolute top-0.5 bottom-0.5 rounded-full transition-all duration-300 ease-out shadow-sm
                                                 ${!selectedProperty ? 'opacity-0 scale-90' : 'opacity-100 scale-100'}
-                                                ${selectedProperty === 'unrelated' ? 'bg-gradient-to-r from-stone-600 to-stone-700 w-[24px]' : ''}
-                                                ${selectedProperty === 'adjacent' ? 'bg-gradient-to-r from-purple-500 to-purple-600 shadow-[0_0_10px_rgba(168,85,247,0.4)] w-[24px]' : ''}
-                                                ${selectedProperty === 'targeted' ? 'bg-gradient-to-r from-yellow-300 to-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.4)] w-[24px]' : ''}
-                                                ${selectedProperty === 'desired' ? 'bg-gradient-to-r from-pink-500 to-pink-600 shadow-[0_0_10px_rgba(236,72,153,0.4)] w-[24px]' : ''}
+                                                ${selectedProperty === 'unrelated' ? 'bg-gradient-to-r from-red-500 to-red-600 w-[24px]' : ''}
+                                                ${selectedProperty === 'adjacent' ? 'bg-gradient-to-r from-blue-400 to-blue-500 w-[24px]' : ''}
+                                                ${selectedProperty === 'targeted' ? 'bg-gradient-to-r from-yellow-300 to-yellow-500 w-[24px]' : ''}
+                                                ${selectedProperty === 'desired' ? 'bg-gradient-to-r from-emerald-400 to-emerald-500 w-[24px]' : ''}
                                             `}
                                             style={{
                                                 left: selectedProperty === 'unrelated' ? '2px' :
@@ -571,17 +571,17 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                                                 `}
                                                 title="Unrelated"
                                             >
-                                                <ThumbsDown size={10} className={selectedProperty === 'unrelated' ? 'scale-110' : ''} />
+                                                <CircleOff size={10} className={selectedProperty === 'unrelated' ? 'scale-110' : ''} />
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setSelectedProperty('adjacent')}
                                                 className={`w-6 h-5 flex items-center justify-center rounded-full transition-all duration-200 
-                                                    ${selectedProperty === 'adjacent' ? 'text-white' : 'text-white/40 hover:text-purple-400 hover:bg-white/5'}
+                                                    ${selectedProperty === 'adjacent' ? 'text-white' : 'text-white/40 hover:text-blue-400 hover:bg-white/5'}
                                                 `}
                                                 title="Adjacent"
                                             >
-                                                <GitBranch size={10} className={selectedProperty === 'adjacent' ? 'scale-110' : ''} />
+                                                <Layers size={10} className={selectedProperty === 'adjacent' ? 'scale-110' : ''} />
                                             </button>
                                             <button
                                                 type="button"
@@ -591,17 +591,17 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                                                 `}
                                                 title="Targeted"
                                             >
-                                                <Trophy size={10} className={selectedProperty === 'targeted' ? 'scale-110' : ''} />
+                                                <Target size={10} className={selectedProperty === 'targeted' ? 'scale-110' : ''} />
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setSelectedProperty('desired')}
                                                 className={`w-6 h-5 flex items-center justify-center rounded-full transition-all duration-200 
-                                                    ${selectedProperty === 'desired' ? 'text-white' : 'text-white/40 hover:text-pink-500 hover:bg-white/5'}
+                                                    ${selectedProperty === 'desired' ? 'text-white' : 'text-white/40 hover:text-emerald-400 hover:bg-white/5'}
                                                 `}
                                                 title="Desired"
                                             >
-                                                <Heart size={10} className={selectedProperty === 'desired' ? 'scale-110' : ''} />
+                                                <Flag size={10} className={selectedProperty === 'desired' ? 'scale-110' : ''} />
                                             </button>
                                         </div>
                                     </div>
