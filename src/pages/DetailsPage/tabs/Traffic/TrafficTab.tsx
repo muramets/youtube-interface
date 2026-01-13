@@ -59,6 +59,8 @@ interface TrafficTabProps {
     // Sorting (Lifted)
     sortConfig: SortConfig | null;
     onSort: (key: SortKey) => void;
+    actualTotalRow?: TrafficSource;
+    trashMetrics?: import('./hooks/useTrafficDataLoader').TrashMetrics;
 }
 
 export const TrafficTab: React.FC<TrafficTabProps> = ({
@@ -87,7 +89,9 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
     applyFilters,
     sortConfig,
-    onSort
+    onSort,
+    actualTotalRow,
+    trashMetrics
 }) => {
     // Scroll detection for sticky header
     const sentinelRef = useRef<HTMLDivElement>(null);
@@ -605,6 +609,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                                     onSort={onSort}
                                     getSuggestion={getActiveSuggestion}
                                     onConfirmSuggestion={handleConfirmSuggestion}
+                                    actualTotalRow={actualTotalRow}
+                                    trashMetrics={trashMetrics}
                                 />
 
                                 {/* Floating Action Bar - Positioned absolutely relative to parent container */}

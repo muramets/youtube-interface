@@ -284,7 +284,6 @@ export const TrafficSnapshotService = {
         if (snapshotIndex === -1) return currentData;
 
         const snapshot = currentData.snapshots[snapshotIndex];
-        const isLatest = snapshotIndex === currentData.snapshots.length - 1;
 
         // 3. Удаляем CSV из Cloud Storage (если существует)
         if (snapshot.storagePath) {
@@ -305,59 +304,43 @@ export const TrafficSnapshotService = {
 
         let updated: TrafficData;
 
-        // 5. Revert Current State if we deleted the LATEST snapshot
-        if (isLatest) {
-            const newLatestSnapshot = updatedSnapshots[updatedSnapshots.length - 1];
+        // 5. Always Revert Current State to the "New" Latest
+        const newLatestSnapshot = updatedSnapshots[updatedSnapshots.length - 1];
 
-            if (newLatestSnapshot) {
-                // Откатываемся к данным предыдущего снапшота
-                let prevSources: TrafficSource[] = [];
-                let prevTotalRow: TrafficSource | undefined;
+        if (newLatestSnapshot) {
+            // Откатываемся к данным предыдущего (теперь последнего) снапшота
+            let prevSources: TrafficSource[] = [];
+            let prevTotalRow: TrafficSource | undefined;
 
-                try {
-                    // CRITICAL FIX: Pass updatedSnapshots (which doesn't contain the deleted one)
-                    // so getVersionSources doesn't pick it back up if it has the same version.
-                    const result = await this.getVersionSources(newLatestSnapshot.version, updatedSnapshots);
-                    prevSources = result.sources;
-                    prevTotalRow = result.totalRow;
-                } catch (err) {
-                    snapshotLogger.warn('Failed to restore previous snapshot data during deletion (likely missing CSV)', {
-                        component: 'TrafficSnapshotService',
-                        snapshotId: newLatestSnapshot.id,
-                        error: err
-                    });
-                }
-
-                updated = {
-                    ...currentData,
-                    lastUpdated: newLatestSnapshot.timestamp,
-                    sources: prevSources,
-                    totalRow: prevTotalRow,
-                    snapshots: updatedSnapshots
-                };
-            } else {
-                // Нет предыдущего снапшота -> Сбрасываем в пустое состояние
-                updated = {
-                    ...currentData,
-                    lastUpdated: Date.now(),
-                    sources: [],
-                    totalRow: undefined,
-                    snapshots: []
-                };
+            try {
+                // Pass updatedSnapshots so getVersionSources doesn't pick up the deleted one
+                const result = await this.getVersionSources(newLatestSnapshot.version, updatedSnapshots);
+                prevSources = result.sources;
+                prevTotalRow = result.totalRow;
+            } catch (err) {
+                snapshotLogger.warn('Failed to restore previous snapshot data during deletion', {
+                    component: 'TrafficSnapshotService',
+                    snapshotId: newLatestSnapshot.id,
+                    error: err
+                });
             }
-        } else {
-            // Deleted a historical snapshot from the middle - NO CHANGE to current active data (sources)
-            // Just remove it from the snapshots array.
+
             updated = {
                 ...currentData,
+                lastUpdated: newLatestSnapshot.timestamp,
+                sources: prevSources,
+                totalRow: prevTotalRow,
                 snapshots: updatedSnapshots
             };
-
-            snapshotLogger.info('Deleted historical snapshot (middle)', {
-                component: 'TrafficSnapshotService',
-                snapshotId,
-                remainingCount: updatedSnapshots.length
-            });
+        } else {
+            // Нет снапшотов -> Сбрасываем в пустое состояние
+            updated = {
+                ...currentData,
+                lastUpdated: Date.now(),
+                sources: [],
+                totalRow: undefined,
+                snapshots: []
+            };
         }
 
         await TrafficDataService.save(userId, channelId, videoId, updated);

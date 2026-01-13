@@ -125,7 +125,8 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
         activeVersion: typeof versions.activeVersion === 'number' ? versions.activeVersion : 0,
         viewMode: trafficViewMode,
         selectedSnapshot,
-        packagingHistory: memoizedPackagingHistory
+        packagingHistory: memoizedPackagingHistory,
+        groups: groups
     });
 
     // Version management handlers
@@ -369,6 +370,8 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                         isLoadingSnapshot={trafficLoader.isLoadingSnapshot}
                         error={trafficLoader.error}
                         retry={trafficLoader.retry}
+                        actualTotalRow={trafficLoader.actualTotalRow}
+                        trashMetrics={trafficLoader.trashMetrics}
                         groups={groups}
                         // Filter props
                         filters={filters}

@@ -11,10 +11,12 @@ export const TrafficDeltaService = {
      */
     calculateSourcesDelta(
         currentSources: TrafficSource[],
-        prevSources: TrafficSource[]
-    ): TrafficSource[] {
+        prevSources: TrafficSource[],
+        currentTotal?: TrafficSource,
+        prevTotal?: TrafficSource
+    ): { sources: TrafficSource[], totalRow?: TrafficSource } {
         if (prevSources.length === 0) {
-            return currentSources;
+            return { sources: currentSources, totalRow: currentTotal };
         }
 
         // Создаем Map предыдущих данных для быстрого поиска
@@ -29,8 +31,8 @@ export const TrafficDeltaService = {
             }
         });
 
-        // Вычисляем дельту для каждого источника
-        return currentSources
+        // Calculate sources delta
+        const sources = currentSources
             .map(source => {
                 if (!source.videoId) return source;
 
@@ -39,7 +41,7 @@ export const TrafficDeltaService = {
                 const impressionsDelta = Math.max(0, (source.impressions || 0) - prev.impressions);
                 const watchTimeDelta = Math.max(0, (source.watchTimeHours || 0) - prev.watchTime);
 
-                // Пересчитываем CTR на основе дельты
+                // Recalculate CTR based on delta
                 const ctrDelta = impressionsDelta > 0 ? (viewsDelta / impressionsDelta) * 100 : 0;
 
                 return {
@@ -51,6 +53,26 @@ export const TrafficDeltaService = {
                 };
             })
             .filter(source => !source.videoId || source.views > 0 || (source.impressions || 0) > 0);
+
+        // Calculate totalRow delta if both exist
+        let totalRow: TrafficSource | undefined = currentTotal;
+        if (currentTotal && prevTotal) {
+            const viewsDelta = Math.max(0, currentTotal.views - prevTotal.views);
+            const impressionsDelta = Math.max(0, (currentTotal.impressions || 0) - (prevTotal.impressions || 0));
+            // For Total Row, watchTimeHours might need careful handling if it's missing in one
+            const watchTimeDelta = Math.max(0, (currentTotal.watchTimeHours || 0) - (prevTotal.watchTimeHours || 0));
+            const ctrDelta = impressionsDelta > 0 ? (viewsDelta / impressionsDelta) * 100 : 0;
+
+            totalRow = {
+                ...currentTotal,
+                views: viewsDelta,
+                impressions: impressionsDelta,
+                watchTimeHours: watchTimeDelta,
+                ctr: parseFloat(ctrDelta.toFixed(2))
+            };
+        }
+
+        return { sources, totalRow };
     },
 
     /**
@@ -67,10 +89,11 @@ export const TrafficDeltaService = {
      */
     async calculateVersionDelta(
         currentSources: TrafficSource[],
+        currentTotal: TrafficSource | undefined,
         version: number,
         snapshots: TrafficSnapshot[],
         closingSnapshotId?: string | null
-    ): Promise<TrafficSource[]> {
+    ): Promise<{ sources: TrafficSource[], totalRow?: TrafficSource }> {
         console.log('[TrafficDeltaService] calculateVersionDelta called:', {
             version,
             currentSourcesCount: currentSources.length,
@@ -80,6 +103,7 @@ export const TrafficDeltaService = {
         });
 
         let prevSources: TrafficSource[] = [];
+        let prevTotal: TrafficSource | undefined;
 
         // ПРИОРИТЕТ 1: Используем closingSnapshotId если он указан (для восстановленных версий)
         if (closingSnapshotId) {
@@ -88,13 +112,14 @@ export const TrafficDeltaService = {
 
             if (closingSnapshot) {
                 const { TrafficSnapshotService } = await import('./TrafficSnapshotService');
-                const { sources } = await TrafficSnapshotService.getVersionSources(
+                const { sources, totalRow } = await TrafficSnapshotService.getVersionSources(
                     closingSnapshot.version,
                     snapshots,
                     closingSnapshot.timestamp,
                     closingSnapshot.timestamp
                 );
                 prevSources = sources;
+                prevTotal = totalRow;
 
                 console.log('[TrafficDeltaService] Loaded sources from closingSnapshot:', {
                     snapshotId: closingSnapshotId,
@@ -124,13 +149,14 @@ export const TrafficDeltaService = {
 
             if (prevVersion === undefined) {
                 console.log('[TrafficDeltaService] No previous version found, returning current sources as-is');
-                return currentSources; // Нет предыдущих версий
+                return { sources: currentSources, totalRow: currentTotal }; // Нет предыдущих версий
             }
 
             // Загружаем данные предыдущей версии
             const { TrafficSnapshotService } = await import('./TrafficSnapshotService');
-            const { sources } = await TrafficSnapshotService.getVersionSources(prevVersion, snapshots);
+            const { sources, totalRow } = await TrafficSnapshotService.getVersionSources(prevVersion, snapshots);
             prevSources = sources;
+            prevTotal = totalRow;
 
             console.log('[TrafficDeltaService] Loaded previous version sources:', {
                 prevVersion,
@@ -139,6 +165,6 @@ export const TrafficDeltaService = {
             });
         }
 
-        return this.calculateSourcesDelta(currentSources, prevSources);
+        return this.calculateSourcesDelta(currentSources, prevSources, currentTotal, prevTotal);
     }
 };

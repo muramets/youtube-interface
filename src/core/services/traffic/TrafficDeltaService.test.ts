@@ -25,27 +25,27 @@ describe('TrafficDeltaService', () => {
         ];
 
         it('должен правильно вычитать просмотры и пересчитывать CTR', () => {
-            const delta = TrafficDeltaService.calculateSourcesDelta(currentData, previousData);
+            const result = TrafficDeltaService.calculateSourcesDelta(currentData, previousData);
 
             // Для 'Поиск': 100 - 60 = 40 просмотров. 1000 - 800 = 200 показов.
             // CTR = (40 / 200) * 100 = 20%
-            const searchDelta = delta.find(d => d.sourceTitle === 'Поиск');
+            const searchDelta = result.sources.find(d => d.sourceTitle === 'Поиск');
             expect(searchDelta?.views).toBe(40);
             expect(searchDelta?.ctr).toBe(20);
         });
 
         it('должен скрывать (фильтровать) источники, в которых 0 новых просмотров', () => {
-            const delta = TrafficDeltaService.calculateSourcesDelta(currentData, previousData);
+            const result = TrafficDeltaService.calculateSourcesDelta(currentData, previousData);
 
             // 'Рекомендации': 50 - 50 = 0. Должен быть удален из списка.
-            const recDelta = delta.find(d => d.sourceTitle === 'Рекомендации');
+            const recDelta = result.sources.find(d => d.sourceTitle === 'Рекомендации');
             expect(recDelta).toBeUndefined();
         });
 
         it('должен возвращать полные данные, если предыдущей версии нет', () => {
-            const delta = TrafficDeltaService.calculateSourcesDelta(currentData, []);
-            expect(delta.length).toBe(2);
-            expect(delta[0].views).toBe(100);
+            const result = TrafficDeltaService.calculateSourcesDelta(currentData, []);
+            expect(result.sources.length).toBe(2);
+            expect(result.sources[0].views).toBe(100);
         });
     });
 
@@ -54,8 +54,8 @@ describe('TrafficDeltaService', () => {
         const currentSources: TrafficSource[] = [{ sourceTitle: 'X', views: 10, videoId: '1', sourceType: 'TEST', avgViewDuration: '0:00', impressions: 100, ctr: 10, watchTimeHours: 1 }];
 
         it('если предыдущей версии нет, должен вернуть текущие данные', async () => {
-            const delta = await TrafficDeltaService.calculateVersionDelta(currentSources, 1, []);
-            expect(delta).toEqual(currentSources);
+            const result = await TrafficDeltaService.calculateVersionDelta(currentSources, undefined, 1, []);
+            expect(result.sources).toEqual(currentSources);
         });
 
         // В этом тесте мы проверяем, что сервис лезет в историю и находит нужную версию
@@ -64,19 +64,19 @@ describe('TrafficDeltaService', () => {
             const { TrafficSnapshotService } = await import('./TrafficSnapshotService');
 
             // "Прикинемся", что предыдущая версия v.1 имела 4 просмотра
-            (TrafficSnapshotService.getVersionSources as any).mockResolvedValue([
-                { sourceTitle: 'X', views: 4, videoId: '1' }
-            ]);
+            (TrafficSnapshotService.getVersionSources as any).mockResolvedValue({
+                sources: [{ sourceTitle: 'X', views: 4, videoId: '1' }]
+            });
 
             const snapshots = [
                 { version: 1, timestamp: 100 },
                 { version: 2, timestamp: 200 }
             ];
 
-            const delta = await TrafficDeltaService.calculateVersionDelta(currentSources, 2, snapshots as any);
+            const result = await TrafficDeltaService.calculateVersionDelta(currentSources, undefined, 2, snapshots as any);
 
             // 10 - 4 = 6
-            expect(delta[0].views).toBe(6);
+            expect(result.sources[0].views).toBe(6);
         });
 
         // Новый тест для восстановленных версий
@@ -84,9 +84,9 @@ describe('TrafficDeltaService', () => {
             const { TrafficSnapshotService } = await import('./TrafficSnapshotService');
 
             // Мокаем данные из закрывающего снапшота (v.3 с 8 просмотрами)
-            (TrafficSnapshotService.getVersionSources as any).mockResolvedValue([
-                { sourceTitle: 'X', views: 8, videoId: '1' }
-            ]);
+            (TrafficSnapshotService.getVersionSources as any).mockResolvedValue({
+                sources: [{ sourceTitle: 'X', views: 8, videoId: '1' }]
+            });
 
             const snapshots = [
                 { id: 'snap-v1', version: 1, timestamp: 100 },
@@ -95,15 +95,16 @@ describe('TrafficDeltaService', () => {
             ];
 
             // Восстанавливаем v.1, передаем closingSnapshotId из v.3
-            const delta = await TrafficDeltaService.calculateVersionDelta(
+            const result = await TrafficDeltaService.calculateVersionDelta(
                 currentSources,
+                undefined,
                 1,
                 snapshots as any,
                 'snap-v3' // Закрывающий снапшот из предыдущей активной версии
             );
 
             // 10 - 8 = 2 (вычитаем данные из v.3, а не ищем версию < 1)
-            expect(delta[0].views).toBe(2);
+            expect(result.sources[0].views).toBe(2);
         });
     });
 });

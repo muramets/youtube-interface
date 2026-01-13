@@ -9,47 +9,12 @@ import { formatDuration, durationToSeconds } from '../utils/formatters';
 import { TRAFFIC_TABLE } from '../utils/constants';
 import type { CTRRule } from '../../../../../core/services/settingsService';
 import { useTrafficNicheStore } from '../../../../../core/stores/useTrafficNicheStore';
+import { SmartTrafficTooltip } from './SmartTrafficTooltip';
 
 import type { SuggestedTrafficNiche } from '../../../../../core/types/suggestedTrafficNiches';
 
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 
-interface TrafficTableProps {
-    data: TrafficSource[];
-    isLoading: boolean;
-    // Selection for grouping
-    selectedIds: Set<string>;
-    onToggleSelection: (id: string) => void;
-    onToggleAll: (ids: string[]) => void;
-
-    // For Drag and Drop Grouping (future) or just Visuals
-    activeGroupId?: string; // If filtering by group
-
-    // Versioning
-    viewingVersion?: number | 'draft';
-    activeVersion: number;
-
-    // Upload for Empty State
-    onUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<void>;
-    hasExistingSnapshot: boolean;
-    hasPreviousSnapshots?: boolean; // Are there snapshots in earlier versions?
-    isFirstSnapshot?: boolean; // Is this the very first snapshot of the current version?
-
-    // CTR Rules
-    ctrRules?: CTRRule[];
-
-    // View mode to determine empty state type
-    viewMode?: 'cumulative' | 'delta';
-
-    // Filters
-    hasActiveFilters?: boolean;
-
-    // View switch
-    onSwitchToTotal?: () => void;
-
-    // Rich Data
-    videos?: VideoDetails[];
-}
 
 export type SortKey = keyof TrafficSource;
 export interface SortConfig {
@@ -100,6 +65,10 @@ interface TrafficTableProps {
     // Smart Assistant
     getSuggestion?: (videoId: string) => SuggestedTrafficNiche | null;
     onConfirmSuggestion?: (videoId: string, niche: SuggestedTrafficNiche) => void;
+
+    // Discrepancy reporting
+    actualTotalRow?: TrafficSource;
+    trashMetrics?: import('../hooks/useTrafficDataLoader').TrashMetrics;
 }
 
 export const TrafficTable = memo<TrafficTableProps>(({
@@ -120,7 +89,9 @@ export const TrafficTable = memo<TrafficTableProps>(({
     sortConfig,
     onSort,
     getSuggestion,
-    onConfirmSuggestion
+    onConfirmSuggestion,
+    actualTotalRow,
+    trashMetrics
 }) => {
     // Virtualization refs
     const parentRef = useRef<HTMLDivElement>(null);
@@ -332,13 +303,27 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                 <div />
                                 {showPropertyColumn && <div />}
                                 <div>Total</div>
-                                <div className={`text-right ${sortConfig?.key === 'impressions' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
+                                <div className={`text-right flex items-center justify-end gap-1.5 ${sortConfig?.key === 'impressions' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
+                                    {actualTotalRow && Number(actualTotalRow.impressions || 0) > (computedTotal.impressions + 1) && (
+                                        <SmartTrafficTooltip
+                                            actualTotal={Number(actualTotalRow.impressions)}
+                                            tableSum={computedTotal.impressions}
+                                            trashValue={trashMetrics?.impressions}
+                                        />
+                                    )}
                                     {computedTotal.impressions.toLocaleString()}
                                 </div>
                                 <div className={`text-right ${sortConfig?.key === 'ctr' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
                                     {computedTotal.ctr}%
                                 </div>
-                                <div className={`text-right ${sortConfig?.key === 'views' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
+                                <div className={`text-right flex items-center justify-end gap-1.5 ${sortConfig?.key === 'views' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
+                                    {actualTotalRow && Number(actualTotalRow.views || 0) > (computedTotal.views + 1) && (
+                                        <SmartTrafficTooltip
+                                            actualTotal={Number(actualTotalRow.views)}
+                                            tableSum={computedTotal.views}
+                                            trashValue={trashMetrics?.views}
+                                        />
+                                    )}
                                     {computedTotal.views.toLocaleString()}
                                 </div>
                                 <div className={`text-right ${sortConfig?.key === 'avgViewDuration' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>

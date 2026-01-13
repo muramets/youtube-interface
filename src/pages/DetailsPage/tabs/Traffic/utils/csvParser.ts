@@ -158,8 +158,16 @@ export const parseTrafficCsv = async (
                     // 2. Video row (sourceId must start with 'YT_RELATED.')
                     // Everything else is considered garbage and ignored.
 
-                    if (sourceId === 'Total' || sourceId === 'Totals') {
+                    const isTotalRow = sourceId?.toLowerCase().includes('total');
+
+                    if (isTotalRow) {
                         totalRow = source;
+                        logger.debug('CSV Total row identified', {
+                            component: 'csvParser',
+                            sourceId,
+                            impressions: source.impressions,
+                            views: source.views
+                        });
                     } else if (sourceId?.startsWith('YT_RELATED.')) {
                         source.videoId = sourceId.replace('YT_RELATED.', '');
                         // Double check: it must have valid data
