@@ -330,7 +330,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                             transition-all ease-out origin-top-right
                             ${variant === 'glass'
                                 ? 'bg-[#1a1a1a]/85 backdrop-blur-xl p-2 rounded-lg shadow-lg w-auto max-w-[340px]'
-                                : 'bg-[#1F1F1F] px-3 py-2 rounded-lg border border-white/10 shadow-xl'
+                                : 'bg-[#1F1F1F] px-3 py-2 rounded-lg shadow-xl'
                             }
                             ${noAnimation ? 'duration-0' : 'duration-200'}
                             ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}

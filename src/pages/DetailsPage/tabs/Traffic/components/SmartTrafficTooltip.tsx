@@ -1,3 +1,4 @@
+import React, { useRef } from 'react';
 import { Info, AlertTriangle } from 'lucide-react';
 import { PortalTooltip } from '../../../../../components/Shared/PortalTooltip';
 import type { MetricDelta } from '../hooks/useTrafficDataLoader';
@@ -23,6 +24,9 @@ export const SmartTrafficTooltip: React.FC<SmartTrafficTooltipProps> = ({
     onMouseEnter,
     onMouseLeave
 }) => {
+    const enterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const wrapperRef = useRef<HTMLDivElement>(null);
+
     let content: React.ReactNode;
     let isSignificantRef = false;
 
@@ -68,7 +72,20 @@ export const SmartTrafficTooltip: React.FC<SmartTrafficTooltipProps> = ({
         isSignificantRef = isSignificantGrowth;
 
         content = (
-            <div className="flex flex-col gap-2 p-1 max-w-[320px]">
+            <div
+                className="flex flex-col gap-2 p-1 max-w-[320px]"
+                onMouseEnter={() => {
+                    if (enterTimeoutRef.current) clearTimeout(enterTimeoutRef.current);
+                    if (onMouseEnter) onMouseEnter();
+                }}
+                onMouseLeave={(e: any) => {
+                    // Ref Bridge containment check
+                    if (wrapperRef.current && wrapperRef.current.contains(e.relatedTarget as Node)) {
+                        return;
+                    }
+                    if (onMouseLeave) onMouseLeave();
+                }}
+            >
                 <div className="flex items-center gap-2 font-medium text-sm border-b pb-2 mb-1 border-white/10">
                     <Info className="w-4 h-4 text-blue-400" />
                     <span>Traffic Growth Analysis</span>
@@ -133,7 +150,20 @@ export const SmartTrafficTooltip: React.FC<SmartTrafficTooltipProps> = ({
         isSignificantRef = isSignificant;
 
         content = (
-            <div className="flex flex-col gap-2 p-1 max-w-[320px]">
+            <div
+                className="flex flex-col gap-2 p-1 max-w-[320px]"
+                onMouseEnter={() => {
+                    if (enterTimeoutRef.current) clearTimeout(enterTimeoutRef.current);
+                    if (onMouseEnter) onMouseEnter();
+                }}
+                onMouseLeave={(e: any) => {
+                    // Ref Bridge containment check
+                    if (wrapperRef.current && wrapperRef.current.contains(e.relatedTarget as Node)) {
+                        return;
+                    }
+                    if (onMouseLeave) onMouseLeave();
+                }}
+            >
                 <div className="flex items-center gap-2 font-medium text-sm border-b pb-2 mb-1 border-white/10">
                     {isSignificant ? (
                         <AlertTriangle className="w-4 h-4 text-amber-400" />
@@ -186,20 +216,30 @@ export const SmartTrafficTooltip: React.FC<SmartTrafficTooltipProps> = ({
             side="top"
             align="center"
             forceOpen={forceOpen}
+            enterDelay={0}
         >
             <div
-                className={`cursor-help inline-flex items-center justify-center mr-1 opacity-60 hover:opacity-100 transition-opacity ${isIncomplete ? 'text-red-400 opacity-100' : ''}`}
+                ref={wrapperRef}
+                className={`cursor-default inline-flex items-center justify-center mr-1 opacity-50 hover:opacity-100 transition-all duration-200 -m-2 p-2 ${isIncomplete ? 'text-red-400 opacity-100' : ''}`}
                 onMouseEnter={() => {
-                    onMouseEnter?.();
+                    if (enterTimeoutRef.current) clearTimeout(enterTimeoutRef.current);
+
+                    enterTimeoutRef.current = setTimeout(() => {
+                        onMouseEnter?.();
+                    }, 500);
                 }}
                 onMouseLeave={() => {
+                    if (enterTimeoutRef.current) {
+                        clearTimeout(enterTimeoutRef.current);
+                        enterTimeoutRef.current = null;
+                    }
                     onMouseLeave?.();
                 }}
             >
                 {isSignificantRef ? (
-                    <AlertTriangle className={`w-3.5 h-3.5 ${isIncomplete ? 'text-red-400' : 'text-amber-400'}`} />
+                    <AlertTriangle className={`w-3.5 h-3.5 ${isIncomplete ? 'text-red-400' : 'text-amber-400/90'}`} />
                 ) : (
-                    <Info className="w-3.5 h-3.5 text-blue-400" />
+                    <Info className="w-3.5 h-3.5 text-blue-400/90" />
                 )}
             </div>
         </PortalTooltip>

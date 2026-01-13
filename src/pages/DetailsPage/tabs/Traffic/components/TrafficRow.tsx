@@ -193,7 +193,7 @@ export const TrafficRow = ({
                             {item.videoId && !isThisVideoMinimized && (
                                 <div
                                     ref={wrapperRef}
-                                    className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity inline-flex"
+                                    className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity inline-flex -m-2 p-2"
                                     onMouseEnter={() => {
                                         if (enterTimeoutRef.current) clearTimeout(enterTimeoutRef.current);
                                         enterTimeoutRef.current = setTimeout(() => {
