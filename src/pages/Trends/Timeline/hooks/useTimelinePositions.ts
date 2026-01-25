@@ -1,8 +1,6 @@
 import { useMemo } from 'react';
 import type { TrendVideo, TimelineStats, VideoPosition } from '../../../../core/types/trends';
-
-const BASE_THUMBNAIL_SIZE = 200;
-const MIN_THUMBNAIL_SIZE = 40;
+import { getTrendYPosition } from '../utils/trendLayoutUtils';
 
 export interface UseTimelinePositionsProps {
     videos: TrendVideo[];
@@ -26,11 +24,6 @@ export const useTimelinePositions = ({
     // Calculate video positions
     const videoPositions = useMemo<VideoPosition[]>(() => {
         if (!videos.length || !stats) return [];
-
-        const { minViews, maxViews } = stats;
-        const viewRangeLinear = maxViews - minViews || 1;
-        const viewRangeLog = Math.log(Math.max(1, maxViews)) - Math.log(Math.max(1, minViews)) || 1;
-        const viewRangeSqrt = Math.sqrt(maxViews) - Math.sqrt(minViews) || 1;
 
         // Effective Spread
         const spread = verticalSpread !== undefined ? verticalSpread : 1.0;
@@ -58,57 +51,16 @@ export const useTimelinePositions = ({
                 xNorm = (video.publishedAtTimestamp - stats.minDate) / dateRange;
             }
 
-            let yNorm: number;
-            let sizeRatio: number;
-
-            const isSingleValue = Math.abs(stats.maxViews - stats.minViews) < 0.001;
-
-            if (isSingleValue) {
-                yNorm = 0.5; // Center vertically
-                sizeRatio = 0.5; // Default to mid-size for single value
-            } else {
-                switch (scalingMode) {
-                    case 'linear':
-                        yNorm = 1 - (video.viewCount - stats.minViews) / viewRangeLinear;
-                        sizeRatio = (video.viewCount - stats.minViews) / viewRangeLinear;
-                        break;
-                    case 'log':
-                        const viewLog = Math.log(Math.max(1, video.viewCount));
-                        const minLog = Math.log(Math.max(1, stats.minViews));
-                        yNorm = 1 - (viewLog - minLog) / viewRangeLog;
-                        sizeRatio = (viewLog - minLog) / viewRangeLog;
-                        break;
-                    case 'sqrt':
-                        const viewSqrt = Math.sqrt(video.viewCount);
-                        const minSqrt = Math.sqrt(stats.minViews);
-                        yNorm = 1 - (viewSqrt - minSqrt) / viewRangeSqrt;
-                        sizeRatio = (viewSqrt - minSqrt) / viewRangeSqrt;
-                        break;
-                    case 'percentile':
-                        const percentileRank = rankMap.get(video.id) ?? 0.5;
-                        yNorm = 1 - percentileRank;
-                        sizeRatio = percentileRank;
-                        break;
-                    default:
-                        yNorm = 0.5;
-                        sizeRatio = 0.5;
-                }
-            }
-
-            // Squash Logic
-            // spread is already effectiveVerticalSpread derived above
-            const effectiveYNorm = 0.5 + (yNorm - 0.5) * spread;
-
-            const baseSize = MIN_THUMBNAIL_SIZE + sizeRatio * (BASE_THUMBNAIL_SIZE - MIN_THUMBNAIL_SIZE);
-            const radius = baseSize / 2;
-
-            // Vertical buffer to prevent clipping at edges
-            const verticalBuffer = 12; // pixels
-
-            // Dynamic Radius Position with buffer
-            // y = Radius + Buffer + yNorm * (WorldHeight - Diameter - 2*Buffer)
-            const availableHeight = dynamicWorldHeight - baseSize - 2 * verticalBuffer;
-            const expandedY = radius + verticalBuffer + effectiveYNorm * Math.max(0, availableHeight);
+            // Y-AXIS: Use shared utility
+            const { y: expandedY, baseSize } = getTrendYPosition(
+                video.viewCount,
+                stats,
+                scalingMode,
+                spread,
+                dynamicWorldHeight,
+                // Only needed for percentile mode
+                rankMap.get(video.id) ?? 0.5
+            );
 
             // Return normalized Y relative to dynamicWorldHeight
             return { video, xNorm, yNorm: expandedY / dynamicWorldHeight, baseSize };

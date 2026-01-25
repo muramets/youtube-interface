@@ -1,6 +1,7 @@
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { TrendVideo, TimelineStats } from '../../../../core/types/trends';
+import { useTrendBaseline } from '../hooks/useTrendBaseline';
 
 interface TimelineAverageLineProps {
     videos: TrendVideo[];
@@ -60,127 +61,16 @@ export const TimelineAverageLine: React.FC<TimelineAverageLineProps> = ({
     const [hoveredPoint, setHoveredPoint] = useState<{ x: number; y: number; value: number } | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // 1. Calculate Data (Global or Dynamic)
-    const lineData = useMemo(() => {
-        if (!videos.length || !stats) return null;
-        if (scalingMode === 'percentile') return null;
-
-        const { minViews, maxViews, minDate, maxDate } = stats;
-        const viewRangeLinear = maxViews - minViews || 1;
-        const viewRangeLog = Math.log(Math.max(1, maxViews)) - Math.log(Math.max(1, minViews)) || 1;
-        const viewRangeSqrt = Math.sqrt(maxViews) - Math.sqrt(minViews) || 1;
-        const dateRange = maxDate - minDate || 1;
-
-        // Constants for Y positioning (to align with dot centers)
-        const BASE_THUMBNAIL_SIZE = 200;
-        const MIN_THUMBNAIL_SIZE = 40;
-        const verticalBuffer = 12;
-
-        const getYForValue = (val: number) => {
-            let yNorm = 0.5;
-            let sizeRatio = 0.5;
-
-            if (Math.abs(stats.maxViews - stats.minViews) >= 0.001) {
-                switch (scalingMode) {
-                    case 'linear':
-                        yNorm = 1 - (val - stats.minViews) / viewRangeLinear;
-                        sizeRatio = (val - stats.minViews) / viewRangeLinear;
-                        break;
-                    case 'log':
-                        const valLog = Math.log(Math.max(1, val));
-                        const minLog = Math.log(Math.max(1, stats.minViews));
-                        yNorm = 1 - (valLog - minLog) / viewRangeLog;
-                        sizeRatio = (valLog - minLog) / viewRangeLog;
-                        break;
-                    case 'sqrt':
-                        const valSqrt = Math.sqrt(val);
-                        const minSqrt = Math.sqrt(stats.minViews);
-                        yNorm = 1 - (valSqrt - minSqrt) / viewRangeSqrt;
-                        sizeRatio = (valSqrt - minSqrt) / viewRangeSqrt;
-                        break;
-                }
-            }
-
-            const effectiveYNorm = 0.5 + (yNorm - 0.5) * verticalSpread;
-            const baseSize = MIN_THUMBNAIL_SIZE + sizeRatio * (BASE_THUMBNAIL_SIZE - MIN_THUMBNAIL_SIZE);
-            const radius = baseSize / 2;
-            const availableHeight = dynamicWorldHeight - baseSize - 2 * verticalBuffer;
-
-            // Return CENTER Y of where a dot would be
-            return radius + verticalBuffer + effectiveYNorm * Math.max(0, availableHeight);
-        };
-
-        if (baselineMode === 'global') {
-            const total = videos.reduce((acc, v) => acc + v.viewCount, 0);
-            const avg = total / videos.length;
-            return { type: 'global', y: getYForValue(avg), value: avg };
-        } else {
-            // Dynamic: Rolling Window
-            const points: { x: number; y: number; value: number }[] = [];
-
-            // Sort videos once
-            const sortedVideos = [...videos].sort((a, b) => a.publishedAtTimestamp - b.publishedAtTimestamp);
-
-            // Rolling Window Logic: Smart Collapse
-            const durationDays = (maxDate - minDate) / (24 * 60 * 60 * 1000);
-            const safeMax = durationDays / 3; // Theoretical max (can be huge)
-
-            // Determine effective window based on INTENT (baselineWindowSize)
-            // intent is 7 (Fast), 30 (Mid), or 90 (Slow)
-            const intent = baselineWindowSize || 30;
-            let effectiveWindow = 30;
-
-            // 1. Calculate Safe Bounds
-            const MAX_CAP = 90;
-            const clampedSafeMax = Math.min(MAX_CAP, Math.max(1, safeMax));
-            const safeFast = Math.min(7, clampedSafeMax);
-
-            if (intent === 90) {
-                effectiveWindow = clampedSafeMax;
-            } else if (intent === 7) {
-                effectiveWindow = safeFast;
-            } else {
-                // Midpoint Logic (intent 30)
-                if (clampedSafeMax >= 90) {
-                    effectiveWindow = 30; // Standard
-                } else {
-                    effectiveWindow = (safeFast + clampedSafeMax) / 2;
-                }
-            }
-
-            const windowMs = Math.max(1, effectiveWindow) * 24 * 60 * 60 * 1000;
-
-            // Sampling: Aim for ~200 points for smooth interaction
-            // Ensure step is at least 1 hour to avoid infinite loops on small ranges
-            const stepMs = Math.max(1000 * 60 * 60, dateRange / 200);
-
-            // Extend range slightly to cover edges
-            const startT = minDate - stepMs;
-            const endT = maxDate + stepMs;
-
-            for (let t = startT; t <= endT; t += stepMs) {
-                // Relevant videos for this window
-                const relevant = sortedVideos.filter(v =>
-                    v.publishedAtTimestamp >= t - windowMs &&
-                    v.publishedAtTimestamp <= t + windowMs
-                );
-
-                if (relevant.length > 0) {
-                    const avg = relevant.reduce((acc, v) => acc + v.viewCount, 0) / relevant.length;
-                    const xNorm = (t - minDate) / dateRange;
-
-                    points.push({
-                        x: xNorm, // 0-1
-                        y: getYForValue(avg), // World Y Pixels
-                        value: avg
-                    });
-                }
-            }
-
-            return { type: 'dynamic', points };
-        }
-
-    }, [videos, stats, scalingMode, verticalSpread, dynamicWorldHeight, baselineMode, baselineWindowSize]);
+    // 1. Calculate Data using extracted Hook
+    const lineData = useTrendBaseline({
+        videos,
+        stats,
+        scalingMode,
+        verticalSpread,
+        dynamicWorldHeight,
+        baselineMode,
+        baselineWindowSize
+    });
 
     if (!lineData) return null;
 
