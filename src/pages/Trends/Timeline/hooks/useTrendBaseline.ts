@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
 import type { TrendVideo, TimelineStats } from '../../../../core/types/trends';
-import { getTrendYPosition } from '../utils/trendLayoutUtils';
+import { getTrendYPosition, getTrendXPosition } from '../utils/trendLayoutUtils';
 
 export interface UseTrendBaselineProps {
     videos: TrendVideo[];
     stats: TimelineStats;
+    monthLayouts: any[]; // New dependency for X
     scalingMode: 'linear' | 'log' | 'sqrt' | 'percentile';
     verticalSpread: number;
     dynamicWorldHeight: number;
@@ -28,6 +29,7 @@ export interface BaselineData {
 export const useTrendBaseline = ({
     videos,
     stats,
+    monthLayouts,
     scalingMode,
     verticalSpread,
     dynamicWorldHeight,
@@ -39,7 +41,6 @@ export const useTrendBaseline = ({
         if (scalingMode === 'percentile') return null;
 
         const { minDate, maxDate } = stats;
-        const dateRange = maxDate - minDate || 1;
 
         if (baselineMode === 'global') {
             const total = videos.reduce((acc, v) => acc + v.viewCount, 0);
@@ -93,7 +94,7 @@ export const useTrendBaseline = ({
 
             // Sampling: Aim for ~200 points for smooth interaction
             // Ensure step is at least 1 hour to avoid infinite loops on small ranges
-            const stepMs = Math.max(1000 * 60 * 60, dateRange / 200);
+            const stepMs = Math.max(1000 * 60 * 60, (maxDate - minDate) / 200);
 
             // Extend range slightly to cover edges
             const startT = minDate - stepMs;
@@ -109,7 +110,9 @@ export const useTrendBaseline = ({
 
                 if (relevant.length > 0) {
                     const avg = relevant.reduce((acc, v) => acc + v.viewCount, 0) / relevant.length;
-                    const xNorm = (t - minDate) / dateRange;
+
+                    // Use shared utility for X position (Handles Time Distribution)
+                    const xNorm = getTrendXPosition(t, stats, monthLayouts);
 
                     // Use shared utility for Y position
                     const { y } = getTrendYPosition(
@@ -130,5 +133,5 @@ export const useTrendBaseline = ({
 
             return { type: 'dynamic', points };
         }
-    }, [videos, stats, scalingMode, verticalSpread, dynamicWorldHeight, baselineMode, baselineWindowSize]);
+    }, [videos, stats, monthLayouts, scalingMode, verticalSpread, dynamicWorldHeight, baselineMode, baselineWindowSize]);
 };

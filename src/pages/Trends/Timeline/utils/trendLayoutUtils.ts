@@ -85,3 +85,35 @@ export const getTrendYPosition = (
 
     return { y, baseSize };
 };
+
+/**
+ * Calculates the Normalized X position (0-1) for a given timestamp.
+ * Handles Linear (Date Range) vs Non-Linear (Month Grid) logic.
+ */
+export const getTrendXPosition = (
+    timestamp: number,
+    stats: TimelineStats,
+    monthLayouts: any[]
+): number => {
+    const d = new Date(timestamp);
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    const layout = monthLayouts.find(l => l.monthKey === key);
+
+    if (layout) {
+        // Non-Linear: Snap to Month Grid
+        const dayOfMonth = d.getDate(); // 1-indexed
+
+        // Use pre-calculated daysInMonth from layout if available, or calculate it
+        // Note: TimelineStructure calculates daysInMonth when creating layouts.
+        // Fallback to standard calculation if missing.
+        const daysInMonth = layout.daysInMonth || new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+
+        // Center of the day: (day - 0.5) / daysInMonth
+        const dayProgress = (dayOfMonth - 0.5) / daysInMonth;
+        return layout.startX + (dayProgress * layout.width);
+    } else {
+        // Linear Fallback (or if month not found in grid)
+        const dateRange = stats.maxDate - stats.minDate || 1;
+        return (timestamp - stats.minDate) / dateRange;
+    }
+};

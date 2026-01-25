@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { TrendVideo, TimelineStats, VideoPosition } from '../../../../core/types/trends';
-import { getTrendYPosition } from '../utils/trendLayoutUtils';
+import { getTrendYPosition, getTrendXPosition } from '../utils/trendLayoutUtils';
 
 export interface UseTimelinePositionsProps {
     videos: TrendVideo[];
@@ -34,22 +34,8 @@ export const useTimelinePositions = ({
         sortedByViews.forEach((v, i) => rankMap.set(v.id, i / (videos.length - 1 || 1)));
 
         const positions = videos.map(video => {
-            const d = new Date(video.publishedAtTimestamp);
-            const key = `${d.getFullYear()}-${d.getMonth()}`;
-            const layout = monthLayouts.find(l => l.monthKey === key);
-
-            // X-AXIS: Snap to day grid (center of day)
-            let xNorm: number;
-            if (layout) {
-                const dayOfMonth = d.getDate(); // 1-indexed
-                const daysInMonth = layout.daysInMonth || new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-                // Center of the day: (day - 0.5) / daysInMonth gives center position
-                const dayProgress = (dayOfMonth - 0.5) / daysInMonth;
-                xNorm = layout.startX + (dayProgress * layout.width);
-            } else {
-                const dateRange = stats.maxDate - stats.minDate || 1;
-                xNorm = (video.publishedAtTimestamp - stats.minDate) / dateRange;
-            }
+            // X-AXIS: Use shared utility (Handles non-linear time distribution)
+            const xNorm = getTrendXPosition(video.publishedAtTimestamp, stats, monthLayouts);
 
             // Y-AXIS: Use shared utility
             const { y: expandedY, baseSize } = getTrendYPosition(

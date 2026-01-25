@@ -331,6 +331,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                     baselineMode={timelineConfig.baselineMode}
                     baselineWindowSize={timelineConfig.baselineWindowSize} // Added
                     worldWidth={worldWidth}
+                    monthLayouts={monthLayouts}
                 />
             )}
 

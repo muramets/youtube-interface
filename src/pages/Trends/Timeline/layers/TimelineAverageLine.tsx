@@ -6,6 +6,7 @@ import { useTrendBaseline } from '../hooks/useTrendBaseline';
 interface TimelineAverageLineProps {
     videos: TrendVideo[];
     stats: TimelineStats;
+    monthLayouts: any[]; // New prop
     scalingMode: 'linear' | 'log' | 'sqrt' | 'percentile';
     verticalSpread: number;
     dynamicWorldHeight: number;
@@ -50,6 +51,7 @@ const pointsToPath = (points: { x: number; y: number }[]) => {
 export const TimelineAverageLine: React.FC<TimelineAverageLineProps> = ({
     videos,
     stats,
+    monthLayouts,
     scalingMode,
     verticalSpread,
     dynamicWorldHeight,
@@ -65,6 +67,7 @@ export const TimelineAverageLine: React.FC<TimelineAverageLineProps> = ({
     const lineData = useTrendBaseline({
         videos,
         stats,
+        monthLayouts,
         scalingMode,
         verticalSpread,
         dynamicWorldHeight,
