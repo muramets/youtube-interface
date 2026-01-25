@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
-import type { TrendVideo, TimelineStats } from '../../../../core/types/trends';
+import type { TrendVideo, TimelineStats, MonthLayout } from '../../../../core/types/trends';
 import { getTrendYPosition, getTrendXPosition } from '../utils/trendLayoutUtils';
 
 export interface UseTrendBaselineProps {
     videos: TrendVideo[];
     stats: TimelineStats;
-    monthLayouts: any[]; // New dependency for X
+    monthLayouts: MonthLayout[]; // New dependency for X
     scalingMode: 'linear' | 'log' | 'sqrt' | 'percentile';
     verticalSpread: number;
     dynamicWorldHeight: number;
@@ -68,27 +68,16 @@ export const useTrendBaseline = ({
             const safeMax = durationDays / 3; // Theoretical max (can be huge)
 
             // Determine effective window based on INTENT (baselineWindowSize)
-            // intent is 7 (Fast), 30 (Mid), or 90 (Slow)
+            // Respect user's choice (e.g. 7, 16, 25, 90) but clamp to safe bounds
             const intent = baselineWindowSize || 30;
-            let effectiveWindow = 30;
+            let effectiveWindow = intent;
 
             // 1. Calculate Safe Bounds
-            const MAX_CAP = 90;
+            const MAX_CAP = 365; // Allow up to a year if data permits
             const clampedSafeMax = Math.min(MAX_CAP, Math.max(1, safeMax));
-            const safeFast = Math.min(7, clampedSafeMax);
 
-            if (intent === 90) {
-                effectiveWindow = clampedSafeMax;
-            } else if (intent === 7) {
-                effectiveWindow = safeFast;
-            } else {
-                // Midpoint Logic (intent 30)
-                if (clampedSafeMax >= 90) {
-                    effectiveWindow = 30; // Standard
-                } else {
-                    effectiveWindow = (safeFast + clampedSafeMax) / 2;
-                }
-            }
+            // 2. Clamp intent
+            effectiveWindow = Math.min(intent, clampedSafeMax);
 
             const windowMs = Math.max(1, effectiveWindow) * 24 * 60 * 60 * 1000;
 

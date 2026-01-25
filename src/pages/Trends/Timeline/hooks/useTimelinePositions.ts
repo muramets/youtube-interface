@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
-import type { TrendVideo, TimelineStats, VideoPosition } from '../../../../core/types/trends';
+import type { TrendVideo, TimelineStats, VideoPosition, MonthLayout } from '../../../../core/types/trends';
 import { getTrendYPosition, getTrendXPosition } from '../utils/trendLayoutUtils';
 
 export interface UseTimelinePositionsProps {
     videos: TrendVideo[];
     stats: TimelineStats;
-    monthLayouts: any[];
+    monthLayouts: MonthLayout[];
     scalingMode: 'linear' | 'log' | 'sqrt' | 'percentile';
     verticalSpread?: number;
     dynamicWorldHeight: number;

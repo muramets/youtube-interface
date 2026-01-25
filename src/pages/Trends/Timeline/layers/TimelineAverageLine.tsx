@@ -1,12 +1,12 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import type { TrendVideo, TimelineStats } from '../../../../core/types/trends';
+import type { TrendVideo, TimelineStats, MonthLayout } from '../../../../core/types/trends';
 import { useTrendBaseline } from '../hooks/useTrendBaseline';
 
 interface TimelineAverageLineProps {
     videos: TrendVideo[];
     stats: TimelineStats;
-    monthLayouts: any[]; // New prop
+    monthLayouts: MonthLayout[];
     scalingMode: 'linear' | 'log' | 'sqrt' | 'percentile';
     verticalSpread: number;
     dynamicWorldHeight: number;
@@ -60,7 +60,15 @@ export const TimelineAverageLine: React.FC<TimelineAverageLineProps> = ({
     baselineWindowSize = 30, // Default to 30
     worldWidth = 10000
 }) => {
-    const [hoveredPoint, setHoveredPoint] = useState<{ x: number; y: number; value: number } | null>(null);
+    const [hoveredPoint, setHoveredPoint] = useState<{
+        xNorm: number;
+        localX: number;
+        localY: number;
+        screenX: number;
+        screenY: number;
+        value: number
+    } | null>(null);
+
     const containerRef = useRef<HTMLDivElement>(null);
 
     // 1. Calculate Data using extracted Hook
@@ -127,9 +135,15 @@ export const TimelineAverageLine: React.FC<TimelineAverageLineProps> = ({
                 // Value is still linearly interpolated (data truth)
                 const interpolatedValue = p1.value + t * (p2.value - p1.value);
 
+                const localX = transform.offsetX + (xNorm * worldWidth * transform.scale);
+                const localY = transform.offsetY + (interpolatedY * transform.scale);
+
                 setHoveredPoint({
-                    x: xNorm,
-                    y: interpolatedY,
+                    xNorm,
+                    localX,
+                    localY,
+                    screenX: rect.left + localX,
+                    screenY: rect.top + localY,
                     value: interpolatedValue
                 });
                 return;
@@ -174,9 +188,10 @@ export const TimelineAverageLine: React.FC<TimelineAverageLineProps> = ({
 
         const pathData = pointsToPath(screenPoints);
 
+        // Active point uses local coords for SVG dot
         const activePoint = hoveredPoint ? {
-            x: transform.offsetX + (hoveredPoint.x * worldWidth * transform.scale),
-            y: transform.offsetY + (hoveredPoint.y * transform.scale),
+            x: hoveredPoint.localX,
+            y: hoveredPoint.localY,
             value: hoveredPoint.value
         } : null;
 
@@ -229,16 +244,16 @@ export const TimelineAverageLine: React.FC<TimelineAverageLineProps> = ({
                 )}
 
                 {/* Tooltip Text (Portal - Global Z-Index) */}
-                {activePoint && containerRef.current && createPortal(
+                {hoveredPoint && createPortal(
                     <div
                         className="fixed pointer-events-none z-[9999]"
                         style={{
-                            left: containerRef.current.getBoundingClientRect().left + activePoint.x,
-                            top: containerRef.current.getBoundingClientRect().top + activePoint.y,
+                            left: hoveredPoint.screenX,
+                            top: hoveredPoint.screenY,
                         }}
                     >
                         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-2 py-1 rounded bg-black/80 backdrop-blur text-[10px] text-white whitespace-nowrap border border-white/10 shadow-xl">
-                            {formatViews(activePoint.value)} views
+                            {formatViews(hoveredPoint.value)} views
                         </div>
                     </div>,
                     document.body

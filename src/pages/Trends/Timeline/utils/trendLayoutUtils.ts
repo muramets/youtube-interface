@@ -1,4 +1,4 @@
-import type { TimelineStats } from '../../../../core/types/trends';
+import type { TimelineStats, MonthLayout } from '../../../../core/types/trends';
 
 const BASE_THUMBNAIL_SIZE = 200;
 const MIN_THUMBNAIL_SIZE = 40;
@@ -39,29 +39,33 @@ export const getTrendYPosition = (
     let sizeRatio = 0.5;
 
     switch (scalingMode) {
-        case 'linear':
+        case 'linear': {
             const rangeLinear = maxViews - minViews || 1;
             yNorm = 1 - (value - minViews) / rangeLinear;
             sizeRatio = (value - minViews) / rangeLinear;
             break;
-        case 'log':
+        }
+        case 'log': {
             const valLog = Math.log(Math.max(1, value));
             const minLog = Math.log(Math.max(1, minViews));
             const rangeLog = Math.log(Math.max(1, maxViews)) - minLog || 1;
             yNorm = 1 - (valLog - minLog) / rangeLog;
             sizeRatio = (valLog - minLog) / rangeLog;
             break;
-        case 'sqrt':
+        }
+        case 'sqrt': {
             const valSqrt = Math.sqrt(value);
             const minSqrt = Math.sqrt(minViews);
             const rangeSqrt = Math.sqrt(maxViews) - minSqrt || 1;
             yNorm = 1 - (valSqrt - minSqrt) / rangeSqrt;
             sizeRatio = (valSqrt - minSqrt) / rangeSqrt;
             break;
-        case 'percentile':
+        }
+        case 'percentile': {
             yNorm = 1 - percentileRank;
             sizeRatio = percentileRank;
             break;
+        }
         default:
             yNorm = 0.5;
             sizeRatio = 0.5;
@@ -93,7 +97,7 @@ export const getTrendYPosition = (
 export const getTrendXPosition = (
     timestamp: number,
     stats: TimelineStats,
-    monthLayouts: any[]
+    monthLayouts: MonthLayout[]
 ): number => {
     const d = new Date(timestamp);
     const key = `${d.getFullYear()}-${d.getMonth()}`;
