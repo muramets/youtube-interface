@@ -270,12 +270,12 @@ export const TrendsSettings: React.FC<TrendsSettingsProps> = ({
                                     return (
                                         <SegmentedControl
                                             options={[
-                                                { label: `${safeFast}d`, value: 7, disabled: safeMax < 7 },
-                                                { label: `${safeMid}d`, value: 30, disabled: safeMax < 30 },
-                                                { label: `${safeMax}d`, value: 90, disabled: false } // Max is always available as "Max"
+                                                { label: `${safeFast}d`, value: safeFast, disabled: safeMax < safeFast },
+                                                { label: `${safeMid}d`, value: safeMid, disabled: safeMax < safeMid },
+                                                { label: `${safeMax}d`, value: safeMax, disabled: false } // Max is always available as "Max"
                                             ]}
                                             value={timelineConfig.baselineWindowSize || 30}
-                                            onChange={(v) => setTimelineConfig({ baselineWindowSize: v as 7 | 30 | 90 })}
+                                            onChange={(v) => setTimelineConfig({ baselineWindowSize: v })}
                                             disabled={!timelineConfig.showAverageBaseline || timelineConfig.baselineMode !== 'dynamic'}
                                         />
                                     )

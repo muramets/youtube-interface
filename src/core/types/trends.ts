@@ -57,7 +57,7 @@ export interface TimelineConfig {
     contentHash?: string; // ID hash of the content visible when this config was saved
     showAverageBaseline?: boolean; // Show average baseline layer
     baselineMode?: 'global' | 'dynamic'; // Global = flat average, Dynamic = rolling average
-    baselineWindowSize?: 7 | 30 | 90; // Default 30. Window size in days for dynamic average.
+    baselineWindowSize?: number; // Default 30. Window size in days for dynamic average.
 }
 
 export interface MonthRegion {
