@@ -47,7 +47,12 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
                 {/* Icons aligned with main header (gap-2) */}
                 <div className="flex items-center gap-2 mr-2">
                     <TrendsFilterButton availableMinDate={availableMinDate} availableMaxDate={availableMaxDate} />
-                    <TrendsSettings timelineConfig={timelineConfig} setTimelineConfig={setTimelineConfig} />
+                    <TrendsSettings
+                        timelineConfig={timelineConfig}
+                        setTimelineConfig={setTimelineConfig}
+                        availableMinDate={availableMinDate}
+                        availableMaxDate={availableMaxDate}
+                    />
                 </div>
             </div>
         </div>

@@ -55,6 +55,9 @@ export interface TimelineConfig {
     timeLinearity: number; // 0.0-1.0, 0 = Linear (time-based), 1 = Compact (count-based)
     layoutMode?: 'compact' | 'spacious'; // Optional view preference
     contentHash?: string; // ID hash of the content visible when this config was saved
+    showAverageBaseline?: boolean; // Show average baseline layer
+    baselineMode?: 'global' | 'dynamic'; // Global = flat average, Dynamic = rolling average
+    baselineWindowSize?: 7 | 30 | 90; // Default 30. Window size in days for dynamic average.
 }
 
 export interface MonthRegion {

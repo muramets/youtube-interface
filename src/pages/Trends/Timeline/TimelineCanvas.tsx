@@ -11,6 +11,7 @@ import { TimelineSkeleton } from './TimelineSkeleton';
 import { TimelineEmptyState } from './TimelineEmptyState';
 import { TimelineSelectionOverlay } from './TimelineSelectionOverlay';
 import type { TrendVideo, TimelineStats } from '../../../core/types/trends';
+import { TimelineAverageLine } from './layers/TimelineAverageLine';
 
 // Hooks
 import { useTimelineStructure } from './hooks/useTimelineStructure';
@@ -69,7 +70,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     allChannelsHidden = false
 }) => {
     const { timelineConfig, setTimelineConfig, setAddChannelModalOpen, clearTrendsFilters, savedConfigs, saveConfigForHash } = useTrendStore();
-    const { scalingMode, verticalSpread, timeLinearity } = timelineConfig;
+    const { scalingMode, verticalSpread, timeLinearity, showAverageBaseline } = timelineConfig;
 
     // Determine effective stats for triggering updates. 
     // In Filtered mode (shouldAutoFit=true), we use undefined to signal real-time Scaling.
@@ -315,6 +316,21 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                     transform={transformState}
                     worldWidth={worldWidth}
                     timeLinearity={timeLinearity ?? 1.0}
+                />
+            )}
+
+            {/* 1.5. Average Baseline Layer (Optional) */}
+            {showAverageBaseline && stats && !isLoading && (
+                <TimelineAverageLine
+                    videos={videos}
+                    stats={stats}
+                    scalingMode={scalingMode}
+                    verticalSpread={verticalSpread ?? 1.0}
+                    dynamicWorldHeight={dynamicWorldHeight}
+                    transform={transformState}
+                    baselineMode={timelineConfig.baselineMode}
+                    baselineWindowSize={timelineConfig.baselineWindowSize} // Added
+                    worldWidth={worldWidth}
                 />
             )}
 

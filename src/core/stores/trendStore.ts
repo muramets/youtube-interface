@@ -34,7 +34,10 @@ const DEFAULT_TIMELINE_CONFIG: TimelineConfig = {
     viewMode: 'per-channel',
     scalingMode: 'log',
     verticalSpread: 1.0, // Default 1.0 (Fit), range 0.0 to 1.0
-    timeLinearity: 1.0 // Default 1.0 (Compact)
+    timeLinearity: 1.0, // Default 1.0 (Compact)
+    showAverageBaseline: false, // Default off
+    baselineMode: 'dynamic', // Default to dynamic
+    baselineWindowSize: 30, // Default to 30 days
 };
 
 export interface HiddenVideo {
