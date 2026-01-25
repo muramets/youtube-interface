@@ -38,10 +38,17 @@ const pointsToPath = (points: { x: number; y: number }[]) => {
         const p2 = points[i + 1];
         const p3 = points[i + 2] || p2;
 
-        const cp1x = p1.x + (p2.x - p0.x) / 6;
+        let cp1x = p1.x + (p2.x - p0.x) / 6;
         const cp1y = p1.y + (p2.y - p0.y) / 6;
-        const cp2x = p2.x - (p3.x - p1.x) / 6;
+        let cp2x = p2.x - (p3.x - p1.x) / 6;
         const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+        // CLAMPING: Prevent X control points from going backward or overshooting the segment
+        // This prevents the "loops" seen when irregular time gaps exist
+        if (cp1x < p1.x) cp1x = p1.x;
+        if (cp1x > p2.x) cp1x = p2.x;
+        if (cp2x < p1.x) cp2x = p1.x;
+        if (cp2x > p2.x) cp2x = p2.x;
 
         path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
     }
