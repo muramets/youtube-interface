@@ -64,7 +64,7 @@ export const useCheckinScheduler = () => {
                         if (newHistory.length === 0) continue; // Should have history if custom? If not, maybe skip or create v1? Let's skip for safety if no version exists.
 
                         // Sort by version desc
-                        newHistory.sort((a: any, b: any) => b.versionNumber - a.versionNumber);
+                        newHistory.sort((a: { versionNumber: number }, b: { versionNumber: number }) => b.versionNumber - a.versionNumber);
                         const latestVersion = newHistory[0];
 
                         const newCheckin = {
@@ -81,7 +81,7 @@ export const useCheckinScheduler = () => {
 
                         latestVersion.checkins.push(newCheckin);
                         // Sort checkins by date
-                        latestVersion.checkins.sort((a: any, b: any) => a.date - b.date);
+                        latestVersion.checkins.sort((a: { date: number }, b: { date: number }) => a.date - b.date);
 
                         // Update DB
                         try {

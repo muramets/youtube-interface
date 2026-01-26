@@ -72,20 +72,26 @@ describe('VideoService.deleteVideo (Full Cleanup)', () => {
 
         // Настраиваем поведение моков
         const { getCollectionRef, getDocument, deleteDocument } = await import('./firestore');
-        (getDocument as any).mockResolvedValue(mockVideo);
-        (getCollectionRef as any).mockImplementation((path: string) => ({ path }));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        vi.mocked(getDocument).mockResolvedValue(mockVideo as any);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        vi.mocked(getCollectionRef).mockImplementation((path: string) => ({ path } as any));
 
         const { getDocs } = await import('firebase/firestore');
-        (getDocs as any).mockImplementation((ref: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        vi.mocked(getDocs).mockImplementation((ref: any) => {
             // Если запрашивают трафик (проверяем по замоканному пути)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             if (ref && ref.path && ref.path.includes('traffic')) {
                 return Promise.resolve({
                     empty: false,
                     docs: [mockTrafficMainDoc]
-                });
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                } as any);
             }
             // Если запрашивают историю
-            return Promise.resolve({ empty: true, docs: [] });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return Promise.resolve({ empty: true, docs: [] } as any);
         });
 
         // ЗАПУСКАЕМ УДАЛЕНИЕ

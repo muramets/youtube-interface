@@ -84,7 +84,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         const freshVideos = await VideoService.fetchVideos(user.uid, currentChannel.id);
 
         // Helper to check if a check-in is empty
-        const isCheckinEmpty = (checkin: any) => {
+        const isCheckinEmpty = (checkin: { metrics?: { impressions?: number | null; ctr?: number | null; views?: number | null; avdSeconds?: number | null } }) => {
             const m = checkin.metrics;
             if (!m) return true;
             return (m.impressions === null || m.impressions === undefined) &&
@@ -94,15 +94,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         };
 
         const notificationIdsToDelete: string[] = [];
-        const cleanupPromises: Promise<any>[] = [];
+        const cleanupPromises: Promise<void>[] = [];
 
         for (const video of freshVideos) {
             if (!video.packagingHistory || video.packagingHistory.length === 0) continue;
 
             // 1. Identify Duplicates across ALL versions
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const allCheckins: { checkin: any, versionIndex: number }[] = [];
-            video.packagingHistory.forEach((v: any, vIdx: number) => {
-                v.checkins.forEach((c: any) => allCheckins.push({ checkin: c, versionIndex: vIdx }));
+            video.packagingHistory.forEach((v, vIdx) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                v.checkins?.forEach((c: any) => allCheckins.push({ checkin: c, versionIndex: vIdx }));
             });
 
             const checkinIdsToDelete = new Set<string>();
@@ -143,8 +145,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             }
 
             let hasChanges = false;
-            const newHistory = video.packagingHistory.map((version: any) => {
-                const cleanedCheckins = version.checkins.filter((checkin: any) => {
+            const newHistory = video.packagingHistory.map((version) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const cleanedCheckins = (version.checkins || []).filter((checkin: any) => {
                     // If marked as duplicate, remove
                     if (checkinIdsToDelete.has(checkin.id)) {
                         hasChanges = true;
@@ -399,4 +402,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         document.body
     );
 };
+
+SettingsModal.displayName = 'SettingsModal';
 

@@ -112,7 +112,11 @@ export const TrafficDataService = {
      * Обновляет snapshots (для packaging snapshot preservation).
      * Используется при удалении версии упаковки с traffic данными.
      */
-    async updateSnapshots(userId: string, channelId: string, videoId: string, snapshots: any[]): Promise<void> {
+    /**
+     * Обновляет snapshots (для packaging snapshot preservation).
+     * Используется при удалении версии упаковки с traffic данными.
+     */
+    async updateSnapshots(userId: string, channelId: string, videoId: string, snapshots: Array<unknown>): Promise<void> {
         const currentData = await TrafficDataService.fetch(userId, channelId, videoId);
         if (!currentData) return;
 
@@ -137,10 +141,12 @@ export const TrafficDataService = {
     /**
      * Санитизирует данные для Firestore, удаляя undefined значения
      */
-    sanitize(data: any): any {
+    sanitize<T>(data: T): T {
         const json = JSON.parse(JSON.stringify(data));
         // Remove undefined/null if they still exist for some reason
-        const clean = (obj: any) => {
+        const clean = (obj: any): any => {
+            if (typeof obj !== 'object' || obj === null) return obj;
+
             Object.keys(obj).forEach(key => {
                 if (obj[key] === undefined) {
                     delete obj[key];

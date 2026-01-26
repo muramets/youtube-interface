@@ -105,8 +105,9 @@ export const useVersionManagement = ({
      */
     const handleDeleteVersion = useCallback((versionNumber: number, versionLabel?: string) => {
         // Проверяем, есть ли связанные снепшоты трафика
+        // Typed properly via TrafficData
         const relatedSnapshots = trafficState.trafficData?.snapshots?.filter(
-            (s: any) => s.version === versionNumber
+            s => s.version === versionNumber
         ) || [];
 
         // Legacy Stack Detection removed as we now do Group Deletion
@@ -116,17 +117,17 @@ export const useVersionManagement = ({
 
         if (relatedSnapshots.length > 0) {
             // Get latest snapshot for current version
-            const latestSnapshot = relatedSnapshots.sort((a: any, b: any) => b.timestamp - a.timestamp)[0];
+            const latestSnapshot = relatedSnapshots.sort((a, b) => b.timestamp - a.timestamp)[0];
             const currentTotalViews = latestSnapshot.summary?.totalViews || 0;
 
             // Get previous version's latest snapshot view count
             // Find snapshots for version < versionNumber
             const allSnapshots = trafficState.trafficData?.snapshots || [];
-            const previousVersionSnapshots = allSnapshots.filter((s: any) => s.version < versionNumber);
+            const previousVersionSnapshots = allSnapshots.filter(s => s.version < versionNumber);
 
             let previousTotalViews = 0;
             if (previousVersionSnapshots.length > 0) {
-                const latestPrevSnapshot = previousVersionSnapshots.sort((a: any, b: any) => b.timestamp - a.timestamp)[0];
+                const latestPrevSnapshot = previousVersionSnapshots.sort((a, b) => b.timestamp - a.timestamp)[0];
                 previousTotalViews = latestPrevSnapshot.summary?.totalViews || 0;
             }
 
@@ -145,15 +146,15 @@ export const useVersionManagement = ({
         // GROUP DELETION LOGIC:
         // Find all versions that belong to the same "visual group" (same canonical ID)
         // and delete them all together.
-        const targetVersionData = versions.packagingHistory.find((v: any) => v.versionNumber === versionNumber);
+        const targetVersionData = versions.packagingHistory.find(v => v.versionNumber === versionNumber);
         let versionsToDelete = [versionNumber];
 
         if (targetVersionData) {
             const canonicalId = targetVersionData.cloneOf || targetVersionData.versionNumber;
-            const siblings = versions.packagingHistory.filter((v: any) =>
+            const siblings = versions.packagingHistory.filter(v =>
                 (v.cloneOf || v.versionNumber) === canonicalId
             );
-            versionsToDelete = siblings.map((v: any) => v.versionNumber);
+            versionsToDelete = siblings.map(v => v.versionNumber);
         }
 
         // ATOMIC ATTEMPT
@@ -164,18 +165,18 @@ export const useVersionManagement = ({
 
             // 1. Prepare Traffic Updates if needed
             const snapshotsForVersions = trafficState.trafficData?.snapshots?.filter(
-                (s: any) => versionsToDelete.includes(s.version)
+                s => versionsToDelete.includes(s.version)
             ) || [];
 
-            if (snapshotsForVersions.length > 0) {
-                const updatedSnapshots = trafficState.trafficData.snapshots.map((s: any) => {
+            if (snapshotsForVersions.length > 0 && trafficState.trafficData) {
+                const updatedSnapshots = trafficState.trafficData.snapshots.map(s => {
                     if (versionsToDelete.includes(s.version)) {
                         const versionData = versions.packagingHistory.find(
-                            (v: any) => v.versionNumber === s.version
+                            v => v.versionNumber === s.version
                         );
 
                         // FIND THE SPECIFIC PERIOD this snapshot belongs to
-                        const period = versionData?.activePeriods?.find((p: any) =>
+                        const period = versionData?.activePeriods?.find(p =>
                             s.timestamp >= (p.startDate - 5000) &&
                             (!p.endDate || s.timestamp <= (p.endDate + 5000))
                         );
@@ -248,14 +249,15 @@ export const useVersionManagement = ({
                 // 3. Commit Batch
                 await batch.commit();
 
-                // 4. Update local state
+                // 5. Update local state
                 versions.deleteVersion(versionNumber);
                 if (deleteData.newCurrentVersion) {
                     versions.setActiveVersion(deleteData.newCurrentVersion);
                 }
                 if (deleteData.newActiveVersion !== undefined) {
                     versions.setActiveVersion(deleteData.newActiveVersion);
-                    if (versionsToDelete.includes(versions.viewingVersion)) {
+                    const isViewingDeleted = typeof versions.viewingVersion === 'number' && versionsToDelete.includes(versions.viewingVersion);
+                    if (isViewingDeleted) {
                         versions.switchToVersion(deleteData.newActiveVersion);
                     }
                 }
@@ -286,7 +288,7 @@ export const useVersionManagement = ({
 
         // 1. Получаем данные исторической версии
         const targetVersionData = versions.packagingHistory.find(
-            (v: any) => v.versionNumber === versionToRestore
+            v => v.versionNumber === versionToRestore
         );
 
         if (!targetVersionData || !targetVersionData.configurationSnapshot) {
@@ -301,11 +303,11 @@ export const useVersionManagement = ({
         } else if (versions.activeVersion === 'draft') {
             // Fallback logic SAME AS usePackagingActions to be consistent
             if (versions.packagingHistory.length > 0) {
-                const latestByDate = versions.packagingHistory.reduce((best: any, current: any) => {
-                    const currentStart = current.activePeriods?.reduce((max: number, p: any) =>
+                const latestByDate = versions.packagingHistory.reduce<PackagingVersion | null>((best, current) => {
+                    const currentStart = current.activePeriods?.reduce((max: number, p) =>
                         (p.startDate || 0) > (max || 0) ? (p.startDate || 0) : (max || 0)
                         , 0) || 0;
-                    const bestStart = best?.activePeriods?.reduce((max: number, p: any) =>
+                    const bestStart = best?.activePeriods?.reduce((max: number, p) =>
                         (p.startDate || 0) > (max || 0) ? (p.startDate || 0) : (max || 0)
                         , 0) || 0;
                     return currentStart > bestStart ? current : best;
@@ -314,7 +316,7 @@ export const useVersionManagement = ({
                 if (latestByDate && (latestByDate.activePeriods?.length || 0) > 0) {
                     activeVersionToSnapshot = latestByDate.versionNumber;
                 } else {
-                    activeVersionToSnapshot = Math.max(...versions.packagingHistory.map((v: any) => v.versionNumber));
+                    activeVersionToSnapshot = Math.max(...versions.packagingHistory.map(v => v.versionNumber));
                 }
             }
         }
@@ -352,7 +354,7 @@ export const useVersionManagement = ({
         // 4. Update Firestore
         // We need to calculate the updated history with the new period added to the target version
         // and the previous active version closed.
-        const updatedHistory = versions.packagingHistory.map((v: any) => {
+        const updatedHistory = versions.packagingHistory.map(v => {
             if (v.versionNumber === versionToRestore) {
                 return VersionService.addNewActivePeriod(VersionService.closeAllPeriods(v, closingSnapshotId));
             }

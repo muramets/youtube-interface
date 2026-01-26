@@ -22,6 +22,12 @@ describe('usePackagingActions - closingSnapshotId logic', () => {
      * для видео без publishedVideoId
      */
 
+    interface Snapshot {
+        id: string;
+        version: number;
+        timestamp: number;
+    }
+
     it('должен находить самый свежий снапшот активной версии', () => {
         const activeVersion = 3;
         const trafficData = {
@@ -35,8 +41,8 @@ describe('usePackagingActions - closingSnapshotId logic', () => {
 
         // Логика из handleRestore
         const activeVersionSnapshots = trafficData.snapshots
-            .filter((s: any) => s.version === activeVersion)
-            .sort((a: any, b: any) => b.timestamp - a.timestamp);
+            .filter((s: Snapshot) => s.version === activeVersion)
+            .sort((a: Snapshot, b: Snapshot) => b.timestamp - a.timestamp);
 
         const closingSnapshotId = activeVersionSnapshots.length > 0
             ? activeVersionSnapshots[0].id
@@ -56,8 +62,8 @@ describe('usePackagingActions - closingSnapshotId logic', () => {
         };
 
         const activeVersionSnapshots = trafficData.snapshots
-            .filter((s: any) => s.version === activeVersion)
-            .sort((a: any, b: any) => b.timestamp - a.timestamp);
+            .filter((s: Snapshot) => s.version === activeVersion)
+            .sort((a: Snapshot, b: Snapshot) => b.timestamp - a.timestamp);
 
         const closingSnapshotId = activeVersionSnapshots.length > 0
             ? activeVersionSnapshots[0].id
@@ -69,12 +75,12 @@ describe('usePackagingActions - closingSnapshotId logic', () => {
     it('должен возвращать null, если trafficData пустой', () => {
         const activeVersion = 3;
         const trafficData = {
-            snapshots: [] as any[]
+            snapshots: [] as Snapshot[]
         };
 
         const activeVersionSnapshots = trafficData.snapshots
-            .filter((s: any) => s.version === activeVersion)
-            .sort((a: any, b: any) => b.timestamp - a.timestamp);
+            .filter((s: Snapshot) => s.version === activeVersion)
+            .sort((a: Snapshot, b: Snapshot) => b.timestamp - a.timestamp);
 
         const closingSnapshotId = activeVersionSnapshots.length > 0
             ? activeVersionSnapshots[0].id
@@ -94,8 +100,8 @@ describe('usePackagingActions - closingSnapshotId logic', () => {
         };
 
         const activeVersionSnapshots = trafficData.snapshots
-            .filter((s: any) => s.version === activeVersion)
-            .sort((a: any, b: any) => b.timestamp - a.timestamp);
+            .filter((s: Snapshot) => s.version === activeVersion)
+            .sort((a: Snapshot, b: Snapshot) => b.timestamp - a.timestamp);
 
         expect(activeVersionSnapshots[0].id).toBe('snap-v2-3');
         expect(activeVersionSnapshots[1].id).toBe('snap-v2-2');

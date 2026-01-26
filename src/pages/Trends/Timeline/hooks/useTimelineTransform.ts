@@ -142,24 +142,15 @@ export const useTimelineTransform = ({
     // 2. Derive Dynamic World Height (with stability)
     // Account for vertical padding to create safe zones at top and bottom
     // 2. Derive Dynamic World Height
-    const lastValidWorldHeightRef = useRef(1000);
+    // Account for vertical padding to create safe zones at top and bottom
+    const availableHeight = viewportSize.height - headerHeight - totalVerticalPadding;
 
     // Calculate synchronously during render (Pure)
     let dynamicWorldHeight = 1000;
-    const availableHeight = viewportSize.height - headerHeight - totalVerticalPadding;
 
     if (viewportSize.height > 0 && fitScale > 0) {
         dynamicWorldHeight = availableHeight / fitScale;
-    } else {
-        dynamicWorldHeight = lastValidWorldHeightRef.current;
     }
-
-    // Update ref for fallback usage (Effect)
-    useEffect(() => {
-        if (viewportSize.height > 0 && fitScale > 0) {
-            lastValidWorldHeightRef.current = dynamicWorldHeight;
-        }
-    }, [dynamicWorldHeight, viewportSize.height, fitScale]);
 
     // 3. Min Scale
     const minScale = fitScale;
@@ -281,13 +272,11 @@ export const useTimelineTransform = ({
 
         const savedConfig = savedConfigs[currentContentHash];
         if (savedConfig) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
             setTransformState({
                 scale: savedConfig.zoomLevel,
                 offsetX: savedConfig.offsetX,
                 offsetY: savedConfig.offsetY
             });
-            // eslint-disable-next-line react-hooks/set-state-in-effect
             setTimelineConfig({
                 ...savedConfig,
                 contentHash: currentContentHash

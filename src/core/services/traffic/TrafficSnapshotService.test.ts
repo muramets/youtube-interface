@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { TrafficSnapshotService } from './TrafficSnapshotService';
+import type { TrafficSnapshot } from '../../types/traffic';
 
 // Подменяем внешние зависимости (базу данных и хранилище файлов)
 vi.mock('./TrafficDataService', () => ({
@@ -31,7 +32,7 @@ describe('TrafficSnapshotService', () => {
         ];
 
         it('должен возвращать самый свежий снапшот для указанной версии', async () => {
-            const sources = await TrafficSnapshotService.getVersionSources(1, snapshots as any);
+            const sources = await TrafficSnapshotService.getVersionSources(1, snapshots as unknown as TrafficSnapshot[]);
 
             // Для версии 1 есть два снапшота. Должен выбраться самый поздний (V1 End).
             expect(sources.sources[0].sourceTitle).toBe('V1 End');
@@ -39,13 +40,13 @@ describe('TrafficSnapshotService', () => {
 
         it('должен правильно выбирать снапшот внутри указанного периода (важно для Restored версий)', async () => {
             // Ищем версию 1, но именно в периоде между 0 и 5000
-            const sources = await TrafficSnapshotService.getVersionSources(1, snapshots as any, 0, 5000);
+            const sources = await TrafficSnapshotService.getVersionSources(1, snapshots as unknown as TrafficSnapshot[], 0, 5000);
 
             expect(sources.sources[0].sourceTitle).toBe('V1 Start');
         });
 
         it('должен возвращать пустой список, если снапшотов для версии нет', async () => {
-            const sources = await TrafficSnapshotService.getVersionSources(99, snapshots as any);
+            const sources = await TrafficSnapshotService.getVersionSources(99, snapshots as unknown as TrafficSnapshot[]);
             expect(sources.sources).toEqual([]);
         });
 
@@ -54,7 +55,7 @@ describe('TrafficSnapshotService', () => {
                 { id: 'h1', version: 3, timestamp: 5000, storagePath: 'test/path.csv' }
             ];
 
-            const sources = await TrafficSnapshotService.getVersionSources(3, hybridSnapshots as any);
+            const sources = await TrafficSnapshotService.getVersionSources(3, hybridSnapshots as unknown as TrafficSnapshot[]);
 
             // Мы замокали парсер выше, он должен вернуть 'CSV Data'
             expect(sources.sources[0].sourceTitle).toBe('CSV Data');

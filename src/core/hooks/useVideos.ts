@@ -140,8 +140,8 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
                             finalUpdates.mergedVideoData = mergedDetails;
                             // Clear retry state on success
                             finalUpdates.fetchStatus = 'success';
-                            finalUpdates.fetchRetryCount = deleteField() as any;
-                            finalUpdates.lastFetchAttempt = deleteField() as any;
+                            finalUpdates.fetchRetryCount = deleteField() as unknown as number;
+                            finalUpdates.lastFetchAttempt = deleteField() as unknown as number;
                         } else {
                             // Failed to fetch - initialize retry state
                             finalUpdates.fetchStatus = 'pending';
@@ -158,9 +158,9 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
                 } else if (updates.publishedVideoId === '') {
                     // Clearing publishedVideoId - reset all related fields
                     delete finalUpdates.mergedVideoData;
-                    finalUpdates.fetchStatus = deleteField() as any;
-                    finalUpdates.fetchRetryCount = deleteField() as any;
-                    finalUpdates.lastFetchAttempt = deleteField() as any;
+                    finalUpdates.fetchStatus = deleteField() as unknown as 'pending' | 'success' | 'failed';
+                    finalUpdates.fetchRetryCount = deleteField() as unknown as number;
+                    finalUpdates.lastFetchAttempt = deleteField() as unknown as number;
                 }
 
                 if (expectedRevision !== undefined) {
@@ -310,7 +310,7 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
                 if (version.versionNumber === versionNumber) {
                     return {
                         ...version,
-                        checkins: [...version.checkins, checkin]
+                        checkins: [...(version.checkins || []), checkin]
                     };
                 }
                 return version;

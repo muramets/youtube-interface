@@ -33,7 +33,7 @@ export interface TimelineVideoLayerHandle {
 
 
 
-export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineVideoLayerProps>(({
+const TimelineVideoLayerContent = forwardRef<TimelineVideoLayerHandle, TimelineVideoLayerProps>(({
     videoPositions,
     transform,
     worldWidth,
@@ -44,12 +44,8 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
     onHoverVideo,
     onDoubleClickVideo,
     onClickVideo,
-    isLoading = false,
-    isHidden = false
+    isLoading = false
 }, ref) => {
-    // Immediate optimization: If hidden, render null to unmount heavy DOM
-    if (isHidden) return null;
-
     // Local state for smooth interactions (hover, pan) -- decoupled from React render if needed
     const layerRef = useRef<HTMLDivElement>(null);
 
@@ -194,6 +190,15 @@ export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineV
             </div>
         </div>
     );
+});
+
+TimelineVideoLayerContent.displayName = 'TimelineVideoLayerContent';
+
+export const TimelineVideoLayer = forwardRef<TimelineVideoLayerHandle, TimelineVideoLayerProps>((props, ref) => {
+    // Immediate optimization: If hidden, render null to unmount heavy DOM
+    if (props.isHidden) return null;
+
+    return <TimelineVideoLayerContent {...props} ref={ref} />;
 });
 
 TimelineVideoLayer.displayName = 'TimelineVideoLayer';

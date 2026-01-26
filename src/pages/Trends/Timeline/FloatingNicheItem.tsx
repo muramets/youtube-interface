@@ -110,28 +110,49 @@ export const FloatingNicheItem: React.FC<FloatingNicheItemProps> = ({
                 ${isAssigned ? 'text-white' : 'text-text-secondary hover:text-white'}
                 ${isInteracting ? 'bg-white/5 z-20' : isHighlighted ? 'bg-white/10 text-white' : 'hover:bg-white/5'}
             `}
-            // Only toggle on main area click if not editing/interacting
             onClick={() => !isEditing && !isInteracting && onToggle()}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+                if (!isEditing && !isInteracting && (e.key === 'Enter' || e.key === ' ')) {
+                    onToggle();
+                }
+            }}
         >
             <div className="flex items-center gap-2 flex-1 min-w-0">
                 {/* Color Dot / Picker Trigger */}
                 <div ref={colorPickerRef} className="relative shrink-0">
                     <div
                         role="button"
+                        tabIndex={0}
                         onClick={(e) => {
                             e.stopPropagation();
+                            if (!isColorPickerOpen && colorPickerRef.current) {
+                                const rect = colorPickerRef.current.getBoundingClientRect();
+                                setPickerPosition({
+                                    left: rect.left,
+                                    top: rect.bottom + 8
+                                });
+                            }
                             setIsColorPickerOpen(!isColorPickerOpen);
                             onCloseMenu();
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.stopPropagation();
+                                setIsColorPickerOpen(!isColorPickerOpen);
+                                onCloseMenu();
+                            }
                         }}
                         className="w-2 h-2 rounded-full cursor-pointer hover:scale-125 transition-transform hover:ring-2 hover:ring-white/20"
                         style={{ backgroundColor: niche.color }}
                     />
-                    {isColorPickerOpen && createPortal(
+                    {isColorPickerOpen && pickerPosition && createPortal(
                         <div
                             className="fixed z-[9999] bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-fade-in"
                             style={{
-                                left: colorPickerRef.current?.getBoundingClientRect().left,
-                                top: (colorPickerRef.current?.getBoundingClientRect().bottom || 0) + 8,
+                                left: pickerPosition.left,
+                                top: pickerPosition.top,
                             }}
                             onClick={(e) => e.stopPropagation()}
                         >
@@ -227,6 +248,8 @@ export const FloatingNicheItem: React.FC<FloatingNicheItemProps> = ({
                 message={`Are you sure you want to delete "${niche.name}"? This will remove all video assignments.`}
                 confirmLabel="Delete"
             />
-        </div>
+        </div >
     );
 };
+
+FloatingNicheItem.displayName = 'FloatingNicheItem';

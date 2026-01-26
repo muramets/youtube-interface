@@ -1,6 +1,6 @@
-import { useRef } from 'react';
+import { useState } from 'react';
 
-interface UseFrozenValueParams<T, D extends any[] = []> {
+interface UseFrozenValueParams<T, D extends unknown[] = []> {
     value: T;
     version: number;
     dependencies?: D;
@@ -11,47 +11,43 @@ interface UseFrozenValueParams<T, D extends any[] = []> {
  * A hook that holds onto a value and only updates it when the version changes, 
  * or optionally when other dependencies change, relative to the last "frozen" state.
  * 
- * This is useful when we calculate a heavy object (like a layout structure) and want to 
- * keep returning the *same instance* even if the inputs technically change, unless 
- * a specific "version" signal (like a force-update counter) increments.
+ * Uses Render-Phase Updates via useState to ensure safety and stability.
  */
-export function useFrozenValue<T, D extends any[] = []>({
+export function useFrozenValue<T, D extends unknown[] = []>({
     value,
     version,
     dependencies = [] as unknown as D,
     shouldUpdate
 }: UseFrozenValueParams<T, D>): T {
-    const ref = useRef<{
-        version: number;
+    const [frozen, setFrozen] = useState<{
         value: T;
+        version: number;
         dependencies: D;
-        initialized: boolean;
-    } | null>(null);
-
-    const currentDeps = dependencies;
-    const prevEntry = ref.current;
+    }>({
+        value,
+        version,
+        dependencies
+    });
 
     let needsUpdate = false;
 
-    if (!prevEntry || !prevEntry.initialized) {
-        needsUpdate = true;
-    } else if (prevEntry.version !== version) {
+    // Check conditions against CURRENT state (frozen)
+    if (frozen.version !== version) {
         needsUpdate = true;
     } else if (shouldUpdate) {
-        // Custom update logic if provided
+        // Custom update logic
+        // Note: We use the *new* value/deps from props for the "next" state
         needsUpdate = shouldUpdate(
-            { value: prevEntry.value, version: prevEntry.version, dependencies: prevEntry.dependencies },
-            { value, version, dependencies: currentDeps }
+            { value: frozen.value, version: frozen.version, dependencies: frozen.dependencies },
+            { value, version, dependencies }
         );
     } else {
-        // Default dependency check: shallow compare if array length matches
-        // (Though usually we rely on version for the heavy lifting here as per original code pattern)
-        if (prevEntry.dependencies.length !== currentDeps.length) {
+        // Default dependency check: shallow compare
+        if (frozen.dependencies.length !== dependencies.length) {
             needsUpdate = true;
         } else {
-            // Simple shallow equality check for deps
-            for (let i = 0; i < currentDeps.length; i++) {
-                if (prevEntry.dependencies[i] !== currentDeps[i]) {
+            for (let i = 0; i < dependencies.length; i++) {
+                if (frozen.dependencies[i] !== dependencies[i]) {
                     needsUpdate = true;
                     break;
                 }
@@ -59,23 +55,11 @@ export function useFrozenValue<T, D extends any[] = []>({
         }
     }
 
-    // Special case from original code: specific overrides like "wasEmpty" check
-    // Logic: If the previous value was generated from "empty data" but now we have data, update.
-    // We can handle this by letting the caller pass `dependencies` that include `data.length > 0`.
-    // Or we implicitly update if the *value* seems "initialized" vs "uninitialized".
-
-    // BUT the original code used specific refs like `frozenWorldWidthRef`.
-    // Let's stick effectively to the pattern:
-    // If version changed OR dependencies changed -> Update.
-
     if (needsUpdate) {
-        ref.current = {
-            version,
-            value,
-            dependencies: currentDeps,
-            initialized: true
-        };
+        const newState = { value, version, dependencies };
+        setFrozen(newState);
+        return value; // Return new value immediately
     }
 
-    return ref.current!.value;
+    return frozen.value;
 }

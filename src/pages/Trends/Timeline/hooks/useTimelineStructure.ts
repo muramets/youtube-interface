@@ -1,4 +1,4 @@
-import { useMemo, useRef, useCallback } from 'react';
+import { useMemo, useRef, useCallback, useEffect } from 'react';
 import type { TrendVideo, MonthRegion, YearMarker, TimelineStats, MonthLayout } from '../../../../core/types/trends';
 import { useFrozenValue } from './useFrozenValue';
 
@@ -28,16 +28,19 @@ export const useTimelineStructure = ({
 
     // Trace initialization
     const hasInitializedRef = useRef(false);
-    if (densitySourceVideos.length > 0) {
-        hasInitializedRef.current = true;
-    }
+
+    useEffect(() => {
+        if (densitySourceVideos.length > 0) {
+            hasInitializedRef.current = true;
+        }
+    }, [densitySourceVideos.length]);
 
     // Custom update logic for strict freezing
-    const shouldStrictUpdate = useCallback((prev: any, next: any) => {
+    const shouldStrictUpdate = useCallback((prev: { value: unknown, version: number, dependencies: unknown[] }, next: { value: unknown, version: number, dependencies: unknown[] }) => {
         // 1. Version Change triggers update (Always)
         if (prev.version !== next.version) return true;
 
-        // 2. Check dependencies FIRST - certain changes like timeLinearity should always update
+        // 2. Check dependencies FIRST
         const prevDeps = prev.dependencies;
         const nextDeps = next.dependencies;
         if (prevDeps.length !== nextDeps.length) return true;
@@ -46,7 +49,6 @@ export const useTimelineStructure = ({
         }
 
         // 3. If strictly frozen and already initialized, reject non-dependency updates
-        // (This check comes AFTER dependency check to ensure slider controls work)
         if (isFrozen && hasInitializedRef.current) return false;
 
         return false;
@@ -54,7 +56,7 @@ export const useTimelineStructure = ({
 
     // 1. Calculate Stats (Memoized)
     const currentStats = useMemo((): TimelineStats => {
-        if (videos.length === 0) return { minViews: 0, maxViews: 1, minDate: Date.now(), maxDate: Date.now() };
+        if (videos.length === 0) return { minViews: 0, maxViews: 1, minDate: 0, maxDate: 0 };
         const views = videos.map(v => v.viewCount);
         const dates = videos.map(v => v.publishedAtTimestamp);
         const buffer = 1000 * 60 * 60 * 12;
@@ -90,7 +92,7 @@ export const useTimelineStructure = ({
             counts.set(key, (counts.get(key) || 0) + 1);
         });
         return { counts, dynamicLinearPixelsPerDay };
-    }, [densitySourceVideos, effectiveStats]);
+    }, [densitySourceVideos]);
 
     // ============================================================
     // SINGLE SOURCE OF TRUTH: Timeline Date Range
@@ -137,7 +139,20 @@ export const useTimelineStructure = ({
         const { counts, dynamicLinearPixelsPerDay } = densityStats;
         const VIDEO_DENSITY_MULTIPLIER = 80;
 
-        const grid: any[] = [];
+        const grid: Array<{
+            year: number;
+            month: number;
+            monthKey: string;
+            label: string;
+            count: number;
+            linearWidth: number;
+            densityWidth: number;
+            startTs: number;
+            endTs: number;
+            daysInMonth: number;
+            isLastMonth: boolean;
+            clipFactor: number;
+        }> = [];
         const current = new Date(timelineRange.startDate);
         let loops = 0;
 

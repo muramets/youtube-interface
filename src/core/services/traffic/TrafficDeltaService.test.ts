@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { TrafficDeltaService } from './TrafficDeltaService';
-import type { TrafficSource } from '../../types/traffic';
+import type { TrafficSource, TrafficSnapshot } from '../../types/traffic';
 
 // Мы мокаем (подменяем) другой сервис, чтобы протестировать только дельту,
 // не запуская сложную логику загрузки файлов.
@@ -64,8 +64,8 @@ describe('TrafficDeltaService', () => {
             const { TrafficSnapshotService } = await import('./TrafficSnapshotService');
 
             // "Прикинемся", что предыдущая версия v.1 имела 4 просмотра
-            (TrafficSnapshotService.getVersionSources as any).mockResolvedValue({
-                sources: [{ sourceTitle: 'X', views: 4, videoId: '1' }]
+            vi.mocked(TrafficSnapshotService.getVersionSources).mockResolvedValue({
+                sources: [{ sourceTitle: 'X', views: 4, videoId: '1' } as any] // Using specific mock return
             });
 
             const snapshots = [
@@ -73,7 +73,7 @@ describe('TrafficDeltaService', () => {
                 { version: 2, timestamp: 200 }
             ];
 
-            const result = await TrafficDeltaService.calculateVersionDelta(currentSources, undefined, 2, snapshots as any);
+            const result = await TrafficDeltaService.calculateVersionDelta(currentSources, undefined, 2, snapshots as unknown as TrafficSnapshot[]);
 
             // 10 - 4 = 6
             expect(result.sources[0].views).toBe(6);
@@ -84,8 +84,8 @@ describe('TrafficDeltaService', () => {
             const { TrafficSnapshotService } = await import('./TrafficSnapshotService');
 
             // Мокаем данные из закрывающего снапшота (v.3 с 8 просмотрами)
-            (TrafficSnapshotService.getVersionSources as any).mockResolvedValue({
-                sources: [{ sourceTitle: 'X', views: 8, videoId: '1' }]
+            vi.mocked(TrafficSnapshotService.getVersionSources).mockResolvedValue({
+                sources: [{ sourceTitle: 'X', views: 8, videoId: '1' } as any]
             });
 
             const snapshots = [
@@ -99,7 +99,7 @@ describe('TrafficDeltaService', () => {
                 currentSources,
                 undefined,
                 1,
-                snapshots as any,
+                snapshots as unknown as TrafficSnapshot[],
                 'snap-v3' // Закрывающий снапшот из предыдущей активной версии
             );
 

@@ -53,7 +53,7 @@ export const useFrozenStats = ({
     hasUnassignedFilter = false,
     filterHash
 }: UseFrozenStatsProps) => {
-    const frozenStatsRef = useRef<TimelineStats | undefined>(undefined);
+    const [frozenStats, setFrozenStats] = useState<TimelineStats | undefined>(undefined);
     const [statsVersion, setStatsVersion] = useState(0);
 
     const channelIdsKey = useMemo(() => channels.map(c => c.id).sort().join(','), [channels]);
@@ -66,12 +66,15 @@ export const useFrozenStats = ({
     const skipNextFreezeRef = useRef(false);
 
     // Channel switch reset (derived state pattern)
+    // When channel changes, we reset frozen stats immediately (during render)
+    // This is a valid pattern if we also update state to trigger re-render
     const [prevChannelForReset, setPrevChannelForReset] = useState(selectedChannelId);
     if (selectedChannelId !== prevChannelForReset) {
         setPrevChannelForReset(selectedChannelId);
-        frozenStatsRef.current = undefined;
+        setFrozenStats(undefined);
         // Skip first freeze when switching to main Trends (first render has stale data)
         if (selectedChannelId === null) {
+            // eslint-disable-next-line react-hooks/refs
             skipNextFreezeRef.current = true;
         }
     }
@@ -103,7 +106,7 @@ export const useFrozenStats = ({
         // 2. Fundamental context changed (channel list, filter mode)
         // 3. ANY filter changed (hash changed - dates, views, niches)
         const shouldAutoRefresh =
-            !frozenStatsRef.current ||
+            !frozenStats ||
             channelListChanged ||
             filterModeChanged ||
             filterHashChanged;
@@ -114,17 +117,17 @@ export const useFrozenStats = ({
             if (skipNextFreezeRef.current) {
                 skipNextFreezeRef.current = false;
             } else {
-                frozenStatsRef.current = currentStats;
+                setFrozenStats(currentStats);
                 setStatsVersion(v => v + 1);
             }
         }
 
         skipAutoFitRef.current = isFilterModeToggleOnly;
-    }, [currentStats, channelIdsKey, filterMode, filterHash, allVideos.length]);
+    }, [currentStats, channelIdsKey, filterMode, filterHash, allVideos.length, frozenStats]);
 
     // Manual refresh callback (Z key)
     const refreshStats = useCallback(() => {
-        frozenStatsRef.current = currentStats;
+        setFrozenStats(currentStats);
         skipAutoFitRef.current = false;
         setStatsVersion(v => v + 1);
     }, [currentStats]);
@@ -135,9 +138,9 @@ export const useFrozenStats = ({
 
     return useMemo(() => ({
         currentStats,
-        frozenStats: frozenStatsRef.current,
+        frozenStats,
         shouldAutoFit,
         refreshStats,
         skipAutoFitRef
-    }), [currentStats, shouldAutoFit, refreshStats, statsVersion]);
+    }), [currentStats, shouldAutoFit, refreshStats, frozenStats]);
 };

@@ -1,4 +1,5 @@
-import type { VideoDetails, PackagingVersion } from '../../../core/utils/youtubeApi';
+import type { VideoDetails } from '../../../core/utils/youtubeApi';
+import type { PackagingVersion } from '../../../core/types/versioning';
 
 /**
  * Сервис для работы с версиями packaging.

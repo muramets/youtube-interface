@@ -203,7 +203,7 @@ export const useTrendStore = create<TrendStore>()(
 
             // Miro-like: viewport save/restore handled by useTimelineTransform via contentHash
             // This action only updates the selected channel, filters are set by handleChannelClick
-            setSelectedChannelId: (id) => set({ selectedChannelId: id }),
+            setSelectedChannelId: (id) => set({ selectedChannelId: id, videos: [] }),
 
             setSelectedVideo: (video) => set({ selectedVideo: video }),
 
