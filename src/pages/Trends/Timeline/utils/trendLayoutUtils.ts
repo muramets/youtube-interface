@@ -104,17 +104,13 @@ export const getTrendXPosition = (
     const layout = monthLayouts.find(l => l.monthKey === key);
 
     if (layout) {
-        // Non-Linear: Snap to Month Grid
-        const dayOfMonth = d.getDate(); // 1-indexed
+        // Continuous: (day - 1 + timeOfYearPercentage) / daysInMonth
+        // d.getTime() - startOfMonth / (endOfMonth - startOfMonth) is most precise
+        const startOfMonth = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+        const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime();
+        const monthProgress = (timestamp - startOfMonth) / (endOfMonth - startOfMonth);
 
-        // Use pre-calculated daysInMonth from layout if available, or calculate it
-        // Note: TimelineStructure calculates daysInMonth when creating layouts.
-        // Fallback to standard calculation if missing.
-        const daysInMonth = layout.daysInMonth || new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-
-        // Center of the day: (day - 0.5) / daysInMonth
-        const dayProgress = (dayOfMonth - 0.5) / daysInMonth;
-        return layout.startX + (dayProgress * layout.width);
+        return layout.startX + (monthProgress * layout.width);
     } else {
         // Linear Fallback (or if month not found in grid)
         const dateRange = stats.maxDate - stats.minDate || 1;

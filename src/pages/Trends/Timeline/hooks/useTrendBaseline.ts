@@ -81,42 +81,61 @@ export const useTrendBaseline = ({
 
             const windowMs = Math.max(1, effectiveWindow) * 24 * 60 * 60 * 1000;
 
-            // Sampling: Aim for ~200 points for smooth interaction
+            // Sampling: Aim for ~300 points for smoother granularity
             // Ensure step is at least 1 hour to avoid infinite loops on small ranges
-            const stepMs = Math.max(1000 * 60 * 60, (maxDate - minDate) / 200);
+            const stepMs = Math.max(1000 * 60 * 60, (maxDate - minDate) / 300);
 
             // Extend range slightly to cover edges
             const startT = minDate - stepMs;
             const endT = maxDate + stepMs;
 
+            // GAUSSIAN WEIGHTED MOVING AVERAGE (Gaussian Kernel)
+            // sigma determines the "smoothness". 
+            // We use a minimum sigma of 5 days to ensure we always bridge gaps between videos,
+            // even if the user selects a very small window.
+            const MIN_SIGMA_MS = 5 * 24 * 60 * 60 * 1000;
+            const sigma = Math.max(MIN_SIGMA_MS, (windowMs / 1.5));
+            const sigmaSq2 = 2 * sigma * sigma;
+
             for (let t = startT; t <= endT; t += stepMs) {
-                // Relevant videos for this window
-                // OPTIMIZATION: Sliding Window could be used here for O(N), but O(Steps * N) filtered is acceptable for N < 2000
+                // Wide search: +/- 4 sigma to ensure zero-plateaus even at tails
+                const searchBounds = 4 * sigma;
                 const relevant = sortedVideos.filter(v =>
-                    v.publishedAtTimestamp >= t - windowMs &&
-                    v.publishedAtTimestamp <= t + windowMs
+                    v.publishedAtTimestamp >= t - searchBounds &&
+                    v.publishedAtTimestamp <= t + searchBounds
                 );
 
                 if (relevant.length > 0) {
-                    const avg = relevant.reduce((acc, v) => acc + v.viewCount, 0) / relevant.length;
+                    let totalWeight = 0;
+                    let weightedViews = 0;
 
-                    // Use shared utility for X position (Handles Time Distribution)
-                    const xNorm = getTrendXPosition(t, stats, monthLayouts);
+                    for (const v of relevant) {
+                        const diff = v.publishedAtTimestamp - t;
+                        // Gaussian weight: e^(-x^2 / (2 * sigma^2))
+                        const weight = Math.exp(-(diff * diff) / sigmaSq2);
 
-                    // Use shared utility for Y position
-                    const { y } = getTrendYPosition(
-                        avg,
-                        stats,
-                        scalingMode,
-                        verticalSpread,
-                        dynamicWorldHeight
-                    );
+                        weightedViews += v.viewCount * weight;
+                        totalWeight += weight;
+                    }
 
-                    points.push({
-                        x: xNorm, // 0-1
-                        y, // World Y Pixels
-                        value: avg
-                    });
+                    if (totalWeight > 0.0001) {
+                        const weightedAvg = weightedViews / totalWeight;
+
+                        const xNorm = getTrendXPosition(t, stats, monthLayouts);
+                        const { y } = getTrendYPosition(
+                            weightedAvg,
+                            stats,
+                            scalingMode,
+                            verticalSpread,
+                            dynamicWorldHeight
+                        );
+
+                        points.push({
+                            x: xNorm,
+                            y,
+                            value: weightedAvg
+                        });
+                    }
                 }
             }
 
