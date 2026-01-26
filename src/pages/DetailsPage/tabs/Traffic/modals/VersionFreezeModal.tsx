@@ -41,7 +41,7 @@ export const VersionFreezeModal: React.FC<VersionFreezeModalProps> = ({
 
                     <div className="mb-6">
                         <TrafficUploader
-                            onUpload={async (sources: any) => {
+                            onUpload={async (sources: TrafficSource[]) => {
                                 await onFreeze(sources);
                                 onClose();
                             }}

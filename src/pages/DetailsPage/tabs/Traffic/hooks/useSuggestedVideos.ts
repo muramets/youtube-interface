@@ -10,7 +10,8 @@ export const useSuggestedVideos = (userId: string, channelId: string) => {
     const queryClient = useQueryClient();
     const queryKey = useMemo(() => ['suggestedVideos', userId, channelId], [userId, channelId]);
 
-    const { data: suggestedVideos = [], isLoading, error } = useQuery<VideoDetails[]>({
+    const EMPTY_VIDEOS = useMemo(() => [] as VideoDetails[], []);
+    const { data: rawVideos, isLoading, error } = useQuery<VideoDetails[]>({
         queryKey,
         queryFn: async () => {
             return VideoService.fetchSuggestedVideos(userId, channelId);
@@ -18,6 +19,8 @@ export const useSuggestedVideos = (userId: string, channelId: string) => {
         staleTime: Infinity,
         enabled: !!userId && !!channelId,
     });
+
+    const suggestedVideos = rawVideos || EMPTY_VIDEOS;
 
     useEffect(() => {
         if (!userId || !channelId) return;

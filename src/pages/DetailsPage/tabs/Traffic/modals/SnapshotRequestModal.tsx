@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { TrafficUploader } from '../components/TrafficUploader';
 import { AlertTriangle, X } from 'lucide-react';
+import type { TrafficSource } from '../../../../../core/types/traffic';
 
 interface SnapshotRequestModalProps {
     isOpen: boolean;
@@ -84,7 +85,7 @@ export const SnapshotRequestModal: React.FC<SnapshotRequestModalProps> = ({
                     {/* Uploader */}
                     <div className="flex flex-col gap-4 py-4">
                         <TrafficUploader
-                            onUpload={async (_sources: any, _totalRow: any, file?: File) => {
+                            onUpload={async (_sources: TrafficSource[], _totalRow?: TrafficSource, file?: File) => {
                                 if (file) {
                                     await handleUpload(file);
                                 }

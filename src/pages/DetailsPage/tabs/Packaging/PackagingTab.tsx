@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { type VideoDetails } from '../../../../core/utils/youtubeApi';
+import type { TrafficData } from '../../../../core/types/traffic';
 import { PackagingForm } from './components/PackagingForm';
 import { VideoPreviewCard } from './components/VideoPreviewCard';
 import { LanguageTabs } from '../../../../features/Video/LanguageTabs';
@@ -33,7 +34,7 @@ interface PackagingTabProps {
     onDirtyChange: (isDirty: boolean) => void;  // Sync dirty state to parent for version switch confirmation
     onRestoreVersion?: (version: number) => void; // Callback for restore version button
     onRequestSnapshot?: (versionNumber: number) => Promise<string | null | undefined>; // Callback for CSV snapshot request
-    trafficData?: any; // Traffic data for finding snapshots
+    trafficData?: TrafficData | null; // Traffic data for finding snapshots
 }
 
 export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState, onDirtyChange, onRestoreVersion, onRequestSnapshot, trafficData }) => {

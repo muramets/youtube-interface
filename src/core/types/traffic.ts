@@ -1,4 +1,6 @@
 import type { TrafficSnapshotBase } from './versioning';
+import type { TrafficType } from './videoTrafficType';
+import type { ViewerType } from './viewerType';
 
 export interface TrafficSource {
     sourceType: string;
@@ -14,6 +16,13 @@ export interface TrafficSource {
     channelId?: string;
     channelTitle?: string;
     publishedAt?: string;
+}
+
+export interface EnrichedTrafficSource extends TrafficSource {
+    trafficType?: TrafficType;
+    trafficSource?: 'manual' | 'smart_assistant';
+    viewerType?: ViewerType;
+    viewerSource?: 'manual' | 'smart_assistant';
 }
 
 import type { TrafficNicheProperty } from './suggestedTrafficNiches';
@@ -83,7 +92,7 @@ export interface TrafficSnapshot extends TrafficSnapshotBase {
             titles?: Array<{ variant: string; ctr: number; impressions: number }>;
             thumbnails?: Array<{ variant: string; ctr: number; impressions: number }>;
         };
-        localizations?: Record<string, any>;
+        localizations?: Record<string, unknown>;
         cloneOf?: number; // Preserved restoration metadata
         restoredAt?: number; // Preserved restoration metadata
         periodStart?: number; // NEW: Preserve period start
@@ -139,6 +148,7 @@ export type TrafficFilterType =
  * - Page reloads
  * - Navigation between different versions/periods
  * - Navigation between snapshots
+ * - Navigation between snapshots
  * 
  * Context Key Format:
  * - For snapshots: `snapshot-${snapshotId}`
@@ -150,6 +160,6 @@ export interface TrafficFilter {
     id: string;                    // Unique identifier for this filter instance
     type: TrafficFilterType;       // Which metric to filter on
     operator: import('../stores/filterStore').FilterOperator;  // Comparison operator
-    value: any;                    // Filter value (number, range, etc.)
+    value: number | string | string[] | [number, number]; // Filter value (number, range, etc.)
     label: string;                 // Display label for filter chips
 }

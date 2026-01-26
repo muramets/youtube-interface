@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { TrafficData, TrafficSource, TrafficSnapshot, TrafficGroup } from '../../../../../core/types/traffic';
 import type { PackagingVersion, ActivePeriod } from '../../../../../core/types/versioning';
 import { TrafficService } from '../../../../../core/services/traffic';
@@ -58,11 +58,11 @@ export const useTrafficDataLoader = ({
     // Context for Delta Mode (Previous -> Current)
     const [deltaContext, setDeltaContext] = useState<DeltaContext | undefined>(undefined);
 
-    // Business Logic: Identify Trash videos
-    const trashGroup = groups.find(g => g.name.trim().toLowerCase() === 'trash');
-    const trashVideoIds = new Set(trashGroup?.videoIds || []);
+    // Business Logic: Identify Trash videos - Memoized to prevent infinite loops
+    const trashGroup = useMemo(() => groups.find(g => g.name.trim().toLowerCase() === 'trash'), [groups]);
+    const trashVideoIds = useMemo(() => new Set(trashGroup?.videoIds || []), [trashGroup?.videoIds]);
 
-    const calculateTrashMetrics = (sources: TrafficSource[]): TrashMetrics => {
+    const calculateTrashMetrics = useCallback((sources: TrafficSource[]): TrashMetrics => {
         let trashImpressions = 0;
         let trashViews = 0;
 
@@ -74,7 +74,7 @@ export const useTrafficDataLoader = ({
         });
 
         return { impressions: trashImpressions, views: trashViews };
-    };
+    }, [trashVideoIds]); // Now stable due to useMemo above
 
     const retry = () => {
         logger.info('User initiated retry for traffic data loading', { component: 'useTrafficDataLoader' });
@@ -86,7 +86,7 @@ export const useTrafficDataLoader = ({
 
     useEffect(() => {
         const loadData = async () => {
-            const loadKey = `${selectedSnapshot || ''}-${viewingVersion}-${viewingPeriodIndex}-${viewMode}-${trashVideoIds.size}-${trafficData?.lastUpdated}-${trafficData?.snapshots?.length}`;
+            const loadKey = `${selectedSnapshot || ''}-${viewingVersion}-${viewingPeriodIndex}-${viewMode}-${trafficData?.lastUpdated}-${trafficData?.snapshots?.length}`;
 
             if (loadKey === lastLoadedKeyRef.current && displayedSources.length > 0) {
                 // IMPORTANT: If groups changed but loadKey didn't (size same), we still might need to recalculate trashMetrics
@@ -124,25 +124,24 @@ export const useTrafficDataLoader = ({
                 try {
                     const snapshot = trafficData.snapshots?.find((s: TrafficSnapshot) => s.id === selectedSnapshot);
                     if (snapshot) {
-                        let { sources: currentSources, totalRow: currentTotal } = await loadSnapshotSources(snapshot);
+                        const { sources: currentSources, totalRow: currentTotal } = await loadSnapshotSources(snapshot);
 
                         if (viewMode === 'delta' && currentSources.length > 0) {
                             const result = await calculateSnapshotDelta(
                                 currentSources,
                                 currentTotal,
                                 selectedSnapshot,
-                                trafficData.snapshots || [],
-                                trashVideoIds
+                                trafficData.snapshots || []
                             );
 
                             // For Delta mode, trash metrics MUST be calculated from DELTA sources
-                            setTrashMetrics(calculateTrashMetrics(result.sources));
+                            // setTrashMetrics removed here to avoid dependency loop
                             setDisplayedSources(result.sources);
                             setActualTotalRow(result.totalRow);
                             setDeltaContext(result.deltaContext);
                         } else {
                             // Cumulative mode
-                            setTrashMetrics(calculateTrashMetrics(currentSources));
+                            // setTrashMetrics removed here
                             setDisplayedSources(currentSources);
                             setActualTotalRow(currentTotal || trafficData.totalRow);
                             setDeltaContext(undefined);
@@ -195,29 +194,28 @@ export const useTrafficDataLoader = ({
 
                         if (viewMode === 'delta' && periodSnapshots.length > 0) {
                             const latestSnap = periodSnapshots[0];
-                            let { sources: currentSources, totalRow: currentTotal } = await loadSnapshotSources(latestSnap);
+                            const { sources: currentSources, totalRow: currentTotal } = await loadSnapshotSources(latestSnap);
 
                             const result = await calculateSnapshotDelta(
                                 currentSources,
                                 currentTotal,
                                 latestSnap.id,
-                                trafficData.snapshots || [],
-                                trashVideoIds
+                                trafficData.snapshots || []
                             );
 
-                            setTrashMetrics(calculateTrashMetrics(result.sources));
+                            // setTrashMetrics removed here
                             setDisplayedSources(result.sources);
                             setActualTotalRow(result.totalRow);
                             setDeltaContext(result.deltaContext);
                         } else {
-                            let { sources, totalRow: currentTotal } = await TrafficService.getVersionSources(
+                            const { sources, totalRow: currentTotal } = await TrafficService.getVersionSources(
                                 viewingVersion as number,
                                 trafficData.snapshots || [],
                                 periodStart,
                                 periodEnd
                             );
 
-                            setTrashMetrics(calculateTrashMetrics(sources));
+                            // setTrashMetrics removed here
                             setDisplayedSources(sources);
                             setActualTotalRow(currentTotal || trafficData.totalRow);
                             setDeltaContext(undefined);
@@ -256,29 +254,28 @@ export const useTrafficDataLoader = ({
 
                 if (viewMode === 'delta' && periodSnapshots.length > 0) {
                     const latestSnap = periodSnapshots[0];
-                    let { sources: currentSources, totalRow: currentTotal } = await loadSnapshotSources(latestSnap);
+                    const { sources: currentSources, totalRow: currentTotal } = await loadSnapshotSources(latestSnap);
 
                     const result = await calculateSnapshotDelta(
                         currentSources,
                         currentTotal,
                         latestSnap.id,
-                        trafficData.snapshots || [],
-                        trashVideoIds
+                        trafficData.snapshots || []
                     );
 
-                    setTrashMetrics(calculateTrashMetrics(result.sources));
+                    // setTrashMetrics removed here
                     setDisplayedSources(result.sources);
                     setActualTotalRow(result.totalRow);
                     setDeltaContext(result.deltaContext);
                 } else {
-                    let { sources, totalRow: currentTotal } = await TrafficService.getVersionSources(
+                    const { sources, totalRow: currentTotal } = await TrafficService.getVersionSources(
                         viewingVersion as number,
                         trafficData.snapshots || [],
                         periodStart,
                         periodEnd
                     );
 
-                    setTrashMetrics(calculateTrashMetrics(sources));
+                    // setTrashMetrics removed here
                     setDisplayedSources(sources);
                     setActualTotalRow(currentTotal || trafficData.totalRow);
                     setDeltaContext(undefined);
@@ -296,7 +293,31 @@ export const useTrafficDataLoader = ({
         };
 
         loadData();
-    }, [trafficData, viewingVersion, viewingPeriodIndex, activeVersion, viewMode, selectedSnapshot, packagingHistory, retryCount, trashVideoIds.size]);
+    }, [
+        selectedSnapshot,
+        viewingVersion,
+        viewingPeriodIndex,
+        viewMode,
+        activeVersion,
+        retryCount,
+        trafficData?.lastUpdated,
+        trafficData?.snapshots?.length,
+        trafficData?.sources,
+        trafficData?.totalRow,
+        packagingHistory,
+        displayedSources.length
+    ]);
+
+    // Separate Effect for Trash Metrics to prevent Loading Loop
+    useEffect(() => {
+        if (displayedSources.length > 0) {
+            const metrics = calculateTrashMetrics(displayedSources);
+            setTrashMetrics((prev) => {
+                if (prev.impressions === metrics.impressions && prev.views === metrics.views) return prev;
+                return metrics;
+            });
+        }
+    }, [displayedSources, calculateTrashMetrics]);
 
     return { displayedSources, actualTotalRow, trashMetrics, isLoadingSnapshot, error, retry, deltaContext };
 };
@@ -308,8 +329,7 @@ const calculateSnapshotDelta = async (
     currentSources: TrafficSource[],
     currentTotal: TrafficSource | undefined,
     currentSnapshotId: string,
-    snapshots: TrafficSnapshot[],
-    _trashVideoIds: Set<string> = new Set()
+    snapshots: TrafficSnapshot[]
 ): Promise<{ sources: TrafficSource[], totalRow?: TrafficSource, deltaContext?: DeltaContext }> => {
     const sortedSnapshots = [...snapshots].sort((a, b) => a.timestamp - b.timestamp);
     const currentIndex = sortedSnapshots.findIndex(s => s.id === currentSnapshotId);

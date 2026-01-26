@@ -5,6 +5,7 @@ import type { TrafficSource } from '../../../../../core/types/traffic';
 import { Button } from '../../../../../components/ui/atoms/Button';
 import { useUIStore } from '../../../../../core/stores/uiStore';
 import { UX_DELAYS } from '../utils/constants';
+import { logger } from '../../../../../core/utils/logger';
 
 interface TrafficUploaderProps {
     onUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<void>;
@@ -47,11 +48,12 @@ export const TrafficUploader: React.FC<TrafficUploaderProps> = ({
                 return;
             }
             await onUpload(sources, totalRow, file);
-        } catch (err: any) {
-            console.error(err);
+        } catch (err: unknown) {
+            const error = err instanceof Error ? err : new Error('Unknown error');
+            logger.error('Failed to process CSV file', { component: 'TrafficUploader', error });
 
             // Handle specific validation errors
-            if (err.message === 'NO_VIDEO_DATA') {
+            if (error.message === 'NO_VIDEO_DATA') {
                 showToast("No video data found in CSV", "error");
                 return; // Stop here, do not open mapper
             }

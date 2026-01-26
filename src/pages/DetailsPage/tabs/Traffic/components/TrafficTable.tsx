@@ -148,28 +148,40 @@ export const TrafficTable = memo<TrafficTableProps>(({
         if (!sortConfig) return data;
 
         return [...data].sort((a, b) => {
-            const aVal = (a as any)[sortConfig.key];
-            const bVal = (b as any)[sortConfig.key];
-
             let comparison = 0;
-            if (sortConfig.key === 'avgViewDuration') {
-                comparison = durationToSeconds(aVal as string) - durationToSeconds(bVal as string);
-            } else if (typeof aVal === 'number' && typeof bVal === 'number') {
-                comparison = aVal - bVal;
-            } else if (typeof aVal === 'string' && typeof bVal === 'string') {
-                comparison = aVal.localeCompare(bVal);
-            } else if (aVal && bVal) {
-                // For synthetic types like viewerType/trafficType which might be strings
-                comparison = String(aVal).localeCompare(String(bVal));
-            } else if (aVal) {
-                comparison = 1;
-            } else if (bVal) {
-                comparison = -1;
+            const { key, direction } = sortConfig;
+
+            if (key === 'trafficType') {
+                const aType = a.videoId && trafficEdges ? (trafficEdges[a.videoId]?.type || '') : '';
+                const bType = b.videoId && trafficEdges ? (trafficEdges[b.videoId]?.type || '') : '';
+                comparison = aType.localeCompare(bType);
+            } else if (key === 'viewerType') {
+                const aType = a.videoId && viewerEdges ? (viewerEdges[a.videoId]?.type || '') : '';
+                const bType = b.videoId && viewerEdges ? (viewerEdges[b.videoId]?.type || '') : '';
+                comparison = aType.localeCompare(bType);
+            } else if (key === 'avgViewDuration') {
+                comparison = durationToSeconds(a.avgViewDuration) - durationToSeconds(b.avgViewDuration);
+            } else {
+                // Key is keyof TrafficSource
+                const aVal = a[key as keyof TrafficSource];
+                const bVal = b[key as keyof TrafficSource];
+
+                if (typeof aVal === 'number' && typeof bVal === 'number') {
+                    comparison = aVal - bVal;
+                } else if (typeof aVal === 'string' && typeof bVal === 'string') {
+                    comparison = aVal.localeCompare(bVal);
+                } else if (aVal != null && bVal != null) {
+                    comparison = String(aVal).localeCompare(String(bVal));
+                } else if (aVal != null) {
+                    comparison = 1;
+                } else if (bVal != null) {
+                    comparison = -1;
+                }
             }
 
-            return sortConfig.direction === 'asc' ? comparison : -comparison;
+            return direction === 'asc' ? comparison : -comparison;
         });
-    }, [data, sortConfig]);
+    }, [data, sortConfig, trafficEdges, viewerEdges]);
 
     const rowVirtualizer = useVirtualizer({
         count: sortedData.length,

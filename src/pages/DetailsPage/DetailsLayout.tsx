@@ -185,13 +185,12 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
     };
 
     // Auto-switch to active version when switching tabs
-    const prevActiveTabRef = React.useRef(activeTab);
-    useEffect(() => {
-        const prevTab = prevActiveTabRef.current;
+    // Refactored to be an event handler instead of useEffect to avoid cascading renders
+    const handleTabChange = (newTab: 'packaging' | 'traffic') => {
+        if (newTab === activeTab) return;
 
-        // When entering Traffic tab → switch to active version
-        // When entering Traffic tab → switch to active version
-        if (prevTab !== 'traffic' && activeTab === 'traffic') {
+        // When entering Traffic tab → switch to active version if needed
+        if (newTab === 'traffic') {
             const isNotViewingActive = versions.viewingVersion !== versions.activeVersion;
 
             // If not viewing active version OR handling a selected snapshot (stale from previous session)
@@ -204,14 +203,14 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
         }
 
         // When entering Packaging tab → switch to active version
-        if (prevTab !== 'packaging' && activeTab === 'packaging') {
+        if (newTab === 'packaging') {
             if (versions.viewingVersion !== versions.activeVersion) {
                 versions.switchToVersion(versions.activeVersion);
             }
         }
 
-        prevActiveTabRef.current = activeTab;
-    }, [activeTab, versions]);
+        setActiveTab(newTab);
+    };
 
     // Handle draft deletion
     const handleDeleteDraft = async () => {
@@ -303,7 +302,8 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                         if (previousNicheFilterRef.current) {
                             // Restore the saved "Base" filter (e.g. Unassigned)
                             // We use addFilter which will replace the current Niche filter
-                            const { id, ...filterProps } = previousNicheFilterRef.current;
+                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                            const { id: _unused, ...filterProps } = previousNicheFilterRef.current;
                             addFilter(filterProps);
                             previousNicheFilterRef.current = null; // Reset after restore
                         } else {
@@ -328,7 +328,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                 }}
                 onDeleteSnapshot={snapshotMgmt.handleDeleteSnapshot}
                 activeTab={activeTab}
-                onTabChange={setActiveTab}
+                onTabChange={handleTabChange}
                 // NEW: Pass live calculated groups (niches)
                 groups={groups}
                 displayedSources={trafficLoader.displayedSources}

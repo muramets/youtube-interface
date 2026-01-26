@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 import { useViewerTypeStore } from '../../../../../core/stores/useViewerTypeStore';
@@ -24,6 +24,11 @@ export const useSmartViewerTypeAutoApply = (
 ) => {
     const { edges, setViewerTypes } = useViewerTypeStore();
 
+    const edgesRef = useRef(edges);
+    useEffect(() => {
+        edgesRef.current = edges;
+    }, [edges]);
+
     useEffect(() => {
         if (!isAssistantEnabled) return;
 
@@ -39,8 +44,8 @@ export const useSmartViewerTypeAutoApply = (
         displayedSources.forEach(source => {
             if (!source.videoId) return;
 
-            // Skip if already assigned (prioritize manual or previous assistant action)
-            if (edges[source.videoId]?.type) return;
+            // Skip if already assigned
+            if (edgesRef.current[source.videoId]?.type) return;
 
             const avdSeconds = durationToSeconds(source.avgViewDuration);
             const percentage = (avdSeconds / totalDurationSeconds) * 100;
@@ -69,5 +74,5 @@ export const useSmartViewerTypeAutoApply = (
             assistantLogger.info(`Auto-applied Viewer Type to ${updates.length} videos`);
         }
 
-    }, [isAssistantEnabled, displayedSources, edges, setViewerTypes, mainVideo]);
+    }, [isAssistantEnabled, displayedSources, setViewerTypes, mainVideo]);
 };

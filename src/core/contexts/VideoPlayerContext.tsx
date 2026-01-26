@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useState, useCallback, useMemo } from 'react';
 
 interface VideoPlayerState {
     activeVideoId: string | null;
@@ -12,7 +12,7 @@ interface VideoPlayerContextType extends VideoPlayerState {
     maximize: () => void; // Potential future use, or just to un-minimize if we had a full modal
 }
 
-const VideoPlayerContext = createContext<VideoPlayerContextType | null>(null);
+export const VideoPlayerContext = createContext<VideoPlayerContextType | null>(null);
 
 export const VideoPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [state, setState] = useState<VideoPlayerState>({
@@ -58,10 +58,3 @@ export const VideoPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     );
 };
 
-export const useVideoPlayer = () => {
-    const context = useContext(VideoPlayerContext);
-    if (!context) {
-        throw new Error('useVideoPlayer must be used within a VideoPlayerProvider');
-    }
-    return context;
-};

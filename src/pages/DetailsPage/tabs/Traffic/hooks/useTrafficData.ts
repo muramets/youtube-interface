@@ -10,7 +10,20 @@ interface UseTrafficDataProps {
     video: VideoDetails;
 }
 
-export const useTrafficData = ({ userId, channelId, video }: UseTrafficDataProps) => {
+// Export the hook state interface for use in other components/hooks
+export interface TrafficHookState {
+    trafficData: TrafficData | null;
+    isLoading: boolean;
+    isSaving: boolean;
+    error: string | null;
+    handleCsvUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<string | null>;
+    handleDeleteSnapshot: (snapshotId: string) => Promise<void>;
+    saveData: (newData: TrafficData) => Promise<void>;
+    updateLocalData: (newData: TrafficData) => void;
+    refetch: () => Promise<void>;
+}
+
+export const useTrafficData = ({ userId, channelId, video }: UseTrafficDataProps): TrafficHookState => {
     const [data, setData] = useState<TrafficData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);

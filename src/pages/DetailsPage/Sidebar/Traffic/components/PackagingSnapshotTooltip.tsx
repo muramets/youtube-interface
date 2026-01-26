@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { ImageIcon, SplitSquareHorizontal, Copy, Check, Tag, AlignLeft, Layout } from 'lucide-react';
 
+import type { VideoLocalization } from '../../../../../core/utils/youtubeApi';
+
 interface PackagingData {
     title: string;
     description: string;
@@ -12,7 +14,7 @@ interface PackagingData {
         titles?: Array<{ variant: string; ctr: number; impressions: number }>;
         thumbnails?: Array<{ variant: string; ctr: number; impressions: number }>;
     };
-    localizations?: Record<string, any>;
+    localizations?: Record<string, VideoLocalization>;
 }
 
 interface PackagingSnapshotTooltipProps {

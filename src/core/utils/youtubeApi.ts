@@ -1,4 +1,4 @@
-import type { PackagingVersion as BasePackagingVersion } from '../types/versioning';
+import type { PackagingVersion } from '../types/versioning';
 
 export interface VideoDetails {
     id: string;
@@ -86,30 +86,7 @@ export interface PackagingCheckin {
     isFinal?: boolean; // User manually marked as last for version
 }
 
-/**
- * BUSINESS LOGIC: Timeline-based Version Tracking
- * 
- * A packaging version can be active multiple times (e.g., v.1 → v.2 → v.1).
- * Each activation period is tracked separately to enable accurate view attribution.
- * 
- * Example Timeline:
- * - Day 1-2: v.1 active (period 1)
- * - Day 2-3: v.2 active
- * - Day 3-4: v.1 active (period 2) ← Different from period 1!
- * 
- * When calculating views for "v.1 period 2", we subtract the snapshot that
- * closed v.2, NOT the snapshot that closed "v.1 period 1".
- */
-export interface PackagingVersion extends BasePackagingVersion {
-    checkins: PackagingCheckin[];
 
-    /**
-     * IMMUTABLE DATA: Restoration Metadata.
-     * Use these fields to link "Restored" versions back to their original.
-     */
-    cloneOf?: number; // References the original versionNumber
-    restoredAt?: number; // Timestamp of restoration
-}
 
 
 export interface VideoLocalization {

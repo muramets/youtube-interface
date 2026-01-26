@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { TrafficSnapshot } from '../../../../../core/types/traffic';
-import type { PackagingVersion as PackagingVersionType } from '../../../../../core/utils/youtubeApi';
+import type { PackagingVersion as PackagingVersionType } from '../../../../../core/types/versioning';
 
 interface UseTrafficVersionsProps {
     versions: PackagingVersionType[];
@@ -75,7 +75,7 @@ export const useTrafficVersions = ({
         }));
 
         // Combine all raw versions
-        let allVersions = [...versions, ...deletedVersions];
+        const allVersions = [...versions, ...deletedVersions];
 
         // Virtual Expansion Helper
         const virtualList: Array<{
@@ -92,12 +92,91 @@ export const useTrafficVersions = ({
             isDeleted?: boolean;
         }> = [];
 
+        // 0. Pre-calculate GLOBAL ACTIVE TIMELINE
+        // We need this to determine if a gap between two periods of Version X
+        // was filled by Version Y (Intervention) or was just empty (Draft).
+        const globalActivePeriods: Array<{
+            version: number;
+            start: number;
+            end: number | null;
+        }> = [];
+
+        allVersions.forEach(v => {
+            if (v.activePeriods && v.activePeriods.length > 0) {
+                v.activePeriods.forEach(p => globalActivePeriods.push({
+                    version: v.versionNumber,
+                    start: p.startDate,
+                    end: p.endDate
+                }));
+            } else if (v.startDate) {
+                globalActivePeriods.push({
+                    version: v.versionNumber,
+                    start: v.startDate,
+                    end: v.endDate || null
+                });
+            }
+        });
+
         allVersions.forEach(v => {
             const snapshotsForVersion = snapshots.filter(s => s.version === v.versionNumber);
 
             if (v.activePeriods && v.activePeriods.length > 0) {
-                // Multiple periods (Restored)
-                v.activePeriods.forEach((period: any, index: number) => {
+                // COALESCE CONTIGUOUS PERIODS
+                // Logic: Gap between Period A (end T1) and Period B (start T2).
+                // If ANY OTHER version was active in [T1, T2], then we SPLIT.
+                // If NO other version was active (Draft mode), we MERGE.
+                const sortedPeriods = [...v.activePeriods].sort((a, b) => a.startDate - b.startDate);
+                const coalescedPeriods: { startDate: number; endDate: number | null }[] = [];
+
+                if (sortedPeriods.length > 0) {
+                    let current = { ...sortedPeriods[0] };
+
+                    for (let i = 1; i < sortedPeriods.length; i++) {
+                        const next = sortedPeriods[i];
+
+                        // Check if we should merge
+                        // Condition: current is closed (has endDate), and next follows it.
+                        if (current.endDate !== null) {
+                            const gapStart = current.endDate;
+                            const gapEnd = next.startDate;
+
+                            // Find INTERVENING version
+                            // A version V' (V' != V) is intervening if it has a period that OVERLAPS the gap.
+                            // Gap is [gapStart, gapEnd].
+                            // Intersection: Max(StartA, StartB) < Min(EndA, EndB)
+                            const isInterrupted = globalActivePeriods.some(other => {
+                                if (other.version === v.versionNumber) return false;
+
+                                const otherEnd = other.end || Date.now(); // Treat active as NOW
+                                // Check overlap with gap [gapStart, gapEnd]
+                                // Note: Gap might be 0 length or negative if data is weird, but usually positive.
+                                const overlapStart = Math.max(gapStart, other.start);
+                                const overlapEnd = Math.min(gapEnd, otherEnd);
+
+                                // Significant overlap (> 1 min) to avoid noise? 
+                                // Or strict overlap? Let's use strict > 1000ms to be safe.
+                                return overlapEnd - overlapStart > 1000;
+                            });
+
+                            if (!isInterrupted) {
+                                // MERGE: No other version interrupted, so it was just "Draft" state.
+                                current.endDate = next.endDate;
+                            } else {
+                                // SPLIT: Another version was active in between.
+                                coalescedPeriods.push(current);
+                                current = { ...next };
+                            }
+                        } else {
+                            // Current is open-ended (should be last, but if list is weird)
+                            coalescedPeriods.push(current);
+                            current = { ...next };
+                        }
+                    }
+                    coalescedPeriods.push(current);
+                }
+
+                // Multiple periods (Restored or Coalesced)
+                coalescedPeriods.forEach((period: any, index: number) => {
                     const versionSnapshots = getVirtualVersionSnapshots(v.versionNumber, period.startDate, period.endDate);
                     const isActive = !period.endDate;
 
@@ -105,7 +184,7 @@ export const useTrafficVersions = ({
                     if (!isActive && versionSnapshots.length === 0) return;
 
                     // Restoration count: newest is at index 0
-                    const rIndex = (v.activePeriods!.length - 1) - index;
+                    const rIndex = (v.activePeriods!.length - 1) - index; // This index might be approximated if we merged
 
                     const startStr = formatSnapshotDate(period.startDate).display;
                     const endStr = period.endDate ? formatSnapshotDate(period.endDate).display : null;
@@ -113,17 +192,14 @@ export const useTrafficVersions = ({
                         ? `Active: ${startStr} – ${endStr}`
                         : `Active since ${startStr}`;
 
-                    // FIX: If this is the LATEST period of the version (index 0), treat it as open-ended
-                    // so snapshots uploaded after the version was "closed" (e.g. by partial restore) are still visible.
-                    const isLatestPeriod = index === 0;
-
+                    // Respect true end date from data
                     virtualList.push({
                         original: v,
                         displayVersion: v.versionNumber,
                         effectiveDate: period.startDate as number,
                         periodStart: period.startDate as number,
-                        periodEnd: isLatestPeriod ? null : period.endDate,
-                        isRestored: rIndex > 0,
+                        periodEnd: period.endDate,
+                        isRestored: rIndex > 0, // Simplified: if we have multiple periods remaining, older ones are 'restored'
                         restorationIndex: rIndex > 0 ? rIndex : undefined,
                         arrayIndex: index,
                         key: `${v.versionNumber}-${index}`,
@@ -150,7 +226,7 @@ export const useTrafficVersions = ({
                     displayVersion: v.versionNumber,
                     effectiveDate: (v.startDate || 0) as number,
                     periodStart: (v.startDate || 0) as number,
-                    periodEnd: null,
+                    periodEnd: v.endDate ?? null, // Was hardcoded to null
                     isRestored: false,
                     arrayIndex: 0,
                     key: `${v.versionNumber}-0`,

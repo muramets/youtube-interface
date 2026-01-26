@@ -9,6 +9,7 @@ import { generateNicheColor } from '@/core/stores/trendStore';
 import { TrafficNicheContextMenu } from './TrafficNicheContextMenu';
 import { FloatingDropdownPortal } from '@/components/Shared/FloatingDropdownPortal';
 import { NicheColorPickerGrid } from './NicheColorPickerGrid';
+import { logger } from '@/core/utils/logger';
 
 interface TrafficNicheSelectorProps {
     videoIds: string[]; // Selected videos to assign
@@ -57,6 +58,8 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
     // Rename State
     const [editingNicheId, setEditingNicheId] = useState<string | null>(null);
     const [editValue, setEditValue] = useState('');
+
+    const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
 
     const buttonRef = useRef<HTMLButtonElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -179,8 +182,11 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
 
     // Auto-focus input when opening
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && buttonRef.current) {
+            setAnchorRect(buttonRef.current.getBoundingClientRect());
             setTimeout(() => inputRef.current?.focus(), 50);
+        } else {
+            setAnchorRect(null);
         }
     }, [isOpen]);
 
@@ -241,8 +247,8 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
             setInputValue('');
             setSelectedProperty(undefined);
 
-        } catch (error) {
-            console.error("Failed to create niche:", error);
+        } catch (error: unknown) {
+            logger.error('Failed to create niche', { component: 'TrafficNicheSelector', error });
         }
     };
 
@@ -273,8 +279,8 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
         try {
             await updateTrafficNiche(nicheId, { name: trimmed }, user.uid, currentChannel.id);
             setEditingNicheId(null);
-        } catch (error) {
-            console.error("Failed to rename niche:", error);
+        } catch (error: unknown) {
+            logger.error('Failed to rename niche', { component: 'TrafficNicheSelector', error });
         }
     };
 
@@ -322,7 +328,7 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                 }
             } else if (inputValue.trim()) {
                 // Submit form if input has value (Create)
-                handleCreateSubmit(e as any);
+                handleCreateSubmit(e);
             }
         }
         else if (e.key === 'Escape') {
@@ -368,7 +374,7 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
             {/* Portal Dropdown */}
             <FloatingDropdownPortal
                 isOpen={isOpen}
-                anchorRect={buttonRef.current?.getBoundingClientRect() || null}
+                anchorRect={anchorRect}
                 openAbove={openAbove}
                 width={240}
             >

@@ -1,5 +1,5 @@
 import React from 'react';
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -135,7 +135,7 @@ const SortableRuleItem: React.FC<SortableRuleItemProps> = ({ rule, onUpdate, onR
         <div
             ref={setNodeRef}
             style={style}
-            className={`flex items-center gap-2 px-2 py-1.5 bg-[#252525] rounded-lg group w-full overflow-hidden ${!isDragging ? 'transition-all' : ''}`}
+            className={`flex items-center gap-2 px-2 py-1.5 bg-[#252525] rounded-lg group w-full overflow-hidden ${!isDragging ? 'transition-colors' : ''}`}
         >
             {/* Drag Handle */}
             {showHandle && (
@@ -224,7 +224,7 @@ export const CTRRulesList: React.FC<CTRRulesListProps> = ({ rules, onUpdate, onR
         })
     );
 
-    const handleDragEnd = (event: any) => {
+    const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
 
         if (over && active.id !== over.id) {

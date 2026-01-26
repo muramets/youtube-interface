@@ -95,7 +95,7 @@ export const TrafficPlaylistSelector: React.FC<TrafficPlaylistSelectorProps> = (
         }
 
         const videoIds = videosMissing.map(v => v.videoId!);
-        const fetchedDetailsMap = new Map<string, any>();
+        const fetchedDetailsMap = new Map<string, VideoDetails>();
         let quotaUsed = 0;
 
         // Batch fetch
@@ -107,9 +107,10 @@ export const TrafficPlaylistSelector: React.FC<TrafficPlaylistSelectorProps> = (
                 details.forEach(d => fetchedDetailsMap.set(d.id, d));
                 quotaUsed += 2;
             } catch (err) {
-                console.error("Failed to fetch batch details for playlist", err);
+                const error = err instanceof Error ? err : new Error('Unknown error');
+                console.error("Failed to fetch batch details for playlist", error);
                 showToast('Failed to fetch video details', 'error');
-                throw err;
+                throw error;
             }
         }
 

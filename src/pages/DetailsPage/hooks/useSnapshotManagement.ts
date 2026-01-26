@@ -4,14 +4,20 @@ import { TrafficService } from '../../../core/services/traffic';
 import { parseTrafficCsv } from '../tabs/Traffic/utils/csvParser';
 import { generateSnapshotId } from '../../../core/utils/snapshotUtils';
 import { VersionService } from '../services/VersionService';
+import type { User } from 'firebase/auth';
+import type { Channel } from '../../../core/services/channelService';
+import type { VersionState } from '../tabs/Packaging/types';
+import type { TrafficHookState } from '../tabs/Traffic/hooks/useTrafficData';
+import type { UseVideosResult } from '../../../core/hooks/useVideos';
+import type { PackagingVersion } from '../../../core/types/versioning';
 
 interface UseSnapshotManagementProps {
     video: VideoDetails;
-    versions: any;
-    trafficState: any;
-    user: any;
-    currentChannel: any;
-    updateVideo: any;
+    versions: VersionState;
+    trafficState: TrafficHookState;
+    user: User | null;
+    currentChannel: Channel | null;
+    updateVideo: UseVideosResult['updateVideo'];
     showToast: (message: string, type: 'success' | 'error') => void;
     setSelectedSnapshot: (id: string | null) => void;
     setActiveTab: (tab: 'packaging' | 'traffic') => void;
@@ -23,6 +29,7 @@ interface UseSnapshotManagementProps {
         versionNumber?: number;
         context?: 'create' | 'restore';
     };
+
     onOpenSnapshotRequest: (params: {
         versionToRestore: number | null;
         isForCreateVersion: boolean;
@@ -82,6 +89,56 @@ export const useSnapshotManagement = ({
     }, [video.publishedVideoId, video.id, user, currentChannel, trafficState, onOpenSnapshotRequest]);
 
     /**
+     * Shared logic to restore a version references to a new snapshot
+     */
+    const performRestore = useCallback(async (snapshotId: string) => {
+        if (!user || !currentChannel || !video.id) return;
+
+        // RESTORE_VERSION: Use synchronized history from restoreVersion
+        if (!snapshotRequest.versionToRestore) return;
+
+        const { updatedHistory } = versions.restoreVersion(snapshotRequest.versionToRestore, snapshotId || null);
+
+        // Get snapshot for field restoration
+        const versionData = updatedHistory.find(
+            (v: PackagingVersion) => v.versionNumber === snapshotRequest.versionToRestore
+        );
+        const snapshot = versionData?.configurationSnapshot;
+
+        if (!snapshot) {
+            showToast('Version data not found', 'error');
+            return;
+        }
+
+        // Prepare restoration data using VersionService
+        const restoreData = VersionService.prepareRestoreVersionData(
+            snapshotRequest.versionToRestore,
+            snapshot
+        );
+
+        // Save to Firestore with unified history
+        await updateVideo({
+            videoId: video.id,
+            updates: {
+                packagingHistory: updatedHistory,
+                isDraft: false,
+                activeVersion: snapshotRequest.versionToRestore,
+                ...restoreData
+            }
+        });
+
+        // FIX: Refresh traffic data to show the new snapshot in sidebar immediately
+        await trafficState.refetch();
+
+        closeSnapshotModal();
+        showToast(snapshotId
+            ? `Snapshot saved & restored to v.${snapshotRequest.versionToRestore}`
+            : `Restored to v.${snapshotRequest.versionToRestore}`,
+            'success'
+        );
+    }, [user, currentChannel, video.id, versions, snapshotRequest, showToast, updateVideo, trafficState, closeSnapshotModal]);
+
+    /**
      * Обработчик загрузки снапшота из modal
      */
     const handleSnapshotUpload = useCallback(async (file: File) => {
@@ -134,53 +191,14 @@ export const useSnapshotManagement = ({
                 return;
             }
 
-            // RESTORE_VERSION: Use synchronized history from restoreVersion
-            if (!snapshotRequest.versionToRestore) return;
+            // RESTORE_VERSION: Proceed to restore logic
+            await performRestore(snapshotId);
 
-            const { updatedHistory } = versions.restoreVersion(snapshotRequest.versionToRestore, snapshotId || null);
-
-            // Get snapshot for field restoration
-            const versionData = updatedHistory.find(
-                (v: any) => v.versionNumber === snapshotRequest.versionToRestore
-            );
-            const snapshot = versionData?.configurationSnapshot;
-
-            if (!snapshot) {
-                showToast('Version data not found', 'error');
-                return;
-            }
-
-            // Prepare restoration data using VersionService
-            const restoreData = VersionService.prepareRestoreVersionData(
-                snapshotRequest.versionToRestore,
-                snapshot
-            );
-
-            // Save to Firestore with unified history
-            await updateVideo({
-                videoId: video.id,
-                updates: {
-                    packagingHistory: updatedHistory,
-                    isDraft: false,
-                    activeVersion: snapshotRequest.versionToRestore,
-                    ...restoreData
-                }
-            });
-
-            // FIX: Refresh traffic data to show the new snapshot in sidebar immediately
-            await trafficState.refetch();
-
-            closeSnapshotModal();
-            showToast(snapshotId
-                ? `Snapshot saved & restored to v.${snapshotRequest.versionToRestore}`
-                : `Restored to v.${snapshotRequest.versionToRestore}`,
-                'success'
-            );
         } catch (err) {
             console.error('Failed to save snapshot:', err);
             showToast('Failed to save snapshot', 'error');
         }
-    }, [user, currentChannel, video.id, versions, snapshotRequest, showToast, updateVideo, trafficState, closeSnapshotModal]);
+    }, [user, currentChannel, video.id, versions, snapshotRequest, showToast, trafficState, closeSnapshotModal, performRestore]);
 
     /**
      * Обработчик пропуска снапшота
@@ -209,7 +227,8 @@ export const useSnapshotManagement = ({
         try {
             const currentData = trafficState.trafficData;
             // First save current state as a snapshot before restoring
-            await TrafficService.createVersionSnapshot(
+            // Create snapshot and get ID
+            const newSnapshotId = await TrafficService.createVersionSnapshot(
                 user.uid,
                 currentChannel.id,
                 video.id,
@@ -218,14 +237,14 @@ export const useSnapshotManagement = ({
                 currentData?.totalRow
             );
 
-            // Then delegate to handleSnapshotUpload by passing null as snapshotId
-            // (We reuse the restoration logic there)
-            await handleSnapshotUpload(null as any);
+            if (newSnapshotId) {
+                await performRestore(newSnapshotId);
+            }
         } catch (err) {
             console.error('Failed to create snapshot:', err);
             showToast('Failed to create snapshot', 'error');
         }
-    }, [user, currentChannel, video.id, versions, trafficState, snapshotRequest, showToast, closeSnapshotModal, handleSnapshotUpload]);
+    }, [user, currentChannel, video.id, versions, trafficState, snapshotRequest, showToast, closeSnapshotModal, performRestore]);
 
     /**
      * Обработчик клика на снапшот в sidebar

@@ -41,6 +41,9 @@ export interface PackagingVersion {
     configurationSnapshot: PackagingSnapshot | null;
     activePeriods?: ActivePeriod[];
     revision: number; // NEW: для tracking stale state и race conditions
+    cloneOf?: number; // Alias support
+    checkins?: any[]; // Legacy or specific checkin data
+    restoredAt?: number;
 }
 
 /**

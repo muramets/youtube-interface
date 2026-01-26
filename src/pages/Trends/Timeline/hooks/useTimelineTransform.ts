@@ -95,13 +95,16 @@ export const useTimelineTransform = ({
     }, [currentChannel?.id, selectedChannelId, trendsFilters]);
 
     // Transform state
-    const transformRef = useRef<Transform>({
+    // Define initial state once to avoid reading ref during render
+    const initialTransform = {
         scale: zoomLevel || 0.01,
         offsetX: offsetX || 0,
         offsetY: offsetY || 0
-    });
+    };
 
-    const [transformState, setTransformStateInternal] = useState<Transform>(transformRef.current);
+    const transformRef = useRef<Transform>(initialTransform);
+
+    const [transformState, setTransformStateInternal] = useState<Transform>(initialTransform);
 
     // Only update state if significantly changed to avoid thrashing
     const setTransformState = useCallback((newTransform: Transform) => {
@@ -138,17 +141,25 @@ export const useTimelineTransform = ({
 
     // 2. Derive Dynamic World Height (with stability)
     // Account for vertical padding to create safe zones at top and bottom
+    // 2. Derive Dynamic World Height
     const lastValidWorldHeightRef = useRef(1000);
-    const dynamicWorldHeight = useMemo(() => {
-        if (viewportSize.height <= 0 || fitScale <= 0) {
-            return lastValidWorldHeightRef.current; // Use last valid instead of fallback
+
+    // Calculate synchronously during render (Pure)
+    let dynamicWorldHeight = 1000;
+    const availableHeight = viewportSize.height - headerHeight - totalVerticalPadding;
+
+    if (viewportSize.height > 0 && fitScale > 0) {
+        dynamicWorldHeight = availableHeight / fitScale;
+    } else {
+        dynamicWorldHeight = lastValidWorldHeightRef.current;
+    }
+
+    // Update ref for fallback usage (Effect)
+    useEffect(() => {
+        if (viewportSize.height > 0 && fitScale > 0) {
+            lastValidWorldHeightRef.current = dynamicWorldHeight;
         }
-        // Subtract vertical padding from available height
-        const availableHeight = viewportSize.height - headerHeight - totalVerticalPadding;
-        const calculated = availableHeight / fitScale;
-        lastValidWorldHeightRef.current = calculated; // Update ref
-        return calculated;
-    }, [viewportSize.height, headerHeight, fitScale, totalVerticalPadding]);
+    }, [dynamicWorldHeight, viewportSize.height, fitScale]);
 
     // 3. Min Scale
     const minScale = fitScale;
@@ -165,7 +176,7 @@ export const useTimelineTransform = ({
         const scaledHeight = dynamicWorldHeight * t.scale;
 
         // X-Axis clamping
-        let constrainedOffsetX: number;
+
 
         // Dynamic Overscroll:
         // When at minScale (Fit), we want rigid boundaries (overscroll = 0).
@@ -195,7 +206,7 @@ export const useTimelineTransform = ({
         const lowerBound = Math.min(maxOffsetX, minOffsetX);
         const upperBound = Math.max(maxOffsetX, minOffsetX);
 
-        constrainedOffsetX = Math.max(lowerBound, Math.min(upperBound, t.offsetX));
+        const constrainedOffsetX = Math.max(lowerBound, Math.min(upperBound, t.offsetX));
 
         // Y-Axis clamping
         let constrainedOffsetY: number;
@@ -270,11 +281,13 @@ export const useTimelineTransform = ({
 
         const savedConfig = savedConfigs[currentContentHash];
         if (savedConfig) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setTransformState({
                 scale: savedConfig.zoomLevel,
                 offsetX: savedConfig.offsetX,
                 offsetY: savedConfig.offsetY
             });
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setTimelineConfig({
                 ...savedConfig,
                 contentHash: currentContentHash
@@ -310,42 +323,11 @@ export const useTimelineTransform = ({
         }
     }, []);
 
-    // 4. Render-Phase Anchoring (Synchronous)
-    // To prevent flicker (Render 1: Bad Layout, Render 2: Corrected), we calculate 
-    // the anchored transform synchronously if a layout change is detected.
-
-    const prevWidth = prevWorldWidthRef.current;
-    const prevHeight = prevWorldHeightRef.current;
-    const currentWidth = worldWidth;
-    const currentHeight = dynamicWorldHeight;
-    const widthChanged = Math.abs(currentWidth - prevWidth) >= 1;
-    const heightChanged = Math.abs(currentHeight - prevHeight) >= 1;
-
-    let activeTransform = transformState;
-
-    // Only apply correction if we have a pending anchor request
-    if (pendingAnchorRef.current !== null && (widthChanged || heightChanged)) {
-        activeTransform = calculatePreservedTransform({
-            currentTransform: transformState,
-            viewportSize,
-            headerHeight,
-            worldDimensions: {
-                prevWidth,
-                currWidth: currentWidth,
-                prevHeight,
-                currHeight: currentHeight
-            },
-            anchor: {
-                time: pendingAnchorRef.current.time,
-                xNorm: pendingAnchorRef.current.xNorm,
-                yNorm: pendingAnchorRef.current.yNorm,
-                screenX: pendingAnchorRef.current.screenX,
-                screenY: pendingAnchorRef.current.screenY,
-                monthLayouts,
-                stats
-            }
-        });
-    }
+    // 4. Render-Phase Anchoring
+    // PREVIOUSLY: We attempted to calculate activeTransform synchronously here to avoid flicker.
+    // REFACTOR: Accessing refs (pendingAnchorRef) during render is unsafe and flagged by linters.
+    // we rely entirely on useLayoutEffect to handle the correction synchronously before paint.
+    const activeTransform = transformState;
 
     // Auto-fit OR Anchor (Commit Phase)
     useLayoutEffect(() => {

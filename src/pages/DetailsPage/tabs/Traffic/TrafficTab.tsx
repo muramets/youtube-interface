@@ -39,12 +39,12 @@ interface TrafficTabProps {
     viewingPeriodIndex?: number;
     selectedSnapshot?: string | null;
     // Shared state from DetailsLayout
-    trafficData: any | null;
+    trafficData: import('../../../../core/types/traffic').TrafficData | null;
     isLoadingData: boolean;
     isSaving: boolean;
-    handleCsvUpload: (sources: any[], totalRow?: any, file?: File) => Promise<string | null>;
+    handleCsvUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<string | null>;
     onSnapshotClick?: (id: string) => void;
-    packagingHistory?: any[]; // Passed to resolve version aliases
+    packagingHistory?: import('../../../../core/types/versioning').PackagingVersion[]; // Passed to resolve version aliases
     // Lifted Props
     displayedSources: TrafficSource[];
     viewMode: 'cumulative' | 'delta';
@@ -112,7 +112,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     // Pending Upload State (for Pre-Upload Checks)
     const [pendingUpload, setPendingUpload] = useState<{
         sources: TrafficSource[],
-        totalRow?: any,
+        totalRow?: TrafficSource,
         file?: File
     } | null>(null);
 
@@ -203,8 +203,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         if (selectedSnapshot) {
             const snapshots = trafficData?.snapshots || [];
             const versionSnapshots = snapshots
-                .filter((s: any) => s.version === viewingVersion)
-                .sort((a: any, b: any) => a.timestamp - b.timestamp);
+                .filter((s: import('../../../../core/types/traffic').TrafficSnapshot) => s.version === viewingVersion)
+                .sort((a: import('../../../../core/types/traffic').TrafficSnapshot, b: import('../../../../core/types/traffic').TrafficSnapshot) => a.timestamp - b.timestamp);
             return versionSnapshots.length > 0 && versionSnapshots[0].id === selectedSnapshot;
         }
 
@@ -275,7 +275,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             if (f.type !== 'niche') return false;
             // Check for array or single value
             if (Array.isArray(f.value)) {
-                return f.value.includes(trashNiche.id);
+                return (f.value as string[]).includes(trashNiche.id);
             }
             return f.value === trashNiche.id;
         });
@@ -413,7 +413,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     const [isSkipping, setIsSkipping] = useState(false);
 
     // Wrapper to catch upload errors and open mapper - memoized to prevent re-renders
-    const handleUploadWithErrorTracking = React.useCallback(async (sources: any[], totalRow?: any, file?: File) => {
+    const handleUploadWithErrorTracking = React.useCallback(async (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => {
         // If sources is empty and we have a file, it means parsing failed
         if (sources.length === 0 && file) {
             setFailedFile(file);
@@ -442,7 +442,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         });
 
         // PRE-CHECK: Missing Titles (on patched data)
-        const hasMissingTitles = patchedSources.some((s: any) => s.videoId && (!s.sourceTitle || s.sourceTitle.trim() === ''));
+        const hasMissingTitles = patchedSources.some((s: TrafficSource) => s.videoId && (!s.sourceTitle || s.sourceTitle.trim() === ''));
 
         if (hasMissingTitles && file) {
             setPendingUpload({ sources: patchedSources, totalRow, file });
@@ -570,11 +570,11 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         const snapshots = trafficData?.snapshots || [];
 
         // Find snapshots for the viewing version
-        const versionSnapshots = snapshots.filter((s: any) => s.version === viewingVersion);
+        const versionSnapshots = snapshots.filter((s: import('../../../../core/types/traffic').TrafficSnapshot) => s.version === viewingVersion);
         if (versionSnapshots.length === 0) return false;
 
         // Get the period we're viewing
-        const versionData = packagingHistory.find((v: any) => v.versionNumber === viewingVersion);
+        const versionData = packagingHistory.find((v: import('../../../../core/types/versioning').PackagingVersion) => v.versionNumber === viewingVersion);
         if (!versionData?.activePeriods) return false;
 
         const period = versionData.activePeriods[viewingPeriodIndex];
@@ -584,7 +584,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         const periodStart = period.startDate;
         const periodEnd = period.endDate;
 
-        const hasSnapshotInPeriod = versionSnapshots.some((s: any) => {
+        const hasSnapshotInPeriod = versionSnapshots.some((s: import('../../../../core/types/traffic').TrafficSnapshot) => {
             const matchesStart = s.timestamp >= (periodStart - 5000);
             const matchesEnd = periodEnd ? s.timestamp <= (periodEnd + 5000) : true;
             return matchesStart && matchesEnd;
@@ -601,7 +601,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             // 1. Build the map (same logic as PackagingNav)
             const map = new Map<number, number>();
             const canonicalIds = Array.from(new Set(
-                packagingHistory.map((v: any) => v.cloneOf || v.versionNumber)
+                packagingHistory.map((v: import('../../../../core/types/versioning').PackagingVersion) => v.cloneOf || v.versionNumber)
             )).sort((a: number, b: number) => a - b);
 
             canonicalIds.forEach((id, index) => {
@@ -609,7 +609,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             });
 
             // 2. Get the visual number for current viewing version
-            const currentVersionData = packagingHistory.find((v: any) => v.versionNumber === viewingVersion);
+            const currentVersionData = packagingHistory.find((v: import('../../../../core/types/versioning').PackagingVersion) => v.versionNumber === viewingVersion);
             const canonicalId = currentVersionData?.cloneOf || viewingVersion;
             const visualNumber = map.get(canonicalId) || canonicalId;
 
@@ -643,7 +643,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         if (!viewingVersion || viewingVersion === 'draft') return false;
 
         // Find the current version's data
-        const currentVersionData = packagingHistory.find((v: any) => v.versionNumber === viewingVersion);
+        const currentVersionData = packagingHistory.find((v: import('../../../../core/types/versioning').PackagingVersion) => v.versionNumber === viewingVersion);
         if (!currentVersionData?.activePeriods || currentVersionData.activePeriods.length === 0) {
             return false;
         }
@@ -656,7 +656,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         // Are there any snapshots OLDER than this period's start?
         // This matches the logic in useTrafficDataLoader
         const allSnapshots = trafficData?.snapshots || [];
-        const hasOlderSnapshots = allSnapshots.some((s: any) => s.timestamp < viewingPeriod.startDate);
+        const hasOlderSnapshots = allSnapshots.some((s: import('../../../../core/types/traffic').TrafficSnapshot) => s.timestamp < viewingPeriod.startDate);
 
         return hasOlderSnapshots;
     }, [viewingVersion, viewingPeriodIndex, packagingHistory, trafficData?.snapshots]);

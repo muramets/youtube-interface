@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, memo, useCallback, useMemo } from 'react';
 import { Plus, Youtube, Upload, ListPlus } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { AddYouTubeVideoModal } from '../../features/Video/Modals/AddYouTubeVideoModal';
@@ -11,6 +11,128 @@ import type { VideoDetails } from '../../core/utils/youtubeApi';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 
+// --- Custom Hooks ---
+
+function useMenuPosition(
+    isOpen: boolean,
+    buttonRef: React.RefObject<HTMLButtonElement | null>
+) {
+    const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
+
+    useLayoutEffect(() => {
+        if (isOpen && buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            setPosition({
+                top: rect.bottom + 8,
+                right: window.innerWidth - rect.right
+            });
+        } else {
+            setPosition(null);
+        }
+    }, [isOpen, buttonRef]);
+
+    return position;
+}
+
+function useClickOutside(
+    isOpen: boolean,
+    onClose: () => void,
+    refs: React.RefObject<HTMLElement | null>[]
+) {
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as Node;
+            const isOutside = refs.every(ref => ref.current && !ref.current.contains(target));
+
+            if (isOutside) {
+                onClose();
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        window.addEventListener('scroll', onClose, true);
+        window.addEventListener('resize', onClose);
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            window.removeEventListener('scroll', onClose, true);
+            window.removeEventListener('resize', onClose);
+        };
+    }, [isOpen, onClose, refs]);
+}
+
+// --- Sub-Components ---
+
+interface MenuDropdownProps {
+    position: { top: number; right: number };
+    showVideo: boolean;
+    showPlaylist: boolean;
+    onOptionClick: (modal: 'youtube' | 'custom' | 'playlist') => void;
+    dropdownRef: React.RefObject<HTMLDivElement | null>;
+}
+
+const MenuDropdown: React.FC<MenuDropdownProps> = memo(({
+    position,
+    showVideo,
+    showPlaylist,
+    onOptionClick,
+    dropdownRef
+}) => {
+    return createPortal(
+        <div
+            ref={dropdownRef}
+            className="animate-scale-in bg-bg-secondary border border-border rounded-xl shadow-2xl z-[1000] min-w-[220px] overflow-hidden flex flex-col"
+            style={{
+                position: 'fixed',
+                top: position.top,
+                right: position.right,
+            }}
+        >
+            <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-bg-secondary/95 backdrop-blur sticky top-0 z-10 flex-shrink-0">
+                <h3 className="font-medium text-text-primary m-0 text-base">Create</h3>
+            </div>
+            <div className="p-2">
+                {showVideo && (
+                    <>
+                        <button
+                            onClick={() => onOptionClick('youtube')}
+                            className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors border-none cursor-pointer text-text-primary hover:bg-hover-bg bg-transparent"
+                        >
+                            <Youtube size={18} />
+                            Add YouTube Video
+                        </button>
+
+                        <button
+                            onClick={() => onOptionClick('custom')}
+                            className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors border-none cursor-pointer text-text-primary hover:bg-hover-bg bg-transparent"
+                        >
+                            <Upload size={18} />
+                            Create Custom Video
+                        </button>
+                    </>
+                )}
+
+                {showPlaylist && (
+                    <button
+                        onClick={() => onOptionClick('playlist')}
+                        className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors border-none cursor-pointer text-text-primary hover:bg-hover-bg bg-transparent"
+                    >
+                        <ListPlus size={18} />
+                        Create Playlist
+                    </button>
+                )}
+            </div>
+        </div>,
+        document.body
+    );
+});
+
+MenuDropdown.displayName = 'MenuDropdown';
+
+// --- Main Component ---
+
 interface AddContentMenuProps {
     showVideo?: boolean;
     showPlaylist?: boolean;
@@ -20,7 +142,7 @@ interface AddContentMenuProps {
     onOpenChange?: (isOpen: boolean) => void;
 }
 
-export const AddContentMenu: React.FC<AddContentMenuProps> = ({
+export const AddContentMenu: React.FC<AddContentMenuProps> = memo(({
     showVideo = true,
     showPlaylist = true,
     directPlaylist = false,
@@ -37,9 +159,10 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
     const [internalIsOpen, setInternalIsOpen] = useState(false);
     const [activeModal, setActiveModal] = useState<'youtube' | 'custom' | 'playlist' | null>(null);
     const [customVideoInitialData, setCustomVideoInitialData] = useState<VideoDetails | undefined>(undefined);
-    const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
 
     // Refs
+    // Initialize with null to match RefObject | null expectations generally,
+    // but React.useRef<T>(null) returns RefObject<T> where current is T | null.
     const buttonRef = useRef<HTMLButtonElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -48,7 +171,7 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
     const isOpen = isControlled ? controlledIsOpen : internalIsOpen;
 
     // Handlers
-    const setIsOpen = React.useCallback((value: boolean) => {
+    const setIsOpen = useCallback((value: boolean) => {
         if (onOpenChange) {
             onOpenChange(value);
         }
@@ -56,6 +179,14 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
             setInternalIsOpen(value);
         }
     }, [onOpenChange, isControlled]);
+
+    const position = useMenuPosition(isOpen, buttonRef);
+
+    // Explicitly cast refs to RefObject<HTMLElement | null> to satisfy strict requirements if necessary,
+    // or adjust the hook. Since HTMLButtonElement extends HTMLElement, a simple array literal usually works
+    // but strict checks on RefObject types can be finicky.
+    const refs = useMemo(() => [buttonRef, dropdownRef] as React.RefObject<HTMLElement | null>[], [buttonRef, dropdownRef]);
+    useClickOutside(isOpen, () => setIsOpen(false), refs);
 
     const handleCloneVideo = async (originalVideo: VideoDetails, version: any) => {
         const duration = cloneSettings?.cloneDurationSeconds;
@@ -67,7 +198,7 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
         });
     };
 
-    const handleOptionClick = (modal: 'youtube' | 'custom' | 'playlist') => {
+    const handleOptionClick = useCallback((modal: 'youtube' | 'custom' | 'playlist') => {
         if (modal === 'custom') {
             const defaults: Partial<VideoDetails> = {
                 title: uploadDefaults.title || '',
@@ -80,53 +211,15 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
         }
         setActiveModal(modal);
         setIsOpen(false);
-    };
+    }, [uploadDefaults, setIsOpen]);
 
-    const handleButtonClick = () => {
+    const handleButtonClick = useCallback(() => {
         if (directPlaylist) {
             setActiveModal('playlist');
         } else {
             setIsOpen(!isOpen);
         }
-    };
-
-    // Effects
-    useLayoutEffect(() => {
-        if (isOpen && buttonRef.current) {
-            const rect = buttonRef.current.getBoundingClientRect();
-            setPosition({
-                top: rect.bottom + 8,
-                right: window.innerWidth - rect.right
-            });
-        } else {
-            setPosition(null);
-        }
-    }, [isOpen]);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (
-                dropdownRef.current &&
-                !dropdownRef.current.contains(event.target as Node) &&
-                buttonRef.current &&
-                !buttonRef.current.contains(event.target as Node)
-            ) {
-                setIsOpen(false);
-            }
-        };
-
-        if (isOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
-            window.addEventListener('scroll', () => setIsOpen(false), true);
-            window.addEventListener('resize', () => setIsOpen(false));
-        }
-
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-            window.removeEventListener('scroll', () => setIsOpen(false), true);
-            window.removeEventListener('resize', () => setIsOpen(false));
-        };
-    }, [isOpen, setIsOpen]);
+    }, [directPlaylist, isOpen, setIsOpen]);
 
     return (
         <>
@@ -139,53 +232,14 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
                 {icon ? icon : (directPlaylist ? <ListPlus size={24} /> : <Plus size={24} />)}
             </button>
 
-            {isOpen && position && !directPlaylist && createPortal(
-                <div
-                    ref={dropdownRef}
-                    className="animate-scale-in bg-bg-secondary border border-border rounded-xl shadow-2xl z-[1000] min-w-[220px] overflow-hidden flex flex-col"
-                    style={{
-                        position: 'fixed',
-                        top: position.top,
-                        right: position.right,
-                    }}
-                >
-                    <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-bg-secondary/95 backdrop-blur sticky top-0 z-10 flex-shrink-0">
-                        <h3 className="font-medium text-text-primary m-0 text-base">Create</h3>
-                    </div>
-                    <div className="p-2">
-
-                        {showVideo && (
-                            <>
-                                <button
-                                    onClick={() => handleOptionClick('youtube')}
-                                    className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors border-none cursor-pointer text-text-primary hover:bg-hover-bg bg-transparent"
-                                >
-                                    <Youtube size={18} />
-                                    Add YouTube Video
-                                </button>
-
-                                <button
-                                    onClick={() => handleOptionClick('custom')}
-                                    className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors border-none cursor-pointer text-text-primary hover:bg-hover-bg bg-transparent"
-                                >
-                                    <Upload size={18} />
-                                    Create Custom Video
-                                </button>
-                            </>
-                        )}
-
-                        {showPlaylist && (
-                            <button
-                                onClick={() => handleOptionClick('playlist')}
-                                className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors border-none cursor-pointer text-text-primary hover:bg-hover-bg bg-transparent"
-                            >
-                                <ListPlus size={18} />
-                                Create Playlist
-                            </button>
-                        )}
-                    </div>
-                </div>,
-                document.body
+            {isOpen && position && !directPlaylist && (
+                <MenuDropdown
+                    position={position}
+                    showVideo={showVideo}
+                    showPlaylist={showPlaylist}
+                    onOptionClick={handleOptionClick}
+                    dropdownRef={dropdownRef}
+                />
             )}
 
             <AddYouTubeVideoModal
@@ -197,7 +251,7 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
                 <AddCustomVideoModal
                     isOpen={true}
                     onClose={() => setActiveModal(null)}
-                    onSave={async (videoData, _shouldClose, _expectedRevision) => {
+                    onSave={async (videoData) => {
                         if (user && currentChannel) {
                             return await addCustomVideo(videoData);
                         }
@@ -213,4 +267,6 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = ({
             />
         </>
     );
-};
+});
+
+AddContentMenu.displayName = 'AddContentMenu';

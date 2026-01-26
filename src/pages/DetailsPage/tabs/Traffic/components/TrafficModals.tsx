@@ -48,7 +48,7 @@ export const TrafficModals: React.FC<TrafficModalsProps> = ({
             const { sources, totalRow } = await parseTrafficCsv(failedFile, mapping);
             await onCsvUpload(sources, totalRow, failedFile);
             onMapperClose();
-        } catch (e) {
+        } catch {
             alert("Mapping failed to produce valid data.");
         }
     };

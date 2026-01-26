@@ -33,7 +33,7 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
     // Navigation State
     const [activeView, setActiveView] = useState<TrafficFilterType | 'main'>('main');
 
-    const filterTypes: { type: TrafficFilterType; label: string; icon: React.FC<any> }[] = [
+    const filterTypes: { type: TrafficFilterType; label: string; icon: React.ElementType }[] = [
         { type: 'impressions', label: 'Impressions', icon: Eye },
         { type: 'ctr', label: 'CTR', icon: Percent },
         { type: 'views', label: 'Views', icon: BarChart3 },
@@ -49,7 +49,7 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
         return match ? match.label : 'Filter';
     };
 
-    const handleApplyFilter = (type: TrafficFilterType, operator: FilterOperator, value: any, maxValue?: any) => {
+    const handleApplyFilter = (type: TrafficFilterType, operator: FilterOperator, value: number | string, maxValue?: number | string) => {
         // Generate label
         let label = '';
         const opLabel = operator === 'between' ? '-' : operator === 'gte' ? '>=' : operator === 'lte' ? '<=' : operator === 'gt' ? '>' : operator === 'lt' ? '<' : '=';
@@ -78,7 +78,9 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
 
         // Final value object for hook
         // For range, value is [min, max]
-        const finalValue = operator === 'between' ? [value, maxValue] : value;
+        const finalValue: number | string | string[] | [number, number] = (operator === 'between' && typeof value === 'number' && typeof maxValue === 'number')
+            ? [value, maxValue] as [number, number]
+            : value;
 
         onAddFilter({
             type,
@@ -134,7 +136,7 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                                             { label: 'New', value: 'delta' }
                                         ]}
                                         value={viewMode}
-                                        onChange={(v: any) => onViewModeChange(v)}
+                                        onChange={(v) => onViewModeChange(v)}
                                     />
                                     <div className="mt-2 text-[10px] text-text-tertiary leading-relaxed grid">
                                         <span className={`col-start-1 row-start-1 transition-opacity duration-150 ${viewMode === 'cumulative' ? 'opacity-100' : 'opacity-0'}`}>
@@ -184,7 +186,7 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                             <TrafficFilterInputNiche
                                 groups={groups}
                                 sources={sources || []}
-                                initialSelected={existingFilter?.value || []}
+                                initialSelected={(existingFilter?.value as string[]) || []}
                                 onApply={(selectedIds) => {
                                     if (existingFilter) {
                                         onRemoveFilter(existingFilter.id);
@@ -219,7 +221,7 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
 
                     case 'nicheProperty':
                         const currentNichePropertyVal = existingFilter?.value;
-                        const selectedNicheProperties: string[] = Array.isArray(currentNichePropertyVal) ? currentNichePropertyVal : (currentNichePropertyVal ? [currentNichePropertyVal] : []);
+                        const selectedNicheProperties: string[] = Array.isArray(currentNichePropertyVal) ? (currentNichePropertyVal as string[]) : (currentNichePropertyVal ? [currentNichePropertyVal as string] : []);
 
                         return (
                             <div className="flex flex-col h-full overflow-hidden">
@@ -305,7 +307,7 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                                     ].map(opt => {
                                         const currentVal = existingFilter?.value;
                                         const isSelected = Array.isArray(currentVal)
-                                            ? currentVal.includes(opt.id)
+                                            ? (currentVal as string[]).includes(opt.id)
                                             : currentVal === opt.id;
                                         const TypeIcon = opt.icon;
 
@@ -313,7 +315,7 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                                             <div
                                                 key={opt.id}
                                                 onClick={() => {
-                                                    let newVal: string[] = Array.isArray(currentVal) ? [...currentVal] : (currentVal ? [currentVal] : []);
+                                                    let newVal: string[] = Array.isArray(currentVal) ? [...(currentVal as string[])] : (currentVal ? [currentVal as string] : []);
 
                                                     if (isSelected) {
                                                         newVal = newVal.filter(v => v !== opt.id);
@@ -367,7 +369,7 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                                     ].map(opt => {
                                         const currentVal = existingFilter?.value;
                                         const isSelected = Array.isArray(currentVal)
-                                            ? currentVal.includes(opt.id)
+                                            ? (currentVal as string[]).includes(opt.id)
                                             : currentVal === opt.id;
                                         const TypeIcon = opt.icon;
 
@@ -375,7 +377,7 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                                             <div
                                                 key={opt.id}
                                                 onClick={() => {
-                                                    let newVal: string[] = Array.isArray(currentVal) ? [...currentVal] : (currentVal ? [currentVal] : []);
+                                                    let newVal: string[] = Array.isArray(currentVal) ? [...(currentVal as string[])] : (currentVal ? [currentVal as string] : []);
 
                                                     if (isSelected) {
                                                         newVal = newVal.filter(v => v !== opt.id);
@@ -423,8 +425,8 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                             <div className="animate-fade-in">
                                 <FilterInputNumeric
                                     initialOperator={existingFilter?.operator || 'gte'}
-                                    initialValue={isRange ? initialVal[0] : initialVal}
-                                    initialMaxValue={isRange ? initialVal[1] : undefined}
+                                    initialValue={isRange ? (initialVal as [number, number])[0] : (initialVal as number | undefined)}
+                                    initialMaxValue={isRange ? (initialVal as [number, number])[1] : undefined}
                                     isDuration={activeView === 'avgViewDuration'}
                                     // Independent Hide Zero Logic - Apply Based
                                     initialIsHideZero={
@@ -455,7 +457,7 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
 
                                             if (isHideZero && !existingHideFilter) {
                                                 onAddFilter({
-                                                    type: hideType as any,
+                                                    type: hideType,
                                                     operator: 'gt',
                                                     value: 0,
                                                     label: activeView === 'views' ? 'Hide 0 Views' : 'Hide 0 Impr.'

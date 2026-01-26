@@ -45,6 +45,7 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
     // Local State
     const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
     const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
+    const [pickerPosition, setPickerPosition] = useState<{ left: number, top: number } | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(niche.name);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -76,6 +77,15 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
 
     const handleColorClick = (e: React.MouseEvent) => {
         e.stopPropagation();
+
+        if (!isColorPickerOpen && colorPickerRef.current) {
+            const rect = colorPickerRef.current.getBoundingClientRect();
+            setPickerPosition({
+                left: rect.left,
+                top: rect.bottom + 8
+            });
+        }
+
         setIsColorPickerOpen(!isColorPickerOpen);
         onCloseMenu?.();
     };
@@ -180,8 +190,8 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
                                     <div
                                         className="fixed z-[9999] bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-fade-in w-[240px]"
                                         style={{
-                                            left: colorPickerRef.current?.getBoundingClientRect().left,
-                                            top: (colorPickerRef.current?.getBoundingClientRect().bottom || 0) + 8,
+                                            left: pickerPosition?.left || 0,
+                                            top: pickerPosition?.top || 0,
                                         }}
                                         onClick={(e) => e.stopPropagation()}
                                     >

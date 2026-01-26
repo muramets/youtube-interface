@@ -252,7 +252,7 @@ export const TrendService = {
 
             if (hasFromNiche) {
                 // Remove fromNiche, add toNiche if not already present
-                let newAssignments = assignments.filter(a => a.nicheId !== fromNicheId);
+                const newAssignments = assignments.filter(a => a.nicheId !== fromNicheId);
                 if (!hasToNiche) {
                     newAssignments.push({ nicheId: toNicheId, addedAt: Date.now() });
                 }

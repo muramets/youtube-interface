@@ -7,7 +7,7 @@ import { useCTRRules } from '../hooks/useCTRRules';
 interface TrafficCTRConfigProps {
     isOpen: boolean;
     onClose: () => void;
-    anchorRef: React.RefObject<any>;
+    anchorRef: React.RefObject<HTMLElement | null>;
 }
 
 /**

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { Settings, Maximize2, Check, ChevronLeft, X } from 'lucide-react';
 import type { TimelineConfig } from '../../../core/types/trends';
 import { ScalingTooltip } from './ScalingTooltip';
@@ -27,7 +27,7 @@ export const TrendsSettings: React.FC<TrendsSettingsProps> = ({
     // Settings Dropdown State
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [settingsView, setSettingsView] = useState<'main' | 'scaling' | 'baseline'>('main');
-    const settingsButtonRef = useRef<HTMLButtonElement>(null);
+    const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
 
     // Tooltip State
     const [hoveredScalingMode, setHoveredScalingMode] = useState<'linear' | 'log' | 'sqrt' | 'percentile' | null>(null);
@@ -37,10 +37,10 @@ export const TrendsSettings: React.FC<TrendsSettingsProps> = ({
     const handleMouseEnter = (mode: string, type: 'scaling' | 'baseline', e: React.MouseEvent) => {
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
         if (type === 'scaling') {
-            setHoveredScalingMode(mode as any);
+            setHoveredScalingMode(mode as TimelineConfig['scalingMode']);
             setHoveredBaselineMode(null);
         } else {
-            setHoveredBaselineMode(mode as any);
+            setHoveredBaselineMode(mode as TimelineConfig['baselineMode'] & string);
             setHoveredScalingMode(null);
         }
         setHoveredItemRect(rect);
@@ -60,7 +60,7 @@ export const TrendsSettings: React.FC<TrendsSettingsProps> = ({
     return (
         <div className="relative">
             <button
-                ref={settingsButtonRef}
+                ref={setAnchorEl}
                 onClick={() => {
                     if (isSettingsOpen) {
                         handleClose();
@@ -76,7 +76,7 @@ export const TrendsSettings: React.FC<TrendsSettingsProps> = ({
             <Dropdown
                 isOpen={isSettingsOpen}
                 onClose={handleClose}
-                anchorEl={settingsButtonRef.current}
+                anchorEl={anchorEl}
                 width={280}
                 className="text-text-primary"
             >
@@ -237,8 +237,8 @@ export const TrendsSettings: React.FC<TrendsSettingsProps> = ({
                                         { label: 'Dynamic', value: 'dynamic' },
                                         { label: 'Global', value: 'global' }
                                     ]}
-                                    value={timelineConfig.baselineMode}
-                                    onChange={(v: any) => setTimelineConfig({ baselineMode: v })}
+                                    value={timelineConfig.baselineMode || 'dynamic'}
+                                    onChange={(v: 'dynamic' | 'global') => setTimelineConfig({ baselineMode: v })}
                                     disabled={!timelineConfig.showAverageBaseline}
                                 />
                                 <div className="mt-2 text-[10px] text-text-tertiary leading-relaxed grid">
@@ -262,19 +262,24 @@ export const TrendsSettings: React.FC<TrendsSettingsProps> = ({
                                     // Smart Button Logic
                                     // 1. SafeMax: The ceiling (capped at 90)
                                     const safeMax = Math.max(1, Math.min(90, maxSensibleDays));
-                                    // 2. SafeFast: Always 7, unless SafeMax pulls it down
                                     const safeFast = Math.min(7, safeMax);
-                                    // 3. SafeMid: If Max is 90, keep 30. Else midpoint.
                                     const safeMid = safeMax === 90 ? 30 : Math.round((safeFast + safeMax) / 2);
+
+                                    const options = [
+                                        { label: `${safeFast}d`, value: safeFast, disabled: safeMax < safeFast },
+                                        { label: `${safeMid}d`, value: safeMid, disabled: safeMax < safeMid },
+                                        { label: `${safeMax}d`, value: safeMax, disabled: false }
+                                    ];
+
+                                    // Auto-select minimum (safeFast) if current value is not available
+                                    const currentValue = timelineConfig.baselineWindowSize || 30;
+                                    const isValueAvailable = options.some(o => o.value === currentValue && !o.disabled);
+                                    const effectiveValue = isValueAvailable ? currentValue : safeFast;
 
                                     return (
                                         <SegmentedControl
-                                            options={[
-                                                { label: `${safeFast}d`, value: safeFast, disabled: safeMax < safeFast },
-                                                { label: `${safeMid}d`, value: safeMid, disabled: safeMax < safeMid },
-                                                { label: `${safeMax}d`, value: safeMax, disabled: false } // Max is always available as "Max"
-                                            ]}
-                                            value={timelineConfig.baselineWindowSize || 30}
+                                            options={options}
+                                            value={effectiveValue}
                                             onChange={(v) => setTimelineConfig({ baselineWindowSize: v })}
                                             disabled={!timelineConfig.showAverageBaseline || timelineConfig.baselineMode !== 'dynamic'}
                                         />

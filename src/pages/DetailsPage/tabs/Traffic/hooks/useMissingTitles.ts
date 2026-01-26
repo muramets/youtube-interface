@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import type { TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficSource, TrafficData, TrafficSnapshot } from '../../../../../core/types/traffic';
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 import { fetchVideosBatch } from '../../../../../core/utils/youtubeApi';
 import { VideoService } from '../../../../../core/services/videoService';
@@ -17,7 +17,7 @@ interface UseMissingTitlesProps {
     currentSnapshotId?: string | null;
     cachedVideos?: VideoDetails[];
     onDataRestored?: (newSources: TrafficSource[], newSnapshotId: string) => void;
-    trafficData?: any;
+    trafficData?: TrafficData | null;
 }
 
 export const repairTrafficSources = async (
@@ -180,7 +180,7 @@ export const useMissingTitles = ({
             let sourcesToRepair = displayedSources;
 
             if (currentSnapshotId && trafficData?.snapshots) {
-                const snapshot = trafficData.snapshots.find((s: any) => s.id === currentSnapshotId);
+                const snapshot = trafficData.snapshots.find((s: TrafficSnapshot) => s.id === currentSnapshotId);
                 if (snapshot) {
                     const { loadSnapshotSources } = await import('../utils/snapshotLoader');
                     const { sources } = await loadSnapshotSources(snapshot);

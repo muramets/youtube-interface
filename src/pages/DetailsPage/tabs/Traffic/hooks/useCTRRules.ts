@@ -7,39 +7,42 @@ import type { CTRRule } from '../../../../../core/services/settingsService';
 
 /**
  * Хук для управления CTR правилами.
- * Инкапсулирует всю бизнес-логику работы с правилами:
- * - Загрузка из настроек
- * - Добавление, обновление, удаление
- * - Сохранение в Firestore
- * - Отслеживание изменений
  */
 export const useCTRRules = () => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { trafficSettings, updateTrafficSettings } = useSettings();
 
-    const [rules, setRules] = useState<CTRRule[]>([]);
-    const [hasChanges, setHasChanges] = useState(false);
+    // Local optimistic state to prevent jitter during drag-and-drop
+    const [localRules, setLocalRules] = useState<CTRRule[]>([]);
 
-    // Синхронизация с настройками
+    // Sync local state with store on load / external update
     useEffect(() => {
-        const loadedRules = trafficSettings?.ctrRules || [];
-        setRules(loadedRules);
-        setHasChanges(false);
-    }, [trafficSettings]);
+        if (trafficSettings?.ctrRules) {
+            setLocalRules(trafficSettings.ctrRules);
+        }
+    }, [trafficSettings?.ctrRules]);
+
+    const hasChanges = false; // Kept for API compatibility, though currently unused
 
     /**
      * Сохраняет правила в Firestore
      */
     const saveRules = async (newRules: CTRRule[]) => {
+        // 1. Optimistic Update
+        setLocalRules(newRules);
+
         if (!user?.uid || !currentChannel?.id) return;
 
         try {
+            // 2. Persist to Backend
             await updateTrafficSettings(user.uid, currentChannel.id, { ctrRules: newRules });
-            setRules(newRules);
-            setHasChanges(false);
         } catch (e) {
             console.error("Failed to save CTR rules", e);
+            // Revert on error
+            if (trafficSettings?.ctrRules) {
+                setLocalRules(trafficSettings.ctrRules);
+            }
         }
     };
 
@@ -47,7 +50,7 @@ export const useCTRRules = () => {
      * Добавляет новое правило с умными дефолтами
      */
     const addRule = () => {
-        const lastRule = rules[rules.length - 1];
+        const lastRule = localRules[localRules.length - 1];
         let nextValue = 5;
         let nextColor = PRESET_COLORS[0];
 
@@ -60,7 +63,7 @@ export const useCTRRules = () => {
         }
 
         const newRules = [
-            ...rules,
+            ...localRules,
             { id: crypto.randomUUID(), operator: '<' as const, value: nextValue, color: nextColor }
         ];
 
@@ -71,7 +74,7 @@ export const useCTRRules = () => {
      * Обновляет существующее правило
      */
     const updateRule = (id: string, updates: Partial<CTRRule>) => {
-        const newRules = rules.map(r => {
+        const newRules = localRules.map(r => {
             if (r.id !== id) return r;
 
             const updated = { ...r, ...updates };
@@ -92,7 +95,7 @@ export const useCTRRules = () => {
      * Удаляет правило
      */
     const removeRule = (id: string) => {
-        const newRules = rules.filter(r => r.id !== id);
+        const newRules = localRules.filter(r => r.id !== id);
         saveRules(newRules);
     };
 
@@ -104,7 +107,7 @@ export const useCTRRules = () => {
     };
 
     return {
-        rules,
+        rules: localRules,
         hasChanges,
         addRule,
         updateRule,

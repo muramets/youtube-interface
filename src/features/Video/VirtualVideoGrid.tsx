@@ -45,20 +45,15 @@ const InnerGrid: React.FC<InnerGridProps> = ({
     const { generalSettings } = useSettings();
     const cardsPerRow = generalSettings.cardsPerRow;
 
-    // Track when videos array changes
-    React.useEffect(() => {
-        // videos changed
-    }, [videos]);
-
     // Memoize layout calculations
     const { columnCount, safeCardWidth, rowHeight } = React.useMemo(() => {
-        const columnCount = cardsPerRow;
-        const availableWidth = containerWidth - GRID_LAYOUT.PADDING.LEFT - GRID_LAYOUT.PADDING.RIGHT - (GRID_LAYOUT.GAP * (columnCount - 1));
-        const cardWidth = Math.floor(availableWidth / columnCount);
+        const cCount = cardsPerRow;
+        const availableWidth = containerWidth - GRID_LAYOUT.PADDING.LEFT - GRID_LAYOUT.PADDING.RIGHT - (GRID_LAYOUT.GAP * (cCount - 1));
+        const cWidth = Math.floor(availableWidth / cCount);
 
         // Safety check
-        const safeCardWidth = Math.max(0, cardWidth);
-        const thumbnailHeight = safeCardWidth * (9 / 16);
+        const safeWidth = Math.max(0, cWidth);
+        const thumbnailHeight = safeWidth * (9 / 16);
 
         // Dynamic content height based on density to handle text wrapping
         const getCardContentHeight = (cols: number) => {
@@ -67,11 +62,11 @@ const InnerGrid: React.FC<InnerGridProps> = ({
             return 108;                // Medium density: Default
         };
 
-        const contentHeight = getCardContentHeight(columnCount);
+        const contentHeight = getCardContentHeight(cCount);
         const cardHeight = thumbnailHeight + contentHeight;
-        const rowHeight = cardHeight + GRID_LAYOUT.GAP; // Total vertical space matches grid gap
+        const rHeight = cardHeight + GRID_LAYOUT.GAP; // Total vertical space matches grid gap
 
-        return { columnCount, safeCardWidth, rowHeight };
+        return { columnCount: cCount, safeCardWidth: safeWidth, rowHeight: rHeight };
     }, [containerWidth, cardsPerRow]);
 
     const rowCount = Math.ceil(videos.length / columnCount);
@@ -116,8 +111,9 @@ const InnerGrid: React.FC<InnerGridProps> = ({
         }
     };
 
-    const handleDragOver = (_event: any) => {
-        // Handle drag over if needed
+    const handleDragOver = () => {
+        // Intentionally empty: we only handle reordering on drag end for now
+        // to avoid expensive re-layouts during drag for this specific grid
     };
 
     const handleDragCancel = () => {
@@ -136,7 +132,7 @@ const InnerGrid: React.FC<InnerGridProps> = ({
         >
             {items.map((virtualRow) => {
                 const index = virtualRow.index;
-                const rowVideos = [];
+                const rowVideos: VideoDetails[] = [];
                 for (let i = 0; i < columnCount; i++) {
                     const videoIndex = index * columnCount + i;
                     if (videoIndex < videos.length) {

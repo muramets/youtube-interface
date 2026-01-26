@@ -47,7 +47,7 @@ export const SliderPopover = forwardRef<HTMLDivElement, SliderPopoverProps>(({ i
                         type="range"
                         min="0"
                         max="100"
-                        // @ts-ignore
+                        // @ts-expect-error - orient is not a standard HTML attribute but used in some browsers for vertical sliders
                         orient="vertical"
                         value={value}
                         onChange={(e) => onChange(parseInt(e.target.value))}

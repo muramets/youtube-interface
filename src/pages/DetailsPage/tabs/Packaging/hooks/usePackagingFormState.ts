@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { type VideoDetails, type CoverVersion, type VideoLocalization } from '../../../../../core/utils/youtubeApi';
+import type { VideoDetails, CoverVersion, VideoLocalization } from '../../../../../core/utils/youtubeApi';
 import { deepEqual } from '../../../../../core/utils/deepEqual';
 import { DEFAULT_TAGS, DEFAULT_LOCALIZATIONS, DEFAULT_AB_RESULTS, DEFAULT_COVER_HISTORY } from '../types';
 
@@ -56,6 +56,7 @@ interface UsePackagingFormStateOptions {
 
 export const usePackagingFormState = ({
     video,
+    // isViewingOldVersion is currently unused in logic but kept for future "read-only" flags
     isViewingOldVersion,
     localization,
     abTesting
@@ -114,13 +115,16 @@ export const usePackagingFormState = ({
 
         // Note: abTestResults are intentionally excluded from dirty check 
         // Compare everything except results to determine if the form is dirty
-        const { abTestResults: _, ...restCurrent } = currentSnapshot;
-        const { abTestResults: __, ...restLoaded } = loadedSnapshot;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { abTestResults: _unusedCurrent, ...restCurrent } = currentSnapshot;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { abTestResults: _unusedLoaded, ...restLoaded } = loadedSnapshot;
         return !deepEqual(restCurrent, restLoaded);
     }, [
         localization.getFullPayload,
         customImage,
         customImageName, // Added dependency
+        customImageVersion,
         abTesting.titles,
         abTesting.thumbnails,
         abTesting.results,
@@ -164,7 +168,7 @@ export const usePackagingFormState = ({
             coverHistory: pendingHistory
         });
         localization.resetDirty();
-    }, [localization, customImage, customImageName, abTesting, pendingHistory]); // Added dependency
+    }, [localization, customImage, customImageName, customImageVersion, abTesting, pendingHistory]);
 
     /**
      * Checks if incoming video props match the current loaded snapshot.
@@ -175,8 +179,10 @@ export const usePackagingFormState = ({
      * persisted to the server.
      */
     const incomingVideoMatchesSnapshot = useCallback((videoSnapshot: PackagingFormSnapshot) => {
-        const { abTestResults: _, ...incomingRest } = videoSnapshot;
-        const { abTestResults: __, ...loadedRest } = loadedSnapshot;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { abTestResults: _unusedIncoming, ...incomingRest } = videoSnapshot;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { abTestResults: _unusedLoaded, ...loadedRest } = loadedSnapshot;
         return deepEqual(incomingRest, loadedRest);
     }, [loadedSnapshot]);
 

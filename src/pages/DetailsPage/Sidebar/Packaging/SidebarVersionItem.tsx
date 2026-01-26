@@ -73,15 +73,15 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
                     <span className="text-sm block">{label}</span>
                 </div>
 
-                {/* RESTORED badge */}
-                {restorationIndex !== undefined && (
+                {/* RESTORED / DATE badge */}
+                {(restorationIndex !== undefined || periodStart !== undefined) && (
                     <div
                         className="flex items-center min-w-0 flex-shrink"
                         onPointerEnter={() => setIsBadgeHovered(true)}
                         onPointerLeave={() => setIsBadgeHovered(false)}
                     >
                         <Badge
-                            variant="warning"
+                            variant={restorationIndex !== undefined ? 'warning' : 'neutral'}
                             className="px-1.5 justify-center"
                             maxWidth="100%"
                         >

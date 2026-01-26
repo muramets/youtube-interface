@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
-import { useVideoPlayer } from '../../core/contexts/VideoPlayerContext';
+import { useVideoPlayer } from '../../core/hooks/useVideoPlayer';
 
 export const GlobalMiniPlayer: React.FC = () => {
     const { activeVideoId, isMinimized, close, videoTitle } = useVideoPlayer();

@@ -225,19 +225,29 @@ const parseLine = (str: string) => {
 
 // Helper: Detect mapping from header names
 const detectMapping = (headers: string[]): CsvMapping | null => {
-    const mapping: any = {};
-    let foundAny = false;
+    // Initialize with all required keys set to -1
+    const mapping: Record<keyof CsvMapping, number> = {
+        sourceId: -1,
+        sourceType: -1,
+        sourceTitle: -1,
+        impressions: -1,
+        ctr: -1,
+        views: -1,
+        avgDuration: -1,
+        watchTime: -1,
+        channelId: -1,
+    };
+    let foundCount = 0;
 
     // Iterate over required keys and find matching index in headers
     (Object.keys(HEADER_KEYWORDS) as Array<keyof CsvMapping>).forEach(key => {
         const keywords = HEADER_KEYWORDS[key];
         const index = headers.findIndex(h => keywords.some(k => h.includes(k.toLowerCase())));
-        mapping[key] = index; // -1 if not found
-        if (index !== -1) foundAny = true;
+        mapping[key] = index;
+        if (index !== -1) foundCount++;
     });
 
-    if (!foundAny) return null;
+    if (foundCount === 0) return null;
 
-    // Fill missing required keys with -1
     return mapping as CsvMapping;
 };

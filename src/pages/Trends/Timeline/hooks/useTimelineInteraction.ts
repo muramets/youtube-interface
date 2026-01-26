@@ -54,7 +54,7 @@ export const useTimelineInteraction = ({
     // Sync target to current on mount or external reset (optional but good safety)
     useEffect(() => {
         targetTransformRef.current = { ...transformRef.current };
-    }, []); // Run once, we trust internal updates mainly. 
+    }, [transformRef]); // Run once, we trust internal updates mainly. 
 
     const syncToDom = useCallback(() => {
         // Imperative DOM update for video layer (bypasses React reconciliation)
@@ -154,8 +154,8 @@ export const useTimelineInteraction = ({
             const scaleRatio = newScale / currentTargetScale;
 
             // Calculate standard relative zoom offsets (Mouse-Centered)
-            let targetOffsetX = mouseX - (mouseX - targetTransformRef.current.offsetX) * scaleRatio;
-            let targetOffsetY = mouseY - (mouseY - targetTransformRef.current.offsetY) * scaleRatio;
+            const targetOffsetX = mouseX - (mouseX - targetTransformRef.current.offsetX) * scaleRatio;
+            const targetOffsetY = mouseY - (mouseY - targetTransformRef.current.offsetY) * scaleRatio;
 
             const clamped = clampTransform({
                 scale: newScale,
@@ -342,7 +342,7 @@ export const useTimelineInteraction = ({
                 startAnimation();
             }
         }
-    }, [containerSizeRef, containerRef, transformRef, minScale, clampTransform, startAnimation, syncToDom]);
+    }, [containerSizeRef, containerRef, transformRef, minScale, startAnimation, syncToDom]);
 
     // Events attachment
     useEffect(() => {

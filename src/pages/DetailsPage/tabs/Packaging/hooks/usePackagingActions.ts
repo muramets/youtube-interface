@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react';
-import { type VideoDetails, type CoverVersion, type PackagingVersion } from '../../../../../core/utils/youtubeApi';
+import type { VideoDetails, CoverVersion } from '../../../../../core/utils/youtubeApi';
+import type { PackagingVersion, ActivePeriod } from '../../../../../core/types/versioning';
+import type { TrafficData, TrafficSnapshot } from '../../../../../core/types/traffic';
 import { useUIStore } from '../../../../../core/stores/uiStore';
 import { useVideos } from '../../../../../core/hooks/useVideos';
 import { useAuth } from '../../../../../core/hooks/useAuth';
@@ -19,7 +21,7 @@ interface UsePackagingActionsProps {
     formState: UsePackagingFormStateResult;
     abTesting: UseABTestingResult;
     onRequestSnapshot?: (versionNumber: number) => Promise<string | null | undefined>; // Returns snapshotId, null (skip), or undefined (cancel)
-    trafficData?: any; // Traffic data for finding snapshots
+    trafficData?: TrafficData | null; // Traffic data for finding snapshots
 }
 
 export const usePackagingActions = ({
@@ -117,9 +119,10 @@ export const usePackagingActions = ({
 
             formState.updateSnapshotToCurrent();
             showToast('Saved as draft', 'success');
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Failed to save video:', error);
-            if (error?.message === 'VERSION_MISMATCH') {
+            const err = error as Error;
+            if (err?.message === 'VERSION_MISMATCH') {
                 showToast('Data is out of sync. Please refresh the page.', 'error');
             } else {
                 showToast('Failed to save video', 'error');
@@ -162,11 +165,11 @@ export const usePackagingActions = ({
             if (versionForSnapshot === 'draft' && versionState.packagingHistory.length > 0) {
                 // Strategy 1: Find version with most recent active period start date
                 const latestByDate = versionState.packagingHistory.reduce((best, current) => {
-                    const currentStart = current.activePeriods?.reduce((max, p) =>
+                    const currentStart = current.activePeriods?.reduce((max: number, p: ActivePeriod) =>
                         (p.startDate || 0) > (max || 0) ? (p.startDate || 0) : (max || 0)
                         , 0) || 0;
 
-                    const bestStart = best?.activePeriods?.reduce((max, p) =>
+                    const bestStart = best?.activePeriods?.reduce((max: number, p: ActivePeriod) =>
                         (p.startDate || 0) > (max || 0) ? (p.startDate || 0) : (max || 0)
                         , 0) || 0;
 
@@ -254,9 +257,10 @@ export const usePackagingActions = ({
                     showToast('Failed to save to server', 'error');
                 }
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Failed to create version:', error);
-            if (error?.message === 'VERSION_MISMATCH') {
+            const err = error as Error;
+            if (err?.message === 'VERSION_MISMATCH') {
                 showToast('Data is out of sync. Please refresh the page.', 'error');
             } else {
                 showToast('Failed to create version', 'error');
@@ -264,7 +268,7 @@ export const usePackagingActions = ({
         } finally {
             setSavingAction(null);
         }
-    }, [user, currentChannel, video.id, video.publishedVideoId, buildSavePayload, versionState, updateVideo, formState, showToast, abTesting, onRequestSnapshot, video.coverHistory, video.packagingRevision]);
+    }, [user, currentChannel, video.id, buildSavePayload, versionState, updateVideo, formState, showToast, abTesting, onRequestSnapshot, video.coverHistory, video.packagingRevision]);
 
     const handleCancel = useCallback(() => {
         formState.resetToSnapshot(formState.loadedSnapshot);
@@ -314,29 +318,29 @@ export const usePackagingActions = ({
 
     const handleRestore = useCallback(async () => {
         if (versionState.viewingVersion !== 'draft' && typeof versionState.viewingVersion === 'number') {
-            // Находим closingSnapshotId для закрытия периода текущей активной версии
+            // Find closingSnapshotId to close current active period
             let closingSnapshotId: string | null = null;
 
             if (typeof versionState.activeVersion === 'number') {
-                // ПРИОРИТЕТ 1: Если есть onRequestSnapshot (для видео с publishedVideoId), запрашиваем CSV
+                // PRIORITY 1: If onRequestSnapshot exists (for published videos), request CSV
                 if (onRequestSnapshot) {
                     const snapshotResult = await onRequestSnapshot(versionState.activeVersion);
 
-                    // Если пользователь отменил (undefined), прерываем восстановление
+                    // If user cancelled (undefined), abort restore
                     if (snapshotResult === undefined) {
                         return;
                     }
 
                     closingSnapshotId = snapshotResult;
                 }
-                // ПРИОРИТЕТ 2: Для видео без publishedVideoId ищем последний снапшот активной версии
+                // PRIORITY 2: For unpublished videos, find latest snapshot of active version
                 else if (trafficData?.snapshots) {
-                    // Находим все снапшоты текущей активной версии
+                    // Find snapshots for active version
                     const activeVersionSnapshots = trafficData.snapshots
-                        .filter((s: any) => s.version === versionState.activeVersion)
-                        .sort((a: any, b: any) => b.timestamp - a.timestamp); // Сортируем по убыванию
+                        .filter((s: TrafficSnapshot) => s.version === versionState.activeVersion)
+                        .sort((a: TrafficSnapshot, b: TrafficSnapshot) => b.timestamp - a.timestamp); // Sort desc
 
-                    // Берем самый свежий снапшот
+                    // Take latest
                     if (activeVersionSnapshots.length > 0) {
                         closingSnapshotId = activeVersionSnapshots[0].id;
                     }
@@ -431,7 +435,7 @@ export const usePackagingActions = ({
             console.error('Failed to save results in background:', error);
             showToast('Failed to sync results with server', 'error');
         }
-    }, [user, currentChannel, video.id, video.packagingHistory, versionState, updateVideo, formState, showToast]);
+    }, [user, currentChannel, video.id, video.packagingHistory, video.packagingRevision, versionState, updateVideo, formState, showToast]);
 
     // Auto-save metadata fields (publishedVideoId, videoRender, audioRender)
     // These fields don't belong to packaging versioning, so they save independently

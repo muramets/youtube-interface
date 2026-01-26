@@ -118,7 +118,7 @@ export const useAxisTicks = ({
         }
 
         return result.sort((a, b) => a.value - b.value);
-    }, [stats.minViews, stats.maxViews]);
+    }, [stats]);
 
     return {
         ticksWithPriority,

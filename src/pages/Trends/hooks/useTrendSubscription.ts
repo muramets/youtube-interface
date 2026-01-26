@@ -95,6 +95,6 @@ export const useTrendSubscription = () => {
                 setCurrentChannel({ ...currentChannel, targetNicheNames: names });
             }
         }
-    }, [user?.uid, currentChannel?.id, currentChannel?.targetNicheIds, niches, setCurrentChannel]);
+    }, [user?.uid, currentChannel, niches, setCurrentChannel]);
 };
 

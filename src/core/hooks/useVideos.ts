@@ -3,7 +3,8 @@ import { useEffect, useMemo, useCallback } from 'react';
 import { deleteField } from 'firebase/firestore';
 import { useChannelStore } from '../stores/channelStore';
 import { VideoService } from '../services/videoService';
-import { fetchVideoDetails, extractVideoId, type VideoDetails, type PackagingVersion, type PackagingCheckin, type HistoryItem, type CoverVersion } from '../utils/youtubeApi';
+import { fetchVideoDetails, extractVideoId, type VideoDetails, type PackagingCheckin, type HistoryItem, type CoverVersion } from '../utils/youtubeApi';
+import type { PackagingVersion } from '../types/versioning';
 import { SettingsService } from '../services/settingsService';
 
 // Global set to track videos currently being deleted across all instances of the hook
@@ -11,13 +12,31 @@ import { SettingsService } from '../services/settingsService';
 // because an unrelated update in another instance (e.g. VideoCard) triggered a snapshot
 const terminatingVideoIds = new Set<string>();
 
-export const useVideos = (userId: string, channelId: string) => {
+// Export the return type for use in other components
+export interface UseVideosResult {
+    videos: VideoDetails[];
+    isLoading: boolean;
+    error: unknown;
+    addVideo: (vars: { url: string; apiKey: string }) => Promise<VideoDetails>;
+    addCustomVideo: (video: Omit<VideoDetails, 'id'> & { id?: string }) => Promise<string>;
+    updateVideo: (vars: { videoId: string; updates?: Partial<VideoDetails>; apiKey?: string; expectedRevision?: number }) => Promise<boolean>;
+    removeVideo: (videoId: string) => Promise<void>;
+    cloneVideo: (vars: { originalVideo: VideoDetails; coverVersion: CoverVersion | null; cloneDurationSeconds: number }) => Promise<void>;
+    saveDraft: (vars: { videoId: string; expectedRevision: number }) => Promise<void>;
+    createVersion: (vars: { videoId: string; snapshot: PackagingVersion['configurationSnapshot']; expectedRevision: number }) => Promise<void>;
+    addCheckin: (vars: { videoId: string; versionNumber: number; checkin: PackagingCheckin; expectedRevision: number }) => Promise<void>;
+    saveVideoHistory: (vars: { videoId: string; historyItem: HistoryItem }) => Promise<void>;
+    deleteVideoHistoryItem: (vars: { videoId: string; historyId: string }) => Promise<void>;
+    fetchVideoHistory: (videoId: string) => Promise<CoverVersion[]>;
+}
+
+export const useVideos = (userId: string, channelId: string): UseVideosResult => {
     const queryClient = useQueryClient();
     const { currentChannel } = useChannelStore();
     const queryKey = useMemo(() => ['videos', userId, channelId], [userId, channelId]);
 
-    // 1. Query with Real-time Subscription
-    const { data: videos = [], isLoading, error } = useQuery<VideoDetails[]>({
+    const EMPTY_VIDEOS: VideoDetails[] = useMemo(() => [], []);
+    const { data: rawVideos, isLoading, error } = useQuery<VideoDetails[]>({
         queryKey,
         queryFn: async () => {
             // Perform initial fetch to ensure isLoading is true until data arrives
@@ -29,6 +48,8 @@ export const useVideos = (userId: string, channelId: string) => {
         staleTime: Infinity,
         enabled: !!userId && !!channelId,
     });
+
+    const videos = rawVideos || EMPTY_VIDEOS;
 
     useEffect(() => {
         if (!userId || !channelId) return;

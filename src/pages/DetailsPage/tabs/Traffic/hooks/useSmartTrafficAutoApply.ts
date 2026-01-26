@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import { useTrafficTypeStore } from '../../../../../core/stores/useTrafficTypeStore';
 import { assistantLogger } from '../../../../../core/utils/logger';
@@ -15,6 +15,11 @@ export const useSmartTrafficAutoApply = (
 ) => {
     const { edges, setTrafficType } = useTrafficTypeStore();
 
+    const edgesRef = useRef(edges);
+    useEffect(() => {
+        edgesRef.current = edges;
+    }, [edges]);
+
     useEffect(() => {
         if (!isAssistantEnabled) return;
 
@@ -28,17 +33,12 @@ export const useSmartTrafficAutoApply = (
             const hasViews = source.views > 0;
 
             if (isZeroImpressions && hasViews) {
-                const currentEdge = edges[source.videoId];
+                const currentEdge = edgesRef.current[source.videoId];
 
                 // OPTIMIZATION: Check if traffic type is already set.
-                // The Smart Assistant should ONLY fill in missing data to avoid:
-                // 1. Overwriting manual user decisions
-                // 2. Unnecessary processing load
-                // 3. Redundant store updates
                 if (currentEdge?.type) return;
 
                 // Rule: 0 Impressions, >0 Views IMPLIES Autoplay
-                // Logic: High views with zero visibility means users didn't click (0 imp) but watched (autoplay).
                 setTrafficType(source.videoId, 'autoplay', 'smart_assistant');
                 appliedCount++;
             }
@@ -48,5 +48,5 @@ export const useSmartTrafficAutoApply = (
             assistantLogger.info(`Auto-applied Autoplay type to ${appliedCount} videos`);
         }
 
-    }, [isAssistantEnabled, displayedSources, edges, setTrafficType]);
+    }, [isAssistantEnabled, displayedSources, setTrafficType]);
 };

@@ -78,7 +78,7 @@ export const SmartTrafficTooltip: React.FC<SmartTrafficTooltipProps> = ({
                     if (enterTimeoutRef.current) clearTimeout(enterTimeoutRef.current);
                     if (onMouseEnter) onMouseEnter();
                 }}
-                onMouseLeave={(e: any) => {
+                onMouseLeave={(e: React.MouseEvent) => {
                     // Ref Bridge containment check
                     if (wrapperRef.current && wrapperRef.current.contains(e.relatedTarget as Node)) {
                         return;
@@ -156,7 +156,7 @@ export const SmartTrafficTooltip: React.FC<SmartTrafficTooltipProps> = ({
                     if (enterTimeoutRef.current) clearTimeout(enterTimeoutRef.current);
                     if (onMouseEnter) onMouseEnter();
                 }}
-                onMouseLeave={(e: any) => {
+                onMouseLeave={(e: React.MouseEvent) => {
                     // Ref Bridge containment check
                     if (wrapperRef.current && wrapperRef.current.contains(e.relatedTarget as Node)) {
                         return;

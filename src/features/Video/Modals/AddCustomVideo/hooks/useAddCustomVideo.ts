@@ -181,7 +181,7 @@ export function useAddCustomVideo({
         let effectiveDefaultTitle = title;
         let effectiveDefaultDescription = description;
         let effectiveDefaultTags = tags;
-        let effectiveLocalizations = { ...localizations };
+        const effectiveLocalizations = { ...localizations };
 
         if (activeLanguage !== 'default') {
             effectiveDefaultTitle = defaultData.title;
@@ -385,7 +385,7 @@ export function useAddCustomVideo({
 
         try {
             // 1. Migrate Legacy Base64 Images in History
-            let updatedCoverHistory = [...coverHistory];
+            const updatedCoverHistory = [...coverHistory];
             let hasHistoryUpdates = false;
 
             const coverHistoryPromises = updatedCoverHistory.map(async (item, index) => {

@@ -14,6 +14,7 @@ import { PortalTooltip } from '@/components/Shared/PortalTooltip';
 import { fetchVideosBatch } from '@/core/utils/youtubeApi';
 import { useSettings } from '@/core/hooks/useSettings';
 import type { VideoDetails } from '@/core/utils/youtubeApi';
+import { logger } from '@/core/utils/logger';
 
 interface TrafficFloatingBarProps {
     videos: TrafficSource[];
@@ -169,15 +170,16 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
                     return;
                 }
 
-                const fetchedDetailsMap = new Map<string, any>();
+                const fetchedDetailsMap = new Map<string, VideoDetails>();
 
                 for (const chunk of chunks) {
                     try {
                         const details = await fetchVideosBatch(chunk, apiKey);
                         details.forEach(d => fetchedDetailsMap.set(d.id, d));
                         quotaUsed += 2; // 1 for videos, 1 for channels
-                    } catch (err) {
-                        console.warn("Failed to fetch batch details", err);
+                    } catch (err: unknown) {
+                        const error = err instanceof Error ? err : new Error('Unknown error');
+                        logger.warn('Failed to fetch batch details', { component: 'TrafficFloatingBar', error });
                         showToast('Failed to fetch video details from YouTube', 'error');
                         return;
                     }
@@ -221,8 +223,9 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
                 }));
                 showToast(isMultiSelect ? 'Removed from Home' : 'Removed from Home', 'success');
             }
-        } catch (e) {
-            console.error(e);
+        } catch (e: unknown) {
+            const error = e instanceof Error ? e : new Error('Unknown error');
+            logger.error('Failed to update Home', { component: 'TrafficFloatingBar', error });
             showToast('Failed to update Home', 'error');
         } finally {
             setIsProcessing(false);
@@ -253,7 +256,7 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
         setIsProcessing(true);
         try {
             // Find or create 'Trash' niche (robust check)
-            let trashNiche = niches.find(n => n.name.trim().toLowerCase() === 'trash');
+            const trashNiche = niches.find(n => n.name.trim().toLowerCase() === 'trash');
             let targetNicheId = trashNiche?.id;
 
             if (!targetNicheId) {
@@ -292,8 +295,9 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
                 onClose();
             }
 
-        } catch (e) {
-            console.error(e);
+        } catch (e: unknown) {
+            const error = e instanceof Error ? e : new Error('Unknown error');
+            logger.error('Failed to update trash status', { component: 'TrafficFloatingBar', error });
             showToast('Failed to update trash status', 'error');
         } finally {
             setIsProcessing(false);

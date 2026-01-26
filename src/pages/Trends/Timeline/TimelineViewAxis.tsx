@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { useAxisTicks } from './hooks/useAxisTicks';
 
 interface TimelineViewAxisProps {
@@ -19,7 +19,6 @@ export const TimelineViewAxis: React.FC<TimelineViewAxisProps> = ({
     style
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
-    const [containerHeight, setContainerHeight] = useState(600);
 
     const { ticksWithPriority, getY } = useAxisTicks({
         stats,
@@ -29,17 +28,6 @@ export const TimelineViewAxis: React.FC<TimelineViewAxisProps> = ({
         transform
     });
 
-    useEffect(() => {
-        if (!containerRef.current) return;
-        const observer = new ResizeObserver((entries) => {
-            for (const entry of entries) {
-                setContainerHeight(entry.contentRect.height);
-            }
-        });
-        observer.observe(containerRef.current);
-        return () => observer.disconnect();
-    }, []);
-
     const formatViews = (val: number) => {
         if (val >= 1000000) return `${(val / 1000000).toFixed(val % 1000000 === 0 ? 0 : 1)}M`;
         if (val >= 1000) return `${(val / 1000).toFixed(val % 1000 === 0 ? 0 : 1)}K`;
@@ -48,8 +36,6 @@ export const TimelineViewAxis: React.FC<TimelineViewAxisProps> = ({
 
     // Calculate ticks with screen positions and opacity
     const visibleTicks = useMemo(() => {
-
-
         const result = ticksWithPriority.map((tick: { value: number; priority: number }, idx: number, arr: { value: number; priority: number }[]) => {
             const y = getY(tick.value) * transform.scale + transform.offsetY;
 
@@ -74,9 +60,6 @@ export const TimelineViewAxis: React.FC<TimelineViewAxisProps> = ({
             if (tick.priority === 1) requiredSpacing = 45;
             if (tick.priority === 2) requiredSpacing = 80;
 
-            // Dynamic spacing based on container height? 
-            // constant pixels is better for text readability.
-
             const fadeRange = 15;
             let opacity = 1;
 
@@ -94,7 +77,7 @@ export const TimelineViewAxis: React.FC<TimelineViewAxisProps> = ({
 
         // Filter out invisible ticks
         return result.filter((t: { opacity: number }) => t.opacity > 0.05);
-    }, [ticksWithPriority, getY, transform.scale, transform.offsetY, containerHeight]);
+    }, [ticksWithPriority, getY, transform.scale, transform.offsetY]);
 
     const safeSpread = verticalSpread ?? 1.0;
 

@@ -5,21 +5,40 @@ import type { SnapshotRequestParams } from '../types/versionManagement';
 import { VersionService } from '../services/VersionService';
 import { TrafficDataService } from '../../../core/services/traffic/TrafficDataService';
 import { VideoService } from '../../../core/services/videoService';
+import type { TrafficData } from '../../../core/types/traffic';
+import type { PackagingVersion } from '../../../core/types/versioning';
 import { db } from '../../../config/firebase';
 import { writeBatch } from 'firebase/firestore';
 
+interface VersionsHookState {
+    packagingHistory: PackagingVersion[];
+    activeVersion: number | 'draft';
+    viewingVersion: number | 'draft';
+    viewingPeriodIndex?: number;
+    switchToVersion: (version: number | 'draft', periodIndex?: number) => void;
+    deleteVersion: (version: number) => void;
+    setActiveVersion: (version: number | 'draft') => void;
+    restoreVersion: (version: number, closingSnapshotId?: string | null) => void;
+    setHasDraft: (has: boolean) => void;
+}
+
+interface TrafficHookState {
+    trafficData: TrafficData | null;
+    updateLocalData?: (data: TrafficData) => void;
+}
+
 interface UseVersionManagementProps {
-    versions: any; // usePackagingVersions return type
+    versions: VersionsHookState;
     isFormDirty: boolean;
     video: VideoDetails;
-    user: any;
-    currentChannel: any;
-    updateVideo: any;
+    user: { uid: string } | null;
+    currentChannel: { id: string } | null;
+    updateVideo: (params: { videoId: string; updates: any }) => Promise<void>;
     showToast: (message: string, type: 'success' | 'error') => void;
     setSelectedSnapshot: (id: string | null) => void;
     activeTab: 'packaging' | 'traffic';
     selectedSnapshot: string | null;
-    trafficState: any; // useTrafficData return type
+    trafficState: TrafficHookState;
     onOpenSwitchConfirm: (targetVersion: number | 'draft') => void;
     onOpenDeleteConfirm: (versionNumber: number, snapshotCount: number, totalViews: number, versionLabel?: string, isStacked?: boolean) => void;
     onOpenSnapshotRequest: (params: SnapshotRequestParams) => void;
@@ -180,7 +199,7 @@ export const useVersionManagement = ({
                                     restoredAt: versionData.restoredAt,
                                     // NEW: Preserve the specific period context
                                     periodStart: period?.startDate || versionData.startDate,
-                                    periodEnd: period?.endDate || versionData.endDate || null
+                                    periodEnd: period?.endDate || (versionData.endDate ?? null)
                                 },
                                 isPackagingDeleted: true
                             };
@@ -191,10 +210,10 @@ export const useVersionManagement = ({
 
                 // Sanitize whole object before batching to ensure NO undefined values
                 const fullTrafficData = {
-                    ...trafficState.trafficData,
+                    ...(trafficState.trafficData || {}),
                     snapshots: updatedSnapshots,
                     lastUpdated: Date.now()
-                };
+                } as TrafficData;
 
                 const sanitizedTrafficData = TrafficDataService.sanitize(fullTrafficData);
 
@@ -214,7 +233,7 @@ export const useVersionManagement = ({
             const deleteData = VersionService.calculateDeleteVersionData(
                 versionsToDelete,
                 versions.packagingHistory,
-                versions.activeVersion
+                typeof versions.activeVersion === 'number' ? versions.activeVersion : (video.currentPackagingVersion || 0)
             );
 
             batch.update(videoRef, {

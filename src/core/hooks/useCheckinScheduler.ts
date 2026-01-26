@@ -33,7 +33,7 @@ export const useCheckinScheduler = () => {
                     const notificationId = `checkin-due-${video.id}-${rule.id}`;
 
                     // Check if this check-in has already been done (exists in history)
-                    let videoHistory = video.packagingHistory || [];
+                    const videoHistory = video.packagingHistory || [];
                     let existingCheckin = videoHistory.flatMap(v => v.checkins).find(c => c.ruleId === rule.id);
 
                     const isCheckinComplete = existingCheckin && (existingCheckin.metrics.ctr !== null || existingCheckin.metrics.impressions !== null || existingCheckin.metrics.views !== null);

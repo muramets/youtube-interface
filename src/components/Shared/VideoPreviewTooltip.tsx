@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Copy, Check, Calendar, Tag, AlignLeft } from 'lucide-react';
-import { useVideoPlayer } from '../../core/contexts/VideoPlayerContext';
+import { useVideoPlayer } from '../../core/hooks/useVideoPlayer';
 
 interface VideoPreviewTooltipProps {
     videoId: string;

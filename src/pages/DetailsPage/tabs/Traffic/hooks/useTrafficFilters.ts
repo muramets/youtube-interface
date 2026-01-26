@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import type { TrafficSource, TrafficFilter, TrafficFilterType } from '../../../../../core/types/traffic';
+import type { TrafficSource, TrafficFilter, TrafficFilterType, EnrichedTrafficSource } from '../../../../../core/types/traffic';
 import { durationToSeconds } from '../utils/formatters';
 import { useTrafficFilterStore } from '../../../../../core/stores/trafficFilterStore';
 
@@ -133,20 +133,22 @@ export const useTrafficFilters = ({ contextKey }: UseTrafficFiltersProps) => {
                 }
 
                 if (filter.type === 'trafficType' || filter.type === 'viewerType') {
-                    // Inject property check
+                    // Inject property check (Source is actually EnrichedTrafficSource)
+                    const enrichedSource = source as EnrichedTrafficSource;
+
                     const actualType = filter.type === 'trafficType'
-                        ? (source as any).trafficType
-                        : (source as any).viewerType;
+                        ? enrichedSource.trafficType
+                        : enrichedSource.viewerType;
 
                     const actualSource = filter.type === 'trafficType'
-                        ? (source as any).trafficSource
-                        : (source as any).viewerSource;
+                        ? enrichedSource.trafficSource
+                        : enrichedSource.viewerSource;
 
                     const selectedValues = Array.isArray(filter.value) ? filter.value : [filter.value];
 
                     // Split checking: "Smart Assistant" refers to SOURCE, others refer to TYPE
                     const isSmartAssistantSelected = selectedValues.includes('smart_assistant');
-                    const selectedMainTypes = selectedValues.filter((v: string) => v !== 'smart_assistant');
+                    const selectedMainTypes = selectedValues.filter((v: string | number) => v !== 'smart_assistant');
 
                     // 1. Check Source Match
                     if (isSmartAssistantSelected && actualSource === 'smart_assistant') {
@@ -206,7 +208,7 @@ export const useTrafficFilters = ({ contextKey }: UseTrafficFiltersProps) => {
 
                 // Range comparisons (between)
                 if (Array.isArray(filter.value) && filter.operator === 'between') {
-                    const [min, max] = filter.value;
+                    const [min, max] = filter.value as [number, number];
                     const numValue = Number(itemValue);
                     if (isNaN(numValue)) return false;
                     return numValue >= min && numValue <= max;

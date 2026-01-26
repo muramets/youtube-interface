@@ -43,10 +43,11 @@ export const SegmentedControl = <T extends string | number>({
         <div className={`relative flex bg-[#1a1a1a] rounded-lg p-0.5 ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}>
             {/* Sliding Indicator */}
             <div
-                className="absolute top-0.5 bottom-0.5 bg-gradient-to-r from-[#2d2d2d] to-[#333333] rounded-md shadow-sm transition-all duration-200 ease-out"
+                className={`absolute top-0.5 bottom-0.5 bg-gradient-to-r from-[#2d2d2d] to-[#333333] rounded-md shadow-sm transition-all duration-200 ease-out ${selectedIndex === -1 ? 'opacity-0' : 'opacity-100'
+                    }`}
                 style={{
                     width: `calc(${itemWidthPercent}% - 4px)`, // Subtract padding/gap space
-                    left: `calc(${selectedIndex * itemWidthPercent}% + 2px)`
+                    left: `calc(${Math.max(0, selectedIndex) * itemWidthPercent}% + 2px)`
                 }}
             />
 

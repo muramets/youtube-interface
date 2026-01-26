@@ -13,7 +13,7 @@ import { formatDuration } from '../utils/formatters';
 import type { CTRRule } from '../../../../../core/services/settingsService';
 import { useTrafficNicheStore } from '../../../../../core/stores/useTrafficNicheStore';
 import { TrafficRowBadges } from './TrafficRowBadges';
-import { useVideoPlayer } from '../../../../../core/contexts/VideoPlayerContext';
+import { useVideoPlayer } from '../../../../../core/hooks/useVideoPlayer';
 import type { SuggestedTrafficNiche } from '../../../../../core/types/suggestedTrafficNiches';
 
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
