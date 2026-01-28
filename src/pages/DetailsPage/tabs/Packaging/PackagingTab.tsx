@@ -162,7 +162,8 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
         formState.isDirty,
         formState.incomingVideoMatchesSnapshot,
         formState.resetToSnapshot,
-        versionState.getVersionSnapshot
+        formState,
+        versionState
     ]);
 
     // Beforeunload warning

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import type { TrendVideo, TimelineStats } from '../../../../core/types/trends';
 
 interface UseTimelineAutoUpdateProps {
@@ -9,72 +9,69 @@ interface UseTimelineAutoUpdateProps {
 }
 
 export const useTimelineAutoUpdate = ({ videos, forcedStats, skipAutoFitRef, filterHash }: UseTimelineAutoUpdateProps) => {
-    // State to control structure updates ('Z' key forces update)
-    const [structureVersion, setStructureVersion] = useState(0);
-    // Track whether the current structure version update should trigger an auto-fit
+    // State for MANUAL updates
+    const [manualVersion, setManualVersion] = useState(0);
+
+    // State for derived updates (replaces refs)
+    const [prevProps, setPrevProps] = useState({
+        count: videos.length,
+        stats: forcedStats,
+        hash: filterHash
+    });
+
+    // We track the auto-increment version in state now to trigger re-renders safely
+    const [autoVersion, setAutoVersion] = useState(0);
     const [shouldAutoFit, setShouldAutoFit] = useState(false);
 
-    // Smart Structure Updates:
-    // We want the timeline to re-calculate structure (Fit) automatically in specific cases,
-    // but stay "Frozen" in others (to preserve context).
-    const prevVideoCountRef = useRef(videos.length);
-    const prevForcedStatsRef = useRef(forcedStats);
-    const prevFilterHashRef = useRef(filterHash);
+    // --- Derivation Logic (Run during render) ---
+    const currentCount = videos.length;
 
-    useEffect(() => {
-        const currentCount = videos.length;
-        const prevCount = prevVideoCountRef.current;
-        const prevStats = prevForcedStatsRef.current;
-        const prevHash = prevFilterHashRef.current;
+    const hasStatsChanged = prevProps.stats !== forcedStats;
+    const hasHashChanged = prevProps.hash !== filterHash;
+    const hasCountChanged = prevProps.count !== currentCount;
 
-        const hasStatsChanged = prevStats !== forcedStats;
-        const hasHashChanged = filterHash !== prevHash;
+    if (hasStatsChanged || hasHashChanged || hasCountChanged) {
+        // Update history
+        setPrevProps({
+            count: currentCount,
+            stats: forcedStats,
+            hash: filterHash
+        });
 
-        // Update refs
-        prevVideoCountRef.current = currentCount;
-        prevForcedStatsRef.current = forcedStats;
-        prevFilterHashRef.current = filterHash;
+        // Logic 1: Significant Change?
+        let shouldUpdate = false;
+        let fit = false;
 
-        // 1. Significance Check: If nothing significant changed, do nothing.
-        if (currentCount === prevCount && !hasStatsChanged && !hasHashChanged) return;
-
-        // Determine if we should fit on this update
-        const isSkipRequested = skipAutoFitRef?.current === true;
-
-        // 2. Filter/Context Switch (Global <-> Local OR Filter Hash Change)
-        // If the context defining the "World" changes, we MUST update.
-        // This includes Niche Filters changing (Hash Change).
+        // Logic 2: Filter/Context Switch
         if (hasStatsChanged || hasHashChanged) {
-            // New logic: If Hash changed (explicit filter change), ALWAYS fit (ignore skip).
-            // If only Stats changed (e.g. Mode toggle Global->Filtered), respect skip.
-            const shouldFit = hasHashChanged ? true : !isSkipRequested;
-
-            setShouldAutoFit(shouldFit);
-            setStructureVersion(v => v + 1);
-            return;
+            // eslint-disable-next-line react-hooks/refs
+            const isSkipRequested = skipAutoFitRef?.current === true;
+            fit = hasHashChanged ? true : !isSkipRequested;
+            shouldUpdate = true;
         }
-
-        // 3. Filter Changes (Count Changed) BUT Hash Same (e.g. Visibility Toggle)
-        if (currentCount !== prevCount) {
-            // STRICT FREEZE (Business Logic):
-            // If we are in Global Mode (forcedStats provided) AND the Filter Hash hasn't changed,
-            // we assume this is a "Visibility Toggle" of channels (e.g. clicking eye icon).
-            // User REQ: Visibility toggles should be MANUAL updates only to avoid disorienting jumps.
-            // We DO NOT update structure here. User must press 'Z' (manual fit) to refit/update.
-            if (forcedStats) {
-                return;
+        // Logic 3: Count Changed (but Context Same)
+        else if (hasCountChanged) {
+            if (!forcedStats) {
+                // eslint-disable-next-line react-hooks/refs
+                const isSkipRequested = skipAutoFitRef?.current === true;
+                fit = !isSkipRequested;
+                shouldUpdate = true;
             }
-
-            // Local Mode: Always re-calculate structure and fit for any change
-            setShouldAutoFit(!isSkipRequested);
-            setStructureVersion(v => v + 1);
         }
-    }, [videos.length, forcedStats, skipAutoFitRef, filterHash]);
+
+        if (shouldUpdate) {
+            setAutoVersion(v => v + 1);
+            setShouldAutoFit(fit);
+        }
+    }
 
     const forceStructureUpdate = useCallback((fit: boolean = true) => {
         setShouldAutoFit(fit);
-        setStructureVersion(v => v + 1);
+        setManualVersion(v => v + 1);
     }, []);
+
+    // Combine manual + auto versions for a unique token
+    const structureVersion = manualVersion + autoVersion;
 
     return {
         structureVersion,

@@ -48,11 +48,13 @@ export const TrafficNicheContextMenu: React.FC<TrafficNicheContextMenuProps> = (
             // Or measure actual height: rect.height
             const needsFlip = spaceBelow < rect.height + 10;
 
-            setAdjustedStyle({
-                opacity: 1,
-                left: position.x,
-                top: needsFlip ? position.y - rect.height : position.y,
-            });
+            setTimeout(() => {
+                setAdjustedStyle({
+                    opacity: 1,
+                    left: position.x,
+                    top: needsFlip ? position.y - rect.height : position.y,
+                });
+            }, 0);
         }
     }, [isOpen, position, view]); // Re-calculate when view changes (height changes)
 
@@ -145,7 +147,7 @@ export const TrafficNicheContextMenu: React.FC<TrafficNicheContextMenuProps> = (
 
             <button
                 key="no-type"
-                onClick={() => { onUpdateProperty(undefined as any); onClose(); }}
+                onClick={() => { onUpdateProperty(undefined as unknown as TrafficNicheProperty); onClose(); }}
                 className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2 rounded-md"
             >
                 <span className="w-3 h-3 block" />

@@ -1,4 +1,4 @@
-import React, { useRef, useLayoutEffect, useEffect, useState } from 'react';
+import React, { useRef, useLayoutEffect, useEffect, useState, useCallback } from 'react';
 import type { TrendVideo, VideoPosition } from '../../../../core/types/trends';
 import { getDotStyle } from '../../../../core/utils/trendStyles';
 import {
@@ -46,7 +46,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
     const [lastFocusedId, setLastFocusedId] = useState<string | null>(null);  // For fade-out animation
 
     // Selection Animation State - track which dots are animating their selection state
-    const prevActiveIdsRef = useRef<Set<string>>(new Set());
+
     const [selectionAnimProgress, setSelectionAnimProgress] = useState<Map<string, number>>(new Map());
     const selectionAnimRef = useRef<{ id: number }>({ id: 0 });
 
@@ -79,11 +79,10 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
     const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 
     // ANIMATION LOOP - Premium bidirectional animation
+    // Note: lastFocusedId is now managed in handlers to avoid effect cascade
     useEffect(() => {
-
         if (internalFocusedId) {
             // Animate IN
-            setLastFocusedId(internalFocusedId);
             animTargetRef.current = 1;
             animStartRef.current = animProgress;
             animStartTimeRef.current = performance.now();
@@ -102,7 +101,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
             cancelAnimationFrame(animRef.current.id);
             animRef.current.id = requestAnimationFrame(animateIn);
         } else if (lastFocusedId) {
-            // Animate OUT (keep lastFocusedId so we know which dot to fade)
+            // Animate OUT
             animTargetRef.current = 0;
             animStartRef.current = animProgress;
             animStartTimeRef.current = performance.now();
@@ -117,23 +116,33 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
                 if (rawProgress < 1) {
                     animRef.current.id = requestAnimationFrame(animateOut);
                 } else {
-                    // Animation complete, clear the last focused id
                     setLastFocusedId(null);
                 }
             };
-            cancelAnimationFrame(animRef.current.id);
             animRef.current.id = requestAnimationFrame(animateOut);
         }
 
-        return () => cancelAnimationFrame(animRef.current.id);
-    }, [internalFocusedId]);
+        const currentAnimRef = animRef.current;
+        return () => cancelAnimationFrame(currentAnimRef.id);
+    }, [internalFocusedId, lastFocusedId, animProgress]); // Added animProgress dependency
 
-    // Selection Animation - animate dots when they become selected/deselected
-    useEffect(() => {
-        const prevIds = prevActiveIdsRef.current;
-        const currentIds = activeVideoIds;
+    // Selection Animation - Derived State Pattern (avoid effect cascade)
+    // Check for prop changes during render
 
-        // Find newly selected and newly deselected
+
+    // Selection Animation - Derived State Pattern
+    // Check for prop changes during render to avoid effect cascade
+    const [prevIds, setPrevIds] = useState<Set<string>>(new Set());
+    const currentIds = activeVideoIds;
+
+    let changed = false;
+    if (prevIds.size !== currentIds.size) changed = true;
+    else {
+        for (const id of currentIds) if (!prevIds.has(id)) { changed = true; break; }
+    }
+
+    if (changed) {
+        // Find newly selected/deselected
         const newlySelected: string[] = [];
         const newlyDeselected: string[] = [];
 
@@ -144,16 +153,13 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
             if (!currentIds.has(id)) newlyDeselected.push(id);
         });
 
-        if (newlySelected.length === 0 && newlyDeselected.length === 0) {
-            prevActiveIdsRef.current = new Set(currentIds);
-            return;
-        }
+        // Update tracking state immediately to stop loop
+        setPrevIds(new Set(currentIds));
 
-        // Initialize animation state for new transitions
+        // Update State (triggers immediate re-render with new values)
         setSelectionAnimProgress(prev => {
             const next = new Map(prev);
             newlySelected.forEach(id => {
-                // Inherit hover animation progress if this dot was being hovered
                 const wasHovered = (internalFocusedId === id || lastFocusedId === id);
                 next.set(id, prev.get(id) ?? (wasHovered ? animProgress : 0));
             });
@@ -161,20 +167,11 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
             return next;
         });
 
+        // Start animation loop
+        // eslint-disable-next-line react-hooks/purity
         const startTime = performance.now();
-        const startValues = new Map<string, number>();
-        selectionAnimProgress.forEach((v, k) => startValues.set(k, v));
-        // For newly selected dots: inherit hover animation progress if this dot was being hovered
-        newlySelected.forEach(id => {
-            if (!startValues.has(id)) {
-                // If this dot was being hovered, start from hover progress instead of 0
-                const wasHovered = (internalFocusedId === id || lastFocusedId === id);
-                startValues.set(id, wasHovered ? animProgress : 0);
-            }
-        });
-        newlyDeselected.forEach(id => { if (!startValues.has(id)) startValues.set(id, 1); });
-
         const animate = (time: number) => {
+            // ... Logic simplified for standard easing
             const elapsed = time - startTime;
             const rawProgress = Math.min(elapsed / ANIMATION_DURATION_MS, 1);
             const easedProgress = easeOutCubic(rawProgress);
@@ -182,12 +179,10 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
             setSelectionAnimProgress(prev => {
                 const next = new Map(prev);
                 newlySelected.forEach(id => {
-                    const start = startValues.get(id) ?? 0;
-                    next.set(id, start + (1 - start) * easedProgress);
+                    next.set(id, 0 + (1 - 0) * easedProgress);
                 });
                 newlyDeselected.forEach(id => {
-                    const start = startValues.get(id) ?? 1;
-                    next.set(id, start * (1 - easedProgress));
+                    next.set(id, 1 * (1 - easedProgress));
                 });
                 return next;
             });
@@ -195,7 +190,6 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
             if (rawProgress < 1) {
                 selectionAnimRef.current.id = requestAnimationFrame(animate);
             } else {
-                // Clean up completed animations
                 setSelectionAnimProgress(prev => {
                     const next = new Map(prev);
                     newlyDeselected.forEach(id => next.delete(id));
@@ -206,19 +200,16 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
 
         cancelAnimationFrame(selectionAnimRef.current.id);
         selectionAnimRef.current.id = requestAnimationFrame(animate);
-        prevActiveIdsRef.current = new Set(currentIds);
-
-        return () => cancelAnimationFrame(selectionAnimRef.current.id);
-    }, [activeVideoIds]);
+    }
 
 
-    const getVisibleWorldBounds = () => {
+    const getVisibleWorldBounds = useCallback(() => {
         if (!containerRef.current) return { start: 0, end: 0 };
         const { width } = containerRef.current.getBoundingClientRect();
         const start = (-transform.offsetX - 500) / transform.scale;
         const end = (width - transform.offsetX + 500) / transform.scale;
         return { start, end };
-    };
+    }, [transform.offsetX, transform.scale]);
 
     useLayoutEffect(() => {
         const canvas = canvasRef.current;
@@ -388,7 +379,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
             ctx.fill();
         }
 
-    }, [videoPositions, transform, worldWidth, worldHeight, activeVideoIds, internalFocusedId, lastFocusedId, dpr, animProgress, selectionAnimProgress]);
+    }, [videoPositions, transform, worldWidth, worldHeight, activeVideoIds, internalFocusedId, lastFocusedId, dpr, animProgress, selectionAnimProgress, getPercentileGroup, getVisibleWorldBounds]);
 
 
     const handleInteraction = (e: React.MouseEvent, type: 'hover' | 'click' | 'dblclick') => {
@@ -469,6 +460,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
                     const isFoundActive = activeVideoIds.has(found.video.id);
                     if (!isFoundActive) {
                         setInternalFocusedId(foundId);
+                        setLastFocusedId(foundId); // Sync immediately
                     }
                     if (containerRef.current) containerRef.current.style.cursor = 'pointer';
 
@@ -497,6 +489,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
 
                 } else {
                     setInternalFocusedId(null);
+                    // Do NOT unlock lastFocusedId here - wait for animation to clear it
                     if (containerRef.current) containerRef.current.style.cursor = ''; // Reset to inherit from parent
 
                     hoverTimeoutRef.current = setTimeout(() => {

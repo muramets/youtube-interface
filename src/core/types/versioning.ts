@@ -10,6 +10,36 @@ export interface ActivePeriod {
     closingSnapshotId: string | null;
 }
 
+export interface CTRRule {
+    id: string;
+    operator: '<' | '>' | '<=' | '>=' | 'between';
+    value: number;
+    maxValue?: number; // For 'between' operator
+    color: string;
+}
+
+export interface PackagingMetrics {
+    impressions: number | null;
+    ctr: number | null; // Percentage
+    views: number | null;
+    avdSeconds: number | null; // Average View Duration in seconds
+}
+
+export interface ABVariantMetrics {
+    variantId: string; // URL or ID of the variant
+    watchTimePercentage: number;
+}
+
+export interface PackagingCheckin {
+    id: string;
+    date: number; // Timestamp
+    metrics: PackagingMetrics;
+    abMetrics?: ABVariantMetrics[];
+    diffs?: Partial<PackagingMetrics>; // Difference from previous check-in
+    ruleId?: string;
+    isFinal?: boolean; // User manually marked as last for version
+}
+
 /**
  * Packaging Snapshot.
  * Снимок конфигурации упаковки на момент создания версии.
@@ -42,7 +72,7 @@ export interface PackagingVersion {
     activePeriods?: ActivePeriod[];
     revision: number; // NEW: для tracking stale state и race conditions
     cloneOf?: number; // Alias support
-    checkins?: any[]; // Legacy or specific checkin data
+    checkins?: PackagingCheckin[];
     restoredAt?: number;
 }
 

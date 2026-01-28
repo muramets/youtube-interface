@@ -8,7 +8,7 @@ interface UploadDefaultsSettingsProps {
 }
 
 export const UploadDefaultsSettings: React.FC<UploadDefaultsSettingsProps> = ({ settings, onChange }) => {
-    const handleChange = (field: keyof UploadDefaults, value: any) => {
+    const handleChange = (field: keyof UploadDefaults, value: UploadDefaults[keyof UploadDefaults]) => {
         onChange({
             ...settings,
             [field]: value

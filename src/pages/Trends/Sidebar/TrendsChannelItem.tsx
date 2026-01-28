@@ -56,10 +56,12 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
     const [avatarError, setAvatarError] = useState(false);
     const markAvatarBroken = useTrendStore(state => state.markAvatarBroken);
 
-    // Reset avatar error state when avatarUrl changes (e.g., after sync refresh)
-    useEffect(() => {
+    // Reset avatar error state when avatarUrl changes
+    const [prevAvatarUrl, setPrevAvatarUrl] = useState(channel.avatarUrl);
+    if (channel.avatarUrl !== prevAvatarUrl) {
+        setPrevAvatarUrl(channel.avatarUrl);
         setAvatarError(false);
-    }, [channel.avatarUrl]);
+    }
 
     const handleAvatarError = () => {
         setAvatarError(true);

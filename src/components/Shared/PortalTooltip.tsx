@@ -52,13 +52,20 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
 
     const isHoveredRef = useRef(false);
 
+    // Refs to hold latest prop values for stable callbacks
+    const propsRef = useRef({ anchorRect, align, side, estimatedHeight });
+    useEffect(() => {
+        propsRef.current = { anchorRect, align, side, estimatedHeight };
+    }, [anchorRect, align, side, estimatedHeight]);
+
     const positionRaf = useRef<number | null>(null);
 
     const updatePosition = useCallback(() => {
         if (positionRaf.current) return;
 
         positionRaf.current = requestAnimationFrame(() => {
-            const rect = anchorRect || (triggerRef.current?.getBoundingClientRect());
+            const { anchorRect: currentAnchorRect, align: currentAlign, side: currentSide, estimatedHeight: currentEstimatedHeight } = propsRef.current;
+            const rect = currentAnchorRect || (triggerRef.current?.getBoundingClientRect());
             if (rect) {
                 const viewportWidth = document.documentElement.clientWidth;
                 const viewportHeight = document.documentElement.clientHeight;
@@ -70,20 +77,20 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                 let calculatedMaxWidth: number | undefined = undefined;
                 let transform = 'none';
 
-                let effectiveAlign = align;
-                let effectiveSide = side;
+                let effectiveAlign = currentAlign;
+                let effectiveSide = currentSide;
 
                 // Dynamic Height Measurement: Use actual height if rendered, else estimate
-                const currentHeight = tooltipRef.current?.offsetHeight || estimatedHeight;
+                const currentHeight = tooltipRef.current?.offsetHeight || currentEstimatedHeight;
 
                 // Vertical Flipping logic for 'top'/'bottom' sides
-                if (side === 'bottom' || side === 'top') {
+                if (currentSide === 'bottom' || currentSide === 'top') {
                     const spaceBottom = viewportHeight - (rect.bottom || (rect.top + rect.height)) - 4 - padding;
                     const spaceTop = rect.top - 4 - padding;
 
-                    if (side === 'bottom' && spaceBottom < currentHeight && spaceTop > spaceBottom) {
+                    if (currentSide === 'bottom' && spaceBottom < currentHeight && spaceTop > spaceBottom) {
                         effectiveSide = 'top';
-                    } else if (side === 'top' && spaceTop < currentHeight && spaceBottom > spaceTop) {
+                    } else if (currentSide === 'top' && spaceTop < currentHeight && spaceBottom > spaceTop) {
                         effectiveSide = 'bottom';
                     }
                 }
@@ -93,7 +100,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                     top = rect.top;
 
                     // Clamping for Left/Right Logic (keep vertical in bounds)
-                    const currentHeight = tooltipRef.current?.offsetHeight || estimatedHeight;
+                    const currentHeight = tooltipRef.current?.offsetHeight || currentEstimatedHeight;
                     const maxTop = viewportHeight - currentHeight - padding;
                     top = Math.max(padding, Math.min(top, maxTop));
 
@@ -124,7 +131,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                     // If side=top, visualTop = top - height.
                     // If side=bottom, visualTop = top.
 
-                    const height = tooltipRef.current?.offsetHeight || estimatedHeight;
+                    const height = tooltipRef.current?.offsetHeight || currentEstimatedHeight;
 
                     if (effectiveSide === 'top') {
                         // Visual Top is (top - height). We want (top - height) >= padding.
@@ -144,9 +151,9 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                     const spaceRight = viewportWidth - rect.left - padding;
                     const spaceLeft = (rect.right || (rect.left + rect.width)) - padding;
 
-                    if (align === 'left' && spaceRight < minWidth && spaceLeft > spaceRight) {
+                    if (currentAlign === 'left' && spaceRight < minWidth && spaceLeft > spaceRight) {
                         effectiveAlign = 'right';
-                    } else if (align === 'right' && spaceLeft < minWidth && spaceRight > spaceLeft) {
+                    } else if (currentAlign === 'right' && spaceLeft < minWidth && spaceRight > spaceLeft) {
                         effectiveAlign = 'left';
                     }
 
@@ -171,7 +178,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
             }
             positionRaf.current = null;
         });
-    }, [align, side, anchorRect]);
+    }, []); // Stable callback, no dependencies
 
     const showTooltip = useCallback(() => {
         updatePosition();
@@ -201,30 +208,34 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
     // Handle External Control
     useEffect(() => {
         if (disabled) {
-            hideTooltip();
-            return;
+            // Defer update to avoid synchronous state update warning
+            const timer = setTimeout(() => hideTooltip(), 0);
+            return () => clearTimeout(timer);
         }
 
         // If disabled state changes to false and we are STILL hovered, re-show
         if (!disabled && isHoveredRef.current && !forceOpen) {
-            // We can optionally check enterDelay here, but immediate show feels more responsive
-            // for these kinds of interactions (e.g. moving out of a sub-menu).
-            showTooltip();
+            // Defer update
+            const timer = setTimeout(() => showTooltip(), 0);
+            return () => clearTimeout(timer);
         }
 
         if (forceOpen !== undefined) {
-            if (forceOpen) {
-                // Clear closing timeouts
-                if (closeTimeoutRef.current) {
-                    clearTimeout(closeTimeoutRef.current);
-                    closeTimeoutRef.current = null;
+            // Defer update
+            const timer = setTimeout(() => {
+                if (forceOpen) {
+                    if (closeTimeoutRef.current) {
+                        clearTimeout(closeTimeoutRef.current);
+                        closeTimeoutRef.current = null;
+                    }
+                    showTooltip();
+                } else {
+                    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                    if (enterTimeoutRef.current) clearTimeout(enterTimeoutRef.current);
+                    hideTooltip();
                 }
-                showTooltip();
-            } else {
-                if (timeoutRef.current) clearTimeout(timeoutRef.current);
-                if (enterTimeoutRef.current) clearTimeout(enterTimeoutRef.current);
-                hideTooltip();
-            }
+            }, 0);
+            return () => clearTimeout(timer);
         }
     }, [forceOpen, disabled, showTooltip, hideTooltip]);
 
@@ -279,7 +290,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
         }, 300); // Delay to allow moving to tooltip
     };
 
-    // Update position on scroll or resize while visible
+    // Update position on scroll or resize while visible, AND when props change
     useEffect(() => {
         if (shouldRender) {
             updatePosition();
@@ -294,7 +305,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                 }
             };
         }
-    }, [shouldRender, updatePosition]);
+    }, [shouldRender, updatePosition, anchorRect, align, side]);
 
 
 

@@ -30,6 +30,7 @@ export const FloatingNicheItem: React.FC<FloatingNicheItemProps> = ({
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(niche.name);
     const [menuPosition, setMenuPosition] = useState<{ x: number, y: number }>({ x: 0, y: 0 });
+    const [pickerPosition, setPickerPosition] = useState<{ left: number, top: number } | null>(null);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
     const menuButtonRef = useRef<HTMLButtonElement>(null);

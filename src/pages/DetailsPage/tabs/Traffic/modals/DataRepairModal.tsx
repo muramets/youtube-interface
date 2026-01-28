@@ -32,6 +32,7 @@ export const DataRepairModal: React.FC<DataRepairModalProps> = ({
             setFrozenMissingCount(missingCount);
             setFrozenEstimatedQuota(estimatedQuota);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]); // We purposefully omit missingCount/estimatedQuota to only update on open
 
     if (!isOpen) return null;

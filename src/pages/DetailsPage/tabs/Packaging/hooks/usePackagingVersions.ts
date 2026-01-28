@@ -352,7 +352,7 @@ export const usePackagingVersions = ({
             initialActive,
             historyCount: initialHistory.length
         });
-    }, []);
+    }, [initialActive, initialActiveVersion, initialHistory.length, initialIsDraft]);
 
     // Calculate initial revision from history
     const initialRevision = initialHistory.length > 0
@@ -446,7 +446,7 @@ export const usePackagingVersions = ({
             updatedHistory,
             currentPackagingVersion: state.currentVersionNumber + 1
         };
-    }, [state.packagingHistory, state.activeVersion, state.currentVersionNumber]);
+    }, [state.packagingHistory, state.currentVersionNumber, state.packagingRevision]);
 
     const saveDraft = useCallback((closingSnapshotId?: string | null): {
         updatedHistory: PackagingVersion[]
@@ -458,7 +458,7 @@ export const usePackagingVersions = ({
         dispatch({ type: 'SAVE_DRAFT', payload: { closingSnapshotId } });
 
         return { updatedHistory };
-    }, [state.packagingHistory, state.activeVersion]);
+    }, [state.packagingHistory]);
 
     const deleteVersion = useCallback((versionNumbers: number | number[]) => {
         const payload = Array.isArray(versionNumbers) ? versionNumbers : [versionNumbers];
@@ -561,6 +561,7 @@ export const usePackagingVersions = ({
         setPackagingHistory,
         setHasDraft,
         setActiveVersion,
-        setCurrentVersionNumber
+        setCurrentVersionNumber,
+        nextVisualVersionNumber
     ]);
 };

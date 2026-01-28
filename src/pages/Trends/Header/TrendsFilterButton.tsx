@@ -29,7 +29,9 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
     // Check if "Untracked" (TRASH) niche is active
     const isTrashMode = React.useMemo(() => {
         const nicheFilter = trendsFilters.find(f => f.type === 'niche');
-        return nicheFilter && Array.isArray(nicheFilter.value) && nicheFilter.value.includes('TRASH');
+        if (!nicheFilter || !Array.isArray(nicheFilter.value)) return false;
+        // Check if value includes TRASH (explicit cast since default value is union)
+        return (nicheFilter.value as string[]).includes('TRASH');
     }, [trendsFilters]);
 
     useEffect(() => {
@@ -74,12 +76,12 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
         };
     }, [isOpen]);
 
-    const handleAddFilter = (type: TrendsFilterType, operator: FilterOperator, value: any, label: string) => {
+    const handleAddFilter = (type: TrendsFilterType, operator: FilterOperator, value: import('../../../core/stores/trendStore').TrendsFilterValue, label: string) => {
         addTrendsFilter({ type, operator, value, label });
         setIsOpen(false);
     };
 
-    const filterTypes: { type: TrendsFilterType; label: string; icon: React.FC<any> }[] = [
+    const filterTypes: { type: TrendsFilterType; label: string; icon: React.ElementType }[] = [
         { type: 'date', label: 'Publish Date', icon: Calendar },
         { type: 'views', label: 'Views', icon: Eye },
         { type: 'percentile', label: 'Percentile', icon: BarChart3 },
@@ -199,13 +201,16 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
                                 {activeView === 'views' && (() => {
                                     const existingFilter = trendsFilters.find(f => f.type === 'views');
                                     const initialVal = existingFilter?.value;
+                                    // Narrowing: views filter value is number | [number, number]
                                     const isRange = Array.isArray(initialVal);
+                                    const numVal = typeof initialVal === 'number' ? initialVal : (isRange ? (initialVal as [number, number])[0] : undefined);
+                                    const maxVal = isRange ? (initialVal as [number, number])[1] : undefined;
 
                                     return (
                                         <FilterInputNumeric
                                             initialOperator={existingFilter?.operator || 'gte'}
-                                            initialValue={isRange ? initialVal[0] : initialVal}
-                                            initialMaxValue={isRange ? initialVal[1] : undefined}
+                                            initialValue={numVal}
+                                            initialMaxValue={maxVal}
                                             onApply={(op, val, max) => {
                                                 // Check for removal (empty/invalid) - though FilterInputNumeric handles validation, 
                                                 // we might want to allow explicit clearing if value is empty?
@@ -223,7 +228,10 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
                                                 // Let's rely on FilterInputNumeric sending us data.
 
                                                 const opLabel = op === 'between' ? `${val}-${max}` : `${op === 'gte' ? '>=' : op === 'lte' ? '<=' : op === 'gt' ? '>' : op === 'lt' ? '<' : '='} ${val}`;
-                                                handleAddFilter('views', op, op === 'between' ? [val, max] : val, `Views ${opLabel}`);
+
+                                                // Explicitly cast the value to TrendsFilterValue to match the union type
+                                                const finalValue: import('../../../core/stores/trendStore').TrendsFilterValue = op === 'between' ? [val, max!] : val;
+                                                handleAddFilter('views', op, finalValue, `Views ${opLabel}`);
                                             }}
                                             onRemove={() => {
                                                 if (existingFilter) {
@@ -236,14 +244,18 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
                                 })()}
                                 {activeView === 'date' && (() => {
                                     const existingFilter = trendsFilters.find(f => f.type === 'date');
-                                    const initialVal = existingFilter?.value; // [start, end]
+                                    const initialVal = existingFilter?.value; // [number, number]
+                                    // Safe cast since date filter is always numeric range
+                                    const [startVal, endVal] = Array.isArray(initialVal) && initialVal.length === 2
+                                        ? initialVal as [number, number]
+                                        : [undefined, undefined];
 
                                     return (
                                         <FilterInputDate
                                             availableMinDate={availableMinDate}
                                             availableMaxDate={availableMaxDate}
-                                            initialStartDate={initialVal ? initialVal[0] : undefined}
-                                            initialEndDate={initialVal ? initialVal[1] : undefined}
+                                            initialStartDate={startVal}
+                                            initialEndDate={endVal}
                                             onApply={(start, end) => {
                                                 if (existingFilter) {
                                                     removeTrendsFilter(existingFilter.id);
@@ -265,7 +277,7 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
                                 })()}
                                 {activeView === 'percentile' && (
                                     <FilterInputPercentile
-                                        initialExcluded={trendsFilters.find(f => f.type === 'percentile')?.value || []}
+                                        initialExcluded={(trendsFilters.find(f => f.type === 'percentile')?.value as PercentileGroup[]) || []}
                                         onApply={(excluded: PercentileGroup[]) => {
                                             // Remove existing percentile filter first
                                             const existingFilter = trendsFilters.find(f => f.type === 'percentile');
@@ -285,7 +297,7 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
                                 )}
                                 {activeView === 'niche' && (
                                     <FilterInputNiche
-                                        initialSelected={trendsFilters.find(f => f.type === 'niche')?.value || []}
+                                        initialSelected={(trendsFilters.find(f => f.type === 'niche')?.value as string[]) || []}
                                         onApply={(selectedIds) => {
                                             const existingFilter = trendsFilters.find(f => f.type === 'niche');
                                             if (existingFilter) {

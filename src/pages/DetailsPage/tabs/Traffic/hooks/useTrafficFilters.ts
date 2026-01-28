@@ -35,6 +35,7 @@ interface UseTrafficFiltersProps {
 export const useTrafficFilters = ({ contextKey }: UseTrafficFiltersProps) => {
     // Get store actions and current filters for this context
     const { filtersByContext, setFilters: setStoreFilters, clearFilters: clearStoreFilters } = useTrafficFilterStore();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     const filters = filtersByContext[contextKey] || [];
 
     /**
@@ -184,7 +185,7 @@ export const useTrafficFilters = ({ contextKey }: UseTrafficFiltersProps) => {
                     return false;
                 }
 
-                let itemValue: any = source[filter.type as keyof TrafficSource];
+                let itemValue: string | number | undefined = source[filter.type as keyof TrafficSource] as string | number | undefined;
 
                 // Special handling for AVD (string "HH:MM:SS" -> seconds)
                 if (filter.type === 'avgViewDuration' && typeof itemValue === 'string') {

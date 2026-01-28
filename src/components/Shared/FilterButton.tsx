@@ -84,12 +84,12 @@ export const FilterButton: React.FC = () => {
         };
     }, [isOpen]);
 
-    const handleAddFilter = (type: FilterType, operator: FilterOperator, value: any, label: string) => {
+    const handleAddFilter = (type: FilterType, operator: FilterOperator, value: import('../../core/stores/filterStore').FilterValue, label: string) => {
         addFilter({ type, operator, value, label });
         setIsOpen(false);
     };
 
-    const filterTypes: { type: FilterType; label: string; icon: React.FC<any> }[] = [
+    const filterTypes: { type: FilterType; label: string; icon: React.ElementType }[] = [
         { type: 'channel', label: 'Channel', icon: MonitorPlay },
         { type: 'playlist', label: 'Playlist', icon: List },
         { type: 'title', label: 'Title', icon: Type },
@@ -179,7 +179,8 @@ export const FilterButton: React.FC = () => {
                                     <FilterInputNumeric
                                         onApply={(op, val, max) => {
                                             const opLabel = op === 'between' ? `${val}-${max}` : `${op === 'gte' ? '>=' : op === 'lte' ? '<=' : op === 'gt' ? '>' : op === 'lt' ? '<' : '='} ${val}`;
-                                            handleAddFilter('views', op, op === 'between' ? [val, max] : val, `Views ${opLabel}`);
+                                            const finalValue: import('../../core/stores/filterStore').FilterValue = op === 'between' ? [val!, max!] : val!;
+                                            handleAddFilter('views', op, finalValue, `Views ${opLabel}`);
                                         }}
                                     />
                                 )}
@@ -188,7 +189,8 @@ export const FilterButton: React.FC = () => {
                                         isDuration
                                         onApply={(op, val, max) => {
                                             const opLabel = op === 'between' ? `${val}-${max}m` : `${op} ${val}m`;
-                                            handleAddFilter('duration', op, op === 'between' ? [val, max] : val, `Duration ${opLabel}`);
+                                            const finalValue: import('../../core/stores/filterStore').FilterValue = op === 'between' ? [val!, max!] : val!;
+                                            handleAddFilter('duration', op, finalValue, `Duration ${opLabel}`);
                                         }}
                                     />
                                 )}

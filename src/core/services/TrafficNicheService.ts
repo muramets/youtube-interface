@@ -64,7 +64,7 @@ export class TrafficNicheService {
         const nicheRef = doc(db, path, nicheId);
 
         // Prepare updates: if value is undefined, use deleteField() to remove it from Firestore
-        const firestoreUpdates: any = { ...updates };
+        const firestoreUpdates: Record<string, unknown> = { ...updates };
         Object.keys(firestoreUpdates).forEach(key => {
             if (firestoreUpdates[key] === undefined) {
                 firestoreUpdates[key] = deleteField();

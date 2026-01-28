@@ -127,11 +127,8 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
     }, [isDragTarget]);
 
     // Ensure tooltip is hidden if drag starts while hovering
-    useEffect(() => {
-        if (isDragging) {
-            setIsNameHovered(false);
-        }
-    }, [isDragging]);
+    // Handled in render logic: ((isNameHovered && !isDragging) ...
+
 
     return (
         <div

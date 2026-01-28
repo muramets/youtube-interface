@@ -121,7 +121,7 @@ export const usePackagingFormState = ({
         const { abTestResults: _unusedLoaded, ...restLoaded } = loadedSnapshot;
         return !deepEqual(restCurrent, restLoaded);
     }, [
-        localization.getFullPayload,
+        localization,
         customImage,
         customImageName, // Added dependency
         customImageVersion,

@@ -301,7 +301,7 @@ export const useTrafficDataLoader = ({
         activeVersion,
         retryCount,
         trafficData?.lastUpdated,
-        trafficData?.snapshots?.length,
+        trafficData?.snapshots,
         trafficData?.sources,
         trafficData?.totalRow,
         packagingHistory,

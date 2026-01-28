@@ -6,14 +6,16 @@ export const deleteImageFromStorage = async (url: string): Promise<void> => {
     try {
         const storageRef = ref(storage, url);
         await deleteObject(storageRef);
-    } catch (error: any) {
+    } catch (error: unknown) {
         // Ignore "object not found" errors, as the file might already be gone
-        if (error.code !== 'storage/object-not-found') {
-            console.error('Error deleting image from storage:', error);
-            throw error;
+        if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === 'storage/object-not-found') {
+            return;
         }
+        console.error('Error deleting image from storage:', error);
+        throw error;
     }
-};
+}
+
 
 export const uploadImageToStorage = async (file: Blob, path: string): Promise<string> => {
     const storageRef = ref(storage, path);
@@ -113,7 +115,7 @@ export const uploadCsvSnapshot = async (
  */
 // Helper to timeout a promise
 const withTimeout = <T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> => {
-    let timeoutId: any;
+    let timeoutId: ReturnType<typeof setTimeout>;
     const timeoutPromise = new Promise<T>((_, reject) => {
         timeoutId = setTimeout(() => {
             reject(new Error(errorMessage));
@@ -174,14 +176,16 @@ export const deleteCsvSnapshot = async (storagePath: string): Promise<void> => {
     try {
         const storageRef = ref(storage, storagePath);
         await deleteObject(storageRef);
-    } catch (error: any) {
+    } catch (error: unknown) {
         // Ignore "object not found" errors
-        if (error.code !== 'storage/object-not-found') {
-            console.error('Error deleting CSV from Storage:', error);
-            throw error;
+        if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === 'storage/object-not-found') {
+            return;
         }
+        console.error('Error deleting CSV from Storage:', error);
+        throw error;
     }
-};
+}
+
 
 /**
  * Get download URL for a CSV file without downloading it.

@@ -406,7 +406,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             // Single Confirm
             await assignVideoToTrafficNiche(videoId, targetNiche.id, user.uid, currentChannel.id);
         }
-    }, [user?.uid, currentChannel?.id, selectedIds, getActiveSuggestion, assignVideoToTrafficNiche]);
+    }, [user?.uid, currentChannel, selectedIds, getActiveSuggestion, assignVideoToTrafficNiche]);
 
     // -------------------------------------------------------------------------
 

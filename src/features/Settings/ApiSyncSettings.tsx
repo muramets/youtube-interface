@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ChevronDown, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { Dropdown } from '../../components/Shared/Dropdown';
 import { useAuth } from '../../core/hooks/useAuth';
@@ -50,10 +50,11 @@ export const ApiSyncSettings: React.FC<ApiSyncSettingsProps> = ({ generalSetting
     // State for the currently selected unit
     const [currentUnit, setCurrentUnit] = useState(() => getUnit(syncSettings.frequencyHours));
 
-    useEffect(() => {
-        // Sync local unit state if settings change externally
+    const [prevFreq, setPrevFreq] = useState(syncSettings.frequencyHours);
+    if (syncSettings.frequencyHours !== prevFreq) {
+        setPrevFreq(syncSettings.frequencyHours);
         setCurrentUnit(getUnit(syncSettings.frequencyHours));
-    }, [syncSettings.frequencyHours]);
+    }
 
     const updateFrequency = (val: number, unit: string) => {
         let newHours = val;

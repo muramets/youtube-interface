@@ -7,6 +7,7 @@ import { useVideos } from '../../core/hooks/useVideos';
 import { VideoService } from '../../core/services/videoService';
 import { NotificationService } from '../../core/services/notificationService';
 import type { GeneralSettings, SyncSettings, CloneSettings as CloneSettingsType, PackagingSettings, UploadDefaults } from '../../core/services/settingsService';
+import type { PackagingCheckin } from '../../core/types/versioning';
 
 import { SettingsSidebar } from './SettingsSidebar';
 import { ApiSyncSettings } from './ApiSyncSettings';
@@ -100,11 +101,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             if (!video.packagingHistory || video.packagingHistory.length === 0) continue;
 
             // 1. Identify Duplicates across ALL versions
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const allCheckins: { checkin: any, versionIndex: number }[] = [];
+            const allCheckins: { checkin: PackagingCheckin, versionIndex: number }[] = [];
             video.packagingHistory.forEach((v, vIdx) => {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                v.checkins?.forEach((c: any) => allCheckins.push({ checkin: c, versionIndex: vIdx }));
+                v.checkins?.forEach((c: PackagingCheckin) => allCheckins.push({ checkin: c, versionIndex: vIdx }));
             });
 
             const checkinIdsToDelete = new Set<string>();
@@ -146,8 +145,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
             let hasChanges = false;
             const newHistory = video.packagingHistory.map((version) => {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const cleanedCheckins = (version.checkins || []).filter((checkin: any) => {
+                const cleanedCheckins = (version.checkins || []).filter((checkin: PackagingCheckin) => {
                     // If marked as duplicate, remove
                     if (checkinIdsToDelete.has(checkin.id)) {
                         hasChanges = true;

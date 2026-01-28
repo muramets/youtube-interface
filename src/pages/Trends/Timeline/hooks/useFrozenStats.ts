@@ -54,7 +54,7 @@ export const useFrozenStats = ({
     filterHash
 }: UseFrozenStatsProps) => {
     const [frozenStats, setFrozenStats] = useState<TimelineStats | undefined>(undefined);
-    const [statsVersion, setStatsVersion] = useState(0);
+    const [, setStatsVersion] = useState(0);
 
     const channelIdsKey = useMemo(() => channels.map(c => c.id).sort().join(','), [channels]);
 

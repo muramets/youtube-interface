@@ -126,36 +126,37 @@ export function useThumbnailHistoryModalState({
     );
 
     // === Initialize on Modal Open ===
-    useEffect(() => {
-        if (!isOpen) return;
-
-        // Reset pending changes
-        setPendingChanges({
-            thumbnailUrl: null,
-            deletedTimestamps: []
-        });
-
-        // Find and select current thumbnail in history
-        if (history.length > 0) {
-            const currentIdx = history.findIndex(v => v.url === currentThumbnail);
-            setSelectedIndex(currentIdx !== -1 ? currentIdx : 0);
+    // === Initialize on Modal Open (Derived State) ===
+    const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+    if (isOpen !== prevIsOpen) {
+        setPrevIsOpen(isOpen);
+        if (isOpen) {
+            // Reset pending changes
+            setPendingChanges({
+                thumbnailUrl: null,
+                deletedTimestamps: []
+            });
+            // Find and select current thumbnail in history
+            if (history.length > 0) {
+                const currentIdx = history.findIndex(v => v.url === currentThumbnail);
+                setSelectedIndex(currentIdx !== -1 ? currentIdx : 0);
+            }
+            // Reset animation state
+            setDirection(0);
+            setIsAnimating(false);
         }
+    }
 
-        // Reset animation state
-        setDirection(0);
-        setIsAnimating(false);
-    }, [isOpen]); // Only re-run when modal opens/closes
+    // === Computed Values ===
+    // Safe index (clamped) to prevent out-of-bounds access
+    const effectiveIndex = (visibleHistory.length > 0)
+        ? Math.min(selectedIndex, Math.max(0, visibleHistory.length - 1))
+        : 0;
 
-    // === Keep Selection in Bounds (for visible history) ===
-    useEffect(() => {
-        if (visibleHistory.length === 0) {
-            setSelectedIndex(0);
-            return;
-        }
-        if (selectedIndex >= visibleHistory.length) {
-            setSelectedIndex(Math.max(0, visibleHistory.length - 1));
-        }
-    }, [visibleHistory.length, selectedIndex]);
+    // Sync internal state if needed (avoids permanent mismatch)
+    if (selectedIndex !== effectiveIndex) {
+        setSelectedIndex(effectiveIndex);
+    }
 
     // === Keyboard Navigation (uses visible history) ===
     useEffect(() => {
@@ -228,9 +229,6 @@ export function useThumbnailHistoryModalState({
                 deletedTimestamps: newDeletions
             };
         });
-
-        // Adjust selection if we're deleting the currently selected item
-        // This will be handled by the useEffect that keeps selection in bounds
     }, [currentThumbnail]);
 
     /**
@@ -262,16 +260,16 @@ export function useThumbnailHistoryModalState({
         deletedTimestamps: pendingChanges.deletedTimestamps
     }), [pendingChanges]);
 
-    // === Computed Values ===
     // Selected version from VISIBLE history (not original)
-    const selectedVersion = visibleHistory[selectedIndex];
+    // Use effectiveIndex for safety
+    const selectedVersion = visibleHistory[effectiveIndex];
 
     const hasPendingChanges = pendingChanges.thumbnailUrl !== null ||
         pendingChanges.deletedTimestamps.length > 0;
 
     return {
         // Navigation
-        selectedIndex,
+        selectedIndex: effectiveIndex, // Expose effective index
         direction,
         isAnimating,
         selectedVersion,

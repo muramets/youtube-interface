@@ -6,10 +6,9 @@ import { useTrendStore } from '../../../core/stores/trendStore';
 interface UseTrendVideosProps {
     userUid?: string;
     currentChannelId?: string;
-    apiKey?: string;
 }
 
-export const useTrendVideos = ({ userUid, currentChannelId, apiKey }: UseTrendVideosProps) => {
+export const useTrendVideos = ({ userUid, currentChannelId }: UseTrendVideosProps) => {
     const { channels, selectedChannelId, setVideos, videos } = useTrendStore();
     const [isLoading, setIsLoading] = useState(true);
 
@@ -57,16 +56,6 @@ export const useTrendVideos = ({ userUid, currentChannelId, apiKey }: UseTrendVi
                     ...v,
                     channelTitle: channel.title
                 })));
-
-                // 3. Check for staleness/completeness and background sync if needed
-                const isStale = Date.now() - (channel.lastUpdated || 0) > 12 * 60 * 60 * 1000; // 12 hours
-                const needsInitialSync = channel.lastUpdated === 0 || channelVideos.length === 0;
-
-                if ((isStale || needsInitialSync) && apiKey) {
-                    console.log(`[TrendsPage] Triggering background sync for ${channel.title}...`);
-                    // We don't await this as it's background
-                    TrendService.syncChannelVideos(userUid, currentChannelId, channel, apiKey).catch(console.error);
-                }
             }
             allVideos.sort((a, b) => a.publishedAtTimestamp - b.publishedAtTimestamp);
 
@@ -75,7 +64,7 @@ export const useTrendVideos = ({ userUid, currentChannelId, apiKey }: UseTrendVi
             hasLoadedOnceRef.current = true;
         };
         loadVideos();
-    }, [visibleChannels, selectedChannelId, userUid, currentChannelId, apiKey, setVideos, videos.length]);
+    }, [visibleChannels, selectedChannelId, userUid, currentChannelId, setVideos, videos.length]);
 
     // Detect when on main page but all channels are hidden
     const allChannelsHidden = !selectedChannelId && channels.length > 0 && visibleChannels.length === 0;

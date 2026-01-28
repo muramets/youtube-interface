@@ -40,9 +40,10 @@ export const useVideoSync = (userId: string, channelId: string) => {
                     useUIStore.getState().showToast('Video synced successfully', 'success');
                 }
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('[useVideoSync] Sync failed for video:', videoId, error);
-            const isUnavailable = error.message === 'VIDEO_NOT_FOUND' || error.message === 'VIDEO_PRIVATE';
+            const err = error as Error;
+            const isUnavailable = err.message === 'VIDEO_NOT_FOUND' || err.message === 'VIDEO_PRIVATE';
 
             if (isUnavailable) {
                 await VideoService.updateVideo(userId, channelId, videoId, {
@@ -171,9 +172,10 @@ export const useVideoSync = (userId: string, channelId: string) => {
                         try {
                             const details = await fetchVideoDetails(video.id, apiKey);
                             return details ? { videoId: video.id, details } : null;
-                        } catch (e: any) {
+                        } catch (e: unknown) {
                             console.error(`Failed to fetch details for ${video.id}`, e);
-                            const isUnavailable = e.message === 'VIDEO_NOT_FOUND' || e.message === 'VIDEO_PRIVATE';
+                            const err = e as Error;
+                            const isUnavailable = err.message === 'VIDEO_NOT_FOUND' || err.message === 'VIDEO_PRIVATE';
                             if (isUnavailable) {
                                 return { videoId: video.id, unavailable: true };
                             }

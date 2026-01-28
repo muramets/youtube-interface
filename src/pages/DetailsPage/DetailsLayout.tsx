@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { type VideoDetails } from '../../core/utils/youtubeApi';
 import { DetailsSidebar } from './Sidebar/DetailsSidebar';
 import { PackagingTab } from './tabs/Packaging/PackagingTab';
@@ -111,7 +111,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
         for (let i = filters.length - 1; i >= 0; i--) {
             const f = filters[i];
             if (f.type === 'niche' && Array.isArray(f.value) && f.value.length > 0) {
-                return f.value[0];
+                return String(f.value[0]);
             }
         }
         return null;
@@ -136,7 +136,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
         video,
         user,
         currentChannel,
-        updateVideo,
+        updateVideo: async (params) => { await updateVideo(params); },
         showToast: (msg, type) => console.log(`[Toast] ${type}: ${msg}`), // TODO: use uiStore
         setSelectedSnapshot,
         activeTab,
@@ -311,7 +311,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                             const nicheFilter = filters.find(f =>
                                 f.type === 'niche' &&
                                 Array.isArray(f.value) &&
-                                f.value.includes(activeNicheId)
+                                (f.value as string[]).includes(activeNicheId)
                             );
                             if (nicheFilter) {
                                 removeFilter(nicheFilter.id);

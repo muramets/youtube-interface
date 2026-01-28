@@ -72,16 +72,16 @@ export const useFilteredVideos = ({
 
         return candidateVideos.filter(video => {
             return trendsFilters.every(filter => {
-                if (filter.type === 'date') {
-                    const [start, end] = filter.value;
+                if (filter.type === 'date' && Array.isArray(filter.value)) {
+                    const [start, end] = filter.value as [number, number];
                     return video.publishedAtTimestamp >= start && video.publishedAtTimestamp <= end;
                 }
                 if (filter.type === 'views') {
-                    return applyNumericFilter(video.viewCount, filter.operator, filter.value);
+                    return applyNumericFilter(video.viewCount, filter.operator, filter.value as number | [number, number]);
                 }
-                if (filter.type === 'percentile') {
+                if (filter.type === 'percentile' && Array.isArray(filter.value)) {
                     const videoGroup = globalPercentileMap.get(video.id);
-                    const excludedGroups: string[] = filter.value;
+                    const excludedGroups = filter.value as string[];
                     return !excludedGroups.includes(videoGroup || '');
                 }
                 if (filter.type === 'niche') {

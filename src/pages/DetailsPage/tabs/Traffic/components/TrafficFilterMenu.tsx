@@ -219,7 +219,7 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                             <div className="p-4 text-xs text-text-tertiary">Data not available</div>
                         );
 
-                    case 'nicheProperty':
+                    case 'nicheProperty': {
                         const currentNichePropertyVal = existingFilter?.value;
                         const selectedNicheProperties: string[] = Array.isArray(currentNichePropertyVal) ? (currentNichePropertyVal as string[]) : (currentNichePropertyVal ? [currentNichePropertyVal as string] : []);
 
@@ -280,6 +280,7 @@ export const TrafficFilterMenu: React.FC<TrafficFilterMenuProps> = ({
                                 </div>
                             </div>
                         );
+                    }
 
                     case 'viewerType':
                         return (

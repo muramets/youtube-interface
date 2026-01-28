@@ -38,6 +38,27 @@ const getDB = () => {
     return dbPromise;
 };
 
+// Minimal interface for YouTube API Video Resource
+interface YouTubeVideoResource {
+    id: string;
+    snippet: {
+        publishedAt: string;
+        title: string;
+        thumbnails: {
+            medium?: { url: string };
+            default?: { url: string };
+        };
+        tags?: string[];
+        description?: string;
+    };
+    contentDetails: {
+        duration: string;
+    };
+    statistics: {
+        viewCount: string;
+    };
+}
+
 export const TrendService = {
     // --- Channel Management (Firestore) ---
 
@@ -102,9 +123,9 @@ export const TrendService = {
     assignVideoToNiche: async (userId: string, userChannelId: string, videoId: string, nicheId: string, videoViewCount: number) => {
         const ref = doc(db, `users/${userId}/channels/${userChannelId}/videoNicheAssignments`, videoId);
         const snapshot = await getDoc(ref);
-        const current = snapshot.exists() ? (snapshot.data().assignments || []) : [];
+        const current = snapshot.exists() ? (snapshot.data().assignments || []) as { nicheId: string; addedAt: number }[] : [];
 
-        if (current.some((a: any) => a.nicheId === nicheId)) return;
+        if (current.some(a => a.nicheId === nicheId)) return;
 
         await setDoc(ref, {
             assignments: [...current, { nicheId, addedAt: Date.now() }]
@@ -122,8 +143,8 @@ export const TrendService = {
         const snapshot = await getDoc(ref);
         if (!snapshot.exists()) return;
 
-        const current = snapshot.data().assignments || [];
-        const filtered = current.filter((a: any) => a.nicheId !== nicheId);
+        const current: { nicheId: string; addedAt: number }[] = snapshot.data().assignments || [];
+        const filtered = current.filter(a => a.nicheId !== nicheId);
 
         if (filtered.length === 0) {
             await deleteDoc(ref);
@@ -591,7 +612,7 @@ export const TrendService = {
                 quotaBreakdown.details += 1;
 
                 if (statsData.items) {
-                    const videos: TrendVideo[] = statsData.items.map((item: any) => ({
+                    const videos: TrendVideo[] = statsData.items.map((item: YouTubeVideoResource) => ({
                         id: item.id,
                         channelId: channel.id,
                         publishedAt: item.snippet.publishedAt,

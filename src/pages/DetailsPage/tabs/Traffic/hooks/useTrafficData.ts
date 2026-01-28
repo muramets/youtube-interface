@@ -105,7 +105,7 @@ export const useTrafficData = ({ userId, channelId, video }: UseTrafficDataProps
         } finally {
             setIsSaving(false);
         }
-    }, [userId, channelId, video.id, video.activeVersion]);
+    }, [userId, channelId, video.id, video.activeVersion, showToast]);
 
     // Action: Delete Snapshot
     const handleDeleteSnapshot = useCallback(async (snapshotId: string) => {

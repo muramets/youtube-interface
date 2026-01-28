@@ -38,7 +38,7 @@ export const TrafficFilterInputNiche: React.FC<TrafficFilterInputNicheProps> = (
             // Measure the natural width with all content initially rendered
             setFixedWidth(containerRef.current.offsetWidth);
         }
-    }, []);
+    }, [fixedWidth]);
 
     const toggleNiche = (id: string) => {
         const newSelection = selectedIds.includes(id)

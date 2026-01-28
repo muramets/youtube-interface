@@ -24,7 +24,7 @@ export const DetailsPage: React.FC = () => {
     const { user } = useAuth();
     const { setCurrentChannel } = useChannelStore();
     const channelsQuery = useChannels(user?.uid || '');
-    const channels = channelsQuery.data || [];
+    const channels = React.useMemo(() => channelsQuery.data || [], [channelsQuery.data]);
 
     // Use channelId from URL for fetching videos (enables deep linking)
     const { videos, isLoading } = useVideos(user?.uid || '', channelId || '');

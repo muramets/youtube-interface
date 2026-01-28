@@ -9,6 +9,7 @@ import { useChannels } from '../../core/hooks/useChannels';
 import { TrendsSidebarSection } from '../../pages/Trends/Sidebar/TrendsSidebarSection';
 import { AddChannelModal } from '../../pages/Trends/Sidebar/AddChannelModal';
 import { useTrendStore } from '../../core/stores/trendStore';
+import type { TrendChannel } from '../../core/types/trends';
 
 // Collapsed sidebar item - icon on top, text below
 const CollapsedSidebarItem: React.FC<{
@@ -63,7 +64,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 // Expanded sidebar item - icon on left, text on right
 export const TrendsCollapsedGroup: React.FC<{
   isActive: boolean;
-  channels: any[]; // Avoid circular dep or import type
+  channels: TrendChannel[]; // Avoid circular dep or import type
   selectedChannelId: string | null;
   navigate: (path: string) => void;
   setSelectedChannelId: (id: string | null) => void;

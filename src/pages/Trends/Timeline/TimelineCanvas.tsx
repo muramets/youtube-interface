@@ -218,7 +218,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         onInteractionStart: React.useCallback(() => {
             // Dock the floating bar on any interaction (zoom/pan) if we have a selection
             dockFloatingBar();
-        }, [])
+        }, [dockFloatingBar])
     });
 
     const { isPanning, selectionRect, smoothToTransform } = interaction;

@@ -33,7 +33,7 @@ interface UseVersionManagementProps {
     video: VideoDetails;
     user: { uid: string } | null;
     currentChannel: { id: string } | null;
-    updateVideo: (params: { videoId: string; updates: any }) => Promise<void>;
+    updateVideo: (params: { videoId: string; updates: Partial<VideoDetails> }) => Promise<void>;
     showToast: (message: string, type: 'success' | 'error') => void;
     setSelectedSnapshot: (id: string | null) => void;
     activeTab: 'packaging' | 'traffic';
@@ -272,7 +272,7 @@ export const useVersionManagement = ({
                 showToast('Failed to delete version', 'error');
             }
         }
-    }, [versions, video, user, currentChannel, updateVideo, showToast, trafficState]);
+    }, [versions, video, user, currentChannel, showToast, trafficState, queryClient]);
 
     /**
      * Обработчик восстановления версии
@@ -374,7 +374,7 @@ export const useVersionManagement = ({
                         title: targetVersionData.configurationSnapshot.title,
                         description: targetVersionData.configurationSnapshot.description,
                         tags: targetVersionData.configurationSnapshot.tags,
-                        thumbnailUrl: targetVersionData.configurationSnapshot.coverImage, // Changed from customImage
+                        thumbnail: targetVersionData.configurationSnapshot.coverImage || '', // Changed from customImage
                         abTestTitles: targetVersionData.configurationSnapshot.abTestTitles,
                         abTestThumbnails: targetVersionData.configurationSnapshot.abTestThumbnails,
                         localizations: targetVersionData.configurationSnapshot.localizations

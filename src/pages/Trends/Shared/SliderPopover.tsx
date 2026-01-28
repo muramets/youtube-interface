@@ -52,7 +52,7 @@ export const SliderPopover = forwardRef<HTMLDivElement, SliderPopoverProps>(({ i
                         value={value}
                         onChange={(e) => onChange(parseInt(e.target.value))}
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer appearance-none z-10"
-                        style={{ WebkitAppearance: 'slider-vertical' } as any}
+                        style={{ WebkitAppearance: 'slider-vertical' } as React.CSSProperties}
                     />
                     <div
                         className="absolute w-3 h-3 bg-white rounded-full shadow-md pointer-events-none transition-all duration-75"

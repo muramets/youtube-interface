@@ -3,11 +3,13 @@ import { create } from 'zustand';
 export type FilterOperator = 'contains' | 'equals' | 'gt' | 'lt' | 'gte' | 'lte' | 'between';
 export type FilterType = 'channel' | 'playlist' | 'title' | 'duration' | 'date' | 'views' | 'videoType';
 
+export type FilterValue = string | number | [number, number] | string[];
+
 export interface FilterItem {
     id: string;
     type: FilterType;
     operator: FilterOperator;
-    value: any; // string, number, [start, end], etc.
+    value: FilterValue; // string, number, [start, end], etc.
     label?: string; // e.g. "Views > 1000" for display chip
 }
 

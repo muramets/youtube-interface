@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import type { TrafficSnapshot } from '../../../../../core/types/traffic';
-import type { PackagingVersion as PackagingVersionType } from '../../../../../core/types/versioning';
+import type { PackagingVersion as PackagingVersionType, PackagingSnapshot } from '../../../../../core/types/versioning';
 
 interface UseTrafficVersionsProps {
     versions: PackagingVersionType[];
@@ -12,12 +12,11 @@ interface UseTrafficVersionsProps {
 export const useTrafficVersions = ({
     versions,
     snapshots,
-    activeVersion,
-    isVideoPublished
+    activeVersion
 }: UseTrafficVersionsProps) => {
 
     // Helper: Get snapshots for a specific virtual period
-    const getVirtualVersionSnapshots = (version: number, start: number, end?: number | null): TrafficSnapshot[] => {
+    const getVirtualVersionSnapshots = useCallback((version: number, start: number, end?: number | null): TrafficSnapshot[] => {
         return snapshots.filter(s => {
             if (s.version !== version) return false;
             // Strict timestamp check: must be >= start AND (if end exists) <= end
@@ -32,7 +31,7 @@ export const useTrafficVersions = ({
             const matchesEnd = end ? s.timestamp <= (end + 5000) : true;
             return matchesStart && matchesEnd;
         }).sort((a, b) => b.timestamp - a.timestamp); // Latest first
-    };
+    }, [snapshots]);
 
     // Helper: Format date for tooltips
     const formatSnapshotDate = (timestamp: number) => {
@@ -69,7 +68,7 @@ export const useTrafficVersions = ({
                 description: '',
                 tags: [],
                 coverImage: null
-            } as any,
+            } as unknown as PackagingSnapshot,
             // We'll rely on snapshots[].packagingSnapshot for deleted versions' metadata
             activePeriods: []
         }));
@@ -176,7 +175,7 @@ export const useTrafficVersions = ({
                 }
 
                 // Multiple periods (Restored or Coalesced)
-                coalescedPeriods.forEach((period: any, index: number) => {
+                coalescedPeriods.forEach((period: { startDate: number; endDate: number | null }, index: number) => {
                     const versionSnapshots = getVirtualVersionSnapshots(v.versionNumber, period.startDate, period.endDate);
                     const isActive = !period.endDate;
 
@@ -300,7 +299,7 @@ export const useTrafficVersions = ({
         }));
 
         return sortedResults;
-    }, [versions, snapshots, activeVersion, isVideoPublished]);
+    }, [versions, snapshots, activeVersion, getVirtualVersionSnapshots]);
 
     return {
         sortedVersions,

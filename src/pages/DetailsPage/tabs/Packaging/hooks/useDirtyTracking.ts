@@ -9,7 +9,7 @@
  * - Old versions are always clean (read-only)
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { type VideoLocalization, type CoverVersion } from '../../../../../core/utils/youtubeApi';
 import { type ABTestResults } from '../types';
 
@@ -65,11 +65,7 @@ export function useDirtyTracking({
     const [loadedSnapshot, setLoadedSnapshot] = useState<FormSnapshot>(initialSnapshot);
 
     // BUSINESS LOGIC: Read-only versions are never dirty
-    useEffect(() => {
-        if (isReadOnly) {
-            setIsDirty(false);
-        }
-    }, [isReadOnly]);
+    // Removed side-effect. We now derive the public isDirty value.
 
     // Check if current values differ from loaded snapshot
     const checkDirty = useCallback((current: CurrentFormValues) => {
@@ -101,7 +97,8 @@ export function useDirtyTracking({
     }, []);
 
     return {
-        isDirty,
+        // If read-only, always report clean
+        isDirty: isReadOnly ? false : isDirty,
         loadedSnapshot,
         checkDirty,
         resetSnapshot

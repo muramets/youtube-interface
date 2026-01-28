@@ -6,13 +6,21 @@ import { TrendService } from '../services/trendService';
 import { useChannelStore } from './channelStore';
 
 // Trends-specific filter item (date, views, percentile)
+
+export type TrendsFilterValue =
+    | number                // views (single)
+    | [number, number]      // date range, views range
+    | PercentileGroup[]     // percentile
+    | string[];             // niche IDs
+
 export interface TrendsFilterItem {
     id: string;
     type: 'date' | 'views' | 'percentile' | 'niche';
     operator: FilterOperator;
-    value: any;
+    value: TrendsFilterValue;
     label: string;
 }
+
 
 // Available percentile groups
 export const PERCENTILE_GROUPS = [

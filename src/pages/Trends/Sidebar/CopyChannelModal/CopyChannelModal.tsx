@@ -41,10 +41,10 @@ export const CopyChannelModal: React.FC<CopyChannelModalProps> = ({
     } = useCopyChannel(trendChannel);
 
     // Close and reset state
-    const handleClose = () => {
+    const handleClose = React.useCallback(() => {
         reset();
         onClose();
-    };
+    }, [reset, onClose]);
 
     // Auto-close on success after brief delay
     React.useEffect(() => {
@@ -52,7 +52,7 @@ export const CopyChannelModal: React.FC<CopyChannelModalProps> = ({
             const timer = setTimeout(handleClose, 1500);
             return () => clearTimeout(timer);
         }
-    }, [copyState]);
+    }, [copyState, handleClose]);
 
     if (!isOpen || !trendChannel) return null;
 

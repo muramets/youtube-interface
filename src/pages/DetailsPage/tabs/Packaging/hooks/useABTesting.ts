@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { DEFAULT_AB_RESULTS } from '../types';
 
 /**
@@ -35,17 +35,26 @@ export const useABTesting = (options?: UseABTestingOptions) => {
     );
 
     // Sync state when props change (e.g. data loaded from server)
-    useEffect(() => {
-        if (options?.initialTitles) setAbTestTitles(options.initialTitles);
-    }, [JSON.stringify(options?.initialTitles)]);
+    // Sync state when props change (e.g. data loaded from server)
+    // Only update if value actually changed to prevent re-renders
+    // Sync state when props change (Derived State Pattern)
+    const [prevInitialTitles, setPrevInitialTitles] = useState(options?.initialTitles);
+    if (JSON.stringify(options?.initialTitles) !== JSON.stringify(prevInitialTitles)) {
+        setPrevInitialTitles(options?.initialTitles);
+        setAbTestTitles(options?.initialTitles || []);
+    }
 
-    useEffect(() => {
-        if (options?.initialThumbnails) setAbTestThumbnails(options.initialThumbnails);
-    }, [JSON.stringify(options?.initialThumbnails)]);
+    const [prevInitialThumbnails, setPrevInitialThumbnails] = useState(options?.initialThumbnails);
+    if (JSON.stringify(options?.initialThumbnails) !== JSON.stringify(prevInitialThumbnails)) {
+        setPrevInitialThumbnails(options?.initialThumbnails);
+        setAbTestThumbnails(options?.initialThumbnails || []);
+    }
 
-    useEffect(() => {
-        if (options?.initialResults) setAbTestResults(options.initialResults);
-    }, [JSON.stringify(options?.initialResults)]);
+    const [prevInitialResults, setPrevInitialResults] = useState(options?.initialResults);
+    if (JSON.stringify(options?.initialResults) !== JSON.stringify(prevInitialResults)) {
+        setPrevInitialResults(options?.initialResults);
+        setAbTestResults(options?.initialResults || DEFAULT_AB_RESULTS);
+    }
 
     // Handlers
     const handleOpenFromTitle = useCallback(() => {

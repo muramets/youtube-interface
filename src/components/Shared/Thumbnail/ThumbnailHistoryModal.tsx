@@ -146,7 +146,7 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
         }
 
         onClose();
-    }, [getChangesToApply, onDelete, selectedVersion, visibleHistory.length, effectiveCurrentThumbnail, onApply, onClose, history]);
+    }, [getChangesToApply, onDelete, selectedVersion, visibleHistory, effectiveCurrentThumbnail, onApply, onClose]);
 
     const showHistoricalColumn = !hasOnlyCurrentThumbnail;
 

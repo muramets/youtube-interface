@@ -55,9 +55,13 @@ export const useSmartPosition = ({
             }
         }
 
-        setCoords({ x: left, y: top });
-        setIsBelow(below);
+        setCoords(prev => {
+            if (prev.x === left && prev.y === top) return prev;
+            return { x: left, y: top };
+        });
+        setIsBelow(prev => prev === below ? prev : below);
 
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [targetPos.x, targetPos.y, elementRef, padding, offsetY, initialWidth]);
 
     return { coords, isBelow };

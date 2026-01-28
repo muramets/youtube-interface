@@ -263,7 +263,7 @@ export const TrafficRow = ({
                                                     if (enterTimeoutRef.current) clearTimeout(enterTimeoutRef.current);
                                                     if (onTooltipEnter) onTooltipEnter(`preview-${item.videoId}`);
                                                 }}
-                                                onMouseLeave={(e: any) => {
+                                                onMouseLeave={(e: React.MouseEvent) => {
                                                     // IGNORE LEAVE if we are moving back to our own trigger icon
                                                     // This prevents the "flicker loop" where hovering the icon underneath closes the tooltip
                                                     if (wrapperRef.current && wrapperRef.current.contains(e.relatedTarget as Node)) {

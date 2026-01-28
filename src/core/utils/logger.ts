@@ -15,7 +15,7 @@ export interface LogContext {
     videoId?: string;
     version?: number | 'draft';
     component?: string;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 class Logger {

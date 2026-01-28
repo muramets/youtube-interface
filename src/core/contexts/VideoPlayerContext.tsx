@@ -12,6 +12,7 @@ interface VideoPlayerContextType extends VideoPlayerState {
     maximize: () => void; // Potential future use, or just to un-minimize if we had a full modal
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const VideoPlayerContext = createContext<VideoPlayerContextType | null>(null);
 
 export const VideoPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {

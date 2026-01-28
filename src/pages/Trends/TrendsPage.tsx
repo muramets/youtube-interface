@@ -8,20 +8,17 @@ import { useTrendVideos } from './hooks/useTrendVideos';
 
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
-import { useApiKey } from '../../core/hooks/useApiKey';
 
 export const TrendsPage: React.FC = () => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { apiKey } = useApiKey();
     const { channels, selectedChannelId, timelineConfig, setTimelineConfig, trendsFilters, filterMode, videos, hiddenVideos, isLoadingChannels } = useTrendStore();
     const [isLoadingLocal, setIsLoadingLocal] = useState(true);
 
     // Use extracted hook for video loading
     const { isLoading: isVideosLoading, allChannelsHidden } = useTrendVideos({
         userUid: user?.uid,
-        currentChannelId: currentChannel?.id,
-        apiKey
+        currentChannelId: currentChannel?.id
     });
 
     // Unified loading state

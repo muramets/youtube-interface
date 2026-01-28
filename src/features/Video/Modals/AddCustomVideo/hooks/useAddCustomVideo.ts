@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';
 import { useSettings } from '../../../../../core/hooks/useSettings';
@@ -9,11 +9,12 @@ import { resizeImageToBlob } from '../../../../../core/utils/imageUtils';
 import {
     type VideoDetails,
     type CoverVersion,
-    type PackagingVersion,
     type HistoryItem,
+    type VideoLocalization,
     fetchVideoDetails,
     extractVideoId
 } from '../../../../../core/utils/youtubeApi';
+import type { PackagingVersion } from '../../../../../core/types/versioning';
 import { useABTesting, type ABTestingSaveData } from '../../../../../components/Shared/ABTesting';
 
 export interface UseAddCustomVideoProps {
@@ -113,7 +114,14 @@ export function useAddCustomVideo({
         onSave: (data) => {
             // Update local state
             setAbTestTitles(data.titles);
-            setAbTestVariants(data.thumbnails);
+
+            // Sole Survivor Logic: If only 1 variant remains, promote it to cover image
+            if (data.thumbnails.length === 1) {
+                setCoverImage(data.thumbnails[0]);
+                setAbTestVariants([]);
+            } else {
+                setAbTestVariants(data.thumbnails);
+            }
         },
         onResultsSave: async () => {
             // No-op for now in creation flow
@@ -134,7 +142,8 @@ export function useAddCustomVideo({
     };
 
     // Derived dirty state for SaveMenu
-    const isEffectivePackagingDirty = isPackagingDirty && isDraft;
+    // We will update this after deriving isDraft
+    // const isEffectivePackagingDirty = isPackagingDirty && isDraft;
 
     // Reset state on initialTab change
     useEffect(() => {
@@ -143,13 +152,7 @@ export function useAddCustomVideo({
 
     // Pending Restore Effect (Removed)
 
-    // Sole Survivor Logic
-    useEffect(() => {
-        if (abTestVariants.length === 1) {
-            setCoverImage(abTestVariants[0]);
-            setAbTestVariants([]);
-        }
-    }, [abTestVariants]);
+    // Sole Survivor Logic (Removed - moved to onSave)
 
     // Auto-sync Duration
     useEffect(() => {
@@ -160,28 +163,24 @@ export function useAddCustomVideo({
                 if (details && details.duration) setDuration(details.duration);
             }).catch(console.error);
         }
-    }, [publishedUrl, isPublished, generalSettings.apiKey]);
+    }, [publishedUrl, isPublished, generalSettings.apiKey, setDuration]);
 
-    // Strict Sync Logic (Simplified - removed tab switching)
-    useEffect(() => {
-        if (!isOpen) return;
-
-        if (packagingHistory.length === 0) {
-            if (!isDraft) setIsDraft(true);
-            return;
-        }
+    // Strict Sync Logic - Derived Draft State
+    const isDerivedDraft = useMemo(() => {
+        if (!isOpen) return true; // Default to draft if closed
+        if (packagingHistory.length === 0) return true;
 
         const maxVersion = Math.max(...packagingHistory.map(v => v.versionNumber));
         const latestVersion = packagingHistory.find(v => v.versionNumber === maxVersion);
 
-        if (!latestVersion) return;
+        if (!latestVersion) return true;
 
         const snapshot = latestVersion.configurationSnapshot;
 
         let effectiveDefaultTitle = title;
         let effectiveDefaultDescription = description;
         let effectiveDefaultTags = tags;
-        const effectiveLocalizations = { ...localizations };
+        const effectiveLocalizations: Record<string, VideoLocalization> = { ...localizations };
 
         if (activeLanguage !== 'default') {
             effectiveDefaultTitle = defaultData.title;
@@ -216,15 +215,14 @@ export function useAddCustomVideo({
             return true;
         })();
 
-        if (isContentIdentical) {
-            if (isDraft) setIsDraft(false);
-        } else {
-            if (!isDraft) setIsDraft(true);
-        }
+        return !isContentIdentical;
     }, [
         isOpen, packagingHistory, title, description, tags, coverImage,
-        abTestVariants, localizations, isDraft, activeLanguage, defaultData
+        abTestVariants, localizations, activeLanguage, defaultData
     ]);
+
+    // Update dirty state with derived draft
+    const isEffectivePackagingDirty = isPackagingDirty && isDerivedDraft;
 
     // Body Overflow Effect
     useEffect(() => {
@@ -356,7 +354,7 @@ export function useAddCustomVideo({
                 if (uploadedUrl && typeof uploadedUrl === 'string') {
                     effectiveCoverImage = uploadedUrl;
                 }
-            } catch (e) {
+            } catch {
                 setIsSaving(false);
                 return undefined;
             }
@@ -417,8 +415,8 @@ export function useAddCustomVideo({
                 }
 
                 // Upload A/B test variants (blob: or data:image)
-                if (version.configurationSnapshot.abTestVariants?.some(v => v.startsWith('blob:') || v.startsWith('data:image'))) {
-                    const variantPromises = (version.configurationSnapshot.abTestVariants || []).map(async (variant) => {
+                if (version.configurationSnapshot.abTestVariants?.some((v: string) => v.startsWith('blob:') || v.startsWith('data:image'))) {
+                    const variantPromises = (version.configurationSnapshot.abTestVariants || []).map(async (variant: string) => {
                         if (variant) {
                             if (variant.startsWith('blob:')) {
                                 try {
@@ -544,9 +542,10 @@ export function useAddCustomVideo({
                 setIsDraft(true);
             }
             return targetId;
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Failed to save video:", error);
-            if (error.message && error.message.includes('exceeds the maximum allowed size')) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            if (errorMessage.includes('exceeds the maximum allowed size')) {
                 setToastMessage("File too large! The cover image is too big for the database. Please try a smaller image.");
             } else {
                 setToastMessage("Failed to save video.");

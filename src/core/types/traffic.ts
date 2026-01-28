@@ -1,6 +1,7 @@
 import type { TrafficSnapshotBase } from './versioning';
 import type { TrafficType } from './videoTrafficType';
 import type { ViewerType } from './viewerType';
+import type { VideoLocalization } from '../utils/youtubeApi';
 
 export interface TrafficSource {
     sourceType: string;
@@ -92,7 +93,7 @@ export interface TrafficSnapshot extends TrafficSnapshotBase {
             titles?: Array<{ variant: string; ctr: number; impressions: number }>;
             thumbnails?: Array<{ variant: string; ctr: number; impressions: number }>;
         };
-        localizations?: Record<string, unknown>;
+        localizations?: Record<string, VideoLocalization>;
         cloneOf?: number; // Preserved restoration metadata
         restoredAt?: number; // Preserved restoration metadata
         periodStart?: number; // NEW: Preserve period start

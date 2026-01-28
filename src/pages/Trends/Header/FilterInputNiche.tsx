@@ -37,7 +37,7 @@ export const FilterInputNiche: React.FC<FilterInputNicheProps> = ({
             // We want to lock this width so it doesn't shrink.
             setFixedWidth(containerRef.current.offsetWidth);
         }
-    }, []); // Run once on mount
+    }, [fixedWidth]); // Run once on mount
 
     const toggleNiche = (id: string) => {
         const newSelection = selectedIds.includes(id)

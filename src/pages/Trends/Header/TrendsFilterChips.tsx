@@ -26,17 +26,17 @@ export const TrendsFilterChips: React.FC = () => {
 
     trendsFilters.forEach(filter => {
         // Skip display for Untracked (Trash Mode) niche filter
-        if (filter.type === 'niche' && Array.isArray(filter.value) && filter.value.includes('TRASH')) {
+        if (filter.type === 'niche' && Array.isArray(filter.value) && (filter.value as string[]).includes('TRASH')) {
             return;
         }
 
         if (filter.type === 'percentile' && Array.isArray(filter.value)) {
             // Create a chip for each excluded group
-            filter.value.forEach((group: string) => {
+            (filter.value as string[]).forEach((group: string) => {
                 chips.push({
                     key: `${filter.id}-${group}`,
                     label: `Hide: ${group}`,
-                    onRemove: () => handleRemovePercentileGroup(filter.id, group, filter.value)
+                    onRemove: () => handleRemovePercentileGroup(filter.id, group, filter.value as string[])
                 });
             });
         } else {

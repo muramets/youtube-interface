@@ -183,6 +183,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
         });
     }, [data, sortConfig, trafficEdges, viewerEdges]);
 
+    // eslint-disable-next-line react-hooks/incompatible-library
     const rowVirtualizer = useVirtualizer({
         count: sortedData.length,
         getScrollElement: () => parentRef.current,

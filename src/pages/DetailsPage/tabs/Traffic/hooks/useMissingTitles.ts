@@ -249,7 +249,7 @@ export const useMissingTitles = ({
             setIsRestoring(false);
         }
 
-    }, [missingCount, unenrichedCount, apiKey, userId, channelId, trafficVideoId, activeVersion, displayedSources, onDataRestored, cachedVideos, currentSnapshotId]);
+    }, [missingCount, unenrichedCount, apiKey, userId, channelId, trafficVideoId, activeVersion, displayedSources, onDataRestored, cachedVideos, currentSnapshotId, trafficData]);
 
     return {
         missingCount,

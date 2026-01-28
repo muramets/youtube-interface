@@ -122,7 +122,7 @@ export function useABTestingModalState({
                 }
             });
         };
-    }, []);
+    }, [thumbnails]);
 
     const handleRemoveThumbnail = (index: number) => {
         const newThumbnails = [...thumbnails];

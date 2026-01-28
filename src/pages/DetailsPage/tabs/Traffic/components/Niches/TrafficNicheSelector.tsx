@@ -154,29 +154,9 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
         return niches.find(n => n.name.toLowerCase() === trimmed.toLowerCase());
     }, [niches, inputValue]);
 
-    // Initial random color when showing Create UI
-    useEffect(() => {
-        if (inputValue.trim() && !exactMatch) {
-            // Only set if we haven't manually picked one? 
-            // Better: just set a random one once when invalid -> valid transition happens
-            // Or just on mount? No.
-            // Let's just rely on the user or default.
-            // Actually, let's pick a random one on input start if not set.
-            // But state persistence is tricky.
-            // Let's just generate one when `showCreateUI` becomes true.
-        }
-    }, [inputValue, exactMatch]);
+    // Initial random color when showing Create UI (Moved to onChange)
 
     const showCreateUI = inputValue.trim() && !exactMatch;
-
-    // Better approach: when showCreateUI becomes true, set a random color if not already set or randomized recently.
-    // For simplicity, let's just use a memoized random color or effect.
-    useEffect(() => {
-        if (showCreateUI) {
-            const existingColors = niches.map(n => n.color);
-            setSelectedColor(generateNicheColor(existingColors));
-        }
-    }, [showCreateUI]); // Reset when UI appears
 
     // --- Effects ---
 
@@ -190,21 +170,38 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
         }
     }, [isOpen]);
 
-    // Reset state on close
-    useEffect(() => {
-        if (!isOpen) {
-            setInputValue('');
-            setSelectedProperty(undefined);
-            setColorPickerState(null);
-            setHighlightedIndex(-1);
-            setActiveNicheMenuId(null);
-        }
-    }, [isOpen]);
+    // Reset state on close (Removed - handled by parent key prop)
 
-    // Reset highlighted index when filter changes
+    // Reset highlighted index when filter changes (Removed - moved to onChange)
+
+    // Scroll highlighted item into view
     useEffect(() => {
-        setHighlightedIndex(-1);
-    }, [filteredNiches, inputValue]);
+        if (highlightedIndex >= 0 && listRef.current) {
+            const item = listRef.current.children[highlightedIndex]?.querySelector?.('div[role="button"]') || listRef.current.children[highlightedIndex] as HTMLElement;
+            if (item) {
+                item.scrollIntoView({ block: 'nearest' });
+            }
+        }
+    }, [highlightedIndex]);
+
+    // --- Handlers ---
+
+    // Handled in render/input
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newValue = e.target.value;
+        const newTrimmed = newValue.trim();
+        setInputValue(newValue);
+        setHighlightedIndex(-1); // Reset highlight on type
+
+        // Check for Create Mode transition
+        const newExactMatch = niches.find(n => n.name.toLowerCase() === newTrimmed.toLowerCase());
+        const willShowCreate = newTrimmed && !newExactMatch;
+
+        if (willShowCreate) {
+            const existingColors = niches.map(n => n.color);
+            setSelectedColor(generateNicheColor(existingColors));
+        }
+    };
 
     // Scroll highlighted item into view
     useEffect(() => {
@@ -536,7 +533,7 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
                                     placeholder="Search or create niche..."
                                     className="w-full bg-bg-primary text-white text-xs px-3 py-2 pl-8 rounded-lg focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-text-secondary"
                                     value={inputValue}
-                                    onChange={(e) => setInputValue(e.target.value)}
+                                    onChange={handleInputChange}
                                     // Don't override handler, use the one defined in component which handles ArrowUp/Down
                                     onKeyDown={handleKeyDown}
                                     onClick={() => setActiveNicheMenuId(null)}

@@ -319,6 +319,7 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
                     {/* Niche Selector Container */}
                     <div className="relative">
                         <TrafficNicheSelector
+                            key={activeMenu === 'niche' ? 'open' : 'closed'}
                             videoIds={videos.map(v => v.videoId!).filter(Boolean)}
                             isOpen={activeMenu === 'niche'}
                             openAbove={openAbove}

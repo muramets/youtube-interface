@@ -103,6 +103,7 @@ export const useAutoSync = () => {
         user,
         currentChannel,
         syncSettings,
+        generalSettings,
         generalSettings.apiKey,
         syncAllVideos,
         updateSyncSettings,

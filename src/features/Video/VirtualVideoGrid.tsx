@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { VideoCard } from './VideoCard';
 import { SortableVideoCard } from './SortableVideoCard';
@@ -71,6 +71,7 @@ const InnerGrid: React.FC<InnerGridProps> = ({
 
     const rowCount = Math.ceil(videos.length / columnCount);
 
+    // eslint-disable-next-line react-hooks/incompatible-library
     const virtualizer = useVirtualizer({
         count: rowCount,
         getScrollElement: () => scrollElement,
@@ -217,23 +218,16 @@ const InnerGrid: React.FC<InnerGridProps> = ({
 
 export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = (props) => {
     const { generalSettings } = useSettings();
-    const parentRef = useRef<HTMLDivElement>(null);
+    const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
 
     // Track container dimensions
     const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 
-    // Use useLayoutEffect for synchronous initial measurement - runs before browser paint
-    // This prevents the "empty frame" where nothing renders while waiting for ResizeObserver
-    useLayoutEffect(() => {
-        if (parentRef.current) {
-            const rect = parentRef.current.getBoundingClientRect();
-            setContainerSize({ width: rect.width, height: rect.height });
-        }
-    }, []);
+    // Initial size is handled by ResizeObserver below
 
-    // ResizeObserver for subsequent size changes (window resize, etc.)
+    // ResizeObserver for subsequent size changes
     useEffect(() => {
-        if (!parentRef.current) return;
+        if (!scrollElement) return;
 
         const resizeObserver = new ResizeObserver((entries) => {
             for (const entry of entries) {
@@ -249,13 +243,13 @@ export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = (props) => {
             }
         });
 
-        resizeObserver.observe(parentRef.current);
+        resizeObserver.observe(scrollElement);
         return () => resizeObserver.disconnect();
-    }, []);
+    }, [scrollElement]);
 
     return (
         <div
-            ref={parentRef}
+            ref={setScrollElement}
             className="flex-1 w-full h-full overflow-y-auto"
             style={{
                 paddingTop: GRID_LAYOUT.PADDING.TOP,
@@ -274,7 +268,7 @@ export const VirtualVideoGrid: React.FC<VirtualVideoGridProps> = (props) => {
                     {...props}
                     key={`grid-${containerSize.width}-${generalSettings.cardsPerRow}`}
                     containerWidth={containerSize.width}
-                    scrollElement={parentRef.current}
+                    scrollElement={scrollElement}
                 />
             )}
         </div>

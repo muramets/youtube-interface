@@ -155,9 +155,9 @@ export const useTrendsSidebar = () => {
                 avatarUrl: newAvatarUrl || channel.avatarUrl,
                 quotaBreakdown
             });
-        } catch (error: any) {
-            console.error('Sync failed:', error);
-            showToast(`Sync failed: ${error.message}`, 'error');
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            showToast(`Sync failed: ${message}`, 'error');
         }
     };
 

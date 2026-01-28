@@ -272,11 +272,14 @@ export const useTimelineTransform = ({
 
         const savedConfig = savedConfigs[currentContentHash];
         if (savedConfig) {
-            setTransformState({
-                scale: savedConfig.zoomLevel,
-                offsetX: savedConfig.offsetX,
-                offsetY: savedConfig.offsetY
-            });
+            // Defer update to avoid synchronous state update in effect
+            setTimeout(() => {
+                setTransformState({
+                    scale: savedConfig.zoomLevel,
+                    offsetX: savedConfig.offsetX,
+                    offsetY: savedConfig.offsetY
+                });
+            }, 0);
             setTimelineConfig({
                 ...savedConfig,
                 contentHash: currentContentHash
@@ -284,7 +287,8 @@ export const useTimelineTransform = ({
             // Skip next ratio preservation to prevent drift
             skipNextRatioPreservationRef.current = true;
         } else {
-            handleAutoFit();
+            // Defer update
+            setTimeout(() => handleAutoFit(), 0);
         }
     }, [videosLength, viewportSize, savedContentHash, currentContentHash, savedConfigs, setTransformState, setTimelineConfig, handleAutoFit]);
 
@@ -418,7 +422,6 @@ export const useTimelineTransform = ({
         });
 
         setTransformState(newTransform);
-
     }, [worldWidth, dynamicWorldHeight, videosLength, viewportSize, headerHeight, handleAutoFit, transformState, setTransformState, monthLayouts, stats, totalPadding]); // Dependencies
 
     // Track latest store config in ref to avoid effect dependency loops

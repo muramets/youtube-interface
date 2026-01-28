@@ -48,6 +48,7 @@ export const useTimelineInteraction = ({
     const selectionStartRef = useRef({ x: 0, y: 0 });
 
     // Interpolation State
+    // eslint-disable-next-line react-hooks/refs
     const targetTransformRef = useRef({ ...transformRef.current });
     const rafRef = useRef<number | null>(null);
 
@@ -69,6 +70,9 @@ export const useTimelineInteraction = ({
     const lerp = (start: number, end: number, t: number) => {
         return start * (1 - t) + end * t;
     };
+
+    // We use a ref to hold the update function so it can call itself recursively
+    const updateAnimationRef = useRef<() => void>(null);
 
     const updateAnimation = useCallback(() => {
         const current = transformRef.current;
@@ -99,9 +103,21 @@ export const useTimelineInteraction = ({
                 offsetY: newOffsetY
             };
             syncToDom();
-            rafRef.current = requestAnimationFrame(updateAnimation);
+            if (updateAnimationRef.current) {
+                rafRef.current = requestAnimationFrame(updateAnimationRef.current);
+            }
         }
     }, [transformRef, syncToDom]);
+
+    // Update the ref whenever the callback changes
+    useEffect(() => {
+        updateAnimationRef.current = updateAnimation;
+        return () => {
+            if (rafRef.current) {
+                cancelAnimationFrame(rafRef.current);
+            }
+        };
+    }, [updateAnimation]);
 
     const startAnimation = useCallback(() => {
         if (!rafRef.current) {

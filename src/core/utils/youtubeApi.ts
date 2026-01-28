@@ -1,4 +1,5 @@
-import type { PackagingVersion } from '../types/versioning';
+import type { PackagingVersion, CTRRule, PackagingCheckin } from '../types/versioning';
+export type { PackagingVersion, CTRRule, PackagingCheckin };
 
 export interface VideoDetails {
     id: string;
@@ -56,35 +57,7 @@ export interface VideoDetails {
     addedToHomeAt?: number; // Timestamp when added to Home Page (not playlist-only)
 }
 
-export interface CTRRule {
-    id: string;
-    operator: '<' | '>' | '<=' | '>=' | 'between';
-    value: number;
-    maxValue?: number; // For 'between' operator
-    color: string;
-}
 
-export interface PackagingMetrics {
-    impressions: number | null;
-    ctr: number | null; // Percentage
-    views: number | null;
-    avdSeconds: number | null; // Average View Duration in seconds
-}
-
-export interface ABVariantMetrics {
-    variantId: string; // URL or ID of the variant
-    watchTimePercentage: number;
-}
-
-export interface PackagingCheckin {
-    id: string;
-    date: number; // Timestamp
-    metrics: PackagingMetrics;
-    abMetrics?: ABVariantMetrics[];
-    diffs?: Partial<PackagingMetrics>; // Difference from previous check-in
-    ruleId?: string;
-    isFinal?: boolean; // User manually marked as last for version
-}
 
 
 

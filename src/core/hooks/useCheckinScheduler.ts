@@ -34,7 +34,7 @@ export const useCheckinScheduler = () => {
 
                     // Check if this check-in has already been done (exists in history)
                     const videoHistory = video.packagingHistory || [];
-                    let existingCheckin = videoHistory.flatMap(v => v.checkins).find(c => c.ruleId === rule.id);
+                    let existingCheckin = videoHistory.flatMap(v => v.checkins || []).find(c => c.ruleId === rule.id);
 
                     const isCheckinComplete = existingCheckin && (existingCheckin.metrics.ctr !== null || existingCheckin.metrics.impressions !== null || existingCheckin.metrics.views !== null);
 
@@ -128,7 +128,7 @@ export const useCheckinScheduler = () => {
         const interval = setInterval(checkDueCheckins, 60000);
 
         return () => clearInterval(interval);
-    }, [videos, packagingSettings, notifications, addNotification, removeNotification]);
+    }, [videos, packagingSettings, notifications, addNotification, removeNotification, updateVideo]);
 
     // Cleanup Effect: Auto-remove duplicates
     // This handles the transition from Random IDs to Deterministic IDs

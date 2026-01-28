@@ -375,7 +375,7 @@ export const usePackagingActions = ({
             await ChannelService.updateChannel(user.uid, currentChannel.id, { customLanguages: updated });
             setCurrentChannel({ ...currentChannel, customLanguages: updated });
             showToast(`Language "${code.toUpperCase()}" deleted`, 'success');
-        } catch (e) {
+        } catch {
             showToast('Failed to delete language', 'error');
         }
     }, [user, currentChannel, setCurrentChannel, showToast]);

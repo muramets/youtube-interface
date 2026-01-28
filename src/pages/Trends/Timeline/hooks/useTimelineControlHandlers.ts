@@ -1,5 +1,5 @@
 import { useRef, useCallback } from 'react';
-import type { VideoPosition, TimelineStats, MonthLayout } from '../../../../core/types/trends';
+import type { VideoPosition, TimelineStats, MonthLayout, TimelineConfig } from '../../../../core/types/trends';
 import type { Transform } from './useTimelineTransform';
 import { findSmartAnchorTime, getTimeAtWorldX } from '../utils/timelineMath';
 
@@ -12,7 +12,7 @@ interface UseTimelineControlHandlersProps {
     dynamicWorldHeight: number;
     stats: TimelineStats;
     monthLayouts: MonthLayout[];
-    setTimelineConfig: (config: any) => void;
+    setTimelineConfig: (config: Partial<TimelineConfig>) => void;
     setTransformState: (transform: Transform) => void;
     anchorToTime: (anchor: number | { time: number; xNorm?: number; yNorm?: number; screenX?: number; screenY?: number }) => void;
     verticalSpread: number;

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import type { TrendVideo, TimelineStats, VideoPosition, MonthLayout } from '../../../../core/types/trends';
 import { getTrendYPosition, getTrendXPosition } from '../utils/trendLayoutUtils';
 
@@ -64,30 +64,32 @@ export const useTimelinePositions = ({
     }, [videos, stats, scalingMode, monthLayouts, verticalSpread, dynamicWorldHeight]);
 
     // Percentile Helper
-    const getPercentileGroup = useMemo(() => {
+    // Percentile Helper
+    const getPercentileGroup = useCallback((videoId: string): string | undefined => {
         // If percentileMap is provided, use it directly (O(1))
         if (percentileMap) {
-            return (videoId: string): string | undefined => {
-                return percentileMap.get(videoId);
-            };
+            return percentileMap.get(videoId);
         }
 
-        if (videos.length === 0) return () => undefined;
+        if (videos.length === 0) return undefined;
+
+        // Note: For large lists, re-sorting on every render might be expensive.
+        // Ideally this map should be pre-calculated in useMemo above if used frequently.
+        // But for now, we follow the existing logic structure.
         const sortedByViews = [...videos].sort((a, b) => b.viewCount - a.viewCount);
         const rankMap = new Map<string, number>();
         sortedByViews.forEach((v, i) => {
             const percentile = (i / videos.length) * 100;
             rankMap.set(v.id, percentile);
         });
-        return (videoId: string): string | undefined => {
-            const percentile = rankMap.get(videoId);
-            if (percentile === undefined) return undefined;
-            if (percentile <= 1) return 'Top 1%';
-            if (percentile <= 5) return 'Top 5%';
-            if (percentile <= 20) return 'Top 20%';
-            if (percentile <= 80) return 'Middle 60%';
-            return 'Bottom 20%';
-        };
+
+        const percentile = rankMap.get(videoId);
+        if (percentile === undefined) return undefined;
+        if (percentile <= 1) return 'Top 1%';
+        if (percentile <= 5) return 'Top 5%';
+        if (percentile <= 20) return 'Top 20%';
+        if (percentile <= 80) return 'Middle 60%';
+        return 'Bottom 20%';
     }, [videos, percentileMap]);
 
     return {

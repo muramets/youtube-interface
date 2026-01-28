@@ -104,7 +104,7 @@ export const useSmartNicheSuggestions = (
         });
 
         return prefs;
-    }, [sources, assignments, videos, niches]);
+    }, [sources, assignments, videos]);
 
     // 2. Build a Lookup Map for Video -> Suggestion (Optimization)
     // This allows O(1) access during virtualization render cycles instead of searching arrays

@@ -37,7 +37,7 @@ const cleanupVideoImages = async (video: VideoDetails, videoId: string): Promise
                 imagesToDelete.add(url);
             }
             // Legacy legacy path check intentionally omitted for safety as per original code
-        } catch (e) {
+        } catch {
             // ignore malformed urls
         }
     };
@@ -47,7 +47,7 @@ const cleanupVideoImages = async (video: VideoDetails, videoId: string): Promise
     video.packagingHistory?.forEach(v => {
         if (v.configurationSnapshot) {
             addUrl(v.configurationSnapshot.coverImage);
-            v.configurationSnapshot.abTestVariants?.forEach(variant => addUrl(variant));
+            v.configurationSnapshot.abTestVariants?.forEach((variant: string) => addUrl(variant));
         }
     });
     video.abTestVariants?.forEach(variant => addUrl(variant));

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';
 import { useSettings } from '../../../../../core/hooks/useSettings';
@@ -17,11 +17,11 @@ export const useCTRRules = () => {
     const [localRules, setLocalRules] = useState<CTRRule[]>([]);
 
     // Sync local state with store on load / external update
-    useEffect(() => {
-        if (trafficSettings?.ctrRules) {
-            setLocalRules(trafficSettings.ctrRules);
-        }
-    }, [trafficSettings?.ctrRules]);
+    const [prevRules, setPrevRules] = useState<CTRRule[] | undefined>(undefined);
+    if (trafficSettings?.ctrRules !== prevRules) {
+        setPrevRules(trafficSettings?.ctrRules);
+        setLocalRules(trafficSettings?.ctrRules || []);
+    }
 
     const hasChanges = false; // Kept for API compatibility, though currently unused
 

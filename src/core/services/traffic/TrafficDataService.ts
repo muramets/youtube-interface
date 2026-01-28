@@ -144,18 +144,21 @@ export const TrafficDataService = {
     sanitize<T>(data: T): T {
         const json = JSON.parse(JSON.stringify(data));
         // Remove undefined/null if they still exist for some reason
-        const clean = (obj: any): any => {
+        const clean = (obj: unknown): unknown => {
             if (typeof obj !== 'object' || obj === null) return obj;
 
-            Object.keys(obj).forEach(key => {
-                if (obj[key] === undefined) {
-                    delete obj[key];
-                } else if (obj[key] !== null && typeof obj[key] === 'object') {
-                    clean(obj[key]);
+            // Safe assumption since we handled null/non-object above
+            const record = obj as Record<string, unknown>;
+
+            Object.keys(record).forEach(key => {
+                if (record[key] === undefined) {
+                    delete record[key];
+                } else if (record[key] !== null && typeof record[key] === 'object') {
+                    clean(record[key]);
                 }
             });
-            return obj;
+            return record;
         };
-        return clean(json);
+        return clean(json) as T;
     }
 };

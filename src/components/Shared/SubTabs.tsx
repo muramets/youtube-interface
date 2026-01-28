@@ -8,7 +8,7 @@ export interface SubTab {
     icon?: React.ReactNode;
     color?: string;
     count?: number;
-    data?: any;
+    data?: unknown;
     onDelete?: () => void;
 }
 

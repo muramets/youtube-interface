@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import type { TrendVideo } from '../../../../core/types/trends';
 
 export interface TooltipData {
@@ -21,7 +21,17 @@ export const useTimelineTooltip = ({ delayShowCondition = false }: { delayShowCo
     const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     // Track delay condition in ref to access fresh value in callbacks if needed
     const delayShowConditionRef = useRef(delayShowCondition);
-    delayShowConditionRef.current = delayShowCondition;
+
+    // Sync ref safely
+    // Sync ref safely and cleanup timeouts on unmount
+    useEffect(() => {
+        delayShowConditionRef.current = delayShowCondition;
+        return () => {
+            if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+            if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+            if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
+        };
+    }, [delayShowCondition]);
 
     const closeTooltipSmoothly = useCallback(() => {
         setIsTooltipClosing(true);

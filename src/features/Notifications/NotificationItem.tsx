@@ -9,16 +9,13 @@ interface NotificationItemProps {
     onAction?: (notification: Notification) => void;
 }
 
-import { useSettings } from '../../core/hooks/useSettings';
-
 export const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onAction }) => {
     const { markAsRead, removeNotification } = useNotificationStore();
-    const { packagingSettings } = useSettings();
 
     const effectiveColor = React.useMemo(() => {
         if (notification.type === 'success') return '#22c55e'; // green-500
         return notification.customColor;
-    }, [notification.internalId, notification.customColor, notification.type, packagingSettings.checkinRules]);
+    }, [notification.customColor, notification.type]);
 
     const getIcon = (size: number = 20) => {
         switch (notification.type) {

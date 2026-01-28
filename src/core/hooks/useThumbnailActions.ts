@@ -45,7 +45,7 @@ export const useThumbnailActions = (videoId: string) => {
             console.log('[useThumbnailActions] Deleting clone:', videoId);
 
             // Execute operations in parallel to avoid race conditions (visual glitches)
-            const operations: Promise<any>[] = [removeVideo(videoId)];
+            const operations: Promise<unknown>[] = [removeVideo(videoId)];
 
             // Find original video and update history if found
             const originalVideo = videos.find(v => v.id === video.clonedFromId);
@@ -82,7 +82,7 @@ export const useThumbnailActions = (videoId: string) => {
 
             if (!isUsedInPackaging && !isCurrent) {
                 console.log('[useThumbnailActions] Smart Cleanup: Deleting unused file from storage', urlToCleanup);
-                deleteImageFromStorage(urlToCleanup).catch((err: any) =>
+                deleteImageFromStorage(urlToCleanup).catch((err: unknown) =>
                     console.error('[useThumbnailActions] Failed to cleanup storage:', err)
                 );
             } else {
@@ -132,7 +132,7 @@ export const useThumbnailActions = (videoId: string) => {
                     updates: {
                         customImage: '',
                         customImageName: '',
-                        customImageVersion: deleteField() as any,
+                        customImageVersion: deleteField() as unknown as number,
                         coverHistory: updatedHistory
                     }
                 });

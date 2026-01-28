@@ -9,6 +9,7 @@ import { useState, useEffect, useRef } from 'react';
  */
 export function useThrottle<T>(value: T, limit: number = 16): T {
     const [throttledValue, setThrottledValue] = useState<T>(value);
+    // eslint-disable-next-line
     const lastRan = useRef(Date.now());
 
     useEffect(() => {

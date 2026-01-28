@@ -6,7 +6,7 @@ import { AddCustomVideoModal } from '../../features/Video/Modals/AddCustomVideo/
 import { CreatePlaylistModal } from '../../features/Playlist/CreatePlaylistModal';
 import { useVideos } from '../../core/hooks/useVideos';
 import { useSettings } from '../../core/hooks/useSettings';
-import type { VideoDetails } from '../../core/utils/youtubeApi';
+import type { VideoDetails, CoverVersion } from '../../core/utils/youtubeApi';
 
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
@@ -188,7 +188,7 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = memo(({
     const refs = useMemo(() => [buttonRef, dropdownRef] as React.RefObject<HTMLElement | null>[], [buttonRef, dropdownRef]);
     useClickOutside(isOpen, () => setIsOpen(false), refs);
 
-    const handleCloneVideo = async (originalVideo: VideoDetails, version: any) => {
+    const handleCloneVideo = async (originalVideo: VideoDetails, version: CoverVersion) => {
         const duration = cloneSettings?.cloneDurationSeconds;
         console.warn('DEBUG: Cloning video with duration (s):', duration);
         await cloneVideo({
