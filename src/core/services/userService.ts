@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, FieldValue } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import type { User } from 'firebase/auth';
 
@@ -6,8 +6,8 @@ export interface UserDocument {
     email: string | null;
     displayName: string | null;
     photoURL: string | null;
-    createdAt: any;
-    lastLoginAt: any;
+    createdAt: FieldValue;
+    lastLoginAt: FieldValue;
 }
 
 export const UserService = {

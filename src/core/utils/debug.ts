@@ -30,7 +30,7 @@ type DebugCategory = keyof typeof DEBUG_ENABLED;
 const createLogger = (category: DebugCategory) => {
     // In production, return no-op function (will be tree-shaken)
     if (!import.meta.env.DEV) {
-        return (..._args: unknown[]) => { };
+        return (...args: unknown[]) => { void args; };
     }
 
     // In development, check if category is enabled
@@ -48,9 +48,9 @@ const createLogger = (category: DebugCategory) => {
 const createGroupLogger = (category: DebugCategory) => {
     if (!import.meta.env.DEV) {
         return {
-            start: (_label: string) => { },
-            log: (..._args: unknown[]) => { },
-            end: () => { },
+            start: (label: string) => { void label; },
+            log: (...args: unknown[]) => { void args; },
+            end: () => { /* no-op */ },
         };
     }
 

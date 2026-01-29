@@ -108,7 +108,9 @@ export const useVideoFetchRetry = () => {
                         if (!old) return old;
                         return old.map(v => {
                             if (v.id === video.id) {
-                                const { mergedVideoData, ...rest } = v;
+                                // Omit mergedVideoData from the object
+                                const { mergedVideoData: _, ...rest } = v;
+                                void _; // Explicitly mark as intentionally unused
                                 return {
                                     ...rest,
                                     fetchStatus: 'failed' as const,
@@ -127,7 +129,7 @@ export const useVideoFetchRetry = () => {
                     await updateVideo({
                         videoId: video.id,
                         updates: {
-                            mergedVideoData: deleteField() as any, // Clear potentially stale data
+                            mergedVideoData: deleteField() as unknown as VideoDetails['mergedVideoData'],
                             fetchStatus: 'failed',
                             fetchRetryCount: newRetryCount,
                             lastFetchAttempt: now
@@ -180,5 +182,5 @@ export const useVideoFetchRetry = () => {
         const interval = setInterval(checkAndRetryFetches, 60 * 60 * 1000);
 
         return () => clearInterval(interval);
-    }, [videos, user, currentChannel, generalSettings.apiKey, updateVideo, addNotification, showToast]);
+    }, [videos, user, currentChannel, generalSettings.apiKey, updateVideo, addNotification, showToast, queryClient]);
 };

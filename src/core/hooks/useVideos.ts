@@ -151,7 +151,7 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
                             // Failed to fetch - clear data and initialize retry state
                             console.error("Fetch returned null for video:", cleanVideoId);
                             showToast(`Failed to load video: ${cleanVideoId}`, 'error');
-                            finalUpdates.mergedVideoData = deleteField() as any;
+                            finalUpdates.mergedVideoData = deleteField() as unknown as VideoDetails['mergedVideoData'];
                             finalUpdates.fetchStatus = 'failed';
                             finalUpdates.fetchRetryCount = 0;
                             finalUpdates.lastFetchAttempt = Date.now();
@@ -162,7 +162,7 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
                             showToast(`Error fetching video: ${error.message}`, 'error');
                         }
                         // Clear data and initialize retry state on error
-                        finalUpdates.mergedVideoData = deleteField() as any;
+                        finalUpdates.mergedVideoData = deleteField() as unknown as VideoDetails['mergedVideoData'];
                         finalUpdates.fetchStatus = 'failed';
                         finalUpdates.fetchRetryCount = 0;
                         finalUpdates.lastFetchAttempt = Date.now();
@@ -197,7 +197,8 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
                         if (v.id === videoId) {
                             // If clearing URL, remove mergedVideoData immediately
                             if (updates.publishedVideoId === '') {
-                                const { mergedVideoData, fetchStatus, fetchRetryCount, lastFetchAttempt, ...rest } = v;
+                                const { mergedVideoData: _1, fetchStatus: _2, fetchRetryCount: _3, lastFetchAttempt: _4, ...rest } = v;
+                                void _1; void _2; void _3; void _4; // Explicitly mark as intentionally unused
                                 return { ...rest, publishedVideoId: '' };
                             }
                             // If setting new URL, clear old mergedVideoData until fetch completes

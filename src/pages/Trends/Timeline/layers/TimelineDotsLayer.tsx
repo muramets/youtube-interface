@@ -231,41 +231,42 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
     }, [internalFocusedId, lastFocusedId, animProgress]);
 
     // =========================================================================
-    // SELECTION ANIMATION (Derived State Pattern)
+    // SELECTION ANIMATION
     // =========================================================================
 
     /**
-     * Detect selection changes during render to animate select/deselect.
-     * Uses "derived state pattern" to avoid effect cascade.
+     * Animate selection state changes when activeVideoIds changes.
+     * Uses useEffect to avoid impure function calls (performance.now) during render.
      */
-    const currentIds = activeVideoIds;
-    let selectionChanged = false;
-
-    if (prevIds.size !== currentIds.size) {
-        selectionChanged = true;
-    } else {
-        for (const id of currentIds) {
-            if (!prevIds.has(id)) {
-                selectionChanged = true;
-                break;
+    useEffect(() => {
+        // Compare current vs previous selection
+        let hasChanges = false;
+        if (prevIds.size !== activeVideoIds.size) {
+            hasChanges = true;
+        } else {
+            for (const id of activeVideoIds) {
+                if (!prevIds.has(id)) {
+                    hasChanges = true;
+                    break;
+                }
             }
         }
-    }
 
-    if (selectionChanged) {
+        if (!hasChanges) return;
+
         // Find newly selected and deselected dots
         const newlySelected: string[] = [];
         const newlyDeselected: string[] = [];
 
-        currentIds.forEach(id => {
+        activeVideoIds.forEach(id => {
             if (!prevIds.has(id)) newlySelected.push(id);
         });
         prevIds.forEach(id => {
-            if (!currentIds.has(id)) newlyDeselected.push(id);
+            if (!activeVideoIds.has(id)) newlyDeselected.push(id);
         });
 
-        // Update tracking state immediately
-        setPrevIds(new Set(currentIds));
+        // Update tracking state
+        setPrevIds(new Set(activeVideoIds));
 
         // Initialize animation progress for transitioning dots
         setSelectionAnimProgress(prev => {
@@ -279,7 +280,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
             return next;
         });
 
-        // Start selection animation loop
+        // Start selection animation loop (performance.now is safe inside useEffect)
         const startTime = performance.now();
         const animate = (time: number) => {
             const elapsed = time - startTime;
@@ -305,9 +306,13 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
             }
         };
 
-        cancelAnimationFrame(selectionAnimRef.current.id);
-        selectionAnimRef.current.id = requestAnimationFrame(animate);
-    }
+        const currentSelectionAnimRef = selectionAnimRef.current;
+        cancelAnimationFrame(currentSelectionAnimRef.id);
+        currentSelectionAnimRef.id = requestAnimationFrame(animate);
+
+        return () => cancelAnimationFrame(currentSelectionAnimRef.id);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- prevIds is tracked internally, animProgress/focusedIds are captured at animation start
+    }, [activeVideoIds]);
 
     // =========================================================================
     // VIEWPORT CULLING
