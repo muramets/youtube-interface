@@ -253,10 +253,14 @@ export const useTimelineTransform = ({
     const prevViewportSizeRef = useRef({ width: 0, height: 0 });
     // Skip ratio preservation after restore to prevent drift
     const skipNextRatioPreservationRef = useRef(false);
+    // Track pending auto-fit for new channels (no saved config)
+    // WHY: When switching to a new channel, worldWidth may not yet reflect the new data.
+    // We mark that we need to auto-fit, and when worldWidth changes, we apply the fit.
+    const pendingAutoFitForNewHashRef = useRef<string | null>(null);
 
     // Restore or Auto-Fit on Mount/Hash Change (Miro-like)
     // WHY: Single effect handles both initial load and navigation between channels/niches.
-    // Logic: If savedConfigs[hash] exists → restore it, otherwise → auto-fit.
+    // Logic: If savedConfigs[hash] exists → restore it, otherwise → mark pending auto-fit.
     useEffect(() => {
         // Wait for data to be ready
         if (videosLength === 0 || viewportSize.width === 0) return;
@@ -286,8 +290,14 @@ export const useTimelineTransform = ({
             });
             // Skip next ratio preservation to prevent drift
             skipNextRatioPreservationRef.current = true;
+            // Clear any pending fit since we're restoring saved config
+            pendingAutoFitForNewHashRef.current = null;
         } else {
-            // Defer update
+            // No saved config for this hash — mark as pending auto-fit.
+            // The actual fit will be applied when worldWidth updates in useLayoutEffect.
+            // This ensures we use the correct dimensions for the new channel.
+            pendingAutoFitForNewHashRef.current = currentContentHash;
+            // Also do an immediate fit attempt (may use stale worldWidth, but useLayoutEffect will correct)
             setTimeout(() => handleAutoFit(), 0);
         }
     }, [videosLength, viewportSize, savedContentHash, currentContentHash, savedConfigs, setTransformState, setTimelineConfig, handleAutoFit]);
@@ -380,6 +390,17 @@ export const useTimelineTransform = ({
         }
 
         /**
+         * PRIORITY 0: Pending Auto-Fit for New Channels
+         * When switching to a channel with no saved config, the initial auto-fit may use stale worldWidth.
+         * Now that worldWidth has updated, re-apply auto-fit with correct dimensions.
+         */
+        if (pendingAutoFitForNewHashRef.current === currentContentHash && wChanged) {
+            handleAutoFit();
+            pendingAutoFitForNewHashRef.current = null;
+            return;
+        }
+
+        /**
          * PRIORITY 2: Auto-Fit Maintenance
          * If the view was roughly fitted before the resize (within 5% tolerance),
          * maintain the "fitted" state by re-running auto-fit on the new dimensions.
@@ -422,7 +443,7 @@ export const useTimelineTransform = ({
         });
 
         setTransformState(newTransform);
-    }, [worldWidth, dynamicWorldHeight, videosLength, viewportSize, headerHeight, handleAutoFit, transformState, setTransformState, monthLayouts, stats, totalPadding]); // Dependencies
+    }, [worldWidth, dynamicWorldHeight, videosLength, viewportSize, headerHeight, handleAutoFit, transformState, setTransformState, monthLayouts, stats, totalPadding, currentContentHash]); // Dependencies
 
     // Track latest store config in ref to avoid effect dependency loops
     const latestConfigRef = useRef({ zoomLevel, offsetX, offsetY });
