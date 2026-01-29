@@ -4,6 +4,7 @@ import { auth } from '../../config/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useSettings } from './useSettings';
 import { useAutoSync } from './useAutoSync';
+import { UserService } from '../services/userService';
 
 export const useStoreInitialization = () => {
     // Initialize Settings (handles subscriptions)
@@ -15,8 +16,17 @@ export const useStoreInitialization = () => {
     // 1. Initialize Auth Listener
     const queryClient = useQueryClient();
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
             queryClient.setQueryData(['auth_user'], user);
+
+            // Ensure user document exists in Firestore
+            if (user) {
+                try {
+                    await UserService.ensureUserDocument(user);
+                } catch (error) {
+                    console.error('Failed to ensure user document:', error);
+                }
+            }
         });
         return () => unsubscribe();
     }, [queryClient]);
