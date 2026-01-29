@@ -14,6 +14,7 @@ interface TimelineAverageLineProps {
     baselineMode?: 'global' | 'dynamic';
     baselineWindowSize?: number;
     worldWidth?: number; // Needed for X position of path points
+    isVideoLayer?: boolean;
 }
 
 const formatViews = (val: number) => {
@@ -27,6 +28,9 @@ const formatViews = (val: number) => {
  * Ensures the curve is monotonic (no loops) and smooth (no sharp corners).
  * Based on the standard Fritsch-Carlson algorithm used in D3 and other libraries.
  */
+const HIT_RADIUS_DOTS = 60;
+const HIT_RADIUS_VIDEO = 120;
+
 const pointsToPath = (points: { x: number; y: number }[]) => {
     const n = points.length;
     if (n === 0) return '';
@@ -126,7 +130,8 @@ export const TimelineAverageLine: React.FC<TimelineAverageLineProps> = ({
     transform,
     baselineMode = 'dynamic',
     baselineWindowSize = 30, // Default to 30
-    worldWidth = 10000
+    worldWidth = 10000,
+    isVideoLayer = false,
 }) => {
     const [hoveredPoint, setHoveredPoint] = useState<{
         xNorm: number;
@@ -337,7 +342,7 @@ export const TimelineAverageLine: React.FC<TimelineAverageLineProps> = ({
                         d={pathData}
                         fill="none"
                         stroke="transparent"
-                        strokeWidth="120"
+                        strokeWidth={isVideoLayer ? HIT_RADIUS_VIDEO : HIT_RADIUS_DOTS}
                         className="pointer-events-auto cursor-crosshair"
                         onMouseMove={handleMouseMove}
                         onMouseLeave={handleMouseLeave}
