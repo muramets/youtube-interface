@@ -68,7 +68,7 @@ export const TrendsSettings: React.FC<TrendsSettingsProps> = ({
                         setIsSettingsOpen(true);
                     }
                 }}
-                className={`p-2 rounded-lg transition-colors ${isSettingsOpen ? 'bg-bg-secondary text-text-primary' : 'text-text-secondary hover:text-text-primary hover:bg-bg-secondary'} `}
+                className={`p-2 rounded-lg transition-colors ${isSettingsOpen ? 'bg-bg-secondary text-text-primary' : 'text-text-primary hover:bg-hover-bg'} `}
             >
                 <Settings size={20} />
             </button>

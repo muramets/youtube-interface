@@ -97,7 +97,7 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
         <>
             <button
                 ref={buttonRef}
-                className={`w-[34px] h-[34px] rounded-full flex items-center justify-center transition-colors border-none cursor-pointer relative flex-shrink-0 ${isOpen ? 'bg-text-primary text-bg-primary' : 'bg-transparent text-text-primary hover:bg-hover-bg'}`}
+                className={`w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-colors border-none cursor-pointer relative flex-shrink-0 ${isOpen ? 'bg-text-primary text-bg-primary' : 'bg-transparent text-text-primary hover:bg-hover-bg'}`}
                 onClick={() => setIsOpen(!isOpen)}
                 title="Filter"
             >

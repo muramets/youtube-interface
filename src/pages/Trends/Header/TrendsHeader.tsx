@@ -1,4 +1,7 @@
 import React from 'react';
+import { RefreshCw } from 'lucide-react';
+import { useTrendsSync } from '../hooks/useTrendsSync';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/molecules/Tooltip';
 import type { TimelineConfig } from '../../../core/types/trends';
 import { TrendsStats } from './TrendsStats';
 import { TrendsSettings } from './TrendsSettings';
@@ -28,6 +31,8 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
     availableMinDate,
     availableMaxDate
 }) => {
+    const { handleSync, isSyncing, canSync, syncTooltip } = useTrendsSync();
+
     return (
         <div className="h-14 border-b border-border flex items-center px-4 justify-between flex-shrink-0 bg-bg-primary sticky top-0 z-sticky">
             <div className="flex items-center gap-4">
@@ -46,6 +51,27 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
                 />
                 {/* Icons aligned with main header (gap-2) */}
                 <div className="flex items-center gap-2 mr-2">
+                    {/* Sync Button */}
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={handleSync}
+                                    disabled={!canSync || isSyncing}
+                                    className={`w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-colors border-none cursor-pointer relative flex-shrink-0 ${isSyncing || !canSync
+                                        ? 'bg-transparent text-text-tertiary cursor-not-allowed'
+                                        : 'bg-transparent text-text-primary hover:bg-hover-bg'
+                                        }`}
+                                >
+                                    <RefreshCw size={18} className={isSyncing ? 'animate-spin' : ''} />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>{syncTooltip}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+
                     <TrendsFilterButton availableMinDate={availableMinDate} availableMaxDate={availableMaxDate} />
                     <TrendsSettings
                         timelineConfig={timelineConfig}
