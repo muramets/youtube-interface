@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { VideoDetails, CoverVersion } from '../../../../../core/utils/youtubeApi';
+import { type VideoDetails, type CoverVersion } from '../../../../../core/utils/youtubeApi';
 import type { PackagingVersion, ActivePeriod } from '../../../../../core/types/versioning';
 import type { TrafficData, TrafficSnapshot } from '../../../../../core/types/traffic';
 import { useUIStore } from '../../../../../core/stores/uiStore';
@@ -35,7 +35,7 @@ export const usePackagingActions = ({
 }: UsePackagingActionsProps) => {
     const { user } = useAuth();
     const { currentChannel, setCurrentChannel } = useChannelStore();
-    const { cloneSettings } = useSettings();
+    const { cloneSettings, generalSettings } = useSettings();
     const { updateVideo, cloneVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { showToast } = useUIStore();
     const [savingAction, setSavingAction] = useState<'draft' | 'version' | 'metadata' | null>(null);
@@ -450,13 +450,14 @@ export const usePackagingActions = ({
             await updateVideo({
                 videoId: video.id,
                 updates: metadata,
+                apiKey: generalSettings.apiKey, // Pass apiKey to enable fetch
                 expectedRevision: video.packagingRevision
             });
         } catch (error) {
             console.error('Failed to auto-save metadata:', error);
             // Silent fail - don't show toast for auto-save
         }
-    }, [user, currentChannel, video.id, video.packagingRevision, updateVideo]);
+    }, [user, currentChannel, video.id, video.packagingRevision, updateVideo, generalSettings.apiKey]);
 
     return {
         isSaving: savingAction === 'draft' || savingAction === 'version', // Backwards compatibility if needed, though we should prefer specific props

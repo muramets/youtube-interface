@@ -5,6 +5,7 @@ import { useChannelStore } from '../stores/channelStore';
 import { VideoService } from '../services/videoService';
 import { fetchVideoDetails, extractVideoId, type VideoDetails, type PackagingCheckin, type HistoryItem, type CoverVersion } from '../utils/youtubeApi';
 import { useNotificationStore } from '../stores/notificationStore';
+import { useUIStore } from '../stores/uiStore';
 import type { PackagingVersion } from '../types/versioning';
 import { SettingsService } from '../services/settingsService';
 
@@ -33,6 +34,7 @@ export interface UseVideosResult {
 
 export const useVideos = (userId: string, channelId: string): UseVideosResult => {
     const queryClient = useQueryClient();
+    const { showToast } = useUIStore();
     const { currentChannel } = useChannelStore();
     const queryKey = useMemo(() => ['videos', userId, channelId], [userId, channelId]);
 
@@ -136,7 +138,9 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
                 // Merged video logic
                 if (updates.publishedVideoId && apiKey) {
                     try {
-                        const mergedDetails = await fetchVideoDetails(updates.publishedVideoId, apiKey);
+                        const cleanVideoId = extractVideoId(updates.publishedVideoId) || updates.publishedVideoId;
+                        const mergedDetails = await fetchVideoDetails(cleanVideoId, apiKey);
+
                         if (mergedDetails) {
                             finalUpdates.mergedVideoData = mergedDetails;
                             // Clear retry state on success
@@ -144,15 +148,22 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
                             finalUpdates.fetchRetryCount = deleteField() as unknown as number;
                             finalUpdates.lastFetchAttempt = deleteField() as unknown as number;
                         } else {
-                            // Failed to fetch - initialize retry state
-                            finalUpdates.fetchStatus = 'pending';
+                            // Failed to fetch - clear data and initialize retry state
+                            console.error("Fetch returned null for video:", cleanVideoId);
+                            showToast(`Failed to load video: ${cleanVideoId}`, 'error');
+                            finalUpdates.mergedVideoData = deleteField() as any;
+                            finalUpdates.fetchStatus = 'failed';
                             finalUpdates.fetchRetryCount = 0;
                             finalUpdates.lastFetchAttempt = Date.now();
                         }
                     } catch (error) {
                         console.error("Failed to fetch merged video details:", error);
-                        // Initialize retry state on error
-                        finalUpdates.fetchStatus = 'pending';
+                        if (error instanceof Error) {
+                            showToast(`Error fetching video: ${error.message}`, 'error');
+                        }
+                        // Clear data and initialize retry state on error
+                        finalUpdates.mergedVideoData = deleteField() as any;
+                        finalUpdates.fetchStatus = 'failed';
                         finalUpdates.fetchRetryCount = 0;
                         finalUpdates.lastFetchAttempt = Date.now();
                     }
@@ -172,6 +183,46 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
                 return true;
             }
             return false;
+        },
+        onMutate: async ({ videoId, updates }) => {
+            // Optimistically update cache when publishedVideoId changes
+            if (updates?.publishedVideoId !== undefined) {
+                await queryClient.cancelQueries({ queryKey: ['videos', userId, channelId] });
+
+                const previousVideos = queryClient.getQueryData<VideoDetails[]>(['videos', userId, channelId]);
+
+                queryClient.setQueryData<VideoDetails[]>(['videos', userId, channelId], (old) => {
+                    if (!old) return old;
+                    return old.map(v => {
+                        if (v.id === videoId) {
+                            // If clearing URL, remove mergedVideoData immediately
+                            if (updates.publishedVideoId === '') {
+                                const { mergedVideoData, fetchStatus, fetchRetryCount, lastFetchAttempt, ...rest } = v;
+                                return { ...rest, publishedVideoId: '' };
+                            }
+                            // If setting new URL, clear old mergedVideoData until fetch completes
+                            return {
+                                ...v,
+                                publishedVideoId: updates.publishedVideoId,
+                                mergedVideoData: undefined,
+                                fetchStatus: 'pending' as const
+                            };
+                        }
+                        return v;
+                    });
+                });
+
+                return { previousVideos };
+            }
+        },
+        onError: (_err, _variables, context) => {
+            // Rollback on error
+            if (context?.previousVideos) {
+                queryClient.setQueryData(['videos', userId, channelId], context.previousVideos);
+            }
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['videos', userId, channelId] });
         }
     });
 

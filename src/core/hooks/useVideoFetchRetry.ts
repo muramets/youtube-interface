@@ -1,11 +1,13 @@
 import { useEffect, useRef } from 'react';
+import { deleteField } from 'firebase/firestore';
+import { useQueryClient } from '@tanstack/react-query';
 import { useVideos } from './useVideos';
 import { useAuth } from './useAuth';
 import { useChannelStore } from '../stores/channelStore';
 import { useSettings } from './useSettings';
 import { useNotificationStore } from '../stores/notificationStore';
 import { useUIStore } from '../stores/uiStore';
-import { fetchVideoDetails } from '../utils/youtubeApi';
+import { fetchVideoDetails, extractVideoId, type VideoDetails } from '../utils/youtubeApi';
 
 const MAX_RETRY_ATTEMPTS = 7;
 const RETRY_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -26,6 +28,7 @@ export const useVideoFetchRetry = () => {
     const { generalSettings } = useSettings();
     const { addNotification } = useNotificationStore();
     const { showToast } = useUIStore();
+    const queryClient = useQueryClient();
 
     const processingRef = useRef(new Set<string>());
     const initialCheckDoneRef = useRef(false);
@@ -42,6 +45,7 @@ export const useVideoFetchRetry = () => {
                 v.publishedVideoId &&
                 !v.mergedVideoData &&
                 v.fetchStatus !== 'success' &&
+                v.fetchStatus !== 'pending' && // Don't interfere with active user updates
                 (v.fetchRetryCount ?? 0) < MAX_RETRY_ATTEMPTS
             );
 
@@ -61,17 +65,35 @@ export const useVideoFetchRetry = () => {
                 processingRef.current.add(video.id);
 
                 try {
-                    const details = await fetchVideoDetails(video.publishedVideoId!, generalSettings.apiKey!);
+                    const cleanVideoId = extractVideoId(video.publishedVideoId!) || video.publishedVideoId!;
+                    const details = await fetchVideoDetails(cleanVideoId, generalSettings.apiKey!);
 
                     if (details) {
+                        // Immediately update cache with new data
+                        queryClient.setQueryData<VideoDetails[]>(['videos', user.uid, currentChannel.id], (old) => {
+                            if (!old) return old;
+                            return old.map(v => {
+                                if (v.id === video.id) {
+                                    return {
+                                        ...v,
+                                        mergedVideoData: details,
+                                        fetchStatus: 'success' as const,
+                                        fetchRetryCount: undefined,
+                                        lastFetchAttempt: undefined
+                                    };
+                                }
+                                return v;
+                            });
+                        });
+
                         // Success! Update video with fetched data
                         await updateVideo({
                             videoId: video.id,
                             updates: {
                                 mergedVideoData: details,
                                 fetchStatus: 'success',
-                                fetchRetryCount: undefined,
-                                lastFetchAttempt: undefined
+                                fetchRetryCount: deleteField() as unknown as number,
+                                lastFetchAttempt: deleteField() as unknown as number
                             }
                         });
                     } else {
@@ -81,6 +103,23 @@ export const useVideoFetchRetry = () => {
                 } catch (error) {
                     console.error(`Failed to fetch video ${video.id}:`, error);
 
+                    // Immediately update cache to clear mergedVideoData
+                    queryClient.setQueryData<VideoDetails[]>(['videos', user.uid, currentChannel.id], (old) => {
+                        if (!old) return old;
+                        return old.map(v => {
+                            if (v.id === video.id) {
+                                const { mergedVideoData, ...rest } = v;
+                                return {
+                                    ...rest,
+                                    fetchStatus: 'failed' as const,
+                                    fetchRetryCount: retryCount + 1,
+                                    lastFetchAttempt: now
+                                };
+                            }
+                            return v;
+                        });
+                    });
+
                     // Handle failure (both threw Error or returned null)
                     const newRetryCount = retryCount + 1;
                     const isFinalAttempt = newRetryCount >= MAX_RETRY_ATTEMPTS;
@@ -88,32 +127,43 @@ export const useVideoFetchRetry = () => {
                     await updateVideo({
                         videoId: video.id,
                         updates: {
-                            fetchStatus: isFinalAttempt ? 'failed' : 'pending',
+                            mergedVideoData: deleteField() as any, // Clear potentially stale data
+                            fetchStatus: 'failed',
                             fetchRetryCount: newRetryCount,
                             lastFetchAttempt: now
                         }
                     });
 
                     // Show appropriate notification
+                    const displayTitle = (video.abTestTitles && video.abTestTitles.length > 0)
+                        ? video.abTestTitles[0]
+                        : video.title;
+
+                    const displayThumbnail = (video.abTestThumbnails && video.abTestThumbnails.length > 0)
+                        ? video.abTestThumbnails[0]
+                        : (video.customImage || video.thumbnail);
+
                     if (retryCount === 0 && !initialCheckDoneRef.current) {
                         showToast('Video not available yet. Will retry in 24 hours.', 'error');
                     } else if (isFinalAttempt) {
                         await addNotification({
                             title: 'Failed to update data for Home Page',
-                            message: `Could not retrieve details for "${video.title}". Please check if the video is still available on YouTube.`,
+                            message: `Could not retrieve details for "${displayTitle}". Please check if the video is still available on YouTube.`,
                             type: 'error',
                             internalId: `fetch-failed-final-${video.id}`,
                             link: `/video/${video.channelId}/${video.id}/details?action=update_link`,
-                            isPersistent: true
+                            isPersistent: true,
+                            thumbnail: displayThumbnail
                         });
                     } else {
                         // Silent retry failure (info notification)
                         await addNotification({
-                            title: 'Video Fetch Retry Failed',
-                            message: `Retry #${newRetryCount} for "${video.title}" failed. Will try again in 24 hours.`,
+                            title: 'Data update delayed',
+                            message: `Update #${newRetryCount} for "${displayTitle}". Will automatically retry in 24 hours.`,
                             type: 'info',
                             internalId: `fetch-retry-${video.id}-${newRetryCount}`,
-                            link: `/video/${video.id}`
+                            link: `/video/${video.channelId}/${video.id}/details?action=update_link`,
+                            thumbnail: displayThumbnail
                         });
                     }
                 } finally {

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MoreVertical, Info, Trash2, AlertTriangle } from 'lucide-react';
+import { MoreVertical, Info, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { type VideoDetails } from '../../core/utils/youtubeApi';
 import { formatDuration, formatViewCount } from '../../core/utils/formatUtils';
 import { useVideoSync } from '../../core/hooks/useVideoSync';
@@ -54,7 +54,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
 
 
 
-  const viewMode = videoViewModes[video.id] || (video.publishedVideoId ? 'youtube' : 'custom');
+
+  const viewMode = video.publishedVideoId ? (videoViewModes[video.id] || 'youtube') : 'custom';
   const [isFlipping, setIsFlipping] = useState(false);
 
   // Determine which video data to display
@@ -223,8 +224,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const isYouTubeLinkUnavailable = video.fetchStatus === 'failed' || hasSyncError;
   // In YouTube View, also show unavailable if we have a publishedVideoId but no mergedVideoData (fetch pending/failed)
   const isMissingYouTubeData = viewMode === 'youtube' && video.publishedVideoId && !video.mergedVideoData;
-  // Don't show unavailable if we have a valid thumbnail to display (e.g., imported from Trends)
-  const isUnavailable = (isYouTubeLinkUnavailable || isMissingYouTubeData) && (viewMode === 'youtube' || !hasCustomThumbnail) && !hasValidThumbnail;
+  // In YouTube View, ignore thumbnail presence for unavailability - if the data is missing/failed, it is unavailable
+  const isUnavailable = (viewMode === 'youtube'
+    ? (isYouTubeLinkUnavailable || isMissingYouTubeData)
+    : (isYouTubeLinkUnavailable || isMissingYouTubeData) && !hasCustomThumbnail && !hasValidThumbnail)
+    && video.fetchStatus !== 'pending';
 
   return (
     <>
@@ -308,12 +312,23 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
             );
           })()}
 
+
           {/* Unavailable Overlay Badge */}
-          {isUnavailable && (
+          {isUnavailable && video.fetchStatus !== 'pending' && (
             <div className="absolute inset-0 z-20 bg-black/40 backdrop-blur-[1px] flex items-center justify-center p-4">
               <div className="bg-red-600 text-white px-3 py-1.5 rounded-full text-[10px] font-black shadow-2xl flex items-center gap-1.5 border border-red-400/30 animate-in fade-in zoom-in duration-300">
                 <AlertTriangle size={14} className="fill-white/20" />
                 OFFLINE / PRIVATE
+              </div>
+            </div>
+          )}
+
+          {/* Loading Overlay */}
+          {(video.fetchStatus === 'pending') && (
+            <div className="absolute inset-0 z-20 bg-black/40 backdrop-blur-[1px] flex items-center justify-center p-4">
+              <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-full shadow-2xl border border-white/20 flex items-center gap-2 animate-in fade-in zoom-in duration-300">
+                <Loader2 className="w-4 h-4 text-white animate-spin" />
+                <span className="text-[10px] font-bold text-white tracking-wider">UPDATING</span>
               </div>
             </div>
           )}

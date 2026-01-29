@@ -73,7 +73,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
 
             // Calculate position immediately
             setMessageTooltipPos({
-                top: rect.top + window.scrollY - 10,
+                top: rect.top + window.scrollY - 2,
                 left: rect.left + window.scrollX
             });
 

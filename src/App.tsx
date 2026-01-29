@@ -110,7 +110,7 @@ function ToastWrapper() {
       onClose={hideToast}
       actionLabel={toast.actionLabel}
       onAction={toast.onAction}
-      position="top"
+      position="bottom"
     />
   );
 }
