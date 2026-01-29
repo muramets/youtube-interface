@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { Trash2, Info, AlertCircle, CheckCircle } from 'lucide-react';
 import { useNotificationStore, type Notification } from '../../core/stores/notificationStore';
 import { formatDistanceToNow } from 'date-fns';
@@ -11,6 +12,7 @@ interface NotificationItemProps {
 
 export const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onAction }) => {
     const { markAsRead, removeNotification } = useNotificationStore();
+    const navigate = useNavigate();
 
     const effectiveColor = React.useMemo(() => {
         if (notification.type === 'success') return '#22c55e'; // green-500
@@ -30,6 +32,11 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
         if (!notification.isRead) {
             markAsRead(notification.id);
         }
+
+        if (notification.link) {
+            navigate(notification.link);
+        }
+
         onAction?.(notification);
     };
 
@@ -57,20 +64,29 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
         setShowTooltip(false);
     };
 
+    // Timeout ref for delayed tooltip
+    const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     const handleMessageMouseEnter = () => {
         if (messageRef.current) {
             const rect = messageRef.current.getBoundingClientRect();
-            // Check if text is actually truncated? Or just show always for clarity?
-            // User requested "tooltip with full text" on hover.
+
+            // Calculate position immediately
             setMessageTooltipPos({
-                top: rect.top + window.scrollY - 10, // Position slightly above
+                top: rect.top + window.scrollY - 10,
                 left: rect.left + window.scrollX
             });
-            setShowMessageTooltip(true);
+
+            // Delay showing the tooltip by 1000ms
+            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+            hoverTimeoutRef.current = setTimeout(() => {
+                setShowMessageTooltip(true);
+            }, 1000);
         }
     };
 
     const handleMessageMouseLeave = () => {
+        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
         setShowMessageTooltip(false);
     };
 
