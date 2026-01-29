@@ -36,6 +36,7 @@ interface NotificationState {
     markAllAsRead: () => Promise<void>;
     removeNotification: (id: string) => Promise<void>;
     removeNotifications: (ids: string[]) => Promise<void>;
+    removeNotificationByInternalId: (internalId: string) => Promise<void>;
     clearAll: () => Promise<void>;
 }
 
@@ -93,6 +94,16 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         const ids = notifications.filter(n => !n.isPersistent).map(n => n.id);
         if (ids.length > 0) {
             await NotificationService.clearAll(activeUserId, activeChannelId, ids);
+        }
+    },
+
+    removeNotificationByInternalId: async (internalId: string) => {
+        const { activeUserId, activeChannelId, notifications } = get();
+        if (!activeUserId || !activeChannelId) return;
+
+        const notification = notifications.find(n => n.internalId === internalId);
+        if (notification) {
+            await NotificationService.removeNotification(activeUserId, activeChannelId, notification.id);
         }
     }
 }));

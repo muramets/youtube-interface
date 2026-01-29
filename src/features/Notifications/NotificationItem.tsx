@@ -37,6 +37,11 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
     const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 });
     const badgeRef = useRef<HTMLDivElement>(null);
 
+    // Message Tooltip State
+    const [showMessageTooltip, setShowMessageTooltip] = useState(false);
+    const [messageTooltipPos, setMessageTooltipPos] = useState({ top: 0, left: 0 });
+    const messageRef = useRef<HTMLDivElement>(null);
+
     const handleMouseEnter = () => {
         if (badgeRef.current) {
             const rect = badgeRef.current.getBoundingClientRect();
@@ -50,6 +55,23 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
 
     const handleMouseLeave = () => {
         setShowTooltip(false);
+    };
+
+    const handleMessageMouseEnter = () => {
+        if (messageRef.current) {
+            const rect = messageRef.current.getBoundingClientRect();
+            // Check if text is actually truncated? Or just show always for clarity?
+            // User requested "tooltip with full text" on hover.
+            setMessageTooltipPos({
+                top: rect.top + window.scrollY - 10, // Position slightly above
+                left: rect.left + window.scrollX
+            });
+            setShowMessageTooltip(true);
+        }
+    };
+
+    const handleMessageMouseLeave = () => {
+        setShowMessageTooltip(false);
     };
 
     return (
@@ -121,9 +143,31 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
                 <p className="text-sm font-medium text-text-primary leading-tight mb-1">
                     {notification.title}
                 </p>
-                <p className="text-sm text-text-secondary line-clamp-2 mb-1">
-                    {notification.message}
-                </p>
+                <div
+                    ref={messageRef}
+                    className="relative group/message"
+                    onMouseEnter={handleMessageMouseEnter}
+                    onMouseLeave={handleMessageMouseLeave}
+                >
+                    <p className="text-sm text-text-secondary line-clamp-2 mb-1">
+                        {notification.message}
+                    </p>
+
+                    {/* Tooltip via Portal to avoid clipping */}
+                    {showMessageTooltip && createPortal(
+                        <div
+                            className="fixed z-max px-3 py-2 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl pointer-events-none max-w-[300px] animate-in fade-in zoom-in-95 duration-100"
+                            style={{
+                                top: messageTooltipPos.top,
+                                left: messageTooltipPos.left,
+                                transform: 'translateY(-100%)'
+                            }}
+                        >
+                            <p className="text-xs text-white whitespace-normal break-words leading-relaxed">{notification.message}</p>
+                        </div>,
+                        document.body
+                    )}
+                </div>
                 <p className="text-xs text-text-secondary">
                     {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
                 </p>
@@ -180,18 +224,16 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
             </div>
 
             <div className="flex-shrink-0">
-                {!notification.isPersistent && (
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            removeNotification(notification.id);
-                        }}
-                        className="p-2 rounded-full hover:bg-hover-bg text-text-secondary hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                        title="Delete"
-                    >
-                        <Trash2 size={18} />
-                    </button>
-                )}
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        removeNotification(notification.id);
+                    }}
+                    className="p-2 rounded-full hover:bg-hover-bg text-text-secondary hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                    title="Delete"
+                >
+                    <Trash2 size={18} />
+                </button>
             </div>
         </div>
     );

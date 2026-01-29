@@ -134,7 +134,7 @@ export const Header: React.FC<{ className?: string }> = ({ className }) => {
               <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent" style={{ backgroundSize: '200% 100%' }} />
             </div>
           ) : currentChannel?.avatar ? (
-            <img src={currentChannel.avatar} alt="Profile" className="w-full h-full object-cover" />
+            <img src={currentChannel.avatar} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
           ) : (
             <User size={20} />
           )}

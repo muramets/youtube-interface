@@ -158,7 +158,7 @@ export const ChannelDropdown: React.FC<ChannelDropdownProps> = ({ onClose, ancho
                     <div className="px-4 py-4 border-b border-border flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-[#333] flex items-center justify-center overflow-hidden shrink-0">
                             {user?.photoURL ? (
-                                <img src={user.photoURL} alt={user.displayName || 'User'} className="w-full h-full object-cover" />
+                                <img src={user.photoURL} alt={user.displayName || 'User'} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                             ) : (
                                 <User size={24} color="white" />
                             )}

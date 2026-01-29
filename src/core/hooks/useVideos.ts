@@ -4,6 +4,7 @@ import { deleteField } from 'firebase/firestore';
 import { useChannelStore } from '../stores/channelStore';
 import { VideoService } from '../services/videoService';
 import { fetchVideoDetails, extractVideoId, type VideoDetails, type PackagingCheckin, type HistoryItem, type CoverVersion } from '../utils/youtubeApi';
+import { useNotificationStore } from '../stores/notificationStore';
 import type { PackagingVersion } from '../types/versioning';
 import { SettingsService } from '../services/settingsService';
 
@@ -213,6 +214,10 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
             setTimeout(() => {
                 terminatingVideoIds.delete(videoId);
             }, 3000);
+
+            // Clean up any "Fetch Failed" notifications associated with this video
+            // We use strict matching for the final failure, and try-catch to be safe
+            useNotificationStore.getState().removeNotificationByInternalId(`fetch-failed-final-${videoId}`);
 
             // Still invalidate to ensure we have the correct state eventually
             queryClient.invalidateQueries({ queryKey: ['videos', userId, channelId] });

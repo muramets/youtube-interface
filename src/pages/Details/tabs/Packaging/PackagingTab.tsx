@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { type VideoDetails } from '../../../../core/utils/youtubeApi';
 import type { TrafficData } from '../../../../core/types/traffic';
 import { PackagingForm } from './components/PackagingForm';
@@ -45,6 +46,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
     const sentinelRef = useRef<HTMLDivElement>(null);
     // Detect scroll for sticky header shadow
     const [isScrolled, setIsScrolled] = useState(false);
+    const [searchParams] = useSearchParams();
 
     // Is the user viewing an old version (read-only)?
     const isViewingOldVersion = versionState.viewingVersion !== 'draft' &&
@@ -430,6 +432,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                             likedThumbnailVersions={video.likedThumbnailVersions}
                             onLikeThumbnail={handleLikeThumbnail}
                             onRemoveThumbnail={handleRemoveThumbnail}
+                            expandShowMore={searchParams.get('action') === 'update_link'}
                         />
                     </div>
 

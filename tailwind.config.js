@@ -49,6 +49,8 @@ export default {
                 'popover': '300',     // Tooltips, popovers
                 'modal': '400',       // Modals, dialogs
                 'toast': '500',       // Toast notifications
+                'tooltip': '600',     // Tooltips (above toasts)
+                'max': '9999',        // Maximum elevation (use sparingly)
             },
             keyframes: {
                 'slide-in-left': {

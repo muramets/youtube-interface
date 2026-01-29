@@ -50,6 +50,7 @@ interface PackagingFormProps {
     likedThumbnailVersions?: number[];
     onLikeThumbnail?: (version: number) => void;
     onRemoveThumbnail?: (version: number) => void;
+    expandShowMore?: boolean;
 }
 
 export const PackagingForm: React.FC<PackagingFormProps> = ({
@@ -84,9 +85,17 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
     checkIsCloned,
     likedThumbnailVersions,
     onLikeThumbnail,
-    onRemoveThumbnail
+    onRemoveThumbnail,
+    expandShowMore = false
 }) => {
     const [showMore, setShowMore] = useState(false);
+
+    // Auto-expand if requested (e.g. from deep link)
+    React.useEffect(() => {
+        if (expandShowMore) {
+            setShowMore(true);
+        }
+    }, [expandShowMore]);
 
     const hasABTestTitles = abTestTitles.length >= 2;
 

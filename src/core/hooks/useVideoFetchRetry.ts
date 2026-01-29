@@ -99,11 +99,11 @@ export const useVideoFetchRetry = () => {
                         showToast('Video not available yet. Will retry in 24 hours.', 'error');
                     } else if (isFinalAttempt) {
                         await addNotification({
-                            title: 'Video Fetch Failed',
-                            message: `Stopped trying to fetch "${video.title}" after ${MAX_RETRY_ATTEMPTS} attempts. Update the link to try again.`,
+                            title: 'Failed to update data for Home Page',
+                            message: `Could not retrieve details for "${video.title}". Please check if the video is still available on YouTube.`,
                             type: 'error',
                             internalId: `fetch-failed-final-${video.id}`,
-                            link: `/video/${video.id}`,
+                            link: `/video/${video.channelId}/${video.id}/details?action=update_link`,
                             isPersistent: true
                         });
                     } else {
