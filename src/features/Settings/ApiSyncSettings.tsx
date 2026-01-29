@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown, Eye, EyeOff, RefreshCw } from 'lucide-react';
-import { Dropdown } from '../../components/Shared/Dropdown';
+import { Dropdown } from '../../components/ui/molecules/Dropdown';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useVideoSync } from '../../core/hooks/useVideoSync';

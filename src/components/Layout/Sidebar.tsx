@@ -74,6 +74,7 @@ export const TrendsCollapsedGroup: React.FC<{
   };
 }> = ({ isActive, channels, selectedChannelId, navigate, setSelectedChannelId, icons }) => {
   const [isHovered, setHovered] = React.useState(false);
+  const { brokenAvatarChannelIds, markAvatarBroken } = useTrendStore();
 
   // Robust single-list approach
   const showDropdown = isHovered;
@@ -124,9 +125,10 @@ export const TrendsCollapsedGroup: React.FC<{
               <AnimatePresence mode="popLayout">
                 {visibleChannels.map(channel => {
                   const isSelected = selectedChannelId === channel.id;
+                  const isBroken = brokenAvatarChannelIds.has(channel.id);
 
                   const imageClasses = `w-8 h-8 rounded-full object-cover transition-all duration-300
-                                        hover:shadow-[0_0_15px_rgba(255,255,255,0.4)] hover:scale-110
+                                        hover:shadow-[0_0_15px_rgba(255,255,255,0.4)] hover:scale-110 cursor-pointer
                                     `;
 
                   return (
@@ -148,11 +150,30 @@ export const TrendsCollapsedGroup: React.FC<{
                       title={channel.title}
                     >
                       <div className={`relative transition-all duration-200 ${isSelected ? 'ring-2 ring-text-primary rounded-full p-[2px]' : ''}`}>
-                        <img
-                          src={channel.avatarUrl}
-                          alt={channel.title}
-                          className={imageClasses}
-                        />
+                        {channel.avatarUrl && !isBroken ? (
+                          /* 
+                             INDUSTRY STANDARD: 
+                             We must use `referrerPolicy="no-referrer"` to bypass YouTube's hotlink protection
+                             (otherwise we get 403 Forbidden). 
+                          */
+                          <img
+                            src={channel.avatarUrl}
+                            alt={channel.title}
+                            referrerPolicy="no-referrer"
+                            /*
+                               PREMIUM UX:
+                               If loading fails (404/Network), we mark it globally in the store.
+                               This prevents "flickering" between broken/working states across the app.
+                            */
+                            onError={() => markAvatarBroken(channel.id)}
+                            className={imageClasses}
+                          />
+                        ) : (
+                          /* Fallback: Stylish initial circle instead of ugly browser "broken image" icon */
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center bg-white/10 text-white/80 text-[10px] font-bold transition-all duration-300 hover:shadow-[0_0_15px_rgba(255,255,255,0.4)] hover:scale-110 cursor-pointer`}>
+                            {channel.title.charAt(0).toUpperCase()}
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   );

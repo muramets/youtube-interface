@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, X, Trash2 } from 'lucide-react';
 import { SUPPORTED_LANGUAGES } from '../../core/constants/languages';
-import { PortalTooltip } from '../../components/Shared/PortalTooltip';
+import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 
 import type { CustomLanguage } from '../../core/services/channelService';
 import { type VideoLocalization } from '../../core/utils/youtubeApi';

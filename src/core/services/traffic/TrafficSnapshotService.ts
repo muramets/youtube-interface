@@ -141,7 +141,7 @@ export const TrafficSnapshotService = {
         // Гибрид: sources в Cloud Storage
         if (snapshot.storagePath) {
             try {
-                const { parseTrafficCsv } = await import('../../../pages/DetailsPage/tabs/Traffic/utils/csvParser');
+                const { parseTrafficCsv } = await import('../../../pages/Details/tabs/Traffic/utils/csvParser');
 
                 const blob = await downloadCsvSnapshot(snapshot.storagePath);
                 const file = new File([blob], 'snapshot.csv', { type: 'text/csv' });

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { X, Copy, Trash2, Check } from 'lucide-react';
-import { PortalTooltip } from '../Shared/PortalTooltip';
+import { PortalTooltip } from './atoms/PortalTooltip';
 
 interface TagsInputProps {
     tags: string[];

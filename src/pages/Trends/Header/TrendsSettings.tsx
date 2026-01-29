@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Settings, Maximize2, Check, ChevronLeft, X } from 'lucide-react';
 import type { TimelineConfig } from '../../../core/types/trends';
 import { ScalingTooltip } from './ScalingTooltip';
-import { Dropdown } from '../../../components/Shared/Dropdown';
+import { Dropdown } from '../../../components/ui/molecules/Dropdown';
 import { SegmentedControl } from '../../../components/ui/molecules/SegmentedControl';
 
 interface TrendsSettingsProps {

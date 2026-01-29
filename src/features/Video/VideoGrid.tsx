@@ -6,7 +6,7 @@ import { useVideos } from '../../core/hooks/useVideos';
 import { useFilterStore } from '../../core/stores/filterStore';
 import { usePlaylists } from '../../core/hooks/usePlaylists';
 import { useSettings } from '../../core/hooks/useSettings';
-import { VideoCardSkeleton } from '../../components/Shared/VideoCardSkeleton';
+import { VideoCardSkeleton } from '../../features/Video/components/VideoCardSkeleton';
 import { VirtualVideoGrid } from './VirtualVideoGrid';
 import { VideoGridContainer } from './VideoGridContainer';
 import { GRID_LAYOUT } from './layout';

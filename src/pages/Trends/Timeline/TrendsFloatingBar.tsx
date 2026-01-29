@@ -11,8 +11,8 @@ import { VideoService } from '../../../core/services/videoService';
 import { NicheSelector } from './components/NicheSelector';
 import { PlaylistSelector } from './components/PlaylistSelector';
 import { trendVideoToVideoDetails } from '../../../core/utils/videoAdapters';
-import { ConfirmationModal } from '../../../components/Shared/ConfirmationModal';
-import { FloatingBar } from '@/components/Shared/FloatingBar';
+import { ConfirmationModal } from '../../../components/ui/organisms/ConfirmationModal';
+import { FloatingBar } from '@/components/ui/organisms/FloatingBar';
 
 interface TrendsFloatingBarProps {
     videos: TrendVideo[];

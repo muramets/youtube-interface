@@ -4,8 +4,8 @@ import { TagsInput } from '../../../../../components/ui/TagsInput';
 import { LanguageTabs } from '../../../LanguageTabs';
 import { type VideoLocalization } from '../../../../../core/utils/youtubeApi';
 import { type CustomLanguage } from '../../../../../core/services/channelService';
-import { TitleInput } from '../../../../../pages/DetailsPage/tabs/Packaging/components/TitleInput';
-import { ABTitlesDisplay } from '../../../../../pages/DetailsPage/tabs/Packaging/components/ABTitlesDisplay';
+import { TitleInput } from '../../../../../pages/Details/tabs/Packaging/components/TitleInput';
+import { ABTitlesDisplay } from '../../../../../pages/Details/tabs/Packaging/components/ABTitlesDisplay';
 
 interface VideoFormProps {
     title: string;

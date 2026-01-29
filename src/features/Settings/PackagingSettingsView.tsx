@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Plus, Trash2, ChevronDown } from 'lucide-react';
-import { Dropdown } from '../../components/Shared/Dropdown';
-import { PortalTooltip } from '../../components/Shared/PortalTooltip';
+import { Dropdown } from '../../components/ui/molecules/Dropdown';
+import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { type PackagingSettings, type CheckinRule } from '../../core/services/settingsService';
 
 interface PackagingSettingsViewProps {

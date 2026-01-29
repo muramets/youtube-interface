@@ -3,7 +3,7 @@ import { ThumbsUp, ThumbsDown, Share2, MoreHorizontal, User } from 'lucide-react
 import { formatViewCount } from '../../core/utils/formatUtils';
 import type { VideoDetails } from '../../core/utils/youtubeApi';
 import { useChannelStore } from '../../core/stores/channelStore';
-import { Toast } from '../../components/Shared/Toast';
+import { Toast } from '../../components/ui/molecules/Toast';
 
 interface WatchPageVideoInfoProps {
     video: VideoDetails;

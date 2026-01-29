@@ -1,5 +1,5 @@
 import React from 'react';
-import { PortalTooltip } from '../../../Shared/PortalTooltip';
+import { PortalTooltip } from '../PortalTooltip';
 
 // -----------------------------------------------------------------------------
 // ТИПЫ

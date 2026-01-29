@@ -15,7 +15,7 @@ import {
     extractVideoId
 } from '../../../../../core/utils/youtubeApi';
 import type { PackagingVersion } from '../../../../../core/types/versioning';
-import { useABTesting, type ABTestingSaveData } from '../../../../../components/Shared/ABTesting';
+import { useABTesting, type ABTestingSaveData } from '../../../../../features/ABTesting';
 
 export interface UseAddCustomVideoProps {
     isOpen: boolean;

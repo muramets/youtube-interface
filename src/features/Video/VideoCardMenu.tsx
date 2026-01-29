@@ -1,6 +1,6 @@
 import React from 'react';
 import { ListPlus, Trash2, RefreshCw, MinusCircle, ArrowLeftRight, FileText } from 'lucide-react';
-import { Dropdown } from '../../components/Shared/Dropdown';
+import { Dropdown } from '../../components/ui/molecules/Dropdown';
 
 interface VideoCardMenuProps {
     isOpen: boolean;

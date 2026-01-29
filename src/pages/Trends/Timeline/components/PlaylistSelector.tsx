@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ListVideo, Plus, Check } from 'lucide-react';
-import { FloatingDropdownPortal } from '../../../../components/Shared/FloatingDropdownPortal';
+import { FloatingDropdownPortal } from '../../../../components/ui/atoms/FloatingDropdownPortal';
 import { useAuth } from '../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../core/stores/channelStore';
 import { useTrendStore } from '../../../../core/stores/trendStore';

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { Dropdown } from '../../components/Shared/Dropdown';
+import { Dropdown } from '../../components/ui/molecules/Dropdown';
 import type { CloneSettings as CloneSettingsType } from '../../core/services/settingsService';
 
 interface ThemeProps {

@@ -1,7 +1,7 @@
 import React from 'react';
 import type { TrendVideo } from '../../../core/types/trends';
-import { PortalTooltip } from '../../../components/Shared/PortalTooltip';
-import { VideoPreviewTooltip } from '../../../components/Shared/VideoPreviewTooltip';
+import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
+import { VideoPreviewTooltip } from '../../../features/Video/components/VideoPreviewTooltip';
 
 interface TrendTooltipProps {
     video: TrendVideo;

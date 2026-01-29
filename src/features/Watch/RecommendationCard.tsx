@@ -11,13 +11,13 @@ import type { VideoDetails } from '../../core/utils/youtubeApi';
 import { formatViewCount, formatDuration } from '../../core/utils/formatUtils';
 import { VideoCardMenu } from '../Video/VideoCardMenu';
 import { AddToPlaylistModal } from '../Playlist/AddToPlaylistModal';
-import { ConfirmationModal } from '../../components/Shared/ConfirmationModal';
+import { ConfirmationModal } from '../../components/ui/organisms/ConfirmationModal';
 import { AddCustomVideoModal } from '../Video/Modals/AddCustomVideo/AddCustomVideoModal';
-import { PortalTooltip } from '../../components/Shared/PortalTooltip';
+import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { ClonedVideoTooltipContent } from '../Video/ClonedVideoTooltipContent';
 import { useSettings } from '../../core/hooks/useSettings';
 import { useUIStore } from '../../core/stores/uiStore';
-import { Toast } from '../../components/Shared/Toast';
+import { Toast } from '../../components/ui/molecules/Toast';
 
 interface RecommendationCardProps {
     video: VideoDetails;

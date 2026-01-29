@@ -10,7 +10,7 @@ import { type Channel } from '../../core/services/channelService';
 import { useAuth } from '../../core/hooks/useAuth';
 import { CreateChannelModal } from './CreateChannelModal';
 import { EditChannelModal } from './EditChannelModal';
-import { Dropdown } from '../../components/Shared/Dropdown';
+import { Dropdown } from '../../components/ui/molecules/Dropdown';
 
 /** Badge component for displaying a target niche with truncation and tooltip */
 const TargetNicheBadge: React.FC<{ nicheName: string }> = ({ nicheName }) => {

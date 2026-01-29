@@ -3,13 +3,13 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 import { type VideoDetails, type CoverVersion } from '../../../../core/utils/youtubeApi';
-import { Toast } from '../../../../components/Shared/Toast';
+import { Toast } from '../../../../components/ui/molecules/Toast';
 import { VideoForm } from './components/VideoForm';
 import { SaveMenu } from './components/SaveMenu';
-import { ConfirmationModal } from '../../../../components/Shared/ConfirmationModal';
-import { ThumbnailSection } from '../../../../components/Shared/Thumbnail/ThumbnailSection';
+import { ConfirmationModal } from '../../../../components/ui/organisms/ConfirmationModal';
+import { ThumbnailSection } from '../../../../features/Video/components/Thumbnail/ThumbnailSection';
 import { useAddCustomVideo } from './hooks/useAddCustomVideo';
-import { ABTestingModal } from '../../../../components/Shared/ABTesting';
+import { ABTestingModal } from '../../../../features/ABTesting';
 
 interface AddCustomVideoModalProps {
     isOpen: boolean;

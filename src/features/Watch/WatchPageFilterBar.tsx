@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { FilterSortDropdown } from '../../components/Shared/FilterSortDropdown';
+import { FilterSortDropdown } from '../../features/Filter/FilterSortDropdown';
 import { ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
-import { PortalTooltip } from '../../components/Shared/PortalTooltip';
+import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { FilterType, SortOption } from '../../core/constants/enums';
 
 import { type Playlist } from '../../core/services/playlistService';

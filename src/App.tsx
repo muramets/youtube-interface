@@ -4,22 +4,20 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
 import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
-import { VideoGrid } from './features/Video/VideoGrid';
 import { WatchPage } from './features/Watch/WatchPage';
-import { PlaylistsPage } from './features/Playlist/PlaylistsPage';
-import { PlaylistDetailPage } from './features/Playlist/PlaylistDetailPage';
-import { CategoryBar } from './features/Video/CategoryBar';
+import { PlaylistsPage } from './pages/Playlists/PlaylistsPage';
+import { PlaylistDetailPage } from './pages/Playlists/PlaylistDetailPage';
+import { HomePage } from './pages/Home/HomePage';
 import { TrendsPage } from './pages/Trends/TrendsPage';
-import { DetailsPage } from './pages/DetailsPage';
+import { DetailsPage } from './pages/Details';
 import { useStoreInitialization } from './core/hooks/useStoreInitialization';
-import { useVideos } from './core/hooks/useVideos';
 
 import { useAuth } from './core/hooks/useAuth';
 import { useChannelStore } from './core/stores/channelStore';
 
 import { useUIStore } from './core/stores/uiStore';
 import { useNotificationStore } from './core/stores/notificationStore';
-import { Toast } from './components/Shared/Toast';
+import { Toast } from './components/ui/molecules/Toast';
 
 import { useCheckinScheduler } from './core/hooks/useCheckinScheduler';
 import { useVideoFetchRetry } from './core/hooks/useVideoFetchRetry';
@@ -28,7 +26,7 @@ import { useFilterChannelSync } from './core/hooks/useFilterChannelSync';
 import { useTrendSubscription } from './pages/Trends/hooks/useTrendSubscription';
 import { useUserPersistence } from './core/hooks/useUserPersistence';
 import { VideoPlayerProvider } from './core/contexts/VideoPlayerContext';
-import { GlobalMiniPlayer } from './components/Shared/GlobalMiniPlayer';
+import { GlobalMiniPlayer } from './features/Player/GlobalMiniPlayer';
 import { TrendsDndProvider } from './pages/Trends/TrendsDndProvider';
 
 function AppContent() {
@@ -40,7 +38,6 @@ function AppContent() {
   useTrendSubscription();
   const { user } = useAuth();
   const { currentChannel } = useChannelStore();
-  const { isLoading } = useVideos(user?.uid || '', currentChannel?.id || '');
 
   const { subscribeToNotifications } = useNotificationStore();
 
@@ -74,14 +71,7 @@ function AppContent() {
                   <Sidebar />
                   <main className="flex-1 flex flex-col overflow-y-auto relative">
                     <Routes>
-                      <Route path="/" element={
-                        <div className="h-full flex flex-col">
-                          <CategoryBar />
-                          <div className="flex-1 min-h-0 relative">
-                            <VideoGrid isLoading={isLoading} />
-                          </div>
-                        </div>
-                      } />
+                      <Route path="/" element={<HomePage />} />
                       <Route path="/watch/:id" element={<WatchPage />} />
                       <Route path="/playlists" element={<PlaylistsPage />} />
                       <Route path="/playlists/:id" element={<PlaylistDetailPage />} />

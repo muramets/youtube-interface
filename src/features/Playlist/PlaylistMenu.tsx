@@ -1,6 +1,6 @@
 import React from 'react';
 import { Edit2, Trash2 } from 'lucide-react';
-import { Dropdown } from '../../components/Shared/Dropdown';
+import { Dropdown } from '../../components/ui/molecules/Dropdown';
 
 interface PlaylistMenuProps {
     isOpen: boolean;

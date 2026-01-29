@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Dropdown } from '../../components/Shared/Dropdown';
+import { Dropdown } from '../../components/ui/molecules/Dropdown';
 import { SettingsMenuMain } from './SettingsMenuMain';
 import { SettingsMenuAppearance } from './SettingsMenuAppearance';
 import { SettingsMenuSync } from './SettingsMenuSync';
