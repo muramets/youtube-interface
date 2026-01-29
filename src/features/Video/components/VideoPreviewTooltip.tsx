@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Copy, Check, Calendar, Tag, AlignLeft } from 'lucide-react';
 import { useVideoPlayer } from '../../../core/hooks/useVideoPlayer';
+import { debug } from '../../../core/utils/debug';
 
 interface VideoPreviewTooltipProps {
     videoId: string;
@@ -40,6 +41,31 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
         return () => clearTimeout(timer);
     }, []);
 
+    const containerRef = React.useRef<HTMLDivElement>(null);
+
+    React.useLayoutEffect(() => {
+        if (!containerRef.current) return;
+
+        debug.video('🖼️ VideoPreviewTooltip Layout Effect', {
+            height: containerRef.current.offsetHeight,
+            width: containerRef.current.offsetWidth,
+            canLoad
+        });
+
+        const observer = new ResizeObserver(entries => {
+            for (const entry of entries) {
+                debug.video('📏 VideoPreviewTooltip Resized:', {
+                    height: entry.contentRect.height,
+                    width: entry.contentRect.width,
+                    canLoad
+                });
+            }
+        });
+
+        observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, [canLoad]);
+
     // If this video is currently active in the mini-player, we hide the tooltip content.
     // This effectively "closes" it or prevents it from showing duplicate/conflicting UI.
     if (isMinimized && activeVideoId === videoId) {
@@ -52,7 +78,7 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
     };
 
     return (
-        <div className={`flex flex-col gap-3 w-full ${className}`}>
+        <div ref={containerRef} className={`flex flex-col gap-3 w-full ${className}`}>
             {/* Header with Minimize Action */}
             <div className="flex items-center justify-between px-0.5">
                 <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5">

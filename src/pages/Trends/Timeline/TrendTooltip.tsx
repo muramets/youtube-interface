@@ -39,11 +39,12 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({
                 right: anchorPos.x + anchorPos.width / 2,
                 bottom: anchorPos.y + anchorPos.height
             }}
+            side="bottom"
+            align="center"
             content={
                 <div
                     onMouseEnter={onMouseEnter}
                     onMouseLeave={onMouseLeave}
-                    className="pointer-events-auto"
                 >
                     <VideoPreviewTooltip
                         videoId={video.id}

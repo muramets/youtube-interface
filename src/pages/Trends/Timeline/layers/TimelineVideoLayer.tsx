@@ -11,6 +11,7 @@ import {
     ELEVATION_TIMEOUT_MS,
     HOVER_DEBOUNCE_MS
 } from '../utils/timelineConstants';
+import { debug } from '../../../../core/utils/debug';
 
 interface TimelineVideoLayerProps {
     videoPositions: VideoPosition[];
@@ -90,6 +91,8 @@ const TimelineVideoLayerContent = forwardRef<TimelineVideoLayerHandle, TimelineV
     });
 
     const handleMouseEnter = (e: React.MouseEvent, video: TrendVideo) => {
+        debug.timeline('🟢 VideoLayer: MouseEnter', { videoId: video.id, isAnyDragging, isActive: activeVideoIds.has(video.id) });
+
         // Don't show tooltip during drag
         if (isAnyDragging) return;
 
@@ -104,8 +107,10 @@ const TimelineVideoLayerContent = forwardRef<TimelineVideoLayerHandle, TimelineV
         if (activeVideoIds.has(video.id)) return;
 
         const rect = e.currentTarget.getBoundingClientRect();
+        debug.timeline('🟢 VideoLayer: Scheduling tooltip show', { rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height } });
 
         showTimeoutRef.current = setTimeout(() => {
+            debug.timeline('🟢 VideoLayer: Tooltip show timeout fired', { videoId: video.id });
             onHoverVideo({
                 video,
                 x: rect.left + rect.width / 2,
@@ -117,15 +122,20 @@ const TimelineVideoLayerContent = forwardRef<TimelineVideoLayerHandle, TimelineV
     };
 
     const handleMouseLeave = () => {
+        debug.timeline('🔴 VideoLayer: MouseLeave');
         setFocusedVideoId(null);
 
         elevationTimeoutRef.current = setTimeout(() => {
             setElevatedVideoId(null);
         }, ELEVATION_TIMEOUT_MS);
 
-        if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
+        if (showTimeoutRef.current) {
+            debug.timeline('🔴 VideoLayer: Clearing show timeout');
+            clearTimeout(showTimeoutRef.current);
+        }
 
         hoverTimeoutRef.current = setTimeout(() => {
+            debug.timeline('🔴 VideoLayer: Hover debounce timeout fired, hiding tooltip');
             onHoverVideo(null);
         }, HOVER_DEBOUNCE_MS);
     };

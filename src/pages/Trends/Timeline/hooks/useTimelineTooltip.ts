@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import type { TrendVideo } from '../../../../core/types/trends';
+import { debug } from '../../../../core/utils/debug';
 
 export interface TooltipData {
     video: TrendVideo;
@@ -34,17 +35,25 @@ export const useTimelineTooltip = ({ delayShowCondition = false }: { delayShowCo
     }, [delayShowCondition]);
 
     const closeTooltipSmoothly = useCallback(() => {
+        debug.timelineHook('⚪ useTimelineTooltip: closeTooltipSmoothly called');
         setIsTooltipClosing(true);
         if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
         if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
 
         closeTimeoutRef.current = setTimeout(() => {
+            debug.timelineHook('⚪ useTimelineTooltip: closeTooltipSmoothly timeout fired, setting hoveredVideo to null');
             setHoveredVideo(null);
             setIsTooltipClosing(false);
         }, 200); // Wait for fade out
     }, []);
 
     const handleHoverVideo = useCallback((data: TooltipData | null) => {
+        debug.timelineHook('🔵 useTimelineTooltip: handleHoverVideo', {
+            hasData: !!data,
+            videoId: data?.video?.id,
+            delayShowCondition: delayShowConditionRef.current
+        });
+
         if (data) {
             // Clear any pending hide/close/show timers
             if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
@@ -64,17 +73,21 @@ export const useTimelineTooltip = ({ delayShowCondition = false }: { delayShowCo
                 // So we'll force the delay.
 
                 showTimeoutRef.current = setTimeout(() => {
+                    debug.timelineHook('🔵 useTimelineTooltip: Delayed show timeout fired, setting hoveredVideo');
                     setHoveredVideo(data);
                 }, 1000);
             } else {
                 // Immediate show
+                debug.timelineHook('🔵 useTimelineTooltip: Immediate show, setting hoveredVideo');
                 setHoveredVideo(data);
             }
         } else {
             // Mouse left a video
+            debug.timelineHook('🔵 useTimelineTooltip: data is null, scheduling hide');
             if (showTimeoutRef.current) clearTimeout(showTimeoutRef.current);
 
             hideTimeoutRef.current = setTimeout(() => {
+                debug.timelineHook('🔵 useTimelineTooltip: hide timeout fired, isTooltipHovered:', isTooltipHoveredRef.current);
                 if (!isTooltipHoveredRef.current) {
                     closeTooltipSmoothly();
                 }
@@ -83,6 +96,7 @@ export const useTimelineTooltip = ({ delayShowCondition = false }: { delayShowCo
     }, [closeTooltipSmoothly]);
 
     const handleTooltipMouseEnter = useCallback(() => {
+        debug.timelineHook('🟡 useTimelineTooltip: handleTooltipMouseEnter');
         isTooltipHoveredRef.current = true;
         setIsTooltipClosing(false); // Cancel closing if we re-enter
         if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
@@ -90,6 +104,7 @@ export const useTimelineTooltip = ({ delayShowCondition = false }: { delayShowCo
     }, []);
 
     const handleTooltipMouseLeave = useCallback(() => {
+        debug.timelineHook('🟡 useTimelineTooltip: handleTooltipMouseLeave');
         isTooltipHoveredRef.current = false;
         // Trigger generic close logic via state update or just null?
         // In original code: setHoveredVideo(null) immediately.
