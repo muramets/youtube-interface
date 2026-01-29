@@ -202,7 +202,7 @@ export const TrendsSettings: React.FC<TrendsSettingsProps> = ({
                             >
                                 <ChevronLeft size={20} />
                             </button>
-                            <span className="text-sm font-bold text-text-primary">Avg. Baseline</span>
+                            <span className="text-sm font-bold text-text-primary">Average Views Baseline</span>
                             <button
                                 onClick={handleClose}
                                 className="p-2 hover:bg-[#333333] rounded-full text-text-secondary hover:text-text-primary transition-colors"
@@ -218,8 +218,8 @@ export const TrendsSettings: React.FC<TrendsSettingsProps> = ({
                         >
                             <span className="text-sm text-text-primary">Show Baseline</span>
                             {/* Simple simulated switch */}
-                            <div className={`w-9 h-5 rounded-full relative transition-colors ${timelineConfig.showAverageBaseline ? 'bg-text-primary' : 'bg-border'}`}>
-                                <div className={`absolute top-1 w-3 h-3 rounded-full bg-bg-primary transition-all ${timelineConfig.showAverageBaseline ? 'left-5' : 'left-1'}`} />
+                            <div className={`w-9 h-5 rounded-full relative transition-colors ${timelineConfig.showAverageBaseline ? 'bg-text-primary' : 'bg-border dark:bg-bg-primary'}`}>
+                                <div className={`absolute top-1 w-3 h-3 rounded-full transition-all ${timelineConfig.showAverageBaseline ? 'left-5 bg-bg-primary' : 'left-1 bg-bg-primary dark:bg-text-secondary'}`} />
                             </div>
                         </div>
 

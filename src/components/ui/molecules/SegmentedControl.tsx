@@ -40,10 +40,10 @@ export const SegmentedControl = <T extends string | number>({
     // If N=2: width 50%.
 
     return (
-        <div className={`relative flex bg-[#1a1a1a] rounded-lg p-0.5 ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}>
+        <div className={`relative flex bg-bg-secondary dark:bg-[#1a1a1a] rounded-lg p-0.5 ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}>
             {/* Sliding Indicator */}
             <div
-                className={`absolute top-0.5 bottom-0.5 bg-gradient-to-r from-[#2d2d2d] to-[#333333] rounded-md shadow-sm transition-all duration-200 ease-out ${selectedIndex === -1 ? 'opacity-0' : 'opacity-100'
+                className={`absolute top-0.5 bottom-0.5 bg-text-primary dark:bg-gradient-to-r dark:from-[#2d2d2d] dark:to-[#333333] rounded-md shadow-md dark:shadow-sm transition-all duration-200 ease-out ${selectedIndex === -1 ? 'opacity-0' : 'opacity-100'
                     }`}
                 style={{
                     width: `calc(${itemWidthPercent}% - 4px)`, // Subtract padding/gap space
@@ -58,7 +58,7 @@ export const SegmentedControl = <T extends string | number>({
                     disabled={disabled || option.disabled}
                     className={`relative z-10 flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs font-medium transition-colors duration-200 border-none bg-transparent ${disabled || option.disabled ? 'cursor-not-allowed' : 'cursor-pointer'
                         } ${value === option.value
-                            ? 'text-text-primary'
+                            ? 'text-bg-primary dark:text-text-primary'
                             : 'text-text-tertiary hover:text-text-secondary'
                         }`}
                 >
