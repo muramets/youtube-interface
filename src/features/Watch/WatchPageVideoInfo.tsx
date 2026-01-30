@@ -100,21 +100,26 @@ export const WatchPageVideoInfo: React.FC<WatchPageVideoInfoProps> = ({ video })
             </div>
 
             {video.tags && video.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-6 px-1">
+                <div className="flex flex-wrap gap-1 mb-6 px-1 items-center">
+                    <span className="text-sm font-bold text-text-primary mr-2">Tags:</span>
                     {video.tags.map((tag, index) => (
-                        <button
-                            key={index}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                navigator.clipboard.writeText(tag);
-                                setToastMessage(`Tag #${tag.replace(/\s+/g, '')} copied to clipboard`);
-                                setShowToast(true);
-                            }}
-                            className="text-blue-500 text-xs font-medium cursor-pointer hover:underline bg-transparent border-none p-0"
-                            title="Click to copy"
-                        >
-                            #{tag.replace(/\s+/g, '')}
-                        </button>
+                        <React.Fragment key={index}>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigator.clipboard.writeText(tag);
+                                    setToastMessage(`Tag "${tag}" copied to clipboard`);
+                                    setShowToast(true);
+                                }}
+                                className="text-blue-500 text-sm cursor-pointer hover:underline bg-transparent border-none p-0"
+                                title="Click to copy"
+                            >
+                                {tag}
+                            </button>
+                            {index < (video.tags?.length || 0) - 1 && (
+                                <span className="text-text-secondary">,</span>
+                            )}
+                        </React.Fragment>
                     ))}
                 </div>
             )}
