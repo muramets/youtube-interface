@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trash2, Send } from 'lucide-react';
+import { Trash2, Send, Pencil } from 'lucide-react';
 import type { VideoDetails, VideoNote } from '../../core/utils/youtubeApi';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useVideos } from '../../core/hooks/useVideos';
@@ -15,6 +15,10 @@ export const WatchPageNotes: React.FC<WatchPageNotesProps> = ({ video }) => {
     const { currentChannel } = useChannelStore();
     const { updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
     const [noteText, setNoteText] = useState('');
+
+    // Editing state
+    const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+    const [editNoteText, setEditNoteText] = useState('');
 
     const handleAddNote = async () => {
         if (!video || !noteText.trim() || !user || !currentChannel) return;
@@ -35,6 +39,30 @@ export const WatchPageNotes: React.FC<WatchPageNotesProps> = ({ video }) => {
         if (!video || !video.notes || !user || !currentChannel) return;
         const updatedNotes = video.notes.filter(n => n.id !== noteId);
         await updateVideo({ videoId: video.id, updates: { notes: updatedNotes } });
+    };
+
+    const handleStartEdit = (note: VideoNote) => {
+        setEditingNoteId(note.id);
+        setEditNoteText(note.text);
+    };
+
+    const handleCancelEdit = () => {
+        setEditingNoteId(null);
+        setEditNoteText('');
+    };
+
+    const handleSaveEdit = async () => {
+        if (!video || !video.notes || !user || !currentChannel || !editingNoteId) return;
+
+        const updatedNotes = video.notes.map(n =>
+            n.id === editingNoteId
+                ? { ...n, text: editNoteText.trim() }
+                : n
+        );
+
+        await updateVideo({ videoId: video.id, updates: { notes: updatedNotes } });
+        setEditingNoteId(null);
+        setEditNoteText('');
     };
 
     return (
@@ -58,23 +86,27 @@ export const WatchPageNotes: React.FC<WatchPageNotesProps> = ({ video }) => {
                 </div>
                 <div className="flex-1">
                     <div className="relative group">
-                        <input
-                            type="text"
+                        <textarea
                             value={noteText}
-                            onChange={(e) => setNoteText(e.target.value)}
+                            onChange={(e) => {
+                                setNoteText(e.target.value);
+                                e.target.style.height = 'auto';
+                                e.target.style.height = e.target.value ? `${e.target.scrollHeight}px` : 'auto';
+                            }}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && !e.shiftKey) {
                                     e.preventDefault();
                                     handleAddNote();
                                 }
                             }}
+                            rows={1}
                             placeholder="Add a private note..."
-                            className="w-full bg-transparent border-0 border-b border-border focus:border-b-2 focus:border-text-primary py-2 pr-10 text-text-primary outline-none placeholder:text-text-secondary transition-all"
+                            className="w-full bg-transparent border-0 border-b border-border focus:border-b-2 focus:border-text-primary py-2 pr-10 text-text-primary outline-none placeholder:text-text-secondary transition-all resize-none overflow-hidden min-h-[40px]"
                         />
                         <button
                             onClick={handleAddNote}
                             disabled={!noteText.trim()}
-                            className="absolute right-0 top-1/2 -translate-y-1/2 bg-transparent border-none text-text-primary cursor-pointer disabled:opacity-30 hover:text-blue-500 transition-colors p-2 flex items-center justify-center"
+                            className="absolute right-0 bottom-2 bg-transparent border-none text-text-primary cursor-pointer disabled:opacity-30 hover:text-blue-500 transition-colors p-2 flex items-center justify-center"
                         >
                             <Send size={18} />
                         </button>
@@ -108,17 +140,56 @@ export const WatchPageNotes: React.FC<WatchPageNotesProps> = ({ video }) => {
                                         {new Date(note.timestamp).toLocaleDateString()} • {new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </span>
                                 </div>
-                                <div className="text-sm text-text-primary whitespace-pre-wrap">
-                                    {note.text}
-                                </div>
+
+                                {editingNoteId === note.id ? (
+                                    <div className="mt-2">
+                                        <textarea
+                                            value={editNoteText}
+                                            onChange={(e) => setEditNoteText(e.target.value)}
+                                            className="w-full bg-bg-secondary border border-border rounded-lg p-3 text-text-primary outline-none focus:border-text-primary transition-colors resize-y min-h-[60px] text-sm"
+                                            autoFocus
+                                        />
+                                        <div className="flex gap-2 mt-2 justify-end">
+                                            <button
+                                                onClick={handleCancelEdit}
+                                                className="px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-bg-secondary rounded-md transition-colors border-none cursor-pointer bg-transparent"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={handleSaveEdit}
+                                                disabled={!editNoteText.trim()}
+                                                className="px-3 py-1.5 text-xs font-medium bg-text-primary text-bg-primary rounded-md hover:opacity-90 transition-opacity border-none cursor-pointer disabled:opacity-50"
+                                            >
+                                                Save
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="text-sm text-text-primary whitespace-pre-wrap">
+                                        {note.text}
+                                    </div>
+                                )}
                             </div>
-                            <button
-                                onClick={() => handleDeleteNote(note.id)}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity bg-transparent border-none text-text-secondary hover:text-red-500 cursor-pointer p-2 mt-1"
-                                title="Delete note"
-                            >
-                                <Trash2 size={16} />
-                            </button>
+
+                            {editingNoteId !== note.id && (
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                        onClick={() => handleStartEdit(note)}
+                                        className="bg-transparent border-none text-text-secondary hover:text-text-primary cursor-pointer p-2 rounded-full hover:bg-bg-secondary transition-colors"
+                                        title="Edit note"
+                                    >
+                                        <Pencil size={16} />
+                                    </button>
+                                    <button
+                                        onClick={() => handleDeleteNote(note.id)}
+                                        className="bg-transparent border-none text-text-secondary hover:text-red-500 cursor-pointer p-2 rounded-full hover:bg-bg-secondary transition-colors"
+                                        title="Delete note"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     ))
                 )}

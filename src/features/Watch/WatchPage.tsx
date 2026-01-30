@@ -132,6 +132,10 @@ export const WatchPage: React.FC = () => {
             recs = recs.filter(v => v.title.toLowerCase().includes(searchQuery.toLowerCase()));
         }
 
+        if (selectedFilter !== FilterType.PLAYLISTS) {
+            recs = recs.filter(v => !v.isPlaylistOnly);
+        }
+
         // Apply Custom Order or Sort
         const customOrder = recommendationOrders[`${video.id}_${filterKey}`];
 
@@ -169,8 +173,11 @@ export const WatchPage: React.FC = () => {
                         const indexB = orderMap.get(b.id);
 
                         if (indexA !== undefined && indexB !== undefined) return indexA - indexB;
-                        if (indexA !== undefined) return -1;
-                        if (indexB !== undefined) return 1;
+                        // Invert logic for undefined indices compared to Custom Order:
+                        // We want NEW items (undefined index) to appear at the TOP (before defined indices)
+                        // to match Home Page "prepend" behavior.
+                        if (indexA === undefined && indexB !== undefined) return -1;
+                        if (indexA !== undefined && indexB === undefined) return 1;
                         return 0;
                     });
                 }
