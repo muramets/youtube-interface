@@ -7,12 +7,17 @@ import { debug } from '../../../core/utils/debug';
 // =============================================================================
 
 /**
- * Fixed preferred dimensions for tooltip.
- * The tooltip will always try to use these dimensions, adapting only when
- * constrained by viewport edges or available space.
+ * Fixed dimensions for 'fixed' sizeMode (used for large video preview tooltips).
+ * Only applies when sizeMode='fixed' is explicitly set.
  */
-const TOOLTIP_PREFERRED_WIDTH = 800;
-const TOOLTIP_PREFERRED_HEIGHT = 700;
+const FIXED_TOOLTIP_WIDTH = 800;
+const FIXED_TOOLTIP_HEIGHT = 700;
+
+/**
+ * Maximum width for 'auto' sizeMode (default behavior).
+ * Tooltip will grow to fit content up to this limit.
+ */
+const AUTO_MAX_WIDTH = 360;
 
 /**
  * Minimum distance from viewport edges.
@@ -64,6 +69,12 @@ interface PortalTooltipProps {
     onOpenChange?: (isOpen: boolean) => void;
     /** Visual variant: 'default' for simple tooltips, 'glass' for premium video previews */
     variant?: 'default' | 'glass';
+    /**
+     * Size mode for the tooltip:
+     * - 'auto' (default): Fits content with sensible max-width (360px)
+     * - 'fixed': Large fixed size (800x700) for rich content like video previews
+     */
+    sizeMode?: 'auto' | 'fixed';
     /** Additional CSS classes for the tooltip frame */
     className?: string;
     /** Additional CSS classes for the trigger wrapper */
@@ -76,9 +87,9 @@ interface PortalTooltipProps {
     noAnimation?: boolean;
     /** Native title attribute for trigger element */
     title?: string;
-    /** Estimated height for initial positioning (deprecated, now uses fixed dimensions) */
+    /** @deprecated Use sizeMode instead */
     estimatedHeight?: number;
-    /** Override width instead of using preferred width */
+    /** @deprecated Use sizeMode='fixed' instead */
     fixedWidth?: number;
     /** Completely disable the tooltip */
     disabled?: boolean;
@@ -120,6 +131,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
     side = 'bottom',
     onOpenChange,
     variant = 'default',
+    sizeMode = 'auto',
     className = '',
     triggerClassName = '',
     enterDelay = 0,
@@ -136,11 +148,12 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
 
     // Visual state: controls opacity/transform animations
     const [isVisible, setIsVisible] = useState(false);
-    // Mount state: controls whether tooltip is in DOM
+    // Mount state: controls whether vertical flip happens
     const [shouldRender, setShouldRender] = useState(false);
     // Calculated dimensions from positioning logic
     const [calculatedWidth, setCalculatedWidth] = useState<number | undefined>(undefined);
     const [transform, setTransform] = useState('none');
+    const [transformOrigin, setTransformOrigin] = useState('top center');
     const [position, setPosition] = useState<TooltipPosition>({ top: 0, left: 0 });
 
     // =========================================================================
@@ -172,13 +185,9 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
     /**
      * Calculates and updates tooltip position based on anchor and viewport.
      *
-     * Algorithm:
-     * 1. Determine anchor center point
-     * 2. Calculate actual width (preferred, constrained by viewport)
-     * 3. Center horizontally on anchor, clamp to viewport edges
-     * 4. Choose vertical side (prefer `side` prop, flip if not enough space)
-     * 5. Calculate actual height based on available space
-     * 6. Set final position and transform
+     * Algorithm varies by sizeMode:
+     * - 'auto': Position relative to anchor with max-width constraint, auto height
+     * - 'fixed': Center on anchor with fixed 800x700 dimensions, flip if needed
      */
     const updatePosition = useCallback(() => {
         // Prevent multiple RAF calls from stacking
@@ -196,62 +205,115 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
             const viewportWidth = document.documentElement.clientWidth;
             const viewportHeight = document.documentElement.clientHeight;
 
-            // --- Horizontal Positioning ---
             const anchorCenterX = rect.left + rect.width / 2;
             const anchorBottom = rect.bottom ?? rect.top + rect.height;
             const anchorTop = rect.top;
 
-            // Use preferred width, but constrain to viewport if necessary
-            const actualWidth = Math.min(
-                TOOLTIP_PREFERRED_WIDTH,
-                viewportWidth - VIEWPORT_EDGE_PADDING * 2
-            );
-
-            // Center on anchor, then clamp to viewport edges
-            let left = anchorCenterX - actualWidth / 2;
-            left = Math.max(
-                VIEWPORT_EDGE_PADDING,
-                Math.min(left, viewportWidth - actualWidth - VIEWPORT_EDGE_PADDING)
-            );
-
-            // --- Vertical Positioning ---
-            const spaceBelow = viewportHeight - anchorBottom - VIEWPORT_EDGE_PADDING;
-            const spaceAbove = anchorTop - VIEWPORT_EDGE_PADDING;
-
-            // Determine effective side: flip if preferred side doesn't have enough space
-            let effectiveSide = preferredSide;
-            if (preferredSide === 'bottom' && spaceBelow < TOOLTIP_PREFERRED_HEIGHT && spaceAbove > spaceBelow) {
-                effectiveSide = 'top';
-            } else if (preferredSide === 'top' && spaceAbove < TOOLTIP_PREFERRED_HEIGHT && spaceBelow > spaceAbove) {
-                effectiveSide = 'bottom';
-            }
-
-            // Calculate actual height based on available space on chosen side
-            const maxAvailableHeight = effectiveSide === 'bottom' ? spaceBelow : spaceAbove;
-            const actualHeight = Math.min(TOOLTIP_PREFERRED_HEIGHT, maxAvailableHeight);
-
-            // Calculate top position and transform based on side
+            let actualWidth: number | undefined;
+            let actualHeight: number | undefined;
+            let left: number;
             let top: number;
             let finalTransform: string;
 
-            if (effectiveSide === 'bottom') {
-                top = anchorBottom + ANCHOR_GAP;
-                finalTransform = 'none';
+            if (sizeMode === 'fixed') {
+                // --- FIXED MODE: Large tooltip for video previews ---
+                // Use fixed dimensions, center on anchor, clamp to viewport
+
+                actualWidth = Math.min(
+                    FIXED_TOOLTIP_WIDTH,
+                    viewportWidth - VIEWPORT_EDGE_PADDING * 2
+                );
+
+                // Center on anchor, then clamp to viewport edges
+                left = anchorCenterX - actualWidth / 2;
+                left = Math.max(
+                    VIEWPORT_EDGE_PADDING,
+                    Math.min(left, viewportWidth - actualWidth - VIEWPORT_EDGE_PADDING)
+                );
+
+                // Vertical: flip if not enough space
+                const spaceBelow = viewportHeight - anchorBottom - VIEWPORT_EDGE_PADDING;
+                const spaceAbove = anchorTop - VIEWPORT_EDGE_PADDING;
+
+                let effectiveSide = preferredSide;
+                if (preferredSide === 'bottom' && spaceBelow < FIXED_TOOLTIP_HEIGHT && spaceAbove > spaceBelow) {
+                    effectiveSide = 'top';
+                } else if (preferredSide === 'top' && spaceAbove < FIXED_TOOLTIP_HEIGHT && spaceBelow > spaceAbove) {
+                    effectiveSide = 'bottom';
+                }
+
+                const maxAvailableHeight = effectiveSide === 'bottom' ? spaceBelow : spaceAbove;
+                actualHeight = Math.min(FIXED_TOOLTIP_HEIGHT, maxAvailableHeight);
+
+                if (effectiveSide === 'bottom') {
+                    top = anchorBottom + ANCHOR_GAP;
+                    finalTransform = 'none';
+                } else {
+                    top = anchorTop - ANCHOR_GAP;
+                    finalTransform = 'translateY(-100%)';
+                }
+
             } else {
-                top = anchorTop - ANCHOR_GAP;
-                finalTransform = 'translateY(-100%)';
+                // --- AUTO MODE: Content-sized tooltip ---
+                // We use CSS transforms to handle alignment without knowing exact width.
+
+                actualWidth = undefined;
+                actualHeight = undefined;
+
+                const anchorLeft = rect.left;
+                const anchorRight = rect.right ?? rect.left + rect.width;
+                const anchorCenter = rect.left + rect.width / 2;
+
+                // Determine horizontal alignment based on prop and available space
+                let effectiveAlign = propsRef.current.align;
+                const spaceLeft = anchorRight; // Space available for expanding left (align=right)
+                const spaceRight = viewportWidth - anchorLeft; // Space available for expanding right (align=left)
+
+                // Heuristic: If preferred side is tight (<200px) and other side has more space, flip.
+                if (effectiveAlign === 'left' && spaceRight < 200 && spaceLeft > spaceRight) {
+                    effectiveAlign = 'right';
+                } else if (effectiveAlign === 'right' && spaceLeft < 200 && spaceRight > spaceLeft) {
+                    effectiveAlign = 'left';
+                }
+
+                // Calculate Left position and Horizontal Transform
+                let activeTransformX = '0'; // Default for align='left'
+
+                if (effectiveAlign === 'left') {
+                    left = anchorLeft;
+                    activeTransformX = '0';
+                } else if (effectiveAlign === 'right') {
+                    left = anchorRight;
+                    activeTransformX = '-100%';
+                } else {
+                    // Center
+                    left = anchorCenter;
+                    activeTransformX = '-50%';
+                }
+
+                // Vertical positioning
+                let activeTransformY = '0';
+                if (preferredSide === 'bottom') {
+                    top = anchorBottom + ANCHOR_GAP;
+                    activeTransformY = '0';
+                    // Check collision with bottom edge? (Optional enhancement)
+                } else {
+                    top = anchorTop - ANCHOR_GAP;
+                    activeTransformY = '-100%';
+                }
+
+                finalTransform = `translate(${activeTransformX}, ${activeTransformY})`;
+
+                // Determine Transform Origin for animation
+                const originY = preferredSide === 'bottom' ? 'top' : 'bottom';
+                setTransformOrigin(`${originY} ${effectiveAlign}`);
             }
 
             // --- Debug Logging ---
             debug.tooltipGroup.start('🔍 PortalTooltip Positioning');
-            debug.tooltipGroup.log('📐 Viewport:', { viewportWidth, viewportHeight });
-            debug.tooltipGroup.log('📍 Anchor:', { centerX: anchorCenterX, top: anchorTop, bottom: anchorBottom });
-            debug.tooltipGroup.log('📏 Dimensions:', {
-                preferred: { width: TOOLTIP_PREFERRED_WIDTH, height: TOOLTIP_PREFERRED_HEIGHT },
-                actual: { width: actualWidth, height: actualHeight }
-            });
-            debug.tooltipGroup.log('📊 Available Space:', { above: spaceAbove, below: spaceBelow });
-            debug.tooltipGroup.log('🔄 Side:', preferredSide, '→', effectiveSide);
+            debug.tooltipGroup.log('📐 Mode:', sizeMode);
+            debug.tooltipGroup.log('📍 Anchor:', { left: rect.left, right: rect.right, width: rect.width });
+            debug.tooltipGroup.log('🎯 Align:', propsRef.current.align, '→', sizeMode === 'auto' ? 'Dynamic' : 'Fixed');
             debug.tooltipGroup.log('✅ Final Position:', { top, left, transform: finalTransform });
             debug.tooltipGroup.end();
 
@@ -262,7 +324,8 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
 
             positionRafRef.current = null;
         });
-    }, []);
+    }, [sizeMode]);
+
 
     // =========================================================================
     // SHOW / HIDE LOGIC
@@ -432,7 +495,8 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
             forceOpen,
             position,
             calculatedWidth,
-            transform
+            transform,
+            transformOrigin
         });
     }
 
@@ -458,8 +522,10 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                         top: Math.round(position.top),
                         left: Math.round(position.left),
                         transform,
-                        width: fixedWidth ?? calculatedWidth,
-                        height: position.maxHeight,
+                        // Fixed mode: explicit dimensions, Auto mode: let content determine size
+                        width: sizeMode === 'fixed' ? (fixedWidth ?? calculatedWidth) : undefined,
+                        height: sizeMode === 'fixed' ? position.maxHeight : undefined,
+                        maxWidth: sizeMode === 'auto' ? AUTO_MAX_WIDTH : undefined,
                         // Prevent tooltip from intercepting events during initial positioning
                         pointerEvents: isVisible ? 'auto' : 'none',
                     }}
@@ -472,9 +538,9 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                     <div
                         ref={tooltipRef}
                         className={`
-                            w-full h-full
                             text-white text-[11px] leading-relaxed
                             transition-all ease-out
+                            ${sizeMode === 'fixed' ? 'w-full h-full' : ''}
                             ${variant === 'glass'
                                 ? 'bg-[#1a1a1a]/90 backdrop-blur-xl rounded-xl shadow-2xl border border-white/10'
                                 : 'bg-[#1F1F1F] rounded-lg shadow-xl'
@@ -483,17 +549,23 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                             ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}
                             ${className}
                         `}
-                        style={{ transformOrigin: 'top center' }}
+                        style={{ transformOrigin }}
                     >
-                        {/* Scroll Container: handles overflow with consistent padding */}
-                        <div
-                            className="w-full h-full overflow-y-auto overflow-x-hidden p-4"
-                            style={{ scrollbarGutter: 'stable' }}
-                            // Isolate scroll events from parent containers (e.g., timeline)
-                            onWheel={(e) => e.stopPropagation()}
-                        >
-                            {content}
-                        </div>
+                        {sizeMode === 'fixed' ? (
+                            /* Fixed mode: Scroll Container for overflow handling */
+                            <div
+                                className="w-full h-full overflow-y-auto overflow-x-hidden p-4"
+                                style={{ scrollbarGutter: 'stable' }}
+                                onWheel={(e) => e.stopPropagation()}
+                            >
+                                {content}
+                            </div>
+                        ) : (
+                            /* Auto mode: Simple padding, content determines size */
+                            <div className="px-3 py-2 whitespace-pre-wrap break-words">
+                                {content}
+                            </div>
+                        )}
                     </div>
                 </div>,
                 document.body

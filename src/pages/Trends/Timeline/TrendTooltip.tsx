@@ -41,6 +41,7 @@ export const TrendTooltip: React.FC<TrendTooltipProps> = ({
             }}
             side="bottom"
             align="center"
+            sizeMode="fixed"
             content={
                 <div
                     onMouseEnter={onMouseEnter}
