@@ -42,8 +42,9 @@ export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) =
         duration, setDuration,
         coverImage, setCoverImage,
         currentVersion,
-        currentOriginalName,
+        currentOriginalName, setCurrentOriginalName,
         coverHistory, setCoverHistory,
+
 
         currentPackagingVersion,
         // packagingHistory removed as it is not used in UI anymore
@@ -220,7 +221,12 @@ export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) =
                                         <div className="bg-modal-surface rounded-xl shadow-lg p-3">
                                             <ThumbnailSection
                                                 value={coverImage || ''}
-                                                onChange={setCoverImage}
+                                                onChange={(url, filename) => {
+                                                    setCoverImage(url);
+                                                    if (filename) {
+                                                        setCurrentOriginalName(filename);
+                                                    }
+                                                }}
                                                 onFileUpload={handleImageUpload}
                                                 onPushToHistory={(url) => {
                                                     const historyVersion: CoverVersion = {

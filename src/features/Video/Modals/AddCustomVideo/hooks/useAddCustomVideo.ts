@@ -632,7 +632,8 @@ export function useAddCustomVideo({
                 abTestTitles: abTestTitles,
                 abTestThumbnails: abTestVariants,
                 abTestVariants: abTestVariants, // Backward compatibility
-                localizations: localizations
+                localizations: localizations,
+                originalName: currentOriginalName
             },
             revision: 1
         };

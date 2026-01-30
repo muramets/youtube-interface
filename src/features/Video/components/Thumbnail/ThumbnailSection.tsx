@@ -82,9 +82,9 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
             try {
                 if (value && !value.startsWith('blob:') && onPushToHistory) onPushToHistory(value);
                 const objectUrl = URL.createObjectURL(file);
-                onChange(objectUrl);
+                onChange(objectUrl, file.name);
                 const downloadUrl = await onFileUpload(file);
-                onChange(downloadUrl);
+                onChange(downloadUrl, file.name);
                 URL.revokeObjectURL(objectUrl);
             } catch (error) {
                 console.error('Failed to upload thumbnail:', error);
