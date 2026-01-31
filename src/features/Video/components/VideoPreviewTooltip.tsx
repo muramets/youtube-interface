@@ -141,7 +141,14 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
                 <div className="flex items-start gap-2">
                     <div className="text-sm font-semibold text-text-primary line-clamp-2 leading-snug flex-1 pr-6">
                         {isComparing && comparisonVideo ? (
-                            <DiffHighlight text={title} comparisonText={comparisonVideo.title} />
+                            <DiffHighlight
+                                text={title}
+                                comparisonText={
+                                    comparisonVideo.abTestTitles && comparisonVideo.abTestTitles.length > 0
+                                        ? comparisonVideo.abTestTitles.join(' ')
+                                        : comparisonVideo.title
+                                }
+                            />
                         ) : (
                             title
                         )}

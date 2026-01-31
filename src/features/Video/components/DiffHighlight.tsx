@@ -45,7 +45,7 @@ export const DiffHighlight: React.FC<DiffHighlightProps> = ({
     }, [text, comparisonText]);
 
     return (
-        <span className={className}>
+        <span className={className} title={`Matches found in: "${comparisonText}"`}>
             {parts.map((part, i) => (
                 part.match ? (
                     <span
