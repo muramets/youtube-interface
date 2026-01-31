@@ -256,7 +256,7 @@ export const TrafficRow = ({
                                     <PortalTooltip
                                         content={
                                             <div
-                                                className="pointer-events-auto w-full relative p-6"
+                                                className="pointer-events-auto w-full relative"
                                                 onMouseEnter={() => {
                                                     // Maintain open state if hovering content
                                                     // Note: We don't need delay here because it's already open
@@ -290,8 +290,7 @@ export const TrafficRow = ({
                                         variant="glass"
                                         side="top"
                                         align="center"
-                                        estimatedHeight={480}
-                                        fixedWidth={640}
+                                        sizeMode="fixed"
                                         className="!p-0"
                                         forceOpen={activeTooltipId === `preview-${item.videoId}`}
                                     >
