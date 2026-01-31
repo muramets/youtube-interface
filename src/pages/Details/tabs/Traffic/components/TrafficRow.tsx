@@ -43,6 +43,7 @@ interface TrafficRowProps {
     activeTooltipId?: string | null;
     onTooltipEnter?: (id: string) => void;
     onTooltipLeave?: () => void;
+    currentVideo?: VideoDetails;
 }
 
 const getCtrColor = (ctr: number | string, rules: CTRRule[]): string | undefined => {
@@ -87,7 +88,8 @@ export const TrafficRow = ({
     onToggleViewerType,
     activeTooltipId,
     onTooltipEnter,
-    onTooltipLeave
+    onTooltipLeave,
+    currentVideo
 }: TrafficRowProps) => {
     // Connect to Niche Store
     const { niches, assignments } = useTrafficNicheStore();
@@ -282,6 +284,7 @@ export const TrafficRow = ({
                                                     description={videoDetails?.description}
                                                     tags={videoDetails?.tags}
                                                     className="w-full"
+                                                    comparisonVideo={currentVideo}
                                                 />
                                             </div>
                                         }

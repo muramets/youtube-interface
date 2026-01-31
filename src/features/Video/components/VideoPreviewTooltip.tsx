@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, Check, Calendar, Tag, AlignLeft } from 'lucide-react';
+import { Copy, Check, Calendar, Tag, AlignLeft, GitCompare } from 'lucide-react';
 import { useVideoPlayer } from '../../../core/hooks/useVideoPlayer';
-import { debug } from '../../../core/utils/debug';
+import { DiffHighlight } from './DiffHighlight';
+import type { VideoDetails } from '../../../core/utils/youtubeApi';
 
 interface VideoPreviewTooltipProps {
     videoId: string;
@@ -13,6 +14,8 @@ interface VideoPreviewTooltipProps {
     description?: string;
     tags?: string[];
     className?: string;
+    // Comparison Data
+    comparisonVideo?: VideoDetails;
 }
 
 export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
@@ -24,13 +27,16 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
     percentileGroup,
     description,
     tags,
-    className = ''
+    className = '',
+    comparisonVideo
 }) => {
     const [isTitleCopied, setIsTitleCopied] = useState(false);
     const [isDescriptionCopied, setIsDescriptionCopied] = useState(false);
     const [isTagsCopied, setIsTagsCopied] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
     const [areTagsExpanded, setAreTagsExpanded] = useState(false);
+    const [isComparing, setIsComparing] = useState(false);
+
     const { minimize, activeVideoId, isMinimized } = useVideoPlayer();
 
     // Delayed loading state to prevent iframe from killing the tooltip on mount
@@ -46,28 +52,14 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
     React.useLayoutEffect(() => {
         if (!containerRef.current) return;
 
-        debug.video('🖼️ VideoPreviewTooltip Layout Effect', {
-            height: containerRef.current.offsetHeight,
-            width: containerRef.current.offsetWidth,
-            canLoad
-        });
-
-        const observer = new ResizeObserver(entries => {
-            for (const entry of entries) {
-                debug.video('📏 VideoPreviewTooltip Resized:', {
-                    height: entry.contentRect.height,
-                    width: entry.contentRect.width,
-                    canLoad
-                });
-            }
+        const observer = new ResizeObserver(() => {
+            // Resize handling if needed
         });
 
         observer.observe(containerRef.current);
         return () => observer.disconnect();
     }, [canLoad]);
 
-    // If this video is currently active in the mini-player, we hide the tooltip content.
-    // This effectively "closes" it or prevents it from showing duplicate/conflicting UI.
     if (isMinimized && activeVideoId === videoId) {
         return null;
     }
@@ -78,33 +70,54 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
     };
 
     return (
-        <div ref={containerRef} className={`flex flex-col gap-3 w-full ${className}`}>
-            {/* Header with Minimize Action */}
+        <div ref={containerRef} className={`flex flex-col gap-3 w-full ${className} ${isComparing ? 'group/diff' : ''}`}>
+            {/* Header with Actions */}
             <div className="flex items-center justify-between px-0.5">
                 <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5">
-                    Video Preview
+                    {isComparing ? 'Comparison Mode' : 'Video Preview'}
                 </span>
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        minimize(videoId, title);
-                    }}
-                    className="flex items-center gap-1.5 text-[10px] bg-white/5 hover:bg-white/10 text-text-secondary hover:text-text-primary px-2 py-1 rounded-md transition-colors border border-white/5"
-                    title="Minimize player"
-                >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M8 3v3a2 2 0 0 1-2 2H3" />
-                        <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
-                        <path d="M3 16h3a2 2 0 0 1 2 2v3" />
-                        <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
-                    </svg>
-                    <span>Minimize</span>
-                </button>
+                <div className="flex items-center gap-2">
+                    {comparisonVideo && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setIsComparing(!isComparing);
+                            }}
+                            className={`
+                                flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md transition-all border
+                                ${isComparing
+                                    ? 'bg-red-500/20 text-red-400 border-red-500/50 hover:bg-red-500/30 font-medium'
+                                    : 'bg-white/5 text-text-secondary hover:text-text-primary border-white/5 hover:bg-white/10'
+                                }
+                            `}
+                            title="Compare metadata with my video"
+                        >
+                            <GitCompare size={12} />
+                            <span>Compare</span>
+                        </button>
+                    )}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            minimize(videoId, title);
+                        }}
+                        className="flex items-center gap-1.5 text-[10px] bg-white/5 hover:bg-white/10 text-text-secondary hover:text-text-primary px-2 py-1 rounded-md transition-colors border border-white/5"
+                        title="Minimize player"
+                    >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+                            <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+                            <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+                            <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+                        </svg>
+                        <span>Minimize</span>
+                    </button>
+                </div>
             </div>
 
             {/* Thumbnail / Mini Player */}
-            <div className="aspect-video w-full rounded-lg bg-black/40 overflow-hidden border border-border shrink-0 relative z-10 group/player">
+            <div className={`aspect-video w-full rounded-lg bg-black/40 overflow-hidden border border-border shrink-0 relative z-10 group/player transition-all duration-300 ${isComparing ? 'grayscale opacity-40' : ''}`}>
                 {canLoad ? (
                     <iframe
                         width="100%"
@@ -127,7 +140,11 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
             <div className="flex flex-col gap-1 relative">
                 <div className="flex items-start gap-2">
                     <div className="text-sm font-semibold text-text-primary line-clamp-2 leading-snug flex-1 pr-6">
-                        {title}
+                        {isComparing && comparisonVideo ? (
+                            <DiffHighlight text={title} comparisonText={comparisonVideo.title} />
+                        ) : (
+                            title
+                        )}
                     </div>
                     <button
                         onClick={(e) => {
@@ -178,7 +195,7 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
                 </div>
             )}
 
-            {/* Description (Only if provided) */}
+            {/* Description */}
             {description && (
                 <div className="flex gap-2 border-t border-border pt-3 relative">
                     <AlignLeft size={14} className="text-text-tertiary mt-0.5 shrink-0" />
@@ -187,7 +204,11 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
                         onClick={() => setIsExpanded(!isExpanded)}
                         title={isExpanded ? "Collapse" : "Expand"}
                     >
-                        {description}
+                        {isComparing && comparisonVideo ? (
+                            <DiffHighlight text={description} comparisonText={comparisonVideo.description || ''} />
+                        ) : (
+                            description
+                        )}
                     </div>
                     <button
                         onClick={(e) => {
@@ -204,37 +225,48 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
                 </div>
             )}
 
-            {/* Tags (Only if provided) */}
+            {/* Tags */}
             {tags && tags.length > 0 && (
                 <div className="flex gap-2 relative border-t border-border pt-3">
                     <Tag size={14} className="text-text-tertiary mt-0.5 shrink-0" />
                     <div className="flex flex-wrap gap-1 pr-6">
-                        {(areTagsExpanded ? tags : tags.slice(0, 5)).map(tag => (
-                            <span key={tag} className="text-[9px] bg-black/10 dark:bg-white/10 px-2 py-0.5 rounded-full text-text-secondary">
-                                #{tag}
-                            </span>
-                        ))}
-                        {!areTagsExpanded && tags.length > 5 && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setAreTagsExpanded(true);
-                                }}
-                                className="text-[9px] text-text-tertiary px-1.5 py-0.5 hover:text-text-primary transition-colors cursor-pointer"
-                            >
-                                +{tags.length - 5} more
-                            </button>
-                        )}
-                        {areTagsExpanded && tags.length > 5 && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setAreTagsExpanded(false);
-                                }}
-                                className="text-[9px] text-text-tertiary px-1.5 py-0.5 hover:text-text-primary transition-colors cursor-pointer"
-                            >
-                                Show less
-                            </button>
+                        {isComparing && comparisonVideo ? (
+                            <div className="text-[10px] bg-black/10 dark:bg-white/10 px-2 py-1 rounded-lg w-full">
+                                <DiffHighlight
+                                    text={tags.join(', ')}
+                                    comparisonText={comparisonVideo.tags?.join(', ') || ''}
+                                />
+                            </div>
+                        ) : (
+                            <>
+                                {(areTagsExpanded ? tags : tags.slice(0, 5)).map(tag => (
+                                    <span key={tag} className="text-[9px] bg-black/10 dark:bg-white/10 px-2 py-0.5 rounded-full text-text-secondary">
+                                        #{tag}
+                                    </span>
+                                ))}
+                                {!areTagsExpanded && tags.length > 5 && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setAreTagsExpanded(true);
+                                        }}
+                                        className="text-[9px] text-text-tertiary px-1.5 py-0.5 hover:text-text-primary transition-colors cursor-pointer"
+                                    >
+                                        +{tags.length - 5} more
+                                    </button>
+                                )}
+                                {areTagsExpanded && tags.length > 5 && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setAreTagsExpanded(false);
+                                        }}
+                                        className="text-[9px] text-text-tertiary px-1.5 py-0.5 hover:text-text-primary transition-colors cursor-pointer"
+                                    >
+                                        Show less
+                                    </button>
+                                )}
+                            </>
                         )}
                     </div>
                     <button

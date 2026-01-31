@@ -82,6 +82,9 @@ interface TrafficTableProps {
     actualTotalRow?: TrafficSource;
     trashMetrics?: import('../hooks/useTrafficDataLoader').TrashMetrics;
     deltaContext?: import('../hooks/useTrafficDataLoader').DeltaContext;
+
+    // Current Video for metadata comparison
+    currentVideo?: VideoDetails;
 }
 
 export const TrafficTable = memo<TrafficTableProps>(({
@@ -110,7 +113,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
     trafficEdges,
     onToggleTrafficType,
     viewerEdges,
-    onToggleViewerType
+    onToggleViewerType,
+    currentVideo
 }) => {
     // Virtualization refs
     const parentRef = useRef<HTMLDivElement>(null);
@@ -467,6 +471,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             activeTooltipId={hoveredTooltipId}
                                             onTooltipEnter={handleTooltipEnter}
                                             onTooltipLeave={handleTooltipLeave}
+                                            currentVideo={currentVideo}
                                         />
                                     </div>
                                 );

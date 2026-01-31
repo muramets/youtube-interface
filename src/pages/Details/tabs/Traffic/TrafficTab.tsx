@@ -731,6 +731,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                             <div className="flex-1 min-h-0 relative w-full flex flex-col">
                                 <TrafficTable
                                     data={filteredSources}
+                                    currentVideo={_video}
                                     selectedIds={selectedIds}
                                     isLoading={isLoading || isLoadingSnapshot}
                                     ctrRules={ctrRules}
