@@ -2,7 +2,10 @@
     {
         "origin": [
             "http://localhost:5173",
-            "http://localhost:3000"
+            "http://localhost:3000",
+            "https://hacktube.web.app",
+            "https://mytube-46104.web.app",
+            "https://mytube-46104.firebaseapp.com"
         ],
         "method": [
             "GET",
