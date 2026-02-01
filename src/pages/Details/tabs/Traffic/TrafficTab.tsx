@@ -226,6 +226,29 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         return false;
     }, [selectedSnapshot, viewingVersion, trafficData?.snapshots, packagingHistory, viewingPeriodIndex]);
 
+    // Compute effective snapshot ID for per-snapshot edge storage
+    // Uses selectedSnapshot if available, otherwise finds latest snapshot for current version/period
+    const effectiveSnapshotId = useMemo(() => {
+        // 1. Specific snapshot selected
+        if (selectedSnapshot) {
+            return selectedSnapshot;
+        }
+
+        // 2. Find latest snapshot for current version/period
+        const snapshots = trafficData?.snapshots || [];
+        const versionSnapshots = snapshots
+            .filter((s: import('../../../../core/types/traffic').TrafficSnapshot) => s.version === viewingVersion)
+            .sort((a: import('../../../../core/types/traffic').TrafficSnapshot, b: import('../../../../core/types/traffic').TrafficSnapshot) => b.timestamp - a.timestamp); // Newest first
+
+        if (versionSnapshots.length > 0) {
+            return versionSnapshots[0].id;
+        }
+
+        // 3. No snapshots available - use a placeholder
+        // This will result in an empty edges state until a snapshot exists
+        return null;
+    }, [selectedSnapshot, viewingVersion, trafficData?.snapshots]);
+
     // Traffic Type Store
     const {
         edges: trafficEdges,
@@ -242,13 +265,13 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         deleteViewerType: deleteViewerTypeRecord
     } = useViewerTypeStore();
 
-    // Initialize store when video changes
+    // Initialize store when video or snapshot changes
     useEffect(() => {
-        if (_video.id) {
-            initTrafficTypes(_video.id);
-            initViewerTypes(_video.id);
+        if (user?.uid && _video.id && effectiveSnapshotId) {
+            initTrafficTypes(user.uid, _video.id, effectiveSnapshotId);
+            initViewerTypes(user.uid, _video.id, effectiveSnapshotId);
         }
-    }, [_video.id, initTrafficTypes, initViewerTypes]);
+    }, [user?.uid, _video.id, effectiveSnapshotId, initTrafficTypes, initViewerTypes]);
 
     // Filters are now managed by parent (DetailsLayout)
     const filteredSources = useMemo(() => {

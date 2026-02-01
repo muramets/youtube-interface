@@ -7,14 +7,16 @@ interface ViewerTypeState {
     edges: Record<string, { type: ViewerType; source?: 'manual' | 'smart_assistant' }>;
     isLoading: boolean;
 
-    // The current target video we are viewing
+    // Current context
+    currentUserId: string | null;
     currentTargetVideoId: string | null;
+    currentSnapshotId: string | null;
 
     // Subscription
     unsubscribe: () => void;
 
     // Actions
-    initialize: (targetVideoId: string) => void;
+    initialize: (userId: string, targetVideoId: string, snapshotId: string) => void;
     setViewerType: (sourceVideoId: string, type: ViewerType, source?: 'manual' | 'smart_assistant') => Promise<void>;
     setViewerTypes: (updates: Array<{ sourceVideoId: string; type: ViewerType; source: 'manual' | 'smart_assistant' }>) => Promise<void>;
     deleteViewerType: (sourceVideoId: string) => Promise<void>;
@@ -24,35 +26,53 @@ interface ViewerTypeState {
 export const useViewerTypeStore = create<ViewerTypeState>((set, get) => ({
     edges: {},
     isLoading: false,
+    currentUserId: null,
     currentTargetVideoId: null,
+    currentSnapshotId: null,
     unsubscribe: () => { },
 
-    initialize: (targetVideoId: string) => {
-        const { currentTargetVideoId, cleanup } = get();
+    initialize: (userId: string, targetVideoId: string, snapshotId: string) => {
+        const { currentUserId, currentTargetVideoId, currentSnapshotId, cleanup } = get();
 
-        // Prevent re-subscribing if already on the same video
-        if (currentTargetVideoId === targetVideoId) return;
+        // Prevent re-subscribing if already on the same context
+        if (
+            currentUserId === userId &&
+            currentTargetVideoId === targetVideoId &&
+            currentSnapshotId === snapshotId
+        ) {
+            return;
+        }
 
         cleanup(); // Unsubscribe from previous
 
-        set({ isLoading: true, currentTargetVideoId: targetVideoId });
-
-        const unsub = ViewerTypeService.subscribeToEdges(targetVideoId, (newEdges) => {
-            // Convert array to map for easy lookup
-            const edgesMap: Record<string, { type: ViewerType; source?: 'manual' | 'smart_assistant' }> = {};
-            newEdges.forEach(edge => {
-                edgesMap[edge.sourceVideoId] = { type: edge.type, source: edge.source };
-            });
-
-            set({ edges: edgesMap, isLoading: false });
+        set({
+            isLoading: true,
+            currentUserId: userId,
+            currentTargetVideoId: targetVideoId,
+            currentSnapshotId: snapshotId
         });
+
+        const unsub = ViewerTypeService.subscribeToEdges(
+            userId,
+            targetVideoId,
+            snapshotId,
+            (newEdges) => {
+                // Convert array to map for easy lookup
+                const edgesMap: Record<string, { type: ViewerType; source?: 'manual' | 'smart_assistant' }> = {};
+                newEdges.forEach(edge => {
+                    edgesMap[edge.sourceVideoId] = { type: edge.type, source: edge.source };
+                });
+
+                set({ edges: edgesMap, isLoading: false });
+            }
+        );
 
         set({ unsubscribe: unsub });
     },
 
     setViewerType: async (sourceVideoId: string, type: ViewerType, source: 'manual' | 'smart_assistant' = 'manual') => {
-        const { currentTargetVideoId, edges } = get();
-        if (!currentTargetVideoId) return;
+        const { currentUserId, currentTargetVideoId, currentSnapshotId, edges } = get();
+        if (!currentUserId || !currentTargetVideoId || !currentSnapshotId) return;
 
         // Optimistic update
         set({
@@ -60,15 +80,22 @@ export const useViewerTypeStore = create<ViewerTypeState>((set, get) => ({
         });
 
         try {
-            await ViewerTypeService.setEdgeType(currentTargetVideoId, sourceVideoId, type, source);
+            await ViewerTypeService.setEdgeType(
+                currentUserId,
+                currentTargetVideoId,
+                currentSnapshotId,
+                sourceVideoId,
+                type,
+                source
+            );
         } catch (error) {
             console.error('Failed to set viewer type:', error);
         }
     },
 
     setViewerTypes: async (updates: Array<{ sourceVideoId: string; type: ViewerType; source: 'manual' | 'smart_assistant' }>) => {
-        const { currentTargetVideoId, edges } = get();
-        if (!currentTargetVideoId || !updates.length) return;
+        const { currentUserId, currentTargetVideoId, currentSnapshotId, edges } = get();
+        if (!currentUserId || !currentTargetVideoId || !currentSnapshotId || !updates.length) return;
 
         // Optimistic update
         const newEdges = { ...edges };
@@ -78,15 +105,20 @@ export const useViewerTypeStore = create<ViewerTypeState>((set, get) => ({
         set({ edges: newEdges });
 
         try {
-            await ViewerTypeService.batchSetEdgeTypes(currentTargetVideoId, updates);
+            await ViewerTypeService.batchSetEdgeTypes(
+                currentUserId,
+                currentTargetVideoId,
+                currentSnapshotId,
+                updates
+            );
         } catch (error) {
             console.error('Failed to batch set viewer types:', error);
         }
     },
 
     deleteViewerType: async (sourceVideoId: string) => {
-        const { currentTargetVideoId, edges } = get();
-        if (!currentTargetVideoId) return;
+        const { currentUserId, currentTargetVideoId, currentSnapshotId, edges } = get();
+        if (!currentUserId || !currentTargetVideoId || !currentSnapshotId) return;
 
         // Optimistic update: remove the key
         const newEdges = { ...edges };
@@ -94,7 +126,12 @@ export const useViewerTypeStore = create<ViewerTypeState>((set, get) => ({
         set({ edges: newEdges });
 
         try {
-            await ViewerTypeService.deleteEdgeType(currentTargetVideoId, sourceVideoId);
+            await ViewerTypeService.deleteEdgeType(
+                currentUserId,
+                currentTargetVideoId,
+                currentSnapshotId,
+                sourceVideoId
+            );
         } catch (error) {
             console.error('Failed to delete viewer type:', error);
         }
@@ -105,7 +142,9 @@ export const useViewerTypeStore = create<ViewerTypeState>((set, get) => ({
         set({
             edges: {},
             isLoading: false,
+            currentUserId: null,
             currentTargetVideoId: null,
+            currentSnapshotId: null,
             unsubscribe: () => { }
         });
     }

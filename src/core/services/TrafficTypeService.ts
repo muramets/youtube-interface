@@ -5,37 +5,51 @@ import {
     onSnapshot,
     setDoc,
     query,
-    where,
-    serverTimestamp
+    serverTimestamp,
+    deleteDoc
 } from 'firebase/firestore';
 import type { TrafficType, TrafficTypeEdge } from '../types/videoTrafficType';
 
-const COLLECTION_NAME = 'traffic_type_edges';
-
+/**
+ * Per-Snapshot Traffic Type Service
+ * 
+ * Stores traffic type edges per snapshot, allowing different characterizations
+ * of traffic sources as data evolves over time.
+ * 
+ * Firestore Path:
+ * users/{userId}/videos/{targetVideoId}/snapshot_edges/{snapshotId}/traffic_types/{sourceVideoId}
+ */
 export const TrafficTypeService = {
     /**
-     * Subscribe to all traffic type edges for a specific target video (MY video).
-     * This allows us to show the "Autoplay vs Click" status for all sources in the table.
+     * Build the collection path for traffic type edges in a specific snapshot.
+     */
+    getCollectionPath: (userId: string, targetVideoId: string, snapshotId: string): string => {
+        return `users/${userId}/videos/${targetVideoId}/snapshot_edges/${snapshotId}/traffic_types`;
+    },
+
+    /**
+     * Subscribe to all traffic type edges for a specific snapshot.
      */
     subscribeToEdges: (
+        userId: string,
         targetVideoId: string,
+        snapshotId: string,
         onUpdate: (edges: TrafficTypeEdge[]) => void
     ) => {
-        if (!targetVideoId) return () => { };
+        if (!userId || !targetVideoId || !snapshotId) return () => { };
 
-        const q = query(
-            collection(db, COLLECTION_NAME),
-            where('targetVideoId', '==', targetVideoId)
-        );
+        const collectionPath = TrafficTypeService.getCollectionPath(userId, targetVideoId, snapshotId);
+        const q = query(collection(db, collectionPath));
 
         return onSnapshot(q, (snapshot) => {
             const edges: TrafficTypeEdge[] = [];
-            snapshot.forEach((doc) => {
-                const data = doc.data();
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
                 edges.push({
-                    id: doc.id,
-                    targetVideoId: data.targetVideoId,
+                    id: docSnap.id,
+                    targetVideoId,
                     sourceVideoId: data.sourceVideoId,
+                    snapshotId,
                     type: data.type,
                     source: data.source,
                     updatedAt: data.updatedAt?.toMillis() || Date.now()
@@ -46,22 +60,22 @@ export const TrafficTypeService = {
     },
 
     /**
-     * Set or update the traffic type for a specific source on a specific target video.
-     * Uses a composite key to ensure uniqueness per pair.
+     * Set or update the traffic type for a specific source in a specific snapshot.
      */
     setEdgeType: async (
+        userId: string,
         targetVideoId: string,
+        snapshotId: string,
         sourceVideoId: string,
         type: TrafficType,
         source: 'manual' | 'smart_assistant' = 'manual'
     ) => {
-        if (!targetVideoId || !sourceVideoId) return;
+        if (!userId || !targetVideoId || !snapshotId || !sourceVideoId) return;
 
-        const id = `${targetVideoId}_${sourceVideoId}`;
-        const docRef = doc(db, COLLECTION_NAME, id);
+        const collectionPath = TrafficTypeService.getCollectionPath(userId, targetVideoId, snapshotId);
+        const docRef = doc(db, collectionPath, sourceVideoId);
 
         await setDoc(docRef, {
-            targetVideoId,
             sourceVideoId,
             type,
             source,
@@ -73,16 +87,16 @@ export const TrafficTypeService = {
      * Delete the traffic type edge (unset it).
      */
     deleteEdgeType: async (
+        userId: string,
         targetVideoId: string,
+        snapshotId: string,
         sourceVideoId: string
     ) => {
-        if (!targetVideoId || !sourceVideoId) return;
+        if (!userId || !targetVideoId || !snapshotId || !sourceVideoId) return;
 
-        const id = `${targetVideoId}_${sourceVideoId}`;
-        const docRef = doc(db, COLLECTION_NAME, id);
+        const collectionPath = TrafficTypeService.getCollectionPath(userId, targetVideoId, snapshotId);
+        const docRef = doc(db, collectionPath, sourceVideoId);
 
-        // We can either delete the doc entirely or set type to null.
-        // Deleting doc is cleaner for sparse data (defaults to unknown).
-        await import('firebase/firestore').then(mod => mod.deleteDoc(docRef));
+        await deleteDoc(docRef);
     }
 };

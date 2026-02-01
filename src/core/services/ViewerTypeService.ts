@@ -5,38 +5,52 @@ import {
     onSnapshot,
     setDoc,
     query,
-    where,
     serverTimestamp,
     deleteDoc,
     writeBatch
 } from 'firebase/firestore';
 import type { ViewerType, ViewerTypeEdge } from '../types/viewerType';
 
-const COLLECTION_NAME = 'viewer_type_edges';
-
+/**
+ * Per-Snapshot Viewer Type Service
+ * 
+ * Stores viewer type edges per snapshot, allowing different characterizations
+ * of viewer behavior as data evolves over time.
+ * 
+ * Firestore Path:
+ * users/{userId}/videos/{targetVideoId}/snapshot_edges/{snapshotId}/viewer_types/{sourceVideoId}
+ */
 export const ViewerTypeService = {
     /**
-     * Subscribe to all viewer type edges for a specific target video (MY video).
+     * Build the collection path for viewer type edges in a specific snapshot.
+     */
+    getCollectionPath: (userId: string, targetVideoId: string, snapshotId: string): string => {
+        return `users/${userId}/videos/${targetVideoId}/snapshot_edges/${snapshotId}/viewer_types`;
+    },
+
+    /**
+     * Subscribe to all viewer type edges for a specific snapshot.
      */
     subscribeToEdges: (
+        userId: string,
         targetVideoId: string,
+        snapshotId: string,
         onUpdate: (edges: ViewerTypeEdge[]) => void
     ) => {
-        if (!targetVideoId) return () => { };
+        if (!userId || !targetVideoId || !snapshotId) return () => { };
 
-        const q = query(
-            collection(db, COLLECTION_NAME),
-            where('targetVideoId', '==', targetVideoId)
-        );
+        const collectionPath = ViewerTypeService.getCollectionPath(userId, targetVideoId, snapshotId);
+        const q = query(collection(db, collectionPath));
 
         return onSnapshot(q, (snapshot) => {
             const edges: ViewerTypeEdge[] = [];
-            snapshot.forEach((doc) => {
-                const data = doc.data();
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
                 edges.push({
-                    id: doc.id,
-                    targetVideoId: data.targetVideoId,
+                    id: docSnap.id,
+                    targetVideoId,
                     sourceVideoId: data.sourceVideoId,
+                    snapshotId,
                     type: data.type,
                     source: data.source,
                     updatedAt: data.updatedAt?.toMillis() || Date.now()
@@ -47,21 +61,22 @@ export const ViewerTypeService = {
     },
 
     /**
-     * Set or update the viewer type for a specific source on a specific target video.
+     * Set or update the viewer type for a specific source in a specific snapshot.
      */
     setEdgeType: async (
+        userId: string,
         targetVideoId: string,
+        snapshotId: string,
         sourceVideoId: string,
         type: ViewerType,
         source: 'manual' | 'smart_assistant' = 'manual'
     ) => {
-        if (!targetVideoId || !sourceVideoId) return;
+        if (!userId || !targetVideoId || !snapshotId || !sourceVideoId) return;
 
-        const id = `${targetVideoId}_${sourceVideoId}`;
-        const docRef = doc(db, COLLECTION_NAME, id);
+        const collectionPath = ViewerTypeService.getCollectionPath(userId, targetVideoId, snapshotId);
+        const docRef = doc(db, collectionPath, sourceVideoId);
 
         await setDoc(docRef, {
-            targetVideoId,
             sourceVideoId,
             type,
             source,
@@ -73,18 +88,19 @@ export const ViewerTypeService = {
      * Set or update viewer types in bulk using a Firestore batch.
      */
     batchSetEdgeTypes: async (
+        userId: string,
         targetVideoId: string,
+        snapshotId: string,
         updates: Array<{ sourceVideoId: string; type: ViewerType; source: 'manual' | 'smart_assistant' }>
     ) => {
-        if (!targetVideoId || !updates.length) return;
+        if (!userId || !targetVideoId || !snapshotId || !updates.length) return;
 
+        const collectionPath = ViewerTypeService.getCollectionPath(userId, targetVideoId, snapshotId);
         const batch = writeBatch(db);
 
         updates.forEach(update => {
-            const id = `${targetVideoId}_${update.sourceVideoId}`;
-            const docRef = doc(db, COLLECTION_NAME, id);
+            const docRef = doc(db, collectionPath, update.sourceVideoId);
             batch.set(docRef, {
-                targetVideoId,
                 sourceVideoId: update.sourceVideoId,
                 type: update.type,
                 source: update.source,
@@ -99,13 +115,15 @@ export const ViewerTypeService = {
      * Delete the viewer type edge (unset it).
      */
     deleteEdgeType: async (
+        userId: string,
         targetVideoId: string,
+        snapshotId: string,
         sourceVideoId: string
     ) => {
-        if (!targetVideoId || !sourceVideoId) return;
+        if (!userId || !targetVideoId || !snapshotId || !sourceVideoId) return;
 
-        const id = `${targetVideoId}_${sourceVideoId}`;
-        const docRef = doc(db, COLLECTION_NAME, id);
+        const collectionPath = ViewerTypeService.getCollectionPath(userId, targetVideoId, snapshotId);
+        const docRef = doc(db, collectionPath, sourceVideoId);
 
         await deleteDoc(docRef);
     }

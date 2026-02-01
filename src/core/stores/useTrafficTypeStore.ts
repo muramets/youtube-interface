@@ -7,14 +7,16 @@ interface TrafficTypeState {
     edges: Record<string, { type: TrafficType; source?: 'manual' | 'smart_assistant' }>;
     isLoading: boolean;
 
-    // The current target video we are viewing
+    // Current context
+    currentUserId: string | null;
     currentTargetVideoId: string | null;
+    currentSnapshotId: string | null;
 
     // Subscription
     unsubscribe: () => void;
 
     // Actions
-    initialize: (targetVideoId: string) => void;
+    initialize: (userId: string, targetVideoId: string, snapshotId: string) => void;
     setTrafficType: (sourceVideoId: string, type: TrafficType, source?: 'manual' | 'smart_assistant') => Promise<void>;
     deleteTrafficType: (sourceVideoId: string) => Promise<void>;
     cleanup: () => void;
@@ -23,35 +25,53 @@ interface TrafficTypeState {
 export const useTrafficTypeStore = create<TrafficTypeState>((set, get) => ({
     edges: {},
     isLoading: false,
+    currentUserId: null,
     currentTargetVideoId: null,
+    currentSnapshotId: null,
     unsubscribe: () => { },
 
-    initialize: (targetVideoId: string) => {
-        const { currentTargetVideoId, cleanup } = get();
+    initialize: (userId: string, targetVideoId: string, snapshotId: string) => {
+        const { currentUserId, currentTargetVideoId, currentSnapshotId, cleanup } = get();
 
-        // Prevent re-subscribing if already on the same video
-        if (currentTargetVideoId === targetVideoId) return;
+        // Prevent re-subscribing if already on the same context
+        if (
+            currentUserId === userId &&
+            currentTargetVideoId === targetVideoId &&
+            currentSnapshotId === snapshotId
+        ) {
+            return;
+        }
 
         cleanup(); // Unsubscribe from previous
 
-        set({ isLoading: true, currentTargetVideoId: targetVideoId });
-
-        const unsub = TrafficTypeService.subscribeToEdges(targetVideoId, (newEdges) => {
-            // Convert array to map for easy lookup
-            const edgesMap: Record<string, { type: TrafficType; source?: 'manual' | 'smart_assistant' }> = {};
-            newEdges.forEach(edge => {
-                edgesMap[edge.sourceVideoId] = { type: edge.type, source: edge.source };
-            });
-
-            set({ edges: edgesMap, isLoading: false });
+        set({
+            isLoading: true,
+            currentUserId: userId,
+            currentTargetVideoId: targetVideoId,
+            currentSnapshotId: snapshotId
         });
+
+        const unsub = TrafficTypeService.subscribeToEdges(
+            userId,
+            targetVideoId,
+            snapshotId,
+            (newEdges) => {
+                // Convert array to map for easy lookup
+                const edgesMap: Record<string, { type: TrafficType; source?: 'manual' | 'smart_assistant' }> = {};
+                newEdges.forEach(edge => {
+                    edgesMap[edge.sourceVideoId] = { type: edge.type, source: edge.source };
+                });
+
+                set({ edges: edgesMap, isLoading: false });
+            }
+        );
 
         set({ unsubscribe: unsub });
     },
 
     setTrafficType: async (sourceVideoId: string, type: TrafficType, source: 'manual' | 'smart_assistant' = 'manual') => {
-        const { currentTargetVideoId, edges } = get();
-        if (!currentTargetVideoId) return;
+        const { currentUserId, currentTargetVideoId, currentSnapshotId, edges } = get();
+        if (!currentUserId || !currentTargetVideoId || !currentSnapshotId) return;
 
         // Optimistic update
         set({
@@ -59,7 +79,14 @@ export const useTrafficTypeStore = create<TrafficTypeState>((set, get) => ({
         });
 
         try {
-            await TrafficTypeService.setEdgeType(currentTargetVideoId, sourceVideoId, type, source);
+            await TrafficTypeService.setEdgeType(
+                currentUserId,
+                currentTargetVideoId,
+                currentSnapshotId,
+                sourceVideoId,
+                type,
+                source
+            );
         } catch (error) {
             console.error('Failed to set traffic type:', error);
             // Revert on error (optional, or just Refetch)
@@ -67,8 +94,8 @@ export const useTrafficTypeStore = create<TrafficTypeState>((set, get) => ({
     },
 
     deleteTrafficType: async (sourceVideoId: string) => {
-        const { currentTargetVideoId, edges } = get();
-        if (!currentTargetVideoId) return;
+        const { currentUserId, currentTargetVideoId, currentSnapshotId, edges } = get();
+        if (!currentUserId || !currentTargetVideoId || !currentSnapshotId) return;
 
         // Optimistic update: remove the key
         const newEdges = { ...edges };
@@ -76,7 +103,12 @@ export const useTrafficTypeStore = create<TrafficTypeState>((set, get) => ({
         set({ edges: newEdges });
 
         try {
-            await TrafficTypeService.deleteEdgeType(currentTargetVideoId, sourceVideoId);
+            await TrafficTypeService.deleteEdgeType(
+                currentUserId,
+                currentTargetVideoId,
+                currentSnapshotId,
+                sourceVideoId
+            );
         } catch (error) {
             console.error('Failed to delete traffic type:', error);
         }
@@ -87,7 +119,9 @@ export const useTrafficTypeStore = create<TrafficTypeState>((set, get) => ({
         set({
             edges: {},
             isLoading: false,
+            currentUserId: null,
             currentTargetVideoId: null,
+            currentSnapshotId: null,
             unsubscribe: () => { }
         });
     }
