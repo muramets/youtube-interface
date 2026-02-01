@@ -69,11 +69,11 @@ export const TrafficRowBadges: React.FC<TrafficRowBadgesProps> = ({
                             disableTooltip={true} // Disable internal tooltip because we wrap it in PortalTooltip
                             maxWidth="120px"
                         >
-                            <span className="flex items-center gap-1">
+                            <span className="flex items-center gap-1 min-w-0">
                                 {isTrendsSuggestion && (
                                     <TrendingUp size={10} className="flex-shrink-0" />
                                 )}
-                                {suggested.name}
+                                <span className="truncate">{suggested.name}</span>
                             </span>
                         </Badge>
                     </div>
