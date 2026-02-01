@@ -52,21 +52,31 @@ export const TrendsFilterChips: React.FC = () => {
     if (chips.length === 0) return null;
 
     return (
-        <div className="flex items-center gap-2 flex-wrap">
-            {chips.map((chip) => (
-                <div
-                    key={chip.key}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-bg-secondary text-sm text-text-primary hover:bg-hover-bg transition-colors cursor-default"
-                >
-                    <span>{chip.label}</span>
-                    <button
-                        onClick={chip.onRemove}
-                        className="p-0.5 rounded-full hover:text-red-500 transition-colors"
+        <div className="relative flex-1 min-w-0">
+            {/* Scrollable chips container with hidden scrollbar */}
+            <div
+                className="flex items-center gap-2 overflow-x-auto scrollbar-hide"
+                style={{
+                    maskImage: 'linear-gradient(to right, black calc(100% - 24px), transparent 100%)',
+                    WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 24px), transparent 100%)',
+                    paddingRight: '24px' // Space for fade
+                }}
+            >
+                {chips.map((chip) => (
+                    <div
+                        key={chip.key}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-bg-secondary text-sm text-text-primary hover:bg-hover-bg transition-colors cursor-default flex-shrink-0"
                     >
-                        <X size={14} />
-                    </button>
-                </div>
-            ))}
+                        <span className="whitespace-nowrap">{chip.label}</span>
+                        <button
+                            onClick={chip.onRemove}
+                            className="p-0.5 rounded-full hover:text-red-500 transition-colors"
+                        >
+                            <X size={14} />
+                        </button>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 };

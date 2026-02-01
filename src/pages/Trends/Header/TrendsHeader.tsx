@@ -34,9 +34,10 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
     const { handleSync, isSyncing, canSync, syncTooltip } = useTrendsSync();
 
     return (
-        <div className="h-14 border-b border-border flex items-center px-4 justify-between flex-shrink-0 bg-bg-primary sticky top-0 z-sticky">
-            <div className="flex items-center gap-4">
-                <h1 className="text-xl font-semibold text-text-primary">
+        <div className="h-14 border-b border-border flex items-center px-4 justify-between flex-shrink-0 bg-bg-primary sticky top-0 z-sticky gap-4">
+            {/* Left side: Title + Chips with flex-1 to allow shrinking */}
+            <div className="flex items-center gap-4 flex-1 min-w-0 overflow-hidden">
+                <h1 className="text-xl font-semibold text-text-primary flex-shrink-0 whitespace-nowrap">
                     <span className="text-text-secondary">Trends Analysis:</span> {title}
                 </h1>
                 <TrendsFilterChips />

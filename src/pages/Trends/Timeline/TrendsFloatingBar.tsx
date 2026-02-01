@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Check, Home, Trash2, RotateCcw } from 'lucide-react';
+import { Check, Home, Trash2, RotateCcw, Download } from 'lucide-react';
 import type { TrendVideo } from '../../../core/types/trends';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
@@ -13,6 +13,7 @@ import { PlaylistSelector } from './components/PlaylistSelector';
 import { trendVideoToVideoDetails } from '../../../core/utils/videoAdapters';
 import { ConfirmationModal } from '../../../components/ui/organisms/ConfirmationModal';
 import { FloatingBar } from '@/components/ui/organisms/FloatingBar';
+import { exportTrendsVideoCsv, downloadCsv, generateTrendsExportFilename } from '../utils/exportTrendsVideoCsv';
 
 interface TrendsFloatingBarProps {
     videos: TrendVideo[];
@@ -31,7 +32,7 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
 }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { channels, hideVideos, restoreVideos, trendsFilters } = useTrendStore();
+    const { channels, niches, videoNicheAssignments, hideVideos, restoreVideos, trendsFilters } = useTrendStore();
     const { videos: homeVideos } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { showToast } = useUIStore();
 
@@ -192,6 +193,27 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
         onClose(); // Close bar after action
     };
 
+    // Handle CSV Export
+    const handleExport = () => {
+        // Determine channel name for metadata (use first video's channel or current channel)
+        const channelName = videos[0]?.channelTitle || currentChannel?.name || 'trends';
+
+        const csvContent = exportTrendsVideoCsv({
+            videos,
+            niches,
+            videoNicheAssignments,
+            channelName
+        });
+
+        const filename = generateTrendsExportFilename(videos.length, channelName);
+        downloadCsv(csvContent, filename);
+
+        showToast(
+            isMultiSelect ? `${videos.length} videos exported` : 'Video exported',
+            'success'
+        );
+    };
+
     const title = isMultiSelect ? `${videos.length} selected` : videos[0]?.title;
 
     return (
@@ -239,6 +261,16 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                             openAbove={openAbove}
                             onToggle={() => setActiveMenu(activeMenu === 'playlist' ? null : 'playlist')}
                         />
+
+                        {/* Export Button */}
+                        <button
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={handleExport}
+                            className="p-1.5 rounded-full transition-all text-text-secondary hover:text-white hover:bg-white/10"
+                            title="Export to CSV"
+                        >
+                            <Download size={16} />
+                        </button>
 
                         <div className="w-px h-4 bg-white/10 mx-1" />
 
