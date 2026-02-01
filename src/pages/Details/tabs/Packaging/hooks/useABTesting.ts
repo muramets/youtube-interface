@@ -104,8 +104,9 @@ export const useABTesting = (options?: UseABTestingOptions) => {
             options.onTitleChange(data.titles[0]);
         }
 
-        // If editing a single thumbnail (not creating A/B test), sync with main thumbnail
-        if (data.thumbnails.length === 1 && options?.onThumbnailChange) {
+        // If we have any thumbnails (single edit OR A/B test), the first one becomes the main cover 
+        // to ensure the grid shows the primary test variant.
+        if (data.thumbnails.length > 0 && options?.onThumbnailChange) {
             options.onThumbnailChange(data.thumbnails[0]);
         }
 
