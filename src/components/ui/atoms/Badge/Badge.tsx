@@ -41,6 +41,12 @@ interface BadgeProps {
      * @example "80px", "100px"
      */
     maxWidth?: string;
+
+    /**
+     * Disable internal tooltip even if truncated.
+     * Useful when the badge is wrapped in a custom tooltip.
+     */
+    disableTooltip?: boolean;
 }
 
 // -----------------------------------------------------------------------------
@@ -127,6 +133,7 @@ export const Badge: React.FC<BadgeProps> = ({
     className = '',
     children,
     maxWidth,
+    disableTooltip = false,
 }) => {
     const textRef = React.useRef<HTMLSpanElement>(null);
     const [isTruncated, setIsTruncated] = React.useState(false);
@@ -185,8 +192,8 @@ export const Badge: React.FC<BadgeProps> = ({
         </span>
     );
 
-    // Show tooltip with full text only when actually truncated
-    if (isTruncated) {
+    // Show tooltip with full text only when actually truncated AND not disabled
+    if (isTruncated && !disableTooltip) {
         return (
             <PortalTooltip
                 content={children}

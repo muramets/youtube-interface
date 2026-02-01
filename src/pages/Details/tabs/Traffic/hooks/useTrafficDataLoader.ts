@@ -339,7 +339,28 @@ const calculateSnapshotDelta = async (
     }
 
     const prevSnapshot = sortedSnapshots[currentIndex - 1];
-    const { sources: prevSources, totalRow: prevTotal } = await loadSnapshotSources(prevSnapshot);
+
+    // FAST PATH: Try to get prevTotal from cached summary (no CSV download needed)
+    // This enables instant delta calculations for snapshots created after this fix
+    let prevTotalFromCache: TrafficSource | undefined;
+    if (prevSnapshot.summary?.totalImpressions !== undefined) {
+        prevTotalFromCache = {
+            sourceType: '',
+            sourceTitle: 'Total',
+            videoId: null,
+            impressions: prevSnapshot.summary.totalImpressions,
+            ctr: prevSnapshot.summary.totalCtr ?? 0,
+            views: prevSnapshot.summary.totalViews,
+            avgViewDuration: '',
+            watchTimeHours: prevSnapshot.summary.totalWatchTime
+        };
+    }
+
+    // Load previous sources (always needed for per-video delta)
+    const { sources: prevSources, totalRow: prevTotalFromCsv } = await loadSnapshotSources(prevSnapshot);
+
+    // Use cached totalRow if available, otherwise fall back to CSV-parsed totalRow
+    const prevTotal = prevTotalFromCache ?? prevTotalFromCsv;
 
     if (prevSources.length === 0) {
         return { sources: [], totalRow: undefined };

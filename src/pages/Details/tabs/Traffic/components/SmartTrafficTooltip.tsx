@@ -12,6 +12,7 @@ interface SmartTrafficTooltipProps {
     forceOpen?: boolean;
     onMouseEnter?: () => void;
     onMouseLeave?: () => void;
+    side?: 'top' | 'bottom' | 'left' | 'right';
 }
 
 export const SmartTrafficTooltip: React.FC<SmartTrafficTooltipProps> = ({
@@ -22,7 +23,8 @@ export const SmartTrafficTooltip: React.FC<SmartTrafficTooltipProps> = ({
     isIncomplete,
     forceOpen,
     onMouseEnter,
-    onMouseLeave
+    onMouseLeave,
+    side = 'bottom'
 }) => {
     const enterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
@@ -213,7 +215,7 @@ export const SmartTrafficTooltip: React.FC<SmartTrafficTooltipProps> = ({
     return (
         <PortalTooltip
             content={content}
-            side="top"
+            side={side}
             align="center"
             forceOpen={forceOpen}
             enterDelay={0}

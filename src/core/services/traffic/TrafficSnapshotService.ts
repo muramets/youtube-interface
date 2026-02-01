@@ -78,7 +78,10 @@ export const TrafficSnapshotService = {
                 totalViews,
                 totalWatchTime,
                 sourcesCount: sources.length,
-                topSource: topSource?.sourceTitle
+                topSource: topSource?.sourceTitle,
+                // Cache totalRow metrics for delta calculations
+                totalImpressions: totalRow?.impressions,
+                totalCtr: totalRow?.ctr
             }
             // LEGACY REMOVED: No longer saving sources/totalRow to Firestore
         };
@@ -238,7 +241,10 @@ export const TrafficSnapshotService = {
                 totalViews,
                 totalWatchTime,
                 sourcesCount: sources.length,
-                topSource: topSource?.sourceTitle
+                topSource: topSource?.sourceTitle,
+                // Cache totalRow metrics for delta calculations
+                totalImpressions: totalRow?.impressions,
+                totalCtr: totalRow?.ctr
             }
         };
 

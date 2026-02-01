@@ -28,6 +28,7 @@ import { assistantLogger } from '../../../../core/utils/logger';
 import { useTrafficTypeStore } from '../../../../core/stores/useTrafficTypeStore';
 import { useSmartTrafficAutoApply } from './hooks/useSmartTrafficAutoApply';
 import { useViewerTypeStore } from '../../../../core/stores/useViewerTypeStore';
+import { useTrendStore } from '../../../../core/stores/trendStore';
 import { useSmartViewerTypeAutoApply } from './hooks/useSmartViewerTypeAutoApply';
 
 import type { TrafficSource } from '../../../../core/types/traffic';
@@ -193,6 +194,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         niches: allNiches,
         assignments: allAssignments,
         assignVideoToTrafficNiche,
+        addTrafficNiche,
         initializeSubscriptions,
         cleanup
     } = useTrafficNicheStore();
@@ -366,47 +368,86 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
     // Connect to the Store to get assignment history - ALREADY DESTRUCTURED ABOVE
 
+    // Get Trends store data for cross-tab niche suggestions
+    const { niches: trendsNiches, videoNicheAssignments: trendsVideoAssignments } = useTrendStore();
+
     const { getSuggestion } = useSmartNicheSuggestions(
         displayedSources,
         allAssignments,
         allNiches,
-        allVideos
+        allVideos,
+        trendsNiches,
+        trendsVideoAssignments
     );
 
-    // Wrapper to respect the toggle state
+    // Wrapper to respect the toggle state - returns FULL suggestion for reason check
     const getActiveSuggestion = useCallback((videoId: string) => {
         if (!isAssistantEnabled) return null;
-        const suggestion = getSuggestion(videoId);
-        return suggestion ? suggestion.targetNiche : null;
+        return getSuggestion(videoId);
     }, [isAssistantEnabled, getSuggestion]);
 
+
+
     // Handle Confirmation (Single or Bulk)
+    // Now handles both channel-based AND Trends-based suggestions
     const handleConfirmSuggestion = useCallback(async (videoId: string, targetNiche: import('../../../../core/types/suggestedTrafficNiches').SuggestedTrafficNiche) => {
         if (!user?.uid || !currentChannel?.id) return;
 
-        // Check if we have multiple selected items including this one
+        const suggestion = getSuggestion(videoId);
+
+        // Check if this is a Trends-based suggestion
+        if (suggestion?.reason === 'trends' && suggestion.trendsNiche) {
+            // MATCH BY NAME: Find existing Traffic niche with same name (case-insensitive)
+            const existingNiche = allNiches.find(
+                n => n.name.toLowerCase() === suggestion.trendsNiche!.name.toLowerCase()
+            );
+
+            let finalNicheId: string;
+
+            if (existingNiche) {
+                // Use existing niche
+                finalNicheId = existingNiche.id;
+            } else {
+                // Create new niche with Trends name and color
+                // Generate a stable ID that we control - this ID is used directly in Firestore
+                const nicheId = `trends-import-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                await addTrafficNiche(
+                    {
+                        id: nicheId,
+                        name: suggestion.trendsNiche.name,
+                        color: suggestion.trendsNiche.color,
+                        channelId: currentChannel.id
+                    },
+                    user.uid,
+                    currentChannel.id
+                );
+                // Use the ID we generated - no need to search, we control the ID
+                finalNicheId = nicheId;
+            }
+
+            // Assign video to the matched/created niche
+            await assignVideoToTrafficNiche(videoId, finalNicheId, user.uid, currentChannel.id);
+            return;
+        }
+
+        // Standard channel-based suggestion flow
         const isBulkAction = selectedIds.has(videoId) && selectedIds.size > 1;
 
         if (isBulkAction) {
-            // Bulk Confirm: Apply to ALL selected videos that have THIS SAME suggestion
-            // Logic: Iterate selected IDs -> check if they have a suggestion -> if match targetNiche -> assign
             const promises: Promise<void>[] = [];
 
             selectedIds.forEach(selectedId => {
-                const suggestion = getActiveSuggestion(selectedId);
-                // We confirm for all selected videos that are suggested the SAME niche
-                if (suggestion && suggestion.id === targetNiche.id) {
+                const sug = getActiveSuggestion(selectedId);
+                if (sug && sug.targetNiche.id === targetNiche.id) {
                     promises.push(assignVideoToTrafficNiche(selectedId, targetNiche.id, user.uid, currentChannel!.id));
                 }
             });
 
             await Promise.all(promises);
-            // Optionally clear selection? keeping it seems better flow
         } else {
-            // Single Confirm
             await assignVideoToTrafficNiche(videoId, targetNiche.id, user.uid, currentChannel.id);
         }
-    }, [user?.uid, currentChannel, selectedIds, getActiveSuggestion, assignVideoToTrafficNiche]);
+    }, [user?.uid, currentChannel, selectedIds, getActiveSuggestion, assignVideoToTrafficNiche, getSuggestion, allNiches, addTrafficNiche]); // Changed createNiche to addTrafficNiche
 
     // -------------------------------------------------------------------------
 

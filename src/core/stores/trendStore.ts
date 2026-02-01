@@ -698,11 +698,36 @@ export const MANUAL_NICHE_PALETTE = [
     '#f43f5e', '#e11d48',
 ];
 
-// Auto Palette
+// Auto Palette - Extended to match Traffic niche colors for cross-tab compatibility
+// Combines vibrant colors suitable for auto-generation (excludes muted grays)
 const AUTO_NICHE_PALETTE = [
-    '#F87171', '#FB923C', '#FBBF24', '#A3E635', '#34D399', '#22D3EE', '#60A5FA', '#818CF8', '#A78BFA', '#F472B6',
-    '#B91C1C', '#C2410C', '#B45309', '#4D7C0F', '#047857', '#0E7490', '#1D4ED8', '#4338CA', '#5B21B6', '#BE185D',
-    '#991B1B', '#9A3412', '#92400E', '#3F6212', '#065F46', '#155E75', '#1E40AF', '#3730A3', '#4C1D95', '#9D174D',
+    // Red shades
+    '#ef4444', '#dc2626', '#F87171', '#B91C1C', '#991B1B',
+    // Orange shades  
+    '#f97316', '#ea580c', '#FB923C', '#C2410C', '#9A3412',
+    // Amber/Yellow shades
+    '#f59e0b', '#d97706', '#FBBF24', '#B45309', '#92400E',
+    '#eab308', '#ca8a04',
+    // Lime/Green shades
+    '#84cc16', '#65a30d', '#A3E635', '#4D7C0F', '#3F6212',
+    '#22c55e', '#16a34a',
+    // Emerald/Teal shades
+    '#10b981', '#059669', '#34D399', '#047857', '#065F46',
+    '#14b8a6', '#0d9488',
+    // Cyan/Sky shades
+    '#06b6d4', '#0891b2', '#22D3EE', '#0E7490', '#155E75',
+    '#0ea5e9', '#0284c7',
+    // Blue shades
+    '#3b82f6', '#2563eb', '#60A5FA', '#1D4ED8', '#1E40AF',
+    // Indigo/Violet shades
+    '#6366f1', '#4f46e5', '#818CF8', '#4338CA', '#3730A3',
+    '#8b5cf6', '#7c3aed', '#A78BFA', '#5B21B6', '#4C1D95',
+    // Purple/Fuchsia shades
+    '#a855f7', '#9333ea',
+    '#d946ef', '#c026d3',
+    // Pink/Rose shades
+    '#ec4899', '#db2777', '#F472B6', '#BE185D', '#9D174D',
+    '#f43f5e', '#e11d48',
 ];
 
 // Helper to generate premium colors

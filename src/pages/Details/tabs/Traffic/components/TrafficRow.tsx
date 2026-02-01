@@ -30,6 +30,7 @@ interface TrafficRowProps {
     videoDetails?: VideoDetails;
     // Smart Assistant Props
     suggestedNiche?: SuggestedTrafficNiche;
+    isTrendsSuggestion?: boolean;
     onConfirmSuggestion?: (videoId: string, niche: SuggestedTrafficNiche) => void;
     // Traffic Type Props
     trafficType?: TrafficType;
@@ -79,6 +80,7 @@ export const TrafficRow = ({
     showPropertyIcon,
     videoDetails,
     suggestedNiche,
+    isTrendsSuggestion = false,
     onConfirmSuggestion,
     trafficType,
     trafficSource,
@@ -313,6 +315,7 @@ export const TrafficRow = ({
                     <TrafficRowBadges
                         niches={assignedNiches}
                         suggested={suggestedNiche}
+                        isTrendsSuggestion={isTrendsSuggestion}
                         onConfirmSuggestion={(niche) => item.videoId && onConfirmSuggestion?.(item.videoId, niche)}
                     />
 

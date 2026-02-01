@@ -12,6 +12,7 @@ import { useTrafficNicheStore } from '../../../../../core/stores/useTrafficNiche
 import { SmartTrafficTooltip } from './SmartTrafficTooltip';
 
 import type { SuggestedTrafficNiche } from '../../../../../core/types/suggestedTrafficNiches';
+import type { SmartSuggestion } from '../hooks/useSmartNicheSuggestions';
 
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 
@@ -67,7 +68,7 @@ interface TrafficTableProps {
     onSort: (key: SortKey) => void;
 
     // Smart Assistant
-    getSuggestion?: (videoId: string) => SuggestedTrafficNiche | null;
+    getSuggestion?: (videoId: string) => SmartSuggestion | null;
     onConfirmSuggestion?: (videoId: string, niche: SuggestedTrafficNiche) => void;
 
     // Traffic Types
@@ -460,7 +461,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             gridClassName={gridClassName}
                                             showPropertyIcon={showPropertyColumn}
                                             videoDetails={videoDetails}
-                                            suggestedNiche={suggestion ? suggestion : undefined}
+                                            suggestedNiche={suggestion?.targetNiche}
+                                            isTrendsSuggestion={suggestion?.reason === 'trends'}
                                             onConfirmSuggestion={onConfirmSuggestion}
                                             trafficType={trafficEdge?.type}
                                             trafficSource={trafficEdge?.source}

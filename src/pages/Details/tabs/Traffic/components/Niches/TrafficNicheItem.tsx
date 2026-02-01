@@ -51,7 +51,8 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
     const menuButtonRef = useRef<HTMLButtonElement>(null);
-    const colorPickerRef = useRef<HTMLDivElement>(null);
+    const colorPickerRef = useRef<HTMLDivElement>(null); // Trigger element
+    const colorPickerPortalRef = useRef<HTMLDivElement>(null); // Portal container
     const inputRef = useRef<HTMLInputElement>(null);
 
     // --- Actions ---
@@ -77,6 +78,7 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
 
     const handleColorClick = (e: React.MouseEvent) => {
         e.stopPropagation();
+        e.preventDefault();
 
         if (!isColorPickerOpen && colorPickerRef.current) {
             const rect = colorPickerRef.current.getBoundingClientRect();
@@ -87,7 +89,11 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
         }
 
         setIsColorPickerOpen(!isColorPickerOpen);
-        onCloseMenu?.();
+
+        // Only close menu if it's currently showing to avoid redundant renders
+        if (isActive) {
+            onCloseMenu?.();
+        }
     };
 
     // --- Property Icon Logic ---
@@ -109,7 +115,11 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
     // Close color picker on outside click
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
-            if (isColorPickerOpen && colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+            // Check if click is inside trigger OR inside portal picker
+            const isInsideTrigger = colorPickerRef.current?.contains(e.target as Node);
+            const isInsidePortal = colorPickerPortalRef.current?.contains(e.target as Node);
+
+            if (isColorPickerOpen && !isInsideTrigger && !isInsidePortal) {
                 setIsColorPickerOpen(false);
             }
         };
@@ -188,6 +198,7 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
                                 />
                                 {isColorPickerOpen && createPortal(
                                     <div
+                                        ref={colorPickerPortalRef}
                                         className="fixed z-[9999] bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-fade-in w-[240px]"
                                         style={{
                                             left: pickerPosition?.left || 0,

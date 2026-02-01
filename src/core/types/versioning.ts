@@ -92,5 +92,8 @@ export interface TrafficSnapshotBase {
         totalWatchTime: number;
         sourcesCount: number;
         topSource?: string;
+        // Cached totalRow metrics for delta calculations without CSV download
+        totalImpressions?: number;
+        totalCtr?: number;
     };
 }

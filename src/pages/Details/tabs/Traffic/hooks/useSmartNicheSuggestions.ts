@@ -2,21 +2,26 @@ import { useMemo } from 'react';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 import type { SuggestedTrafficNiche, TrafficNicheAssignment } from '../../../../../core/types/suggestedTrafficNiches';
+import type { TrendNiche } from '../../../../../core/types/trends';
 import { assistantLogger } from '../../../../../core/utils/logger';
 
-interface SmartSuggestion {
+export interface SmartSuggestion {
     nicheId: string;
     targetNiche: SuggestedTrafficNiche;
     confidence: 'high' | 'medium' | 'low';
-    reason: 'hybrid';
+    reason: 'hybrid' | 'trends';
     score: number;
+    trendsNiche?: TrendNiche; // Original Trends niche data for badge display
 }
 
 export const useSmartNicheSuggestions = (
     sources: TrafficSource[],
     assignments: TrafficNicheAssignment[],
     niches: SuggestedTrafficNiche[],
-    videos: VideoDetails[]
+    videos: VideoDetails[],
+    // NEW: Trends data for cross-tab suggestions
+    trendsNiches: TrendNiche[] = [],
+    trendsVideoAssignments: Record<string, { nicheId: string; addedAt: number }[]> = {}
 ) => {
     // 1. Build a map of Preference for each Channel using Hybrid Logic
     // Logic: Harmonic Decay Score = Sum(1 / (index + 1)) over sorted assignments
@@ -108,12 +113,44 @@ export const useSmartNicheSuggestions = (
 
     // 2. Build a Lookup Map for Video -> Suggestion (Optimization)
     // This allows O(1) access during virtualization render cycles instead of searching arrays
+    // PRIORITY: Trends-based suggestions > Channel-based suggestions
     const videoSuggestionMap = useMemo(() => {
         const map = new Map<string, SmartSuggestion>();
 
-        // We need to map every known video ID to a suggestion if its channel has a preference
+        // Helper: Create a "virtual" SuggestedTrafficNiche from TrendNiche for display
+        const createVirtualTrafficNiche = (trendNiche: TrendNiche): SuggestedTrafficNiche => ({
+            id: `trends-${trendNiche.id}`, // Prefix to distinguish from real Traffic niches
+            channelId: trendNiche.channelId || '',
+            name: trendNiche.name,
+            color: trendNiche.color,
+            createdAt: trendNiche.createdAt
+        });
+
+        // STEP 1: Process Trends-based suggestions (HIGHEST PRIORITY)
+        // These always win over channel-based suggestions
+        Object.entries(trendsVideoAssignments).forEach(([videoId, assignments]) => {
+            if (!assignments || assignments.length === 0) return;
+
+            // Take the first (or most recent) assignment
+            const primaryAssignment = assignments[0];
+            const trendsNiche = trendsNiches.find(n => n.id === primaryAssignment.nicheId);
+
+            if (trendsNiche) {
+                map.set(videoId, {
+                    nicheId: trendsNiche.id,
+                    targetNiche: createVirtualTrafficNiche(trendsNiche),
+                    confidence: 'high', // Trends assignments are explicit, so high confidence
+                    reason: 'trends',
+                    score: 10, // High score to indicate priority
+                    trendsNiche: trendsNiche // Include original for click handler
+                });
+            }
+        });
+
+        // STEP 2: Process Channel-based suggestions (fallback)
         const processVideo = (videoId: string, channelId?: string) => {
-            if (!videoId || !channelId) return;
+            // Skip if already has Trends-based suggestion
+            if (!videoId || !channelId || map.has(videoId)) return;
 
             const pref = channelPreferences.get(channelId);
             if (!pref) return;
@@ -130,19 +167,24 @@ export const useSmartNicheSuggestions = (
             });
         };
 
-        // 1. Process Rich Video Details
+        // 2a. Process Rich Video Details
         videos.forEach(v => processVideo(v.id, v.channelId));
 
-        // 2. Process Sources (fallback for items not in details)
+        // 2b. Process Sources (fallback for items not in details)
         sources.forEach(s => {
-            // Only process if we haven't already (video details take precedence)
             if (s.videoId && !map.has(s.videoId)) {
                 processVideo(s.videoId, s.channelId);
             }
         });
 
+        assistantLogger.debug('Smart suggestions built', {
+            totalSuggestions: map.size,
+            trendsBased: [...map.values()].filter(s => s.reason === 'trends').length,
+            channelBased: [...map.values()].filter(s => s.reason === 'hybrid').length
+        });
+
         return map;
-    }, [channelPreferences, videos, sources, niches]);
+    }, [channelPreferences, videos, sources, niches, trendsNiches, trendsVideoAssignments]);
 
     // 3. Helper to get suggestion for a video (O(1) lookup)
     const getSuggestion = (videoId: string): SmartSuggestion | null => {

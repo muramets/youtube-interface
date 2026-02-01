@@ -116,7 +116,7 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
         // 1. Calculate Last Used map
         const lastUsedMap = new Map<string, number>();
         assignments.forEach(a => {
-            const current = lastUsedMap.get(a.nicheId) || 0;
+            const current = lastUsedMap.get(a.nicheId) ?? 0;
             if (a.addedAt > current) {
                 lastUsedMap.set(a.nicheId, a.addedAt);
             }
@@ -127,14 +127,14 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
             // Filter out Trash from this selector as it has a designated button
             .filter(n => n.name.trim().toLowerCase() !== 'trash')
             .sort((a, b) => {
-                const lastUsedA = lastUsedMap.get(a.id) || 0;
-                const lastUsedB = lastUsedMap.get(b.id) || 0;
+                const lastUsedA = lastUsedMap.get(a.id) ?? 0;
+                const lastUsedB = lastUsedMap.get(b.id) ?? 0;
 
                 if (lastUsedA !== lastUsedB) {
-                    return lastUsedB - lastUsedA; // Recent first
+                    return lastUsedB - lastUsedA; // Descending: Most Recent (High T) First -> Index 0 -> Bottom (flex-col-reverse)
                 }
                 // Fallback to creation time
-                return b.createdAt - a.createdAt;
+                return (b.createdAt ?? 0) - (a.createdAt ?? 0);
             });
 
         // 3. Filter
@@ -193,11 +193,11 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
         setInputValue(newValue);
         setHighlightedIndex(-1); // Reset highlight on type
 
-        // Check for Create Mode transition
+        // Check for Create Mode transition to prevent color jitter (fixes lint error)
         const newExactMatch = niches.find(n => n.name.toLowerCase() === newTrimmed.toLowerCase());
-        const willShowCreate = newTrimmed && !newExactMatch;
+        const willShowCreate = !!newTrimmed && !newExactMatch;
 
-        if (willShowCreate) {
+        if (willShowCreate && !showCreateUI) {
             const existingColors = niches.map(n => n.color);
             setSelectedColor(generateNicheColor(existingColors));
         }
