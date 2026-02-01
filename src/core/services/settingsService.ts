@@ -11,6 +11,10 @@ export interface SyncSettings {
     syncCardsPerRow?: boolean;
     syncCloneSettings?: boolean;
     lastGlobalSync?: number;
+    trendSync?: {
+        enabled: boolean;
+        lastRun?: number;
+    };
 }
 
 export interface CloneSettings {

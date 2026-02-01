@@ -1,4 +1,5 @@
 import type { TrendVideo, TrendNiche } from '../../../core/types/trends';
+import { formatDuration } from '../../../core/utils/formatUtils';
 
 /**
  * Trends Video CSV Export Utility
@@ -117,7 +118,7 @@ export const exportTrendsVideoCsv = (options: ExportTrendsVideoOptions): string 
             escapeCSV(nicheStr),
             escapeCSV(video.viewCount),
             escapeCSV(formatDate(video.publishedAt)),
-            escapeCSV(video.duration),
+            escapeCSV(formatDuration(video.duration)),
             escapeCSV(video.description),
             escapeCSV(video.tags?.join(', ')),
             escapeCSV(getThumbnailUrl(video.id))

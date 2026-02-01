@@ -14,13 +14,14 @@ import { ApiSyncSettings } from './ApiSyncSettings';
 import { CloneSettings } from './CloneSettings';
 import { PackagingSettingsView } from './PackagingSettingsView';
 import { UploadDefaultsSettings } from './UploadDefaultsSettings';
+import { TrendSyncSettings } from './TrendSyncSettings';
 
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
 }
 
-type Category = 'api_sync' | 'clone' | 'packaging' | 'upload_defaults';
+type Category = 'api_sync' | 'clone' | 'packaging' | 'upload_defaults' | 'trend_sync';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     const {
@@ -366,6 +367,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 key={mountKey}
                                 settings={localUploadDefaults}
                                 onChange={setLocalUploadDefaults}
+                            />
+                        )}
+                        {activeCategory === 'trend_sync' && (
+                            <TrendSyncSettings
+                                settings={localSync}
+                                onChange={setLocalSync}
+                                theme={{ isDark, borderColor, textSecondary, bgMain, textPrimary }}
                             />
                         )}
                     </div>

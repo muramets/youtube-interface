@@ -19,3 +19,4 @@ export { Checkbox } from './Checkbox/Checkbox';
 export { PortalTooltip } from './PortalTooltip';
 export { YouTubeCreateIcon } from './YouTubeCreateIcon';
 export { FloatingDropdownPortal } from './FloatingDropdownPortal';
+export { Toggle } from './Toggle/Toggle';

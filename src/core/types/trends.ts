@@ -109,3 +109,58 @@ export interface HiddenVideo {
     channelId: string;
     hiddenAt: number;
 }
+
+export interface TrendSnapshot {
+    id: string; // e.g. "2023-10-27" or uuid
+    timestamp: number;
+    videoViews: Record<string, number>; // Maps videoId -> viewCount
+    type: 'auto' | 'manual';
+}
+
+
+// Trends Table Types
+export interface TrendVideoRow {
+    type: 'video';
+    video: TrendVideo;
+    delta24h: number | null;
+    delta7d: number | null;
+    delta30d: number | null;
+}
+
+export interface TrendChannelRow {
+    type: 'channel';
+    channel: TrendChannel;
+    videoCount: number;
+    totalViews: number;
+    delta24h: number | null;
+    delta7d: number | null;
+    delta30d: number | null;
+}
+
+export type TrendRow = TrendVideoRow | TrendChannelRow;
+
+export interface TrendVideoTotals {
+    type: 'video';
+    viewCount: number;
+    delta24h: number;
+    delta7d: number;
+    delta30d: number;
+}
+
+export interface TrendChannelTotals {
+    type: 'channel';
+    totalViews: number;
+    videoCount: number;
+    delta24h: number;
+    delta7d: number;
+    delta30d: number;
+}
+
+export type TrendTotals = TrendVideoTotals | TrendChannelTotals;
+
+export type TrendSortKey = 'title' | 'publishedAt' | 'viewCount' | 'totalViews' | 'videoCount' | 'delta24h' | 'delta7d' | 'delta30d';
+
+export interface TrendSortConfig {
+    key: TrendSortKey;
+    direction: 'asc' | 'desc';
+}

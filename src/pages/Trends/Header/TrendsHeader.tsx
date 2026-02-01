@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, LayoutGrid, Table2 } from 'lucide-react';
 import { useTrendsSync } from '../hooks/useTrendsSync';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/molecules/Tooltip';
 import type { TimelineConfig } from '../../../core/types/trends';
@@ -18,6 +18,8 @@ interface TrendsHeaderProps {
     isLoading: boolean;
     availableMinDate?: number;
     availableMaxDate?: number;
+    currentViewMode: 'timeline' | 'table';
+    onViewModeChange: (mode: 'timeline' | 'table') => void;
 }
 
 export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
@@ -29,7 +31,9 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
     setTimelineConfig,
     isLoading,
     availableMinDate,
-    availableMaxDate
+    availableMaxDate,
+    currentViewMode,
+    onViewModeChange
 }) => {
     const { handleSync, isSyncing, canSync, syncTooltip } = useTrendsSync();
 
@@ -58,8 +62,8 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
                             <TooltipTrigger asChild>
                                 <button
                                     onClick={handleSync}
-                                    disabled={!canSync || isSyncing}
-                                    className={`w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-colors border-none cursor-pointer relative flex-shrink-0 ${isSyncing || !canSync
+                                    disabled={currentViewMode === 'table' || !canSync || isSyncing}
+                                    className={`w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-colors border-none cursor-pointer relative flex-shrink-0 ${currentViewMode === 'table' || isSyncing || !canSync
                                         ? 'bg-transparent text-text-tertiary cursor-not-allowed'
                                         : 'bg-transparent text-text-primary hover:bg-hover-bg'
                                         }`}
@@ -68,17 +72,67 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
                                 </button>
                             </TooltipTrigger>
                             <TooltipContent>
-                                <p>{syncTooltip}</p>
+                                <p>{currentViewMode === 'table' ? "Switch to Timeline View to sync" : syncTooltip}</p>
                             </TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
 
-                    <TrendsFilterButton availableMinDate={availableMinDate} availableMaxDate={availableMaxDate} />
+
+
+                    {/* View Mode Toggle */}
+                    <div className="flex items-center gap-1 border border-border rounded-lg bg-bg-secondary/50 p-0.5 ml-2 mr-2">
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={(e) => {
+                                            e.currentTarget.blur();
+                                            onViewModeChange('timeline');
+                                        }}
+                                        className={`p-1.5 rounded-md transition-all ${currentViewMode === 'timeline'
+                                            ? 'bg-bg-primary shadow-sm text-text-primary'
+                                            : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
+                                            }`}
+                                    >
+                                        <LayoutGrid size={16} />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Timeline View</p></TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={(e) => {
+                                            e.currentTarget.blur();
+                                            onViewModeChange('table');
+                                        }}
+                                        className={`p-1.5 rounded-md transition-all ${currentViewMode === 'table'
+                                            ? 'bg-bg-primary shadow-sm text-text-primary'
+                                            : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
+                                            }`}
+                                    >
+                                        <Table2 size={16} />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Table View</p></TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </div>
+
+                    <TrendsFilterButton
+                        availableMinDate={availableMinDate}
+                        availableMaxDate={availableMaxDate}
+                        disabled={currentViewMode === 'table'}
+                    />
                     <TrendsSettings
                         timelineConfig={timelineConfig}
                         setTimelineConfig={setTimelineConfig}
                         availableMinDate={availableMinDate}
                         availableMaxDate={availableMaxDate}
+                        disabled={currentViewMode === 'table'}
                     />
                 </div>
             </div>

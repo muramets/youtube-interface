@@ -10,13 +10,15 @@ interface TrendsSettingsProps {
     setTimelineConfig: (config: Partial<TimelineConfig>) => void;
     availableMinDate?: number;
     availableMaxDate?: number;
+    disabled?: boolean;
 }
 
 export const TrendsSettings: React.FC<TrendsSettingsProps> = ({
     timelineConfig,
     setTimelineConfig,
     availableMinDate,
-    availableMaxDate
+    availableMaxDate,
+    disabled = false
 }) => {
     // Calculate safe maximum window (1/3 of total duration)
     // If undefined, default to 90 (no clamping)
@@ -61,6 +63,7 @@ export const TrendsSettings: React.FC<TrendsSettingsProps> = ({
         <div className="relative">
             <button
                 ref={setAnchorEl}
+                disabled={disabled}
                 onClick={() => {
                     if (isSettingsOpen) {
                         handleClose();
@@ -68,7 +71,7 @@ export const TrendsSettings: React.FC<TrendsSettingsProps> = ({
                         setIsSettingsOpen(true);
                     }
                 }}
-                className={`p-2 rounded-lg transition-colors ${isSettingsOpen ? 'bg-bg-secondary text-text-primary' : 'text-text-primary hover:bg-hover-bg'} `}
+                className={`p-2 rounded-lg transition-colors ${disabled ? 'text-text-disabled cursor-not-allowed opacity-50' : isSettingsOpen ? 'bg-bg-secondary text-text-primary' : 'text-text-primary hover:bg-hover-bg'} `}
             >
                 <Settings size={20} />
             </button>

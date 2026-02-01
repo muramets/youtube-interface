@@ -9,10 +9,13 @@ import {
     updateDoc,
     writeBatch,
     getDocs,
-    increment
+    increment,
+    query,
+    orderBy,
+    limit
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import type { TrendChannel, TrendVideo, TrendNiche, HiddenVideo } from '../types/trends';
+import type { TrendChannel, TrendVideo, TrendNiche, HiddenVideo, TrendSnapshot } from '../types/trends';
 
 // IndexedDB Schema
 interface TrendsDB extends DBSchema {
@@ -688,6 +691,18 @@ export const TrendService = {
         return { totalNewVideos: totalProcessedVideos, totalQuotaUsed, quotaBreakdown, newAvatarUrl };
     },
 
+    getVideoCountForChannels: async (channelIds: string[]): Promise<number> => {
+        const idb = await getDB();
+        const tx = idb.transaction('videos', 'readonly');
+        const index = tx.store.index('by-channel');
+
+        // Execute counts in parallel for performance
+        const counts = await Promise.all(channelIds.map(id => index.count(id)));
+        const total = counts.reduce((acc, c) => acc + c, 0);
+
+        return total;
+    },
+
     getChannelVideosFromCache: async (channelId: string) => {
         const idb = await getDB();
         return idb.getAllFromIndex('videos', 'by-channel', channelId);
@@ -696,7 +711,17 @@ export const TrendService = {
     getChannelVideosFromFirestore: async (userId: string, userChannelId: string, channelId: string) => {
         const ref = collection(db, `users/${userId}/channels/${userChannelId}/trendChannels/${channelId}/videos`);
         const snapshot = await getDocs(ref);
-        return snapshot.docs.map(d => d.data() as TrendVideo);
+        const videos = snapshot.docs.map(d => d.data() as TrendVideo);
+
+        // Populate Cache
+        if (videos.length > 0) {
+            const idb = await getDB();
+            const tx = idb.transaction('videos', 'readwrite');
+            await Promise.all(videos.map(v => tx.store.put(v)));
+            await tx.done;
+        }
+
+        return videos;
     },
 
     // Migration helper: Recalculate stats from Firestore to ensure consistency across devices
@@ -713,6 +738,68 @@ export const TrendService = {
         });
 
         return totalViews;
+    },
+
+    // --- Snapshots (Time-Series) ---
+
+    /**
+     * Fetch trend snapshots for a specific channel.
+     * Optionally limit by days.
+     */
+    getTrendSnapshots: async (
+        userId: string,
+        userChannelId: string,
+        trendChannelId: string,
+        limitDays: number = 30
+    ): Promise<TrendSnapshot[]> => {
+        const ref = collection(db, `users/${userId}/channels/${userChannelId}/trendChannels/${trendChannelId}/snapshots`);
+
+        // Optimization: Fetch only the necessary recent history from Firestore
+        // This saves Read quota and bandwidth.
+        let q;
+        if (limitDays > 0) {
+            q = query(ref, orderBy('timestamp', 'desc'), limit(limitDays));
+        } else {
+            q = query(ref, orderBy('timestamp', 'desc'));
+        }
+
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as TrendSnapshot));
+
+        return data;
+    },
+
+    /**
+     * Capture a new snapshot for a channel using current video data.
+     * Intended to be called by the Cloud Function (or manual server-simulation).
+     * 
+     * @param videos List of current TrendVideos with up-to-date view counts
+     */
+    captureSnapshot: async (
+        userId: string,
+        userChannelId: string,
+        trendChannelId: string,
+        videos: TrendVideo[],
+        type: 'auto' | 'manual' = 'manual'
+    ) => {
+        const timestamp = Date.now();
+        // Use timestamp-based ID for precision
+        const id = `${timestamp}`;
+
+        const videoViews: Record<string, number> = {};
+        videos.forEach(v => {
+            videoViews[v.id] = v.viewCount;
+        });
+
+        const snapshot: TrendSnapshot = {
+            id,
+            timestamp,
+            videoViews,
+            type
+        };
+
+        await setDoc(doc(db, `users/${userId}/channels/${userChannelId}/trendChannels/${trendChannelId}/snapshots`, id), snapshot);
+        return snapshot;
     },
 
     // --- Copy Channel to Another User Channel ---

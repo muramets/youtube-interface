@@ -41,6 +41,12 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({ activeCategory
                 theme={theme}
             />
             <SidebarItem
+                label="Trending Videos Syncs"
+                isActive={activeCategory === 'trend_sync'}
+                onClick={() => onCategoryChange('trend_sync')}
+                theme={theme}
+            />
+            <SidebarItem
                 label="Upload Defaults"
                 isActive={activeCategory === 'upload_defaults'}
                 onClick={() => onCategoryChange('upload_defaults')}

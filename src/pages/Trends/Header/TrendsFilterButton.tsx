@@ -13,9 +13,10 @@ type TrendsFilterType = 'date' | 'views' | 'percentile' | 'niche';
 interface TrendsFilterButtonProps {
     availableMinDate?: number;
     availableMaxDate?: number;
+    disabled?: boolean;
 }
 
-export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availableMinDate, availableMaxDate }) => {
+export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availableMinDate, availableMaxDate, disabled = false }) => {
     const [isOpen, setIsOpen] = useState(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -97,8 +98,9 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
         <>
             <button
                 ref={buttonRef}
-                className={`w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-colors border-none cursor-pointer relative flex-shrink-0 ${isOpen ? 'bg-text-primary text-bg-primary' : 'bg-transparent text-text-primary hover:bg-hover-bg'}`}
-                onClick={() => setIsOpen(!isOpen)}
+                className={`w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-colors border-none relative flex-shrink-0 ${disabled ? 'bg-transparent text-text-disabled cursor-not-allowed opacity-50' : isOpen ? 'bg-text-primary text-bg-primary cursor-pointer' : 'bg-transparent text-text-primary hover:bg-hover-bg cursor-pointer'}`}
+                onClick={() => !disabled && setIsOpen(!isOpen)}
+                disabled={disabled}
                 title="Filter"
             >
                 <Filter size={20} />

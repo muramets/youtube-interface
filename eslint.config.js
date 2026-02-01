@@ -22,4 +22,19 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    files: ['functions/**/*.ts'],
+    extends: [
+      js.configs.recommended,
+      tseslint.configs.recommended,
+    ],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.node,
+    },
+    rules: {
+      'no-unused-expressions': 'off', // Keep our specific override
+      '@typescript-eslint/no-unused-expressions': 'off'
+    }
+  }
 ])

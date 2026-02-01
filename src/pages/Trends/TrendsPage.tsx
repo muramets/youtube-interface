@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTrendStore } from '../../core/stores/trendStore';
 import { TimelineCanvas } from './Timeline/TimelineCanvas';
+import { TrendsTable } from './Table/TrendsTable';
 import { TrendsHeader } from './Header/TrendsHeader';
 import { useFilteredVideos } from './hooks/useFilteredVideos';
 import { useFrozenStats } from './Timeline/hooks/useFrozenStats';
@@ -14,6 +15,7 @@ export const TrendsPage: React.FC = () => {
     const { currentChannel } = useChannelStore();
     const { channels, selectedChannelId, timelineConfig, setTimelineConfig, trendsFilters, filterMode, videos, hiddenVideos, isLoadingChannels } = useTrendStore();
     const [isLoadingLocal, setIsLoadingLocal] = useState(true);
+    const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
 
     // Use extracted hook for video loading
     const { isLoading: isVideosLoading, allChannelsHidden } = useTrendVideos({
@@ -122,22 +124,33 @@ export const TrendsPage: React.FC = () => {
                 isLoading={isLoading || isLoadingChannels}
                 availableMinDate={currentStats?.minDate}
                 availableMaxDate={currentStats?.maxDate}
+                currentViewMode={viewMode}
+                onViewModeChange={setViewMode}
             />
 
-            <TimelineCanvas
-                key={selectedChannelId || 'all'}
-                videos={filteredVideos}
-                allVideos={allVideos}
-                isLoading={isLoading || isLoadingChannels}
-                percentileMap={globalPercentileMap}
-                frozenStats={frozenStats}
-                currentStats={currentStats}
-                shouldAutoFit={shouldAutoFit}
-                onRequestStatsRefresh={refreshStats}
-                skipAutoFitRef={skipAutoFitRef}
-                filterHash={filterHash}
-                allChannelsHidden={allChannelsHidden}
-            />
+            {viewMode === 'timeline' ? (
+                <TimelineCanvas
+                    key={selectedChannelId || 'all'}
+                    videos={filteredVideos}
+                    allVideos={allVideos}
+                    isLoading={isLoading || isLoadingChannels}
+                    percentileMap={globalPercentileMap}
+                    frozenStats={frozenStats}
+                    currentStats={currentStats}
+                    shouldAutoFit={shouldAutoFit}
+                    onRequestStatsRefresh={refreshStats}
+                    skipAutoFitRef={skipAutoFitRef}
+                    filterHash={filterHash}
+                    allChannelsHidden={allChannelsHidden}
+                />
+            ) : (
+                <TrendsTable
+                    videos={filteredVideos}
+                    channels={channels}
+                    channelId={selectedChannelId || ''}
+                    mode={selectedChannelId ? 'videos' : 'channels'}
+                />
+            )}
         </div>
     );
 };
