@@ -17,6 +17,12 @@ interface UserSettings {
     apiKey?: string; // YouTube API Key
 }
 
+interface SyncSettings {
+    trendSync?: {
+        enabled: boolean;
+    };
+}
+
 /**
  * Scheduled Function: Runs every day at midnight (UTC).
  * Fetches data for ALL channels and videos to ensure complete history.
@@ -39,17 +45,26 @@ export const scheduledTrendSnapshot = onSchedule({
         for (const channelDoc of channelsSnap.docs) {
             const userChannelId = channelDoc.id;
 
-            // 3. Get Channel-Specific API Key
-            // VERIFIED PATH: users/{uid}/channels/{cid}/settings/general -> apiKey
+            // 3. Get Channel-Specific Settings
             const settingsDoc = await db.doc(`users/${userId}/channels/${userChannelId}/settings/general`).get();
-            const settings = settingsDoc.data() as UserSettings | undefined;
+            const generalSettings = settingsDoc.data() as UserSettings | undefined;
 
-            if (!settings?.apiKey) {
+            const syncSettingsDoc = await db.doc(`users/${userId}/channels/${userChannelId}/settings/sync`).get();
+            const syncSettings = syncSettingsDoc.data() as SyncSettings | undefined;
+
+            // CHECK 1: Is Trend Sync Enabled?
+            if (!syncSettings?.trendSync?.enabled) {
+                console.log(`Skipping channel ${userChannelId}: Trend Sync is disabled.`);
+                continue;
+            }
+
+            // CHECK 2: Is API Key Configured?
+            if (!generalSettings?.apiKey) {
                 console.log(`Skipping channel ${userChannelId}: No API Key configured.`);
                 continue;
             }
 
-            const apiKey = settings.apiKey;
+            const apiKey = generalSettings.apiKey;
 
             // 4. Get Trend Channels (ALL channels, not just visible)
             const trendChannelsRef = db.collection(`users/${userId}/channels/${userChannelId}/trendChannels`);
