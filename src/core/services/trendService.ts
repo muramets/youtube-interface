@@ -691,6 +691,22 @@ export const TrendService = {
         return { totalNewVideos: totalProcessedVideos, totalQuotaUsed, quotaBreakdown, newAvatarUrl };
     },
 
+    /**
+     * Triggers Server-Side Sync for a user channel.
+     * The Cloud Function handles fetching, updating metrics/metadata, and notifications.
+     */
+    syncChannelCloud: async (channelId: string, targetTrendChannelIds?: string[]): Promise<void> => {
+        const { functions } = await import('../../config/firebase');
+        const { httpsCallable } = await import('firebase/functions');
+
+        const manualTrendSync = httpsCallable(functions, 'manualTrendSync');
+
+        await manualTrendSync({
+            channelId, // The context (User Channel ID)
+            targetTrendChannelIds // Optional: specific trend channels to sync
+        });
+    },
+
     getVideoCountForChannels: async (channelIds: string[]): Promise<number> => {
         const idb = await getDB();
         const tx = idb.transaction('videos', 'readonly');

@@ -53,10 +53,8 @@ export const useTrendsSync = (): UseTrendsSyncReturn => {
         if (!user || !currentChannel || !canSync || isSyncing) return;
 
         setIsSyncing(true);
-        let totalNewVideos = 0;
-        let totalQuotaUsed = 0;
-        const totalQuotaBreakdown = { list: 0, details: 0 };
-        const syncedChannelNames: string[] = [];
+        // Stats are now handled by Cloud Function notification
+
 
         try {
             // Initial toast
@@ -68,54 +66,25 @@ export const useTrendsSync = (): UseTrendsSyncReturn => {
                 'success'
             );
 
-            // Process sequentially to be safe with rate limits
-            for (const channel of targetChannels) {
-                const needsAvatarRefresh = brokenAvatarChannelIds.has(channel.id);
+            // Call Server-Side Sync
+            // We pass the list of trend channel IDs if we are syncing specific ones (e.g. selection),
+            // OR if we are syncing ALL visible ones.
+            // The Cloud Function accepts `targetTrendChannelIds`.
+            // If we send nothing, it syncs ALL.
+            // But `targetChannels` here might be a subset (Visible Only).
+            // So we should strictly pass the IDs of `targetChannels`.
 
-                // Call atomic sync service
-                const stats = await TrendService.syncChannelVideos(
-                    user.uid,
-                    currentChannel.id,
-                    channel,
-                    apiKey,
-                    true, // force full sync
-                    needsAvatarRefresh
-                );
+            const targetIds = targetChannels.map(c => c.id);
 
-                // Aggregate stats
-                totalNewVideos += stats.totalNewVideos;
-                totalQuotaUsed += stats.totalQuotaUsed;
-                totalQuotaBreakdown.list += stats.quotaBreakdown.list;
-                totalQuotaBreakdown.details += stats.quotaBreakdown.details;
-                syncedChannelNames.push(channel.title);
-
-                // Clear broken avatar flag if refreshed
-                if (stats.newAvatarUrl) {
-                    clearBrokenAvatar(channel.id);
-                }
-            }
+            await TrendService.syncChannelCloud(currentChannel.id, targetIds);
 
             // Final success toast
+            // Note: The Cloud Function sends the detailed notification.
+            // We just confirm the command was accepted/finished.
             showToast(
-                isSingle
-                    ? `Sync complete. Processed ${totalNewVideos} videos.`
-                    : `Sync complete. Processed ${totalNewVideos} videos from ${targetChannels.length} channels.`,
+                'Sync completed successfully',
                 'success'
             );
-
-            // Detailed notification
-            await addNotification({
-                title: isSingle
-                    ? `${targetChannels[0].title} Visual Data Updated`
-                    : `Bulk Sync Complete`,
-                message: isSingle
-                    ? `Updated ${totalNewVideos} videos.`
-                    : `Synced ${targetChannels.length} channels. Processed ${totalNewVideos} total videos.`,
-                type: 'success',
-                meta: totalQuotaUsed.toString(),
-                ...(isSingle && { avatarUrl: targetChannels[0].avatarUrl }),
-                quotaBreakdown: totalQuotaBreakdown
-            });
 
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
