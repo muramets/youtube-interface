@@ -17,7 +17,8 @@ export class SyncService {
         userChannelId: string,
         trendChannel: TrendChannel,
         apiKey: string,
-        refreshAvatar: boolean = false
+        refreshAvatar: boolean = false,
+        snapshotType: 'auto' | 'manual' = 'manual'
     ): Promise<ProcessStats> {
         const yt = new YouTubeService(apiKey);
 
@@ -91,7 +92,8 @@ export class SyncService {
         await snapshotRef.set({
             timestamp: timestamp,
             videoViews: videoViews,
-            videoCount: videos.length
+            videoCount: videos.length,
+            type: snapshotType
         });
 
         // 5. Update Channel Stats (Total Views, Last Updated)

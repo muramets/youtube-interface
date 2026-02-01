@@ -68,7 +68,7 @@ export const scheduledTrendSnapshot = onSchedule({
                 try {
                     console.log(`Processing ${trendChannel.name || trendChannel.id} for user ${userId}...`);
                     // Use SyncService
-                    const stats = await syncService.syncChannel(userId, userChannelId, trendChannel, apiKey);
+                    const stats = await syncService.syncChannel(userId, userChannelId, trendChannel, apiKey, false, 'auto');
 
                     if (stats) {
                         processedChannelsCount++; // Increment for each trend channel processed
@@ -158,7 +158,7 @@ export const manualTrendSync = onCall({
             // Check if we need to refresh avatar (force flag or potentially passed in list if we expanded capability)
             const shouldRefreshAvatar = !!forceAvatarRefresh;
 
-            const stats = await syncService.syncChannel(userId, channelId, trendChannel, apiKey, shouldRefreshAvatar);
+            const stats = await syncService.syncChannel(userId, channelId, trendChannel, apiKey, shouldRefreshAvatar, 'manual');
             if (stats) {
                 processedChannelsCount++;
                 processedVideosCount += stats.videosProcessed;
