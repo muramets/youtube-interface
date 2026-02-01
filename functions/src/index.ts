@@ -13,6 +13,20 @@ interface TrendChannel {
     name?: string;
 }
 
+interface Notification {
+    title: string;
+    message: string;
+    type: 'info' | 'success' | 'warning' | 'error';
+    timestamp: admin.firestore.FieldValue;
+    isRead: boolean;
+    meta?: string;
+    quotaBreakdown?: {
+        search?: number;
+        list?: number;
+        details?: number;
+    };
+}
+
 interface UserSettings {
     apiKey?: string; // YouTube API Key
 }
@@ -45,6 +59,12 @@ export const scheduledTrendSnapshot = onSchedule({
         for (const channelDoc of channelsSnap.docs) {
             const userChannelId = channelDoc.id;
 
+            // Scope stats to this specific User Channel
+            let processedChannelsCount = 0; // This will now count trend channels processed within this user's channel
+            let processedVideosCount = 0;
+            let quotaList = 0;
+            let quotaDetails = 0;
+
             // 3. Get Channel-Specific Settings
             const settingsDoc = await db.doc(`users/${userId}/channels/${userChannelId}/settings/general`).get();
             const generalSettings = settingsDoc.data() as UserSettings | undefined;
@@ -74,10 +94,39 @@ export const scheduledTrendSnapshot = onSchedule({
                 const trendChannel = tChannelDoc.data() as TrendChannel;
                 try {
                     console.log(`Processing ${trendChannel.name || trendChannel.id} for user ${userId}...`);
-                    await processChannelSnapshot(userId, userChannelId, trendChannel, apiKey);
+                    const stats = await processChannelSnapshot(userId, userChannelId, trendChannel, apiKey);
+
+                    if (stats) {
+                        processedChannelsCount++; // Increment for each trend channel processed
+                        processedVideosCount += stats.videosProcessed;
+                        quotaList += stats.quotaList;
+                        quotaDetails += stats.quotaDetails;
+                    }
+
                 } catch (err) {
                     console.error(`Failed to process channel ${trendChannel.id}`, err);
                 }
+            }
+
+            // 5. Send Notification (Scoped to this User Channel)
+            if (processedChannelsCount > 0) {
+                const totalQuota = quotaList + quotaDetails;
+                const notification: Notification = {
+                    title: 'Daily Trend Sync',
+                    message: `Successfully updated ${processedVideosCount} videos across ${processedChannelsCount} trend channels.`,
+                    type: 'success',
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    isRead: false,
+                    meta: totalQuota.toString(),
+                    quotaBreakdown: {
+                        list: quotaList,
+                        details: quotaDetails,
+                        search: 0
+                    }
+                };
+
+                await db.collection(`users/${userId}/channels/${userChannelId}/notifications`).add(notification);
+                console.log(`Sent notification to channel ${userChannelId} (Quota: ${totalQuota})`);
             }
         }
     }
@@ -107,9 +156,18 @@ interface YouTubeVideoResponse {
     items?: YouTubeVideoitem[];
 }
 
-async function processChannelSnapshot(userId: string, userChannelId: string, channel: TrendChannel, apiKey: string) {
+interface ProcessStats {
+    videosProcessed: number;
+    quotaList: number;
+    quotaDetails: number;
+}
+
+async function processChannelSnapshot(userId: string, userChannelId: string, channel: TrendChannel, apiKey: string): Promise<ProcessStats> {
     const allVideoIds: string[] = [];
     let nextPageToken: string | undefined = undefined;
+
+    let quotaList = 0;
+    let quotaDetails = 0;
 
     // 1. Fetch ALL videos from Uploads playlist (Pagination)
     do {
@@ -124,6 +182,8 @@ async function processChannelSnapshot(userId: string, userChannelId: string, cha
                 }
             });
 
+            quotaList++; // Cost: 1 unit
+
             const items = res.data.items || [];
             if (items.length > 0) {
                 const ids = items.map((i: YouTubePlaylistItem) => i.contentDetails.videoId);
@@ -137,7 +197,7 @@ async function processChannelSnapshot(userId: string, userChannelId: string, cha
         }
     } while (nextPageToken);
 
-    if (allVideoIds.length === 0) return;
+    if (allVideoIds.length === 0) return { videosProcessed: 0, quotaList, quotaDetails };
 
     // 2. Get View Counts for ALL videos (Batching)
     const videoViews: Record<string, number> = {};
@@ -156,6 +216,8 @@ async function processChannelSnapshot(userId: string, userChannelId: string, cha
                 }
             });
 
+            quotaDetails++; // Cost: 1 unit
+
             if (statsRes.data.items) {
                 statsRes.data.items.forEach((v: YouTubeVideoitem) => {
                     videoViews[v.id] = parseInt(v.statistics.viewCount || '0');
@@ -166,16 +228,20 @@ async function processChannelSnapshot(userId: string, userChannelId: string, cha
         }
     }
 
-    // 3. Save Snapshot to Firestore
-    const timestamp = Date.now();
+    // 3. Save Snapshot
+    // Create a new snapshot document based on current timestamp
+    const timestamp = Date.now().toString();
     const snapshotRef = db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${channel.id}/snapshots/${timestamp}`);
 
     await snapshotRef.set({
-        id: timestamp.toString(),
-        timestamp: timestamp,
-        type: 'auto',
-        videoViews: videoViews
+        timestamp: Date.now(),
+        videoViews: videoViews,
+        videoCount: allVideoIds.length
     });
 
-    console.log(`Snapshot saved for ${channel.id} (${Object.keys(videoViews).length} videos)`);
+    return {
+        videosProcessed: allVideoIds.length,
+        quotaList,
+        quotaDetails
+    };
 }

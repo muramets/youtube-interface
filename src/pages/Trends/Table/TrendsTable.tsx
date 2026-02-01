@@ -206,6 +206,7 @@ export const TrendsTable: React.FC<TrendsTableProps> = ({ videos, channels = [],
                                         side="bottom"
                                         align="center"
                                         enterDelay={500}
+                                        triggerClassName="!justify-start"
                                     >
                                         <div className="flex items-start gap-4 cursor-pointer">
                                             <div className="relative w-32 aspect-video rounded-lg overflow-hidden flex-shrink-0 bg-bg-primary">
