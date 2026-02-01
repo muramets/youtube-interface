@@ -157,6 +157,9 @@ export const exportTrafficCsv = (options: ExportTrafficCsvOptions): string => {
     lines.push(`# Snapshot: ${metadata.snapshotId || 'Latest'}`);
     lines.push(`# Filters: ${formatFilters(metadata.filters)}`);
 
+    lines.push(`#`);
+    lines.push(`# Note on Niche: This column reflects subjective user-defined classification or suggestions.`);
+
     // Add Classification Criteria
     lines.push(`#`);
     lines.push(`# Classification Criteria (Smart Assistant):`);
@@ -196,7 +199,6 @@ export const exportTrafficCsv = (options: ExportTrafficCsvOptions): string => {
     // 2. CSV Headers
     const headers = [
         'video_id',
-        'thumbnail_url',
         'source_title',
         'channel_title',
         'channel_id',
@@ -210,7 +212,8 @@ export const exportTrafficCsv = (options: ExportTrafficCsvOptions): string => {
         'views',
         'avg_view_duration',
         'watch_time_hours',
-        'published_at'
+        'published_at',
+        'thumbnail_url'
     ];
     lines.push(headers.join(','));
 
@@ -224,7 +227,6 @@ export const exportTrafficCsv = (options: ExportTrafficCsvOptions): string => {
 
         const row = [
             escapeCSV(videoId),
-            escapeCSV(videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : ''),
             escapeCSV(source.sourceTitle),
             escapeCSV(source.channelTitle),
             escapeCSV(source.channelId),
@@ -238,7 +240,8 @@ export const exportTrafficCsv = (options: ExportTrafficCsvOptions): string => {
             escapeCSV(source.views),
             escapeCSV(source.avgViewDuration),
             escapeCSV(source.watchTimeHours),
-            escapeCSV(source.publishedAt)
+            escapeCSV(source.publishedAt ? new Date(source.publishedAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''),
+            escapeCSV(videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : '')
         ];
 
         lines.push(row.join(','));

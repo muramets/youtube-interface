@@ -285,13 +285,17 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         // We do this by creating a synthetic property on the source objects if needed, 
         // but sorting is handled by the table using the edges map or we can enrich here.
         // BETTER: Enrich here so "applyFilters" could potentially filter by type in future.
-        const enrichedSources = displayedSources.map(s => ({
-            ...s,
-            trafficType: s.videoId ? trafficEdges[s.videoId]?.type : undefined,
-            trafficSource: s.videoId ? trafficEdges[s.videoId]?.source : undefined,
-            viewerType: s.videoId ? viewerEdges[s.videoId]?.type : undefined,
-            viewerSource: s.videoId ? viewerEdges[s.videoId]?.source : undefined
-        }));
+        const enrichedSources = displayedSources.map(s => {
+            const cachedVideo = s.videoId ? allVideos.find(v => v.id === s.videoId) : undefined;
+            return {
+                ...s,
+                publishedAt: s.publishedAt || cachedVideo?.publishedAt,
+                trafficType: s.videoId ? trafficEdges[s.videoId]?.type : undefined,
+                trafficSource: s.videoId ? trafficEdges[s.videoId]?.source : undefined,
+                viewerType: s.videoId ? viewerEdges[s.videoId]?.type : undefined,
+                viewerSource: s.videoId ? viewerEdges[s.videoId]?.source : undefined
+            };
+        });
 
         let sources = applyFilters(enrichedSources, groups);
 
@@ -316,7 +320,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         }
 
         return sources;
-    }, [displayedSources, applyFilters, groups, allNiches, allAssignments, viewMode, isFirstSnapshot, filters, trafficEdges, viewerEdges]);
+    }, [displayedSources, applyFilters, groups, allNiches, allAssignments, viewMode, isFirstSnapshot, filters, trafficEdges, viewerEdges, allVideos]);
 
     // Handle Traffic Type Toggle
     const handleToggleTrafficType = useCallback((videoId: string, currentType?: import('../../../../core/types/videoTrafficType').TrafficType) => {
