@@ -256,9 +256,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         <div className="relative aspect-video rounded-xl overflow-hidden bg-bg-secondary">
           {(() => {
             // Determine the thumbnail URL
-            const thumbnailUrl = displayVideo.isCustom
+            // Prioritize A/B test thumbnail if active (similar to how we handle Title above)
+            const abTestThumbnail = (video.abTestThumbnails && video.abTestThumbnails.length > 0)
+              ? video.abTestThumbnails[0]
+              : undefined;
+
+            const thumbnailUrl = abTestThumbnail || (displayVideo.isCustom
               ? (displayVideo.customImage || displayVideo.thumbnail)
-              : displayVideo.thumbnail;
+              : displayVideo.thumbnail);
 
             // Show "No Thumbnail" placeholder for custom videos without a cover
             if (displayVideo.isCustom && !thumbnailUrl) {
