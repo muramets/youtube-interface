@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { FilterDropdown } from '../../../../../components/ui/molecules/FilterDropdown';
 import { TrafficUploader } from './TrafficUploader';
-import { Settings, CloudDownload, Wand2 } from 'lucide-react';
+import { Settings, CloudDownload, Wand2, Download } from 'lucide-react';
 import { TrafficCTRConfig } from './TrafficCTRConfig';
 import { TrafficFilterMenu } from './TrafficFilterMenu';
 import type { TrafficSource } from '../../../../../core/types/traffic';
@@ -44,6 +44,9 @@ interface TrafficHeaderProps {
     // Smart Assistant Toggle
     isAssistantEnabled?: boolean;
     onToggleAssistant?: () => void;
+
+    // Export
+    onExport?: () => void;
 }
 
 /**
@@ -70,7 +73,8 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
     missingTitlesCount = 0,
     onOpenMissingTitles,
     isAssistantEnabled = false,
-    onToggleAssistant
+    onToggleAssistant,
+    onExport
 }) => {
     const configBtnRef = useRef<HTMLButtonElement>(null);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -125,6 +129,17 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
                                     title={`Sync ${missingTitlesCount} missing titles`}
                                 >
                                     <CloudDownload size={18} />
+                                </button>
+                            )}
+
+                            {/* Export CSV */}
+                            {onExport && (
+                                <button
+                                    onClick={onExport}
+                                    className="w-[34px] h-[34px] rounded-full flex items-center justify-center transition-colors border-0 cursor-pointer bg-transparent text-text-primary hover:text-green-500 hover:bg-green-500/10"
+                                    title="Export Current View (CSV)"
+                                >
+                                    <Download size={18} />
                                 </button>
                             )}
 

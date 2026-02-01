@@ -8,6 +8,7 @@ import { TrafficFloatingBar } from './components/TrafficFloatingBar';
 // MissingTitlesModal is now wrapped in TrafficModals
 import { useMissingTitles, repairTrafficSources } from './hooks/useMissingTitles';
 import { generateTrafficCsv } from './utils/csvGenerator';
+import { exportTrafficCsv, downloadCsv, generateExportFilename, generateDiscrepancyReport } from './utils/exportTrafficCsv';
 import { useApiKey } from '../../../../core/hooks/useApiKey';
 import { useSuggestedVideos } from './hooks/useSuggestedVideos';
 
@@ -347,6 +348,71 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             }
         }
     }, [updateViewerType, deleteViewerTypeRecord]);
+
+    // Handle CSV Export
+    const handleExport = useCallback(() => {
+        // Build assignments map
+        const assignmentsMap: Record<string, string> = {};
+        allAssignments.forEach(a => {
+            assignmentsMap[a.videoId] = a.nicheId;
+        });
+
+        // Calculate table sums (same logic as TrafficTable)
+        const tableSum = filteredSources.reduce((acc, s) => ({
+            impressions: acc.impressions + s.impressions,
+            views: acc.views + s.views
+        }), { impressions: 0, views: 0 });
+
+        // Generate Discrepancy Reports
+        const reports: string[] = [];
+
+        // 1. Impressions Discrepancy
+        if (actualTotalRow) {
+            const impReport = generateDiscrepancyReport(
+                actualTotalRow.impressions,
+                tableSum.impressions,
+                trashMetrics?.impressions,
+                deltaContext?.impressions,
+                deltaContext?.isIncomplete
+            );
+            if (impReport) {
+                reports.push(`[IMPRESSIONS REPORT]\n# ${impReport}`);
+            }
+
+            // 2. Views Discrepancy
+            const viewsReport = generateDiscrepancyReport(
+                actualTotalRow.views,
+                tableSum.views,
+                trashMetrics?.views,
+                deltaContext?.views, // Pass full DeltaContext object if it matches MetricDelta structure?
+                // Wait, deltaContext.views IS MetricDelta { previous, current, delta }
+                deltaContext?.isIncomplete
+            );
+            if (viewsReport) {
+                reports.push(`[VIEWS REPORT]\n# ${viewsReport}`);
+            }
+        }
+
+        const csvContent = exportTrafficCsv({
+            sources: filteredSources,
+            totalRow: actualTotalRow,
+            niches: allNiches,
+            assignments: assignmentsMap,
+            trafficEdges,
+            viewerEdges,
+            warnings: [],
+            discrepancyReport: reports.length > 0 ? reports.join('\n# \n# ') : undefined,
+            metadata: {
+                viewMode,
+                snapshotId: effectiveSnapshotId,
+                filters,
+                videoTitle: _video.title
+            }
+        });
+
+        const filename = generateExportFilename(_video.title, viewMode);
+        downloadCsv(csvContent, filename);
+    }, [filteredSources, actualTotalRow, allNiches, allAssignments, trafficEdges, viewerEdges, viewMode, effectiveSnapshotId, filters, _video.title, trashMetrics, deltaContext]);
 
     // OPTIMIZATION: Memoize array props to prevent TrafficTable re-renders.
     // Without memoization, `|| []` creates a new array reference each render.
@@ -776,6 +842,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                     assistantLogger.debug('Toggling assistant state');
                     setIsAssistantEnabled(prev => !prev);
                 }}
+                onExport={handleExport}
             />
 
             {/* Main Content - Table Area */}
