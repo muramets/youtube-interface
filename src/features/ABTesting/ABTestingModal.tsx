@@ -27,6 +27,7 @@ interface ABTestingModalProps {
         titles: number[];
         thumbnails: number[];
     };
+    onFileUpload?: (file: File) => Promise<string>;
 }
 
 export const ABTestingModal: React.FC<ABTestingModalProps> = ({
@@ -38,7 +39,8 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
     titleVariants,
     thumbnailVariants,
     onSave,
-    initialResults = { titles: [], thumbnails: [] }
+    initialResults = { titles: [], thumbnails: [] },
+    onFileUpload
 }) => {
     const {
         activeTab,
@@ -68,7 +70,8 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
         currentThumbnail,
         titleVariants,
         thumbnailVariants,
-        initialResults
+        initialResults,
+        onFileUpload
     });
 
     const handleSave = () => {

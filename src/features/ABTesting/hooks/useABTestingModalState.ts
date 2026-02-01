@@ -14,6 +14,7 @@ export interface ABTestingModalStateProps {
         titles: number[];
         thumbnails: number[];
     };
+    onFileUpload?: (file: File) => Promise<string>;
 }
 
 export interface ABTestingSaveData {
@@ -42,7 +43,8 @@ export function useABTestingModalState({
     currentThumbnail,
     titleVariants,
     thumbnailVariants,
-    initialResults = { titles: [], thumbnails: [] }
+    initialResults = { titles: [], thumbnails: [] },
+    onFileUpload
 }: ABTestingModalStateProps) {
     const [activeTab, setActiveTab] = useState<ABTestMode>(initialTab);
     const [titles, setTitles] = useState<string[]>(['', '', '']);
@@ -109,8 +111,31 @@ export function useABTestingModalState({
             URL.revokeObjectURL(newThumbnails[index]);
         }
 
+        // 1. Show preview immediately
         newThumbnails[index] = objectUrl;
         setThumbnails(newThumbnails);
+
+        // 2. Upload in background if callback provided
+        if (onFileUpload) {
+            onFileUpload(file)
+                .then(downloadUrl => {
+                    setThumbnails(prev => {
+                        const current = [...prev];
+                        // Only replace if the user hasn't changed it again
+                        // We check if the current slot is still holdling our temporary objectUrl
+                        if (current[index] === objectUrl) {
+                            return current.map((item, idx) => idx === index ? downloadUrl : item);
+                        }
+                        return prev;
+                    });
+                })
+                .catch(err => {
+                    console.error('Failed to upload AB test thumbnail:', err);
+                    // Revert to empty or handle error UI? 
+                    // For now, keep the local preview but it won't save correctly if they close/reopen.
+                    // Ideally we should show an error state.
+                });
+        }
     };
 
     // Cleanup blob URLs on unmount

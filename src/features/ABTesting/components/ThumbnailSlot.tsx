@@ -23,23 +23,25 @@ export const ThumbnailSlot: React.FC<ThumbnailSlotProps> = ({
     if (src) {
         return (
             <div
-                className={`relative rounded-xl border border-dashed group cursor-pointer ${borderClassName}`}
-                style={{ padding: '4px' }}
+                className={`relative rounded-xl border border-dashed group cursor-pointer ${borderClassName} flex items-center justify-center`}
+                style={{ width: '265px', height: '148px' }}
                 onClick={onUpload}
             >
-                <img
-                    src={src}
-                    alt={`Thumbnail ${index + 1}`}
-                    className="rounded-lg object-cover"
-                    style={{ width: '257px', height: '140px' }}
-                />
+                <div className="relative rounded-lg overflow-hidden" style={{ width: '257px', height: '140px' }}>
+                    <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors z-10 pointer-events-none" />
+                    <img
+                        src={src}
+                        alt={`Thumbnail ${index + 1}`}
+                        className="w-full h-full object-cover"
+                    />
+                </div>
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
                         onRemove();
                     }}
                     className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/60 text-white 
-                        flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20"
                 >
                     <X size={14} />
                 </button>

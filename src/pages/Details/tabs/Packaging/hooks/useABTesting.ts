@@ -58,14 +58,24 @@ export const useABTesting = (options?: UseABTestingOptions) => {
 
     // Handlers
     const handleOpenFromTitle = useCallback(() => {
-        setActiveTab('title');
+        // If both aspects have active tests (>= 2 variants), default to 'both' view
+        if (abTestTitles.length >= 2 && abTestThumbnails.length >= 2) {
+            setActiveTab('both');
+        } else {
+            setActiveTab('title');
+        }
         setIsOpen(true);
-    }, []);
+    }, [abTestTitles.length, abTestThumbnails.length]);
 
     const handleOpenFromThumbnail = useCallback(() => {
-        setActiveTab('thumbnail');
+        // If both aspects have active tests, default to 'both' view
+        if (abTestTitles.length >= 2 && abTestThumbnails.length >= 2) {
+            setActiveTab('both');
+        } else {
+            setActiveTab('thumbnail');
+        }
         setIsOpen(true);
-    }, []);
+    }, [abTestTitles.length, abTestThumbnails.length]);
 
     const closeModal = useCallback(() => {
         setIsOpen(false);

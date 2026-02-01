@@ -101,10 +101,25 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
         return () => observer.disconnect();
     }, []);
 
-    // Sync dirty state with parent
+    // Detect scroll for sticky header shadow
     useEffect(() => {
         onDirtyChange(formState.isDirty);
     }, [formState.isDirty, onDirtyChange]);
+
+
+    // ============================================================================
+    // HELPER: Image Upload
+    // ============================================================================
+    const handleCommonImageUpload = React.useCallback(async (file: File) => {
+        // Resize and compress the image
+        const blob = await resizeImageToBlob(file, 1280, 0.7);
+        // Create path: users/{userId}/channels/{channelId}/videos/{videoId}/{timestamp}_{filename}
+        const timestamp = Date.now();
+        const path = `users/${user?.uid}/channels/${currentChannel?.id}/videos/${video.id}/${timestamp}_${file.name}`;
+
+        // Upload to Firebase Storage and return download URL
+        return uploadImageToStorage(blob, path);
+    }, [user, currentChannel, video.id]);
 
 
     // ============================================================================
@@ -351,17 +366,9 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                                 }
                             }}
                             onFileUpload={async (file: File) => {
-                                // Resize and compress the image
-                                const blob = await resizeImageToBlob(file, 1280, 0.7);
-                                // Create path: users/{userId}/channels/{channelId}/videos/{videoId}/{timestamp}_{filename}
-                                const timestamp = Date.now();
-                                const path = `users/${user?.uid}/channels/${currentChannel?.id}/videos/${video.id}/${timestamp}_${file.name}`;
-
                                 // Capture the real filename immediately
                                 formState.setCustomImageName(file.name);
-
-                                // Upload to Firebase Storage and return download URL
-                                return uploadImageToStorage(blob, path);
+                                return handleCommonImageUpload(file);
                             }}
                             onPushToHistory={(url) => {
                                 // Add current cover to history before it gets replaced
@@ -452,6 +459,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                         thumbnailVariants={abTesting.thumbnails}
                         onSave={abTesting.saveChanges}
                         initialResults={abTesting.results}
+                        onFileUpload={handleCommonImageUpload}
                     />
                 )}
             </div>
