@@ -113,7 +113,7 @@ export const useTrendsSync = (): UseTrendsSyncReturn => {
                     : `Synced ${targetChannels.length} channels. Processed ${totalNewVideos} total videos.`,
                 type: 'success',
                 meta: totalQuotaUsed.toString(),
-                avatarUrl: isSingle ? targetChannels[0].avatarUrl : undefined,
+                ...(isSingle && { avatarUrl: targetChannels[0].avatarUrl }),
                 quotaBreakdown: totalQuotaBreakdown
             });
 
