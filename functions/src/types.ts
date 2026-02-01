@@ -72,4 +72,5 @@ export interface ProcessStats {
     videosProcessed: number;
     quotaList: number;
     quotaDetails: number;
+    newAvatarUrl?: string;
 }

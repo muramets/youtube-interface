@@ -695,7 +695,7 @@ export const TrendService = {
      * Triggers Server-Side Sync for a user channel.
      * The Cloud Function handles fetching, updating metrics/metadata, and notifications.
      */
-    syncChannelCloud: async (channelId: string, targetTrendChannelIds?: string[]): Promise<void> => {
+    syncChannelCloud: async (channelId: string, targetTrendChannelIds?: string[], forceAvatarRefresh?: boolean): Promise<void> => {
         const { functions } = await import('../../config/firebase');
         const { httpsCallable } = await import('firebase/functions');
 
@@ -703,7 +703,8 @@ export const TrendService = {
 
         await manualTrendSync({
             channelId, // The context (User Channel ID)
-            targetTrendChannelIds // Optional: specific trend channels to sync
+            targetTrendChannelIds, // Optional: specific trend channels to sync
+            forceAvatarRefresh
         });
     },
 

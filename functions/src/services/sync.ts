@@ -2,9 +2,9 @@ import * as admin from "firebase-admin";
 import { YouTubeService } from "./youtube";
 import { TrendChannel, ProcessStats, Notification, YouTubeVideoItem } from "../types";
 
-const db = admin.firestore();
-
 export class SyncService {
+    private db = admin.firestore();
+
     /**
      * Synchronizes a single trend channel:
      * 1. Fetches all video IDs.
@@ -16,19 +16,38 @@ export class SyncService {
         userId: string,
         userChannelId: string,
         trendChannel: TrendChannel,
-        apiKey: string
+        apiKey: string,
+        refreshAvatar: boolean = false
     ): Promise<ProcessStats> {
         const yt = new YouTubeService(apiKey);
 
+        let quotaList = 0;
+        let quotaDetails = 0;
+
+        // 0. Refresh Avatar if requested
+        if (refreshAvatar) {
+            const { avatarUrl, quotaUsed } = await yt.getChannelAvatar(trendChannel.id);
+            quotaDetails += quotaUsed; // Count as details/overhead quota
+
+            if (avatarUrl) {
+                await this.db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${trendChannel.id}`).update({
+                    avatarUrl: avatarUrl
+                });
+                console.log(`Updated avatar for ${trendChannel.name}`);
+            }
+        }
+
         // 1. Fetch ALL videos
-        const { videoIds, quotaUsed: quotaList } = await yt.getPlaylistVideos(trendChannel.uploadsPlaylistId);
+        const { videoIds, quotaUsed: qList } = await yt.getPlaylistVideos(trendChannel.uploadsPlaylistId);
+        quotaList += qList;
 
         if (videoIds.length === 0) {
-            return { videosProcessed: 0, quotaList, quotaDetails: 0 };
+            return { videosProcessed: 0, quotaList, quotaDetails };
         }
 
         // 2. Fetch Details (Full Metadata)
-        const { videos, quotaUsed: quotaDetails } = await yt.getVideoDetails(videoIds);
+        const { videos, quotaUsed: qDetails } = await yt.getVideoDetails(videoIds);
+        quotaDetails += qDetails;
 
         // 3. Save to Firestore (Batch checks)
         // We have potentially hundreds of videos. Batches are limited to 500 ops.
@@ -41,14 +60,14 @@ export class SyncService {
         const batchSize = 400; // Safe margin below 500
         for (let i = 0; i < videos.length; i += batchSize) {
             const chunk = videos.slice(i, i + batchSize);
-            const batch = db.batch();
+            const batch = this.db.batch();
 
             chunk.forEach((v: YouTubeVideoItem) => {
                 const viewCount = parseInt(v.statistics.viewCount || '0');
                 videoViews[v.id] = viewCount;
 
                 // Reference to the video document in 'videos' subcollection
-                const videoRef = db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${trendChannel.id}/videos/${v.id}`);
+                const videoRef = this.db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${trendChannel.id}/videos/${v.id}`);
 
                 // Update Metadata + Stats
                 batch.set(videoRef, {
@@ -68,7 +87,7 @@ export class SyncService {
         }
 
         // 4. Save Snapshot
-        const snapshotRef = db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${trendChannel.id}/snapshots/${timestamp}`);
+        const snapshotRef = this.db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${trendChannel.id}/snapshots/${timestamp}`);
         await snapshotRef.set({
             timestamp: timestamp,
             videoViews: videoViews,
@@ -95,7 +114,7 @@ export class SyncService {
         const totalViews = videos.reduce((sum, v) => sum + parseInt(v.statistics.viewCount || '0'), 0);
         const averageViews = videos.length > 0 ? totalViews / videos.length : 0;
 
-        const channelRef = db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${trendChannelId}`);
+        const channelRef = this.db.doc(`users/${userId}/channels/${userChannelId}/trendChannels/${trendChannelId}`);
         await channelRef.update({
             lastUpdated: timestamp,
             totalViewCount: totalViews,
@@ -127,6 +146,6 @@ export class SyncService {
             }
         };
 
-        await db.collection(`users/${userId}/channels/${userChannelId}/notifications`).add(notification);
+        await this.db.collection(`users/${userId}/channels/${userChannelId}/notifications`).add(notification);
     }
 }

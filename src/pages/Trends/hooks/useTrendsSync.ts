@@ -5,7 +5,7 @@ import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { useApiKey } from '../../../core/hooks/useApiKey';
 import { useUIStore } from '../../../core/stores/uiStore';
-import { useNotificationStore } from '../../../core/stores/notificationStore';
+// Removed invalid imports
 
 interface UseTrendsSyncReturn {
     handleSync: () => Promise<void>;
@@ -24,9 +24,8 @@ export const useTrendsSync = (): UseTrendsSyncReturn => {
 
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { apiKey, hasApiKey } = useApiKey();
+    const { hasApiKey } = useApiKey();
     const { showToast } = useUIStore();
-    const { addNotification } = useNotificationStore();
 
     const [isSyncing, setIsSyncing] = useState(false);
 
@@ -36,7 +35,8 @@ export const useTrendsSync = (): UseTrendsSyncReturn => {
         ? channels.filter(c => c.id === selectedChannelId)
         : visibleChannels;
 
-    const canSync = hasApiKey && targetChannels.length > 0;
+    // Local canSync based on API key and targets
+    const localCanSync = hasApiKey && targetChannels.length > 0;
 
     // Tooltip logic
     const syncTooltip = !hasApiKey
@@ -50,7 +50,8 @@ export const useTrendsSync = (): UseTrendsSyncReturn => {
                     : "No visible channels to sync";
 
     const handleSync = async () => {
-        if (!user || !currentChannel || !canSync || isSyncing) return;
+        // Use combined canSync logic for the guard clause
+        if (!user || !currentChannel || !localCanSync || isSyncing) return;
 
         setIsSyncing(true);
         // Stats are now handled by Cloud Function notification
@@ -58,13 +59,7 @@ export const useTrendsSync = (): UseTrendsSyncReturn => {
 
         try {
             // Initial toast
-            const isSingle = targetChannels.length === 1;
-            showToast(
-                isSingle
-                    ? `Syncing ${targetChannels[0].title}...`
-                    : `Syncing ${targetChannels.length} channels...`,
-                'success'
-            );
+            showToast('Sync started...', 'success');
 
             // Call Server-Side Sync
             // We pass the list of trend channel IDs if we are syncing specific ones (e.g. selection),
@@ -76,13 +71,25 @@ export const useTrendsSync = (): UseTrendsSyncReturn => {
 
             const targetIds = targetChannels.map(c => c.id);
 
-            await TrendService.syncChannelCloud(currentChannel.id, targetIds);
+            // Check if ANY of the target channels have a broken avatar
+            const needsAvatarRefresh = targetChannels.some(c => brokenAvatarChannelIds.has(c.id));
+
+            await TrendService.syncChannelCloud(currentChannel.id, targetIds, needsAvatarRefresh);
+
+            // Clear broken flags locally if we refreshed
+            // (Ideally, we would wait for confirmation or only clear specific ones, 
+            // but for UX clearing them assumes success. If they are still broken, they will be flagged again on load).
+            if (needsAvatarRefresh) {
+                targetChannels.forEach(c => {
+                    if (brokenAvatarChannelIds.has(c.id)) clearBrokenAvatar(c.id);
+                });
+            }
 
             // Final success toast
             // Note: The Cloud Function sends the detailed notification.
             // We just confirm the command was accepted/finished.
             showToast(
-                'Sync completed successfully',
+                "Sync started! We'll notify you as soon as it's finished.",
                 'success'
             );
 
@@ -98,7 +105,7 @@ export const useTrendsSync = (): UseTrendsSyncReturn => {
     return {
         handleSync,
         isSyncing,
-        canSync,
+        canSync: localCanSync,
         syncTooltip
     };
 };

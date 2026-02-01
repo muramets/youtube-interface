@@ -1,5 +1,5 @@
 import axios from "axios";
-import { YouTubePlaylistResponse, YouTubeVideoResponse, YouTubePlaylistItem } from "../types";
+import { YouTubePlaylistResponse, YouTubeVideoResponse, YouTubePlaylistItem, YouTubeVideoItem } from "../types";
 
 export class YouTubeService {
     constructor(private apiKey: string) { }
@@ -47,10 +47,10 @@ export class YouTubeService {
      * Fetches details (snippet + statistics) for a list of video IDs.
      * Batches requests in chunks of 50.
      */
-    async getVideoDetails(videoIds: string[]): Promise<{ videos: any[], quotaUsed: number }> {
+    async getVideoDetails(videoIds: string[]): Promise<{ videos: YouTubeVideoItem[], quotaUsed: number }> {
         if (videoIds.length === 0) return { videos: [], quotaUsed: 0 };
 
-        const videos: any[] = [];
+        const videos: YouTubeVideoItem[] = [];
         let quotaUsed = 0;
         const chunkSize = 50;
 
@@ -82,5 +82,28 @@ export class YouTubeService {
         }
 
         return { videos, quotaUsed };
+    }
+
+    /**
+     * Fetches the channel's avatar URL.
+     */
+    async getChannelAvatar(channelId: string): Promise<{ avatarUrl?: string, quotaUsed: number }> {
+        try {
+            const res = await axios.get(`https://www.googleapis.com/youtube/v3/channels`, {
+                params: {
+                    part: 'snippet',
+                    id: channelId,
+                    key: this.apiKey
+                }
+            });
+
+            const item = res.data.items?.[0];
+            const avatarUrl = item?.snippet?.thumbnails?.medium?.url || item?.snippet?.thumbnails?.default?.url;
+
+            return { avatarUrl, quotaUsed: 1 };
+        } catch (error) {
+            console.error(`Error fetching avatar for ${channelId}:`, error);
+            return { quotaUsed: 0 };
+        }
     }
 }
