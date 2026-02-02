@@ -23,7 +23,7 @@ export interface UseVideosResult {
     addCustomVideo: (video: Omit<VideoDetails, 'id'> & { id?: string }) => Promise<string>;
     updateVideo: (vars: { videoId: string; updates?: Partial<VideoDetails>; apiKey?: string; expectedRevision?: number }) => Promise<boolean>;
     removeVideo: (videoId: string) => Promise<void>;
-    cloneVideo: (vars: { originalVideo: VideoDetails; coverVersion: CoverVersion | null; cloneDurationSeconds: number; overrides?: { title?: string; customImage?: string; customImageName?: string; customImageVersion?: number } }) => Promise<string>;
+    cloneVideo: (vars: { originalVideo: VideoDetails; coverVersion: CoverVersion | null; cloneDurationSeconds: number; overrides?: { title?: string; customImage?: string; customImageName?: string; customImageVersion?: number; abTestVariantIndex?: number } }) => Promise<string>;
     saveDraft: (vars: { videoId: string; expectedRevision: number }) => Promise<void>;
     createVersion: (vars: { videoId: string; snapshot: PackagingVersion['configurationSnapshot']; expectedRevision: number }) => Promise<void>;
     addCheckin: (vars: { videoId: string; versionNumber: number; checkin: PackagingCheckin; expectedRevision: number }) => Promise<void>;
