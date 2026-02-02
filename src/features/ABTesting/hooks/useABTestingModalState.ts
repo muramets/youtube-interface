@@ -138,16 +138,16 @@ export function useABTestingModalState({
         }
     };
 
-    // Cleanup blob URLs on unmount
-    useEffect(() => {
-        return () => {
-            thumbnails.forEach(url => {
-                if (url && url.startsWith('blob:')) {
-                    URL.revokeObjectURL(url);
-                }
-            });
-        };
-    }, [thumbnails]);
+    // Cleanup blob URLs on unmount - REMOVED to prevent killing blobs before parent uploads them
+    // useEffect(() => {
+    //     return () => {
+    //         thumbnails.forEach(url => {
+    //             if (url && url.startsWith('blob:')) {
+    //                 URL.revokeObjectURL(url);
+    //             }
+    //         });
+    //     };
+    // }, [thumbnails]);
 
     const handleRemoveThumbnail = (index: number) => {
         const newThumbnails = [...thumbnails];
@@ -176,14 +176,38 @@ export function useABTestingModalState({
 
     // Validation
     const getValidationError = (): string | null => {
-        if (activeTab === 'title' || activeTab === 'both') {
-            const filledTitles = titles.filter(t => t.trim()).length;
-            if (filledTitles < 1) return 'At least 1 title is required';
+        const validTitles = titles.map(t => t.trim());
+        const validThumbnails = thumbnails.map(t => t);
+
+        if (activeTab === 'title') {
+            const filledTitles = validTitles.filter(t => t).length;
+            if (filledTitles < 2) return 'At least 2 titles are required for a test';
+            return null;
         }
-        if (activeTab === 'thumbnail' || activeTab === 'both') {
-            const filledThumbnails = thumbnails.filter(t => t).length;
-            if (filledThumbnails < 1) return 'At least 1 thumbnail is required';
+
+        if (activeTab === 'thumbnail') {
+            const filledThumbnails = validThumbnails.filter(t => t).length;
+            if (filledThumbnails < 2) return 'At least 2 thumbnails are required for a test';
+            return null;
         }
+
+        if (activeTab === 'both') {
+            let completeRows = 0;
+            for (let i = 0; i < 3; i++) {
+                const hasTitle = !!validTitles[i];
+                const hasThumbnail = !!validThumbnails[i];
+
+                if (hasTitle && hasThumbnail) {
+                    completeRows++;
+                } else if (hasTitle || hasThumbnail) {
+                    return 'All variants must have both a title and a thumbnail';
+                }
+            }
+
+            if (completeRows < 2) return 'At least 2 complete variants are required';
+            return null;
+        }
+
         return null;
     };
 

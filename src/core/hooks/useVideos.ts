@@ -23,7 +23,7 @@ export interface UseVideosResult {
     addCustomVideo: (video: Omit<VideoDetails, 'id'> & { id?: string }) => Promise<string>;
     updateVideo: (vars: { videoId: string; updates?: Partial<VideoDetails>; apiKey?: string; expectedRevision?: number }) => Promise<boolean>;
     removeVideo: (videoId: string) => Promise<void>;
-    cloneVideo: (vars: { originalVideo: VideoDetails; coverVersion: CoverVersion | null; cloneDurationSeconds: number }) => Promise<string>;
+    cloneVideo: (vars: { originalVideo: VideoDetails; coverVersion: CoverVersion | null; cloneDurationSeconds: number; overrides?: { title?: string; customImage?: string; customImageName?: string; customImageVersion?: number } }) => Promise<string>;
     saveDraft: (vars: { videoId: string; expectedRevision: number }) => Promise<void>;
     createVersion: (vars: { videoId: string; snapshot: PackagingVersion['configurationSnapshot']; expectedRevision: number }) => Promise<void>;
     addCheckin: (vars: { videoId: string; versionNumber: number; checkin: PackagingCheckin; expectedRevision: number }) => Promise<void>;
@@ -195,36 +195,36 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
             return false;
         },
         onMutate: async ({ videoId, updates }) => {
-            // Optimistically update cache when publishedVideoId changes
-            if (updates?.publishedVideoId !== undefined) {
-                await queryClient.cancelQueries({ queryKey: ['videos', userId, channelId] });
+            // Optimistically update cache
+            await queryClient.cancelQueries({ queryKey: ['videos', userId, channelId] });
+            const previousVideos = queryClient.getQueryData<VideoDetails[]>(['videos', userId, channelId]);
 
-                const previousVideos = queryClient.getQueryData<VideoDetails[]>(['videos', userId, channelId]);
-
-                queryClient.setQueryData<VideoDetails[]>(['videos', userId, channelId], (old) => {
-                    if (!old) return old;
-                    return old.map(v => {
-                        if (v.id === videoId) {
-                            // If clearing URL, remove mergedVideoData immediately
+            queryClient.setQueryData<VideoDetails[]>(['videos', userId, channelId], (old) => {
+                if (!old) return old;
+                return old.map(v => {
+                    if (v.id === videoId && updates) {
+                        // 1. Special handling for publishedVideoId
+                        if (updates.publishedVideoId !== undefined) {
                             if (updates.publishedVideoId === '') {
                                 const { mergedVideoData: _1, fetchStatus: _2, fetchRetryCount: _3, lastFetchAttempt: _4, ...rest } = v;
-                                void _1; void _2; void _3; void _4; // Explicitly mark as intentionally unused
-                                return { ...rest, publishedVideoId: '' };
+                                void _1; void _2; void _3; void _4;
+                                return { ...rest, ...updates, publishedVideoId: '' };
                             }
-                            // If setting new URL, clear old mergedVideoData until fetch completes
                             return {
                                 ...v,
-                                publishedVideoId: updates.publishedVideoId,
+                                ...updates,
                                 mergedVideoData: undefined,
                                 fetchStatus: 'pending' as const
                             };
                         }
-                        return v;
-                    });
+                        // 2. Generic update for all other fields (e.g. A/B tests)
+                        return { ...v, ...updates };
+                    }
+                    return v;
                 });
+            });
 
-                return { previousVideos };
-            }
+            return { previousVideos };
         },
         onError: (_err, _variables, context) => {
             // Rollback on error
@@ -288,29 +288,59 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
 
     // Clone Video
     const cloneVideoMutation = useMutation({
-        mutationFn: async ({ originalVideo, coverVersion, cloneDurationSeconds }: { originalVideo: VideoDetails, coverVersion: CoverVersion | null, cloneDurationSeconds: number }) => {
+        mutationFn: async ({ originalVideo, coverVersion, cloneDurationSeconds, overrides }: { originalVideo: VideoDetails, coverVersion: CoverVersion | null, cloneDurationSeconds: number; overrides?: { title?: string; customImage?: string; customImageName?: string; customImageVersion?: number; abTestVariantIndex?: number } }) => {
             const now = Date.now();
             const id = `clone-${now}-${Math.random().toString(36).substr(2, 9)}`;
             const expiresAt = now + (cloneDurationSeconds * 1000);
 
+            // Determine values (overrides take precedence, then coverVersion, then original)
+            const finalTitle = overrides?.title ?? originalVideo.title;
+            const finalImage = overrides?.customImage ?? coverVersion?.url ?? originalVideo.customImage;
+            const finalImageName = overrides?.customImageName ?? coverVersion?.originalName ?? originalVideo.customImageName;
+            const finalImageVersion = overrides?.customImageVersion ?? coverVersion?.version ?? originalVideo.customImageVersion;
+            const finalVariantIndex = overrides?.abTestVariantIndex;
+
+            // Create a shallow copy and remove fields that should NOT be in the clone
+            // (to avoid undefined errors in Firestore and ensure clean state)
+            const baseVideo = { ...originalVideo };
+            delete baseVideo.mergedVideoData;
+            delete baseVideo.publishedVideoId;
+            delete baseVideo.fetchStatus;
+            delete baseVideo.lastFetchAttempt;
+            delete baseVideo.viewCount;
+            delete baseVideo.likeCount;
+            delete baseVideo.abTestTitles;
+            delete baseVideo.abTestThumbnails;
+            delete baseVideo.abTestResults;
+
             const newVideo: VideoDetails = {
-                ...originalVideo,
+                ...baseVideo,
                 id,
+                title: finalTitle,
                 channelId: originalVideo.channelId || channelId,
                 channelTitle: originalVideo.channelTitle || currentChannel?.name || '',
                 channelAvatar: originalVideo.channelAvatar || currentChannel?.avatar || '',
-                viewCount: originalVideo.viewCount || '1000000',
+                viewCount: originalVideo.viewCount || '0',
                 publishedAt: originalVideo.publishedAt || new Date().toISOString(),
+                likeCount: originalVideo.likeCount || '0',
                 isCustom: true,
                 isCloned: true,
                 clonedFromId: originalVideo.id,
                 createdAt: now,
                 expiresAt,
-                customImage: coverVersion?.url || originalVideo.customImage,
-                customImageName: coverVersion?.originalName || originalVideo.customImageName,
-                customImageVersion: coverVersion?.version || originalVideo.customImageVersion,
+                customImage: finalImage,
+                customImageName: finalImageName,
+                customImageVersion: finalImageVersion,
                 coverHistory: originalVideo.coverHistory || [],
-                isPlaylistOnly: originalVideo.isPlaylistOnly // Inherit playlist-only status
+                isPlaylistOnly: originalVideo.isPlaylistOnly ?? false, // Inherit playlist-only status (default to false)
+
+                // Initialize empty A/B test data
+                abTestTitles: [],
+                abTestThumbnails: [],
+                abTestResults: { titles: [], thumbnails: [] },
+
+                // Store linkage to variant
+                abTestVariantIndex: finalVariantIndex
             };
 
             // Optimistic Order Update

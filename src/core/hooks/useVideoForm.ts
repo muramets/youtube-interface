@@ -77,6 +77,9 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
                 setPackagingHistory(effectiveData.packagingHistory ? JSON.parse(JSON.stringify(effectiveData.packagingHistory)) : []);
                 setIsDraft(effectiveData.isDraft ?? (!effectiveData.packagingHistory || effectiveData.packagingHistory.length === 0));
 
+                setAbTestVariants(effectiveData.abTestVariants || []);
+                setAbTestTitles(effectiveData.abTestTitles || []);
+
                 if (!isSameVideo) {
                     setCoverHistory([]);
                 }
@@ -120,6 +123,8 @@ export const useVideoForm = (initialData?: VideoDetails, isOpen?: boolean) => {
                 setCurrentPackagingVersion(1);
                 setPackagingHistory([]);
                 setIsDraft(true);
+                setAbTestVariants([]);
+                setAbTestTitles([]);
             }
         }
     }, [isOpen, effectiveData, prevId]);

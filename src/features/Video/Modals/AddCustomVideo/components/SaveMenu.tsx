@@ -9,6 +9,7 @@ interface SaveMenuProps {
     currentPackagingVersion: number;
     onSaveDraft: () => void;
     onSaveVersion: () => void;
+    isUploading?: boolean;
 }
 
 export const SaveMenu: React.FC<SaveMenuProps> = ({
@@ -18,7 +19,8 @@ export const SaveMenu: React.FC<SaveMenuProps> = ({
     hasCoverImage,
     currentPackagingVersion,
     onSaveDraft,
-    onSaveVersion
+    onSaveVersion,
+    isUploading = false
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -36,8 +38,8 @@ export const SaveMenu: React.FC<SaveMenuProps> = ({
         };
     }, []);
 
-    const isDisabled = !isPackagingDirty || isSaving;
-    const isDropdownDisabled = !hasCoverImage || isSaving || (!isPackagingDirty && !isDraft);
+    const isDisabled = !isPackagingDirty || isSaving || isUploading;
+    const isDropdownDisabled = !hasCoverImage || isSaving || isUploading || (!isPackagingDirty && !isDraft);
 
     return (
         <div className="flex items-center gap-2 relative" ref={menuRef}>
@@ -54,6 +56,11 @@ export const SaveMenu: React.FC<SaveMenuProps> = ({
                         <>
                             <Loader2 className="w-4 h-4 animate-spin" />
                             <span>Saving...</span>
+                        </>
+                    ) : isUploading ? (
+                        <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Uploading...</span>
                         </>
                     ) : (
                         !isPackagingDirty ? 'Saved as Draft' : 'Save as Draft'

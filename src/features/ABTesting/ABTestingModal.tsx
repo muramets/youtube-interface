@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Copy, Check } from 'lucide-react';
 import { Button } from '../../components/ui/atoms/Button';
 import { useABTestingModalState, type ABTestMode } from './hooks/useABTestingModalState';
 import { ThumbnailSlot, TitleInputCard, ShareResultCell } from './components';
@@ -28,6 +28,8 @@ interface ABTestingModalProps {
         thumbnails: number[];
     };
     onFileUpload?: (file: File) => Promise<string>;
+    onClone?: (title?: string, thumbnail?: string, variantIndex?: number) => void;
+    getCloneStatus?: (title?: string, thumbnail?: string) => boolean;
 }
 
 export const ABTestingModal: React.FC<ABTestingModalProps> = ({
@@ -40,8 +42,74 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
     thumbnailVariants,
     onSave,
     initialResults = { titles: [], thumbnails: [] },
-    onFileUpload
+    onFileUpload,
+    onClone,
+    getCloneStatus
 }) => {
+    // Helper for Clone Button
+    const renderCloneButton = (type: 'title' | 'thumbnail' | 'both', index: number) => {
+        if (!onClone) return null;
+
+        let titleToClone: string | undefined;
+        let thumbnailToClone: string | undefined;
+
+        if (type === 'title' || type === 'both') {
+            titleToClone = titles[index];
+        }
+        if (type === 'thumbnail' || type === 'both') {
+            thumbnailToClone = thumbnails[index];
+        }
+
+        const isCloned = getCloneStatus?.(titleToClone, thumbnailToClone) ?? false;
+
+        // Strict validation: Hide button if data is missing for the active mode
+        const hasTitle = !!titleToClone && titleToClone.trim().length > 0;
+        const hasThumbnail = !!thumbnailToClone;
+
+        let isValidForClone = false;
+        if (type === 'title') isValidForClone = hasTitle;
+        else if (type === 'thumbnail') isValidForClone = hasThumbnail;
+        else if (type === 'both') isValidForClone = hasTitle && hasThumbnail;
+
+        if (!isValidForClone) return null;
+
+        // Check total valid variants count
+        // If there is only 1 valid variant (likely the original one), requested to hide buttons.
+        const validVariantsCount = [0, 1, 2].filter(i => {
+            const t = titles[i];
+            const th = thumbnails[i];
+            if (activeTab === 'title') return !!t && t.trim().length > 0;
+            if (activeTab === 'thumbnail') return !!th;
+            if (activeTab === 'both') return !!t && t.trim().length > 0 && !!th;
+            return false;
+        }).length;
+
+        if (validVariantsCount <= 1) return null;
+
+        return (
+            <div className={`absolute right-6 bottom-6 z-10`}>
+                <div
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        // Only trigger if not already cloned
+                        if (!isCloned) {
+                            onClone(titleToClone, thumbnailToClone, index);
+                        }
+                    }}
+                    className={`
+                        w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-sm
+                        ${isCloned
+                            ? 'bg-gray-700 text-gray-400 cursor-default'
+                            : 'bg-modal-button-bg text-modal-text-secondary hover:bg-[#3ea6ff] hover:text-white'}
+                    `}
+                    title={isCloned ? "Active clone exists" : "Clone as preview card"}
+                >
+                    {isCloned ? <Check size={14} /> : <Copy size={14} />}
+                </div>
+            </div>
+        );
+    };
+
     const {
         activeTab,
         setActiveTab,
@@ -160,8 +228,9 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                     {activeTab === 'title' && (
                         <div className="space-y-4">
                             {[0, 1, 2].map(index => (
-                                <div key={`title-${index}`} className="flex gap-4">
-                                    <div className="bg-modal-card-bg rounded-2xl p-4" style={{ width: '553px' }}>
+                                <div key={`title-${index}`} className="flex gap-4 relative">
+                                    <div className="bg-modal-card-bg rounded-2xl p-4 relative" style={{ width: '553px' }}>
+                                        {renderCloneButton('title', index)}
                                         <TitleInputCard
                                             value={titles[index]}
                                             index={index}
@@ -186,9 +255,10 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                     {activeTab === 'thumbnail' && (
                         <div className="space-y-4">
                             {[0, 1, 2].map(index => (
-                                <div key={`thumb-${index}`} className="flex items-center gap-6">
+                                <div key={`thumb-${index}`} className="flex items-center gap-6 relative">
                                     <div className="flex gap-4">
-                                        <div className="bg-modal-card-bg rounded-2xl flex items-center" style={{ padding: '16px', height: '180px' }}>
+                                        <div className="bg-modal-card-bg rounded-2xl flex items-center relative" style={{ padding: '16px', height: '180px' }}>
+                                            {renderCloneButton('thumbnail', index)}
                                             <ThumbnailSlot
                                                 src={thumbnails[index]}
                                                 index={index}
@@ -222,9 +292,10 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                             {[0, 1, 2].map(index => (
                                 <div
                                     key={`both-${index}`}
-                                    className="bg-modal-card-bg rounded-2xl p-4 flex gap-4"
+                                    className="bg-modal-card-bg rounded-2xl p-4 flex gap-4 relative"
                                     style={{ height: '180px' }}
                                 >
+                                    {renderCloneButton('both', index)}
                                     <div className="flex-1 flex gap-4 overflow-hidden">
                                         <div className="flex items-center">
                                             <ThumbnailSlot

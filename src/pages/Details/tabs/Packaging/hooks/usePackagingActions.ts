@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { type VideoDetails, type CoverVersion } from '../../../../../core/utils/youtubeApi';
+
 import type { PackagingVersion, ActivePeriod } from '../../../../../core/types/versioning';
 import type { TrafficData, TrafficSnapshot } from '../../../../../core/types/traffic';
 import { useUIStore } from '../../../../../core/stores/uiStore';
@@ -35,6 +37,7 @@ export const usePackagingActions = ({
     trafficData,
     playlistId
 }: UsePackagingActionsProps) => {
+    const navigate = useNavigate();
     const { user } = useAuth();
     const { currentChannel, setCurrentChannel } = useChannelStore();
     const { cloneSettings, generalSettings } = useSettings();
@@ -276,60 +279,22 @@ export const usePackagingActions = ({
         formState.resetToSnapshot(formState.loadedSnapshot);
     }, [formState]);
 
-    const handleCloneFromVersion = useCallback(async (version: CoverVersion) => {
-        if (cloningVersion !== null) return;
-        setCloningVersion(version.version);
-        try {
-            const newVideoId = await cloneVideo({
-                originalVideo: video,
-                coverVersion: version,
-                cloneDurationSeconds: cloneSettings?.cloneDurationSeconds || 3600
-            });
+    const onCloneSuccess = useCallback(async (newVideoId: string) => {
+        // HANDLE PLAYLIST CONTEXT
+        if (playlistId) {
+            // 1. Add to playlist
+            const { PlaylistService } = await import('../../../../../core/services/playlistService');
+            await PlaylistService.addVideosToPlaylist(user?.uid || '', currentChannel?.id || '', playlistId, [newVideoId]);
 
-            // HANDLE PLAYLIST CONTEXT
-            if (playlistId) {
-                // 1. Add to playlist
-                const { PlaylistService } = await import('../../../../../core/services/playlistService');
-                await PlaylistService.addVideosToPlaylist(user?.uid || '', currentChannel?.id || '', playlistId, [newVideoId]);
-
-                // 2. Show Playlist-Specific Success Toast & Click Action
-                const message = formState.isDirty
-                    ? `Cloned video added to playlist — save & view`
-                    : `Cloned video added to playlist — click to view`;
-
-                showToast(
-                    message,
-                    'success',
-                    'clickable',
-                    async () => {
-                        // Auto-save draft before navigating (only if dirty)
-                        if (formState.isDirty) {
-                            try {
-                                await handleSave();
-                            } catch (error) {
-                                console.error('Failed to save draft:', error);
-                                showToast('Failed to save changes', 'error');
-                                return; // Don't navigate if save failed
-                            }
-                        }
-                        // Navigate back to the playlist
-                        window.location.href = `/playlists/${playlistId}`;
-                    }
-                );
-                return;
-            }
-
-            // DEFAULT BEHAVIOR (No Playlist)
-            // Dynamic message based on whether there are unsaved changes
+            // 2. Show Playlist-Specific Success Toast & Click Action
             const message = formState.isDirty
-                ? `Thumbnail cloned — save & view`
-                : `Thumbnail cloned — click to view`;
+                ? `Cloned video added to playlist — save & view`
+                : `Cloned video added to playlist — click to view`;
 
-            // Show toast with action to save draft and navigate to homepage
             showToast(
                 message,
                 'success',
-                'clickable', // This signals the toast is clickable
+                'clickable',
                 async () => {
                     // Auto-save draft before navigating (only if dirty)
                     if (formState.isDirty) {
@@ -341,16 +306,88 @@ export const usePackagingActions = ({
                             return; // Don't navigate if save failed
                         }
                     }
-                    // Navigate to homepage to see the cloned video
-                    window.location.href = '/';
+                    // Navigate back to the playlist
+                    navigate(`/playlists/${playlistId}`);
                 }
             );
+            return;
+        }
+
+        // DEFAULT BEHAVIOR (No Playlist)
+        // Dynamic message based on whether there are unsaved changes
+        const message = formState.isDirty
+            ? `Clone created — save & view`
+            : `Clone created — click to view`;
+
+        // Show toast with action to save draft and navigate to homepage
+        showToast(
+            message,
+            'success',
+            'clickable', // This signals the toast is clickable
+            async () => {
+                // Auto-save draft before navigating (only if dirty)
+                if (formState.isDirty) {
+                    try {
+                        await handleSave();
+                    } catch (error) {
+                        console.error('Failed to save draft:', error);
+                        showToast('Failed to save changes', 'error');
+                        return; // Don't navigate if save failed
+                    }
+                }
+                // Navigate to homepage to see the cloned video
+                navigate('/');
+            }
+        );
+    }, [playlistId, user, currentChannel, formState.isDirty, handleSave, showToast, navigate]);
+
+    const handleCloneFromVersion = useCallback(async (version: CoverVersion) => {
+        if (cloningVersion !== null) return;
+        setCloningVersion(version.version);
+        try {
+            const newVideoId = await cloneVideo({
+                originalVideo: video,
+                coverVersion: version,
+                cloneDurationSeconds: cloneSettings?.cloneDurationSeconds || 3600
+            });
+            await onCloneSuccess(newVideoId);
         } catch {
             showToast('Failed to clone version', 'error');
         } finally {
             setCloningVersion(null);
         }
-    }, [cloningVersion, cloneVideo, video, showToast, cloneSettings, formState.isDirty, handleSave, playlistId, user, currentChannel]);
+    }, [cloningVersion, cloneVideo, video, showToast, cloneSettings, onCloneSuccess]);
+
+    const handleCloneABVariant = useCallback(async (title?: string, thumbnail?: string, variantIndex?: number) => {
+        if (cloningVersion !== null) return;
+        // Use a dummy version number (e.g. -1) to block unrelated UI if needed, or separate state
+        setCloningVersion(-1);
+        try {
+            const newVideoId = await cloneVideo({
+                originalVideo: video,
+                coverVersion: null, // No historical version, using current + overrides
+                cloneDurationSeconds: cloneSettings?.cloneDurationSeconds || 3600,
+                overrides: {
+                    title: title, // undefined means reuse original
+                    customImage: thumbnail, // undefined means reuse original
+                    abTestVariantIndex: variantIndex, // Pass the variant index for linking
+                    // If we are cloning a new thumbnail (blob/upload) that hasn't been saved/versioned yet, 
+                    // we might need to be careful. But assuming 'thumbnail' is a URL.
+                    // If reusing current image, preserving the current version info is good.
+                    // If applying a new thumbnail from A/B variants, we might want to reset version info or set to a temp one.
+                    // For now, let's reset version info if a thumbnail override is provided.
+                    customImageName: thumbnail ? 'A/B Variant' : undefined,
+                    customImageVersion: thumbnail ? 0 : undefined // 0 to indicate variant
+                }
+            });
+            await onCloneSuccess(newVideoId);
+        } catch (e) {
+            console.error(e);
+            showToast('Failed to clone A/B variant', 'error');
+        } finally {
+            setCloningVersion(null);
+        }
+    }, [cloningVersion, cloneVideo, video, cloneSettings, onCloneSuccess, showToast]);
 
     const handleRestore = useCallback(async () => {
         if (versionState.viewingVersion !== 'draft' && typeof versionState.viewingVersion === 'number') {
@@ -506,6 +543,7 @@ export const usePackagingActions = ({
         handleSaveMetadata,
         handleCancel,
         handleCloneFromVersion,
+        handleCloneABVariant,
         handleRestore,
         handleAddLanguage,
         handleDeleteCustomLanguage

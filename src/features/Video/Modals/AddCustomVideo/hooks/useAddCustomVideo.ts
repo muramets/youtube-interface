@@ -50,6 +50,7 @@ export function useAddCustomVideo({
     const [activeTab, setActiveTab] = useState<'details'>(initialTab || 'details');
     const [isStatsExpanded, setIsStatsExpanded] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [isImageUploading, setIsImageUploading] = useState(false);
     const [cloningVersion, setCloningVersion] = useState<number | null>(null);
 
     // Delete Confirmation
@@ -111,17 +112,87 @@ export function useAddCustomVideo({
         thumbnails: abTestVariants,
         currentTitle: title, // Use form title as base
         currentThumbnail: coverImage || '',
-        onSave: (data) => {
-            // Update local state
+        onSave: async (data) => {
+            // Immediately update state with blobs for instant UI feedback
             setAbTestTitles(data.titles);
+            setAbTestVariants(data.thumbnails);
 
-            // Sole Survivor Logic: If only 1 variant remains, promote it to cover image
+            // Immediate "Sole Survivor" or default cover logic with blobs
             if (data.thumbnails.length === 1) {
                 setCoverImage(data.thumbnails[0]);
                 setAbTestVariants([]);
-            } else {
-                setAbTestVariants(data.thumbnails);
+            } else if (!coverImage && data.thumbnails.length > 0) {
+                setCoverImage(data.thumbnails[0]);
             }
+
+            const hasBlobs = data.thumbnails.some(t => t.startsWith('blob:'));
+
+            if (!hasBlobs) {
+                return;
+            }
+
+            // Handle uploads in background
+            setIsImageUploading(true);
+
+            // Initialize to null to satisfy 'prefer-const' (reassignment later) and 'used-before-assigned'
+            let uploadPromise: Promise<void> | null = null;
+
+            uploadPromise = (async () => {
+                try {
+                    const userId = user?.uid || 'anonymous';
+                    const videoId = initialData?.id || draftId;
+
+                    const newThumbnails = await Promise.all(data.thumbnails.map(async (thumb) => {
+                        if (thumb.startsWith('blob:')) {
+                            try {
+                                const response = await fetch(thumb);
+                                const originalBlob = await response.blob();
+                                // Resize for consistency
+                                const blob = await resizeImageToBlob(originalBlob as File, 1280, 0.7);
+
+                                const timestamp = Date.now();
+                                const randomId = Math.random().toString(36).substring(7);
+                                const path = `users/${userId}/channels/${currentChannel?.id}/videos/${videoId}/abtest_${timestamp}_${randomId}.jpg`;
+                                return await uploadImageToStorage(blob, path);
+                            } catch (e) {
+                                console.error('Failed to upload A/B variant:', e);
+                                throw e;
+                            }
+                        }
+                        return thumb;
+                    }));
+
+                    // Update state with confirmed URLs after upload
+                    if (newThumbnails.length === 1) {
+                        setCoverImage(newThumbnails[0]);
+                        setAbTestVariants([]);
+                    } else {
+                        setAbTestVariants(newThumbnails);
+                        // Update cover image if it was one of the blobs that got uploaded
+                        // We check if the current coverImage is one of the old blobs
+                        const paramThumbnails = data.thumbnails; // old blobs
+                        const currentIndex = paramThumbnails.indexOf(coverImage || '');
+                        if (currentIndex !== -1 && newThumbnails[currentIndex]) {
+                            setCoverImage(newThumbnails[currentIndex]);
+                        } else if (!coverImage && newThumbnails.length > 0) {
+                            setCoverImage(newThumbnails[0]);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error uploading A/B variants:', error);
+                    setToastMessage('Failed to upload A/B variants');
+                    setToastType('error');
+                    setShowToast(true);
+                } finally {
+                    setIsImageUploading(false);
+                    // Check against the current active promise
+                    if (activeUploadPromiseRef.current === uploadPromise) {
+                        activeUploadPromiseRef.current = null;
+                    }
+                }
+            })();
+
+            activeUploadPromiseRef.current = uploadPromise;
         },
         onResultsSave: async () => {
             // No-op for now in creation flow
@@ -129,11 +200,21 @@ export function useAddCustomVideo({
     });
 
     const handleOpenTitleABTest = () => {
-        openABModal('title');
+        // If we have both tests running, open in 'both' mode
+        if (abTestTitles.length >= 2 && abTestVariants.length >= 2) {
+            openABModal('both');
+        } else {
+            openABModal('title');
+        }
     };
 
     const handleOpenThumbnailABTest = () => {
-        openABModal('thumbnail');
+        // If we have both tests running, open in 'both' mode
+        if (abTestVariants.length >= 2 && abTestTitles.length >= 2) {
+            openABModal('both');
+        } else {
+            openABModal('thumbnail');
+        }
     };
 
     const handleABTestSave = (data: ABTestingSaveData) => {
@@ -300,9 +381,10 @@ export function useAddCustomVideo({
                 setCurrentVersion(newVersion);
                 setCurrentOriginalName(file.name);
 
-                setToastMessage('Uploading image...');
-                setToastType('success');
-                setShowToast(true);
+                setCurrentVersion(newVersion);
+                setCurrentOriginalName(file.name);
+
+                setIsImageUploading(true);
 
                 const blob = await resizeImageToBlob(file, 1280, 0.7);
                 const timestamp = Date.now();
@@ -311,9 +393,6 @@ export function useAddCustomVideo({
 
                 if (lastUploadTimeRef.current === currentUploadTime) {
                     setCoverImage(downloadURL);
-                    setToastType('success');
-                    setToastMessage('Image uploaded successfully!');
-                    setTimeout(() => setShowToast(false), 2000);
                 }
                 return downloadURL;
             } catch (error) {
@@ -323,6 +402,7 @@ export function useAddCustomVideo({
                 setShowToast(true);
                 throw error;
             } finally {
+                setIsImageUploading(false);
                 if (lastUploadTimeRef.current === currentUploadTime) {
                     activeUploadPromiseRef.current = null;
                 }
@@ -662,6 +742,7 @@ export function useAddCustomVideo({
         activeTab, setActiveTab,
         isStatsExpanded, setIsStatsExpanded,
         isSaving,
+        isImageUploading,
         cloningVersion,
         deleteConfirmation,
         toastMessage, showToast, setShowToast, toastType, toastPosition,

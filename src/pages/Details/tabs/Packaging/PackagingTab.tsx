@@ -462,6 +462,17 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                         onSave={abTesting.saveChanges}
                         initialResults={abTesting.results}
                         onFileUpload={handleCommonImageUpload}
+                        onClone={actions.handleCloneABVariant}
+                        getCloneStatus={(title, thumbnail) => {
+                            const targetTitle = title || localization.title;
+                            const targetThumbnail = thumbnail || formState.customImage;
+                            return videos.some(v =>
+                                v.isCloned &&
+                                v.clonedFromId === video.id &&
+                                v.title === targetTitle &&
+                                v.customImage === targetThumbnail
+                            );
+                        }}
                     />
                 )}
             </div>

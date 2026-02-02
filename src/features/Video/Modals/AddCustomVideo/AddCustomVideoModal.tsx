@@ -21,7 +21,7 @@ interface AddCustomVideoModalProps {
 }
 
 export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) => {
-    const { isOpen, initialData } = props;
+    const { isOpen } = props;
     const {
         // UI State
         modalRef,
@@ -33,6 +33,7 @@ export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) =
         toastMessage, showToast, setShowToast, toastType, toastPosition,
         isEffectivePackagingDirty,
         currentChannel,
+        isImageUploading,
 
         // Data State
         title, setTitle,
@@ -131,7 +132,7 @@ export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) =
                     {/* Header */}
                     <div className="flex justify-between items-center px-6 py-4 border-b border-border bg-bg-secondary">
                         <h2 className="text-xl font-semibold text-text-primary m-0">
-                            {initialData ? 'Edit Video' : 'Create Video'}
+                            Add Video
                         </h2>
                         <div className="flex items-center gap-3">
                             {activeTab === 'details' ? (
@@ -143,6 +144,7 @@ export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) =
                                     currentPackagingVersion={currentPackagingVersion}
                                     onSaveDraft={() => handleSave(true, true)}
                                     onSaveVersion={handleSaveAsVersion}
+                                    isUploading={isImageUploading}
                                 />
                             ) : null}
 

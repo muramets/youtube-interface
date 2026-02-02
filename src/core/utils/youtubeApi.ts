@@ -43,6 +43,7 @@ export interface VideoDetails {
         titles: number[];
         thumbnails: number[];
     };
+    abTestVariantIndex?: number; // Index of the A/B test variant this video is cloned from (linked clone)
     abTestVariants?: string[]; // Deprecated? Keeping for backward compat if needed, but likely unused in new flow
     packagingHistory?: PackagingVersion[];
     currentPackagingVersion?: number;

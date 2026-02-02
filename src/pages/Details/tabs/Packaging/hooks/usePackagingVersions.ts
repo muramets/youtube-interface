@@ -81,11 +81,6 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
 
             // If local revision is newer, keep local state (optimistic update in progress)
             if (state.packagingRevision > incomingRevision) {
-                logger.debug('Preserving newer local state (optimistic update)', {
-                    component: 'usePackagingVersions',
-                    localRevision: state.packagingRevision,
-                    incomingRevision
-                });
                 return state;
             }
 
@@ -97,16 +92,6 @@ function versionsReducer(state: VersionsState, action: VersionsAction): Versions
             const computedActive = initialActiveVersion || (isDraft ? 'draft' : (history.length > 0
                 ? Math.max(...history.map(v => v.versionNumber))
                 : 'draft'));
-
-            logger.debug('SYNC_FROM_PROPS', {
-                component: 'usePackagingVersions',
-                isDraft,
-                initialActiveVersion,
-                computedActive,
-                historyCount: history.length,
-                incomingRevision,
-                localRevision: state.packagingRevision
-            });
 
             // Smart sync: preserve local selection if still valid AND we are not forcing a specific initialActiveVersion
             const isActiveValid = state.activeVersion === 'draft' ||
@@ -345,13 +330,7 @@ export const usePackagingVersions = ({
         : 'draft'));
 
     useEffect(() => {
-        logger.debug('Initializing usePackagingVersions', {
-            component: 'usePackagingVersions',
-            initialIsDraft,
-            initialActiveVersion,
-            initialActive,
-            historyCount: initialHistory.length
-        });
+
     }, [initialActive, initialActiveVersion, initialHistory.length, initialIsDraft]);
 
     // Calculate initial revision from history

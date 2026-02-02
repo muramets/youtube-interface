@@ -132,7 +132,7 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
             )}
 
             <div className="mt-2">
-                {value ? (
+                {(value || variants.length >= 2) ? (
                     <div className={`flex flex-col gap-2 ${widthClass}`}>
                         <div
                             className={`relative ${widthClass} aspect-video rounded-lg border border-dashed border-border p-1 group hover:border-text-primary transition-colors bg-bg-secondary cursor-pointer`}

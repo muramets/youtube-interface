@@ -1,7 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { MoreVertical, Info, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { type VideoDetails } from '../../core/utils/youtubeApi';
+import { VideoService } from '../../core/services/videoService';
 import { formatDuration, formatViewCount } from '../../core/utils/formatUtils';
 import { useVideoSync } from '../../core/hooks/useVideoSync';
 
@@ -59,7 +61,34 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const [isFlipping, setIsFlipping] = useState(false);
 
   // Determine which video data to display
-  const displayVideo = viewMode === 'youtube' && video.mergedVideoData ? video.mergedVideoData : video;
+  let displayVideo = viewMode === 'youtube' && video.mergedVideoData ? video.mergedVideoData : video;
+
+  // LINKED CLONE LOGIC: If this is a linked clone, override with parent's live A/B test data
+  const { data: parentVideo } = useQuery({
+    queryKey: ['videos', user?.uid, currentChannel?.id],
+    queryFn: () => VideoService.fetchVideos(user?.uid || '', currentChannel?.id || ''),
+    enabled: !!(video.isCloned && video.clonedFromId && user?.uid && currentChannel?.id),
+    staleTime: Infinity,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    select: (videos: VideoDetails[]) => videos?.find(v => v.id === video.clonedFromId)
+  });
+
+  if (parentVideo && typeof video.abTestVariantIndex === 'number') {
+    const variantIndex = video.abTestVariantIndex;
+    const liveTitle = parentVideo.abTestTitles?.[variantIndex];
+    const liveThumbnail = parentVideo.abTestThumbnails?.[variantIndex];
+
+    // Create a synthetic override object
+    displayVideo = {
+      ...displayVideo,
+      title: liveTitle || displayVideo.title,
+      customImage: liveThumbnail || displayVideo.customImage,
+      // If we have a live thumbnail, we might want to ensure it's shown even if 'customImage' logic is complex
+      thumbnail: liveThumbnail || displayVideo.thumbnail
+    };
+  }
 
   // Hover color logic - no border for colored custom cards for cleaner premium look
   const { handleLikeThumbnail, handleRemoveThumbnail } = useThumbnailActions(video.id);
@@ -187,11 +216,14 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     setShowPlaylistModal(true);
   };
 
+  // MODIFIED: Navigate to original video details if cloned
   const handleDetails = (e: React.MouseEvent) => {
     e.stopPropagation();
     handleMenuClose();
     if (currentChannel) {
-      navigate(`/video/${currentChannel.id}/${video.id}/details`, { state: { playlistId } });
+      // If cloned, navigate to the original video's details
+      const targetVideoId = video.isCloned && video.clonedFromId ? video.clonedFromId : video.id;
+      navigate(`/video/${currentChannel.id}/${targetVideoId}/details`, { state: { playlistId } });
     }
   };
 
@@ -405,7 +437,12 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
             <div className="flex-shrink-0">
               {/* Always use original video's channel data, not merged YouTube data */}
               {video.channelAvatar ? (
-                <img src={video.channelAvatar} alt={video.channelTitle} className="w-9 h-9 rounded-full object-cover" />
+                <img
+                  src={video.channelAvatar}
+                  alt={video.channelTitle}
+                  referrerPolicy="no-referrer"
+                  className="w-9 h-9 rounded-full object-cover"
+                />
               ) : (
                 <div className="w-9 h-9 rounded-full bg-bg-secondary" />
               )}
@@ -414,8 +451,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
 
           <div className="flex flex-col flex-1 min-w-0">
             <h3 className="text-base font-bold text-text-primary line-clamp-2 leading-tight mb-1">
-              {/* Use first A/B test title if available, otherwise regular title */}
-              {(video.abTestTitles && video.abTestTitles.length > 0) ? video.abTestTitles[0] : displayVideo.title}
+              {/* MODIFIED: Prioritize clone local title */}
+              {/* Use first A/B test title if available */}
+              {/* For clones, ALWAYS use the local title (video.title) which contains the override, ignoring mergedVideoData */}
+              {(displayVideo.abTestTitles && displayVideo.abTestTitles.length > 0)
+                ? displayVideo.abTestTitles[0]
+                : displayVideo.title
+              }
             </h3>
             <div className="text-sm text-text-secondary flex flex-col">
               <div className="hover:text-text-primary transition-colors w-fit">
