@@ -48,6 +48,8 @@ export const useTimelinePositions = ({
                 rankMap.get(video.id) ?? 0.5
             );
 
+
+
             // Return normalized Y relative to dynamicWorldHeight
             return { video, xNorm, yNorm: expandedY / dynamicWorldHeight, baseSize };
         });

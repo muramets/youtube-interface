@@ -105,15 +105,21 @@ export const getTrendXPosition = (
 
     if (layout) {
         // Continuous: (day - 1 + timeOfYearPercentage) / daysInMonth
-        // d.getTime() - startOfMonth / (endOfMonth - startOfMonth) is most precise
         const startOfMonth = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
         const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime();
         const monthProgress = (timestamp - startOfMonth) / (endOfMonth - startOfMonth);
 
-        return layout.startX + (monthProgress * layout.width);
+        const x = layout.startX + (monthProgress * layout.width);
+
+        if (isNaN(x)) return 0; // Safety fallback
+        return x;
     } else {
         // Linear Fallback (or if month not found in grid)
-        const dateRange = stats.maxDate - stats.minDate || 1;
-        return (timestamp - stats.minDate) / dateRange;
+        const dateRange = stats.maxDate - stats.minDate;
+
+        if (!dateRange || dateRange <= 0 || isNaN(dateRange)) return 0; // Prevent divide by zero/NaN
+
+        const x = (timestamp - stats.minDate) / dateRange;
+        return isNaN(x) ? 0 : x;
     }
 };

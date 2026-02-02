@@ -69,6 +69,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     filterHash,
     allChannelsHidden = false
 }) => {
+
+
     const { timelineConfig, setTimelineConfig, setAddChannelModalOpen, clearTrendsFilters, savedConfigs, saveConfigForHash } = useTrendStore();
     const { scalingMode, verticalSpread, timeLinearity, showAverageBaseline } = timelineConfig;
 

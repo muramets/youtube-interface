@@ -75,6 +75,8 @@ const TimelineVideoLayerContent = forwardRef<TimelineVideoLayerHandle, TimelineV
         worldWidth
     });
 
+
+
     // LOD state based on zoom level
     const showThumbnails = transform.scale >= LOD_SHOW_THUMBNAIL;
     const showLabels = transform.scale >= LOD_SHOW_LABEL;

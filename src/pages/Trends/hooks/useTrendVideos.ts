@@ -48,8 +48,11 @@ export const useTrendVideos = ({ userUid, currentChannelId }: UseTrendVideosProp
 
                 // 2. If empty, try Firestore (sync layer)
                 if (channelVideos.length === 0) {
-                    console.log(`[TrendsPage] Local cache empty for ${channel.title}, loading from Firestore...`);
-                    channelVideos = await TrendService.getChannelVideosFromFirestore(userUid, currentChannelId, channel.id);
+                    try {
+                        channelVideos = await TrendService.getChannelVideosFromFirestore(userUid, currentChannelId, channel.id);
+                    } catch (err) {
+                        console.error(`[TrendsPage] Error fetching Firestore for ${channel.title}:`, err);
+                    }
                 }
 
                 allVideos.push(...channelVideos.map(v => ({

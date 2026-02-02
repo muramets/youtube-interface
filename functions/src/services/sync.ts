@@ -77,6 +77,7 @@ export class SyncService {
                     title: v.snippet.title,
                     thumbnail: v.snippet.thumbnails?.medium?.url || v.snippet.thumbnails?.default?.url,
                     publishedAt: v.snippet.publishedAt,
+                    publishedAtTimestamp: new Date(v.snippet.publishedAt).getTime(), // Added critical timestamp field
                     viewCount: viewCount,
                     likeCount: parseInt(v.statistics.likeCount || '0'),
                     commentCount: parseInt(v.statistics.commentCount || '0'),

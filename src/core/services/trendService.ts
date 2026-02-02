@@ -722,13 +722,43 @@ export const TrendService = {
 
     getChannelVideosFromCache: async (channelId: string) => {
         const idb = await getDB();
-        return idb.getAllFromIndex('videos', 'by-channel', channelId);
+        const videos = await idb.getAllFromIndex('videos', 'by-channel', channelId);
+
+        // Self-healing: Backfill timestamp if missing in cache
+        let hasUpdates = false;
+        videos.forEach(v => {
+            if ((!v.publishedAtTimestamp || isNaN(v.publishedAtTimestamp)) && v.publishedAt) {
+                v.publishedAtTimestamp = new Date(v.publishedAt).getTime();
+                hasUpdates = true;
+            }
+        });
+
+        // If we fixed any videos, update the cache asynchronously
+        if (hasUpdates) {
+            const tx = idb.transaction('videos', 'readwrite');
+            Promise.all(videos.map(v => tx.store.put(v))).catch(err => console.error('[TrendService] Failed to update healed cache:', err));
+            // No await needed, let it run in background
+        }
+
+        return videos;
     },
 
     getChannelVideosFromFirestore: async (userId: string, userChannelId: string, channelId: string) => {
         const ref = collection(db, `users/${userId}/channels/${userChannelId}/trendChannels/${channelId}/videos`);
         const snapshot = await getDocs(ref);
-        const videos = snapshot.docs.map(d => d.data() as TrendVideo);
+        const videos = snapshot.docs.map(d => {
+            const data = d.data() as TrendVideo;
+            // Self-healing: If timestamp is missing (due to backend bug), calculate it from string
+            if ((!data.publishedAtTimestamp || isNaN(data.publishedAtTimestamp)) && data.publishedAt) {
+                data.publishedAtTimestamp = new Date(data.publishedAt).getTime();
+            }
+            return data;
+        });
+
+        // DEBUG: Inspect raw data from Firestore (Reduced logging)
+        if (videos.length > 0) {
+            // Kept minimal for verification if needed, or remove completely if confident
+        }
 
         // Populate Cache
         if (videos.length > 0) {

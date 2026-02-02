@@ -58,13 +58,20 @@ export const useTimelineStructure = ({
     const currentStats = useMemo((): TimelineStats => {
         if (videos.length === 0) return { minViews: 0, maxViews: 1, minDate: 0, maxDate: 0 };
         const views = videos.map(v => v.viewCount);
-        const dates = videos.map(v => v.publishedAtTimestamp);
+        const validDates = videos
+            .map(v => v.publishedAtTimestamp)
+            .filter(ts => typeof ts === 'number' && !isNaN(ts));
+
+        if (validDates.length === 0) {
+            return { minViews: 0, maxViews: 1, minDate: 0, maxDate: 0 };
+        }
+
         const buffer = 1000 * 60 * 60 * 12;
         return {
             minViews: Math.max(1, Math.min(...views)),
             maxViews: Math.max(1, Math.max(...views)),
-            minDate: Math.min(...dates) - buffer,
-            maxDate: Math.max(...dates) + buffer
+            minDate: Math.min(...validDates) - buffer,
+            maxDate: Math.max(...validDates) + buffer
         };
     }, [videos]);
 
@@ -248,7 +255,6 @@ export const useTimelineStructure = ({
 
         const finalWorldWidth = Math.max(2000, totalAbsWidth);
 
-        // Normalize positions (0-1)
         const normalizedLayouts = layouts.map(l => ({
             ...l,
             startX: l.startX / Math.max(1, totalAbsWidth),
