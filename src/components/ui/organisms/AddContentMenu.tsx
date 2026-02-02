@@ -10,6 +10,7 @@ import type { VideoDetails, CoverVersion } from '../../../core/utils/youtubeApi'
 
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
+import { useUIStore } from '../../../core/stores/uiStore';
 
 // --- Custom Hooks ---
 
@@ -65,11 +66,14 @@ function useClickOutside(
 
 // --- Sub-Components ---
 
+// --- Sub-Components ---
+
 interface MenuDropdownProps {
     position: { top: number; right: number };
     showVideo: boolean;
     showPlaylist: boolean;
-    onOptionClick: (modal: 'youtube' | 'custom' | 'playlist') => void;
+    activePlaylist?: { id: string; name: string };
+    onOptionClick: (modal: 'youtube' | 'custom' | 'playlist' | 'custom-playlist') => void;
     dropdownRef: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -77,6 +81,7 @@ const MenuDropdown: React.FC<MenuDropdownProps> = memo(({
     position,
     showVideo,
     showPlaylist,
+    activePlaylist,
     onOptionClick,
     dropdownRef
 }) => {
@@ -111,6 +116,16 @@ const MenuDropdown: React.FC<MenuDropdownProps> = memo(({
                             <Upload size={18} />
                             Create Custom Video
                         </button>
+
+                        {activePlaylist && (
+                            <button
+                                onClick={() => onOptionClick('custom-playlist')}
+                                className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors border-none cursor-pointer text-text-primary hover:bg-hover-bg bg-transparent"
+                            >
+                                <Upload size={18} />
+                                Create Custom Video in "{activePlaylist.name}"
+                            </button>
+                        )}
                     </>
                 )}
 
@@ -137,6 +152,7 @@ interface AddContentMenuProps {
     showVideo?: boolean;
     showPlaylist?: boolean;
     directPlaylist?: boolean;
+    activePlaylist?: { id: string; name: string };
     icon?: React.ReactNode;
     isOpen?: boolean;
     onOpenChange?: (isOpen: boolean) => void;
@@ -146,6 +162,7 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = memo(({
     showVideo = true,
     showPlaylist = true,
     directPlaylist = false,
+    activePlaylist,
     icon,
     isOpen: controlledIsOpen,
     onOpenChange
@@ -155,9 +172,19 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = memo(({
     const { addCustomVideo, cloneVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { uploadDefaults, cloneSettings } = useSettings();
 
+    // Use dynamic import or direct import for PlaylistService if needed, but better to use a hook if possible.
+    // However, for oneshot action, service is fine.
+    // We need addVideosToPlaylist functionality.
+    // Let's import UsePlaylists hook logic or service directly?
+    // Service is cleaner for non-reactive action.
+    // But we need to import it. Let's assume it's available or we can use dynamic import.
+    // Actually, usePlaylists hook provides the mutation.
+    // Let's modify imports to include usePlaylists.
+    // Wait, AddContentMenu didn't import usePlaylists. We should add it or use dynamic import in handler.
+
     // State
     const [internalIsOpen, setInternalIsOpen] = useState(false);
-    const [activeModal, setActiveModal] = useState<'youtube' | 'custom' | 'playlist' | null>(null);
+    const [activeModal, setActiveModal] = useState<'youtube' | 'custom' | 'playlist' | 'custom-playlist' | null>(null);
     const [customVideoInitialData, setCustomVideoInitialData] = useState<VideoDetails | undefined>(undefined);
 
     // Refs
@@ -188,18 +215,26 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = memo(({
     const refs = useMemo(() => [buttonRef, dropdownRef] as React.RefObject<HTMLElement | null>[], [buttonRef, dropdownRef]);
     useClickOutside(isOpen, () => setIsOpen(false), refs);
 
+    const { showToast } = useUIStore();
+
     const handleCloneVideo = async (originalVideo: VideoDetails, version: CoverVersion) => {
         const duration = cloneSettings?.cloneDurationSeconds;
         console.warn('DEBUG: Cloning video with duration (s):', duration);
-        await cloneVideo({
+        const newVideoId = await cloneVideo({
             originalVideo,
             coverVersion: version,
             cloneDurationSeconds: duration || 3600
         });
+
+        if (activePlaylist && newVideoId) {
+            const { PlaylistService } = await import('../../../core/services/playlistService');
+            await PlaylistService.addVideosToPlaylist(user?.uid || '', currentChannel?.id || '', activePlaylist.id, [newVideoId]);
+            showToast(`Cloned video added to "${activePlaylist.name}"`, 'success');
+        }
     };
 
-    const handleOptionClick = useCallback((modal: 'youtube' | 'custom' | 'playlist') => {
-        if (modal === 'custom') {
+    const handleOptionClick = useCallback((modal: 'youtube' | 'custom' | 'playlist' | 'custom-playlist') => {
+        if (modal === 'custom' || modal === 'custom-playlist') {
             const defaults: Partial<VideoDetails> = {
                 title: uploadDefaults.title || '',
                 description: uploadDefaults.description || '',
@@ -221,6 +256,27 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = memo(({
         }
     }, [directPlaylist, isOpen, setIsOpen]);
 
+    const handleSaveCustomVideo = async (videoData: Omit<VideoDetails, 'id'>) => {
+        if (!user || !currentChannel) return;
+
+        const isPlaylistContext = activeModal === 'custom-playlist';
+
+        // 1. Create the video
+        const videoId = await addCustomVideo({
+            ...videoData,
+            isPlaylistOnly: isPlaylistContext // Flag to skip adding to Home
+        });
+
+        // 2. If in playlist context, add to playlist
+        if (isPlaylistContext && activePlaylist && videoId) {
+            const { PlaylistService } = await import('../../../core/services/playlistService');
+            await PlaylistService.addVideosToPlaylist(user.uid, currentChannel.id, activePlaylist.id, [videoId]);
+            showToast(`Video created in "${activePlaylist.name}"`, 'success');
+        }
+
+        return videoId;
+    };
+
     return (
         <>
             <button
@@ -237,6 +293,7 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = memo(({
                     position={position}
                     showVideo={showVideo}
                     showPlaylist={showPlaylist}
+                    activePlaylist={activePlaylist}
                     onOptionClick={handleOptionClick}
                     dropdownRef={dropdownRef}
                 />
@@ -247,15 +304,11 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = memo(({
                 onClose={() => setActiveModal(null)}
             />
 
-            {activeModal === 'custom' && (
+            {(activeModal === 'custom' || activeModal === 'custom-playlist') && (
                 <AddCustomVideoModal
                     isOpen={true}
                     onClose={() => setActiveModal(null)}
-                    onSave={async (videoData) => {
-                        if (user && currentChannel) {
-                            return await addCustomVideo(videoData);
-                        }
-                    }}
+                    onSave={handleSaveCustomVideo}
                     onClone={handleCloneVideo}
                     initialData={customVideoInitialData}
                 />

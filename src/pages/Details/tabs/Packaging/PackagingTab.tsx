@@ -36,9 +36,10 @@ interface PackagingTabProps {
     onRestoreVersion?: (version: number) => void; // Callback for restore version button
     onRequestSnapshot?: (versionNumber: number) => Promise<string | null | undefined>; // Callback for CSV snapshot request
     trafficData?: TrafficData | null; // Traffic data for finding snapshots
+    playlistId?: string;
 }
 
-export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState, onDirtyChange, onRestoreVersion, onRequestSnapshot, trafficData }) => {
+export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState, onDirtyChange, onRestoreVersion, onRequestSnapshot, trafficData, playlistId }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { videos } = useVideos(user?.uid || '', currentChannel?.id || '');
@@ -86,7 +87,8 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
         formState,
         abTesting,
         onRequestSnapshot,
-        trafficData
+        trafficData,
+        playlistId
     });
 
     // Detect scroll for sticky header shadow

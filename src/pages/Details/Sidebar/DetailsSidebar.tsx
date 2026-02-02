@@ -8,6 +8,10 @@ import { SidebarNavItem } from './SidebarNavItem';
 import { PackagingNav } from './Packaging/PackagingNav';
 import { TrafficNav } from './Traffic/TrafficNav';
 
+import { useAuth } from '../../../core/hooks/useAuth';
+import { useChannelStore } from '../../../core/stores/channelStore';
+import { usePlaylists } from '../../../core/hooks/usePlaylists';
+
 interface DetailsSidebarProps {
     video: VideoDetails;
     // Version props
@@ -33,6 +37,7 @@ interface DetailsSidebarProps {
     activeTab: 'packaging' | 'traffic';
     onTabChange: (tab: 'packaging' | 'traffic') => void;
     activeNicheId?: string | null;
+    playlistId?: string;
 }
 
 export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
@@ -54,9 +59,18 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
     onAddFilter,
     activeTab,
     onTabChange,
-    activeNicheId
+    activeNicheId,
+    playlistId
 }) => {
     // ... (rest is same until TrafficNav)
+    const { user } = useAuth();
+    const { currentChannel } = useChannelStore();
+    const { playlists } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+
+    const activePlaylist = React.useMemo(() => {
+        if (!playlistId) return null;
+        return playlists.find(p => p.id === playlistId);
+    }, [playlists, playlistId]);
 
     // ...
 
@@ -102,12 +116,16 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
         <aside
             className="w-[255px] flex-shrink-0 border-r border-border flex flex-col bg-video-edit-bg"
         >
-            {/* Back Button - uses same styling as nav items */}
+            {/* Back Button - Context Aware */}
             <div className="py-2">
                 <SidebarNavItem
                     icon={<ArrowLeft size={24} />}
-                    label="Home"
-                    onClick={() => navigate('/')}
+                    label={activePlaylist ? activePlaylist.name : "Home"}
+                    onClick={
+                        activePlaylist
+                            ? () => navigate(`/playlists/${activePlaylist.id}`)
+                            : () => navigate('/')
+                    }
                 />
             </div>
 

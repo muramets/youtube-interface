@@ -22,6 +22,7 @@ interface UsePackagingActionsProps {
     abTesting: UseABTestingResult;
     onRequestSnapshot?: (versionNumber: number) => Promise<string | null | undefined>; // Returns snapshotId, null (skip), or undefined (cancel)
     trafficData?: TrafficData | null; // Traffic data for finding snapshots
+    playlistId?: string;
 }
 
 export const usePackagingActions = ({
@@ -31,7 +32,8 @@ export const usePackagingActions = ({
     formState,
     abTesting,
     onRequestSnapshot,
-    trafficData
+    trafficData,
+    playlistId
 }: UsePackagingActionsProps) => {
     const { user } = useAuth();
     const { currentChannel, setCurrentChannel } = useChannelStore();
@@ -278,12 +280,46 @@ export const usePackagingActions = ({
         if (cloningVersion !== null) return;
         setCloningVersion(version.version);
         try {
-            await cloneVideo({
+            const newVideoId = await cloneVideo({
                 originalVideo: video,
                 coverVersion: version,
                 cloneDurationSeconds: cloneSettings?.cloneDurationSeconds || 3600
             });
 
+            // HANDLE PLAYLIST CONTEXT
+            if (playlistId) {
+                // 1. Add to playlist
+                const { PlaylistService } = await import('../../../../../core/services/playlistService');
+                await PlaylistService.addVideosToPlaylist(user?.uid || '', currentChannel?.id || '', playlistId, [newVideoId]);
+
+                // 2. Show Playlist-Specific Success Toast & Click Action
+                const message = formState.isDirty
+                    ? `Cloned video added to playlist — save & view`
+                    : `Cloned video added to playlist — click to view`;
+
+                showToast(
+                    message,
+                    'success',
+                    'clickable',
+                    async () => {
+                        // Auto-save draft before navigating (only if dirty)
+                        if (formState.isDirty) {
+                            try {
+                                await handleSave();
+                            } catch (error) {
+                                console.error('Failed to save draft:', error);
+                                showToast('Failed to save changes', 'error');
+                                return; // Don't navigate if save failed
+                            }
+                        }
+                        // Navigate back to the playlist
+                        window.location.href = `/playlists/${playlistId}`;
+                    }
+                );
+                return;
+            }
+
+            // DEFAULT BEHAVIOR (No Playlist)
             // Dynamic message based on whether there are unsaved changes
             const message = formState.isDirty
                 ? `Thumbnail cloned — save & view`
@@ -314,7 +350,7 @@ export const usePackagingActions = ({
         } finally {
             setCloningVersion(null);
         }
-    }, [cloningVersion, cloneVideo, video, showToast, cloneSettings, formState.isDirty, handleSave]);
+    }, [cloningVersion, cloneVideo, video, showToast, cloneSettings, formState.isDirty, handleSave, playlistId, user, currentChannel]);
 
     const handleRestore = useCallback(async () => {
         if (versionState.viewingVersion !== 'draft' && typeof versionState.viewingVersion === 'number') {

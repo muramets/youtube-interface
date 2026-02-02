@@ -12,6 +12,7 @@ import { YouTubeCreateIcon } from '../../components/ui/atoms/YouTubeCreateIcon';
 import { useUIStore } from '../../core/stores/uiStore';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannels } from '../../core/hooks/useChannels';
+import { usePlaylists } from '../../core/hooks/usePlaylists';
 
 export const Header: React.FC<{ className?: string }> = ({ className }) => {
   const location = useLocation();
@@ -32,6 +33,23 @@ export const Header: React.FC<{ className?: string }> = ({ className }) => {
 
   // Sidebar State
   const { toggleSidebar } = useUIStore();
+
+  // Determine active playlist
+  const { playlists } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+  const playlistMatch = React.useMemo(() => {
+    // Only match /playlists/:id (and ensuring it's not 'playlists' root which is matched by logic but better safe)
+    // Actually we can just parse path
+    const parts = location.pathname.split('/');
+    // Expected: ["", "playlists", "playlistId"]
+    if (parts.length === 3 && parts[1] === 'playlists') {
+      const id = parts[2];
+      const playlist = playlists.find(p => p.id === id);
+      if (playlist) {
+        return { id, name: playlist.name };
+      }
+    }
+    return undefined;
+  }, [location.pathname, playlists]);
 
   return (
     <header className={`flex justify-between items-center px-4 py-2 sticky top-0 z-[100] ${className || 'bg-bg-primary'}`}>
@@ -81,6 +99,7 @@ export const Header: React.FC<{ className?: string }> = ({ className }) => {
         <AddContentMenu
           icon={<YouTubeCreateIcon size={27} />}
           showPlaylist={location.pathname === '/playlists'}
+          activePlaylist={playlistMatch}
           isOpen={isCreateMenuOpen}
           onOpenChange={(open) => {
             setIsCreateMenuOpen(open);

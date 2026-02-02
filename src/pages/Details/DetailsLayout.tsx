@@ -23,9 +23,10 @@ import { useTrafficNicheStore } from '../../core/stores/useTrafficNicheStore';
 
 interface DetailsLayoutProps {
     video: VideoDetails;
+    playlistId?: string;
 }
 
-export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
+export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
@@ -335,6 +336,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                 // Filter control for sidebar interactions
                 onAddFilter={handleSidebarAddFilter}
                 activeNicheId={activeNicheId}
+                playlistId={playlistId}
             />
 
             {/* Main Content Area */}
@@ -349,6 +351,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video }) => {
                         onRestoreVersion={versionMgmt.handleRestoreVersion}
                         onRequestSnapshot={snapshotMgmt.handleRequestSnapshot}
                         trafficData={trafficState.trafficData}
+                        playlistId={playlistId}
                     />
                 ) : (
                     <TrafficTab

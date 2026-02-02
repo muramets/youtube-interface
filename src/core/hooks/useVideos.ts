@@ -23,7 +23,7 @@ export interface UseVideosResult {
     addCustomVideo: (video: Omit<VideoDetails, 'id'> & { id?: string }) => Promise<string>;
     updateVideo: (vars: { videoId: string; updates?: Partial<VideoDetails>; apiKey?: string; expectedRevision?: number }) => Promise<boolean>;
     removeVideo: (videoId: string) => Promise<void>;
-    cloneVideo: (vars: { originalVideo: VideoDetails; coverVersion: CoverVersion | null; cloneDurationSeconds: number }) => Promise<void>;
+    cloneVideo: (vars: { originalVideo: VideoDetails; coverVersion: CoverVersion | null; cloneDurationSeconds: number }) => Promise<string>;
     saveDraft: (vars: { videoId: string; expectedRevision: number }) => Promise<void>;
     createVersion: (vars: { videoId: string; snapshot: PackagingVersion['configurationSnapshot']; expectedRevision: number }) => Promise<void>;
     addCheckin: (vars: { videoId: string; versionNumber: number; checkin: PackagingCheckin; expectedRevision: number }) => Promise<void>;
@@ -104,8 +104,12 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
                 channelAvatar: video.channelAvatar || currentChannel?.avatar || '',
                 viewCount: video.viewCount || '1000000',
                 createdAt: Date.now(),
-                addedToHomeAt: Date.now()
             };
+
+            // Only add to home if NOT playlist-only
+            if (!video.isPlaylistOnly) {
+                newVideo.addedToHomeAt = Date.now();
+            }
 
             // Optimistic Order Update
             const videoOrder = queryClient.getQueryData<string[]>(['settings', 'videoOrder', userId, channelId]) || [];
@@ -114,6 +118,12 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
             // Update cache and firestore
             queryClient.setQueryData(['settings', 'videoOrder', userId, channelId], newOrder);
             await SettingsService.updateVideoOrder(userId, channelId, newOrder);
+
+            // Optimistically update videos cache
+            queryClient.setQueryData<VideoDetails[]>(queryKey, (old) => {
+                if (!old) return [newVideo];
+                return [...old, newVideo];
+            });
 
             await VideoService.addVideo(userId, channelId, newVideo);
             return id;
@@ -299,7 +309,8 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
                 customImage: coverVersion?.url || originalVideo.customImage,
                 customImageName: coverVersion?.originalName || originalVideo.customImageName,
                 customImageVersion: coverVersion?.version || originalVideo.customImageVersion,
-                coverHistory: originalVideo.coverHistory || []
+                coverHistory: originalVideo.coverHistory || [],
+                isPlaylistOnly: originalVideo.isPlaylistOnly // Inherit playlist-only status
             };
 
             // Optimistic Order Update
@@ -310,7 +321,14 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
             queryClient.setQueryData(['settings', 'videoOrder', userId, channelId], newOrder);
             await SettingsService.updateVideoOrder(userId, channelId, newOrder);
 
+            // Optimistically update videos cache
+            queryClient.setQueryData<VideoDetails[]>(queryKey, (old) => {
+                if (!old) return [newVideo];
+                return [...old, newVideo];
+            });
+
             await VideoService.addVideo(userId, channelId, newVideo);
+            return id;
         }
     });
 

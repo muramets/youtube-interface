@@ -191,7 +191,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     e.stopPropagation();
     handleMenuClose();
     if (currentChannel) {
-      navigate(`/video/${currentChannel.id}/${video.id}/details`);
+      navigate(`/video/${currentChannel.id}/${video.id}/details`, { state: { playlistId } });
     }
   };
 

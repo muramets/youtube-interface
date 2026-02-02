@@ -9,7 +9,7 @@
  */
 
 import React, { useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useVideos } from '../../core/hooks/useVideos';
@@ -21,6 +21,8 @@ export const DetailsPage: React.FC = () => {
     // Extract both channelId and videoId from URL for full deep linking support
     const { channelId, videoId } = useParams<{ channelId: string; videoId: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
+    const playlistId = location.state?.playlistId;
     const { user } = useAuth();
     const { setCurrentChannel } = useChannelStore();
     const channelsQuery = useChannels(user?.uid || '');
@@ -67,5 +69,5 @@ export const DetailsPage: React.FC = () => {
         );
     }
 
-    return <DetailsLayout video={video} />;
+    return <DetailsLayout video={video} playlistId={playlistId} />;
 };

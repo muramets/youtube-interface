@@ -143,6 +143,25 @@ export const PlaylistSelector: React.FC<PlaylistSelectorProps> = ({
         return 'none';
     };
 
+    const filteredPlaylists = React.useMemo(() => {
+        let result = playlists;
+
+        if (newPlaylistName.trim()) {
+            const searchTerms = newPlaylistName.toLowerCase().trim().split(/\s+/);
+            result = playlists.filter(p => {
+                const nameLower = p.name.toLowerCase();
+                return searchTerms.every(term => nameLower.includes(term));
+            });
+        }
+
+        // Sort by recency (updatedAt -> createdAt) to keep recently used closest to input (top)
+        return [...result].sort((a, b) => {
+            const timeA = a.updatedAt || a.createdAt;
+            const timeB = b.updatedAt || b.createdAt;
+            return timeB - timeA;
+        });
+    }, [playlists, newPlaylistName]);
+
     return (
         <div className="relative">
             <button
@@ -163,30 +182,32 @@ export const PlaylistSelector: React.FC<PlaylistSelectorProps> = ({
                 width={256}
             >
                 <div data-portal-wrapper className="flex flex-col h-full min-h-0">
-                    <div className="p-2 border-b border-white/10">
-                        <form onSubmit={handleCreatePlaylist} className="relative">
-                            <input
-                                ref={inputRef}
-                                type="text"
-                                placeholder="Create playlist..."
-                                className="w-full bg-bg-primary text-white text-xs px-3 py-2 pl-8 rounded-lg focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-text-secondary"
-                                value={newPlaylistName}
-                                onChange={(e) => setNewPlaylistName(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Escape') {
-                                        e.preventDefault();
-                                        onToggle(); // Close dropdown
-                                    }
-                                }}
-                            />
-                            <Plus size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary" />
+                    <div className="p-2 border-b border-white/10 bg-white/5">
+                        <form onSubmit={handleCreatePlaylist} className="relative flex flex-col gap-2">
+                            <div className="relative">
+                                <input
+                                    ref={inputRef}
+                                    type="text"
+                                    placeholder="Search or create playlist..."
+                                    className="w-full bg-bg-primary text-white text-xs px-3 py-2 pl-8 rounded-lg focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-text-secondary"
+                                    value={newPlaylistName}
+                                    onChange={(e) => setNewPlaylistName(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Escape') {
+                                            e.preventDefault();
+                                            onToggle(); // Close dropdown
+                                        }
+                                    }}
+                                />
+                                <Plus size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary" />
+                            </div>
+                            {/* Create button removed as per UX feedback - Enter key is sufficient */}
                         </form>
                     </div>
                     <div className="overflow-y-auto custom-scrollbar p-1 flex-1">
-                        {playlists.map(playlist => {
+                        {filteredPlaylists.map(playlist => {
                             const status = getPlaylistStatus(playlist);
                             const isChecked = status === 'all';
-                            // We treat 'some' as unchecked for toggle action (add remaining)
 
                             return (
                                 <button
@@ -203,8 +224,13 @@ export const PlaylistSelector: React.FC<PlaylistSelectorProps> = ({
                                 </button>
                             );
                         })}
-                        {playlists.length === 0 && (
-                            <div className="text-center py-3 text-xs text-text-tertiary">No playlists</div>
+                        {filteredPlaylists.length === 0 && !newPlaylistName && (
+                            <div className="text-center py-3 text-xs text-text-tertiary">No playlists found</div>
+                        )}
+                        {filteredPlaylists.length === 0 && newPlaylistName && (
+                            <div className="text-center py-3 text-xs text-text-tertiary">
+                                Press Enter to create "{newPlaylistName}"
+                            </div>
                         )}
                     </div>
                 </div>
