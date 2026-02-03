@@ -46,10 +46,25 @@ export const useTrendVideos = ({ userUid, currentChannelId }: UseTrendVideosProp
                 // 1. Try local cache
                 let channelVideos = await TrendService.getChannelVideosFromCache(channel.id);
 
-                // 2. If empty, try Firestore (sync layer)
-                if (channelVideos.length === 0) {
+                // Robust Staleness Check:
+                // We track when WE last fetched fresh data for this channel via localStorage.
+                // If the channel was updated on the server (by Cloud Sync) AFTER our last fetch,
+                // our cache is stale regardless of how much time passed.
+                const storageKey = `trend_last_fetch_${channel.id}`;
+                const lastFetchTime = parseInt(localStorage.getItem(storageKey) || '0');
+                const serverUpdatedTime = channel.lastUpdated || 0;
+
+                const isStale = serverUpdatedTime > lastFetchTime;
+
+                // 2. If empty OR Stale, try Firestore (sync layer)
+                if (channelVideos.length === 0 || isStale) {
+                    if (isStale) {
+                        console.log(`[TrendsPage] Cache Stale for ${channel.title} (Server: ${new Date(serverUpdatedTime).toLocaleTimeString()} > Local: ${new Date(lastFetchTime).toLocaleTimeString()}). Fetching fresh data.`);
+                    }
                     try {
                         channelVideos = await TrendService.getChannelVideosFromFirestore(userUid, currentChannelId, channel.id);
+                        // On success, mark that we have the latest version
+                        localStorage.setItem(storageKey, Date.now().toString());
                     } catch (err) {
                         console.error(`[TrendsPage] Error fetching Firestore for ${channel.title}:`, err);
                     }
