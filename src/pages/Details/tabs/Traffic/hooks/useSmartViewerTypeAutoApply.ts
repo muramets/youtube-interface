@@ -47,7 +47,12 @@ export const useSmartViewerTypeAutoApply = (
             // Skip if already assigned
             if (edgesRef.current[source.videoId]?.type) return;
 
+            // Skip if no views or no duration
+            if ((source.views || 0) === 0) return;
+
             const avdSeconds = durationToSeconds(source.avgViewDuration);
+            if (avdSeconds <= 0) return;
+
             const percentage = (avdSeconds / totalDurationSeconds) * 100;
 
             let type: ViewerType;

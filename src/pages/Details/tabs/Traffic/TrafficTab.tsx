@@ -418,6 +418,33 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         downloadCsv(csvContent, filename);
     }, [filteredSources, actualTotalRow, allNiches, allAssignments, trafficEdges, viewerEdges, viewMode, effectiveSnapshotId, filters, _video.title, trashMetrics, deltaContext]);
 
+    // Handle Image Export (ZIP)
+    const handleExportImages = useCallback(async () => {
+        // 1. Filter sources that have thumbnails
+        const images = filteredSources
+            .filter(s => s.videoId && s.thumbnail) // Only sources with ID and thumbnail
+            .map(s => ({
+                id: s.videoId!,
+                url: s.thumbnail!
+            }));
+
+        if (images.length === 0) {
+            // Toast is handled by store or we can just console log if no toast available easily here?
+            // TrafficTab has no toast hook instantiated usually? 
+            // `useUIStore` is NOT instantiated in TrafficTab.
+            // But `handleUploadWithErrorTracking` uses console.error.
+            console.warn('No images found to export');
+            return;
+        }
+
+        const filename = generateExportFilename(_video.title, viewMode).replace('.csv', '_covers.zip');
+
+        // Dynamic import to avoid circular dependencies if any, although zipUtils is leaf.
+        const { downloadImagesAsZip } = await import('../../../../core/types/../../core/utils/zipUtils');
+        await downloadImagesAsZip(images, filename);
+
+    }, [filteredSources, _video.title, viewMode]);
+
     // OPTIMIZATION: Memoize array props to prevent TrafficTable re-renders.
     // Without memoization, `|| []` creates a new array reference each render.
     const { trafficSettings } = useSettings();
@@ -847,6 +874,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                     setIsAssistantEnabled(prev => !prev);
                 }}
                 onExport={handleExport}
+                onExportImages={handleExportImages}
             />
 
             {/* Main Content - Table Area */}

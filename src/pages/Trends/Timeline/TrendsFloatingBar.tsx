@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Check, Home, Trash2, RotateCcw, Download } from 'lucide-react';
+import { Check, Home, Trash2, RotateCcw, Download, Image as ImageIcon } from 'lucide-react';
+import { downloadImagesAsZip } from '../../../core/utils/zipUtils';
 import type { TrendVideo } from '../../../core/types/trends';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
@@ -193,6 +194,10 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
         onClose(); // Close bar after action
     };
 
+    // Image Download State
+    const [showImageDownload, setShowImageDownload] = useState(false);
+    const imageDownloadTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
     // Handle CSV Export
     const handleExport = () => {
         // Determine channel name for metadata (use first video's channel or current channel)
@@ -212,6 +217,32 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
             isMultiSelect ? `${videos.length} videos exported` : 'Video exported',
             'success'
         );
+    };
+
+    const handleExportImages = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+
+        // Prepare images
+        const images = videos.map(v => ({
+            id: v.id,
+            url: v.thumbnail
+        })).filter(img => img.url); // Ensure URL exists
+
+        if (images.length === 0) {
+            showToast('No covers found to download', 'error');
+            return;
+        }
+
+        const channelName = videos[0]?.channelTitle || currentChannel?.name || 'trends';
+        const zipFilename = `${generateTrendsExportFilename(videos.length, channelName).replace('.csv', '')}_covers.zip`;
+
+        try {
+            await downloadImagesAsZip(images, zipFilename);
+            showToast('Covers downloaded', 'success');
+        } catch (error) {
+            console.error('Failed to download images:', error);
+            showToast('Failed to download covers', 'error');
+        }
     };
 
     const title = isMultiSelect ? `${videos.length} selected` : videos[0]?.title;
@@ -262,15 +293,59 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                             onToggle={() => setActiveMenu(activeMenu === 'playlist' ? null : 'playlist')}
                         />
 
-                        {/* Export Button */}
-                        <button
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={handleExport}
-                            className="p-1.5 rounded-full transition-all text-text-secondary hover:text-white hover:bg-white/10"
-                            title="Export to CSV"
-                        >
-                            <Download size={16} />
-                        </button>
+                        {/* Export CSV & Images (Two-State Button) */}
+                        <div className="relative group">
+                            <button
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                    if (showImageDownload) {
+                                        handleExportImages(e);
+                                        // Optional: keep it open or close it? 
+                                        // "Click on second state - download ... covers". Usually implies action completes.
+                                        // Let's close it to reset.
+                                        setShowImageDownload(false);
+                                        if (imageDownloadTimerRef.current) clearTimeout(imageDownloadTimerRef.current);
+                                    } else {
+                                        handleExport();
+                                        setShowImageDownload(true);
+                                        if (imageDownloadTimerRef.current) clearTimeout(imageDownloadTimerRef.current);
+                                        imageDownloadTimerRef.current = setTimeout(() => setShowImageDownload(false), 5000);
+                                    }
+                                }}
+                                className={`
+                                    relative flex items-center justify-center w-[34px] h-[34px] rounded-full transition-all duration-300 ease-out
+                                    ${showImageDownload
+                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-500 scale-105'
+                                        : 'text-text-secondary hover:text-white hover:bg-white/10'
+                                    }
+                                `}
+                                title={showImageDownload ? "Download Covers (ZIP)" : "Export to CSV"}
+                            >
+                                {/* Icons Container - Smooth Transition Switch */}
+                                <div className="relative w-4 h-4 flex items-center justify-center">
+                                    <Download
+                                        size={16}
+                                        className={`absolute transition-all duration-300 transform
+                                            ${showImageDownload
+                                                ? 'opacity-0 scale-75 rotate-12'
+                                                : 'opacity-100 scale-100 rotate-0'
+                                            }
+                                        `}
+                                    />
+
+                                    <ImageIcon
+                                        size={16}
+                                        strokeWidth={2.5}
+                                        className={`absolute transition-all duration-300 transform
+                                            ${showImageDownload
+                                                ? 'opacity-100 scale-100 rotate-0 text-white'
+                                                : 'opacity-0 scale-75 -rotate-12'
+                                            }
+                                        `}
+                                    />
+                                </div>
+                            </button>
+                        </div>
 
                         <div className="w-px h-4 bg-white/10 mx-1" />
 

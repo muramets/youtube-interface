@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { FilterDropdown } from '../../../../../components/ui/molecules/FilterDropdown';
 import { TrafficUploader } from './TrafficUploader';
-import { Settings, CloudDownload, Wand2, Download } from 'lucide-react';
+import { Settings, CloudDownload, Wand2, Download, Image as ImageIcon } from 'lucide-react';
 import { TrafficCTRConfig } from './TrafficCTRConfig';
 import { TrafficFilterMenu } from './TrafficFilterMenu';
 import type { TrafficSource } from '../../../../../core/types/traffic';
@@ -47,10 +47,11 @@ interface TrafficHeaderProps {
 
     // Export
     onExport?: () => void;
+    onExportImages?: () => void;
 }
 
 /**
- * Sticky header для Traffic Tab.
+ * Sticky header untuk Traffic Tab.
  * Содержит заголовок, фильтры и кнопки действий.
  */
 export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
@@ -74,10 +75,15 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
     onOpenMissingTitles,
     isAssistantEnabled = false,
     onToggleAssistant,
-    onExport
+    onExport,
+    onExportImages
 }) => {
     const configBtnRef = useRef<HTMLButtonElement>(null);
     const [isConfigOpen, setIsConfigOpen] = useState(false);
+
+    // Image Download Button State
+    const [showImageDownload, setShowImageDownload] = useState(false);
+    const imageDownloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 
     // Filter badge count (active filters)
@@ -132,15 +138,57 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
                                 </button>
                             )}
 
-                            {/* Export CSV */}
+                            {/* Export CSV & Images (Two-State Button) */}
                             {onExport && (
-                                <button
-                                    onClick={onExport}
-                                    className="w-[34px] h-[34px] rounded-full flex items-center justify-center transition-colors border-0 cursor-pointer bg-transparent text-text-primary hover:text-green-500 hover:bg-green-500/10"
-                                    title="Export Current View (CSV)"
-                                >
-                                    <Download size={18} />
-                                </button>
+                                <div className="relative">
+                                    <button
+                                        onClick={(e) => {
+                                            if (showImageDownload && onExportImages) {
+                                                e.stopPropagation();
+                                                onExportImages();
+                                                setShowImageDownload(false);
+                                                if (imageDownloadTimerRef.current) clearTimeout(imageDownloadTimerRef.current);
+                                            } else if (onExport) {
+                                                onExport();
+                                                setShowImageDownload(true);
+                                                if (imageDownloadTimerRef.current) clearTimeout(imageDownloadTimerRef.current);
+                                                imageDownloadTimerRef.current = setTimeout(() => setShowImageDownload(false), 5000);
+                                            }
+                                        }}
+                                        className={`
+                                            relative flex items-center justify-center w-[34px] h-[34px] rounded-full transition-all duration-300 ease-out
+                                            ${showImageDownload
+                                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-500 scale-105'
+                                                : 'bg-transparent text-text-primary hover:text-green-500 hover:bg-green-500/10'
+                                            }
+                                        `}
+                                        title={showImageDownload ? "Download Covers (ZIP)" : "Export Current View (CSV)"}
+                                    >
+                                        {/* Icons Container - Smooth Transition Switch */}
+                                        <div className="relative w-[18px] h-[18px] flex items-center justify-center">
+                                            <Download
+                                                size={18}
+                                                className={`absolute transition-all duration-300 transform
+                                                    ${showImageDownload
+                                                        ? 'opacity-0 scale-75 rotate-12'
+                                                        : 'opacity-100 scale-100 rotate-0'
+                                                    }
+                                                `}
+                                            />
+
+                                            <ImageIcon
+                                                size={18}
+                                                strokeWidth={2.5}
+                                                className={`absolute transition-all duration-300 transform
+                                                    ${showImageDownload
+                                                        ? 'opacity-100 scale-100 rotate-0 text-white'
+                                                        : 'opacity-0 scale-75 -rotate-12'
+                                                    }
+                                                `}
+                                            />
+                                        </div>
+                                    </button>
+                                </div>
                             )}
 
                             {/* CTR Settings */}
