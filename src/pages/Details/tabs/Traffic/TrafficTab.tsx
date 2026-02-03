@@ -397,8 +397,12 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             }
         }
 
+        const sourcesToExport = selectedIds.size > 0
+            ? filteredSources.filter(s => s.videoId && selectedIds.has(s.videoId))
+            : filteredSources;
+
         const csvContent = exportTrafficCsv({
-            sources: filteredSources,
+            sources: sourcesToExport,
             totalRow: actualTotalRow,
             niches: allNiches,
             assignments: assignmentsMap,
@@ -414,36 +418,56 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             }
         });
 
-        const filename = generateExportFilename(_video.title, viewMode);
+        const filename = generateExportFilename(_video.title, viewMode) + (selectedIds.size > 0 ? '_selected' : '');
         downloadCsv(csvContent, filename);
-    }, [filteredSources, actualTotalRow, allNiches, allAssignments, trafficEdges, viewerEdges, viewMode, effectiveSnapshotId, filters, _video.title, trashMetrics, deltaContext]);
+    }, [filteredSources, actualTotalRow, allNiches, allAssignments, trafficEdges, viewerEdges, viewMode, effectiveSnapshotId, filters, _video.title, trashMetrics, deltaContext, selectedIds]);
 
     // Handle Image Export (ZIP)
     const handleExportImages = useCallback(async () => {
-        // 1. Filter sources that have thumbnails
-        const images = filteredSources
-            .filter(s => s.videoId && s.thumbnail) // Only sources with ID and thumbnail
-            .map(s => ({
-                id: s.videoId!,
-                url: s.thumbnail!
-            }));
+        // 1. Filter sources based on selection
+        const sourcesToExport = selectedIds.size > 0
+            ? filteredSources.filter(s => s.videoId && selectedIds.has(s.videoId))
+            : filteredSources;
+
+        // 2. Prepare lookup map for thumbnails (Enrichment)
+        const videoMap = new Map(allVideos.map(v => [v.id, v]));
+
+        // 3. Filter sources that have thumbnails (either in source or in enriched video data)
+        const images: { id: string; url: string }[] = [];
+
+        sourcesToExport.forEach(s => {
+            if (!s.videoId) return;
+
+            let url = s.thumbnail;
+
+            // If missing in source, try lookup
+            if (!url) {
+                const video = videoMap.get(s.videoId);
+                if (video) {
+                    url = video.thumbnail;
+                }
+            }
+
+            if (url) {
+                images.push({
+                    id: s.videoId,
+                    url: url
+                });
+            }
+        });
 
         if (images.length === 0) {
-            // Toast is handled by store or we can just console log if no toast available easily here?
-            // TrafficTab has no toast hook instantiated usually? 
-            // `useUIStore` is NOT instantiated in TrafficTab.
-            // But `handleUploadWithErrorTracking` uses console.error.
             console.warn('No images found to export');
             return;
         }
 
-        const filename = generateExportFilename(_video.title, viewMode).replace('.csv', '_covers.zip');
+        const filename = generateExportFilename(_video.title, viewMode).replace('.csv', selectedIds.size > 0 ? '_selected_covers.zip' : '_covers.zip');
 
         // Dynamic import to avoid circular dependencies if any, although zipUtils is leaf.
         const { downloadImagesAsZip } = await import('../../../../core/types/../../core/utils/zipUtils');
         await downloadImagesAsZip(images, filename);
 
-    }, [filteredSources, _video.title, viewMode]);
+    }, [filteredSources, _video.title, viewMode, selectedIds, allVideos]);
 
     // OPTIMIZATION: Memoize array props to prevent TrafficTable re-renders.
     // Without memoization, `|| []` creates a new array reference each render.

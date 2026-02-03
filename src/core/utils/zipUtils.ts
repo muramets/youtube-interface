@@ -39,27 +39,30 @@ export const downloadImagesAsZip = async (images: ImageToZip[], zipFilename: str
     // Process in parallel
     const promises = images.map(async (img) => {
         try {
-            let fetchUrl = img.url;
+            let response: Response | null = null;
 
-            // Try to upgrade to maxresdefault if it's a YouTube URL
-            // Pattern: https://i.ytimg.com/vi/[VIDEO_ID]/[QUALITY].jpg
+            // 1. Try to upgrade to maxresdefault if it's a YouTube URL
             if (img.url.includes('i.ytimg.com/vi/')) {
-                const maxResUrl = img.url.replace(/\/([a-z]+default)\.jpg$/, '/maxresdefault.jpg');
+                const maxResUrl = img.url.replace(/\/([a-z]+default)(_live)?\.jpg$/, '/maxresdefault.jpg');
                 if (maxResUrl !== img.url) {
                     try {
-                        const maxResResponse = await fetch(maxResUrl); // No force-cache for discovery
+                        // Try fetching the high-res version
+                        const maxResResponse = await fetch(maxResUrl, { credentials: 'omit' });
                         if (maxResResponse.ok) {
-                            fetchUrl = maxResUrl;
+                            response = maxResResponse;
                         }
                     } catch {
-                        // Ignore error, proceed with original URL
+                        // Ignore, fallback to original
                     }
                 }
             }
 
-            // Fetch the image (using updated URL or original)
-            const response = await fetch(fetchUrl, { cache: 'force-cache' });
-            if (!response.ok) throw new Error(`Failed to fetch ${fetchUrl}`);
+            // 2. Fallback to original URL if no high-res response
+            if (!response) {
+                response = await fetch(img.url, { cache: 'force-cache', credentials: 'omit' });
+            }
+
+            if (!response.ok) throw new Error(`Failed to fetch ${img.url}`);
 
             const blob = await response.blob();
 
