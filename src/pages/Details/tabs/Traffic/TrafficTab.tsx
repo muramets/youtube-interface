@@ -293,7 +293,9 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 trafficType: s.videoId ? trafficEdges[s.videoId]?.type : undefined,
                 trafficSource: s.videoId ? trafficEdges[s.videoId]?.source : undefined,
                 viewerType: s.videoId ? viewerEdges[s.videoId]?.type : undefined,
-                viewerSource: s.videoId ? viewerEdges[s.videoId]?.source : undefined
+                viewerSource: s.videoId ? viewerEdges[s.videoId]?.source : undefined,
+                description: s.videoId ? cachedVideo?.description : undefined,
+                tags: s.videoId ? cachedVideo?.tags : undefined
             };
         });
 

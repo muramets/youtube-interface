@@ -24,6 +24,8 @@ export interface EnrichedTrafficSource extends TrafficSource {
     trafficSource?: 'manual' | 'smart_assistant';
     viewerType?: ViewerType;
     viewerSource?: 'manual' | 'smart_assistant';
+    description?: string;
+    tags?: string[];
 }
 
 import type { TrafficNicheProperty } from './suggestedTrafficNiches';
