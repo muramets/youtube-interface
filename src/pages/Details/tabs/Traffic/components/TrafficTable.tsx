@@ -457,6 +457,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             isSelected={isSelected}
                                             activeSortKey={sortConfig?.key}
                                             onRowClick={handleRowClick}
+                                            onToggleSelection={onToggleSelection}
                                             ctrRules={ctrRules}
                                             gridClassName={gridClassName}
                                             showPropertyIcon={showPropertyColumn}

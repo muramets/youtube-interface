@@ -28,6 +28,7 @@ interface TrafficRowProps {
     gridClassName: string;
     showPropertyIcon: boolean;
     videoDetails?: VideoDetails;
+    onToggleSelection?: (id: string) => void;
     // Smart Assistant Props
     suggestedNiche?: SuggestedTrafficNiche;
     isTrendsSuggestion?: boolean;
@@ -75,6 +76,7 @@ export const TrafficRow = ({
     isSelected,
     activeSortKey,
     onRowClick,
+    onToggleSelection,
     ctrRules = [],
     gridClassName,
     showPropertyIcon,
@@ -208,10 +210,13 @@ export const TrafficRow = ({
             {isSelected && (
                 <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-[#3EA6FF] z-10 shadow-[2px_0_8px_rgba(62,166,255,0.4)]" />
             )}
-            <div className="flex items-center justify-center">
+            <div
+                className="flex items-center justify-center p-2 -m-2 z-10" // Expanded hit area + z-index
+                onClick={(e) => e.stopPropagation()}
+            >
                 <Checkbox
                     checked={isSelected}
-                    onChange={() => { }} // Handled by row click
+                    onChange={() => item.videoId && onToggleSelection?.(item.videoId)}
                 />
             </div>
 
