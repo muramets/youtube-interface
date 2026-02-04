@@ -5,7 +5,7 @@ import {
     updateDocument,
     fetchCollection
 } from './firestore';
-import { orderBy, arrayUnion, arrayRemove, doc, updateDoc } from 'firebase/firestore';
+import { orderBy, arrayRemove, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 
 export interface Playlist {
@@ -80,10 +80,27 @@ export const PlaylistService = {
         videoIds: string[]
     ) => {
         const playlistRef = doc(db, getPlaylistsPath(userId, channelId), playlistId);
-        await updateDoc(playlistRef, {
-            videoIds: arrayUnion(...videoIds),
-            updatedAt: Date.now()
-        });
+
+        // Fetch current playlist to prepend videos
+        const snapshot = await getDoc(playlistRef);
+
+        if (snapshot.exists()) {
+            const playlist = snapshot.data() as Playlist;
+            const currentVideoIds = playlist.videoIds || [];
+
+            // Filter out duplicates (videos already in playlist)
+            const newVideoIds = videoIds.filter(id => !currentVideoIds.includes(id));
+
+            if (newVideoIds.length > 0) {
+                // Prepend new videos: new ones at the beginning
+                const updatedVideoIds = [...newVideoIds, ...currentVideoIds];
+
+                await updateDoc(playlistRef, {
+                    videoIds: updatedVideoIds,
+                    updatedAt: Date.now()
+                });
+            }
+        }
     },
 
     removeVideosFromPlaylist: async (

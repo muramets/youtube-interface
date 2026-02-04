@@ -6,13 +6,21 @@ import { useVideos } from '../../../core/hooks/useVideos';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { useSettings } from '../../../core/hooks/useSettings';
+import type { VideoDetails } from '../../../core/utils/youtubeApi';
 
 interface AddYouTubeVideoModalProps {
     isOpen: boolean;
     onClose: () => void;
+    onSuccess?: (video: VideoDetails) => void;
+    isPlaylistOnly?: boolean;
 }
 
-export const AddYouTubeVideoModal: React.FC<AddYouTubeVideoModalProps> = ({ isOpen, onClose }) => {
+export const AddYouTubeVideoModal: React.FC<AddYouTubeVideoModalProps> = ({
+    isOpen,
+    onClose,
+    onSuccess,
+    isPlaylistOnly
+}) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { addVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
@@ -30,12 +38,24 @@ export const AddYouTubeVideoModal: React.FC<AddYouTubeVideoModalProps> = ({ isOp
         }
 
         setIsLoading(true);
-        const success = await addVideo({ url, apiKey: generalSettings.apiKey });
-        setIsLoading(false);
+        try {
+            const result = await addVideo({
+                url,
+                apiKey: generalSettings.apiKey,
+                isPlaylistOnly
+            });
 
-        if (success) {
             setUrl('');
             onClose();
+
+            if (onSuccess) {
+                onSuccess(result);
+            }
+        } catch (error) {
+            console.error(error);
+            // Ideally handle error display here
+        } finally {
+            setIsLoading(false);
         }
     };
 

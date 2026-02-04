@@ -19,7 +19,7 @@ export interface UseVideosResult {
     videos: VideoDetails[];
     isLoading: boolean;
     error: unknown;
-    addVideo: (vars: { url: string; apiKey: string }) => Promise<VideoDetails>;
+    addVideo: (vars: { url: string; apiKey: string; isPlaylistOnly?: boolean }) => Promise<VideoDetails>;
     addCustomVideo: (video: Omit<VideoDetails, 'id'> & { id?: string }) => Promise<string>;
     updateVideo: (vars: { videoId: string; updates?: Partial<VideoDetails>; apiKey?: string; expectedRevision?: number }) => Promise<boolean>;
     removeVideo: (videoId: string) => Promise<void>;
@@ -70,7 +70,7 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
 
     // Add Video
     const addVideoMutation = useMutation({
-        mutationFn: async ({ url, apiKey }: { url: string, apiKey: string }) => {
+        mutationFn: async ({ url, apiKey, isPlaylistOnly }: { url: string, apiKey: string, isPlaylistOnly?: boolean }) => {
             const videoId = extractVideoId(url);
             if (!videoId) throw new Error('Invalid YouTube URL');
 
@@ -84,8 +84,13 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
             const videoWithTimestamp: VideoDetails = {
                 ...details,
                 createdAt: Date.now(),
-                addedToHomeAt: Date.now()
             };
+
+            if (!isPlaylistOnly) {
+                videoWithTimestamp.addedToHomeAt = Date.now();
+            } else {
+                videoWithTimestamp.isPlaylistOnly = true;
+            }
 
             await VideoService.addVideo(userId, channelId, videoWithTimestamp);
             return videoWithTimestamp;

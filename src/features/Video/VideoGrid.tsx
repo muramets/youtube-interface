@@ -52,12 +52,12 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
   const { user, isLoading: authLoading } = useAuth();
   const currentChannel = useChannelStore(state => state.currentChannel);
 
-  const { videos: contextVideos, isLoading: contextIsLoading, removeVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
+  const { videos: contextVideos, isLoading: contextIsLoading, removeVideo, updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
 
   const selectedChannel = useFilterStore(state => state.selectedChannel);
   const searchQuery = useFilterStore(state => state.searchQuery);
 
-  const { playlists } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+  const { playlists, removeVideosFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
 
   const { generalSettings, videoOrder, updateVideoOrder } = useSettings();
   const cardsPerRow = generalSettings.cardsPerRow;
@@ -397,9 +397,40 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
       <VirtualVideoGrid
         videos={filteredVideos}
         playlistId={playlistId}
-        onRemove={(videoId) => {
-          if (user && currentChannel) {
-            removeVideo(videoId);
+        onRemove={async (videoId) => {
+          if (!user || !currentChannel) return;
+
+          if (playlistId) {
+            // Remove from specific playlist
+            await removeVideosFromPlaylist({
+              playlistId,
+              videoIds: [videoId]
+            });
+          } else {
+            // Remove from Home Page
+            // Check if video is in ANY playlist
+            const isInAnyPlaylist = playlists.some(p => p.videoIds.includes(videoId));
+
+            if (isInAnyPlaylist) {
+              // Soft delete: Hide from Home, keep in DB/Playlists
+              await updateVideo({
+                videoId,
+                updates: {
+                  isPlaylistOnly: true,
+                  addedToHomeAt: 0 // Using 0 or undefined to represent removal, but types might valid number. Let's use 0 or verify type.
+                  // Type is `number | undefined`.
+                  // However, updateVideo takes Partial<VideoDetails>.
+                  // We also need to make sure we don't break types.
+                }
+              });
+              // Note: undefined might not delete the field in firestore unless we use deleteField(), but updateVideo handles merging.
+              // Re-checking useVideos updateVideo logic... it does `...updates`.
+              // Passing `isPlaylistOnly: true` is enough to hide it from Home because helper filters by `!v.isPlaylistOnly`.
+              // But let's also clear `addedToHomeAt` for valid data state.
+            } else {
+              // Hard delete: Not in any playlist, so safe to delete completely
+              await removeVideo(videoId);
+            }
           }
         }}
         onVideoMove={onVideoMove || (homeSortBy === 'default' ? handleLocalVideoMove : undefined)}

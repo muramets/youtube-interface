@@ -73,7 +73,7 @@ interface MenuDropdownProps {
     showVideo: boolean;
     showPlaylist: boolean;
     activePlaylist?: { id: string; name: string };
-    onOptionClick: (modal: 'youtube' | 'custom' | 'playlist' | 'custom-playlist') => void;
+    onOptionClick: (modal: 'youtube' | 'custom' | 'playlist' | 'custom-playlist' | 'youtube-playlist') => void;
     dropdownRef: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -101,21 +101,35 @@ const MenuDropdown: React.FC<MenuDropdownProps> = memo(({
             <div className="p-2">
                 {showVideo && (
                     <>
-                        <button
-                            onClick={() => onOptionClick('youtube')}
-                            className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors border-none cursor-pointer text-text-primary hover:bg-hover-bg bg-transparent"
-                        >
-                            <Youtube size={18} />
-                            Add YouTube Video
-                        </button>
+                        {!activePlaylist && (
+                            <button
+                                onClick={() => onOptionClick('youtube')}
+                                className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors border-none cursor-pointer text-text-primary hover:bg-hover-bg bg-transparent"
+                            >
+                                <Youtube size={18} />
+                                Add YouTube Video
+                            </button>
+                        )}
 
-                        <button
-                            onClick={() => onOptionClick('custom')}
-                            className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors border-none cursor-pointer text-text-primary hover:bg-hover-bg bg-transparent"
-                        >
-                            <Upload size={18} />
-                            Create Custom Video
-                        </button>
+                        {activePlaylist && (
+                            <button
+                                onClick={() => onOptionClick('youtube-playlist')}
+                                className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors border-none cursor-pointer text-text-primary hover:bg-hover-bg bg-transparent"
+                            >
+                                <Youtube size={18} />
+                                Add YouTube Video in {activePlaylist.name}
+                            </button>
+                        )}
+
+                        {!activePlaylist && (
+                            <button
+                                onClick={() => onOptionClick('custom')}
+                                className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors border-none cursor-pointer text-text-primary hover:bg-hover-bg bg-transparent"
+                            >
+                                <Upload size={18} />
+                                Create Custom Video
+                            </button>
+                        )}
 
                         {activePlaylist && (
                             <button
@@ -123,7 +137,7 @@ const MenuDropdown: React.FC<MenuDropdownProps> = memo(({
                                 className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium flex items-center gap-3 transition-colors border-none cursor-pointer text-text-primary hover:bg-hover-bg bg-transparent"
                             >
                                 <Upload size={18} />
-                                Create Custom Video in "{activePlaylist.name}"
+                                Create Custom Video in {activePlaylist.name}
                             </button>
                         )}
                     </>
@@ -184,7 +198,7 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = memo(({
 
     // State
     const [internalIsOpen, setInternalIsOpen] = useState(false);
-    const [activeModal, setActiveModal] = useState<'youtube' | 'custom' | 'playlist' | 'custom-playlist' | null>(null);
+    const [activeModal, setActiveModal] = useState<'youtube' | 'custom' | 'playlist' | 'custom-playlist' | 'youtube-playlist' | null>(null);
     const [customVideoInitialData, setCustomVideoInitialData] = useState<VideoDetails | undefined>(undefined);
 
     // Refs
@@ -233,7 +247,7 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = memo(({
         }
     };
 
-    const handleOptionClick = useCallback((modal: 'youtube' | 'custom' | 'playlist' | 'custom-playlist') => {
+    const handleOptionClick = useCallback((modal: 'youtube' | 'custom' | 'playlist' | 'custom-playlist' | 'youtube-playlist') => {
         if (modal === 'custom' || modal === 'custom-playlist') {
             const defaults: Partial<VideoDetails> = {
                 title: uploadDefaults.title || '',
@@ -277,6 +291,14 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = memo(({
         return videoId;
     };
 
+    const handleYouTubeVideoAdded = async (video: VideoDetails) => {
+        if (activeModal === 'youtube-playlist' && activePlaylist) {
+            const { PlaylistService } = await import('../../../core/services/playlistService');
+            await PlaylistService.addVideosToPlaylist(user?.uid || '', currentChannel?.id || '', activePlaylist.id, [video.id]);
+            showToast(`Added video to "${activePlaylist.name}"`, 'success');
+        }
+    };
+
     return (
         <>
             <button
@@ -300,8 +322,10 @@ export const AddContentMenu: React.FC<AddContentMenuProps> = memo(({
             )}
 
             <AddYouTubeVideoModal
-                isOpen={activeModal === 'youtube'}
+                isOpen={activeModal === 'youtube' || activeModal === 'youtube-playlist'}
                 onClose={() => setActiveModal(null)}
+                isPlaylistOnly={activeModal === 'youtube-playlist'}
+                onSuccess={handleYouTubeVideoAdded}
             />
 
             {(activeModal === 'custom' || activeModal === 'custom-playlist') && (
