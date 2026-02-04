@@ -1,6 +1,6 @@
 import { storage } from '../../config/firebase';
 
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, deleteObject, listAll } from 'firebase/storage';
 
 export const deleteImageFromStorage = async (url: string): Promise<void> => {
     try {
@@ -15,6 +15,35 @@ export const deleteImageFromStorage = async (url: string): Promise<void> => {
         throw error;
     }
 }
+
+
+/**
+ * Recursively deletes all files and subfolders at a given path.
+ * This is crucial for cleaning up all assets associated with a video (covers, A/B variants, etc.)
+ * without relying on stored URLs.
+ */
+export const deleteFolder = async (path: string): Promise<void> => {
+    const listRef = ref(storage, path);
+    try {
+        const res = await listAll(listRef);
+
+        // Recursively delete subfolders
+        const folderPromises = res.prefixes.map((folderRef) => deleteFolder(folderRef.fullPath));
+        await Promise.all(folderPromises);
+
+        // Delete files in this folder
+        const filePromises = res.items.map((itemRef) => deleteObject(itemRef));
+        await Promise.all(filePromises);
+    } catch (error: unknown) {
+        // Ignore "object not found" as it means the folder/file is already gone
+        if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === 'storage/object-not-found') {
+            return;
+        }
+        console.error(`Error deleting folder ${path}:`, error);
+        // We do NOT throw here to allow partial cleanup to proceed if possible, 
+        // essentially "best effort" deletion for cleanup tasks.
+    }
+};
 
 
 export const uploadImageToStorage = async (file: Blob, path: string): Promise<string> => {

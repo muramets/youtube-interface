@@ -11,7 +11,7 @@ import type { DocumentData } from 'firebase/firestore';
 import type { VideoDetails, HistoryItem, CoverVersion } from '../utils/youtubeApi';
 import { orderBy, getDocs, deleteDoc, writeBatch, doc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import { deleteImageFromStorage, deleteCsvSnapshot } from './storageService';
+import { deleteCsvSnapshot } from './storageService';
 
 export const getVideosPath = (userId: string, channelId: string): string =>
     `users/${userId}/channels/${channelId}/videos`;
@@ -24,36 +24,7 @@ interface BatchUpdateItem {
     data: Partial<VideoDetails>;
 }
 
-// Helper to cleanup images
-const cleanupVideoImages = async (video: VideoDetails, videoId: string): Promise<void> => {
-    const imagesToDelete = new Set<string>();
 
-    const addUrl = (url?: string | null) => {
-        if (!url || !url.includes('firebasestorage.googleapis.com')) return;
-        try {
-            const decodedUrl = decodeURIComponent(url);
-            // Safety check: Only delete if path contains videoId
-            if (decodedUrl.includes(videoId)) {
-                imagesToDelete.add(url);
-            }
-            // Legacy legacy path check intentionally omitted for safety as per original code
-        } catch {
-            // ignore malformed urls
-        }
-    };
-
-    addUrl(video.customImage);
-    video.coverHistory?.forEach(h => addUrl(h.url));
-    video.packagingHistory?.forEach(v => {
-        if (v.configurationSnapshot) {
-            addUrl(v.configurationSnapshot.coverImage);
-            v.configurationSnapshot.abTestVariants?.forEach((variant: string) => addUrl(variant));
-        }
-    });
-    video.abTestVariants?.forEach(variant => addUrl(variant));
-
-    await Promise.all(Array.from(imagesToDelete).map(url => deleteImageFromStorage(url)));
-};
 
 // Helper to cleanup traffic data
 const cleanupTrafficData = async (trafficPath: string): Promise<void> => {
@@ -189,15 +160,19 @@ export const VideoService = {
         channelId: string,
         videoId: string
     ): Promise<void> => {
-        // 1. Fetch video details for cleanup
-        const path = `${getVideosPath(userId, channelId)}/${videoId}`;
-        const video = await getDocument<VideoDetails>(path);
-
-        if (video) {
-            await cleanupVideoImages(video, videoId);
+        // 1. Storage Cleanup: Delete entire video folder
+        try {
+            const { deleteFolder } = await import('./storageService');
+            // Folder structure: users/{userId}/channels/{channelId}/videos/{videoId}/
+            const videoStoragePath = `users/${userId}/channels/${channelId}/videos/${videoId}`;
+            await deleteFolder(videoStoragePath);
+        } catch (error) {
+            console.error('Failed to cleanup storage folder:', error);
+            // Continue deletion even if storage cleanup fails partially
         }
 
-        // 2. Traffic Data Cleanup
+        // 2. Traffic Data Cleanup (Firestore)
+        const path = `${getVideosPath(userId, channelId)}/${videoId}`;
         const trafficPath = `${path}/traffic`;
         await cleanupTrafficData(trafficPath);
 
