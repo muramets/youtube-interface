@@ -8,6 +8,7 @@ import { useChannelStore } from '../../core/stores/channelStore';
 import { ArrowLeft, PlaySquare } from 'lucide-react';
 import { VideoGrid } from '../../features/Video/VideoGrid';
 import { ZoomControls } from '../../features/Video/ZoomControls';
+import { PlaylistExportControls } from './components/PlaylistExportControls';
 
 export const PlaylistDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -100,7 +101,7 @@ export const PlaylistDetailPage: React.FC = () => {
                 >
                     <ArrowLeft size={24} />
                 </button>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 flex-1">
                     <div className="w-20 h-[45px] bg-bg-secondary rounded-lg flex items-center justify-center overflow-hidden">
                         {effectiveCoverImage ? (
                             <img src={effectiveCoverImage} alt="" className="w-full h-full object-cover" />
@@ -118,6 +119,14 @@ export const PlaylistDetailPage: React.FC = () => {
                             {' • '}Created {new Date(playlist.createdAt).toLocaleDateString()}
                         </span>
                     </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2">
+                    <PlaylistExportControls
+                        videos={playlistVideos}
+                        playlistName={playlist.name}
+                    />
                 </div>
             </div>
 
