@@ -345,7 +345,7 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
                 abTestResults: { titles: [], thumbnails: [] },
 
                 // Store linkage to variant
-                abTestVariantIndex: finalVariantIndex
+                ...(finalVariantIndex !== undefined ? { abTestVariantIndex: finalVariantIndex } : {})
             };
 
             // Optimistic Order Update

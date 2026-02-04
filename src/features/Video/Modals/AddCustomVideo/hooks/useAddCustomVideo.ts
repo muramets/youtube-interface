@@ -559,7 +559,7 @@ export function useAddCustomVideo({
             const effectivePackagingVersion = overrides?.overridePackagingVersion ?? currentPackagingVersion;
 
             const videoData: Omit<VideoDetails, 'id'> & { id?: string } = {
-                id: initialData?.id,
+                id: initialData?.id || draftId,
                 title: finalTitle.trim(),
                 description: finalData.description || '',
                 tags: finalData.tags || [],

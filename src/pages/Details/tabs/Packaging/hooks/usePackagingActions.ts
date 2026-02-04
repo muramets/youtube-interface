@@ -283,8 +283,17 @@ export const usePackagingActions = ({
         // HANDLE PLAYLIST CONTEXT
         if (playlistId) {
             // 1. Add to playlist
-            const { PlaylistService } = await import('../../../../../core/services/playlistService');
-            await PlaylistService.addVideosToPlaylist(user?.uid || '', currentChannel?.id || '', playlistId, [newVideoId]);
+            try {
+                const { PlaylistService } = await import('../../../../../core/services/playlistService');
+                await PlaylistService.addVideosToPlaylist(user?.uid || '', currentChannel?.id || '', playlistId, [newVideoId]);
+            } catch (error) {
+                console.error('Failed to add cloned video to playlist:', error);
+                showToast('Video cloned but failed to add to playlist', 'error');
+                // We still proceed to show the success toast regarding creation, or should we?
+                // Maybe just return? But the video IS created.
+                // Let's fall through but maybe modify message?
+                // For now, let's just log and show warning, then continue so user can at least see the video.
+            }
 
             // 2. Show Playlist-Specific Success Toast & Click Action
             const message = formState.isDirty
@@ -351,8 +360,10 @@ export const usePackagingActions = ({
                 cloneDurationSeconds: cloneSettings?.cloneDurationSeconds || 3600
             });
             await onCloneSuccess(newVideoId);
-        } catch {
-            showToast('Failed to clone version', 'error');
+        } catch (error: unknown) {
+            console.error('Failed to clone version:', error);
+            const err = error as Error;
+            showToast(`Failed to clone version: ${err?.message || 'Unknown error'}`, 'error');
         } finally {
             setCloningVersion(null);
         }
