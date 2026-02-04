@@ -140,11 +140,37 @@ export const PlaylistDetailPage: React.FC = () => {
 
 
     const handlePlaylistReorder = (movedVideoId: string, targetVideoId: string) => {
-        // Find these IDs in the original playlist.videoIds list to handle the move safely
+        // Find these IDs in the current VISIBLE list (which might be sorted)
+        const currentVisibleOrder = playlistVideos.map(v => v.id);
+        const oldIndex = currentVisibleOrder.indexOf(movedVideoId);
+        const newIndex = currentVisibleOrder.indexOf(targetVideoId);
+
+        if (oldIndex === -1 || newIndex === -1 || !user || !currentChannel) return;
+
+        // If we are in a Sorted View (not 'default'), we need to capturing current order -> switch to default
+        if (playlistVideoSortBy !== 'default') {
+            // calculated new order based on VISIBLE list
+            const newOrder = [...currentVisibleOrder];
+            const [movedItem] = newOrder.splice(oldIndex, 1);
+            newOrder.splice(newIndex, 0, movedItem);
+
+            // 1. Switch UI to Manual Sort
+            setPlaylistVideoSortBy('default');
+
+            // 2. Persist this new "Manual" order
+            reorderPlaylistVideos({ playlistId: playlist.id, newVideoIds: newOrder });
+            return;
+        }
+
+        // Manual Mode: Standard Reorder
+        // We must map visual indices back to original full ID list if we were filtering,
+        // but here playlistVideos corresponds to playlist.videoIds (filtered by existence).
+        // Safest is to operate on the FULL playlist.videoIds list using the IDs.
+
         const originalOldIndex = playlist.videoIds.indexOf(movedVideoId);
         const originalNewIndex = playlist.videoIds.indexOf(targetVideoId);
 
-        if (originalOldIndex !== -1 && originalNewIndex !== -1 && user && currentChannel) {
+        if (originalOldIndex !== -1 && originalNewIndex !== -1) {
             const fullOrder = [...playlist.videoIds];
             const [movedItem] = fullOrder.splice(originalOldIndex, 1);
             fullOrder.splice(originalNewIndex, 0, movedItem);
@@ -215,7 +241,7 @@ export const PlaylistDetailPage: React.FC = () => {
             {/* Reusable Video Grid */}
             <VideoGrid
                 videos={playlistVideos}
-                onVideoMove={playlistVideoSortBy === 'default' ? handlePlaylistReorder : undefined}
+                onVideoMove={handlePlaylistReorder}
                 disableChannelFilter={true}
                 playlistId={playlist.id}
                 isLoading={isVideosLoading}

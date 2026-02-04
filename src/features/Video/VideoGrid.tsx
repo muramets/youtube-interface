@@ -439,7 +439,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
             }
           }
         }}
-        onVideoMove={onVideoMove || (homeSortBy === 'default' ? handleLocalVideoMove : undefined)}
+        onVideoMove={onVideoMove || handleLocalVideoMove}
         onSetAsCover={onSetAsCover}
         selectedIds={selectedIds}
         onToggleSelection={onToggleSelection}
