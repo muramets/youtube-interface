@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { X, Plus, Copy, Check } from 'lucide-react';
 import { Button } from '../../components/ui/atoms/Button';
-import { useABTestingModalState, type ABTestMode } from './hooks/useABTestingModalState';
+import { useABTestingModalState, type ABTestMode, type ABTestingSaveData } from './hooks/useABTestingModalState';
 import { ThumbnailSlot, TitleInputCard, ShareResultCell } from './components';
 
 interface ABTestingModalProps {
@@ -28,7 +28,7 @@ interface ABTestingModalProps {
         thumbnails: number[];
     };
     onFileUpload?: (file: File) => Promise<string>;
-    onClone?: (title?: string, thumbnail?: string, variantIndex?: number) => void;
+    onClone?: (title?: string, thumbnail?: string, variantIndex?: number, savedData?: ABTestingSaveData) => void;
     getCloneStatus?: (title?: string, thumbnail?: string) => boolean;
 }
 
@@ -93,7 +93,7 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
                         e.stopPropagation();
                         // Only trigger if not already cloned
                         if (!isCloned) {
-                            onClone(titleToClone, thumbnailToClone, index);
+                            onClone(titleToClone, thumbnailToClone, index, prepareSaveData());
                         }
                     }}
                     className={`

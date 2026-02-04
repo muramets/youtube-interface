@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { type VideoDetails, type CoverVersion } from '../../../../../core/utils/youtubeApi';
 
@@ -15,6 +15,7 @@ import { type VersionState } from '../types';
 import { type UsePackagingLocalizationResult } from './usePackagingLocalization';
 import { type UsePackagingFormStateResult } from './usePackagingFormState';
 import { type UseABTestingResult } from './useABTesting';
+import { type ABTestingSaveData } from '../../../../../features/ABTesting/hooks/useABTestingModalState';
 
 interface UsePackagingActionsProps {
     video: VideoDetails;
@@ -45,6 +46,8 @@ export const usePackagingActions = ({
     const { showToast } = useUIStore();
     const [savingAction, setSavingAction] = useState<'draft' | 'version' | 'metadata' | null>(null);
     const [cloningVersion, setCloningVersion] = useState<number | null>(null);
+
+
 
     // Common payload construction
     const buildSavePayload = useCallback(() => {
@@ -136,6 +139,13 @@ export const usePackagingActions = ({
             setSavingAction(null);
         }
     }, [user, currentChannel, video.id, buildSavePayload, versionState, updateVideo, formState, showToast, video.coverHistory, video.packagingRevision]);
+
+    // Track the latest handleSave for access inside async callbacks (like toast actions)
+    // where the closure might be stale by the time the user clicks.
+    const handleSaveRef = useRef(handleSave);
+    useEffect(() => {
+        handleSaveRef.current = handleSave;
+    }, [handleSave]);
 
     /**
      * BUSINESS LOGIC: Save As New Version with CSV Snapshot
@@ -279,7 +289,7 @@ export const usePackagingActions = ({
         formState.resetToSnapshot(formState.loadedSnapshot);
     }, [formState]);
 
-    const onCloneSuccess = useCallback(async (newVideoId: string) => {
+    const onCloneSuccess = useCallback(async (newVideoId: string, forceDirty: boolean = false) => {
         // HANDLE PLAYLIST CONTEXT
         if (playlistId) {
             // 1. Add to playlist
@@ -296,7 +306,8 @@ export const usePackagingActions = ({
             }
 
             // 2. Show Playlist-Specific Success Toast & Click Action
-            const message = formState.isDirty
+            const isEffectivelyDirty = formState.isDirty || forceDirty;
+            const message = isEffectivelyDirty
                 ? `Cloned video added to playlist — save & view`
                 : `Cloned video added to playlist — click to view`;
 
@@ -306,9 +317,9 @@ export const usePackagingActions = ({
                 'clickable',
                 async () => {
                     // Auto-save draft before navigating (only if dirty)
-                    if (formState.isDirty) {
+                    if (isEffectivelyDirty) {
                         try {
-                            await handleSave();
+                            await handleSaveRef.current();
                         } catch (error) {
                             console.error('Failed to save draft:', error);
                             showToast('Failed to save changes', 'error');
@@ -324,7 +335,8 @@ export const usePackagingActions = ({
 
         // DEFAULT BEHAVIOR (No Playlist)
         // Dynamic message based on whether there are unsaved changes
-        const message = formState.isDirty
+        const isEffectivelyDirty = formState.isDirty || forceDirty;
+        const message = isEffectivelyDirty
             ? `Clone created — save & view`
             : `Clone created — click to view`;
 
@@ -335,9 +347,9 @@ export const usePackagingActions = ({
             'clickable', // This signals the toast is clickable
             async () => {
                 // Auto-save draft before navigating (only if dirty)
-                if (formState.isDirty) {
+                if (isEffectivelyDirty) {
                     try {
-                        await handleSave();
+                        await handleSaveRef.current();
                     } catch (error) {
                         console.error('Failed to save draft:', error);
                         showToast('Failed to save changes', 'error');
@@ -348,7 +360,7 @@ export const usePackagingActions = ({
                 navigate('/');
             }
         );
-    }, [playlistId, user, currentChannel, formState.isDirty, handleSave, showToast, navigate]);
+    }, [playlistId, user, currentChannel, formState.isDirty, showToast, navigate]);
 
     const handleCloneFromVersion = useCallback(async (version: CoverVersion) => {
         if (cloningVersion !== null) return;
@@ -369,8 +381,22 @@ export const usePackagingActions = ({
         }
     }, [cloningVersion, cloneVideo, video, showToast, cloneSettings, onCloneSuccess]);
 
-    const handleCloneABVariant = useCallback(async (title?: string, thumbnail?: string, variantIndex?: number) => {
+    const handleCloneABVariant = useCallback(async (title?: string, thumbnail?: string, variantIndex?: number, savedData?: ABTestingSaveData) => {
         if (cloningVersion !== null) return;
+
+        console.log('[DEBUG] handleCloneABVariant: called with savedData:', savedData);
+
+        // BUG FIX: Sync parent state with modal data if provided (prevents losing new variants)
+        if (savedData) {
+            console.log('[DEBUG] handleCloneABVariant: Updating abTesting state');
+            abTesting.setTitles(savedData.titles);
+            abTesting.setThumbnails(savedData.thumbnails);
+            abTesting.setResults(savedData.results);
+            // This updates the local state so when we save later (e.g. from toast), it includes everything
+        } else {
+            console.warn('[DEBUG] handleCloneABVariant: savedData is undefined!');
+        }
+
         // Use a dummy version number (e.g. -1) to block unrelated UI if needed, or separate state
         setCloningVersion(-1);
         try {
@@ -391,14 +417,14 @@ export const usePackagingActions = ({
                     customImageVersion: thumbnail ? 0 : undefined // 0 to indicate variant
                 }
             });
-            await onCloneSuccess(newVideoId);
+            await onCloneSuccess(newVideoId, !!savedData);
         } catch (e) {
             console.error(e);
             showToast('Failed to clone A/B variant', 'error');
         } finally {
             setCloningVersion(null);
         }
-    }, [cloningVersion, cloneVideo, video, cloneSettings, onCloneSuccess, showToast]);
+    }, [cloningVersion, cloneVideo, video, cloneSettings, onCloneSuccess, showToast, abTesting]);
 
     const handleRestore = useCallback(async () => {
         if (versionState.viewingVersion !== 'draft' && typeof versionState.viewingVersion === 'number') {

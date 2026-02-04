@@ -90,7 +90,7 @@ export function useABTestingModalState({
             setShowResults(!!hasResults);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isOpen, initialTab, currentTitle, currentThumbnail, JSON.stringify(titleVariants), JSON.stringify(thumbnailVariants), JSON.stringify(initialResults)]);
+    }, [isOpen, initialTab, currentTitle, currentThumbnail]);
 
     // Handlers
     const handleTitleChange = (index: number, value: string) => {
