@@ -12,6 +12,7 @@ const downloadBlob = (blob: Blob, filename: string) => {
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
+    link.onclick = (e) => e.stopPropagation(); // Stop leak to document listeners
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -22,6 +23,52 @@ export interface ImageToZip {
     id: string; // Used for filename
     url: string; // Image URL
 }
+
+/**
+ * Fetches an image blob, trying to upgrade to maxresdefault if it's a YouTube URL.
+ */
+export const fetchImageBlob = async (imageUrl: string): Promise<Blob> => {
+    let response: Response | null = null;
+
+    // 1. Try to upgrade to maxresdefault if it's a YouTube URL
+    if (imageUrl.includes('i.ytimg.com/vi/')) {
+        const maxResUrl = imageUrl.replace(/\/([a-z]+default)(_live)?\.jpg$/, '/maxresdefault.jpg');
+        if (maxResUrl !== imageUrl) {
+            try {
+                // Try fetching the high-res version
+                const maxResResponse = await fetch(maxResUrl, { credentials: 'omit' });
+                if (maxResResponse.ok) {
+                    response = maxResResponse;
+                }
+            } catch {
+                // Ignore, fallback to original
+            }
+        }
+    }
+
+    // 2. Fallback to original URL if no high-res response
+    if (!response) {
+        response = await fetch(imageUrl, { cache: 'force-cache', credentials: 'omit' });
+    }
+
+    if (!response.ok) throw new Error(`Failed to fetch ${imageUrl}`);
+
+    return await response.blob();
+};
+
+/**
+ * Downloads a single image directly.
+ */
+export const downloadImageDirect = async (img: ImageToZip, filename?: string) => {
+    try {
+        const blob = await fetchImageBlob(img.url);
+        const finalFilename = filename || `${img.id}.jpg`;
+        downloadBlob(blob, finalFilename);
+    } catch (error) {
+        console.error(`Error downloading image for ${img.id}:`, error);
+        throw error;
+    }
+};
 
 /**
  * Downloads a list of images as a single ZIP file.
@@ -39,33 +86,7 @@ export const downloadImagesAsZip = async (images: ImageToZip[], zipFilename: str
     // Process in parallel
     const promises = images.map(async (img) => {
         try {
-            let response: Response | null = null;
-
-            // 1. Try to upgrade to maxresdefault if it's a YouTube URL
-            if (img.url.includes('i.ytimg.com/vi/')) {
-                const maxResUrl = img.url.replace(/\/([a-z]+default)(_live)?\.jpg$/, '/maxresdefault.jpg');
-                if (maxResUrl !== img.url) {
-                    try {
-                        // Try fetching the high-res version
-                        const maxResResponse = await fetch(maxResUrl, { credentials: 'omit' });
-                        if (maxResResponse.ok) {
-                            response = maxResResponse;
-                        }
-                    } catch {
-                        // Ignore, fallback to original
-                    }
-                }
-            }
-
-            // 2. Fallback to original URL if no high-res response
-            if (!response) {
-                response = await fetch(img.url, { cache: 'force-cache', credentials: 'omit' });
-            }
-
-            if (!response.ok) throw new Error(`Failed to fetch ${img.url}`);
-
-            const blob = await response.blob();
-
+            const blob = await fetchImageBlob(img.url);
             // Add to zip
             // Filename: videoId.jpg
             folder.file(`${img.id}.jpg`, blob);

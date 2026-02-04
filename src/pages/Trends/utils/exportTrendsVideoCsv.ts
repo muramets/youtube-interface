@@ -140,6 +140,7 @@ export const downloadCsv = (content: string, filename: string): void => {
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
+    link.onclick = (e) => e.stopPropagation(); // Stop leak to document listeners
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

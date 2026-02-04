@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Download, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { useUIStore } from '../../../core/stores/uiStore';
-import { downloadImagesAsZip } from '../../../core/utils/zipUtils';
+import { downloadImagesAsZip, downloadImageDirect } from '../../../core/utils/zipUtils';
 import { exportTrendsVideoCsv, downloadCsv, generateTrendsExportFilename } from '../utils/exportTrendsVideoCsv';
 import type { TrendVideo } from '../../../core/types/trends';
 import { useTrendStore } from '../../../core/stores/trendStore';
@@ -85,12 +85,17 @@ export const TrendsExportControls: React.FC<TrendsExportControlsProps> = ({
         if (imageDownloadTimerRef.current) clearTimeout(imageDownloadTimerRef.current);
 
         try {
-            const baseFilename = generateTrendsExportFilename(videos.length, channelTitle).replace('.csv', '');
-            const zipFilename = `${baseFilename}_covers.zip`;
-
-            await downloadImagesAsZip(images, zipFilename);
-            showToast('Covers downloaded successfully', 'success');
-
+            if (images.length === 1) {
+                // Direct download for single image
+                await downloadImageDirect(images[0]);
+                showToast('Cover downloaded successfully', 'success');
+            } else {
+                // ZIP for multiple images
+                const baseFilename = generateTrendsExportFilename(videos.length, channelTitle).replace('.csv', '');
+                const zipFilename = `${baseFilename}_covers.zip`;
+                await downloadImagesAsZip(images, zipFilename);
+                showToast('Covers downloaded successfully', 'success');
+            }
             setShowImageDownload(false);
         } catch (error) {
             console.error('Image export failed:', error);

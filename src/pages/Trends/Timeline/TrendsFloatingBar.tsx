@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Check, Home, Trash2, RotateCcw, Download, Image as ImageIcon } from 'lucide-react';
-import { downloadImagesAsZip } from '../../../core/utils/zipUtils';
+import { downloadImagesAsZip, downloadImageDirect } from '../../../core/utils/zipUtils';
 import type { TrendVideo } from '../../../core/types/trends';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
@@ -70,7 +70,11 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
     React.useEffect(() => {
         if (isConfirmOpen) return;
 
-        const handleOutsideClick = () => {
+        const handleOutsideClick = (e: MouseEvent) => {
+            // IGNORE programmatic events (like link.click() from download utils)
+            // that bubble to the document and cause unintended closing.
+            if (!e.isTrusted) return;
+
             // Dropdown portals and the bar itself stop propagation of clicks,
             // so if this listener fires, it's truly outside.
             if (activeMenu) {
@@ -237,8 +241,15 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
         const zipFilename = `${generateTrendsExportFilename(videos.length, channelName).replace('.csv', '')}_covers.zip`;
 
         try {
-            await downloadImagesAsZip(images, zipFilename);
-            showToast('Covers downloaded', 'success');
+            if (images.length === 1) {
+                // Direct download for single image
+                await downloadImageDirect(images[0]);
+                showToast('Cover downloaded', 'success');
+            } else {
+                // ZIP for multiple images
+                await downloadImagesAsZip(images, zipFilename);
+                showToast('Covers downloaded', 'success');
+            }
         } catch (error) {
             console.error('Failed to download images:', error);
             showToast('Failed to download covers', 'error');
@@ -298,11 +309,16 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                             <button
                                 onMouseDown={(e) => e.stopPropagation()}
                                 onClick={(e) => {
+                                    // PREVENT propagation to document/canvas to avoid unintended closing/remounting.
+                                    // We use stopImmediatePropagation on the native event because React's stopPropagation 
+                                    // in React 17+ doesn't stop native document listeners for components that unmount/remount 
+                                    // during the bubble phase.
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    e.nativeEvent.stopImmediatePropagation();
+
                                     if (showImageDownload) {
                                         handleExportImages(e);
-                                        // Optional: keep it open or close it? 
-                                        // "Click on second state - download ... covers". Usually implies action completes.
-                                        // Let's close it to reset.
                                         setShowImageDownload(false);
                                         if (imageDownloadTimerRef.current) clearTimeout(imageDownloadTimerRef.current);
                                     } else {

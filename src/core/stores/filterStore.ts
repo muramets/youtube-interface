@@ -17,11 +17,9 @@ interface FilterState {
     searchQuery: string;
     selectedChannel: string | null; // Legacy simple filter (can be kept for backward compat or migrated)
     homeSortBy: 'default' | 'views' | 'date' | 'recently_added';
-    homeSortBy: 'default' | 'views' | 'date' | 'recently_added';
     playlistVideoSortBy: 'default' | 'views' | 'date'; // Persistent sort for videos INSIDE a playlist
     playlistsSortBy: 'default' | 'views' | 'updated' | 'created'; // Persistent sort for the LIST of playlists
 
-    activeFilters: FilterItem[];
     activeFilters: FilterItem[];
     channelFilters: Record<string, FilterItem[]>;
     channelPlaylistsSorts: Record<string, 'default' | 'views' | 'updated' | 'created'>; // Per-channel playlist sort settings
@@ -31,7 +29,6 @@ interface FilterState {
     setSearchQuery: (query: string) => void;
     setSelectedChannel: (channel: string | null) => void;
     setHomeSortBy: (sort: 'default' | 'views' | 'date' | 'recently_added') => void;
-    setHomeSortBy: (sort: 'default' | 'views' | 'date' | 'recently_added') => void;
     setPlaylistVideoSortBy: (sort: 'default' | 'views' | 'date') => void;
     setPlaylistsSortBy: (sort: 'default' | 'views' | 'updated' | 'created') => void;
 
@@ -40,7 +37,6 @@ interface FilterState {
     updateFilter: (id: string, updates: Partial<FilterItem>) => void;
     clearFilters: () => void;
 
-    // New action to handle channel switching
     // New action to handle channel switching
     switchChannel: (channelId: string | null) => void;
 
@@ -57,7 +53,6 @@ export const useFilterStore = create<FilterState>()(
             searchQuery: '',
             selectedChannel: null,
             homeSortBy: 'default',
-            homeSortBy: 'default',
             playlistVideoSortBy: 'default',
             playlistsSortBy: 'default',
             activeFilters: [],
@@ -73,7 +68,6 @@ export const useFilterStore = create<FilterState>()(
                 return {
                     userId: id,
                     activeFilters: [],
-                    activeFilters: [],
                     channelFilters: {}, // Clear all channel presets
                     channelPlaylistsSorts: {},
                     currentChannelId: null,
@@ -84,7 +78,6 @@ export const useFilterStore = create<FilterState>()(
 
             setSearchQuery: (query) => set({ searchQuery: query }),
             setSelectedChannel: (channel) => set({ selectedChannel: channel }),
-            setHomeSortBy: (sort) => set({ homeSortBy: sort }),
             setHomeSortBy: (sort) => set({ homeSortBy: sort }),
             setPlaylistVideoSortBy: (sort) => set({ playlistVideoSortBy: sort }),
             setPlaylistsSortBy: (sort) => set({ playlistsSortBy: sort }),
