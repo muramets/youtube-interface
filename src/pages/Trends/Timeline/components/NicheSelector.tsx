@@ -4,6 +4,7 @@ import type { TrendNiche, TrendVideo } from '../../../../core/types/trends';
 import { useTrendStore, generateNicheColor } from '../../../../core/stores/trendStore';
 import { FloatingNicheItem } from '../FloatingNicheItem';
 import { FloatingDropdownPortal } from '../../../../components/ui/atoms/FloatingDropdownPortal';
+import { useKeyboardNavigation } from '../../../../core/hooks/useKeyboardNavigation';
 
 interface NicheSelectorProps {
     videos: TrendVideo[];
@@ -229,13 +230,17 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
         }));
     };
 
-    const [highlightedIndex, setHighlightedIndex] = useState(-1);
-    const listRef = useRef<HTMLDivElement>(null);
+    const { activeIndex: highlightedIndex, handleKeyDown } = useKeyboardNavigation({
+        listLength: filteredNiches.length,
+        onEnter: (index) => {
+            const niche = filteredNiches[index];
+            const status = nicheAssignmentStatus.get(niche.id) || 'none';
+            handleNicheToggle(niche.id, status);
+        },
+        onEscape: () => onToggle()
+    });
 
-    // Reset highlighted index when keys change
-    React.useEffect(() => {
-        setHighlightedIndex(-1);
-    }, [filteredNiches, newNicheName]); // Reset when filter changes
+    const listRef = useRef<HTMLDivElement>(null);
 
     // Scroll highlighted item into view
     React.useEffect(() => {
@@ -246,37 +251,6 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
             }
         }
     }, [highlightedIndex]);
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (filteredNiches.length === 0) return;
-
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            setHighlightedIndex(prev => Math.min(prev + 1, filteredNiches.length - 1));
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            // Allow going back to -1 (input focus state)
-            setHighlightedIndex(prev => Math.max(prev - 1, -1));
-        } else if (e.key === 'Enter') {
-            // If we have a valid selection, toggle it & prevent form submit
-            if (highlightedIndex >= 0 && filteredNiches[highlightedIndex]) {
-                e.preventDefault();
-                e.stopPropagation();
-
-                const niche = filteredNiches[highlightedIndex];
-                const status = nicheAssignmentStatus.get(niche.id) || 'none';
-                handleNicheToggle(niche.id, status);
-
-                // Optional: Clear input or close?
-                // Usually we keep it open for multi-select, or close?
-                // If single video, maybe close?
-                // Current behavior of clicking item is: it stays open (see handleNicheToggle).
-                // So we just toggle.
-            }
-        } else if (e.key === 'Escape') {
-            // Handled by input's existing handler, or we can unify here
-        }
-    };
 
     return (
         <div className="relative">
@@ -330,16 +304,7 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                                     className="w-full bg-bg-primary text-white text-xs px-3 py-2 pl-8 rounded-lg focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-text-secondary"
                                     value={newNicheName}
                                     onChange={(e) => setNewNicheName(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        // Handle navigation keys
-                                        handleKeyDown(e);
-
-                                        // Original Escape logic
-                                        if (e.key === 'Escape') {
-                                            e.preventDefault();
-                                            onToggle();
-                                        }
-                                    }}
+                                    onKeyDown={handleKeyDown}
                                 />
                                 <Plus size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary" />
                             </div>

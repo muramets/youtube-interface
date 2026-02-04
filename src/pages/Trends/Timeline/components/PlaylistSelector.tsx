@@ -11,6 +11,7 @@ import { VideoService } from '../../../../core/services/videoService';
 import { PlaylistService } from '../../../../core/services/playlistService';
 import type { TrendVideo } from '../../../../core/types/trends';
 import { trendVideoToVideoDetails } from '../../../../core/utils/videoAdapters';
+import { useKeyboardNavigation } from '../../../../core/hooks/useKeyboardNavigation';
 
 interface PlaylistSelectorProps {
     videos: TrendVideo[];
@@ -162,6 +163,28 @@ export const PlaylistSelector: React.FC<PlaylistSelectorProps> = ({
         });
     }, [playlists, newPlaylistName]);
 
+    const { activeIndex, handleKeyDown } = useKeyboardNavigation({
+        listLength: filteredPlaylists.length,
+        onEnter: (index) => {
+            const playlist = filteredPlaylists[index];
+            const status = getPlaylistStatus(playlist);
+            handlePlaylistToggle(playlist.id, playlist.name, status === 'all');
+        },
+        onEscape: onToggle
+    });
+
+    const listRef = useRef<HTMLDivElement>(null);
+
+    // Scroll active item into view
+    useEffect(() => {
+        if (activeIndex >= 0 && listRef.current) {
+            const item = listRef.current.children[activeIndex] as HTMLElement;
+            if (item) {
+                item.scrollIntoView({ block: 'nearest' });
+            }
+        }
+    }, [activeIndex]);
+
     return (
         <div className="relative">
             <button
@@ -192,20 +215,15 @@ export const PlaylistSelector: React.FC<PlaylistSelectorProps> = ({
                                     className="w-full bg-bg-primary text-white text-xs px-3 py-2 pl-8 rounded-lg focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-text-secondary"
                                     value={newPlaylistName}
                                     onChange={(e) => setNewPlaylistName(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Escape') {
-                                            e.preventDefault();
-                                            onToggle(); // Close dropdown
-                                        }
-                                    }}
+                                    onKeyDown={handleKeyDown}
                                 />
                                 <Plus size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary" />
                             </div>
                             {/* Create button removed as per UX feedback - Enter key is sufficient */}
                         </form>
                     </div>
-                    <div className="overflow-y-auto custom-scrollbar p-1 flex-1">
-                        {filteredPlaylists.map(playlist => {
+                    <div ref={listRef} className="overflow-y-auto custom-scrollbar p-1 flex-1">
+                        {filteredPlaylists.map((playlist, index) => {
                             const status = getPlaylistStatus(playlist);
                             const isChecked = status === 'all';
 
@@ -213,7 +231,8 @@ export const PlaylistSelector: React.FC<PlaylistSelectorProps> = ({
                                 <button
                                     key={playlist.id}
                                     onClick={() => handlePlaylistToggle(playlist.id, playlist.name, isChecked)}
-                                    className={`w-full text-left px-3 py-2 text-xs hover:bg-white/5 rounded-lg flex items-center gap-2 transition-colors justify-between ${isChecked ? 'text-white' : 'text-text-secondary hover:text-white'
+                                    className={`w-full text-left px-3 py-2 text-xs rounded-lg flex items-center gap-2 transition-colors justify-between ${isChecked ? 'text-white' : 'text-text-secondary'
+                                        } ${activeIndex === index ? 'bg-white/10 text-white' : 'hover:bg-white/5 hover:text-white'
                                         }`}
                                 >
                                     <div className="flex items-center gap-2 truncate">
