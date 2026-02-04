@@ -407,11 +407,14 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
           if (!user || !currentChannel) return;
 
           if (playlistId) {
-            // Remove from specific playlist
+            // Remove from specific playlist to update UI immediately
             await removeVideosFromPlaylist({
               playlistId,
               videoIds: [videoId]
             });
+            // AND Perform full delete (Delete Everywhere) as per user requirement.
+            // "Delete" button in playlist means "Delete this video entirely".
+            await removeVideo(videoId);
           } else {
             // Remove from Home Page
             // Check if video is in ANY playlist
@@ -423,16 +426,9 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
                 videoId,
                 updates: {
                   isPlaylistOnly: true,
-                  addedToHomeAt: 0 // Using 0 or undefined to represent removal, but types might valid number. Let's use 0 or verify type.
-                  // Type is `number | undefined`.
-                  // However, updateVideo takes Partial<VideoDetails>.
-                  // We also need to make sure we don't break types.
+                  addedToHomeAt: 0
                 }
               });
-              // Note: undefined might not delete the field in firestore unless we use deleteField(), but updateVideo handles merging.
-              // Re-checking useVideos updateVideo logic... it does `...updates`.
-              // Passing `isPlaylistOnly: true` is enough to hide it from Home because helper filters by `!v.isPlaylistOnly`.
-              // But let's also clear `addedToHomeAt` for valid data state.
             } else {
               // Hard delete: Not in any playlist, so safe to delete completely
               await removeVideo(videoId);
