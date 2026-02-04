@@ -7,6 +7,8 @@ import { TrendsStats } from './TrendsStats';
 import { TrendsSettings } from './TrendsSettings';
 import { TrendsFilterButton } from './TrendsFilterButton';
 import { TrendsFilterChips } from './TrendsFilterChips';
+import { TrendsExportControls } from './TrendsExportControls';
+import type { TrendVideo } from '../../../core/types/trends';
 
 interface TrendsHeaderProps {
     title: string;
@@ -20,6 +22,7 @@ interface TrendsHeaderProps {
     availableMaxDate?: number;
     currentViewMode: 'timeline' | 'table';
     onViewModeChange: (mode: 'timeline' | 'table') => void;
+    filteredVideos: TrendVideo[];
 }
 
 export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
@@ -33,7 +36,8 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
     availableMinDate,
     availableMaxDate,
     currentViewMode,
-    onViewModeChange
+    onViewModeChange,
+    filteredVideos
 }) => {
     const { handleSync, isSyncing, canSync, syncTooltip } = useTrendsSync();
 
@@ -77,7 +81,12 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
                         </Tooltip>
                     </TooltipProvider>
 
-
+                    {/* Export Controls for All Filtered Videos */}
+                    <TrendsExportControls
+                        videos={filteredVideos}
+                        channelTitle={title}
+                        disabled={isLoading}
+                    />
 
                     {/* View Mode Toggle */}
                     <div className="flex items-center gap-1 border border-border rounded-lg bg-bg-secondary/50 p-0.5 ml-2 mr-2">

@@ -126,6 +126,7 @@ export const TrendsPage: React.FC = () => {
                 availableMaxDate={currentStats?.maxDate}
                 currentViewMode={viewMode}
                 onViewModeChange={setViewMode}
+                filteredVideos={filteredVideos}
             />
 
             {viewMode === 'timeline' ? (
