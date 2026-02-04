@@ -36,6 +36,32 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoId,
         }
     };
 
+    // Calcluate initial sort order ONCE on mount to preventing jumping
+    const [initialSortOrder] = React.useState(() => {
+        return [...playlists].sort((a, b) => {
+            const timeA = a.updatedAt || a.createdAt;
+            const timeB = b.updatedAt || b.createdAt;
+            return timeB - timeA;
+        }).map(p => p.id);
+    });
+
+    const displayPlaylists = React.useMemo(() => {
+        // 1. Get all playlists currently available
+        const currentPlaylistsMap = new Map(playlists.map(p => [p.id, p]));
+
+        // 2. Map the initial stable order to current playlist objects
+        const stableList = initialSortOrder
+            .map(id => currentPlaylistsMap.get(id))
+            .filter((p): p is NonNullable<typeof p> => !!p);
+
+        // 3. Find any NEW playlists created since mount (not in initial order)
+        const newPlaylists = playlists.filter(p => !initialSortOrder.includes(p.id));
+
+        // 4. Combine: New playlists at top (optional, or bottom), followed by stable list
+        // Usually newly created playlists should be visible, so putting them at top makes sense.
+        return [...newPlaylists, ...stableList];
+    }, [playlists, initialSortOrder]);
+
     return createPortal(
 
         <div
@@ -57,7 +83,7 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoId,
                 </div>
 
                 <div className="py-2 overflow-y-auto custom-scrollbar">
-                    {playlists.map(playlist => {
+                    {displayPlaylists.map(playlist => {
                         const isInPlaylist = playlist.videoIds.includes(videoId);
                         return (
                             <div

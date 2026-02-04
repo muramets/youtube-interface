@@ -9,13 +9,16 @@ import { ArrowLeft, PlaySquare } from 'lucide-react';
 import { VideoGrid } from '../../features/Video/VideoGrid';
 import { ZoomControls } from '../../features/Video/ZoomControls';
 import { PlaylistExportControls } from './components/PlaylistExportControls';
+import { useFilterStore } from '../../core/stores/filterStore';
+import { SortButton } from '../../features/Filter/SortButton';
 
 export const PlaylistDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { playlists, reorderPlaylistVideos, isLoading: isPlaylistsLoading } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+    const { playlists, reorderPlaylistVideos, updatePlaylist, isLoading: isPlaylistsLoading } = usePlaylists(user?.uid || '', currentChannel?.id || '');
     const { videos, isLoading: isVideosLoading } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const { playlistVideoSortBy, setPlaylistVideoSortBy } = useFilterStore();
     const navigate = useNavigate();
 
     const playlist = playlists.find(p => p.id === id);
@@ -24,10 +27,29 @@ export const PlaylistDetailPage: React.FC = () => {
     // We map over playlist.videoIds to preserve order
     const playlistVideos = useMemo(() => {
         if (!playlist) return [];
-        return playlist.videoIds
+        const filtered = playlist.videoIds
             .map(videoId => videos.find(v => v.id === videoId))
             .filter((v): v is NonNullable<typeof v> => v !== undefined);
-    }, [playlist, videos]);
+
+        if (playlistVideoSortBy === 'views') {
+            return [...filtered].sort((a, b) => {
+                const viewsA = parseInt(a.viewCount?.replace(/[^0-9]/g, '') || '0', 10);
+                const viewsB = parseInt(b.viewCount?.replace(/[^0-9]/g, '') || '0', 10);
+                return viewsB - viewsA;
+            });
+        }
+
+        if (playlistVideoSortBy === 'date') {
+            return [...filtered].sort((a, b) => {
+                const dateA = new Date(a.publishedAt || 0).getTime();
+                const dateB = new Date(b.publishedAt || 0).getTime();
+                return dateB - dateA;
+            });
+        }
+
+        // 'default' = manual order (as is from playlist.videoIds)
+        return filtered;
+    }, [playlist, videos, playlistVideoSortBy]);
 
     // Compute effective cover image (same logic as PlaylistCard)
     const effectiveCoverImage = useMemo(() => {
@@ -123,6 +145,15 @@ export const PlaylistDetailPage: React.FC = () => {
 
                 {/* Actions */}
                 <div className="flex items-center gap-2">
+                    <SortButton
+                        sortOptions={[
+                            { label: 'Manual Order', value: 'default' },
+                            { label: 'Most Viewed', value: 'views' },
+                            { label: 'Newest First', value: 'date' },
+                        ]}
+                        activeSort={playlistVideoSortBy}
+                        onSortChange={(val) => setPlaylistVideoSortBy(val as 'default' | 'views' | 'date')}
+                    />
                     <PlaylistExportControls
                         videos={playlistVideos}
                         playlistName={playlist.name}
@@ -133,10 +164,21 @@ export const PlaylistDetailPage: React.FC = () => {
             {/* Reusable Video Grid */}
             <VideoGrid
                 videos={playlistVideos}
-                onVideoMove={handlePlaylistReorder}
+                onVideoMove={playlistVideoSortBy === 'default' ? handlePlaylistReorder : undefined}
                 disableChannelFilter={true}
                 playlistId={playlist.id}
                 isLoading={isVideosLoading}
+                onSetAsCover={(videoId) => {
+                    const video = playlistVideos.find(v => v.id === videoId);
+                    if (video && user && currentChannel) {
+                        updatePlaylist({
+                            playlistId: playlist.id,
+                            updates: {
+                                coverImage: video.customImage || video.thumbnail
+                            }
+                        });
+                    }
+                }}
             />
 
             {/* Floating Zoom Controls */}

@@ -34,12 +34,11 @@ export const PlaylistsPage: React.FC = () => {
     const { currentChannel } = useChannelStore();
     const { playlists, deletePlaylist, updatePlaylist, reorderPlaylists, isLoading } = usePlaylists(user?.uid || '', currentChannel?.id || '');
     const { videos } = useVideos(user?.uid || '', currentChannel?.id || '');
-    const { searchQuery } = useFilterStore();
+    const { searchQuery, playlistsSortBy, setPlaylistsSortBy } = useFilterStore();
     const navigate = useNavigate();
     const [editingPlaylist, setEditingPlaylist] = useState<Playlist | null>(null);
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const [deleteConfirmation, setDeleteConfirmation] = useState<{ isOpen: boolean, playlistId: string | null }>({ isOpen: false, playlistId: null });
-    const [sortBy, setSortBy] = useState<'default' | 'views' | 'updated' | 'created'>('default');
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -77,7 +76,7 @@ export const PlaylistsPage: React.FC = () => {
     };
 
     const handleDragEnd = (event: DragEndEvent) => {
-        if (searchQuery || sortBy !== 'default' || !user || !currentChannel) return;
+        if (searchQuery || playlistsSortBy !== 'default' || !user || !currentChannel) return;
 
         const { active, over } = event;
 
@@ -99,7 +98,7 @@ export const PlaylistsPage: React.FC = () => {
             return playlist.name.toLowerCase().includes(searchQuery.toLowerCase());
         });
 
-        if (sortBy === 'views') {
+        if (playlistsSortBy === 'views') {
             result = [...result].sort((a, b) => {
                 const getViews = (p: Playlist) => p.videoIds.reduce((acc, vidId) => {
                     const video = videos.find(v => v.id === vidId);
@@ -108,14 +107,14 @@ export const PlaylistsPage: React.FC = () => {
                 }, 0);
                 return getViews(b) - getViews(a);
             });
-        } else if (sortBy === 'updated') {
+        } else if (playlistsSortBy === 'updated') {
             result = [...result].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-        } else if (sortBy === 'created') {
+        } else if (playlistsSortBy === 'created') {
             result = [...result].sort((a, b) => b.createdAt - a.createdAt);
         }
 
         return result;
-    }, [playlists, searchQuery, sortBy, videos]);
+    }, [playlists, searchQuery, playlistsSortBy, videos]);
 
     const sortOptions = [
         { label: 'Default (Manual)', value: 'default' },
@@ -136,8 +135,8 @@ export const PlaylistsPage: React.FC = () => {
                     <AddContentMenu directPlaylist={true} />
                     <FilterSortDropdown
                         sortOptions={sortOptions}
-                        activeSort={sortBy}
-                        onSortChange={(val) => setSortBy(val as 'default' | 'views' | 'updated' | 'created')}
+                        activeSort={playlistsSortBy}
+                        onSortChange={(val) => setPlaylistsSortBy(val as 'default' | 'views' | 'updated' | 'created')}
                         showPlaylistFilter={false}
                     />
                 </div>

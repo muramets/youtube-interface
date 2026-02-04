@@ -10,9 +10,10 @@ interface SortableVideoCardProps {
     scale?: number;
     onMenuOpenChange?: (isOpen: boolean) => void;
     onRemove?: (id: string) => void;
+    onSetAsCover?: (id: string) => void;
 }
 
-export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, playlistId, scale = 1, onMenuOpenChange, onRemove }) => {
+export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, playlistId, scale = 1, onMenuOpenChange, onRemove, onSetAsCover }) => {
     const {
         attributes,
         listeners,
@@ -37,11 +38,12 @@ export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, pla
 
     return (
         <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-            <VideoCard 
-                video={video} 
-                playlistId={playlistId} 
-                onMenuOpenChange={onMenuOpenChange} 
-                onRemove={onRemove || (() => { })} 
+            <VideoCard
+                video={video}
+                playlistId={playlistId}
+                onMenuOpenChange={onMenuOpenChange}
+                onRemove={onRemove || (() => { })}
+                onSetAsCover={onSetAsCover}
             />
         </div>
     );

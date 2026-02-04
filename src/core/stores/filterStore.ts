@@ -17,15 +17,23 @@ interface FilterState {
     searchQuery: string;
     selectedChannel: string | null; // Legacy simple filter (can be kept for backward compat or migrated)
     homeSortBy: 'default' | 'views' | 'date' | 'recently_added';
+    homeSortBy: 'default' | 'views' | 'date' | 'recently_added';
+    playlistVideoSortBy: 'default' | 'views' | 'date'; // Persistent sort for videos INSIDE a playlist
+    playlistsSortBy: 'default' | 'views' | 'updated' | 'created'; // Persistent sort for the LIST of playlists
 
     activeFilters: FilterItem[];
+    activeFilters: FilterItem[];
     channelFilters: Record<string, FilterItem[]>;
+    channelPlaylistsSorts: Record<string, 'default' | 'views' | 'updated' | 'created'>; // Per-channel playlist sort settings
     currentChannelId: string | null;
 
     // Actions
     setSearchQuery: (query: string) => void;
     setSelectedChannel: (channel: string | null) => void;
     setHomeSortBy: (sort: 'default' | 'views' | 'date' | 'recently_added') => void;
+    setHomeSortBy: (sort: 'default' | 'views' | 'date' | 'recently_added') => void;
+    setPlaylistVideoSortBy: (sort: 'default' | 'views' | 'date') => void;
+    setPlaylistsSortBy: (sort: 'default' | 'views' | 'updated' | 'created') => void;
 
     addFilter: (filter: Omit<FilterItem, 'id'>) => void;
     removeFilter: (id: string) => void;
@@ -49,8 +57,12 @@ export const useFilterStore = create<FilterState>()(
             searchQuery: '',
             selectedChannel: null,
             homeSortBy: 'default',
+            homeSortBy: 'default',
+            playlistVideoSortBy: 'default',
+            playlistsSortBy: 'default',
             activeFilters: [],
             channelFilters: {},
+            channelPlaylistsSorts: {},
             currentChannelId: null,
             userId: null,
 
@@ -61,7 +73,9 @@ export const useFilterStore = create<FilterState>()(
                 return {
                     userId: id,
                     activeFilters: [],
+                    activeFilters: [],
                     channelFilters: {}, // Clear all channel presets
+                    channelPlaylistsSorts: {},
                     currentChannelId: null,
                     selectedChannel: null,
                     searchQuery: ''
@@ -71,6 +85,9 @@ export const useFilterStore = create<FilterState>()(
             setSearchQuery: (query) => set({ searchQuery: query }),
             setSelectedChannel: (channel) => set({ selectedChannel: channel }),
             setHomeSortBy: (sort) => set({ homeSortBy: sort }),
+            setHomeSortBy: (sort) => set({ homeSortBy: sort }),
+            setPlaylistVideoSortBy: (sort) => set({ playlistVideoSortBy: sort }),
+            setPlaylistsSortBy: (sort) => set({ playlistsSortBy: sort }),
 
             addFilter: (filter) => {
                 const newFilter = { ...filter, id: crypto.randomUUID() };
@@ -123,19 +140,27 @@ export const useFilterStore = create<FilterState>()(
                     return {};
                 }
 
-                // Save current filters to the old channel ID if it exists AND we have filters
+                // Save current filters & sort to the old channel ID if it exists
                 const updatedChannelFilters = { ...state.channelFilters };
-                if (state.currentChannelId && state.activeFilters.length > 0) {
-                    updatedChannelFilters[state.currentChannelId] = state.activeFilters;
+                const updatedChannelPlaylistsSorts = { ...state.channelPlaylistsSorts };
+
+                if (state.currentChannelId) {
+                    if (state.activeFilters.length > 0) {
+                        updatedChannelFilters[state.currentChannelId] = state.activeFilters;
+                    }
+                    updatedChannelPlaylistsSorts[state.currentChannelId] = state.playlistsSortBy;
                 }
 
-                // Load filters for the new channel
+                // Load filters & sort for the new channel
                 const newFilters = (channelId && updatedChannelFilters[channelId]) || [];
+                const newPlaylistsSort = (channelId && updatedChannelPlaylistsSorts[channelId]) || 'default';
 
                 return {
                     currentChannelId: channelId,
                     channelFilters: updatedChannelFilters,
+                    channelPlaylistsSorts: updatedChannelPlaylistsSorts,
                     activeFilters: newFilters,
+                    playlistsSortBy: newPlaylistsSort,
                     // Reset legacy selectedChannel filter when switching app channels
                     selectedChannel: null
                 };
@@ -145,6 +170,9 @@ export const useFilterStore = create<FilterState>()(
             name: 'filter-storage',
             partialize: (state) => ({
                 homeSortBy: state.homeSortBy,
+                playlistVideoSortBy: state.playlistVideoSortBy,
+                playlistsSortBy: state.playlistsSortBy,
+                channelPlaylistsSorts: state.channelPlaylistsSorts,
                 activeFilters: state.activeFilters, // Persist current active filters too
                 channelFilters: state.channelFilters, // Persist all channel filters
                 selectedChannel: state.selectedChannel,

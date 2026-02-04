@@ -27,6 +27,7 @@ interface VirtualVideoGridProps {
     playlistId?: string;
     onRemove?: (id: string) => void;
     onVideoMove?: (movedVideoId: string, targetVideoId: string) => void;
+    onSetAsCover?: (id: string) => void;
 }
 
 interface InnerGridProps extends VirtualVideoGridProps {
@@ -39,6 +40,7 @@ const InnerGrid: React.FC<InnerGridProps> = ({
     playlistId,
     onRemove,
     onVideoMove,
+    onSetAsCover,
     containerWidth,
     scrollElement
 }) => {
@@ -165,12 +167,14 @@ const InnerGrid: React.FC<InnerGridProps> = ({
                                         video={video}
                                         playlistId={playlistId}
                                         onRemove={onRemove}
+                                        onSetAsCover={onSetAsCover}
                                     />
                                 ) : (
                                     <VideoCard
                                         video={video}
                                         playlistId={playlistId}
                                         onRemove={onRemove || (() => { })}
+                                        onSetAsCover={onSetAsCover}
                                     />
                                 )}
                             </div>

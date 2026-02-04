@@ -26,11 +26,12 @@ interface VideoCardProps {
   playlistId?: string;
   onMenuOpenChange?: (isOpen: boolean) => void;
   onRemove: (videoId: string) => void;
+  onSetAsCover?: (videoId: string) => void;
   // onEdit removed
   isOverlay?: boolean;
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange, onRemove, isOverlay }) => {
+export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange, onRemove, onSetAsCover, isOverlay }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const currentChannel = useChannelStore(state => state.currentChannel);
@@ -519,6 +520,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                     onSync={video.publishedVideoId ? handleSync : undefined}
                     isSyncing={isSyncing}
                     onSwitchView={video.publishedVideoId ? handleSwitchView : undefined}
+                    onSetAsCover={onSetAsCover ? (e) => {
+                      e.stopPropagation();
+                      onSetAsCover(video.id);
+                      handleMenuClose();
+                    } : undefined}
                   />
                 </>
               )

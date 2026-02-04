@@ -14,6 +14,7 @@ interface VideoCardMenuProps {
     isSyncing?: boolean;
     onSwitchView?: (e: React.MouseEvent) => void;
     onDetails?: (e: React.MouseEvent) => void;
+    onSetAsCover?: (e: React.MouseEvent) => void;
 }
 
 export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
@@ -27,9 +28,10 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
     onSync,
     isSyncing,
     onSwitchView,
-    onDetails
+    onDetails,
+    onSetAsCover
 }) => {
-    const showSaveToPlaylist = !playlistId;
+    const showSaveToPlaylist = true; // Always allow saving/toggling playlists
 
     const showDelete = true; // Always allow deleting/removing
     const showSync = !!onSync;
@@ -55,6 +57,16 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
 
             {showSync && (showSaveToPlaylist || showDelete) && (
                 <div className="h-px bg-border my-2"></div>
+            )}
+
+            {playlistId && onSetAsCover && (
+                <div
+                    className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"
+                    onClick={onSetAsCover}
+                >
+                    <ListPlus size={20} />
+                    <span>Make playlist cover</span>
+                </div>
             )}
 
             {showSaveToPlaylist && (
