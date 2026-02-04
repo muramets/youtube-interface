@@ -21,6 +21,8 @@ interface VideoGridProps {
   isLoading?: boolean;
   onVideoMove?: (movedVideoId: string, targetVideoId: string) => void;
   onSetAsCover?: (id: string) => void;
+  selectedIds?: Set<string>;
+  onToggleSelection?: (id: string) => void;
 }
 
 const parseViewCount = (viewCount: string | number | undefined): number => {
@@ -49,7 +51,9 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
   playlistId,
   isLoading: propIsLoading = false,
   onVideoMove,
-  onSetAsCover
+  onSetAsCover,
+  selectedIds,
+  onToggleSelection
 }) => {
   const { user, isLoading: authLoading } = useAuth();
   const currentChannel = useChannelStore(state => state.currentChannel);
@@ -437,6 +441,9 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
         }}
         onVideoMove={onVideoMove || (homeSortBy === 'default' ? handleLocalVideoMove : undefined)}
         onSetAsCover={onSetAsCover}
+        selectedIds={selectedIds}
+        onToggleSelection={onToggleSelection}
+        isSelectionMode={selectedIds && selectedIds.size > 0}
       />
     </VideoGridContainer>
   );

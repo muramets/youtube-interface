@@ -51,6 +51,43 @@ export const PlaylistDetailPage: React.FC = () => {
         return filtered;
     }, [playlist, videos, playlistVideoSortBy]);
 
+    const [selectedVideoIds, setSelectedVideoIds] = React.useState<Set<string>>(new Set());
+
+    const handleToggleSelection = (id: string) => {
+        setSelectedVideoIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
+
+    const handleClearSelection = React.useCallback(() => {
+        setSelectedVideoIds(new Set());
+    }, []);
+
+    React.useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && selectedVideoIds.size > 0) {
+                handleClearSelection();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedVideoIds.size, handleClearSelection]);
+
+    // Filter playlistVideos based on selection for export
+    const selectedVideos = React.useMemo(() => {
+        if (selectedVideoIds.size === 0) return [];
+        return playlistVideos.filter(v => selectedVideoIds.has(v.id));
+    }, [playlistVideos, selectedVideoIds]);
+
+    const videosToExport = selectedVideoIds.size > 0 ? selectedVideos : playlistVideos;
+
     // Compute effective cover image (same logic as PlaylistCard)
     const effectiveCoverImage = useMemo(() => {
         if (!playlist) return '';
@@ -100,6 +137,8 @@ export const PlaylistDetailPage: React.FC = () => {
         );
     }
 
+
+
     const handlePlaylistReorder = (movedVideoId: string, targetVideoId: string) => {
         // Find these IDs in the original playlist.videoIds list to handle the move safely
         const originalOldIndex = playlist.videoIds.indexOf(movedVideoId);
@@ -112,6 +151,8 @@ export const PlaylistDetailPage: React.FC = () => {
             reorderPlaylistVideos({ playlistId: playlist.id, newVideoIds: fullOrder });
         }
     };
+
+
 
     return (
         <div className="animate-fade-in flex flex-col h-full relative">
@@ -145,6 +186,16 @@ export const PlaylistDetailPage: React.FC = () => {
 
                 {/* Actions */}
                 <div className="flex items-center gap-2">
+                    {selectedVideoIds.size > 0 && (
+                        <button
+                            onClick={handleClearSelection}
+                            className="bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors border-none cursor-pointer flex items-center gap-2"
+                        >
+                            <span>{selectedVideoIds.size} selected</span>
+                            <span className="text-white/60">×</span>
+                        </button>
+                    )}
+
                     <SortButton
                         sortOptions={[
                             { label: 'Manual Order', value: 'default' },
@@ -155,7 +206,7 @@ export const PlaylistDetailPage: React.FC = () => {
                         onSortChange={(val) => setPlaylistVideoSortBy(val as 'default' | 'views' | 'date')}
                     />
                     <PlaylistExportControls
-                        videos={playlistVideos}
+                        videos={videosToExport}
                         playlistName={playlist.name}
                     />
                 </div>
@@ -179,6 +230,8 @@ export const PlaylistDetailPage: React.FC = () => {
                         });
                     }
                 }}
+                selectedIds={selectedVideoIds}
+                onToggleSelection={handleToggleSelection}
             />
 
             {/* Floating Zoom Controls */}

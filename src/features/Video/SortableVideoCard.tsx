@@ -11,9 +11,12 @@ interface SortableVideoCardProps {
     onMenuOpenChange?: (isOpen: boolean) => void;
     onRemove?: (id: string) => void;
     onSetAsCover?: (id: string) => void;
+    isSelected?: boolean;
+    onToggleSelection?: (id: string) => void;
+    isSelectionMode?: boolean;
 }
 
-export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, playlistId, scale = 1, onMenuOpenChange, onRemove, onSetAsCover }) => {
+export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, playlistId, scale = 1, onMenuOpenChange, onRemove, onSetAsCover, isSelected, onToggleSelection, isSelectionMode }) => {
     const {
         attributes,
         listeners,
@@ -44,6 +47,9 @@ export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, pla
                 onMenuOpenChange={onMenuOpenChange}
                 onRemove={onRemove || (() => { })}
                 onSetAsCover={onSetAsCover}
+                isSelected={isSelected}
+                onToggleSelection={onToggleSelection}
+                isSelectionMode={isSelectionMode}
             />
         </div>
     );

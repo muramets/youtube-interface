@@ -27,11 +27,15 @@ interface VideoCardProps {
   onMenuOpenChange?: (isOpen: boolean) => void;
   onRemove: (videoId: string) => void;
   onSetAsCover?: (videoId: string) => void;
+
   // onEdit removed
   isOverlay?: boolean;
+  isSelected?: boolean;
+  onToggleSelection?: (id: string) => void;
+  isSelectionMode?: boolean;
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange, onRemove, onSetAsCover, isOverlay }) => {
+export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange, onRemove, onSetAsCover, isOverlay, isSelected, onToggleSelection, isSelectionMode }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const currentChannel = useChannelStore(state => state.currentChannel);
@@ -266,13 +270,25 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   return (
     <>
       <div
-        className={`flex flex-col gap-2 cursor-pointer group relative p-[6px] rounded-xl z-0 focus:outline-none transition-all duration-150 ease-in-out h-full ${isOverlay ? 'shadow-2xl bg-bg-secondary' : ''}`}
+        className={`flex flex-col gap-2 cursor-pointer group relative p-[6px] rounded-xl z-0 focus:outline-none transition-all duration-150 ease-in-out h-full ${isOverlay ? 'shadow-2xl bg-bg-secondary' : ''} ${isSelected ? 'ring-2 ring-blue-500 bg-blue-500/10' : ''}`}
         style={{
           transform: isFlipping ? 'rotateY(90deg)' : 'rotateY(0deg)',
           transformStyle: 'preserve-3d',
           cursor: isOverlay ? 'grabbing' : 'pointer'
         }}
-        onClick={handleVideoClick}
+        onClick={(e) => {
+          // Ctrl/Cmd + Click to toggle selection
+          // OR if we are already in selection mode (isSelectionMode is true)
+          if (e.metaKey || e.ctrlKey || isSelectionMode) {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleSelection?.(video.id);
+            return;
+          }
+
+          // Normal click logic
+          handleVideoClick();
+        }}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {
@@ -283,7 +299,22 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         }}
       >
         {/* Hover Substrate */}
-        <div className={`absolute inset-0 rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none ${isOverlay || isMenuOpen || isTooltipOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} ${hoverBgColor} border-2 ${hoverBorderColor}`} />
+        <div className={`absolute inset-0 rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none ${isOverlay || isMenuOpen || isTooltipOpen || isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} ${isSelected ? 'bg-blue-500/5 border-blue-500/50' : `${hoverBgColor} border-2 ${hoverBorderColor}`}`} />
+
+        {/* Selection Checkbox - Visible if selected. Removed group-hover visibility. */}
+        {onToggleSelection && (
+          <div
+            className={`absolute top-2 left-2 z-30 transition-all duration-200 ${isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-90 pointer-events-none'}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelection(video.id);
+            }}
+          >
+            <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-500 border-blue-500' : 'bg-black/40 border-white/50 hover:bg-black/60 hover:border-white'}`}>
+              {isSelected && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-white"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+            </div>
+          </div>
+        )}
 
         {/* Thumbnail Container */}
         <div className="relative aspect-video rounded-xl overflow-hidden bg-bg-secondary">

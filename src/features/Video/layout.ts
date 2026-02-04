@@ -4,7 +4,7 @@ export const GRID_LAYOUT = {
         TOP: 16,
         RIGHT: 24,
         BOTTOM: 24,
-        LEFT: 0,
+        LEFT: 4,
     },
     SCROLLBAR_WIDTH: 15,
     // Card height calculation constants
