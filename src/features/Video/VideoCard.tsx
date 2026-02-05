@@ -465,21 +465,19 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         {/* Info */}
         <div className="flex gap-3 items-start pr-6 relative">
           {/* Channel Avatar */}
-          {!playlistId && (
-            <div className="flex-shrink-0">
-              {/* Always use original video's channel data, not merged YouTube data */}
-              {video.channelAvatar ? (
-                <img
-                  src={video.channelAvatar}
-                  alt={video.channelTitle}
-                  referrerPolicy="no-referrer"
-                  className="w-9 h-9 rounded-full object-cover"
-                />
-              ) : (
-                <div className="w-9 h-9 rounded-full bg-bg-secondary" />
-              )}
-            </div>
-          )}
+          <div className="flex-shrink-0">
+            {/* Always use original video's channel data, not merged YouTube data */}
+            {video.channelAvatar ? (
+              <img
+                src={video.channelAvatar}
+                alt={video.channelTitle}
+                referrerPolicy="no-referrer"
+                className="w-9 h-9 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-bg-secondary" />
+            )}
+          </div>
 
           <div className="flex flex-col flex-1 min-w-0">
             <h3 className="text-base font-bold text-text-primary line-clamp-2 leading-tight mb-1">
