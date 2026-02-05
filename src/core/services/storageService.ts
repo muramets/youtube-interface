@@ -316,20 +316,36 @@ export const waitForThumbnail = async (
     const startTime = Date.now();
     const pollInterval = 1000; // Poll every 1 second
 
+    // Extract folder path and filename from thumbnailPath
+    const pathParts = thumbnailPath.split('/');
+    const filename = pathParts.pop();
+    const folderPath = pathParts.join('/');
+
+    if (!filename || !folderPath) {
+        throw new Error(`Invalid thumbnail path: ${thumbnailPath}`);
+    }
+
+    const folderRef = ref(storage, folderPath);
+
     while (Date.now() - startTime < maxWaitMs) {
         try {
-            const storageRef = ref(storage, thumbnailPath);
-            const url = await getDownloadURL(storageRef);
-            return url; // Thumbnail exists!
-        } catch (error: unknown) {
-            // If object not found, continue polling
-            if (typeof error === 'object' && error !== null && 'code' in error &&
-                (error as { code: string }).code === 'storage/object-not-found') {
-                await new Promise(resolve => setTimeout(resolve, pollInterval));
-                continue;
+            // Use listAll to check for file existence without triggering 404s
+            const res = await listAll(folderRef);
+            const foundItem = res.items.find(item => item.name === filename);
+
+            if (foundItem) {
+                // File exists! Get the download URL
+                return await getDownloadURL(foundItem);
             }
-            // For other errors, throw
-            throw error;
+
+            // Not found yet, wait and retry
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+        } catch (error) {
+            console.error('Error polling for thumbnail:', error);
+            // If listAll fails, we might want to stop or retry. 
+            // For now, retry unless it's a permission error?
+            // Simple retry with delay.
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
         }
     }
 

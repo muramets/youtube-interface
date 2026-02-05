@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { type VideoDetails } from '../../core/utils/youtubeApi';
+import type { GalleryItem } from '../../core/types/gallery';
 import { DetailsSidebar } from './Sidebar/DetailsSidebar';
 import { PackagingTab } from './tabs/Packaging/PackagingTab';
 import { TrafficTab } from './tabs/Traffic/TrafficTab';
 import { GalleryTab } from './tabs/Gallery/GalleryTab';
+import { GalleryDndProvider } from './tabs/Gallery/GalleryDndProvider';
 import { usePackagingVersions } from './tabs/Packaging/hooks/usePackagingVersions';
 import { useTrafficFilters } from './tabs/Traffic/hooks/useTrafficFilters';
 import { useTrafficData } from './tabs/Traffic/hooks/useTrafficData';
@@ -22,6 +24,31 @@ import { useSnapshotManagement } from './hooks/useSnapshotManagement';
 import { useModalState } from './hooks/useModalState';
 import { DetailsModals } from './components/DetailsModals';
 import { useTrafficNicheStore } from '../../core/stores/useTrafficNicheStore';
+
+// Static wrapper component to prevent re-mounting issues
+const GalleryDndWrapper: React.FC<{
+    isActive: boolean;
+    items: GalleryItem[];
+    onReorder: (items: GalleryItem[]) => Promise<void>;
+    onMoveToSource: (itemId: string, sourceId: string) => Promise<void>;
+    children: React.ReactNode;
+}> = ({ isActive, items, onReorder, onMoveToSource, children }) => {
+    // Always render provider if active to maintain React tree stability
+    // even if items are empty. This prevents unmounting/remounting of children
+    // (Sidebar/GalleryTab) when items load or change.
+    if (isActive) {
+        return (
+            <GalleryDndProvider
+                items={items}
+                onReorder={onReorder}
+                onMoveToSource={onMoveToSource}
+            >
+                {children}
+            </GalleryDndProvider>
+        );
+    }
+    return <>{children}</>;
+};
 
 interface DetailsLayoutProps {
     video: VideoDetails;
@@ -54,6 +81,19 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
 
     const [isFormDirty, setIsFormDirty] = useState(false);
     const [selectedSnapshot, setSelectedSnapshot] = useState<string | null>(null);
+
+    // Gallery Sources state (lifted for sidebar access)
+    const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
+    const [isAddSourceModalOpen, setIsAddSourceModalOpen] = useState(false);
+
+    // Gallery items state for DndProvider (registered by GalleryTab)
+    const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
+
+    // Refs for gallery handlers (registered by GalleryTab)
+    const deleteSourceRef = React.useRef<((sourceId: string) => Promise<void>) | null>(null);
+    const updateSourceRef = React.useRef<((sourceId: string, data: { type?: import('../../core/types/gallery').GallerySourceType; label?: string; url?: string }) => Promise<void>) | null>(null);
+    const moveItemToSourceRef = React.useRef<((itemId: string, newSourceId: string) => Promise<void>) | null>(null);
+    const reorderItemsRef = React.useRef<((items: GalleryItem[]) => Promise<void>) | null>(null);
 
     // Stable callback for dirty state changes (prevents infinite loop)
     const handleDirtyChange = useCallback((dirty: boolean) => {
@@ -322,118 +362,151 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
 
     return (
         <div className="flex-1 flex overflow-hidden bg-video-edit-bg">
-            {/* Left Sidebar */}
-            <DetailsSidebar
-                video={video}
-                versions={versions.navSortedVersions}
-                viewingVersion={versions.viewingVersion}
-                activeVersion={versions.activeVersion}
-                viewingPeriodIndex={versions.viewingPeriodIndex}
-                hasDraft={versions.hasDraft}
-                onVersionClick={versionMgmt.handleVersionClick}
-                onDeleteVersion={versionMgmt.handleDeleteVersion}
-                onDeleteDraft={handleDeleteDraft}
-                snapshots={trafficState.trafficData?.snapshots || []}
-                selectedSnapshot={selectedSnapshot}
-                onSnapshotClick={(snapshotId) => {
-                    // FIX: Return to previous niche state (e.g. Unassigned) if it existed, otherwise just clear current niche
-                    if (activeNicheId) {
-                        if (previousNicheFilterRef.current) {
-                            // Restore the saved "Base" filter (e.g. Unassigned)
-                            // We use addFilter which will replace the current Niche filter
-                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                            const { id: _unused, ...filterProps } = previousNicheFilterRef.current;
-                            addFilter(filterProps);
-                            previousNicheFilterRef.current = null; // Reset after restore
-                        } else {
-                            // No previous state saved, just clear current niche
-                            const nicheFilter = filters.find(f =>
-                                f.type === 'niche' &&
-                                Array.isArray(f.value) &&
-                                (f.value as string[]).includes(activeNicheId)
-                            );
-                            if (nicheFilter) {
-                                removeFilter(nicheFilter.id);
+            <GalleryDndWrapper
+                isActive={activeTab === 'gallery'}
+                items={galleryItems}
+                onReorder={(items) => reorderItemsRef.current?.(items) || Promise.resolve()}
+                onMoveToSource={(itemId, sourceId) => moveItemToSourceRef.current?.(itemId, sourceId) || Promise.resolve()}
+            >
+                {/* Left Sidebar */}
+                <DetailsSidebar
+                    video={video}
+                    versions={versions.navSortedVersions}
+                    viewingVersion={versions.viewingVersion}
+                    activeVersion={versions.activeVersion}
+                    viewingPeriodIndex={versions.viewingPeriodIndex}
+                    hasDraft={versions.hasDraft}
+                    onVersionClick={versionMgmt.handleVersionClick}
+                    onDeleteVersion={versionMgmt.handleDeleteVersion}
+                    onDeleteDraft={handleDeleteDraft}
+                    snapshots={trafficState.trafficData?.snapshots || []}
+                    selectedSnapshot={selectedSnapshot}
+                    onSnapshotClick={(snapshotId) => {
+                        // FIX: Return to previous niche state (e.g. Unassigned) if it existed, otherwise just clear current niche
+                        if (activeNicheId) {
+                            if (previousNicheFilterRef.current) {
+                                // Restore the saved "Base" filter (e.g. Unassigned)
+                                // We use addFilter which will replace the current Niche filter
+                                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                const { id: _unused, ...filterProps } = previousNicheFilterRef.current;
+                                addFilter(filterProps);
+                                previousNicheFilterRef.current = null; // Reset after restore
+                            } else {
+                                // No previous state saved, just clear current niche
+                                const nicheFilter = filters.find(f =>
+                                    f.type === 'niche' &&
+                                    Array.isArray(f.value) &&
+                                    (f.value as string[]).includes(activeNicheId)
+                                );
+                                if (nicheFilter) {
+                                    removeFilter(nicheFilter.id);
+                                }
+                            }
+
+                            // Restore Sort
+                            if (previousSortConfigRef.current) {
+                                setSortConfig(previousSortConfigRef.current);
+                                previousSortConfigRef.current = null;
                             }
                         }
-
-                        // Restore Sort
-                        if (previousSortConfigRef.current) {
-                            setSortConfig(previousSortConfigRef.current);
-                            previousSortConfigRef.current = null;
+                        snapshotMgmt.handleSnapshotClick(snapshotId);
+                    }}
+                    onDeleteSnapshot={snapshotMgmt.handleDeleteSnapshot}
+                    activeTab={activeTab}
+                    onTabChange={handleTabChange}
+                    // NEW: Pass live calculated groups (niches)
+                    groups={groups}
+                    displayedSources={trafficLoader.displayedSources}
+                    // Filter control for sidebar interactions
+                    onAddFilter={handleSidebarAddFilter}
+                    activeNicheId={activeNicheId}
+                    playlistId={playlistId}
+                    // Gallery Sources props
+                    gallerySources={video.gallerySources || []}
+                    activeSourceId={activeSourceId}
+                    onSourceClick={setActiveSourceId}
+                    onAddSource={() => setIsAddSourceModalOpen(true)}
+                    onDeleteSource={(sourceId: string) => {
+                        if (deleteSourceRef.current) {
+                            deleteSourceRef.current(sourceId);
                         }
-                    }
-                    snapshotMgmt.handleSnapshotClick(snapshotId);
-                }}
-                onDeleteSnapshot={snapshotMgmt.handleDeleteSnapshot}
-                activeTab={activeTab}
-                onTabChange={handleTabChange}
-                // NEW: Pass live calculated groups (niches)
-                groups={groups}
-                displayedSources={trafficLoader.displayedSources}
-                // Filter control for sidebar interactions
-                onAddFilter={handleSidebarAddFilter}
-                activeNicheId={activeNicheId}
-                playlistId={playlistId}
-            />
+                    }}
+                    onUpdateSource={(sourceId, data) => {
+                        if (updateSourceRef.current) {
+                            updateSourceRef.current(sourceId, data);
+                        }
+                    }}
+                />
 
-            {/* Main Content Area */}
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                {activeTab === 'packaging' && (
-                    <PackagingTab
-                        video={video}
-                        versionState={versions}
-                        onDirtyChange={handleDirtyChange}
-                        onRestoreVersion={versionMgmt.handleRestoreVersion}
-                        onRequestSnapshot={snapshotMgmt.handleRequestSnapshot}
-                        trafficData={trafficState.trafficData}
-                        playlistId={playlistId}
-                    />
-                )}
-                {activeTab === 'traffic' && (
-                    <TrafficTab
-                        video={video}
-                        activeVersion={typeof versions.activeVersion === 'number' ? versions.activeVersion : 0}
-                        viewingVersion={versions.viewingVersion}
-                        viewingPeriodIndex={versions.viewingPeriodIndex}
-                        selectedSnapshot={selectedSnapshot}
-                        trafficData={memoizedTrafficData}
-                        isLoadingData={trafficState.isLoading}
-                        isSaving={trafficState.isSaving}
-                        handleCsvUpload={trafficState.handleCsvUpload}
-                        onSnapshotClick={snapshotMgmt.handleSnapshotClick}
-                        packagingHistory={memoizedPackagingHistory}
-                        // Lifted props
-                        displayedSources={trafficLoader.displayedSources}
-                        viewMode={trafficViewMode}
-                        onViewModeChange={setTrafficViewMode}
-                        isLoadingSnapshot={trafficLoader.isLoadingSnapshot}
-                        error={trafficLoader.error}
-                        retry={trafficLoader.retry}
-                        actualTotalRow={trafficLoader.actualTotalRow}
-                        trashMetrics={trafficLoader.trashMetrics}
-                        deltaContext={trafficLoader.deltaContext}
-                        groups={groups}
-                        // Filter props
-                        filters={filters}
-                        onAddFilter={addFilter}
+                {/* Main Content Area */}
+                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                    {activeTab === 'packaging' && (
+                        <PackagingTab
+                            video={video}
+                            versionState={versions}
+                            onDirtyChange={handleDirtyChange}
+                            onRestoreVersion={versionMgmt.handleRestoreVersion}
+                            onRequestSnapshot={snapshotMgmt.handleRequestSnapshot}
+                            trafficData={trafficState.trafficData}
+                            playlistId={playlistId}
+                        />
+                    )}
+                    {activeTab === 'traffic' && (
+                        <TrafficTab
+                            video={video}
+                            activeVersion={typeof versions.activeVersion === 'number' ? versions.activeVersion : 0}
+                            viewingVersion={versions.viewingVersion}
+                            viewingPeriodIndex={versions.viewingPeriodIndex}
+                            selectedSnapshot={selectedSnapshot}
+                            trafficData={memoizedTrafficData}
+                            isLoadingData={trafficState.isLoading}
+                            isSaving={trafficState.isSaving}
+                            handleCsvUpload={trafficState.handleCsvUpload}
+                            onSnapshotClick={snapshotMgmt.handleSnapshotClick}
+                            packagingHistory={memoizedPackagingHistory}
+                            // Lifted props
+                            displayedSources={trafficLoader.displayedSources}
+                            viewMode={trafficViewMode}
+                            onViewModeChange={setTrafficViewMode}
+                            isLoadingSnapshot={trafficLoader.isLoadingSnapshot}
+                            error={trafficLoader.error}
+                            retry={trafficLoader.retry}
+                            actualTotalRow={trafficLoader.actualTotalRow}
+                            trashMetrics={trafficLoader.trashMetrics}
+                            deltaContext={trafficLoader.deltaContext}
+                            groups={groups}
+                            // Filter props
+                            filters={filters}
+                            onAddFilter={addFilter}
 
-                        onRemoveFilter={handleRemoveFilter}
-                        onClearFilters={clearFilters}
-                        applyFilters={applyFilters}
-                        sortConfig={sortConfig}
-                        onSort={(key) => setSortConfig(current => {
-                            if (current?.key === key) {
-                                return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
-                            }
-                            return { key, direction: 'desc' };
-                        })}
-                    />
-                )}
-                {activeTab === 'gallery' && (
-                    <GalleryTab video={video} />
-                )}
-            </div>
+                            onRemoveFilter={handleRemoveFilter}
+                            onClearFilters={clearFilters}
+                            applyFilters={applyFilters}
+                            sortConfig={sortConfig}
+                            onSort={(key) => setSortConfig(current => {
+                                if (current?.key === key) {
+                                    return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
+                                }
+                                return { key, direction: 'desc' };
+                            })}
+                        />
+                    )}
+                    {activeTab === 'gallery' && (
+                        <GalleryTab
+                            video={video}
+                            activeSourceId={activeSourceId}
+                            onSourceChange={setActiveSourceId}
+                            isAddSourceModalOpen={isAddSourceModalOpen}
+                            onCloseAddSourceModal={() => setIsAddSourceModalOpen(false)}
+                            onRegisterDeleteSource={(handler) => { deleteSourceRef.current = handler; }}
+                            onRegisterUpdateSource={(handler) => { updateSourceRef.current = handler; }}
+                            onRegisterMoveItem={(handler) => { moveItemToSourceRef.current = handler; }}
+                            onRegisterReorder={(handler) => { reorderItemsRef.current = handler; }}
+                            onRegisterItems={setGalleryItems}
+                        />
+                    )}
+                </div>
+            </GalleryDndWrapper>
 
             {/* All Modals */}
             <DetailsModals

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, MoreVertical } from 'lucide-react';
 import { Badge } from '../../../../components/ui/atoms/Badge';
 import { PortalTooltip } from '../../../../components/ui/atoms/PortalTooltip';
 import { formatPremiumPeriod } from '../../tabs/Traffic/utils/dateUtils';
@@ -19,6 +19,7 @@ interface SidebarVersionItemProps {
     isVideoActive: boolean;
     onClick: () => void;
     onDelete?: () => void;
+    onOpenMenu?: (e: React.MouseEvent) => void;
     isParentOfSelected?: boolean;
     isDeleted?: boolean;
     restorationIndex?: number; // If set, displays "Restored {n}" badge
@@ -35,6 +36,7 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
     isVideoActive,
     onClick,
     onDelete,
+    onOpenMenu,
     isParentOfSelected = false,
     isDeleted = false,
     restorationIndex,
@@ -105,8 +107,8 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
                 )}
             </div>
 
-            {/* Smart Delete Action: Collapsed by default (w-0), expands on hover */}
-            {onDelete && (
+            {/* Smart Delete Action (Legacy) - Collapsed by default */}
+            {onDelete && !onOpenMenu && (
                 <div className="flex items-center overflow-hidden max-w-0 opacity-0 group-hover:max-w-[40px] group-hover:opacity-100 transition-all duration-300 ease-in-out">
                     <button
                         onClick={(e) => {
@@ -117,6 +119,21 @@ export const SidebarVersionItem: React.FC<SidebarVersionItemProps> = ({
                         title="Delete version"
                     >
                         <Trash2 size={12} />
+                    </button>
+                </div>
+            )}
+
+            {/* Menu Trigger (New) - Always visible on hover or if menu open */}
+            {onOpenMenu && (
+                <div className="flex items-center ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenMenu(e);
+                        }}
+                        className="p-1 text-text-secondary hover:text-white hover:bg-white/10 rounded-full transition-colors relative after:absolute after:-inset-2 after:content-['']"
+                    >
+                        <MoreVertical size={14} />
                     </button>
                 </div>
             )}

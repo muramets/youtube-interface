@@ -5,6 +5,45 @@
  * associated with each reference video.
  */
 
+// ============================================================================
+// GALLERY SOURCES
+// ============================================================================
+
+/**
+ * Type of inspiration source for visuals.
+ */
+export type GallerySourceType = 'original' | 'pinterest' | 'custom';
+
+/**
+ * A source of inspiration for gallery visuals.
+ * Each video can have multiple sources (e.g., Original Video, Pinterest refs).
+ */
+export interface GallerySource {
+    /** Unique ID (uuid) */
+    id: string;
+
+    /** Type of source */
+    type: GallerySourceType;
+
+    /** Display label (e.g., "Original Video", "Sunset Vibes") */
+    label: string;
+
+    /** Reference URL (e.g., Pinterest link) */
+    url?: string;
+
+    /** Creation timestamp */
+    createdAt: number;
+}
+
+/**
+ * Default source ID constant for "Original Video".
+ */
+export const DEFAULT_SOURCE_ID = 'original';
+
+// ============================================================================
+// GALLERY ITEMS
+// ============================================================================
+
 /**
  * Individual gallery item (uploaded image).
  */
@@ -35,6 +74,9 @@ export interface GalleryItem {
 
     /** Original file size in bytes */
     fileSize?: number;
+
+    /** Source ID this item belongs to */
+    sourceId?: string;
 }
 
 /**
@@ -59,3 +101,4 @@ export interface GalleryUploadProgress {
     status: 'uploading' | 'processing' | 'done' | 'error';
     error?: string;
 }
+

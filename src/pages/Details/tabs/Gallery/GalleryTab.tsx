@@ -7,6 +7,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import type { VideoDetails } from '../../../../core/utils/youtubeApi';
+import type { GalleryItem } from '../../../../core/types/gallery';
 import { useGallery } from '../../hooks/useGallery';
 import { useChannelStore } from '../../../../core/stores/channelStore';
 import { GalleryHeader } from './GalleryHeader';
@@ -14,20 +15,47 @@ import { GalleryUploadZone } from './GalleryUploadZone';
 import { GalleryGrid } from './GalleryGrid';
 import { GalleryZoomControls } from './GalleryZoomControls';
 import { getGalleryZoomLevel } from './galleryZoomUtils';
+import { SourceModal } from '../../Sidebar/Gallery/SourceModal';
 
 interface GalleryTabProps {
     video: VideoDetails;
+    activeSourceId: string | null;
+    onSourceChange: (sourceId: string | null) => void;
+    isAddSourceModalOpen: boolean;
+    onCloseAddSourceModal: () => void;
+    // Callbacks to expose gallery methods to parent (for sidebar actions and DndProvider)
+    onRegisterDeleteSource?: (handler: (sourceId: string) => Promise<void>) => void;
+    onRegisterUpdateSource?: (handler: (sourceId: string, data: { type?: import('../../../../core/types/gallery').GallerySourceType; label?: string; url?: string }) => Promise<void>) => void;
+    onRegisterMoveItem?: (handler: (itemId: string, newSourceId: string) => Promise<void>) => void;
+    onRegisterReorder?: (handler: (items: GalleryItem[]) => Promise<void>) => void;
+    onRegisterItems?: (items: GalleryItem[]) => void;
 }
 
-export const GalleryTab: React.FC<GalleryTabProps> = ({ video }) => {
+export const GalleryTab: React.FC<GalleryTabProps> = ({
+    video,
+    activeSourceId,
+    onSourceChange,
+    isAddSourceModalOpen,
+    onCloseAddSourceModal,
+    onRegisterDeleteSource,
+    onRegisterUpdateSource,
+    onRegisterMoveItem,
+    onRegisterReorder,
+    onRegisterItems
+}) => {
     const { currentChannel } = useChannelStore();
     const sentinelRef = useRef<HTMLDivElement>(null);
     const [isScrolled, setIsScrolled] = useState(false);
 
+    // Memoize initial arrays to prevent infinite loops in useGallery useEffect
+    const initialItems = React.useMemo(() => video.galleryItems || [], [video.galleryItems]);
+    const initialSources = React.useMemo(() => video.gallerySources || [], [video.gallerySources]);
+
     // Gallery state and actions
     const gallery = useGallery({
         videoId: video.id,
-        initialItems: video.galleryItems || []
+        initialItems,
+        initialSources
     });
 
     // Update items when video prop changes (avoid duplicates from optimistic updates)
@@ -43,6 +71,46 @@ export const GalleryTab: React.FC<GalleryTabProps> = ({ video }) => {
             gallery.setItems(newItems);
         }
     }, [video.galleryItems]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Sync activeSourceId from Layout with hook
+    useEffect(() => {
+        if (activeSourceId !== gallery.activeSourceId) {
+            gallery.setActiveSourceId(activeSourceId);
+        }
+    }, [activeSourceId, gallery.activeSourceId]);
+
+    // Sync sources from video prop
+    useEffect(() => {
+        const newSources = video.gallerySources || [];
+        // Only sync if structural changes (add/remove) to avoid reverting optimistic label/url changes
+        // or if we have no sources locally yet.
+        const localSourceIds = new Set(gallery.sources.map(s => s.id));
+        const serverHasNew = newSources.some(s => !localSourceIds.has(s.id));
+        const localHasExtra = gallery.sources.some(s => !newSources.find(ns => ns.id === s.id));
+
+        // Also force sync if initial load (empty local)
+        const isInitialLoad = gallery.sources.length === 0 && newSources.length > 0;
+
+        if (serverHasNew || localHasExtra || isInitialLoad) {
+            gallery.setSources(newSources);
+        }
+    }, [video.gallerySources]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Register handlers with parent for sidebar actions and DndProvider
+    useEffect(() => {
+        if (onRegisterDeleteSource) {
+            onRegisterDeleteSource(gallery.deleteSource);
+        }
+        if (onRegisterUpdateSource) {
+            onRegisterUpdateSource(gallery.updateSource);
+        }
+        if (onRegisterMoveItem) {
+            onRegisterMoveItem(gallery.moveItemToSource);
+        }
+        if (onRegisterReorder) {
+            onRegisterReorder(gallery.reorderItems);
+        }
+    }, [gallery.deleteSource, gallery.updateSource, gallery.moveItemToSource, gallery.reorderItems, onRegisterDeleteSource, onRegisterUpdateSource, onRegisterMoveItem, onRegisterReorder]);
 
     // Scroll detection for sticky header shadow
     useEffect(() => {
@@ -71,16 +139,32 @@ export const GalleryTab: React.FC<GalleryTabProps> = ({ video }) => {
         const files = e.target.files;
         if (!files || files.length === 0) return;
 
-        // Upload each file
-        for (const file of Array.from(files)) {
-            await gallery.uploadImage(file);
-        }
+        // Upload all files at once
+        await gallery.uploadImages(Array.from(files));
 
         // Reset input
         e.target.value = '';
     };
 
+    // Handle add source
+    const handleAddSource = async (data: { type: import('../../../../core/types/gallery').GallerySourceType; label: string; url?: string }) => {
+        const newSource = await gallery.addSource(data);
+        if (newSource) {
+            onSourceChange(newSource.id);
+        }
+        onCloseAddSourceModal();
+    };
+
+    // Use filteredItems when a source is selected, otherwise show all sorted items
+    const displayedItems = activeSourceId ? gallery.filteredItems : gallery.sortedItems;
     const hasItems = gallery.items.length > 0;
+
+    // Register current items with parent for DndProvider
+    useEffect(() => {
+        if (onRegisterItems) {
+            onRegisterItems(displayedItems);
+        }
+    }, [displayedItems, onRegisterItems]);
 
     return (
         <div className="flex-1 overflow-y-auto custom-scrollbar relative flex flex-col">
@@ -98,35 +182,46 @@ export const GalleryTab: React.FC<GalleryTabProps> = ({ video }) => {
 
             {/* Sticky Header */}
             <GalleryHeader
-                itemCount={gallery.items.length}
+                itemCount={displayedItems.length}
+                subtitle={activeSourceId
+                    ? `Viewing images for ${gallery.sources.find(s => s.id === activeSourceId)?.label || 'Unknown Source'}`
+                    : 'Viewing all images'
+                }
                 sortMode={gallery.sortMode}
                 onSortChange={gallery.setSortMode}
                 onUploadClick={handleUploadClick}
                 isScrolled={isScrolled}
             />
 
-            {/* Content */}
+            {/* Content - DndContext provided by parent Layout */}
             <div className="p-6 flex-1 flex flex-col">
-                {/* Empty state / Upload zone (only when no items) */}
-                {!hasItems && !gallery.isUploading && (
-                    <GalleryUploadZone onUpload={gallery.uploadImage} />
+                {/* Empty state / Upload zone (when no visible items) */}
+                {displayedItems.length === 0 && !gallery.isUploading && (
+                    <GalleryUploadZone
+                        onUpload={gallery.uploadImages}
+                        title={activeSourceId
+                            ? `Add images to ${gallery.sources.find(s => s.id === activeSourceId)?.label || 'Source'}`
+                            : 'Upload Cover Variations'
+                        }
+                        description={activeSourceId
+                            ? "Drag and drop images here to add them to this source"
+                            : undefined
+                        }
+                    />
                 )}
 
                 {/* Gallery Grid - show when has items OR uploading (for placeholder card) */}
-                {(gallery.sortedItems.length > 0 || gallery.isUploading) && (
+                {(displayedItems.length > 0 || gallery.isUploading) && (
                     <GalleryGrid
-                        items={gallery.sortedItems}
+                        items={displayedItems}
                         channelTitle={currentChannel?.name || ''}
                         channelAvatar={currentChannel?.avatar || ''}
                         zoomLevel={zoomLevel}
-                        sortMode={gallery.sortMode}
                         onDelete={gallery.removeImage}
                         onDownload={gallery.downloadOriginal}
                         onToggleLike={gallery.toggleLike}
-                        onReorder={gallery.reorderItems}
-                        onUpload={gallery.uploadImage}
-                        isUploading={gallery.isUploading}
-                        uploadingFilename={gallery.uploadingFilename}
+                        onUploadFiles={gallery.uploadImages}
+                        uploadingFiles={gallery.uploadingFiles}
                     />
                 )}
             </div>
@@ -138,6 +233,14 @@ export const GalleryTab: React.FC<GalleryTabProps> = ({ video }) => {
                     onChange={setZoomLevel}
                 />
             )}
+
+            {/* Add Source Modal */}
+            <SourceModal
+                isOpen={isAddSourceModalOpen}
+                onClose={onCloseAddSourceModal}
+                onSave={handleAddSource}
+                mode="add"
+            />
         </div>
     );
 };

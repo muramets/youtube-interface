@@ -1,5 +1,5 @@
 import type { PackagingVersion, CTRRule, PackagingCheckin } from '../types/versioning';
-import type { GalleryItem } from '../types/gallery';
+import type { GalleryItem, GallerySource } from '../types/gallery';
 export type { PackagingVersion, CTRRule, PackagingCheckin };
 
 export interface VideoDetails {
@@ -59,6 +59,7 @@ export interface VideoDetails {
     addedToHomeAt?: number; // Timestamp when added to Home Page (not playlist-only)
     // Visual Gallery
     galleryItems?: GalleryItem[]; // Array of gallery images for this video
+    gallerySources?: GallerySource[]; // Array of inspiration sources for this video
 }
 
 

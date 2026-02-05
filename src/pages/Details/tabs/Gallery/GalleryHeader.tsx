@@ -17,6 +17,7 @@ interface GalleryHeaderProps {
     onSortChange: (mode: GallerySortMode) => void;
     onUploadClick: () => void;
     isScrolled: boolean;
+    subtitle?: string;
 }
 
 const SORT_OPTIONS: SortOption[] = [
@@ -27,6 +28,7 @@ const SORT_OPTIONS: SortOption[] = [
 
 export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
     itemCount,
+    subtitle,
     sortMode,
     onSortChange,
     onUploadClick,
@@ -36,14 +38,21 @@ export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
         <div className={`sticky top-0 z-10 px-6 py-4 transition-shadow duration-200 bg-video-edit-bg ${isScrolled ? 'shadow-[0_2px_8px_rgba(0,0,0,0.3)]' : ''}`}>
             <div className="flex items-center gap-4 max-w-[1200px]">
                 {/* Title with count */}
-                <h1 className="text-2xl font-medium text-text-primary">
-                    Visual Gallery
-                    {itemCount > 0 && (
-                        <span className="ml-2 text-base font-normal text-text-secondary">
-                            ({itemCount} {itemCount === 1 ? 'image' : 'images'})
-                        </span>
+                <div>
+                    <h1 className="text-2xl font-medium text-text-primary">
+                        Visual Gallery
+                        {itemCount > 0 && (
+                            <span className="ml-2 text-base font-normal text-text-secondary">
+                                ({itemCount} {itemCount === 1 ? 'image' : 'images'})
+                            </span>
+                        )}
+                    </h1>
+                    {subtitle && (
+                        <p className="text-sm text-text-secondary mt-1">
+                            {subtitle}
+                        </p>
                     )}
-                </h1>
+                </div>
 
                 <div className="flex-1" />
 

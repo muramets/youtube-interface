@@ -9,11 +9,18 @@ import React, { useState, useCallback, useRef } from 'react';
 import { Loader2, Image } from 'lucide-react';
 
 interface GalleryUploadZoneProps {
-    onUpload: (file: File) => Promise<void>;
+    onUpload: (files: File[]) => Promise<void>;
     isLoading?: boolean;
+    title?: string;
+    description?: React.ReactNode;
 }
 
-export const GalleryUploadZone: React.FC<GalleryUploadZoneProps> = ({ onUpload, isLoading = false }) => {
+export const GalleryUploadZone: React.FC<GalleryUploadZoneProps> = ({
+    onUpload,
+    isLoading = false,
+    title = "Upload Cover Variations",
+    description
+}) => {
     const [isDragging, setIsDragging] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -26,9 +33,7 @@ export const GalleryUploadZone: React.FC<GalleryUploadZoneProps> = ({ onUpload, 
 
         setIsProcessing(true);
         try {
-            for (const file of imageFiles) {
-                await onUpload(file);
-            }
+            await onUpload(imageFiles);
         } finally {
             setIsProcessing(false);
         }
@@ -112,13 +117,17 @@ export const GalleryUploadZone: React.FC<GalleryUploadZoneProps> = ({ onUpload, 
 
                         <div className="space-y-1">
                             <h3 className="text-sm font-medium text-text-primary">
-                                Upload Cover Variations
+                                {title}
                             </h3>
                             <p className="text-xs text-text-secondary">
-                                Drag and drop your images here, or{' '}
-                                <span className="text-accent-blue hover:underline font-medium">
-                                    browse
-                                </span>
+                                {description || (
+                                    <>
+                                        Drag and drop your images here, or{' '}
+                                        <span className="text-accent-blue hover:underline font-medium">
+                                            browse
+                                        </span>
+                                    </>
+                                )}
                             </p>
                         </div>
                     </>

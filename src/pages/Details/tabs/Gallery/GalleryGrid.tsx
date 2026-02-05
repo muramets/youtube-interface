@@ -3,46 +3,46 @@
  * 
  * Grid container for gallery items with drag-and-drop support
  * for custom ordering. Also acts as a drop zone for file uploads.
+ * 
+ * Note: DndContext is provided by parent GalleryDndProvider.
+ * This component only uses SortableContext for reordering.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
-    DndContext,
-    closestCenter,
-    KeyboardSensor,
-    PointerSensor,
-    useSensor,
-    useSensors,
-    type DragEndEvent
-} from '@dnd-kit/core';
-import {
-    arrayMove,
     SortableContext,
-    sortableKeyboardCoordinates,
     rectSortingStrategy
 } from '@dnd-kit/sortable';
 import { Loader2 } from 'lucide-react';
-import type { GalleryItem, GallerySortMode } from '../../../../core/types/gallery';
+import type { GalleryItem } from '../../../../core/types/gallery';
+import type { UploadingFile } from '../../hooks/useGallery';
 import { GalleryCard } from './GalleryCard';
+import { useGalleryLayout } from './GalleryLayoutContext';
 
 interface GalleryGridProps {
     items: GalleryItem[];
     channelTitle: string;
     channelAvatar: string;
     zoomLevel: number;
-    sortMode: GallerySortMode;
     onDelete: (item: GalleryItem) => Promise<void>;
     onDownload: (item: GalleryItem) => Promise<void>;
     onToggleLike: (itemId: string) => Promise<void>;
-    onReorder: (reorderedItems: GalleryItem[]) => Promise<void>;
     // File upload props
-    onUpload: (file: File) => Promise<void>;
-    isUploading: boolean;
-    uploadingFilename: string | null;
+    onUploadFiles: (files: File[]) => Promise<void>;
+    uploadingFiles: UploadingFile[];
 }
 
-// Map zoom level to grid columns
-const ZOOM_TO_COLUMNS: Record<number, string> = {
+// Map zoom level to column count
+const ZOOM_TO_COLUMNS: Record<number, number> = {
+    1: 2,
+    2: 3,
+    3: 4,
+    4: 5,
+    5: 6,
+};
+
+// Map zoom level to grid class
+const ZOOM_TO_GRID_CLASS: Record<number, string> = {
     1: 'grid-cols-2',
     2: 'grid-cols-3',
     3: 'grid-cols-4',
@@ -50,46 +50,51 @@ const ZOOM_TO_COLUMNS: Record<number, string> = {
     5: 'grid-cols-6',
 };
 
+const GRID_GAP = 16; // gap-4 = 1rem = 16px
+
 export const GalleryGrid: React.FC<GalleryGridProps> = ({
     items,
     channelTitle,
     channelAvatar,
     zoomLevel,
-    sortMode,
     onDelete,
     onDownload,
     onToggleLike,
-    onReorder,
-    onUpload,
-    isUploading,
-    uploadingFilename
+    onUploadFiles,
+    uploadingFiles
 }) => {
     // Always enable drag
     const isDragEnabled = true;
     const [isDragOver, setIsDragOver] = useState(false);
 
-    const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 8, // Require 8px movement before drag starts
-            },
-        }),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        })
-    );
+    // Ref for container to measure width
+    const containerRef = useRef<HTMLDivElement>(null);
+    const { setCardWidth } = useGalleryLayout();
 
-    const handleDragEnd = async (event: DragEndEvent) => {
-        const { active, over } = event;
+    // Calculate and set card width on resize
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
 
-        if (over && active.id !== over.id) {
-            const oldIndex = items.findIndex(item => item.id === active.id);
-            const newIndex = items.findIndex(item => item.id === over.id);
+        const calculateCardWidth = () => {
+            const containerWidth = container.offsetWidth;
+            const columns = ZOOM_TO_COLUMNS[zoomLevel] || 4;
+            const totalGap = GRID_GAP * (columns - 1);
+            const cardWidth = Math.floor((containerWidth - totalGap) / columns);
+            setCardWidth(cardWidth);
+        };
 
-            const reorderedItems = arrayMove(items, oldIndex, newIndex);
-            await onReorder(reorderedItems);
-        }
-    };
+        // Initial calculation
+        calculateCardWidth();
+
+        // Recalculate on resize
+        const resizeObserver = new ResizeObserver(() => {
+            calculateCardWidth();
+        });
+        resizeObserver.observe(container);
+
+        return () => resizeObserver.disconnect();
+    }, [zoomLevel, setCardWidth]);
 
     // File drop handlers
     const handleFileDragOver = useCallback((e: React.DragEvent) => {
@@ -114,122 +119,80 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
         const files = Array.from(e.dataTransfer.files);
         const imageFiles = files.filter(file => file.type.startsWith('image/'));
 
-        // Upload first valid image (can be extended for multiple)
-        if (imageFiles.length > 0 && !isUploading) {
-            await onUpload(imageFiles[0]);
+        // Upload all image files
+        if (imageFiles.length > 0) {
+            await onUploadFiles(imageFiles);
         }
-    }, [onUpload, isUploading]);
+    }, [onUploadFiles]);
 
-    // Track upload state using derived state pattern
-    // Store previous isUploading and items.length values
-    const [prevUploadState, setPrevUploadState] = useState({
-        isUploading: isUploading,
-        itemCount: items.length
-    });
-
-    // Derive the upload start count
-    // When upload starts (transitions from false to true), we capture the count
-    let uploadStartCount = prevUploadState.itemCount;
-
-    // Check if upload state changed
-    if (prevUploadState.isUploading !== isUploading) {
-        // Upload state changed - update stored state
-        const newState = {
-            isUploading: isUploading,
-            itemCount: items.length
-        };
-        setPrevUploadState(newState);
-
-        // If we just stopped uploading, use current count as the new baseline
-        if (!isUploading) {
-            uploadStartCount = items.length;
-        }
-    }
-
-    // Check if new item has arrived (compare current length with upload start count)
-    const hasNewItemArrived = items.length > uploadStartCount;
+    // Derived state: is any upload in progress
+    const isUploading = uploadingFiles.length > 0;
 
     return (
         <div
+            ref={containerRef}
             className={`relative flex-1 min-h-[400px] rounded-xl transition-all duration-200 ${isDragOver ? 'bg-white/5 ring-2 ring-white/20 ring-dashed' : ''}`}
             onDragOver={handleFileDragOver}
             onDragLeave={handleFileDragLeave}
             onDrop={handleFileDrop}
         >
-            <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
+            <SortableContext
+                items={items.map(item => item.id)}
+                strategy={rectSortingStrategy}
             >
-                <SortableContext
-                    items={items.map(item => item.id)}
-                    strategy={rectSortingStrategy}
-                >
-                    <div className={`grid ${ZOOM_TO_COLUMNS[zoomLevel] || 'grid-cols-4'} gap-4 content-start`}>
-                        {/* Upload Placeholder Card - shown first during upload */}
-                        {isUploading && (
-                            <div className="group relative flex flex-col gap-2 p-[6px] rounded-xl isolate">
-                                {/* Hover Substrate - always visible for upload card */}
-                                <div className="absolute inset-0 rounded-xl -z-10 pointer-events-none bg-white/10 border-2 border-white/20 animate-pulse" />
+                <div className={`grid ${ZOOM_TO_GRID_CLASS[zoomLevel] || 'grid-cols-4'} gap-4 content-start`}>
+                    {/* Upload Placeholder Cards - one for each uploading file */}
+                    {uploadingFiles.map(uploadingFile => (
+                        <div key={uploadingFile.id} className="group relative flex flex-col gap-2 p-[6px] rounded-xl isolate">
+                            {/* Hover Substrate - always visible for upload card */}
+                            <div className="absolute inset-0 rounded-xl -z-10 pointer-events-none bg-white/10 border-2 border-white/20 animate-pulse" />
 
-                                {/* Thumbnail placeholder */}
-                                <div className="relative aspect-video rounded-xl overflow-hidden bg-[#1a1a1a] flex items-center justify-center">
-                                    <div className="flex flex-col items-center gap-2">
-                                        <Loader2 size={32} className="text-white/60 animate-spin" />
-                                    </div>
+                            {/* Thumbnail placeholder */}
+                            <div className="relative aspect-video rounded-xl overflow-hidden bg-[#1a1a1a] flex items-center justify-center">
+                                <div className="flex flex-col items-center gap-2">
+                                    <Loader2 size={32} className="text-white/60 animate-spin" />
+                                </div>
+                            </div>
+
+                            {/* File info - matching GalleryCard structure */}
+                            <div className="flex items-start gap-3 px-1">
+                                {/* Channel avatar */}
+                                <div className="w-9 h-9 rounded-full bg-[#2a2a2a] flex-shrink-0 overflow-hidden">
+                                    {channelAvatar && (
+                                        <img src={channelAvatar} alt="" className="w-full h-full object-cover" />
+                                    )}
                                 </div>
 
-                                {/* File info - matching GalleryCard structure */}
-                                <div className="flex items-start gap-3 px-1">
-                                    {/* Channel avatar */}
-                                    <div className="w-9 h-9 rounded-full bg-[#2a2a2a] flex-shrink-0 overflow-hidden">
-                                        {channelAvatar && (
-                                            <img src={channelAvatar} alt="" className="w-full h-full object-cover" />
-                                        )}
+                                {/* Text info */}
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-sm text-text-primary truncate font-medium">
+                                        {uploadingFile.filename}
                                     </div>
-
-                                    {/* Text info */}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-sm text-text-primary truncate font-medium">
-                                            {uploadingFilename || 'Uploading...'}
-                                        </div>
-                                        <div className="text-xs text-text-secondary mt-0.5">
-                                            {channelTitle}
-                                        </div>
-                                        <div className="text-xs text-text-secondary">
-                                            1M views • Uploading...
-                                        </div>
+                                    <div className="text-xs text-text-secondary mt-0.5">
+                                        {channelTitle}
+                                    </div>
+                                    <div className="text-xs text-text-secondary">
+                                        {uploadingFile.status === 'pending' ? 'Waiting...' : 'Uploading...'}
                                     </div>
                                 </div>
                             </div>
-                        )}
+                        </div>
+                    ))}
 
-                        {items.map((item, index) => {
-                            // Hide the first item (duplicate) ONLY if new item has arrived
-                            // and we are in 'newest' sort mode (where new item appears first)
-                            const isHidden = isUploading &&
-                                hasNewItemArrived &&
-                                sortMode === 'newest' &&
-                                index === 0;
-
-                            if (isHidden) return null;
-
-                            return (
-                                <GalleryCard
-                                    key={item.id}
-                                    item={item}
-                                    channelTitle={channelTitle}
-                                    channelAvatar={channelAvatar}
-                                    onDelete={() => onDelete(item)}
-                                    onDownload={() => onDownload(item)}
-                                    onToggleLike={() => onToggleLike(item.id)}
-                                    isDragEnabled={isDragEnabled}
-                                />
-                            );
-                        })}
-                    </div>
-                </SortableContext>
-            </DndContext>
+                    {items.map((item) => (
+                        <GalleryCard
+                            key={item.id}
+                            item={item}
+                            channelTitle={channelTitle}
+                            channelAvatar={channelAvatar}
+                            onDelete={() => onDelete(item)}
+                            onDownload={() => onDownload(item)}
+                            onToggleLike={() => onToggleLike(item.id)}
+                            isDragEnabled={isDragEnabled && !isUploading}
+                        />
+                    ))}
+                </div>
+            </SortableContext>
         </div>
     );
 };

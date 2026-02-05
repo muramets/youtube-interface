@@ -23,14 +23,29 @@ interface GalleryCardProps {
     isDragEnabled: boolean;
 }
 
-export const GalleryCard: React.FC<GalleryCardProps> = ({
+// Export Inner component for use in Ghost
+export interface GalleryCardInnerProps extends GalleryCardProps {
+    isOverlay?: boolean;
+    style?: React.CSSProperties;
+    dragAttributes?: import('@dnd-kit/core').DraggableAttributes;
+    dragListeners?: import('@dnd-kit/core/dist/hooks/utilities').SyntheticListenerMap;
+    innerRef?: (node: HTMLElement | null) => void;
+    className?: string;
+}
+
+export const GalleryCardInner: React.FC<GalleryCardInnerProps> = ({
     item,
     channelTitle,
     channelAvatar,
     onDelete,
     onDownload,
-    // onToggleLike - removed from info tooltip, kept in props for future use
-    isDragEnabled
+    isDragEnabled,
+    isOverlay = false,
+    style,
+    dragAttributes,
+    dragListeners,
+    innerRef,
+    className
 }) => {
     const [showMenu, setShowMenu] = useState(false);
     const [showInfoTooltip, setShowInfoTooltip] = useState(false);
@@ -54,27 +69,8 @@ export const GalleryCard: React.FC<GalleryCardProps> = ({
     };
 
     // Image loading state
-    const [isImageLoaded, setIsImageLoaded] = useState(false);
-
-    // Sortable setup
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-        isDragging
-    } = useSortable({
-        id: item.id,
-        disabled: !isDragEnabled
-    });
-
-    const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1,
-        zIndex: isDragging ? 100 : (showMenu ? 40 : 'auto')
-    };
+    // For overlay (ghost), skip loading animation - image is already cached
+    const [isImageLoaded, setIsImageLoaded] = useState(isOverlay);
 
     // Format filename (remove extension for display)
     const displayName = item.filename.replace(/\.[^/.]+$/, '');
@@ -114,19 +110,25 @@ export const GalleryCard: React.FC<GalleryCardProps> = ({
         }
     };
 
+    // Determine visual state
+    // If overlay, force hover state active
+    const isActive = isOverlay || showMenu || showInfoTooltip;
+
     return (
         <div
-            ref={setNodeRef}
+            ref={innerRef}
             style={style}
-            {...(isDragEnabled ? { ...attributes, ...listeners } : {})}
+            {...(isDragEnabled ? { ...dragAttributes, ...dragListeners } : {})}
             className={`
                 group relative flex flex-col gap-2 p-[6px] rounded-xl isolate
-                ${isDragEnabled ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}
+                ${isDragEnabled && !isOverlay ? 'cursor-grab active:cursor-grabbing' : ''}
+                ${isOverlay ? 'cursor-grabbing' : 'cursor-pointer'}
+                ${className || ''}
             `}
         >
             {/* Hover Substrate - matching VideoCard */}
             <div className={`absolute inset-0 rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none 
-                ${showMenu || showInfoTooltip ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} 
+                ${isActive ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} 
                 bg-white/10 border-2 border-white/20`}
             />
             {/* Thumbnail */}
@@ -143,7 +145,7 @@ export const GalleryCard: React.FC<GalleryCardProps> = ({
                     src={item.thumbnailUrl}
                     alt={item.filename}
                     className={`w-full h-full object-cover transition-all duration-500 
-                        ${showMenu || showInfoTooltip ? 'scale-105' : 'group-hover:scale-105'}
+                        ${isActive ? 'scale-105' : 'group-hover:scale-105'}
                         ${isImageLoaded ? 'opacity-100' : 'opacity-0'}
                     `}
                     loading="lazy"
@@ -151,7 +153,7 @@ export const GalleryCard: React.FC<GalleryCardProps> = ({
                 />
 
                 {/* Info icon (top-right) - matching VideoCard pattern */}
-                <div className={`absolute top-2 right-2 z-10 transition-opacity duration-200 ${showInfoTooltip ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                <div className={`absolute top-2 right-2 z-10 transition-opacity duration-200 ${isOverlay ? 'opacity-100' : (showInfoTooltip ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')}`}>
                     <PortalTooltip
                         content={
                             <div className="flex flex-col gap-1.5">
@@ -239,7 +241,7 @@ export const GalleryCard: React.FC<GalleryCardProps> = ({
                 <div className="relative">
                     <button
                         onClick={() => setShowMenu(!showMenu)}
-                        className="p-1 opacity-0 group-hover:opacity-100 hover:bg-[#ffffff10] rounded-full transition-all"
+                        className={`p-1 rounded-full transition-all ${isOverlay ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 hover:bg-[#ffffff10]'}`}
                     >
                         <MoreVertical size={18} className="text-text-secondary" />
                     </button>
@@ -281,5 +283,51 @@ export const GalleryCard: React.FC<GalleryCardProps> = ({
                 </div>
             </div>
         </div>
+    );
+};
+
+export const GalleryCard: React.FC<GalleryCardProps> = ({
+    item,
+    channelTitle,
+    channelAvatar,
+    onDelete,
+    onDownload,
+    isDragEnabled
+}) => {
+
+    // Sortable setup
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({
+        id: item.id,
+        disabled: !isDragEnabled
+    });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0 : 1, // Hidden during drag - ghost shown via DragOverlay
+        zIndex: isDragging ? 100 : 'auto'
+    };
+
+    return (
+        <GalleryCardInner
+            item={item}
+            channelTitle={channelTitle}
+            channelAvatar={channelAvatar}
+            onDelete={onDelete}
+            onDownload={onDownload}
+            onToggleLike={() => { }} // Placeholder
+            isDragEnabled={isDragEnabled}
+            innerRef={setNodeRef}
+            style={style}
+            dragAttributes={attributes}
+            dragListeners={listeners}
+        />
     );
 };

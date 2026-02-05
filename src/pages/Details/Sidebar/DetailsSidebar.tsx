@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { type VideoDetails, type PackagingVersion } from '../../../core/utils/youtubeApi';
 import { type TrafficSnapshot, type TrafficGroup, type TrafficSource } from '../../../core/types/traffic';
+import type { GallerySource } from '../../../core/types/gallery';
 import { SidebarVideoPreview } from './SidebarVideoPreview';
 import { SidebarNavItem } from './SidebarNavItem';
 import { PackagingNav } from './Packaging/PackagingNav';
@@ -39,6 +40,13 @@ interface DetailsSidebarProps {
     onTabChange: (tab: 'packaging' | 'traffic' | 'gallery') => void;
     activeNicheId?: string | null;
     playlistId?: string;
+    // Gallery Sources props
+    gallerySources: GallerySource[];
+    activeSourceId: string | null;
+    onSourceClick: (sourceId: string | null) => void;
+    onAddSource: () => void;
+    onDeleteSource: (sourceId: string) => void;
+    onUpdateSource: (sourceId: string, data: { type?: import('../../../core/types/gallery').GallerySourceType; label?: string; url?: string }) => void;
 }
 
 export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
@@ -61,7 +69,13 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
     activeTab,
     onTabChange,
     activeNicheId,
-    playlistId
+    playlistId,
+    gallerySources,
+    activeSourceId,
+    onSourceClick,
+    onAddSource,
+    onDeleteSource,
+    onUpdateSource
 }) => {
     // ... (rest is same until TrafficNav)
     const { user } = useAuth();
@@ -187,10 +201,16 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
 
                 <GalleryNav
                     itemCount={video.galleryItems?.length || 0}
+                    sources={gallerySources}
+                    activeSourceId={activeSourceId}
                     isActive={activeTab === 'gallery'}
                     isExpanded={expandedSection === 'gallery'}
                     onToggle={() => handleToggleSection('gallery')}
                     onSelect={() => onTabChange('gallery')}
+                    onSourceClick={onSourceClick}
+                    onAddSource={onAddSource}
+                    onDeleteSource={onDeleteSource}
+                    onUpdateSource={onUpdateSource}
                 />
             </nav>
         </aside>
