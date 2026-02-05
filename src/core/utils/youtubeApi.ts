@@ -1,4 +1,5 @@
 import type { PackagingVersion, CTRRule, PackagingCheckin } from '../types/versioning';
+import type { GalleryItem } from '../types/gallery';
 export type { PackagingVersion, CTRRule, PackagingCheckin };
 
 export interface VideoDetails {
@@ -56,6 +57,8 @@ export interface VideoDetails {
     fetchStatus?: 'pending' | 'success' | 'failed';
     isPlaylistOnly?: boolean;
     addedToHomeAt?: number; // Timestamp when added to Home Page (not playlist-only)
+    // Visual Gallery
+    galleryItems?: GalleryItem[]; // Array of gallery images for this video
 }
 
 

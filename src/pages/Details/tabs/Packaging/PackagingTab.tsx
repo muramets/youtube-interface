@@ -53,6 +53,9 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
     const isViewingOldVersion = versionState.viewingVersion !== 'draft' &&
         versionState.viewingVersion !== versionState.activeVersion;
 
+    // Is this a custom video (editable) or YouTube video (read-only)?
+    const isCustomVideo = video.id.startsWith('custom-');
+
     // 1. Hook: Localization State
     const localization = usePackagingLocalization({
         initialTitle: video.title || '',
@@ -281,8 +284,8 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
 
                     <div className="flex-1" />
 
-                    {/* Show actions if viewing Current OR if Editing an Old Version (Dirty) */}
-                    {(!isViewingOldVersion || formState.isDirty) && (
+                    {/* Show actions only for CUSTOM videos, if viewing Current OR if Editing an Old Version (Dirty) */}
+                    {isCustomVideo && (!isViewingOldVersion || formState.isDirty) && (
                         <div className="flex gap-3">
                             <Button
                                 variant="secondary"
@@ -320,17 +323,20 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
 
             {/* Content */}
             <div className="p-6">
-                <div className="mb-6">
-                    <LanguageTabs
-                        activeLanguage={localization.activeLanguage}
-                        localizations={localization.localizations}
-                        onSwitchLanguage={localization.switchLanguage} // Note: simplified direct pass
-                        onAddLanguage={actions.handleAddLanguage}
-                        onRemoveLanguage={localization.removeLanguage}
-                        savedCustomLanguages={currentChannel?.customLanguages || []}
-                        onDeleteCustomLanguage={actions.handleDeleteCustomLanguage}
-                    />
-                </div>
+                {/* Language Tabs - only for custom videos (YouTube default language may not be English) */}
+                {isCustomVideo && (
+                    <div className="mb-6">
+                        <LanguageTabs
+                            activeLanguage={localization.activeLanguage}
+                            localizations={localization.localizations}
+                            onSwitchLanguage={localization.switchLanguage} // Note: simplified direct pass
+                            onAddLanguage={actions.handleAddLanguage}
+                            onRemoveLanguage={localization.removeLanguage}
+                            savedCustomLanguages={currentChannel?.customLanguages || []}
+                            onDeleteCustomLanguage={actions.handleDeleteCustomLanguage}
+                        />
+                    </div>
+                )}
 
                 <div className="flex gap-8 max-w-[1050px] items-start">
                     <div className="flex-1 min-w-0">
@@ -398,9 +404,10 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                             setVideoRender={formState.setVideoRender}
                             audioRender={formState.audioRender}
                             setAudioRender={formState.setAudioRender}
-                            // Allow editing even for old versions to support "Forking" (Save as Draft from history)
-                            // We only disable if strictly needed, but for now we want to allow edits.
-                            readOnly={false}
+                            // YouTube videos are read-only, custom videos are editable
+                            readOnly={!isCustomVideo}
+                            // YouTube thumbnail URL for fallback display
+                            youtubeThumbnailUrl={!isCustomVideo ? video.thumbnail : undefined}
 
                             // A/B Test props
                             abTestTitles={abTesting.titles}

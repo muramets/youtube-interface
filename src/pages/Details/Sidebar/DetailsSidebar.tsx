@@ -7,6 +7,7 @@ import { SidebarVideoPreview } from './SidebarVideoPreview';
 import { SidebarNavItem } from './SidebarNavItem';
 import { PackagingNav } from './Packaging/PackagingNav';
 import { TrafficNav } from './Traffic/TrafficNav';
+import { GalleryNav } from './Gallery/GalleryNav';
 
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
@@ -34,8 +35,8 @@ interface DetailsSidebarProps {
     // Filter Control
     onAddFilter?: (filter: Omit<import('../../../core/types/traffic').TrafficFilter, 'id'>) => void;
     // Tab Navigation
-    activeTab: 'packaging' | 'traffic';
-    onTabChange: (tab: 'packaging' | 'traffic') => void;
+    activeTab: 'packaging' | 'traffic' | 'gallery';
+    onTabChange: (tab: 'packaging' | 'traffic' | 'gallery') => void;
     activeNicheId?: string | null;
     playlistId?: string;
 }
@@ -76,19 +77,18 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
 
     const navigate = useNavigate();
 
-    // ============================================================================
     // UI STATE: Mutual Exclusivity for Sidebar Sections
     // ============================================================================
-    // Only one section (Packaging or Traffic) can be expanded at a time.
+    // Only one section (Packaging, Traffic, or Gallery) can be expanded at a time.
     // By default, the active tab's section is expanded.
-    const [expandedSection, setExpandedSection] = React.useState<'packaging' | 'traffic' | null>(activeTab);
+    const [expandedSection, setExpandedSection] = React.useState<'packaging' | 'traffic' | 'gallery' | null>(activeTab);
 
     // Update expansion when active tab changes (e.g. from external source)
     React.useEffect(() => {
         setExpandedSection(activeTab);
     }, [activeTab]);
 
-    const handleToggleSection = (section: 'packaging' | 'traffic') => {
+    const handleToggleSection = (section: 'packaging' | 'traffic' | 'gallery') => {
         setExpandedSection(prev => prev === section ? null : section);
     };
 
@@ -155,31 +155,42 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
                     onSelect={() => onTabChange('packaging')}
                 />
 
-                <TrafficNav
-                    versions={versions}
-                    snapshots={snapshots}
-                    groups={groups}
-                    displayedSources={displayedSources}
-                    viewingVersion={viewingVersion}
-                    viewingPeriodIndex={viewingPeriodIndex}
-                    activeVersion={activeVersion}
-                    selectedSnapshot={selectedSnapshot}
-                    isVideoPublished={!!video.publishedVideoId}
-                    onVersionClick={(v: number | 'draft', p?: number) => {
-                        onTabChange('traffic');
-                        onVersionClick(v, p);
-                    }}
-                    onSnapshotClick={(snapshotId) => {
-                        onTabChange('traffic');
-                        onSnapshotClick(snapshotId);
-                    }}
-                    onDeleteSnapshot={onDeleteSnapshot}
-                    isActive={activeTab === 'traffic'}
-                    isExpanded={expandedSection === 'traffic'}
-                    onToggle={() => handleToggleSection('traffic')}
-                    onSelect={() => onTabChange('traffic')}
-                    onNicheClick={handleNicheClick}
-                    activeNicheId={activeNicheId || null}
+                {/* Traffic Nav - only for custom videos (hide for YouTube videos) */}
+                {video.id.startsWith('custom-') && (
+                    <TrafficNav
+                        versions={versions}
+                        snapshots={snapshots}
+                        groups={groups}
+                        displayedSources={displayedSources}
+                        viewingVersion={viewingVersion}
+                        viewingPeriodIndex={viewingPeriodIndex}
+                        activeVersion={activeVersion}
+                        selectedSnapshot={selectedSnapshot}
+                        isVideoPublished={!!video.publishedVideoId}
+                        onVersionClick={(v: number | 'draft', p?: number) => {
+                            onTabChange('traffic');
+                            onVersionClick(v, p);
+                        }}
+                        onSnapshotClick={(snapshotId) => {
+                            onTabChange('traffic');
+                            onSnapshotClick(snapshotId);
+                        }}
+                        onDeleteSnapshot={onDeleteSnapshot}
+                        isActive={activeTab === 'traffic'}
+                        isExpanded={expandedSection === 'traffic'}
+                        onToggle={() => handleToggleSection('traffic')}
+                        onSelect={() => onTabChange('traffic')}
+                        onNicheClick={handleNicheClick}
+                        activeNicheId={activeNicheId || null}
+                    />
+                )}
+
+                <GalleryNav
+                    itemCount={video.galleryItems?.length || 0}
+                    isActive={activeTab === 'gallery'}
+                    isExpanded={expandedSection === 'gallery'}
+                    onToggle={() => handleToggleSection('gallery')}
+                    onSelect={() => onTabChange('gallery')}
                 />
             </nav>
         </aside>

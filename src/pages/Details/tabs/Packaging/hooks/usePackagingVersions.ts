@@ -350,8 +350,22 @@ export const usePackagingVersions = ({
         packagingRevision: initialRevision
     });
 
-    // Sync with props
+    // Sync with props - use stable reference check to prevent infinite loops
+    // Only dispatch if the props have actually changed in a meaningful way
+    const historyKey = initialHistory.length > 0
+        ? `${initialHistory.length}-${Math.max(...initialHistory.map(v => v.revision || 0))}`
+        : '0-0';
+
     useEffect(() => {
+        // Skip if history hasn't changed (same length and revision)
+        const currentKey = state.packagingHistory.length > 0
+            ? `${state.packagingHistory.length}-${state.packagingRevision}`
+            : '0-0';
+
+        if (historyKey === currentKey && state.packagingHistory.length === initialHistory.length) {
+            return; // Already synced, skip dispatch
+        }
+
         dispatch({
             type: 'SYNC_FROM_PROPS',
             payload: {
@@ -361,7 +375,7 @@ export const usePackagingVersions = ({
                 initialActiveVersion
             }
         });
-    }, [initialHistory, initialCurrentVersion, initialIsDraft, initialActiveVersion]);
+    }, [historyKey, initialCurrentVersion, initialIsDraft, initialActiveVersion]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Derived values - always in sync with state
     const sortedVersions = useMemo(() =>

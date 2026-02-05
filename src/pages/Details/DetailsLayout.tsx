@@ -1,8 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { type VideoDetails } from '../../core/utils/youtubeApi';
 import { DetailsSidebar } from './Sidebar/DetailsSidebar';
 import { PackagingTab } from './tabs/Packaging/PackagingTab';
 import { TrafficTab } from './tabs/Traffic/TrafficTab';
+import { GalleryTab } from './tabs/Gallery/GalleryTab';
 import { usePackagingVersions } from './tabs/Packaging/hooks/usePackagingVersions';
 import { useTrafficFilters } from './tabs/Traffic/hooks/useTrafficFilters';
 import { useTrafficData } from './tabs/Traffic/hooks/useTrafficData';
@@ -31,14 +33,42 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
     const { currentChannel } = useChannelStore();
     const { updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
 
-    // Tab State
-    const [activeTab, setActiveTab] = useState<'packaging' | 'traffic'>('packaging');
+    // URL State for Tab Persistence
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    // Initialize tab from URL or default to 'packaging'
+    const initialTab = searchParams.get('tab') as 'packaging' | 'traffic' | 'gallery';
+    const [activeTab, setActiveTab] = useState<'packaging' | 'traffic' | 'gallery'>(
+        (initialTab && ['packaging', 'traffic', 'gallery'].includes(initialTab))
+            ? initialTab
+            : 'packaging'
+    );
+
+    // Sync activeTab state if URL changes externally (e.g. browser back button)
+    React.useEffect(() => {
+        const urlTab = searchParams.get('tab') as 'packaging' | 'traffic' | 'gallery';
+        if (urlTab && ['packaging', 'traffic', 'gallery'].includes(urlTab) && urlTab !== activeTab) {
+            setActiveTab(urlTab);
+        }
+    }, [searchParams, activeTab]);
+
     const [isFormDirty, setIsFormDirty] = useState(false);
     const [selectedSnapshot, setSelectedSnapshot] = useState<string | null>(null);
 
+    // Stable callback for dirty state changes (prevents infinite loop)
+    const handleDirtyChange = useCallback((dirty: boolean) => {
+        setIsFormDirty(dirty);
+    }, []);
+
+    // Memoize packagingHistory to prevent new array reference on each render
+    const stablePackagingHistory = useMemo(
+        () => video.packagingHistory || [],
+        [video.packagingHistory]
+    );
+
     // Version management
     const versions = usePackagingVersions({
-        initialHistory: video.packagingHistory || [],
+        initialHistory: stablePackagingHistory,
         initialCurrentVersion: video.currentPackagingVersion || 1,
         // USER REQUIREMENT: Only show Draft in sidebar if explicitly saved/managed as draft
         isDraft: !!video.isDraft,
@@ -187,7 +217,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
 
     // Auto-switch to active version when switching tabs
     // Refactored to be an event handler instead of useEffect to avoid cascading renders
-    const handleTabChange = (newTab: 'packaging' | 'traffic') => {
+    const handleTabChange = (newTab: 'packaging' | 'traffic' | 'gallery') => {
         if (newTab === activeTab) return;
 
         // When entering Traffic tab → switch to active version if needed
@@ -209,6 +239,14 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
                 versions.switchToVersion(versions.activeVersion);
             }
         }
+
+        // Gallery tab doesn't need version switching
+
+        // Update URL
+        setSearchParams(prev => {
+            prev.set('tab', newTab);
+            return prev;
+        }, { replace: true });
 
         setActiveTab(newTab);
     };
@@ -341,19 +379,18 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
 
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                {activeTab === 'packaging' ? (
+                {activeTab === 'packaging' && (
                     <PackagingTab
                         video={video}
                         versionState={versions}
-                        onDirtyChange={(dirty) => {
-                            setIsFormDirty(dirty);
-                        }}
+                        onDirtyChange={handleDirtyChange}
                         onRestoreVersion={versionMgmt.handleRestoreVersion}
                         onRequestSnapshot={snapshotMgmt.handleRequestSnapshot}
                         trafficData={trafficState.trafficData}
                         playlistId={playlistId}
                     />
-                ) : (
+                )}
+                {activeTab === 'traffic' && (
                     <TrafficTab
                         video={video}
                         activeVersion={typeof versions.activeVersion === 'number' ? versions.activeVersion : 0}
@@ -392,6 +429,9 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
                             return { key, direction: 'desc' };
                         })}
                     />
+                )}
+                {activeTab === 'gallery' && (
+                    <GalleryTab video={video} />
                 )}
             </div>
 

@@ -15,6 +15,8 @@ interface LanguageTabsProps {
     onRemoveLanguage: (code: string) => void;
     savedCustomLanguages?: CustomLanguage[];
     onDeleteCustomLanguage?: (code: string) => void;
+    /** When true, hide Add button (for YouTube videos) */
+    readOnly?: boolean;
 }
 
 export const LanguageTabs: React.FC<LanguageTabsProps> = ({
@@ -24,7 +26,8 @@ export const LanguageTabs: React.FC<LanguageTabsProps> = ({
     onAddLanguage,
     onRemoveLanguage,
     savedCustomLanguages = [],
-    onDeleteCustomLanguage
+    onDeleteCustomLanguage,
+    readOnly = false
 }) => {
     const [isAddOpen, setIsAddOpen] = useState(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
@@ -139,125 +142,127 @@ export const LanguageTabs: React.FC<LanguageTabsProps> = ({
                 );
             })}
 
-            {/* Add Language Button */}
-            <div className="relative flex-shrink-0">
-                <PortalTooltip content="Create packaging in another language" enterDelay={500}>
-                    <button
-                        ref={buttonRef}
-                        className="w-7 h-7 rounded-full bg-bg-secondary text-text-secondary hover:bg-hover-bg hover:text-text-primary flex items-center justify-center transition-colors"
-                        onClick={() => setIsAddOpen(!isAddOpen)}
-                    >
-                        <Plus size={16} />
-                    </button>
-                </PortalTooltip>
-
-                {isAddOpen && createPortal(
-                    <>
-                        <div
-                            className="fixed inset-0 z-[1049]"
-                            onClick={() => setIsAddOpen(false)}
-                        />
-                        <div
-                            className="fixed z-[1050] bg-bg-secondary border border-border rounded-lg shadow-xl w-max min-w-[160px] animate-scale-in origin-top-left overflow-hidden"
-                            style={{
-                                top: dropdownPosition.top,
-                                left: dropdownPosition.left
-                            }}
+            {/* Add Language Button - hidden for YouTube videos (readOnly) */}
+            {!readOnly && (
+                <div className="relative flex-shrink-0">
+                    <PortalTooltip content="Create packaging in another language" enterDelay={500}>
+                        <button
+                            ref={buttonRef}
+                            className="w-7 h-7 rounded-full bg-bg-secondary text-text-secondary hover:bg-hover-bg hover:text-text-primary flex items-center justify-center transition-colors"
+                            onClick={() => setIsAddOpen(!isAddOpen)}
                         >
-                            {!isCustomMode ? (
-                                <>
-                                    <div className="max-h-48 overflow-y-auto custom-scrollbar">
-                                        {availableLanguages.map(lang => {
-                                            const isCustom = savedCustomLanguages.some(l => l.code === lang.code);
-                                            return (
-                                                <div
-                                                    key={lang.code}
-                                                    className="text-left px-3 py-2 text-sm text-text-primary hover:bg-hover-bg flex items-center justify-between group transition-colors cursor-pointer"
-                                                    onClick={() => {
-                                                        onAddLanguage(lang.code, lang.name, lang.flag);
-                                                        setIsAddOpen(false);
-                                                    }}
-                                                >
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-base font-emoji">{lang.flag}</span>
-                                                        <span>{lang.name}</span>
+                            <Plus size={16} />
+                        </button>
+                    </PortalTooltip>
+
+                    {isAddOpen && createPortal(
+                        <>
+                            <div
+                                className="fixed inset-0 z-[1049]"
+                                onClick={() => setIsAddOpen(false)}
+                            />
+                            <div
+                                className="fixed z-[1050] bg-bg-secondary border border-border rounded-lg shadow-xl w-max min-w-[160px] animate-scale-in origin-top-left overflow-hidden"
+                                style={{
+                                    top: dropdownPosition.top,
+                                    left: dropdownPosition.left
+                                }}
+                            >
+                                {!isCustomMode ? (
+                                    <>
+                                        <div className="max-h-48 overflow-y-auto custom-scrollbar">
+                                            {availableLanguages.map(lang => {
+                                                const isCustom = savedCustomLanguages.some(l => l.code === lang.code);
+                                                return (
+                                                    <div
+                                                        key={lang.code}
+                                                        className="text-left px-3 py-2 text-sm text-text-primary hover:bg-hover-bg flex items-center justify-between group transition-colors cursor-pointer"
+                                                        onClick={() => {
+                                                            onAddLanguage(lang.code, lang.name, lang.flag);
+                                                            setIsAddOpen(false);
+                                                        }}
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-base font-emoji">{lang.flag}</span>
+                                                            <span>{lang.name}</span>
+                                                        </div>
+                                                        {isCustom && onDeleteCustomLanguage && (
+                                                            <button
+                                                                className="text-text-secondary hover:text-red-500 p-1 rounded opacity-0 group-hover:opacity-100 transition-all"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    onDeleteCustomLanguage(lang.code);
+                                                                }}
+                                                            >
+                                                                <Trash2 size={12} />
+                                                            </button>
+                                                        )}
                                                     </div>
-                                                    {isCustom && onDeleteCustomLanguage && (
-                                                        <button
-                                                            className="text-text-secondary hover:text-red-500 p-1 rounded opacity-0 group-hover:opacity-100 transition-all"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                onDeleteCustomLanguage(lang.code);
-                                                            }}
-                                                        >
-                                                            <Trash2 size={12} />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                    <div className="border-t border-border">
-                                        <button
-                                            className="w-full text-left px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-hover-bg flex items-center gap-2 transition-colors"
-                                            onClick={() => setIsCustomMode(true)}
-                                        >
-                                            <Plus size={14} />
-                                            <span>Add Custom Language</span>
-                                        </button>
-                                    </div>
-                                </>
-                            ) : (
-                                <div className="p-3 flex flex-col gap-3 w-[250px]">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs font-medium text-text-secondary uppercase tracking-wider">New Language</span>
-                                        <button
-                                            onClick={() => setIsCustomMode(false)}
-                                            className="text-text-secondary hover:text-text-primary"
-                                        >
-                                            <X size={14} />
-                                        </button>
-                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        <div className="border-t border-border">
+                                            <button
+                                                className="w-full text-left px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-hover-bg flex items-center gap-2 transition-colors"
+                                                onClick={() => setIsCustomMode(true)}
+                                            >
+                                                <Plus size={14} />
+                                                <span>Add Custom Language</span>
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="p-3 flex flex-col gap-3 w-[250px]">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-medium text-text-secondary uppercase tracking-wider">New Language</span>
+                                            <button
+                                                onClick={() => setIsCustomMode(false)}
+                                                className="text-text-secondary hover:text-text-primary"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
 
-                                    <div className="flex gap-2">
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                placeholder="Flag (e.g. 🇺🇸)"
+                                                className="w-[105px] bg-bg-secondary border border-border rounded-lg p-2 text-sm text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder px-2 min-w-0 tracking-normal"
+                                                value={customEmoji}
+                                                onChange={(e) => setCustomEmoji(e.target.value)}
+                                            />
+                                            <input
+                                                type="text"
+                                                placeholder="Code (e.g. EN)"
+                                                className="flex-1 bg-bg-secondary border border-border rounded-lg p-2 text-sm text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder px-2 min-w-0 tracking-normal"
+                                                value={customCode}
+                                                onChange={(e) => setCustomCode(e.target.value)}
+                                                maxLength={5}
+                                            />
+                                        </div>
                                         <input
                                             type="text"
-                                            placeholder="Flag (e.g. 🇺🇸)"
-                                            className="w-[105px] bg-bg-secondary border border-border rounded-lg p-2 text-sm text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder px-2 min-w-0 tracking-normal"
-                                            value={customEmoji}
-                                            onChange={(e) => setCustomEmoji(e.target.value)}
+                                            placeholder="Name (e.g. English)"
+                                            className="w-full bg-bg-secondary border border-border rounded-lg p-2 text-sm text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
+                                            value={customName}
+                                            onChange={(e) => setCustomName(e.target.value)}
                                         />
-                                        <input
-                                            type="text"
-                                            placeholder="Code (e.g. EN)"
-                                            className="flex-1 bg-bg-secondary border border-border rounded-lg p-2 text-sm text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder px-2 min-w-0 tracking-normal"
-                                            value={customCode}
-                                            onChange={(e) => setCustomCode(e.target.value)}
-                                            maxLength={5}
-                                        />
-                                    </div>
-                                    <input
-                                        type="text"
-                                        placeholder="Name (e.g. English)"
-                                        className="w-full bg-bg-secondary border border-border rounded-lg p-2 text-sm text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
-                                        value={customName}
-                                        onChange={(e) => setCustomName(e.target.value)}
-                                    />
 
-                                    <button
-                                        disabled={!customName || !customCode}
-                                        onClick={handleAddCustomLanguage}
-                                        className="w-full bg-text-primary text-bg-primary rounded text-xs font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed h-[38px] flex items-center justify-center"
-                                    >
-                                        Add Language
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    </>,
-                    document.body
-                )}
-            </div>
+                                        <button
+                                            disabled={!customName || !customCode}
+                                            onClick={handleAddCustomLanguage}
+                                            className="w-full bg-text-primary text-bg-primary rounded text-xs font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed h-[38px] flex items-center justify-center"
+                                        >
+                                            Add Language
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </>,
+                        document.body
+                    )}
+                </div>
+            )}
         </div>
     );
 };

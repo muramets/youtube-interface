@@ -20,7 +20,7 @@ export const TitleInput: React.FC<TitleInputProps> = ({
     return (
         <div
             className={`relative flex flex-col bg-bg-secondary border border-border rounded-lg p-3 transition-colors
-                ${readOnly ? 'opacity-60' : 'hover:border-text-primary focus-within:border-text-primary'}`}
+                hover:border-text-primary focus-within:border-text-primary ${readOnly ? 'opacity-60' : ''}`}
             style={{ height: '129px' }}
         >
             {/* Label inside container */}

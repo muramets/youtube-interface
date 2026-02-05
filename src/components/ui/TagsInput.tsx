@@ -73,23 +73,31 @@ export const TagsInput: React.FC<TagsInputProps> = ({ tags, onChange, onShowToas
         <div className="flex flex-col gap-2">
             <div className="flex justify-between items-center h-5">
                 <label className="text-xs text-text-secondary font-medium tracking-wider uppercase">Tags</label>
-                <div className={`flex gap-2 transition-opacity duration-200 ${tags.length > 0 && !readOnly ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-                    <PortalTooltip content={copied ? "Copied!" : "Copy all tags"} align="center" enterDelay={copied ? 0 : 500}>
-                        <button
-                            onClick={handleCopyAll}
-                            className={`transition-colors p-1 rounded hover:bg-hover-bg ${copied ? 'text-green-500' : 'text-text-secondary hover:text-text-primary'}`}
-                        >
-                            {copied ? <Check size={14} /> : <Copy size={14} />}
-                        </button>
-                    </PortalTooltip>
-                    <PortalTooltip content="Remove all tags" align="center" enterDelay={500}>
-                        <button
-                            onClick={handleDeleteAll}
-                            className="text-text-secondary hover:text-red-500 transition-colors p-1 rounded hover:bg-hover-bg"
-                        >
-                            <Trash2 size={14} />
-                        </button>
-                    </PortalTooltip>
+                <div className="flex gap-2">
+                    {/* Copy button - always visible when tags exist (including readOnly) */}
+                    <div className={`transition-opacity duration-200 ${tags.length > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                        <PortalTooltip content={copied ? "Copied!" : "Copy all tags"} align="center" enterDelay={copied ? 0 : 500}>
+                            <button
+                                onClick={handleCopyAll}
+                                className={`transition-colors p-1 rounded hover:bg-hover-bg ${copied ? 'text-green-500' : 'text-text-secondary hover:text-text-primary'}`}
+                            >
+                                {copied ? <Check size={14} /> : <Copy size={14} />}
+                            </button>
+                        </PortalTooltip>
+                    </div>
+                    {/* Delete button - hidden in readOnly mode */}
+                    {!readOnly && (
+                        <div className={`transition-opacity duration-200 ${tags.length > 0 ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                            <PortalTooltip content="Remove all tags" align="center" enterDelay={500}>
+                                <button
+                                    onClick={handleDeleteAll}
+                                    className="text-text-secondary hover:text-red-500 transition-colors p-1 rounded hover:bg-hover-bg"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            </PortalTooltip>
+                        </div>
+                    )}
                 </div>
             </div>
 

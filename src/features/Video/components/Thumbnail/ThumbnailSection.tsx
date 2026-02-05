@@ -1,7 +1,8 @@
 import React, { useRef, useState } from 'react';
-import { Upload, MoreVertical, Trash2, History, Loader2 } from 'lucide-react';
+import { Upload, MoreVertical, Trash2, History, Loader2, Download } from 'lucide-react';
 import { ThumbnailHistoryModal } from './ThumbnailHistoryModal';
 import { type CoverVersion } from '../../../../core/utils/youtubeApi';
+import { downloadImageDirect } from '../../../../core/utils/zipUtils';
 
 interface ThumbnailSectionProps {
     value: string;
@@ -11,6 +12,8 @@ interface ThumbnailSectionProps {
     /** Callback to push current thumbnail to history before replacing it */
     onPushToHistory?: (url: string) => void;
     readOnly?: boolean;
+    /** YouTube thumbnail URL for display when value is empty (read-only YouTube videos) */
+    youtubeThumbnailUrl?: string;
     onABTestClick?: () => void;
     variants?: string[];
     history?: CoverVersion[];
@@ -52,6 +55,7 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
     onFileUpload,
     onPushToHistory,
     readOnly = false,
+    youtubeThumbnailUrl,
     onABTestClick,
     variants = [],
     history = [],
@@ -230,9 +234,30 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
                     </div>
                 ) : (
                     readOnly ? (
-                        <div className={`${widthClass} aspect-video rounded-lg bg-bg-secondary flex items-center justify-center border border-dashed border-border`}>
-                            <span className="text-xs text-text-secondary">No thumbnail</span>
-                        </div>
+                        youtubeThumbnailUrl ? (
+                            <div className={`relative group ${widthClass} aspect-video`}>
+                                <div className="w-full h-full rounded-lg border border-border overflow-hidden">
+                                    <img
+                                        src={youtubeThumbnailUrl}
+                                        alt="YouTube thumbnail"
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                                {/* Download button on hover */}
+                                <button
+                                    onClick={() => downloadImageDirect({ id: 'thumbnail', url: youtubeThumbnailUrl })}
+                                    className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center
+                                        opacity-0 group-hover:opacity-100 hover:bg-black/80 transition-all"
+                                    title="Download max quality thumbnail"
+                                >
+                                    <Download size={16} />
+                                </button>
+                            </div>
+                        ) : (
+                            <div className={`${widthClass} aspect-video rounded-lg bg-bg-secondary flex items-center justify-center border border-dashed border-border`}>
+                                <span className="text-xs text-text-secondary">No thumbnail</span>
+                            </div>
+                        )
                     ) : (
                         <div className={`relative group ${widthClass} aspect-video`}>
                             <button

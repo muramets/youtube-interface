@@ -23,7 +23,7 @@ export const DescriptionInput: React.FC<DescriptionInputProps> = ({ value, onCha
                 onChange={(e) => !readOnly && onChange(e.target.value)}
                 readOnly={readOnly}
                 placeholder="Tell viewers about your video"
-                className={`flex-1 w-full bg-transparent text-base text-text-primary outline-none resize-none placeholder-modal-placeholder ${readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-text'}`}
+                className={`flex-1 w-full bg-transparent text-base text-text-primary outline-none resize-none placeholder-modal-placeholder ${readOnly ? 'cursor-text opacity-50' : 'cursor-text'}`}
             />
         </div>
     );

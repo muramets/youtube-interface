@@ -28,6 +28,8 @@ interface PackagingFormProps {
     audioRender: string;
     setAudioRender: (value: string) => void;
     readOnly?: boolean;
+    /** YouTube thumbnail URL for read-only display */
+    youtubeThumbnailUrl?: string;
     // A/B Testing props
     abTestTitles?: string[];
     abTestStatus?: 'running' | 'completed' | 'draft';
@@ -71,6 +73,7 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
     audioRender,
     setAudioRender,
     readOnly = false,
+    youtubeThumbnailUrl,
     abTestTitles = [],
     abTestStatus = 'draft',
     onTitleABTestClick,
@@ -129,6 +132,7 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
                 onFileUpload={onFileUpload}
                 onPushToHistory={onPushToHistory}
                 readOnly={readOnly}
+                youtubeThumbnailUrl={youtubeThumbnailUrl}
                 onABTestClick={onThumbnailABTestClick}
                 variants={abTestThumbnails}
                 history={coverHistory}
@@ -143,27 +147,31 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
             />
 
             {/* Tags */}
-            <TagsSection tags={tags} setTags={setTags} />
+            <TagsSection tags={tags} setTags={setTags} readOnly={readOnly} />
 
-            {/* Show More Toggle */}
-            <button
-                onClick={() => setShowMore(!showMore)}
-                className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-button-secondary-bg text-button-secondary-text hover:bg-button-secondary-hover transition-colors"
-            >
-                {showMore ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                <span>{showMore ? 'Show less' : 'Show more'}</span>
-            </button>
+            {/* Show More Toggle - only for editable videos */}
+            {!readOnly && (
+                <>
+                    <button
+                        onClick={() => setShowMore(!showMore)}
+                        className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-button-secondary-bg text-button-secondary-text hover:bg-button-secondary-hover transition-colors"
+                    >
+                        {showMore ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        <span>{showMore ? 'Show less' : 'Show more'}</span>
+                    </button>
 
-            {/* Collapsible Section */}
-            {showMore && (
-                <ShowMoreSection
-                    publishedUrl={publishedUrl}
-                    setPublishedUrl={setPublishedUrl}
-                    videoRender={videoRender}
-                    setVideoRender={setVideoRender}
-                    audioRender={audioRender}
-                    setAudioRender={setAudioRender}
-                />
+                    {/* Collapsible Section */}
+                    {showMore && (
+                        <ShowMoreSection
+                            publishedUrl={publishedUrl}
+                            setPublishedUrl={setPublishedUrl}
+                            videoRender={videoRender}
+                            setVideoRender={setVideoRender}
+                            audioRender={audioRender}
+                            setAudioRender={setAudioRender}
+                        />
+                    )}
+                </>
             )}
         </div>
     );

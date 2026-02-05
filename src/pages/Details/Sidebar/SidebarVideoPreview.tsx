@@ -94,9 +94,9 @@ export const SidebarVideoPreview: React.FC<SidebarVideoPreviewProps> = ({
             <div className="mt-4 px-1">
                 <p className="text-sm font-medium text-text-primary">Your video</p>
                 <PortalTooltip
-                    content={<span style={{ whiteSpace: 'nowrap' }}>{title}</span>}
+                    content={title}
                     enterDelay={300}
-                    className="!bg-[#5A5A5A] !max-w-none !whitespace-nowrap"
+                    className="!bg-[#5A5A5A] !max-w-[280px] !whitespace-normal"
                     triggerClassName="block w-full"
                 >
                     <div
