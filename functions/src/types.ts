@@ -50,6 +50,8 @@ export interface YouTubeVideoSnippet {
     };
     publishedAt: string;
     channelTitle: string;
+    description?: string;
+    tags?: string[];
 }
 
 export interface YouTubeVideoStatistics {

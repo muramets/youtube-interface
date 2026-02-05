@@ -81,6 +81,8 @@ export class SyncService {
                     viewCount: viewCount,
                     likeCount: parseInt(v.statistics.likeCount || '0'),
                     commentCount: parseInt(v.statistics.commentCount || '0'),
+                    description: v.snippet.description || '',
+                    tags: v.snippet.tags || [],
                     lastUpdated: timestamp
                 }, { merge: true });
             });
