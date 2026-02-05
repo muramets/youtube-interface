@@ -69,8 +69,11 @@ export interface GalleryItem {
     /** Order index for custom sorting */
     order: number;
 
-    /** Liked status */
+    /** Liked status - DEPRECATED in favor of rating */
     isLiked?: boolean;
+
+    /** Rating: 1 = Like, -1 = Dislike, 0 or undefined = None */
+    rating?: -1 | 0 | 1;
 
     /** Original file size in bytes */
     fileSize?: number;
@@ -99,6 +102,7 @@ export interface GalleryUploadProgress {
     filename: string;
     progress: number; // 0-100
     status: 'uploading' | 'processing' | 'done' | 'error';
-    error?: string;
+    /** Rating: 1 = Like, -1 = Dislike, 0 = None */
+    rating?: number;
 }
 

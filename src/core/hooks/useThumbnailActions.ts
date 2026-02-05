@@ -7,29 +7,72 @@ import { deleteImageFromStorage } from '../services/storageService';
 
 /**
  * Hook for managing thumbnail version actions (like, remove)
+ * Now handles rating syncing between Cloned Videos and Gallery Items
  */
 export const useThumbnailActions = (videoId: string) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { updateVideo, removeVideo, videos } = useVideos(user?.uid || '', currentChannel?.id || '');
 
-    const handleLikeThumbnail = useCallback(async (version: number) => {
+    const handleRateImage = useCallback(async (version: number, rating: 1 | 0 | -1) => {
         if (!user || !currentChannel) return;
 
         const video = videos.find(v => v.id === videoId);
         if (!video) return;
 
+        const operations: Promise<unknown>[] = [];
+
+        // 1. If Cloned: Sync rating to Parent's Gallery Item by matching filename
+        if (video.isCloned && video.clonedFromId && video.customImageName) {
+            const parentVideo = videos.find(v => v.id === video.clonedFromId);
+
+            if (parentVideo) {
+                const galleryItems = parentVideo.galleryItems || [];
+
+                // Find matching item by filename (safest link between clone cover and gallery source)
+                const targetItemIndex = galleryItems.findIndex(item => item.filename === video.customImageName);
+
+                if (targetItemIndex !== -1) {
+                    const updatedGalleryItems = [...galleryItems];
+                    updatedGalleryItems[targetItemIndex] = {
+                        ...updatedGalleryItems[targetItemIndex],
+                        rating: rating,
+                        // Backward compatibility
+                        isLiked: rating === 1
+                    };
+
+                    operations.push(
+                        updateVideo({
+                            videoId: parentVideo.id,
+                            updates: { galleryItems: updatedGalleryItems }
+                        })
+                    );
+                }
+            }
+        }
+
+        // 2. Legacy: Update `likedThumbnailVersions` on the current video (for visual consistency on the card itself if still used)
+        // We might deprecate this in favor of just using gallery data, but for now keep it for the "Heart" on the card
         const likedVersions = video.likedThumbnailVersions || [];
-        const isLiked = likedVersions.includes(version);
+        let updatedLikedVersions = [...likedVersions];
 
-        const updatedLikedVersions = isLiked
-            ? likedVersions.filter(v => v !== version)
-            : [...likedVersions, version];
+        if (rating === 1) {
+            if (!updatedLikedVersions.includes(version)) {
+                updatedLikedVersions.push(version);
+            }
+        } else {
+            updatedLikedVersions = updatedLikedVersions.filter(v => v !== version);
+        }
 
-        await updateVideo({
-            videoId,
-            updates: { likedThumbnailVersions: updatedLikedVersions }
-        });
+        operations.push(
+            updateVideo({
+                videoId,
+                updates: { likedThumbnailVersions: updatedLikedVersions }
+            })
+        );
+
+        await Promise.all(operations);
+
     }, [user, currentChannel, videoId, videos, updateVideo]);
 
     const handleRemoveThumbnail = useCallback(async (version: number) => {
@@ -147,7 +190,7 @@ export const useThumbnailActions = (videoId: string) => {
     }, [user, currentChannel, videoId, videos, updateVideo, removeVideo]);
 
     return {
-        handleLikeThumbnail,
+        handleRateImage,
         handleRemoveThumbnail
     };
 };

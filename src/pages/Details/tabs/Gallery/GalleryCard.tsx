@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Info, MoreVertical, Heart, Copy, Download, Trash2, Check, AlertCircle, Loader2, Video, Clock, ListPlus, Image as ImageIcon } from 'lucide-react';
+import { Info, MoreVertical, Heart, Copy, Download, Trash2, Check, AlertCircle, Loader2, Video, Clock, ListPlus, Image as ImageIcon, ThumbsDown } from 'lucide-react';
 import type { GalleryItem } from '../../../../core/types/gallery';
 import { GALLERY_CARD_DEFAULTS } from '../../../../core/types/gallery';
 import { PortalTooltip } from '../../../../components/ui/atoms/PortalTooltip';
@@ -19,7 +19,7 @@ interface GalleryCardProps {
     channelAvatar: string;
     onDelete: () => void;
     onDownload: () => void;
-    onToggleLike: () => void;
+    onRate: (rating: 1 | 0 | -1) => void;
     isDragEnabled: boolean;
     // New action handlers
     onConvertToVideo?: () => void;
@@ -48,6 +48,7 @@ export const GalleryCardInner: React.FC<GalleryCardInnerProps> = ({
     channelAvatar,
     onDelete,
     onDownload,
+    onRate,
     isDragEnabled,
     isOverlay = false,
     style,
@@ -212,6 +213,43 @@ export const GalleryCardInner: React.FC<GalleryCardInnerProps> = ({
                                 <div className="text-xs text-gray-300">
                                     {uploadDate} {item.fileSize ? `• ${formatFileSize(item.fileSize)}` : ''}
                                 </div>
+
+                                {/* Rating Actions (New Row) */}
+                                <div className="flex items-center gap-2 pt-2 mt-2 border-t border-[#ffffff20]">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            // Toggle Dislike
+                                            onRate(item.rating === -1 ? 0 : -1);
+                                        }}
+                                        className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded transition-colors ${item.rating === -1
+                                            ? 'bg-red-500/20 text-red-500 hover:bg-red-500/30'
+                                            : 'hover:bg-white/10 text-white'
+                                            }`}
+                                        title="Dislike"
+                                    >
+                                        <ThumbsDown size={14} className={item.rating === -1 ? "fill-current" : ""} />
+                                        <span className="text-xs font-medium">Dislike</span>
+                                    </button>
+                                    <div className="w-[1px] h-4 bg-[#ffffff20]" />
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            // Toggle Like
+                                            onRate(item.rating === 1 ? 0 : 1);
+                                        }}
+                                        className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded transition-colors ${(item.rating === 1 || item.isLiked) // Support legacy isLiked
+                                            ? 'bg-red-500/20 text-red-500 hover:bg-red-500/30'
+                                            : 'hover:bg-white/10 text-white'
+                                            }`}
+                                        title="Like"
+                                    >
+                                        <Heart size={14} className={(item.rating === 1 || item.isLiked) ? "fill-current" : ""} />
+                                        <span className="text-xs font-medium">Like</span>
+                                    </button>
+                                </div>
+
+
                             </div>
                         }
                         align="right"
@@ -223,10 +261,15 @@ export const GalleryCardInner: React.FC<GalleryCardInnerProps> = ({
                     </PortalTooltip>
                 </div>
 
-                {/* Liked badge */}
-                {item.isLiked && (
+                {/* Rating Badge */}
+                {(item.isLiked || item.rating === 1) && (
                     <div className="absolute top-2 left-2">
                         <Heart size={16} className="text-red-500" fill="currentColor" />
+                    </div>
+                )}
+                {item.rating === -1 && (
+                    <div className="absolute top-2 left-2">
+                        <ThumbsDown size={16} className="text-red-500" fill="currentColor" />
                     </div>
                 )}
             </div>
@@ -378,7 +421,7 @@ export const GalleryCard: React.FC<GalleryCardProps> = ({
     channelAvatar,
     onDelete,
     onDownload,
-    onToggleLike,
+    onRate,
     isDragEnabled,
     onConvertToVideo,
     onConvertToVideoInPlaylist,
@@ -417,7 +460,7 @@ export const GalleryCard: React.FC<GalleryCardProps> = ({
             channelAvatar={channelAvatar}
             onDelete={onDelete}
             onDownload={onDownload}
-            onToggleLike={onToggleLike}
+            onRate={onRate}
             isDragEnabled={isDragEnabled}
             innerRef={setNodeRef}
             style={style}

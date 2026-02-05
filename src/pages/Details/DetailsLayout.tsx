@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useLocation } from 'react-router-dom';
 import { type VideoDetails } from '../../core/utils/youtubeApi';
 import type { GalleryItem } from '../../core/types/gallery';
 import { DetailsSidebar } from './Sidebar/DetailsSidebar';
@@ -60,24 +60,23 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
     const { currentChannel } = useChannelStore();
     const { updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
 
+    const location = useLocation();
     // URL State for Tab Persistence
     const [searchParams, setSearchParams] = useSearchParams();
 
-    // Initialize tab from URL or default to 'packaging'
-    const initialTab = searchParams.get('tab') as 'packaging' | 'traffic' | 'gallery';
-    const [activeTab, setActiveTab] = useState<'packaging' | 'traffic' | 'gallery'>(
-        (initialTab && ['packaging', 'traffic', 'gallery'].includes(initialTab))
-            ? initialTab
-            : 'packaging'
-    );
+    // URL as Single Source of Truth for Tab State
+    // No useState, no useEffect sync - just derive from URL
+    const urlTab = searchParams.get('tab') as 'packaging' | 'traffic' | 'gallery' | null;
+    const activeTab: 'packaging' | 'traffic' | 'gallery' =
+        (urlTab && ['packaging', 'traffic', 'gallery'].includes(urlTab)) ? urlTab : 'packaging';
 
-    // Sync activeTab state if URL changes externally (e.g. browser back button)
-    React.useEffect(() => {
-        const urlTab = searchParams.get('tab') as 'packaging' | 'traffic' | 'gallery';
-        if (urlTab && ['packaging', 'traffic', 'gallery'].includes(urlTab) && urlTab !== activeTab) {
-            setActiveTab(urlTab);
-        }
-    }, [searchParams, activeTab]);
+    // URL-based tab navigation (replacement for setActiveTab)
+    const navigateToTab = useCallback((tab: 'packaging' | 'traffic' | 'gallery') => {
+        setSearchParams(prev => {
+            prev.set('tab', tab);
+            return prev;
+        }, { replace: true });
+    }, [setSearchParams]);
 
     const [isFormDirty, setIsFormDirty] = useState(false);
     const [selectedSnapshot, setSelectedSnapshot] = useState<string | null>(null);
@@ -228,7 +227,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
         updateVideo,
         showToast: (msg, type) => console.log(`[Toast] ${type}: ${msg}`), // TODO: use uiStore
         setSelectedSnapshot,
-        setActiveTab,
+        setActiveTab: navigateToTab,
         selectedSnapshot,
         snapshotRequest: modalState.type === 'SNAPSHOT_REQUEST' ? {
             isForCreateVersion: modalState.isForCreateVersion,
@@ -256,8 +255,9 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
     };
 
     // Auto-switch to active version when switching tabs
-    // Refactored to be an event handler instead of useEffect to avoid cascading renders
-    const handleTabChange = (newTab: 'packaging' | 'traffic' | 'gallery') => {
+    // Using direct closure values (simpler, React Compiler compatible)
+    const handleTabChange = useCallback((newTab: 'packaging' | 'traffic' | 'gallery') => {
+        // Skip if same tab (activeTab is derived from URL)
         if (newTab === activeTab) return;
 
         // When entering Traffic tab → switch to active version if needed
@@ -286,31 +286,50 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
         setSearchParams(prev => {
             prev.set('tab', newTab);
             return prev;
-        }, { replace: true });
-
-        setActiveTab(newTab);
-    };
+        }, { replace: true, state: (location as { state?: unknown }).state }); // Preserve persisted state (playlistId)
+    }, [activeTab, versions, selectedSnapshot, setSearchParams, location]);
 
     // Handle draft deletion
-    const handleDeleteDraft = async () => {
-        if (!user?.uid || !currentChannel?.id || !video.id) return;
+    // Latest Ref Pattern: refs for stable handleDeleteDraft callback
+    const versionsRef = React.useRef(versions);
+    const userRef = React.useRef(user);
+    const currentChannelRef = React.useRef(currentChannel);
+    const updateVideoRef = React.useRef(updateVideo);
+    const videoIdRef = React.useRef(video.id);
+
+    React.useEffect(() => {
+        versionsRef.current = versions;
+        userRef.current = user;
+        currentChannelRef.current = currentChannel;
+        updateVideoRef.current = updateVideo;
+        videoIdRef.current = video.id;
+    }, [versions, user, currentChannel, updateVideo, video.id]);
+
+    const handleDeleteDraft = useCallback(async () => {
+        const currentUser = userRef.current;
+        const currentChan = currentChannelRef.current;
+        const currentVideoId = videoIdRef.current;
+        const currentUpdateVideo = updateVideoRef.current;
+        const currentVersions = versionsRef.current;
+
+        if (!currentUser?.uid || !currentChan?.id || !currentVideoId) return;
 
         try {
             // Find the last saved version to switch to
-            const lastVersion = versions.packagingHistory.length > 0
-                ? Math.max(...versions.packagingHistory.map(v => v.versionNumber))
+            const lastVersion = currentVersions.packagingHistory.length > 0
+                ? Math.max(...currentVersions.packagingHistory.map(v => v.versionNumber))
                 : null;
 
             // Update local state first for immediate UI feedback
-            versions.setHasDraft(false);
+            currentVersions.setHasDraft(false);
             if (lastVersion) {
-                versions.setActiveVersion(lastVersion);
-                versions.switchToVersion(lastVersion);
+                currentVersions.setActiveVersion(lastVersion);
+                currentVersions.switchToVersion(lastVersion);
             }
 
             // Save to Firestore
-            await updateVideo({
-                videoId: video.id,
+            await currentUpdateVideo({
+                videoId: currentVideoId,
                 updates: {
                     isDraft: false,
                     activeVersion: lastVersion || undefined
@@ -322,32 +341,51 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
             console.error('Failed to delete draft:', error);
             console.log('[Toast] error: Failed to delete draft');
         }
-    };
+    }, []); // Empty deps = 100% stable callback
 
 
     // State to track the "previous" niche filter for restoration on "Back" navigation
     const previousNicheFilterRef = React.useRef<import('../../core/types/traffic').TrafficFilter | null>(null);
     const previousSortConfigRef = React.useRef<SortConfig | null>(null);
 
-    // Context-sensitive Add Filter for Sidebar
+    // Latest Ref Pattern for filter/snapshot callbacks
+    const filtersRef = React.useRef(filters);
+    const addFilterRef = React.useRef(addFilter);
+    const removeFilterRef = React.useRef(removeFilter);
+    const sortConfigRef = React.useRef(sortConfig);
+    const activeNicheIdRef = React.useRef(activeNicheId);
+    const snapshotMgmtRef = React.useRef(snapshotMgmt);
+    const setSortConfigRef = React.useRef(setSortConfig);
+
+    React.useEffect(() => {
+        filtersRef.current = filters;
+        addFilterRef.current = addFilter;
+        removeFilterRef.current = removeFilter;
+        sortConfigRef.current = sortConfig;
+        activeNicheIdRef.current = activeNicheId;
+        snapshotMgmtRef.current = snapshotMgmt;
+        setSortConfigRef.current = setSortConfig;
+    }, [filters, addFilter, removeFilter, sortConfig, activeNicheId, snapshotMgmt, setSortConfig]);
+
+    // Context-sensitive Add Filter for Sidebar - 100% stable callback
     const handleSidebarAddFilter = React.useCallback((filter: Omit<import('../../core/types/traffic').TrafficFilter, 'id'>) => {
         if (filter.type === 'niche') {
             // If we are starting a navigation chain (ref is null), save the current state
 
             // Save Sort Config if not already saved (first jump)
             if (previousSortConfigRef.current === null) {
-                previousSortConfigRef.current = sortConfig;
+                previousSortConfigRef.current = sortConfigRef.current;
             }
 
             if (previousNicheFilterRef.current === null) {
-                const activeNicheFilter = filters.find(f => f.type === 'niche');
+                const activeNicheFilter = filtersRef.current.find(f => f.type === 'niche');
                 if (activeNicheFilter) {
                     previousNicheFilterRef.current = activeNicheFilter;
                 }
             }
         }
-        addFilter(filter);
-    }, [filters, addFilter, sortConfig]);
+        addFilterRef.current(filter);
+    }, []);
 
     // Context-sensitive Remove Filter to clear restoration state
     const handleRemoveFilter = React.useCallback((id: string) => {
@@ -359,6 +397,57 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
         }
         removeFilter(id);
     }, [filters, removeFilter]);
+
+    // OPTIMIZATION: Memoize all callbacks passed to DetailsSidebar to prevent re-renders
+    const stableSnapshots = useMemo(() => trafficState.trafficData?.snapshots || [], [trafficState.trafficData?.snapshots]);
+    const stableGallerySources = useMemo(() => video.gallerySources || [], [video.gallerySources]);
+
+    const handleSnapshotClickWrapped = useCallback((snapshotId: string) => {
+        // FIX: Return to previous niche state (e.g. Unassigned) if it existed, otherwise just clear current niche
+        const currentActiveNicheId = activeNicheIdRef.current;
+        if (currentActiveNicheId) {
+            if (previousNicheFilterRef.current) {
+                // Restore the saved "Base" filter (e.g. Unassigned)
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { id: _unused, ...filterProps } = previousNicheFilterRef.current;
+                addFilterRef.current(filterProps);
+                previousNicheFilterRef.current = null; // Reset after restore
+            } else {
+                // No previous state saved, just clear current niche
+                const nicheFilter = filtersRef.current.find(f =>
+                    f.type === 'niche' &&
+                    Array.isArray(f.value) &&
+                    (f.value as string[]).includes(currentActiveNicheId)
+                );
+                if (nicheFilter) {
+                    removeFilterRef.current(nicheFilter.id);
+                }
+            }
+
+            // Restore Sort
+            if (previousSortConfigRef.current) {
+                setSortConfigRef.current(previousSortConfigRef.current);
+                previousSortConfigRef.current = null;
+            }
+        }
+        snapshotMgmtRef.current.handleSnapshotClick(snapshotId);
+    }, []); // Empty deps = 100% stable callback
+
+    const handleAddSource = useCallback(() => {
+        setIsAddSourceModalOpen(true);
+    }, []);
+
+    const handleDeleteSource = useCallback((sourceId: string) => {
+        if (deleteSourceRef.current) {
+            deleteSourceRef.current(sourceId);
+        }
+    }, []);
+
+    const handleUpdateSource = useCallback((sourceId: string, data: { type?: import('../../core/types/gallery').GallerySourceType; label?: string; url?: string }) => {
+        if (updateSourceRef.current) {
+            updateSourceRef.current(sourceId, data);
+        }
+    }, []);
 
     return (
         <div className="flex-1 flex overflow-hidden bg-video-edit-bg">
@@ -379,38 +468,9 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
                     onVersionClick={versionMgmt.handleVersionClick}
                     onDeleteVersion={versionMgmt.handleDeleteVersion}
                     onDeleteDraft={handleDeleteDraft}
-                    snapshots={trafficState.trafficData?.snapshots || []}
+                    snapshots={stableSnapshots}
                     selectedSnapshot={selectedSnapshot}
-                    onSnapshotClick={(snapshotId) => {
-                        // FIX: Return to previous niche state (e.g. Unassigned) if it existed, otherwise just clear current niche
-                        if (activeNicheId) {
-                            if (previousNicheFilterRef.current) {
-                                // Restore the saved "Base" filter (e.g. Unassigned)
-                                // We use addFilter which will replace the current Niche filter
-                                // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                                const { id: _unused, ...filterProps } = previousNicheFilterRef.current;
-                                addFilter(filterProps);
-                                previousNicheFilterRef.current = null; // Reset after restore
-                            } else {
-                                // No previous state saved, just clear current niche
-                                const nicheFilter = filters.find(f =>
-                                    f.type === 'niche' &&
-                                    Array.isArray(f.value) &&
-                                    (f.value as string[]).includes(activeNicheId)
-                                );
-                                if (nicheFilter) {
-                                    removeFilter(nicheFilter.id);
-                                }
-                            }
-
-                            // Restore Sort
-                            if (previousSortConfigRef.current) {
-                                setSortConfig(previousSortConfigRef.current);
-                                previousSortConfigRef.current = null;
-                            }
-                        }
-                        snapshotMgmt.handleSnapshotClick(snapshotId);
-                    }}
+                    onSnapshotClick={handleSnapshotClickWrapped}
                     onDeleteSnapshot={snapshotMgmt.handleDeleteSnapshot}
                     activeTab={activeTab}
                     onTabChange={handleTabChange}
@@ -422,20 +482,12 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
                     activeNicheId={activeNicheId}
                     playlistId={playlistId}
                     // Gallery Sources props
-                    gallerySources={video.gallerySources || []}
+                    gallerySources={stableGallerySources}
                     activeSourceId={activeSourceId}
                     onSourceClick={setActiveSourceId}
-                    onAddSource={() => setIsAddSourceModalOpen(true)}
-                    onDeleteSource={(sourceId: string) => {
-                        if (deleteSourceRef.current) {
-                            deleteSourceRef.current(sourceId);
-                        }
-                    }}
-                    onUpdateSource={(sourceId, data) => {
-                        if (updateSourceRef.current) {
-                            updateSourceRef.current(sourceId, data);
-                        }
-                    }}
+                    onAddSource={handleAddSource}
+                    onDeleteSource={handleDeleteSource}
+                    onUpdateSource={handleUpdateSource}
                 />
 
                 {/* Main Content Area */}

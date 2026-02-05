@@ -49,7 +49,7 @@ interface DetailsSidebarProps {
     onUpdateSource: (sourceId: string, data: { type?: import('../../../core/types/gallery').GallerySourceType; label?: string; url?: string }) => void;
 }
 
-export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
+export const DetailsSidebar = React.memo<DetailsSidebarProps>(({
     video,
     versions,
     viewingVersion,
@@ -77,7 +77,9 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
     onDeleteSource,
     onUpdateSource
 }) => {
-    // ... (rest is same until TrafficNav)
+    // DEBUG: Identify changed props causing re-renders
+    // (Removed debug logs)
+
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { playlists } = usePlaylists(user?.uid || '', currentChannel?.id || '');
@@ -97,10 +99,12 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
     // By default, the active tab's section is expanded.
     const [expandedSection, setExpandedSection] = React.useState<'packaging' | 'traffic' | 'gallery' | null>(activeTab);
 
-    // Update expansion when active tab changes (e.g. from external source)
-    React.useEffect(() => {
+    // Render-phase state update to prevent flickering (double render)
+    const [prevActiveTab, setPrevActiveTab] = React.useState(activeTab);
+    if (activeTab !== prevActiveTab) {
+        setPrevActiveTab(activeTab);
         setExpandedSection(activeTab);
-    }, [activeTab]);
+    }
 
     const handleToggleSection = (section: 'packaging' | 'traffic' | 'gallery') => {
         setExpandedSection(prev => prev === section ? null : section);
@@ -215,4 +219,4 @@ export const DetailsSidebar: React.FC<DetailsSidebarProps> = ({
             </nav>
         </aside>
     );
-};
+});

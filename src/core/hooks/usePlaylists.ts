@@ -77,7 +77,7 @@ export const usePlaylists = (userId: string, channelId: string) => {
         }
     });
 
-    return {
+    return useMemo(() => ({
         playlists,
         isLoading,
         error,
@@ -88,5 +88,16 @@ export const usePlaylists = (userId: string, channelId: string) => {
         removeVideosFromPlaylist: removeVideosFromPlaylistMutation.mutateAsync,
         reorderPlaylists: reorderPlaylistsMutation.mutateAsync,
         reorderPlaylistVideos: reorderPlaylistVideosMutation.mutateAsync
-    };
+    }), [
+        playlists,
+        isLoading,
+        error,
+        createPlaylistMutation.mutateAsync,
+        updatePlaylistMutation.mutateAsync,
+        deletePlaylistMutation.mutateAsync,
+        addVideosToPlaylistMutation.mutateAsync,
+        removeVideosFromPlaylistMutation.mutateAsync,
+        reorderPlaylistsMutation.mutateAsync,
+        reorderPlaylistVideosMutation.mutateAsync
+    ]);
 };

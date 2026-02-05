@@ -103,10 +103,13 @@ export const useVersionManagement = ({
      * Обработчик удаления версии.
      * Проверяет наличие traffic snapshots для этой версии (только для опубликованных видео).
      */
+    // Granular dependency: extract snapshots reference for stable useCallback
+    const trafficSnapshots = trafficState.trafficData?.snapshots;
+
     const handleDeleteVersion = useCallback((versionNumber: number, versionLabel?: string) => {
         // Проверяем, есть ли связанные снепшоты трафика
         // Typed properly via TrafficData
-        const relatedSnapshots = trafficState.trafficData?.snapshots?.filter(
+        const relatedSnapshots = trafficSnapshots?.filter(
             s => s.version === versionNumber
         ) || [];
 
@@ -122,7 +125,7 @@ export const useVersionManagement = ({
 
             // Get previous version's latest snapshot view count
             // Find snapshots for version < versionNumber
-            const allSnapshots = trafficState.trafficData?.snapshots || [];
+            const allSnapshots = trafficSnapshots || [];
             const previousVersionSnapshots = allSnapshots.filter(s => s.version < versionNumber);
 
             let previousTotalViews = 0;
@@ -136,7 +139,7 @@ export const useVersionManagement = ({
         }
 
         onOpenDeleteConfirm(versionNumber, relatedSnapshots.length, totalViews, versionLabel);
-    }, [trafficState, onOpenDeleteConfirm]);
+    }, [trafficSnapshots, onOpenDeleteConfirm]);
 
     /**
      * Подтверждение удаления версии.

@@ -46,7 +46,17 @@ export const useTrafficDataLoader = ({
     packagingHistory = [],
     groups = []
 }: UseTrafficDataLoaderProps) => {
-    const [displayedSources, setDisplayedSources] = useState<TrafficSource[]>([]);
+    const [displayedSources, _setDisplayedSources] = useState<TrafficSource[]>([]);
+
+    // Stable setter to prevent unnecessary re-renders (especially [] -> [])
+    const setDisplayedSources = useCallback((newSources: TrafficSource[]) => {
+        _setDisplayedSources(prev => {
+            if (prev === newSources) return prev;
+            if (prev.length === 0 && newSources.length === 0) return prev;
+            return newSources;
+        });
+    }, []);
+
     const [actualTotalRow, setActualTotalRow] = useState<TrafficSource | undefined>(undefined);
     const [trashMetrics, setTrashMetrics] = useState<TrashMetrics>({ impressions: 0, views: 0 });
     const [isLoadingSnapshot, setIsLoadingSnapshot] = useState(false);
@@ -76,13 +86,13 @@ export const useTrafficDataLoader = ({
         return { impressions: trashImpressions, views: trashViews };
     }, [trashVideoIds]); // Now stable due to useMemo above
 
-    const retry = () => {
+    const retry = useCallback(() => {
         logger.info('User initiated retry for traffic data loading', { component: 'useTrafficDataLoader' });
         setError(null);
         lastLoadedKeyRef.current = null;
         setActualTotalRow(undefined);
         setRetryCount(prev => prev + 1);
-    };
+    }, []);
 
     useEffect(() => {
         const loadData = async () => {
@@ -305,7 +315,8 @@ export const useTrafficDataLoader = ({
         trafficData?.sources,
         trafficData?.totalRow,
         packagingHistory,
-        displayedSources.length
+        displayedSources.length,
+        setDisplayedSources
     ]);
 
     // Separate Effect for Trash Metrics to prevent Loading Loop
@@ -319,7 +330,15 @@ export const useTrafficDataLoader = ({
         }
     }, [displayedSources, calculateTrashMetrics]);
 
-    return { displayedSources, actualTotalRow, trashMetrics, isLoadingSnapshot, error, retry, deltaContext };
+    return useMemo(() => ({
+        displayedSources,
+        actualTotalRow,
+        trashMetrics,
+        isLoadingSnapshot,
+        error,
+        retry,
+        deltaContext
+    }), [displayedSources, actualTotalRow, trashMetrics, isLoadingSnapshot, error, deltaContext, retry]);
 };
 
 /**

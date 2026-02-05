@@ -94,14 +94,6 @@ export const GalleryTab: React.FC<GalleryTabProps> = ({
         // This prevents wiping out items we just added but haven't saved/synced yet
         const hasOptimisticItems = extraLocalItems.some(item => (Date.now() - item.uploadedAt) < 60000);
 
-        console.log('[GallerySync] Update:', {
-            serverCount: newItems.length,
-            localCount: gallery.items.length,
-            extraLocal: extraLocalItems.length,
-            hasOptimistic: hasOptimisticItems,
-            serverHasNew: serverHasNewItems
-        });
-
         if (serverHasNewItems || extraLocalItems.length > 0) {
             if (hasOptimisticItems) {
                 // SMART MERGE: Server items + Optimistic items
@@ -276,7 +268,7 @@ export const GalleryTab: React.FC<GalleryTabProps> = ({
                         zoomLevel={zoomLevel}
                         onDelete={gallery.removeImage}
                         onDownload={gallery.downloadOriginal}
-                        onToggleLike={gallery.toggleLike}
+                        onRate={gallery.rateImage}
                         onUploadFiles={gallery.uploadImages}
                         uploadingFiles={gallery.uploadingFiles}
                         onConvertToVideo={handleConvertToVideo}

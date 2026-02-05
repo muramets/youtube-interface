@@ -167,6 +167,7 @@ export const updateGalleryOrder = async (
 
 /**
  * Toggle liked status for a gallery item.
+ * @deprecated Use setGalleryItemRating instead
  */
 export const toggleGalleryItemLike = async (
     userId: string,
@@ -178,11 +179,42 @@ export const toggleGalleryItemLike = async (
     // Find and toggle the item
     const updatedItems = currentItems.map(item =>
         item.id === itemId
-            ? { ...item, isLiked: !item.isLiked }
+            ? { ...item, isLiked: !item.isLiked, rating: (!item.isLiked ? 1 : 0) as 0 | 1 | -1 }
             : item
     );
 
     // Update Firestore
+    const videoRef = doc(db, 'users', userId, 'channels', channelId, 'videos', videoId);
+    await updateDoc(videoRef, {
+        galleryItems: updatedItems
+    });
+
+    return updatedItems;
+};
+
+/**
+ * Set rating for a gallery item.
+ * rating: 1 = Like, -1 = Dislike, 0 = None
+ */
+export const setGalleryItemRating = async (
+    userId: string,
+    channelId: string,
+    videoId: string,
+    itemId: string,
+    rating: number,
+    currentItems: GalleryItem[]
+): Promise<GalleryItem[]> => {
+    const updatedItems = currentItems.map(item =>
+        item.id === itemId
+            ? {
+                ...item,
+                rating: rating as 0 | 1 | -1,
+                // Backward compatibility sync
+                isLiked: rating === 1
+            }
+            : item
+    );
+
     const videoRef = doc(db, 'users', userId, 'channels', channelId, 'videos', videoId);
     await updateDoc(videoRef, {
         galleryItems: updatedItems

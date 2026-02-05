@@ -257,15 +257,19 @@ export const useSnapshotManagement = ({
     /**
      * Обработчик удаления снапшота
      */
+    // Granular dependencies for stability
+    const trafficSnapshots = trafficState.trafficData?.snapshots;
+    const deleteSnapshotHandler = trafficState.handleDeleteSnapshot;
+
     const handleDeleteSnapshot = useCallback(async (snapshotId: string) => {
         const isDeletingActive = selectedSnapshot === snapshotId;
 
         // Удаляем через trafficState
-        await trafficState.handleDeleteSnapshot(snapshotId);
+        await deleteSnapshotHandler(snapshotId);
 
         // Если удалили активный снапшот, переключаемся на предыдущий
         if (isDeletingActive) {
-            const allSnapshots = trafficState.trafficData?.snapshots || [];
+            const allSnapshots = trafficSnapshots || [];
             const sortedSnapshots = [...allSnapshots]
                 .filter(s => s.id !== snapshotId)
                 .sort((a, b) => b.timestamp - a.timestamp);
@@ -277,7 +281,7 @@ export const useSnapshotManagement = ({
                 setActiveTab('traffic');
             }
         }
-    }, [selectedSnapshot, trafficState, setSelectedSnapshot, setActiveTab]);
+    }, [selectedSnapshot, trafficSnapshots, deleteSnapshotHandler, setSelectedSnapshot, setActiveTab]);
 
     return {
         handleRequestSnapshot,

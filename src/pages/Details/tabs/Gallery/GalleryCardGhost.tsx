@@ -40,7 +40,7 @@ export const GalleryCardGhost: React.FC<GalleryCardGhostProps> = ({ item }) => {
                 channelAvatar={channelAvatar}
                 onDelete={() => { }} // No-op during drag
                 onDownload={() => { }} // No-op during drag
-                onToggleLike={() => { }} // No-op during drag
+                onRate={() => { }} // No-op during drag
                 isDragEnabled={false}
                 isOverlay={true}
             />

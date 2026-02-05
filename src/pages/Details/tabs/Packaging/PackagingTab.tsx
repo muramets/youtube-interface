@@ -40,10 +40,11 @@ interface PackagingTabProps {
 }
 
 export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState, onDirtyChange, onRestoreVersion, onRequestSnapshot, trafficData, playlistId }) => {
+
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { videos } = useVideos(user?.uid || '', currentChannel?.id || '');
-    const { handleLikeThumbnail, handleRemoveThumbnail } = useThumbnailActions(video.id);
+    const { handleRateImage, handleRemoveThumbnail } = useThumbnailActions(video.id);
     const sentinelRef = useRef<HTMLDivElement>(null);
     // Detect scroll for sticky header shadow
     const [isScrolled, setIsScrolled] = useState(false);
@@ -446,7 +447,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                                 );
                             }}
                             likedThumbnailVersions={video.likedThumbnailVersions}
-                            onLikeThumbnail={handleLikeThumbnail}
+                            onLikeThumbnail={(version) => handleRateImage(version, 1)}
                             onRemoveThumbnail={handleRemoveThumbnail}
                             expandShowMore={searchParams.get('action') === 'update_link'}
                         />

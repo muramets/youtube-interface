@@ -36,7 +36,10 @@ export const DetailsPage: React.FC = () => {
     useEffect(() => {
         if (channelId && channels.length > 0) {
             const urlChannel = channels.find((c: { id: string }) => c.id === channelId);
-            if (urlChannel) {
+            const currentStoreChannel = useChannelStore.getState().currentChannel;
+
+            // OPTIMIZATION: Only update if channel actually changed (prevents re-render loops)
+            if (urlChannel && currentStoreChannel?.id !== urlChannel.id) {
                 setCurrentChannel(urlChannel);
             }
         }

@@ -96,7 +96,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   }
 
   // Hover color logic - no border for colored custom cards for cleaner premium look
-  const { handleLikeThumbnail, handleRemoveThumbnail } = useThumbnailActions(video.id);
+  const { handleRateImage, handleRemoveThumbnail } = useThumbnailActions(video.id);
 
   const hoverBorderColor = video.isCustom || video.isCloned || video.publishedVideoId || viewMode === 'youtube'
     ? 'border-transparent'
@@ -439,8 +439,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                   <ClonedVideoTooltipContent
                     version={video.customImageVersion || 1}
                     filename={video.customImageName || 'Unknown Filename'}
-                    isLiked={video.likedThumbnailVersions?.includes(video.customImageVersion || 1)}
-                    onLike={() => handleLikeThumbnail(video.customImageVersion || 1)}
+                    rating={video.likedThumbnailVersions?.includes(video.customImageVersion || 1) ? 1 : 0}
+                    onRate={(rating) => handleRateImage(video.customImageVersion || 1, rating)}
                     onRemove={() => handleRemoveThumbnail(video.customImageVersion || 1)}
                   />
                 }

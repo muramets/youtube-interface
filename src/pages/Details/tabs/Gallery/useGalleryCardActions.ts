@@ -136,8 +136,9 @@ export function useGalleryCardActions(video?: VideoDetails): UseGalleryCardActio
         setIsCloning(true);
         try {
             // Create a minimal "original video" for clone source
+            // Use actual video.id if available (for rating sync), otherwise create synthetic ID
             const originalVideo: VideoDetails = {
-                id: `gallery-source-${item.id}`,
+                id: video?.id || `gallery-source-${item.id}`,
                 title: uploadDefaults.title || item.filename.replace(/\.[^/.]+$/, ''),
                 description: uploadDefaults.description || '',
                 tags: uploadDefaults.tags || [],
@@ -172,7 +173,7 @@ export function useGalleryCardActions(video?: VideoDetails): UseGalleryCardActio
         } finally {
             setIsCloning(false);
         }
-    }, [user, currentChannel, uploadDefaults, cloneVideo, cloneSettings, showToast, navigate]);
+    }, [user, currentChannel, uploadDefaults, cloneVideo, cloneSettings, showToast, navigate, video?.id]);
 
     // Action 4: Clone to Playlist
     const handleCloneToPlaylist = useCallback(async (
@@ -184,8 +185,9 @@ export function useGalleryCardActions(video?: VideoDetails): UseGalleryCardActio
 
         setIsCloning(true);
         try {
+            // Use actual video.id if available (for rating sync), otherwise create synthetic ID
             const originalVideo: VideoDetails = {
-                id: `gallery-source-${item.id}`,
+                id: video?.id || `gallery-source-${item.id}`,
                 title: uploadDefaults.title || item.filename.replace(/\.[^/.]+$/, ''),
                 description: uploadDefaults.description || '',
                 tags: uploadDefaults.tags || [],
@@ -229,7 +231,7 @@ export function useGalleryCardActions(video?: VideoDetails): UseGalleryCardActio
         } finally {
             setIsCloning(false);
         }
-    }, [user, currentChannel, uploadDefaults, cloneVideo, cloneSettings, showToast, navigate]);
+    }, [user, currentChannel, uploadDefaults, cloneVideo, cloneSettings, showToast, navigate, video?.id]);
 
     // Action 5: Set as Cover (Custom Videos Only)
     const handleSetAsCover = useCallback(async (item: GalleryItem) => {

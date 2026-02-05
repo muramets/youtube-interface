@@ -1,19 +1,19 @@
 import React, { useState } from 'react';
-import { Copy, Check, Heart, Trash2, AlertCircle } from 'lucide-react';
+import { Copy, Check, Heart, Trash2, AlertCircle, ThumbsDown } from 'lucide-react';
 
 interface ClonedVideoTooltipContentProps {
     version: number;
     filename: string;
-    isLiked?: boolean;
-    onLike?: () => void;
+    rating?: number; // 1 = Like, -1 = Dislike, 0 = None
+    onRate?: (rating: 1 | 0 | -1) => void;
     onRemove?: () => void;
 }
 
 export const ClonedVideoTooltipContent: React.FC<ClonedVideoTooltipContentProps> = ({
     version,
     filename,
-    isLiked = false,
-    onLike,
+    rating = 0,
+    onRate,
     onRemove
 }) => {
     const [copied, setCopied] = useState(false);
@@ -26,9 +26,11 @@ export const ClonedVideoTooltipContent: React.FC<ClonedVideoTooltipContentProps>
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const handleLike = (e: React.MouseEvent) => {
+    const handleRate = (e: React.MouseEvent, value: 1 | -1) => {
         e.stopPropagation();
-        onLike?.();
+        // Toggle: if clicking same value, set to 0 (remove rating)
+        const newRating = rating === value ? 0 : value;
+        onRate?.(newRating);
     };
 
     const handleRemove = (e: React.MouseEvent) => {
@@ -50,17 +52,31 @@ export const ClonedVideoTooltipContent: React.FC<ClonedVideoTooltipContentProps>
                     v.{version}
                 </div>
                 <div className="flex items-center gap-0.5">
-                    {onLike && (
-                        <button
-                            onClick={handleLike}
-                            className="p-1 rounded hover:bg-white/10 text-white transition-colors border-none cursor-pointer flex-shrink-0"
-                            title={isLiked ? "Unlike" : "Like"}
-                        >
-                            <Heart
-                                size={12}
-                                className={isLiked ? "fill-red-500 text-red-500" : ""}
-                            />
-                        </button>
+                    {onRate && (
+                        <>
+                            {/* Dislike Button */}
+                            <button
+                                onClick={(e) => handleRate(e, -1)}
+                                className="p-1 rounded hover:bg-white/10 text-white transition-colors border-none cursor-pointer flex-shrink-0"
+                                title={rating === -1 ? "Remove Dislike" : "Dislike"}
+                            >
+                                <ThumbsDown
+                                    size={12}
+                                    className={rating === -1 ? "fill-red-500 text-red-500" : ""}
+                                />
+                            </button>
+                            {/* Like Button */}
+                            <button
+                                onClick={(e) => handleRate(e, 1)}
+                                className="p-1 rounded hover:bg-white/10 text-white transition-colors border-none cursor-pointer flex-shrink-0"
+                                title={rating === 1 ? "Unlike" : "Like"}
+                            >
+                                <Heart
+                                    size={12}
+                                    className={rating === 1 ? "fill-red-500 text-red-500" : ""}
+                                />
+                            </button>
+                        </>
                     )}
                     <button
                         onClick={handleCopy}
@@ -73,8 +89,8 @@ export const ClonedVideoTooltipContent: React.FC<ClonedVideoTooltipContentProps>
                         <button
                             onClick={handleRemove}
                             className={`p-1 rounded flex items-center justify-center transition-all border-none cursor-pointer flex-shrink-0 ${confirmRemove
-                                    ? 'bg-red-600 scale-110 shadow-lg shadow-red-500/20'
-                                    : 'hover:bg-white/10'
+                                ? 'bg-red-600 scale-110 shadow-lg shadow-red-500/20'
+                                : 'hover:bg-white/10'
                                 } text-white`}
                             title={confirmRemove ? "Click again to confirm" : "Remove"}
                         >

@@ -14,7 +14,7 @@ import {
     addGalleryItem,
     removeGalleryItem,
     updateGalleryOrder,
-    toggleGalleryItemLike,
+    setGalleryItemRating,
     downloadGalleryItem,
     addGallerySource,
     deleteGallerySource,
@@ -62,7 +62,7 @@ interface UseGalleryReturn {
     uploadImages: (files: File[]) => Promise<void>;
     removeImage: (item: GalleryItem) => Promise<void>;
     reorderItems: (reorderedItems: GalleryItem[]) => Promise<void>;
-    toggleLike: (itemId: string) => Promise<void>;
+    rateImage: (itemId: string, rating: 1 | 0 | -1) => Promise<void>;
     downloadOriginal: (item: GalleryItem) => Promise<void>;
 
     // Source Actions
@@ -346,34 +346,32 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
         }
     }, [user, currentChannel, videoId, items]);
 
-    // Toggle like
-    const toggleLike = useCallback(async (itemId: string) => {
+    // Rate image (Like/Dislike/None)
+    const rateImage = useCallback(async (itemId: string, rating: 1 | 0 | -1) => {
         if (!user?.uid || !currentChannel?.id) {
             throw new Error('User or channel not available');
         }
 
         // Optimistic update
+        const previousItems = items;
         setItems(prev => prev.map(item =>
             item.id === itemId
-                ? { ...item, isLiked: !item.isLiked }
+                ? { ...item, rating, isLiked: rating === 1 }
                 : item
         ));
 
         try {
-            await toggleGalleryItemLike(
+            await setGalleryItemRating(
                 user.uid,
                 currentChannel.id,
                 videoId,
                 itemId,
+                rating,
                 items
             );
         } catch (error) {
             // Rollback on error
-            setItems(prev => prev.map(item =>
-                item.id === itemId
-                    ? { ...item, isLiked: !item.isLiked }
-                    : item
-            ));
+            setItems(previousItems);
             throw error;
         }
     }, [user, currentChannel, videoId, items]);
@@ -493,7 +491,7 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
         uploadImages,
         removeImage,
         reorderItems,
-        toggleLike,
+        rateImage,
         downloadOriginal,
         addSource: addSourceHandler,
         deleteSource: deleteSourceHandler,

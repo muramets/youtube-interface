@@ -53,8 +53,6 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
     cloningVersion,
     currentVersionInfo,
     checkIsCloned,
-    likedThumbnailVersions = [],
-    onLikeThumbnail,
     onRemoveThumbnail
 }) => {
     const {
@@ -242,8 +240,6 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                         }}
                                         onTooltipOpenChange={setIsCurrentTooltipOpen}
                                         isCloned={checkIsCloned?.(effectiveCurrentThumbnail) || false}
-                                        isLiked={likedThumbnailVersions.includes(currentVersionInfo?.version || 0)}
-                                        onLike={() => onLikeThumbnail?.(currentVersionInfo?.version || 0)}
                                         onRemove={() => onRemoveThumbnail?.(currentVersionInfo?.version || 0)}
                                     />
                                 </div>
@@ -325,8 +321,6 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                                         className="z-30"
                                                         onTooltipOpenChange={setIsHistoricalTooltipOpen}
                                                         isCloned={checkIsCloned?.(selectedVersion.url) || false}
-                                                        isLiked={likedThumbnailVersions.includes(selectedVersion.version)}
-                                                        onLike={() => onLikeThumbnail?.(selectedVersion.version)}
                                                         onRemove={() => onRemoveThumbnail?.(selectedVersion.version)}
                                                     />
                                                 )}
@@ -419,8 +413,6 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
                                                 size="small"
                                                 onTooltipOpenChange={(open) => setOpenTooltipTimestamp(open ? version.timestamp : null)}
                                                 isCloned={checkIsCloned?.(version.url) || false}
-                                                isLiked={likedThumbnailVersions.includes(version.version)}
-                                                onLike={() => onLikeThumbnail?.(version.version)}
                                                 onRemove={() => onRemoveThumbnail?.(version.version)}
                                             />
 

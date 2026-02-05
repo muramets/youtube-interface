@@ -26,7 +26,7 @@ interface GalleryGridProps {
     zoomLevel: number;
     onDelete: (item: GalleryItem) => Promise<void>;
     onDownload: (item: GalleryItem) => Promise<void>;
-    onToggleLike: (itemId: string) => Promise<void>;
+    onRate: (itemId: string, rating: 1 | 0 | -1) => Promise<void>;
     // File upload props
     onUploadFiles: (files: File[]) => Promise<void>;
     uploadingFiles: UploadingFile[];
@@ -68,7 +68,7 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
     zoomLevel,
     onDelete,
     onDownload,
-    onToggleLike,
+    onRate,
     onUploadFiles,
     uploadingFiles,
     onConvertToVideo,
@@ -204,7 +204,7 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
                             channelAvatar={channelAvatar}
                             onDelete={() => onDelete(item)}
                             onDownload={() => onDownload(item)}
-                            onToggleLike={() => onToggleLike(item.id)}
+                            onRate={(rating) => onRate(item.id, rating)}
                             isDragEnabled={isDragEnabled && !isUploading}
                             onConvertToVideo={onConvertToVideo ? () => onConvertToVideo(item) : undefined}
                             onConvertToVideoInPlaylist={onConvertToVideoInPlaylist ? () => onConvertToVideoInPlaylist(item) : undefined}

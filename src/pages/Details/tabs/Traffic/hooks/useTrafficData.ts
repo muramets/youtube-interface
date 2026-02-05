@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { TrafficService } from '../../../../../core/services/traffic';
 import { useUIStore } from '../../../../../core/stores/uiStore';
 import type { TrafficData, TrafficSource } from '../../../../../core/types/traffic';
@@ -134,7 +134,7 @@ export const useTrafficData = ({ userId, channelId, video }: UseTrafficDataProps
         setData(newData);
     }, []);
 
-    return {
+    return useMemo(() => ({
         trafficData: data,
         isLoading,
         isSaving,
@@ -144,5 +144,5 @@ export const useTrafficData = ({ userId, channelId, video }: UseTrafficDataProps
         saveData,
         updateLocalData, // New exposed method
         refetch
-    };
+    }), [data, isLoading, isSaving, error, handleCsvUpload, handleDeleteSnapshot, saveData, updateLocalData, refetch]);
 };
