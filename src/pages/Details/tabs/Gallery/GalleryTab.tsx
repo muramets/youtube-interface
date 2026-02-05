@@ -7,13 +7,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import type { VideoDetails } from '../../../../core/utils/youtubeApi';
-import type { GalleryItem } from '../../../../core/types/gallery';
 import { useGallery } from '../../hooks/useGallery';
 import { useChannelStore } from '../../../../core/stores/channelStore';
 import { GalleryHeader } from './GalleryHeader';
 import { GalleryUploadZone } from './GalleryUploadZone';
 import { GalleryGrid } from './GalleryGrid';
-import { GalleryZoomControls, getGalleryZoomLevel } from './GalleryZoomControls';
+import { GalleryZoomControls } from './GalleryZoomControls';
+import { getGalleryZoomLevel } from './galleryZoomUtils';
 
 interface GalleryTabProps {
     video: VideoDetails;

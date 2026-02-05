@@ -120,11 +120,34 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
         }
     }, [onUpload, isUploading]);
 
-    // Track item count before upload starts
-    const uploadStartCountRef = React.useRef(items.length);
-    if (!isUploading) {
-        uploadStartCountRef.current = items.length;
+    // Track upload state using derived state pattern
+    // Store previous isUploading and items.length values
+    const [prevUploadState, setPrevUploadState] = useState({
+        isUploading: isUploading,
+        itemCount: items.length
+    });
+
+    // Derive the upload start count
+    // When upload starts (transitions from false to true), we capture the count
+    let uploadStartCount = prevUploadState.itemCount;
+
+    // Check if upload state changed
+    if (prevUploadState.isUploading !== isUploading) {
+        // Upload state changed - update stored state
+        const newState = {
+            isUploading: isUploading,
+            itemCount: items.length
+        };
+        setPrevUploadState(newState);
+
+        // If we just stopped uploading, use current count as the new baseline
+        if (!isUploading) {
+            uploadStartCount = items.length;
+        }
     }
+
+    // Check if new item has arrived (compare current length with upload start count)
+    const hasNewItemArrived = items.length > uploadStartCount;
 
     return (
         <div
@@ -182,9 +205,6 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
                         )}
 
                         {items.map((item, index) => {
-                            // Check if new item has arrived (length increased)
-                            const hasNewItemArrived = items.length > uploadStartCountRef.current;
-
                             // Hide the first item (duplicate) ONLY if new item has arrived
                             // and we are in 'newest' sort mode (where new item appears first)
                             const isHidden = isUploading &&

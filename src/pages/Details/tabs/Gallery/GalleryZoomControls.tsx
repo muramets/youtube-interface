@@ -7,11 +7,11 @@
 
 import React from 'react';
 import { Plus, Minus } from 'lucide-react';
-
-const STORAGE_KEY = 'gallery-zoom-level';
-const MIN_ZOOM = 2;
-const MAX_ZOOM = 9;
-const DEFAULT_ZOOM = 4;
+import {
+    GALLERY_ZOOM_STORAGE_KEY,
+    MIN_GALLERY_ZOOM,
+    MAX_GALLERY_ZOOM
+} from './galleryZoomUtils';
 
 interface GalleryZoomControlsProps {
     value: number;
@@ -23,18 +23,18 @@ export const GalleryZoomControls: React.FC<GalleryZoomControlsProps> = ({
     onChange
 }) => {
     const handleZoomOut = () => {
-        if (value < MAX_ZOOM) {
+        if (value < MAX_GALLERY_ZOOM) {
             const newValue = value + 1;
             onChange(newValue);
-            localStorage.setItem(STORAGE_KEY, newValue.toString());
+            localStorage.setItem(GALLERY_ZOOM_STORAGE_KEY, newValue.toString());
         }
     };
 
     const handleZoomIn = () => {
-        if (value > MIN_ZOOM) {
+        if (value > MIN_GALLERY_ZOOM) {
             const newValue = value - 1;
             onChange(newValue);
-            localStorage.setItem(STORAGE_KEY, newValue.toString());
+            localStorage.setItem(GALLERY_ZOOM_STORAGE_KEY, newValue.toString());
         }
     };
 
@@ -43,7 +43,7 @@ export const GalleryZoomControls: React.FC<GalleryZoomControlsProps> = ({
             <button
                 className="w-12 h-12 rounded-full bg-bg-secondary hover:bg-hover-bg text-text-primary shadow-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleZoomOut}
-                disabled={value >= MAX_ZOOM}
+                disabled={value >= MAX_GALLERY_ZOOM}
                 title="Zoom Out (More Columns)"
             >
                 <Minus size={24} />
@@ -51,17 +51,11 @@ export const GalleryZoomControls: React.FC<GalleryZoomControlsProps> = ({
             <button
                 className="w-12 h-12 rounded-full bg-bg-secondary hover:bg-hover-bg text-text-primary shadow-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleZoomIn}
-                disabled={value <= MIN_ZOOM}
+                disabled={value <= MIN_GALLERY_ZOOM}
                 title="Zoom In (Fewer Columns)"
             >
                 <Plus size={24} />
             </button>
         </div>
     );
-};
-
-// Helper to get initial zoom level from localStorage
-export const getGalleryZoomLevel = (): number => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? parseInt(saved, 10) : DEFAULT_ZOOM;
 };
