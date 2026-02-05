@@ -37,10 +37,26 @@ export const PlaylistSelector: React.FC<PlaylistSelectorProps> = ({
     const [newPlaylistName, setNewPlaylistName] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
 
+    // Frozen Order State
+    const [frozenOrder, setFrozenOrder] = useState<string[]>([]);
+    const prevIsOpen = useRef(isOpen);
+
     const buttonRef = useRef<HTMLButtonElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     const isMultiSelect = videos.length > 1;
+
+    // Snapshot order when opening
+    useEffect(() => {
+        if (isOpen && !prevIsOpen.current) {
+            // Just opened: Snapshot the current recency order
+            const sortedIds = [...playlists]
+                .sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt))
+                .map(p => p.id);
+            setFrozenOrder(sortedIds);
+        }
+        prevIsOpen.current = isOpen;
+    }, [isOpen, playlists]);
 
     // Auto-focus input when opening
     useEffect(() => {
@@ -155,13 +171,22 @@ export const PlaylistSelector: React.FC<PlaylistSelectorProps> = ({
             });
         }
 
-        // Sort by recency (updatedAt -> createdAt) to keep recently used closest to input (top)
+        // Sort based on frozenOrder if available
         return [...result].sort((a, b) => {
-            const timeA = a.updatedAt || a.createdAt;
-            const timeB = b.updatedAt || b.createdAt;
-            return timeB - timeA;
+            const idxA = frozenOrder.indexOf(a.id);
+            const idxB = frozenOrder.indexOf(b.id);
+
+            // Both in frozen list: respect frozen order
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+
+            // One new, one frozen: new goes first (or use recency for new vs new)
+            if (idxA === -1 && idxB !== -1) return -1;
+            if (idxA !== -1 && idxB === -1) return 1;
+
+            // Both new: fallback to recency
+            return (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt);
         });
-    }, [playlists, newPlaylistName]);
+    }, [playlists, newPlaylistName, frozenOrder]);
 
     const { activeIndex, handleKeyDown } = useKeyboardNavigation({
         listLength: filteredPlaylists.length,
