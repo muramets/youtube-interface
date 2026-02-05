@@ -60,7 +60,11 @@ export const FloatingBar: React.FC<FloatingBarProps> = ({
             onClick={(e) => e.stopPropagation()}
             onDoubleClick={(e) => e.stopPropagation()}
             onWheel={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+                if (e.key !== 'Escape') {
+                    e.stopPropagation();
+                }
+            }}
         >
             <div className="flex items-center gap-3 pr-3 border-r border-white/10">
                 <span className="text-sm font-medium text-white whitespace-nowrap max-w-[150px] truncate">
