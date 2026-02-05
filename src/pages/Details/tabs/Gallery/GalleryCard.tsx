@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Info, MoreVertical, Heart, Copy, Download, Trash2, Check, AlertCircle, Loader2, Video, Clock, ListPlus } from 'lucide-react';
+import { Info, MoreVertical, Heart, Copy, Download, Trash2, Check, AlertCircle, Loader2, Video, Clock, ListPlus, Image as ImageIcon } from 'lucide-react';
 import type { GalleryItem } from '../../../../core/types/gallery';
 import { GALLERY_CARD_DEFAULTS } from '../../../../core/types/gallery';
 import { PortalTooltip } from '../../../../components/ui/atoms/PortalTooltip';
@@ -26,8 +26,10 @@ interface GalleryCardProps {
     onConvertToVideoInPlaylist?: () => void;
     onCloneToHome?: () => void;
     onCloneToPlaylist?: () => void;
+    onSetAsCover?: () => void;
     isConverting?: boolean;
     isCloning?: boolean;
+    isSettingCover?: boolean;
 }
 
 // Export Inner component for use in Ghost
@@ -57,8 +59,10 @@ export const GalleryCardInner: React.FC<GalleryCardInnerProps> = ({
     onConvertToVideoInPlaylist,
     onCloneToHome,
     onCloneToPlaylist,
+    onSetAsCover,
     isConverting = false,
-    isCloning = false
+    isCloning = false,
+    isSettingCover = false
 }) => {
     const [showMenu, setShowMenu] = useState(false);
     const [showInfoTooltip, setShowInfoTooltip] = useState(false);
@@ -273,6 +277,21 @@ export const GalleryCardInner: React.FC<GalleryCardInnerProps> = ({
 
                             {/* Menu */}
                             <div className="absolute right-0 top-8 w-max min-w-[12rem] py-1 bg-[#282828] rounded-lg shadow-xl border border-border z-50 flex flex-col">
+                                {/* Set as Cover (First priority) */}
+                                {onSetAsCover && (
+                                    <>
+                                        <button
+                                            onClick={() => { onSetAsCover(); setShowMenu(false); }}
+                                            disabled={isSettingCover}
+                                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-[#ffffff10] transition-colors disabled:opacity-50"
+                                        >
+                                            {isSettingCover ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}
+                                            Make Cover
+                                        </button>
+                                        <div className="my-1 mx-2 border-t border-[#ffffff20]" />
+                                    </>
+                                )}
+
                                 {/* Convert/Clone Actions */}
                                 {onConvertToVideo && (
                                     <button
@@ -365,8 +384,10 @@ export const GalleryCard: React.FC<GalleryCardProps> = ({
     onConvertToVideoInPlaylist,
     onCloneToHome,
     onCloneToPlaylist,
+    onSetAsCover,
     isConverting,
-    isCloning
+    isCloning,
+    isSettingCover
 }) => {
 
     // Sortable setup
@@ -406,8 +427,10 @@ export const GalleryCard: React.FC<GalleryCardProps> = ({
             onConvertToVideoInPlaylist={onConvertToVideoInPlaylist}
             onCloneToHome={onCloneToHome}
             onCloneToPlaylist={onCloneToPlaylist}
+            onSetAsCover={onSetAsCover}
             isConverting={isConverting}
             isCloning={isCloning}
+            isSettingCover={isSettingCover}
         />
     );
 };

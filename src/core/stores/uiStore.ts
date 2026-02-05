@@ -12,12 +12,12 @@ interface UIState {
 
     toast: {
         message: string;
-        type: 'success' | 'error';
+        type: 'success' | 'error' | 'loading';
         isVisible: boolean;
         actionLabel?: string;
         onAction?: () => void;
     };
-    showToast: (message: string, type?: 'success' | 'error', actionLabel?: string, onAction?: () => void) => void;
+    showToast: (message: string, type?: 'success' | 'error' | 'loading', actionLabel?: string, onAction?: () => void) => void;
     hideToast: () => void;
 
     // Global Modal Control

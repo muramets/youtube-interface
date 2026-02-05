@@ -55,9 +55,11 @@ export const GalleryTab: React.FC<GalleryTabProps> = ({
         handleConvertToVideoInPlaylist,
         handleCloneToHome,
         handleCloneToPlaylist,
+        handleSetAsCover,
         isConverting,
-        isCloning
-    } = useGalleryCardActions();
+        isCloning,
+        isSettingCover
+    } = useGalleryCardActions(video);
 
     // Playlist selection modal state
     const [pendingAction, setPendingAction] = useState<{
@@ -281,8 +283,10 @@ export const GalleryTab: React.FC<GalleryTabProps> = ({
                         onConvertToVideoInPlaylist={(item) => setPendingAction({ type: 'convert', item })}
                         onCloneToHome={handleCloneToHome}
                         onCloneToPlaylist={(item) => setPendingAction({ type: 'clone', item })}
+                        onSetAsCover={video.id.startsWith('custom-') ? handleSetAsCover : undefined}
                         isConverting={isConverting}
                         isCloning={isCloning}
+                        isSettingCover={isSettingCover}
                     />
                 )}
             </div>

@@ -35,8 +35,10 @@ interface GalleryGridProps {
     onConvertToVideoInPlaylist?: (item: GalleryItem) => void;
     onCloneToHome?: (item: GalleryItem) => void;
     onCloneToPlaylist?: (item: GalleryItem) => void;
+    onSetAsCover?: (item: GalleryItem) => void;
     isConverting?: boolean;
     isCloning?: boolean;
+    isSettingCover?: boolean;
 }
 
 // Map zoom level to column count
@@ -73,8 +75,10 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
     onConvertToVideoInPlaylist,
     onCloneToHome,
     onCloneToPlaylist,
+    onSetAsCover,
     isConverting = false,
-    isCloning = false
+    isCloning = false,
+    isSettingCover = false
 }) => {
     // Always enable drag
     const isDragEnabled = true;
@@ -206,8 +210,10 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
                             onConvertToVideoInPlaylist={onConvertToVideoInPlaylist ? () => onConvertToVideoInPlaylist(item) : undefined}
                             onCloneToHome={onCloneToHome ? () => onCloneToHome(item) : undefined}
                             onCloneToPlaylist={onCloneToPlaylist ? () => onCloneToPlaylist(item) : undefined}
+                            onSetAsCover={onSetAsCover ? () => onSetAsCover(item) : undefined}
                             isConverting={isConverting}
                             isCloning={isCloning}
+                            isSettingCover={isSettingCover}
                         />
                     ))}
                 </div>

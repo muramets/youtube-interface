@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCircle, AlertCircle, X } from 'lucide-react';
+import { CheckCircle, AlertCircle, X, Loader2 } from 'lucide-react';
+
 
 interface ToastProps {
     message: string;
     isVisible: boolean;
     duration?: number;
     onClose: () => void;
-    type?: 'success' | 'error';
+    type?: 'success' | 'error' | 'loading';
     position?: 'top' | 'bottom';
     onClick?: () => void;
     actionLabel?: string;
@@ -50,8 +51,8 @@ export const Toast: React.FC<ToastProps> = ({
 
     if (!shouldRender) return null;
 
-    const bgColor = type === 'success' ? 'bg-green-600' : 'bg-red-600';
-    const Icon = type === 'success' ? CheckCircle : AlertCircle;
+    const bgColor = type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600';
+    const Icon = type === 'success' ? CheckCircle : type === 'error' ? AlertCircle : Loader2;
     const positionClass = position === 'top' ? 'top-20' : 'bottom-8';
 
     // Determine if toast should be clickable
@@ -71,7 +72,7 @@ export const Toast: React.FC<ToastProps> = ({
                 className={`${bgColor} text-white pl-4 pr-3 py-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px] ${animationClass} ${isClickable ? 'cursor-pointer hover:brightness-110 transition-all' : ''}`}
                 onClick={isClickable ? handleToastClick : undefined}
             >
-                <Icon size={20} className="text-white flex-shrink-0" />
+                <Icon size={20} className={`text-white flex-shrink-0 ${type === 'loading' ? 'animate-spin' : ''}`} />
                 <span className="text-sm font-medium flex-grow">{message}</span>
 
                 <button
