@@ -11,6 +11,7 @@ import { TimelineSkeleton } from './TimelineSkeleton';
 import { TimelineEmptyState } from './TimelineEmptyState';
 import { TimelineSelectionOverlay } from './TimelineSelectionOverlay';
 import type { TrendVideo, TimelineStats } from '../../../core/types/trends';
+import type { SelectionState } from './hooks/useSelectionState';
 import { TimelineAverageLine } from './layers/TimelineAverageLine';
 
 // Hooks
@@ -22,7 +23,7 @@ import { useTimelineInteraction } from './hooks/useTimelineInteraction';
 import { useTimelineHotkeys } from './hooks/useTimelineHotkeys';
 import { useTimelineAutoUpdate } from './hooks/useTimelineAutoUpdate';
 import { useTimelineTooltip } from './hooks/useTimelineTooltip';
-import { useSelectionState } from './hooks/useSelectionState';
+// import { useSelectionState } from './hooks/useSelectionState'; // REMOVED
 import { LOD_SHOW_THUMBNAIL } from './utils/timelineConstants';
 
 // Constants
@@ -34,7 +35,7 @@ const PADDING_BOTTOM = 12;
 
 
 
-import { TrendsFloatingBar } from './TrendsFloatingBar';
+// import { TrendsFloatingBar } from './TrendsFloatingBar'; // MOVED TO PARENT
 
 interface TimelineCanvasProps {
     videos: TrendVideo[];
@@ -53,7 +54,13 @@ interface TimelineCanvasProps {
     skipAutoFitRef?: React.RefObject<boolean>;
     filterHash?: string;
     /** True when on main page and all channels have visibility toggled off */
+    /** True when on main page and all channels have visibility toggled off */
     allChannelsHidden?: boolean;
+    // Selection Props (External Control)
+    activeSelectionState: SelectionState;
+    onVideoClick: (video: TrendVideo, x: number, y: number, isModifier: boolean) => void;
+    onClearSelection: () => void;
+    onDockFloatingBar: () => void;
 }
 
 export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
@@ -67,7 +74,12 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     onRequestStatsRefresh,
     skipAutoFitRef,
     filterHash,
-    allChannelsHidden = false
+
+    allChannelsHidden = false,
+    activeSelectionState,
+    onVideoClick,
+    onClearSelection,
+    onDockFloatingBar
 }) => {
 
 
@@ -108,13 +120,11 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         isFrozen: !shouldAutoFit
     });
 
-    // 3. Selection State (Moved up for Tooltip dependency)
-    const {
-        selectionState,
-        handleVideoClick,
-        clearSelection,
-        dockFloatingBar
-    } = useSelectionState();
+    // 3. Selection State (Controlled from Parent)
+    const selectionState = activeSelectionState;
+    const handleVideoClick = onVideoClick;
+    const clearSelection = onClearSelection;
+    const dockFloatingBar = onDockFloatingBar;
 
     // 4. Tooltip Logic
     const {
@@ -129,17 +139,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
         delayShowCondition: selectionState.selectedIds.size > 0
     });
 
-    const selectedVideos = React.useMemo(() => {
-        return videos.filter(v => selectionState.selectedIds.has(v.id));
-    }, [videos, selectionState.selectedIds]);
 
-    const floatingBarPosition = React.useMemo(() => {
-        if (selectionState.selectedIds.size === 0 || !selectionState.lastAnchor) return { x: 0, y: 0 };
-        return selectionState.lastAnchor;
-    }, [selectionState.lastAnchor, selectionState.selectedIds.size]);
-
-    // Track if FloatingBar has an active dropdown (for hotkey handling)
-    const [hasActiveDropdown, setHasActiveDropdown] = React.useState(false);
 
 
     // 5. Transform & Interaction
@@ -272,7 +272,7 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
     useTimelineHotkeys({
         onAutoFit: handleSmoothFit,
         onEscape: clearSelection,
-        hasActiveDropdown
+        hasActiveDropdown: false
     });
 
     // 10. Global Hotkeys (Cmd+Shift+L to clear)
@@ -475,19 +475,8 @@ export const TimelineCanvas: React.FC<TimelineCanvasProps> = ({
                 />
             )}
 
-            {/* Floating Bar with Smart Positioning */}
-            <div className="transition-opacity duration-200 opacity-100">
-                {selectedVideos.length > 0 && (
-                    <TrendsFloatingBar
-                        videos={selectedVideos}
-                        position={floatingBarPosition}
-                        onClose={clearSelection}
-                        isDocked={selectionState.hasDocked}
-                        onActiveMenuChange={setHasActiveDropdown}
-                    />
-                )}
-            </div>
         </div>
+
     );
 };
 

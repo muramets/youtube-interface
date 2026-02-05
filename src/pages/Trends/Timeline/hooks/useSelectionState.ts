@@ -52,10 +52,7 @@ export const useSelectionState = () => {
 
             if (isModifier) {
                 // Cmd/Ctrl held: multi-select behavior
-                if (prev.selectedIds.size === 0) {
-                    // No existing selection + modifier = ignore (allow double-click zoom)
-                    return prev;
-                }
+                // (Removed check for empty selection so that Cmd+Click works for the first item too, crucial for Table checkboxes)
                 // Toggle the clicked video in multi-select
                 if (newSet.has(video.id)) {
                     newSet.delete(video.id);
@@ -68,34 +65,17 @@ export const useSelectionState = () => {
                     hasDocked: prev.hasDocked
                 };
             } else {
-                // No modifier: accumulative selection
-                if (newSet.has(video.id)) {
-                    // Clicking already-selected video: 
-                    if (newSet.size === 1) {
-                        // It's the only one selected = deselect all
-                        return {
-                            selectedIds: new Set(),
-                            lastAnchor: null,
-                            hasDocked: false
-                        };
-                    } else {
-                        // Multiple selected = remove this one from selection
-                        newSet.delete(video.id);
-                        return {
-                            selectedIds: newSet,
-                            lastAnchor: { x: clientX, y: clientY },
-                            hasDocked: prev.hasDocked
-                        };
-                    }
-                } else {
-                    // Clicking new video = add to selection
-                    newSet.add(video.id);
-                    return {
-                        selectedIds: newSet,
-                        lastAnchor: { x: clientX, y: clientY },
-                        hasDocked: prev.selectedIds.size > 0 ? prev.hasDocked : false
-                    };
-                }
+                // No modifier: Standard Exclusive Selection
+                // Select only this video, clearing others
+                const exclusiveSet = new Set<string>();
+                exclusiveSet.add(video.id);
+
+                const newState = {
+                    selectedIds: exclusiveSet,
+                    lastAnchor: { x: clientX, y: clientY },
+                    hasDocked: prev.hasDocked
+                };
+                return newState;
             }
         });
     }, []);

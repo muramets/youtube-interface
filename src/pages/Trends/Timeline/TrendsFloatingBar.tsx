@@ -75,6 +75,13 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
             // that bubble to the document and cause unintended closing.
             if (!e.isTrusted) return;
 
+            // IGNORE clicks on selectable areas (table rows, timeline canvas)
+            // These clicks are meant to change selection, not close the bar.
+            const target = e.target as HTMLElement;
+            if (target.closest('tr') || target.closest('[data-timeline-canvas]') || target.closest('[data-selectable]')) {
+                return;
+            }
+
             // Dropdown portals and the bar itself stop propagation of clicks,
             // so if this listener fires, it's truly outside.
             if (activeMenu) {

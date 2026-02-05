@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTrendStore } from '../../core/stores/trendStore';
 import { TimelineCanvas } from './Timeline/TimelineCanvas';
 import { TrendsTable } from './Table/TrendsTable';
@@ -6,7 +6,9 @@ import { TrendsHeader } from './Header/TrendsHeader';
 import { useFilteredVideos } from './hooks/useFilteredVideos';
 import { useFrozenStats } from './Timeline/hooks/useFrozenStats';
 import { useTrendVideos } from './hooks/useTrendVideos';
-
+import { TrendsFloatingBar } from './Timeline/TrendsFloatingBar';
+import { useSelectionState } from './Timeline/hooks/useSelectionState';
+import type { TrendVideo } from '../../core/types/trends';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 
@@ -16,6 +18,15 @@ export const TrendsPage: React.FC = () => {
     const { channels, selectedChannelId, timelineConfig, setTimelineConfig, trendsFilters, filterMode, videos, hiddenVideos, isLoadingChannels } = useTrendStore();
     const [isLoadingLocal, setIsLoadingLocal] = useState(true);
     const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
+
+    // Shared Selection State (Lifted)
+    const {
+        selectionState,
+        handleVideoClick,
+        clearSelection,
+        dockFloatingBar,
+        setSelectionState
+    } = useSelectionState();
 
     // Use extracted hook for video loading
     const { isLoading: isVideosLoading, allChannelsHidden } = useTrendVideos({
@@ -112,8 +123,48 @@ export const TrendsPage: React.FC = () => {
         filterHash
     });
 
+    // Prepare Selection Data
+    const selectedVideos = useMemo(() => {
+        return filteredVideos.filter(v => selectionState.selectedIds.has(v.id));
+    }, [filteredVideos, selectionState.selectedIds]);
+
+    const floatingBarPosition = useMemo(() => {
+        if (selectionState.selectedIds.size === 0 || !selectionState.lastAnchor) return { x: 0, y: 0 };
+        return selectionState.lastAnchor;
+    }, [selectionState.lastAnchor, selectionState.selectedIds.size]);
+
+    // Handle Table Selection Toggles
+    const handleToggleSelection = useCallback((video: TrendVideo, position: { x: number, y: number }) => {
+        // Force additive selection (like holding Cmd/Ctrl) for better Table UX
+        handleVideoClick(video, position.x, position.y, true);
+    }, [handleVideoClick]);
+
+    const handleToggleAll = (videosToSelect: TrendVideo[]) => {
+        if (videosToSelect.length === 0) return;
+
+        const allSelected = videosToSelect.every(v => selectionState.selectedIds.has(v.id));
+
+        if (allSelected) {
+            // Deselect all visible
+            clearSelection();
+        } else {
+            // Select all visible
+            const newSet = new Set(selectionState.selectedIds);
+            videosToSelect.forEach(v => newSet.add(v.id));
+
+            // For Select All, we pick a center-ish or top-right position for the bar if it's not already docked
+            const defaultPos = { x: window.innerWidth / 2, y: window.innerHeight - 150 };
+
+            setSelectionState({
+                selectedIds: newSet,
+                lastAnchor: selectionState.lastAnchor || defaultPos,
+                hasDocked: true // Auto dock for bulk selection
+            });
+        }
+    };
+
     return (
-        <div className="flex flex-col h-full bg-bg-primary">
+        <div className="flex flex-col h-full bg-bg-primary relative">
             <TrendsHeader
                 title={selectedChannelId ? channels.find(c => c.id === selectedChannelId)?.title || 'Unknown Channel' : 'All Channels'}
                 videoCount={filteredVideos.length}
@@ -143,6 +194,11 @@ export const TrendsPage: React.FC = () => {
                     skipAutoFitRef={skipAutoFitRef}
                     filterHash={filterHash}
                     allChannelsHidden={allChannelsHidden}
+                    // Selection Props
+                    activeSelectionState={selectionState}
+                    onVideoClick={handleVideoClick}
+                    onClearSelection={clearSelection}
+                    onDockFloatingBar={dockFloatingBar}
                 />
             ) : (
                 <TrendsTable
@@ -150,6 +206,21 @@ export const TrendsPage: React.FC = () => {
                     channels={channels}
                     channelId={selectedChannelId || ''}
                     mode={selectedChannelId ? 'videos' : 'channels'}
+                    // Selection Props
+                    selectedIds={selectionState.selectedIds}
+                    onToggleSelection={handleToggleSelection}
+                    onToggleAll={() => handleToggleAll(filteredVideos)}
+                />
+            )}
+
+            {/* Shared Floating Bar */}
+            {selectedVideos.length > 0 && (
+                <TrendsFloatingBar
+                    videos={selectedVideos}
+                    position={floatingBarPosition}
+                    onClose={clearSelection}
+                    isDocked={selectionState.hasDocked}
+                    onActiveMenuChange={() => { }} // Optional if not needed at page level yet
                 />
             )}
         </div>

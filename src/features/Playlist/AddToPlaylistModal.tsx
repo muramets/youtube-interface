@@ -34,8 +34,6 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoId,
         } else {
             removeVideosFromPlaylist({ playlistId, videoIds: [videoId] });
         }
-        // Close immediately to prevent perceived UI lag from counter updates
-        onClose();
     };
 
     // Calcluate initial sort order ONCE on mount to preventing jumping
