@@ -27,12 +27,16 @@ import {
  * 
  * @returns The created GalleryItem
  */
-export const addGalleryItem = async (
+/**
+ * Prepare a gallery item (Upload + Create Object) without saving to Firestore.
+ * Used for batch uploads to separate processing from persistence.
+ */
+export const prepareGalleryItem = async (
     userId: string,
     channelId: string,
     videoId: string,
     file: File,
-    existingItemsCount: number,
+    orderIndex: number,
     sourceId?: string
 ): Promise<GalleryItem> => {
     // 1. Upload to Storage
@@ -54,25 +58,65 @@ export const addGalleryItem = async (
     }
 
     // 3. Create GalleryItem
-    const galleryItem: GalleryItem = {
+    return {
         id: uuidv4(),
         filename,
         originalUrl,
         thumbnailUrl,
         storagePath,
         uploadedAt: Date.now(),
-        order: existingItemsCount, // Append to end
+        order: orderIndex,
         fileSize,
         sourceId: sourceId || DEFAULT_SOURCE_ID
     };
+};
 
-    // 4. Add to Firestore
+/**
+ * Save multiple gallery items to Firestore in a single batch write.
+ */
+export const saveGalleryItems = async (
+    userId: string,
+    channelId: string,
+    videoId: string,
+    items: GalleryItem[]
+): Promise<void> => {
+    if (items.length === 0) return;
+
     const videoRef = doc(db, 'users', userId, 'channels', channelId, 'videos', videoId);
     await updateDoc(videoRef, {
-        galleryItems: arrayUnion(galleryItem)
+        galleryItems: arrayUnion(...items)
     });
+};
 
-    return galleryItem;
+/**
+ * Add an image to video's gallery (Single Item Wrapper).
+ * 
+ * Flow:
+ * 1. Prepare item (Upload + object creation)
+ * 2. Save to Firestore
+ * 
+ * @returns The created GalleryItem
+ */
+export const addGalleryItem = async (
+    userId: string,
+    channelId: string,
+    videoId: string,
+    file: File,
+    existingItemsCount: number,
+    sourceId?: string
+): Promise<GalleryItem> => {
+    const item = await prepareGalleryItem(
+        userId,
+        channelId,
+        videoId,
+        file,
+        existingItemsCount,
+        sourceId
+    );
+
+    await saveGalleryItems(userId, channelId, videoId, [item]);
+
+    return item;
 };
 
 /**

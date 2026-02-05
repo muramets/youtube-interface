@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Info, MoreVertical, Heart, Copy, Download, Trash2, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { Info, MoreVertical, Heart, Copy, Download, Trash2, Check, AlertCircle, Loader2, Video, Clock, ListPlus } from 'lucide-react';
 import type { GalleryItem } from '../../../../core/types/gallery';
 import { GALLERY_CARD_DEFAULTS } from '../../../../core/types/gallery';
 import { PortalTooltip } from '../../../../components/ui/atoms/PortalTooltip';
@@ -21,6 +21,13 @@ interface GalleryCardProps {
     onDownload: () => void;
     onToggleLike: () => void;
     isDragEnabled: boolean;
+    // New action handlers
+    onConvertToVideo?: () => void;
+    onConvertToVideoInPlaylist?: () => void;
+    onCloneToHome?: () => void;
+    onCloneToPlaylist?: () => void;
+    isConverting?: boolean;
+    isCloning?: boolean;
 }
 
 // Export Inner component for use in Ghost
@@ -45,7 +52,13 @@ export const GalleryCardInner: React.FC<GalleryCardInnerProps> = ({
     dragAttributes,
     dragListeners,
     innerRef,
-    className
+    className,
+    onConvertToVideo,
+    onConvertToVideoInPlaylist,
+    onCloneToHome,
+    onCloneToPlaylist,
+    isConverting = false,
+    isCloning = false
 }) => {
     const [showMenu, setShowMenu] = useState(false);
     const [showInfoTooltip, setShowInfoTooltip] = useState(false);
@@ -124,6 +137,7 @@ export const GalleryCardInner: React.FC<GalleryCardInnerProps> = ({
                 ${isDragEnabled && !isOverlay ? 'cursor-grab active:cursor-grabbing' : ''}
                 ${isOverlay ? 'cursor-grabbing' : 'cursor-pointer'}
                 ${className || ''}
+                ${showMenu ? 'z-[100]' : ''}
             `}
         >
             {/* Hover Substrate - matching VideoCard */}
@@ -258,7 +272,60 @@ export const GalleryCardInner: React.FC<GalleryCardInnerProps> = ({
                             />
 
                             {/* Menu */}
-                            <div className="absolute right-0 top-8 w-40 py-1 bg-[#282828] rounded-lg shadow-xl border border-border z-50">
+                            <div className="absolute right-0 top-8 w-max min-w-[12rem] py-1 bg-[#282828] rounded-lg shadow-xl border border-border z-50 flex flex-col">
+                                {/* Convert/Clone Actions */}
+                                {onConvertToVideo && (
+                                    <button
+                                        onClick={() => { onConvertToVideo(); setShowMenu(false); }}
+                                        disabled={isConverting}
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-[#ffffff10] transition-colors disabled:opacity-50"
+                                    >
+                                        {isConverting ? <Loader2 size={16} className="animate-spin" /> : <Video size={16} />}
+                                        Convert to Video
+                                    </button>
+                                )}
+                                {onConvertToVideoInPlaylist && (
+                                    <button
+                                        onClick={() => { onConvertToVideoInPlaylist(); setShowMenu(false); }}
+                                        disabled={isConverting}
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-[#ffffff10] transition-colors disabled:opacity-50"
+                                    >
+                                        <ListPlus size={16} />
+                                        Convert to Video in Playlist
+                                    </button>
+                                )}
+
+                                {/* Separator between Convert and Clone */}
+                                {(onConvertToVideo || onConvertToVideoInPlaylist) && (onCloneToHome || onCloneToPlaylist) && (
+                                    <div className="my-1 mx-2 border-t border-[#ffffff20]" />
+                                )}
+
+                                {onCloneToHome && (
+                                    <button
+                                        onClick={() => { onCloneToHome(); setShowMenu(false); }}
+                                        disabled={isCloning}
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-[#ffffff10] transition-colors disabled:opacity-50"
+                                    >
+                                        {isCloning ? <Loader2 size={16} className="animate-spin" /> : <Clock size={16} />}
+                                        Clone to Home
+                                    </button>
+                                )}
+                                {onCloneToPlaylist && (
+                                    <button
+                                        onClick={() => { onCloneToPlaylist(); setShowMenu(false); }}
+                                        disabled={isCloning}
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-primary hover:bg-[#ffffff10] transition-colors disabled:opacity-50"
+                                    >
+                                        <Clock size={16} />
+                                        Clone to Playlist
+                                    </button>
+                                )}
+
+                                {/* Separator if any action exists */}
+                                {(onConvertToVideo || onCloneToHome) && (
+                                    <div className="my-1 mx-2 border-t border-[#ffffff20]" />
+                                )}
+
                                 <button
                                     onClick={handleDownload}
                                     disabled={isDownloading}
@@ -292,7 +359,14 @@ export const GalleryCard: React.FC<GalleryCardProps> = ({
     channelAvatar,
     onDelete,
     onDownload,
-    isDragEnabled
+    onToggleLike,
+    isDragEnabled,
+    onConvertToVideo,
+    onConvertToVideoInPlaylist,
+    onCloneToHome,
+    onCloneToPlaylist,
+    isConverting,
+    isCloning
 }) => {
 
     // Sortable setup
@@ -312,7 +386,7 @@ export const GalleryCard: React.FC<GalleryCardProps> = ({
         transform: CSS.Transform.toString(transform),
         transition,
         opacity: isDragging ? 0 : 1, // Hidden during drag - ghost shown via DragOverlay
-        zIndex: isDragging ? 100 : 'auto'
+        zIndex: isDragging ? 100 : undefined
     };
 
     return (
@@ -322,12 +396,18 @@ export const GalleryCard: React.FC<GalleryCardProps> = ({
             channelAvatar={channelAvatar}
             onDelete={onDelete}
             onDownload={onDownload}
-            onToggleLike={() => { }} // Placeholder
+            onToggleLike={onToggleLike}
             isDragEnabled={isDragEnabled}
             innerRef={setNodeRef}
             style={style}
             dragAttributes={attributes}
             dragListeners={listeners}
+            onConvertToVideo={onConvertToVideo}
+            onConvertToVideoInPlaylist={onConvertToVideoInPlaylist}
+            onCloneToHome={onCloneToHome}
+            onCloneToPlaylist={onCloneToPlaylist}
+            isConverting={isConverting}
+            isCloning={isCloning}
         />
     );
 };

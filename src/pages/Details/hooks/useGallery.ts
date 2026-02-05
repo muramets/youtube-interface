@@ -20,7 +20,9 @@ import {
     deleteGallerySource,
     ensureDefaultSource,
     moveItemToSource,
-    updateGallerySource
+    updateGallerySource,
+    prepareGalleryItem,
+    saveGalleryItems
 } from '../../../core/services/galleryService';
 
 interface UseGalleryOptions {
@@ -87,13 +89,7 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
     const [isInitialized, setIsInitialized] = useState(false);
 
     // Track mount time to identify new items (prevent removing placeholders for old items with same name)
-    // Track mount time to identify new items (prevent removing placeholders for old items with same name)
     const mountTimeRef = useRef(0);
-    // Initialize mount time on client side
-    useEffect(() => {
-        mountTimeRef.current = Date.now();
-    }, []);
-
     // Initialize mount time on client side
     useEffect(() => {
         mountTimeRef.current = Date.now();
@@ -131,20 +127,7 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
         initSources();
         // CRITICAL: Only depend on values that should trigger re-initialization
         // DO NOT include sources, items, or activeSourceId - they change DURING initialization!
-    }, [user?.uid, currentChannel?.id, videoId, isInitialized]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // Smart cleanup: Remove uploading files if they appear in items
-    useEffect(() => {
-        setUploadingFiles(prev => {
-            const active = prev.filter(uf => {
-                // Keep if NOT in items OR if in items but uploaded before mount (old item)
-                // Logic: Remove if (In items AND item.uploadedAt > mountTime)
-                const isNewItem = items.some(item => item.filename === uf.filename && item.uploadedAt > mountTimeRef.current);
-                return !isNewItem;
-            });
-            return active.length < prev.length ? active : prev;
-        });
-    }, [items]);
+    }, [user, currentChannel, videoId, isInitialized]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Derived state for backwards compatibility
     const isUploading = uploadingFiles.length > 0;
@@ -190,7 +173,7 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
         }, 15000);
 
         try {
-            await addGalleryItem(
+            const item = await addGalleryItem(
                 user.uid,
                 currentChannel.id,
                 videoId,
@@ -198,13 +181,23 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
                 items.length,
                 activeSourceId || DEFAULT_SOURCE_ID
             );
-            // Cleanup handled by useEffect watching items
+
+            // Manual cleanup on success
+            setUploadingFiles(prev => prev.filter(f => f.id !== uploadId));
+
+            // Note: addGalleryItem (singular) already saves to DB,
+            // so we don't strictly need optimistic update here, 
+            // but we could do it for consistency if we returned the item.
+            // For now, reliance on Firestore listener for single item is acceptable,
+            // OR we can optimistic update:
+            setItems(prev => [...prev, item]);
+
         } catch (error) {
             // Remove on error
             setUploadingFiles(prev => prev.filter(f => f.id !== uploadId));
             throw error;
         }
-    }, [user?.uid, currentChannel?.id, videoId, items.length, activeSourceId]);
+    }, [user, currentChannel, videoId, items.length, activeSourceId]);
 
     // Upload multiple images (batch)
     const uploadImages = useCallback(async (files: File[]) => {
@@ -222,6 +215,8 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
         // Add all files to uploading state immediately
         setUploadingFiles(prev => [...prev, ...uploadEntries]);
 
+        const successfulItems: GalleryItem[] = [];
+
         // Upload all files in parallel
         await Promise.all(
             files.map(async (file, index) => {
@@ -238,23 +233,58 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
                 }, 15000);
 
                 try {
-                    await addGalleryItem(
-                        user.uid,
-                        currentChannel.id,
+                    // 1. Prepare item (Upload + Create Object) - NO DB WRITE YET
+                    const item = await prepareGalleryItem(
+                        user!.uid,
+                        currentChannel!.id,
                         videoId,
                         file,
-                        items.length + index,
+                        items.length + index, // Optimistic order index
                         activeSourceId || DEFAULT_SOURCE_ID
                     );
-                    // Cleanup handled by useEffect watching items
-                } catch (error) {
-                    // Remove on error
+
+                    // 2. Optimistic Update: Add to local state immediately
+                    // This ensures the "Real Card" appears as soon as this individual file is ready
+                    setItems(prev => [...prev, item]);
+                    successfulItems.push(item);
+
+                    // Cleanup uploading state for this file (it's now in items)
+                    // The useEffect monitoring 'items' will also do this, but explicit is safer
                     setUploadingFiles(prev => prev.filter(f => f.id !== uploadId));
-                    throw error;
+
+                } catch (error) {
+                    console.error(`Failed to upload ${file.name}:`, error);
+                    // Remove failure from uploading state
+                    setUploadingFiles(prev => prev.filter(f => f.id !== uploadId));
+                    // Check if we should rethrow? For batch, maybe we just log and continue?
+                    // But if ALL fail, we should probably know. 
+                    // For now, partial success is allowed.
                 }
             })
         );
-    }, [user?.uid, currentChannel?.id, videoId, items.length, activeSourceId]);
+
+        // 3. Batch Save: Write all successful items to Firestore in ONE go
+        if (successfulItems.length > 0) {
+            try {
+                // We need to re-sort successfulItems by order because Promise.all 
+                // might finish in random order, but arrayUnion interaction is safer if sorted (though set doesn't care)
+                // However, the order field is already set correctly individually.
+                await saveGalleryItems(
+                    user.uid,
+                    currentChannel.id,
+                    videoId,
+                    successfulItems
+                );
+            } catch (error) {
+                console.error('Failed to save batch to Firestore:', error);
+                // Rollback? Complicated for batch. 
+                // For now, rely on optimistic state and maybe show toast error if provided context
+                // Or remove them from items?
+                // setItems(prev => prev.filter(i => !successfulItems.find(si => si.id === i.id)));
+                throw error;
+            }
+        }
+    }, [user, currentChannel, videoId, items.length, activeSourceId]);
 
     // Remove image
     const removeImage = useCallback(async (item: GalleryItem) => {
@@ -277,7 +307,7 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
             setItems(prev => [...prev, item]);
             throw error;
         }
-    }, [user?.uid, currentChannel?.id, videoId]);
+    }, [user, currentChannel, videoId]);
 
     // Reorder items (for drag-and-drop)
     const reorderItems = useCallback(async (reorderedItems: GalleryItem[]) => {
@@ -314,7 +344,7 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
             setItems(previousItems);
             throw error;
         }
-    }, [user?.uid, currentChannel?.id, videoId, items]);
+    }, [user, currentChannel, videoId, items]);
 
     // Toggle like
     const toggleLike = useCallback(async (itemId: string) => {
@@ -346,7 +376,7 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
             ));
             throw error;
         }
-    }, [user?.uid, currentChannel?.id, videoId, items]);
+    }, [user, currentChannel, videoId, items]);
 
     // Download original
     const downloadOriginal = useCallback(async (item: GalleryItem) => {
@@ -369,7 +399,7 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
         // Optimistic update handled by Firestore listener, but set active
         setActiveSourceId(newSource.id);
         return newSource;
-    }, [user?.uid, currentChannel?.id, videoId]);
+    }, [user, currentChannel, videoId]);
 
     // Update source
     const updateSourceHandler = useCallback(async (sourceId: string, data: { type?: GallerySourceType; label?: string; url?: string }) => {
@@ -388,7 +418,7 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
             data,
             sources
         );
-    }, [user?.uid, currentChannel?.id, videoId, sources]);
+    }, [user, currentChannel, videoId, sources]);
 
     // Delete a source and its items
     const deleteSourceHandler = useCallback(async (sourceId: string) => {
@@ -415,7 +445,7 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
         if (remainingSources.length > 0) {
             setActiveSourceId(remainingSources[0].id);
         }
-    }, [user?.uid, currentChannel?.id, videoId, items, sources]);
+    }, [user, currentChannel, videoId, items, sources]);
 
     // Move an item to a different source
     const moveItemToSourceHandler = useCallback(async (itemId: string, newSourceId: string) => {
@@ -446,7 +476,7 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
             console.error('Failed to move item:', error);
             setItems(previousItems);
         }
-    }, [user?.uid, currentChannel?.id, videoId, items]);
+    }, [user, currentChannel, videoId, items]);
 
     return {
         items,

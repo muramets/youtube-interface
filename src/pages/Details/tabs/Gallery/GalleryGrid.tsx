@@ -30,6 +30,13 @@ interface GalleryGridProps {
     // File upload props
     onUploadFiles: (files: File[]) => Promise<void>;
     uploadingFiles: UploadingFile[];
+    // Gallery card action handlers
+    onConvertToVideo?: (item: GalleryItem) => void;
+    onConvertToVideoInPlaylist?: (item: GalleryItem) => void;
+    onCloneToHome?: (item: GalleryItem) => void;
+    onCloneToPlaylist?: (item: GalleryItem) => void;
+    isConverting?: boolean;
+    isCloning?: boolean;
 }
 
 // Map zoom level to column count
@@ -61,7 +68,13 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
     onDownload,
     onToggleLike,
     onUploadFiles,
-    uploadingFiles
+    uploadingFiles,
+    onConvertToVideo,
+    onConvertToVideoInPlaylist,
+    onCloneToHome,
+    onCloneToPlaylist,
+    isConverting = false,
+    isCloning = false
 }) => {
     // Always enable drag
     const isDragEnabled = true;
@@ -189,6 +202,12 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
                             onDownload={() => onDownload(item)}
                             onToggleLike={() => onToggleLike(item.id)}
                             isDragEnabled={isDragEnabled && !isUploading}
+                            onConvertToVideo={onConvertToVideo ? () => onConvertToVideo(item) : undefined}
+                            onConvertToVideoInPlaylist={onConvertToVideoInPlaylist ? () => onConvertToVideoInPlaylist(item) : undefined}
+                            onCloneToHome={onCloneToHome ? () => onCloneToHome(item) : undefined}
+                            onCloneToPlaylist={onCloneToPlaylist ? () => onCloneToPlaylist(item) : undefined}
+                            isConverting={isConverting}
+                            isCloning={isCloning}
                         />
                     ))}
                 </div>

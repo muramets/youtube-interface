@@ -16,6 +16,8 @@ import { GalleryGrid } from './GalleryGrid';
 import { GalleryZoomControls } from './GalleryZoomControls';
 import { getGalleryZoomLevel } from './galleryZoomUtils';
 import { SourceModal } from '../../Sidebar/Gallery/SourceModal';
+import { useGalleryCardActions } from './useGalleryCardActions';
+import { SelectPlaylistModal } from '../../../../features/Playlist/SelectPlaylistModal';
 
 interface GalleryTabProps {
     video: VideoDetails;
@@ -47,6 +49,22 @@ export const GalleryTab: React.FC<GalleryTabProps> = ({
     const sentinelRef = useRef<HTMLDivElement>(null);
     const [isScrolled, setIsScrolled] = useState(false);
 
+    // Gallery card action handlers
+    const {
+        handleConvertToVideo,
+        handleConvertToVideoInPlaylist,
+        handleCloneToHome,
+        handleCloneToPlaylist,
+        isConverting,
+        isCloning
+    } = useGalleryCardActions();
+
+    // Playlist selection modal state
+    const [pendingAction, setPendingAction] = useState<{
+        type: 'convert' | 'clone';
+        item: GalleryItem;
+    } | null>(null);
+
     // Memoize initial arrays to prevent infinite loops in useGallery useEffect
     const initialItems = React.useMemo(() => video.galleryItems || [], [video.galleryItems]);
     const initialSources = React.useMemo(() => video.gallerySources || [], [video.gallerySources]);
@@ -61,23 +79,60 @@ export const GalleryTab: React.FC<GalleryTabProps> = ({
     // Update items when video prop changes (avoid duplicates from optimistic updates)
     useEffect(() => {
         const newItems = video.galleryItems || [];
-        // Only sync if server data has items we don't have locally
-        // This prevents duplication from optimistic updates
-        const localIds = new Set(gallery.items.map(i => i.id));
-        const serverHasNewItems = newItems.some(item => !localIds.has(item.id));
-        const localHasExtraItems = gallery.items.some(item => !newItems.find(ni => ni.id === item.id));
 
-        if (serverHasNewItems || localHasExtraItems) {
-            gallery.setItems(newItems);
+        const localIds = new Set(gallery.items.map(i => i.id));
+        const serverIds = new Set(newItems.map(i => i.id));
+
+        const serverHasNewItems = newItems.some(item => !localIds.has(item.id));
+
+        // Items we have locally that are NOT on server
+        const extraLocalItems = gallery.items.filter(item => !serverIds.has(item.id));
+
+        // Check if any extra local items are "pending/optimistic" (uploaded < 60s ago)
+        // This prevents wiping out items we just added but haven't saved/synced yet
+        const hasOptimisticItems = extraLocalItems.some(item => (Date.now() - item.uploadedAt) < 60000);
+
+        console.log('[GallerySync] Update:', {
+            serverCount: newItems.length,
+            localCount: gallery.items.length,
+            extraLocal: extraLocalItems.length,
+            hasOptimistic: hasOptimisticItems,
+            serverHasNew: serverHasNewItems
+        });
+
+        if (serverHasNewItems || extraLocalItems.length > 0) {
+            if (hasOptimisticItems) {
+                // SMART MERGE: Server items + Optimistic items
+                // We accept server state (including deletions of old items) 
+                // BUT we force-keep our fresh optimistic items
+                const optimisticItems = extraLocalItems.filter(item => (Date.now() - item.uploadedAt) < 60000);
+
+                console.log('[GallerySync] Merging optimistic items:', optimisticItems.length);
+
+                // Combine and deduplicate just in case
+                const merged = [...newItems];
+                optimisticItems.forEach(optItem => {
+                    if (!merged.find(m => m.id === optItem.id)) {
+                        merged.push(optItem);
+                    }
+                });
+
+                gallery.setItems(merged);
+            } else {
+                // No optimistic stuff, trust server state 100% (syncs remote deletions)
+                console.log('[GallerySync] syncing to server (no optimistic)');
+                gallery.setItems(newItems);
+            }
         }
     }, [video.galleryItems]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Sync activeSourceId from Layout with hook
+    const { setActiveSourceId } = gallery;
     useEffect(() => {
         if (activeSourceId !== gallery.activeSourceId) {
-            gallery.setActiveSourceId(activeSourceId);
+            setActiveSourceId(activeSourceId);
         }
-    }, [activeSourceId, gallery.activeSourceId]);
+    }, [activeSourceId, gallery.activeSourceId, setActiveSourceId]);
 
     // Sync sources from video prop
     useEffect(() => {
@@ -222,6 +277,12 @@ export const GalleryTab: React.FC<GalleryTabProps> = ({
                         onToggleLike={gallery.toggleLike}
                         onUploadFiles={gallery.uploadImages}
                         uploadingFiles={gallery.uploadingFiles}
+                        onConvertToVideo={handleConvertToVideo}
+                        onConvertToVideoInPlaylist={(item) => setPendingAction({ type: 'convert', item })}
+                        onCloneToHome={handleCloneToHome}
+                        onCloneToPlaylist={(item) => setPendingAction({ type: 'clone', item })}
+                        isConverting={isConverting}
+                        isCloning={isCloning}
                     />
                 )}
             </div>
@@ -240,6 +301,27 @@ export const GalleryTab: React.FC<GalleryTabProps> = ({
                 onClose={onCloseAddSourceModal}
                 onSave={handleAddSource}
                 mode="add"
+            />
+
+            {/* Playlist Selection Modal for "in Playlist" actions */}
+            <SelectPlaylistModal
+                isOpen={pendingAction !== null}
+                onClose={() => setPendingAction(null)}
+                onSelect={async (playlistId, playlistName) => {
+                    if (pendingAction) {
+                        // Close modal immediately to avoid UI lag (seeing counter update)
+                        const action = pendingAction;
+                        setPendingAction(null);
+
+                        // Execute action in background
+                        if (action.type === 'convert') {
+                            await handleConvertToVideoInPlaylist(action.item, playlistId, playlistName);
+                        } else {
+                            await handleCloneToPlaylist(action.item, playlistId, playlistName);
+                        }
+                    }
+                }}
+                title={pendingAction?.type === 'convert' ? 'Save video to playlist' : 'Save clone to playlist'}
             />
         </div>
     );
