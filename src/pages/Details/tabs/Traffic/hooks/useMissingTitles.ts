@@ -178,16 +178,21 @@ export const useMissingTitles = ({
         try {
             // CRITICAL FIX: Ensure we use the FULL dataset if a snapshot exists.
             let sourcesToRepair = displayedSources;
+            let existingTotalRow: TrafficSource | undefined;
 
             if (currentSnapshotId && trafficData?.snapshots) {
                 const snapshot = trafficData.snapshots.find((s: TrafficSnapshot) => s.id === currentSnapshotId);
                 if (snapshot) {
                     const { loadSnapshotSources } = await import('../utils/snapshotLoader');
-                    const { sources } = await loadSnapshotSources(snapshot);
+                    // Load both sources and totalRow
+                    const { sources, totalRow } = await loadSnapshotSources(snapshot);
+
                     if (sources.length > 0) {
                         sourcesToRepair = sources;
+                        existingTotalRow = totalRow;
                         assistantLogger.info('Loaded full snapshot for repair', {
-                            count: sources.length
+                            count: sources.length,
+                            hasTotalRow: !!totalRow
                         });
                     }
                 }
@@ -204,7 +209,8 @@ export const useMissingTitles = ({
             });
 
             // D. Regenerate CSV & Update Snapshot
-            const csvContent = generateTrafficCsv(updatedSources);
+            // FIX: Pass existingTotalRow to CSV generator so it's not lost
+            const csvContent = generateTrafficCsv(updatedSources, existingTotalRow);
             const csvFile = new File([csvContent], "repaired_traffic_data.csv", { type: "text/csv" });
 
             let snapshotId = currentSnapshotId;
@@ -220,7 +226,7 @@ export const useMissingTitles = ({
                     trafficVideoId,
                     currentSnapshotId,
                     updatedSources,
-                    undefined,
+                    existingTotalRow, // FIX: Pass totalRow
                     csvFile
                 );
             } else {
@@ -232,7 +238,7 @@ export const useMissingTitles = ({
                     trafficVideoId,
                     activeVersion,
                     updatedSources,
-                    undefined,
+                    existingTotalRow, // FIX: Pass totalRow
                     csvFile
                 );
             }
