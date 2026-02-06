@@ -11,6 +11,45 @@ import { ZoomControls } from '../../features/Video/ZoomControls';
 import { PlaylistExportControls } from './components/PlaylistExportControls';
 import { useFilterStore } from '../../core/stores/filterStore';
 import { SortButton } from '../../features/Filter/SortButton';
+import { usePlaylistDeltaStats, type PlaylistDeltaStats } from './hooks/usePlaylistDeltaStats';
+import type { Playlist } from '../../core/services/playlistService';
+
+// Format number with K/M suffix
+const formatDelta = (value: number | null): string | null => {
+    if (value === null) return null;
+    if (value >= 1_000_000) return `+${(value / 1_000_000).toFixed(1)}M`;
+    if (value >= 1_000) return `+${(value / 1_000).toFixed(1)}K`;
+    return `+${value}`;
+};
+
+// Subtitle component with delta stats
+const PlaylistSubtitle: React.FC<{
+    videoCount: number;
+    playlist: Playlist;
+    deltaStats: PlaylistDeltaStats;
+}> = ({ videoCount, playlist, deltaStats }) => {
+    const { totals, isLoading } = deltaStats;
+    const { delta24h, delta7d, delta30d } = totals;
+
+    return (
+        <span className="text-text-secondary text-sm">
+            {videoCount} videos
+            {!isLoading && delta24h !== null && (
+                <> • <span className="text-green-400">{formatDelta(delta24h)}</span> views (24h)</>
+            )}
+            {!isLoading && delta7d !== null && (
+                <> • <span className="text-green-400">{formatDelta(delta7d)}</span> views (7d)</>
+            )}
+            {!isLoading && delta30d !== null && (
+                <> • <span className="text-green-400">{formatDelta(delta30d)}</span> views (30d)</>
+            )}
+            {playlist.updatedAt && playlist.updatedAt > playlist.createdAt && (
+                <> • Updated {new Date(playlist.updatedAt).toLocaleDateString()}</>
+            )}
+            {' • '}Created {new Date(playlist.createdAt).toLocaleDateString()}
+        </span>
+    );
+};
 
 export const PlaylistDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -50,6 +89,27 @@ export const PlaylistDetailPage: React.FC = () => {
         // 'default' = manual order (as is from playlist.videoIds)
         return filtered;
     }, [playlist, videos, playlistVideoSortBy]);
+
+    // Delta statistics from trend data
+    const deltaStats = usePlaylistDeltaStats(playlistVideos);
+
+    // Lazy cleanup: auto-remove orphaned video IDs on playlist open
+    const cleanupDoneRef = React.useRef<string | null>(null);
+
+    React.useEffect(() => {
+        if (!playlist || !user || !currentChannel) return;
+        // Only run cleanup once per playlist (prevent re-running after our own update)
+        if (cleanupDoneRef.current === playlist.id) return;
+
+        const validVideoIds = playlist.videoIds.filter(vid => videos.some(v => v.id === vid));
+        const orphanedCount = playlist.videoIds.length - validVideoIds.length;
+
+        if (orphanedCount > 0) {
+            cleanupDoneRef.current = playlist.id;
+            // Silent fire-and-forget cleanup
+            updatePlaylist({ playlistId: playlist.id, updates: { videoIds: validVideoIds } });
+        }
+    }, [playlist, videos, user, currentChannel, updatePlaylist]);
 
     const [selectedVideoIds, setSelectedVideoIds] = React.useState<Set<string>>(new Set());
 
@@ -181,7 +241,7 @@ export const PlaylistDetailPage: React.FC = () => {
 
 
     return (
-        <div className="animate-fade-in flex flex-col h-full relative">
+        <div className="animate-fade-in flex flex-col h-full relative pl-2">
             {/* Header */}
             <div className="pt-6 px-6 flex items-center gap-4 mb-3">
                 <button
@@ -200,13 +260,11 @@ export const PlaylistDetailPage: React.FC = () => {
                     </div>
                     <div>
                         <h1 className="m-0 text-2xl font-bold text-text-primary">{playlist.name}</h1>
-                        <span className="text-text-secondary text-sm">
-                            {playlistVideos.length} videos
-                            {playlist.updatedAt && playlist.updatedAt > playlist.createdAt && (
-                                <> • Updated {new Date(playlist.updatedAt).toLocaleDateString()}</>
-                            )}
-                            {' • '}Created {new Date(playlist.createdAt).toLocaleDateString()}
-                        </span>
+                        <PlaylistSubtitle
+                            videoCount={playlistVideos.length}
+                            playlist={playlist}
+                            deltaStats={deltaStats}
+                        />
                     </div>
                 </div>
 
@@ -258,6 +316,7 @@ export const PlaylistDetailPage: React.FC = () => {
                 }}
                 selectedIds={selectedVideoIds}
                 onToggleSelection={handleToggleSelection}
+                videoDeltaStats={deltaStats.perVideo}
             />
 
             {/* Floating Zoom Controls */}

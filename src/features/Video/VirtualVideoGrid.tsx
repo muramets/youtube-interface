@@ -5,6 +5,7 @@ import { SortableVideoCard } from './SortableVideoCard';
 import type { VideoDetails } from '../../core/utils/youtubeApi';
 import { useSettings } from '../../core/hooks/useSettings';
 import { GRID_LAYOUT } from './layout';
+import type { VideoDeltaStats } from '../../pages/Playlists/hooks/usePlaylistDeltaStats';
 import {
     DndContext,
     closestCenter,
@@ -31,6 +32,7 @@ interface VirtualVideoGridProps {
     selectedIds?: Set<string>;
     onToggleSelection?: (id: string) => void;
     isSelectionMode?: boolean;
+    videoDeltaStats?: Map<string, VideoDeltaStats>;
 }
 
 interface InnerGridProps extends VirtualVideoGridProps {
@@ -48,7 +50,8 @@ const InnerGrid: React.FC<InnerGridProps> = ({
     onToggleSelection,
     isSelectionMode,
     containerWidth,
-    scrollElement
+    scrollElement,
+    videoDeltaStats
 }) => {
     const { generalSettings } = useSettings();
     const cardsPerRow = generalSettings.cardsPerRow;
@@ -177,6 +180,7 @@ const InnerGrid: React.FC<InnerGridProps> = ({
                                         isSelected={selectedIds?.has(video.id)}
                                         onToggleSelection={onToggleSelection}
                                         isSelectionMode={isSelectionMode}
+                                        deltaStats={videoDeltaStats?.get(video.id)}
                                     />
                                 ) : (
                                     <VideoCard
@@ -187,6 +191,7 @@ const InnerGrid: React.FC<InnerGridProps> = ({
                                         isSelected={selectedIds?.has(video.id)}
                                         onToggleSelection={onToggleSelection}
                                         isSelectionMode={isSelectionMode}
+                                        deltaStats={videoDeltaStats?.get(video.id)}
                                     />
                                 )}
                             </div>

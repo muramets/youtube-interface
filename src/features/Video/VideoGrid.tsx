@@ -13,6 +13,7 @@ import { GRID_LAYOUT } from './layout';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useUIStore } from '../../core/stores/uiStore';
+import type { VideoDeltaStats } from '../../pages/Playlists/hooks/usePlaylistDeltaStats';
 
 interface VideoGridProps {
   videos?: VideoDetails[];
@@ -23,6 +24,7 @@ interface VideoGridProps {
   onSetAsCover?: (id: string) => void;
   selectedIds?: Set<string>;
   onToggleSelection?: (id: string) => void;
+  videoDeltaStats?: Map<string, VideoDeltaStats>;
 }
 
 const parseViewCount = (viewCount: string | number | undefined): number => {
@@ -53,7 +55,8 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
   onVideoMove,
   onSetAsCover,
   selectedIds,
-  onToggleSelection
+  onToggleSelection,
+  videoDeltaStats
 }) => {
   const { user, isLoading: authLoading } = useAuth();
   const currentChannel = useChannelStore(state => state.currentChannel);
@@ -440,6 +443,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
         selectedIds={selectedIds}
         onToggleSelection={onToggleSelection}
         isSelectionMode={selectedIds && selectedIds.size > 0}
+        videoDeltaStats={videoDeltaStats}
       />
     </VideoGridContainer>
   );

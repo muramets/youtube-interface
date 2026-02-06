@@ -196,6 +196,28 @@ export const VideoService = {
         } catch (error) {
             console.error('Failed to cleanup videoOrder:', error);
         }
+
+        // 6. Cleanup playlists (remove video from all playlists that contain it)
+        try {
+            const { PlaylistService } = await import('./playlistService');
+            const playlists = await PlaylistService.fetchPlaylists(userId, channelId);
+            const playlistsWithVideo = playlists.filter(p => p.videoIds.includes(videoId));
+
+            if (playlistsWithVideo.length > 0) {
+                const batch = writeBatch(db);
+                const playlistsPath = `users/${userId}/channels/${channelId}/playlists`;
+
+                for (const playlist of playlistsWithVideo) {
+                    const playlistRef = doc(db, playlistsPath, playlist.id);
+                    const updatedVideoIds = playlist.videoIds.filter(id => id !== videoId);
+                    batch.update(playlistRef, { videoIds: updatedVideoIds });
+                }
+
+                await batch.commit();
+            }
+        } catch (error) {
+            console.error('Failed to cleanup playlists:', error);
+        }
     },
 
     // --- Subcollections ---

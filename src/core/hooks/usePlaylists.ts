@@ -1,16 +1,31 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
-import { PlaylistService, type Playlist } from '../services/playlistService';
+import { PlaylistService, type Playlist, type PlaylistSettings } from '../services/playlistService';
 import { SettingsService } from '../services/settingsService';
 
 export const usePlaylists = (userId: string, channelId: string) => {
     const queryClient = useQueryClient();
     const queryKey = useMemo(() => ['playlists', userId, channelId], [userId, channelId]);
+    const settingsKey = useMemo(() => ['playlistSettings', userId, channelId], [userId, channelId]);
 
-    const { data: playlists = [], isLoading, error } = useQuery<Playlist[]>({
+    // Stable empty array reference
+    const EMPTY_PLAYLISTS: Playlist[] = useMemo(() => [], []);
+
+    const { data: rawPlaylists, isLoading, error } = useQuery<Playlist[]>({
         queryKey,
         queryFn: async () => {
             return PlaylistService.fetchPlaylists(userId, channelId);
+        },
+        staleTime: Infinity,
+        enabled: !!userId && !!channelId,
+    });
+
+    const playlists = rawPlaylists || EMPTY_PLAYLISTS;
+
+    const { data: playlistSettings } = useQuery<PlaylistSettings>({
+        queryKey: settingsKey,
+        queryFn: async () => {
+            return PlaylistService.fetchPlaylistSettings(userId, channelId);
         },
         staleTime: Infinity,
         enabled: !!userId && !!channelId,
@@ -26,13 +41,16 @@ export const usePlaylists = (userId: string, channelId: string) => {
 
     // Mutations
     const createPlaylistMutation = useMutation({
-        mutationFn: async ({ name, videoIds = [] }: { name: string, videoIds?: string[] }) => {
+        mutationFn: async ({ name, videoIds = [], group }: { name: string, videoIds?: string[], group?: string }) => {
             const id = `playlist-${Date.now()}`;
             const newPlaylist: Playlist = {
                 id,
                 name,
                 videoIds,
-                createdAt: Date.now()
+                createdAt: Date.now(),
+                order: 0, // New playlists go to top
+                // Only include group if defined (Firestore doesn't accept undefined)
+                ...(group ? { group } : {}),
             };
             await PlaylistService.createPlaylist(userId, channelId, newPlaylist);
             return id;
@@ -50,8 +68,6 @@ export const usePlaylists = (userId: string, channelId: string) => {
             await PlaylistService.deletePlaylist(userId, channelId, playlistId);
         }
     });
-
-
 
     const addVideosToPlaylistMutation = useMutation({
         mutationFn: async ({ playlistId, videoIds }: { playlistId: string, videoIds: string[] }) => {
@@ -77,27 +93,135 @@ export const usePlaylists = (userId: string, channelId: string) => {
         }
     });
 
+    // --- Group-related mutations ---
+    const reorderGroupOrderMutation = useMutation({
+        mutationFn: async (newOrder: string[]) => {
+            await PlaylistService.updatePlaylistSettings(userId, channelId, { groupOrder: newOrder });
+            // Optimistic update
+            queryClient.setQueryData(settingsKey, (old: PlaylistSettings | undefined) => ({
+                ...old,
+                groupOrder: newOrder
+            }));
+        }
+    });
+
+    const reorderPlaylistsInGroupMutation = useMutation({
+        mutationFn: async (orderedIds: string[]) => {
+            await PlaylistService.reorderPlaylistsInGroup(userId, channelId, orderedIds);
+        }
+    });
+
+    const movePlaylistToGroupMutation = useMutation({
+        mutationFn: async ({ playlistId, newGroup, orderedIds }: { playlistId: string, newGroup: string, orderedIds: string[] }) => {
+            await PlaylistService.movePlaylistToGroup(userId, channelId, playlistId, newGroup, orderedIds);
+        }
+    });
+
+    const renameGroupMutation = useMutation({
+        mutationFn: async ({ oldName, newName }: { oldName: string, newName: string }) => {
+            await PlaylistService.renameGroup(userId, channelId, oldName, newName);
+        },
+        onMutate: async ({ oldName, newName }) => {
+            // Cancel outgoing refetches
+            await queryClient.cancelQueries({ queryKey });
+            await queryClient.cancelQueries({ queryKey: settingsKey });
+
+            // Snapshot previous value
+            const previousPlaylists = queryClient.getQueryData<Playlist[]>(queryKey);
+            const previousSettings = queryClient.getQueryData<PlaylistSettings>(settingsKey);
+
+            // Optimistic update for Playlists
+            if (previousPlaylists) {
+                queryClient.setQueryData<Playlist[]>(queryKey, (old) => {
+                    return old ? old.map(p =>
+                        p.group === oldName ? { ...p, group: newName } : p
+                    ) : [];
+                });
+            }
+
+            // Optimistic update for Settings (Group Order)
+            if (previousSettings) {
+                queryClient.setQueryData<PlaylistSettings>(settingsKey, (old) => {
+                    if (!old) return { groupOrder: [] };
+                    return {
+                        ...old,
+                        groupOrder: (old.groupOrder || []).map(g => g === oldName ? newName : g)
+                    };
+                });
+            }
+
+            return { previousPlaylists, previousSettings };
+        },
+        onError: (_err, _newTodo, context) => {
+            if (context?.previousPlaylists) {
+                queryClient.setQueryData(queryKey, context.previousPlaylists);
+            }
+            if (context?.previousSettings) {
+                queryClient.setQueryData(settingsKey, context.previousSettings);
+            }
+        },
+        onSettled: () => {
+            // We usually invalidate here, but since the subscription will fire, 
+            // explicit invalidation might be redundant or cause double-fetches.
+            // However, to be safe against subscription lag:
+            // queryClient.invalidateQueries({ queryKey });
+            // queryClient.invalidateQueries({ queryKey: settingsKey });
+        }
+    });
+
+    const deleteGroupMutation = useMutation({
+        mutationFn: async (groupName: string) => {
+            // Move all playlists in the group to "Ungrouped"
+            const playlistsInGroup = playlists.filter(p => p.group === groupName);
+            for (const p of playlistsInGroup) {
+                await PlaylistService.updatePlaylist(userId, channelId, p.id, { group: undefined });
+            }
+            // Remove from group order
+            const currentOrder = playlistSettings?.groupOrder || [];
+            const newOrder = currentOrder.filter(g => g !== groupName);
+            await PlaylistService.updatePlaylistSettings(userId, channelId, { groupOrder: newOrder });
+        }
+    });
+
     return useMemo(() => ({
+        // Manual cache update for optimistic DnD
+        updateCache: (newPlaylists: Playlist[]) => queryClient.setQueryData(queryKey, newPlaylists),
         playlists,
         isLoading,
         error,
+        playlistSettings,
+        groupOrder: playlistSettings?.groupOrder || [],
         createPlaylist: createPlaylistMutation.mutateAsync,
         updatePlaylist: updatePlaylistMutation.mutateAsync,
         deletePlaylist: deletePlaylistMutation.mutateAsync,
         addVideosToPlaylist: addVideosToPlaylistMutation.mutateAsync,
         removeVideosFromPlaylist: removeVideosFromPlaylistMutation.mutateAsync,
         reorderPlaylists: reorderPlaylistsMutation.mutateAsync,
-        reorderPlaylistVideos: reorderPlaylistVideosMutation.mutateAsync
+        reorderPlaylistVideos: reorderPlaylistVideosMutation.mutateAsync,
+        // Group operations
+        reorderGroupOrder: reorderGroupOrderMutation.mutateAsync,
+        reorderPlaylistsInGroup: reorderPlaylistsInGroupMutation.mutateAsync,
+        movePlaylistToGroup: movePlaylistToGroupMutation.mutateAsync,
+        renameGroup: renameGroupMutation.mutateAsync,
+        deleteGroup: deleteGroupMutation.mutateAsync,
     }), [
         playlists,
         isLoading,
         error,
+        playlistSettings,
         createPlaylistMutation.mutateAsync,
         updatePlaylistMutation.mutateAsync,
         deletePlaylistMutation.mutateAsync,
         addVideosToPlaylistMutation.mutateAsync,
         removeVideosFromPlaylistMutation.mutateAsync,
         reorderPlaylistsMutation.mutateAsync,
-        reorderPlaylistVideosMutation.mutateAsync
+        reorderPlaylistVideosMutation.mutateAsync,
+        reorderGroupOrderMutation.mutateAsync,
+        reorderPlaylistsInGroupMutation.mutateAsync,
+        movePlaylistToGroupMutation.mutateAsync,
+        renameGroupMutation.mutateAsync,
+        deleteGroupMutation.mutateAsync,
+        queryClient,
+        queryKey,
     ]);
 };

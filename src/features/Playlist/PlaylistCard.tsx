@@ -65,6 +65,11 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
         return playlist.coverImage || lastVideo?.customImage || lastVideo?.thumbnail || '';
     }, [playlist.coverImage, playlist.videoIds, videos]);
 
+    // Compute valid video count (only videos that exist in DB)
+    const validVideoCount = useMemo(() => {
+        return playlist.videoIds.filter(vid => videos.some(v => v.id === vid)).length;
+    }, [playlist.videoIds, videos]);
+
     return (
         <div
             className="group relative p-2 rounded-xl cursor-pointer flex flex-col h-full z-0"
@@ -77,12 +82,12 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
                 {/* Cover Image Area */}
                 <div className="aspect-video bg-bg-secondary flex items-center justify-center relative rounded-t-xl overflow-hidden">
                     {effectiveCoverImage ? (
-                        <img src={effectiveCoverImage} alt={playlist.name} className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                        <img src={effectiveCoverImage} alt={playlist.name} className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" draggable={false} />
                     ) : (
                         <PlaySquare size={48} className="text-text-secondary" />
                     )}
                     <div className="absolute bottom-2 right-2 bg-black/80 text-white px-1 py-0.5 rounded text-xs font-medium">
-                        {playlist.videoIds.length} videos
+                        {validVideoCount} videos
                     </div>
                 </div>
 
@@ -125,7 +130,7 @@ export const PlaylistCard: React.FC<PlaylistCardProps> = ({
     );
 };
 
-export const SortablePlaylistCard: React.FC<PlaylistCardProps> = (props) => {
+export const SortablePlaylistCard: React.FC<PlaylistCardProps & { isDragEnabled?: boolean }> = ({ isDragEnabled = true, ...props }) => {
     const {
         attributes,
         listeners,
@@ -133,13 +138,14 @@ export const SortablePlaylistCard: React.FC<PlaylistCardProps> = (props) => {
         transform,
         transition,
         isDragging
-    } = useSortable({ id: props.playlist.id });
+    } = useSortable({ id: props.playlist.id, disabled: !isDragEnabled });
 
     const style = {
         transform: CSS.Transform.toString(transform),
         transition,
         zIndex: isDragging ? 1000 : 'auto',
-        opacity: isDragging ? 0.5 : 1,
+        opacity: isDragging ? 0 : 1, // Completely hide when dragging - DragOverlay shows the ghost
+        touchAction: 'none',
     };
 
     return (

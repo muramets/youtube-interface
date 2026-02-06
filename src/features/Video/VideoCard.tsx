@@ -20,6 +20,7 @@ import { useChannelStore } from '../../core/stores/channelStore';
 import { useSettings } from '../../core/hooks/useSettings';
 import { useUIStore } from '../../core/stores/uiStore';
 import { Toast } from '../../components/ui/molecules/Toast';
+import type { VideoDeltaStats } from '../../pages/Playlists/hooks/usePlaylistDeltaStats';
 
 interface VideoCardProps {
   video: VideoDetails;
@@ -33,9 +34,10 @@ interface VideoCardProps {
   isSelected?: boolean;
   onToggleSelection?: (id: string) => void;
   isSelectionMode?: boolean;
+  deltaStats?: VideoDeltaStats;
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange, onRemove, onSetAsCover, isOverlay, isSelected, onToggleSelection, isSelectionMode }) => {
+export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange, onRemove, onSetAsCover, isOverlay, isSelected, onToggleSelection, isSelectionMode, deltaStats }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const currentChannel = useChannelStore(state => state.currentChannel);
@@ -508,7 +510,13 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                 )}
               </div>
               <div>
-                {displayVideo.viewCount ? `${formatViewCount(displayVideo.viewCount)} views` : ''} • {new Date(displayVideo.publishedAt).toLocaleDateString()}
+                {displayVideo.viewCount ? `${formatViewCount(displayVideo.viewCount)} views` : ''}
+                {deltaStats?.delta24h !== null && deltaStats?.delta24h !== undefined && (
+                  <span className="text-green-400 ml-1">
+                    (+{deltaStats.delta24h >= 1000 ? `${(deltaStats.delta24h / 1000).toFixed(1)}K` : deltaStats.delta24h})
+                  </span>
+                )}
+                {' '}• {new Date(displayVideo.publishedAt).toLocaleDateString()}
               </div>
             </div>
           </div>

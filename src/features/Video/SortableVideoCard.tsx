@@ -3,6 +3,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { VideoCard } from './VideoCard';
 import type { VideoDetails } from '../../core/utils/youtubeApi';
+import type { VideoDeltaStats } from '../../pages/Playlists/hooks/usePlaylistDeltaStats';
 
 interface SortableVideoCardProps {
     video: VideoDetails;
@@ -14,9 +15,10 @@ interface SortableVideoCardProps {
     isSelected?: boolean;
     onToggleSelection?: (id: string) => void;
     isSelectionMode?: boolean;
+    deltaStats?: VideoDeltaStats;
 }
 
-export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, playlistId, scale = 1, onMenuOpenChange, onRemove, onSetAsCover, isSelected, onToggleSelection, isSelectionMode }) => {
+export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, playlistId, scale = 1, onMenuOpenChange, onRemove, onSetAsCover, isSelected, onToggleSelection, isSelectionMode, deltaStats }) => {
     const {
         attributes,
         listeners,
@@ -50,6 +52,7 @@ export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, pla
                 isSelected={isSelected}
                 onToggleSelection={onToggleSelection}
                 isSelectionMode={isSelectionMode}
+                deltaStats={deltaStats}
             />
         </div>
     );
