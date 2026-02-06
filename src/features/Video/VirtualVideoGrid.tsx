@@ -5,7 +5,7 @@ import { SortableVideoCard } from './SortableVideoCard';
 import type { VideoDetails } from '../../core/utils/youtubeApi';
 import { useSettings } from '../../core/hooks/useSettings';
 import { GRID_LAYOUT } from './layout';
-import type { VideoDeltaStats } from '../../pages/Playlists/hooks/usePlaylistDeltaStats';
+import type { VideoDeltaStats } from '../Playlists/hooks/usePlaylistDeltaStats';
 import {
     DndContext,
     closestCenter,

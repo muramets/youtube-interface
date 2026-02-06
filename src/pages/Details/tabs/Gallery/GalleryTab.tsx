@@ -17,7 +17,7 @@ import { GalleryZoomControls } from './GalleryZoomControls';
 import { getGalleryZoomLevel } from './galleryZoomUtils';
 import { SourceModal } from '../../Sidebar/Gallery/SourceModal';
 import { useGalleryCardActions } from './useGalleryCardActions';
-import { SelectPlaylistModal } from '../../../../features/Playlist/SelectPlaylistModal';
+import { SelectPlaylistModal } from '../../../../features/Playlists/modals/SelectPlaylistModal';
 
 interface GalleryTabProps {
     video: VideoDetails;

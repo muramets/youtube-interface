@@ -3,7 +3,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { VideoCard } from './VideoCard';
 import type { VideoDetails } from '../../core/utils/youtubeApi';
-import type { VideoDeltaStats } from '../../pages/Playlists/hooks/usePlaylistDeltaStats';
+import type { VideoDeltaStats } from '../Playlists/hooks/usePlaylistDeltaStats';
 
 interface SortableVideoCardProps {
     video: VideoDetails;

@@ -3,7 +3,7 @@ import { Plus, Youtube, Upload, ListPlus } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { AddYouTubeVideoModal } from '../../../features/Video/Modals/AddYouTubeVideoModal';
 import { AddCustomVideoModal } from '../../../features/Video/Modals/AddCustomVideo/AddCustomVideoModal';
-import { CreatePlaylistModal } from '../../../features/Playlist/CreatePlaylistModal';
+import { CreatePlaylistModal } from '../../../features/Playlists/modals/CreatePlaylistModal';
 import { useVideos } from '../../../core/hooks/useVideos';
 import { useSettings } from '../../../core/hooks/useSettings';
 import type { VideoDetails, CoverVersion } from '../../../core/utils/youtubeApi';

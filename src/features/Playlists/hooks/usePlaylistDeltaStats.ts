@@ -51,6 +51,12 @@ export const usePlaylistDeltaStats = (playlistVideos: VideoDetails[]): PlaylistD
             .map(v => v.id);
     }, [playlistVideos]);
 
+    // Create a stable key for video IDs effectively ignoring order changes
+    // This prevents re-fetching when dragging/reordering videos
+    const stableVideoIdKey = useMemo(() => {
+        return youtubeVideoIds.slice().sort().join(',');
+    }, [youtubeVideoIds]);
+
     // Extract unique channelIds from playlist videos for filtering trend channels
     const playlistChannelIds = useMemo(() => {
         return new Set(
@@ -60,9 +66,13 @@ export const usePlaylistDeltaStats = (playlistVideos: VideoDetails[]): PlaylistD
         );
     }, [playlistVideos]);
 
+    // Create a stable key for channel IDs to prevent effect re-triggering on order changes
+    const stableChannelIdKey = useMemo(() => {
+        return Array.from(playlistChannelIds).sort().join(',');
+    }, [playlistChannelIds]);
+
     useEffect(() => {
         if (!user?.uid || !currentChannel?.id || youtubeVideoIds.length === 0) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: reset stats on dependency change
             setStats({ totals: { delta24h: null, delta7d: null, delta30d: null }, perVideo: new Map(), videosWithData: 0, isLoading: false });
             return;
         }
@@ -198,7 +208,8 @@ export const usePlaylistDeltaStats = (playlistVideos: VideoDetails[]): PlaylistD
         };
 
         loadDeltaStats();
-    }, [user?.uid, currentChannel?.id, youtubeVideoIds, trendChannels, playlistChannelIds]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user?.uid, currentChannel?.id, stableVideoIdKey, trendChannels.length, stableChannelIdKey]);
 
     return stats;
 };

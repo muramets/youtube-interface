@@ -11,7 +11,7 @@ import { usePlaylists } from '../../core/hooks/usePlaylists';
 
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { VideoCardMenu } from './VideoCardMenu';
-import { AddToPlaylistModal as PlaylistSelectionModal } from '../Playlist/AddToPlaylistModal';
+import { AddToPlaylistModal as PlaylistSelectionModal } from '../Playlists/modals/AddToPlaylistModal';
 import { ConfirmationModal } from '../../components/ui/organisms/ConfirmationModal';
 import { ClonedVideoTooltipContent } from './ClonedVideoTooltipContent';
 import { useThumbnailActions } from '../../core/hooks/useThumbnailActions';
@@ -20,7 +20,7 @@ import { useChannelStore } from '../../core/stores/channelStore';
 import { useSettings } from '../../core/hooks/useSettings';
 import { useUIStore } from '../../core/stores/uiStore';
 import { Toast } from '../../components/ui/molecules/Toast';
-import type { VideoDeltaStats } from '../../pages/Playlists/hooks/usePlaylistDeltaStats';
+import type { VideoDeltaStats } from '../Playlists/hooks/usePlaylistDeltaStats';
 
 interface VideoCardProps {
   video: VideoDetails;

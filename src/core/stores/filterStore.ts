@@ -17,7 +17,7 @@ interface FilterState {
     searchQuery: string;
     selectedChannel: string | null; // Legacy simple filter (can be kept for backward compat or migrated)
     homeSortBy: 'default' | 'views' | 'date' | 'recently_added';
-    playlistVideoSortBy: 'default' | 'views' | 'date'; // Persistent sort for videos INSIDE a playlist
+    playlistVideoSortBy: 'default' | 'views' | 'date' | 'delta24h' | 'delta7d' | 'delta30d'; // Persistent sort for videos INSIDE a playlist
     playlistsSortBy: 'default' | 'views' | 'updated' | 'created'; // Persistent sort for the LIST of playlists
 
     activeFilters: FilterItem[];
@@ -29,7 +29,7 @@ interface FilterState {
     setSearchQuery: (query: string) => void;
     setSelectedChannel: (channel: string | null) => void;
     setHomeSortBy: (sort: 'default' | 'views' | 'date' | 'recently_added') => void;
-    setPlaylistVideoSortBy: (sort: 'default' | 'views' | 'date') => void;
+    setPlaylistVideoSortBy: (sort: 'default' | 'views' | 'date' | 'delta24h' | 'delta7d' | 'delta30d') => void;
     setPlaylistsSortBy: (sort: 'default' | 'views' | 'updated' | 'created') => void;
 
     addFilter: (filter: Omit<FilterItem, 'id'>) => void;

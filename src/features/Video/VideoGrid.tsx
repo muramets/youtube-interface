@@ -13,7 +13,7 @@ import { GRID_LAYOUT } from './layout';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useUIStore } from '../../core/stores/uiStore';
-import type { VideoDeltaStats } from '../../pages/Playlists/hooks/usePlaylistDeltaStats';
+import type { VideoDeltaStats } from '../Playlists/hooks/usePlaylistDeltaStats';
 
 interface VideoGridProps {
   videos?: VideoDetails[];

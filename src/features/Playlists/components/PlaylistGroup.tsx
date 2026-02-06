@@ -3,7 +3,7 @@ import { GripVertical, Settings } from 'lucide-react';
 import { SortableContext, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { CollapsibleSection } from '../../../components/ui/molecules/CollapsibleSection';
-import { SortablePlaylistCard } from '../../Playlist/PlaylistCard';
+import { SortablePlaylistCard } from './PlaylistCard';
 import type { Playlist } from '../../../core/services/playlistService';
 
 // Phantom Placeholder for empty groups - invisible but detectable by dnd-kit

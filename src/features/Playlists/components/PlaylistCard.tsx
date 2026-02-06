@@ -2,11 +2,11 @@ import React, { useMemo } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { PlaySquare, MoreVertical } from 'lucide-react';
-import type { Playlist } from '../../core/services/playlistService';
+import type { Playlist } from '../../../core/services/playlistService';
 import { PlaylistMenu } from './PlaylistMenu';
-import { useVideos } from '../../core/hooks/useVideos';
-import { useAuth } from '../../core/hooks/useAuth';
-import { useChannelStore } from '../../core/stores/channelStore';
+import { useVideos } from '../../../core/hooks/useVideos';
+import { useAuth } from '../../../core/hooks/useAuth';
+import { useChannelStore } from '../../../core/stores/channelStore';
 
 
 interface PlaylistCardProps {

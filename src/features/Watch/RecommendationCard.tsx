@@ -10,7 +10,7 @@ import { useChannelStore } from '../../core/stores/channelStore';
 import type { VideoDetails } from '../../core/utils/youtubeApi';
 import { formatViewCount, formatDuration } from '../../core/utils/formatUtils';
 import { VideoCardMenu } from '../Video/VideoCardMenu';
-import { AddToPlaylistModal } from '../Playlist/AddToPlaylistModal';
+import { AddToPlaylistModal } from '../Playlists/modals/AddToPlaylistModal';
 import { ConfirmationModal } from '../../components/ui/organisms/ConfirmationModal';
 import { AddCustomVideoModal } from '../Video/Modals/AddCustomVideo/AddCustomVideoModal';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';

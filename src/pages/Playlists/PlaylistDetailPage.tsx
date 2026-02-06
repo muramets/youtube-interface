@@ -8,10 +8,10 @@ import { useChannelStore } from '../../core/stores/channelStore';
 import { ArrowLeft, PlaySquare } from 'lucide-react';
 import { VideoGrid } from '../../features/Video/VideoGrid';
 import { ZoomControls } from '../../features/Video/ZoomControls';
-import { PlaylistExportControls } from './components/PlaylistExportControls';
+import { PlaylistExportControls } from '../../features/Playlists/components/PlaylistExportControls';
 import { useFilterStore } from '../../core/stores/filterStore';
 import { SortButton } from '../../features/Filter/SortButton';
-import { usePlaylistDeltaStats, type PlaylistDeltaStats } from './hooks/usePlaylistDeltaStats';
+import { usePlaylistDeltaStats, type PlaylistDeltaStats } from '../../features/Playlists/hooks/usePlaylistDeltaStats';
 import type { Playlist } from '../../core/services/playlistService';
 
 // Format number with K/M suffix
@@ -62,16 +62,38 @@ export const PlaylistDetailPage: React.FC = () => {
 
     const playlist = playlists.find(p => p.id === id);
 
+    // Local state for optimistic video order (prevents jitter on Firestore sync)
+    const [localVideoOrder, setLocalVideoOrder] = React.useState<string[]>([]);
+
+    // Sync localVideoOrder with playlist.videoIds (only if actually different)
+    React.useEffect(() => {
+        if (playlist?.videoIds) {
+            setLocalVideoOrder(prev => {
+                if (JSON.stringify(prev) !== JSON.stringify(playlist.videoIds)) {
+                    return playlist.videoIds;
+                }
+                return prev;
+            });
+        }
+    }, [playlist?.videoIds]);
+
     // Filter videos that are in the playlist
-    // We map over playlist.videoIds to preserve order
-    const playlistVideos = useMemo(() => {
-        if (!playlist) return [];
-        const filtered = playlist.videoIds
+    // Use localVideoOrder for rendering to get immediate optimistic updates
+    const basePlaylistVideos = useMemo(() => {
+        if (localVideoOrder.length === 0) return [];
+        return localVideoOrder
             .map(videoId => videos.find(v => v.id === videoId))
             .filter((v): v is NonNullable<typeof v> => v !== undefined);
+    }, [localVideoOrder, videos]);
 
+    // Delta statistics from trend data
+    // We pass the BASE videos to ensure stats are fetched for all videos, regardless of sort
+    const deltaStats = usePlaylistDeltaStats(basePlaylistVideos);
+
+    // Apply sorting to the base videos
+    const sortedPlaylistVideos = useMemo(() => {
         if (playlistVideoSortBy === 'views') {
-            return [...filtered].sort((a, b) => {
+            return [...basePlaylistVideos].sort((a, b) => {
                 const viewsA = parseInt(a.viewCount?.replace(/[^0-9]/g, '') || '0', 10);
                 const viewsB = parseInt(b.viewCount?.replace(/[^0-9]/g, '') || '0', 10);
                 return viewsB - viewsA;
@@ -79,19 +101,36 @@ export const PlaylistDetailPage: React.FC = () => {
         }
 
         if (playlistVideoSortBy === 'date') {
-            return [...filtered].sort((a, b) => {
+            return [...basePlaylistVideos].sort((a, b) => {
                 const dateA = new Date(a.publishedAt || 0).getTime();
                 const dateB = new Date(b.publishedAt || 0).getTime();
                 return dateB - dateA;
             });
         }
 
-        // 'default' = manual order (as is from playlist.videoIds)
-        return filtered;
-    }, [playlist, videos, playlistVideoSortBy]);
+        const getDelta = (vId: string, period: 'delta24h' | 'delta7d' | 'delta30d') => {
+            const stats = deltaStats.perVideo.get(vId);
+            return stats?.[period] ?? -Infinity; // Push nulls/undefined to bottom
+        };
 
-    // Delta statistics from trend data
-    const deltaStats = usePlaylistDeltaStats(playlistVideos);
+        if (playlistVideoSortBy === 'delta24h') {
+            return [...basePlaylistVideos].sort((a, b) => getDelta(b.id, 'delta24h') - getDelta(a.id, 'delta24h'));
+        }
+
+        if (playlistVideoSortBy === 'delta7d') {
+            return [...basePlaylistVideos].sort((a, b) => getDelta(b.id, 'delta7d') - getDelta(a.id, 'delta7d'));
+        }
+
+        if (playlistVideoSortBy === 'delta30d') {
+            return [...basePlaylistVideos].sort((a, b) => getDelta(b.id, 'delta30d') - getDelta(a.id, 'delta30d'));
+        }
+
+        // 'default' = manual order
+        return basePlaylistVideos;
+    }, [basePlaylistVideos, playlistVideoSortBy, deltaStats]);
+
+    // Alias for compatibility with rest of component
+    const playlistVideos = sortedPlaylistVideos;
 
     // Lazy cleanup: auto-remove orphaned video IDs on playlist open
     const cleanupDoneRef = React.useRef<string | null>(null);
@@ -205,7 +244,7 @@ export const PlaylistDetailPage: React.FC = () => {
         const oldIndex = currentVisibleOrder.indexOf(movedVideoId);
         const newIndex = currentVisibleOrder.indexOf(targetVideoId);
 
-        if (oldIndex === -1 || newIndex === -1 || !user || !currentChannel) return;
+        if (oldIndex === -1 || newIndex === -1 || !user || !currentChannel || !playlist) return;
 
         // If we are in a Sorted View (not 'default'), we need to capturing current order -> switch to default
         if (playlistVideoSortBy !== 'default') {
@@ -214,27 +253,32 @@ export const PlaylistDetailPage: React.FC = () => {
             const [movedItem] = newOrder.splice(oldIndex, 1);
             newOrder.splice(newIndex, 0, movedItem);
 
-            // 1. Switch UI to Manual Sort
+            // 1. Optimistically update local order FIRST
+            setLocalVideoOrder(newOrder);
+
+            // 2. Switch UI to Manual Sort
             setPlaylistVideoSortBy('default');
 
-            // 2. Persist this new "Manual" order
+            // 3. Persist this new "Manual" order
             reorderPlaylistVideos({ playlistId: playlist.id, newVideoIds: newOrder });
             return;
         }
 
         // Manual Mode: Standard Reorder
-        // We must map visual indices back to original full ID list if we were filtering,
-        // but here playlistVideos corresponds to playlist.videoIds (filtered by existence).
-        // Safest is to operate on the FULL playlist.videoIds list using the IDs.
+        // Calculate new order based on localVideoOrder (what we're currently showing)
+        const localOldIndex = localVideoOrder.indexOf(movedVideoId);
+        const localNewIndex = localVideoOrder.indexOf(targetVideoId);
 
-        const originalOldIndex = playlist.videoIds.indexOf(movedVideoId);
-        const originalNewIndex = playlist.videoIds.indexOf(targetVideoId);
+        if (localOldIndex !== -1 && localNewIndex !== -1) {
+            const newOrder = [...localVideoOrder];
+            const [movedItem] = newOrder.splice(localOldIndex, 1);
+            newOrder.splice(localNewIndex, 0, movedItem);
 
-        if (originalOldIndex !== -1 && originalNewIndex !== -1) {
-            const fullOrder = [...playlist.videoIds];
-            const [movedItem] = fullOrder.splice(originalOldIndex, 1);
-            fullOrder.splice(originalNewIndex, 0, movedItem);
-            reorderPlaylistVideos({ playlistId: playlist.id, newVideoIds: fullOrder });
+            // 1. Optimistically update local order FIRST (prevents jitter)
+            setLocalVideoOrder(newOrder);
+
+            // 2. Persist to Firestore
+            reorderPlaylistVideos({ playlistId: playlist.id, newVideoIds: newOrder });
         }
     };
 
@@ -284,10 +328,13 @@ export const PlaylistDetailPage: React.FC = () => {
                         sortOptions={[
                             { label: 'Manual Order', value: 'default' },
                             { label: 'Most Viewed', value: 'views' },
+                            ...(deltaStats.totals.delta24h !== null ? [{ label: 'Views (24h)', value: 'delta24h' }] : []),
+                            ...(deltaStats.totals.delta7d !== null ? [{ label: 'Views (7d)', value: 'delta7d' }] : []),
+                            ...(deltaStats.totals.delta30d !== null ? [{ label: 'Views (30d)', value: 'delta30d' }] : []),
                             { label: 'Newest First', value: 'date' },
                         ]}
                         activeSort={playlistVideoSortBy}
-                        onSortChange={(val) => setPlaylistVideoSortBy(val as 'default' | 'views' | 'date')}
+                        onSortChange={(val) => setPlaylistVideoSortBy(val as 'views' | 'date' | 'delta24h' | 'delta7d' | 'delta30d' | 'default')}
                     />
                     <PlaylistExportControls
                         videos={videosToExport}

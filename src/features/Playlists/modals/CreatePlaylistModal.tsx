@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { X, ListPlus } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { usePlaylists } from '../../core/hooks/usePlaylists';
-import { useAuth } from '../../core/hooks/useAuth';
-import { useChannelStore } from '../../core/stores/channelStore';
+import { usePlaylists } from '../../../core/hooks/usePlaylists';
+import { useAuth } from '../../../core/hooks/useAuth';
+import { useChannelStore } from '../../../core/stores/channelStore';
 
 interface CreatePlaylistModalProps {
     isOpen: boolean;

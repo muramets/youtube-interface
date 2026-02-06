@@ -1,10 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { X, Upload, Trash2 } from 'lucide-react';
-import { useVideos } from '../../core/hooks/useVideos';
+import { useVideos } from '../../../core/hooks/useVideos';
 
-import { useAuth } from '../../core/hooks/useAuth';
-import { useChannelStore } from '../../core/stores/channelStore';
-import { type Playlist } from '../../core/services/playlistService';
+import { useAuth } from '../../../core/hooks/useAuth';
+import { useChannelStore } from '../../../core/stores/channelStore';
+import { type Playlist } from '../../../core/services/playlistService';
 
 interface PlaylistEditModalProps {
     isOpen: boolean;

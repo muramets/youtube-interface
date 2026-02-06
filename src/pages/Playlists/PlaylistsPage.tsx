@@ -6,7 +6,7 @@ import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { type Playlist } from '../../core/services/playlistService';
 import { useNavigate } from 'react-router-dom';
-import { PlaylistEditModal } from '../../features/Playlist/PlaylistEditModal';
+import { PlaylistEditModal } from '../../features/Playlists/modals/PlaylistEditModal';
 import { ConfirmationModal } from '../../components/ui/organisms/ConfirmationModal';
 import { FilterSortDropdown } from '../../features/Filter/FilterSortDropdown';
 import { AddContentMenu } from '../../components/ui/organisms/AddContentMenu';
@@ -20,7 +20,7 @@ import {
     SortableContext,
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { PlaylistCard } from '../../features/Playlist/PlaylistCard';
+import { PlaylistCard } from '../../features/Playlists/components/PlaylistCard';
 import { PlaylistsPageSkeleton } from './PlaylistsPageSkeleton';
 
 // New grouping imports
@@ -28,7 +28,7 @@ import { useCollapsedGroups } from '../../core/hooks/useCollapsedGroups';
 import { usePlaylistsGrouping } from '../../features/Playlists/hooks/usePlaylistsGrouping';
 import { usePlaylistDnD } from '../../features/Playlists/hooks/usePlaylistDnD';
 import { PlaylistGroup } from '../../features/Playlists/components/PlaylistGroup';
-import { GroupSettingsModal } from '../../features/Playlists/components/GroupSettingsModal';
+import { GroupSettingsModal } from '../../features/Playlists/modals/GroupSettingsModal';
 
 export const PlaylistsPage: React.FC = () => {
     const { user } = useAuth();
