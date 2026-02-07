@@ -94,16 +94,16 @@ export const PlaylistDetailPage: React.FC = () => {
     const sortedPlaylistVideos = useMemo(() => {
         if (playlistVideoSortBy === 'views') {
             return [...basePlaylistVideos].sort((a, b) => {
-                const viewsA = parseInt(a.viewCount?.replace(/[^0-9]/g, '') || '0', 10);
-                const viewsB = parseInt(b.viewCount?.replace(/[^0-9]/g, '') || '0', 10);
+                const viewsA = parseInt((a.mergedVideoData?.viewCount || a.viewCount)?.replace(/[^0-9]/g, '') || '0', 10);
+                const viewsB = parseInt((b.mergedVideoData?.viewCount || b.viewCount)?.replace(/[^0-9]/g, '') || '0', 10);
                 return viewsB - viewsA;
             });
         }
 
         if (playlistVideoSortBy === 'date') {
             return [...basePlaylistVideos].sort((a, b) => {
-                const dateA = new Date(a.publishedAt || 0).getTime();
-                const dateB = new Date(b.publishedAt || 0).getTime();
+                const dateA = new Date(a.mergedVideoData?.publishedAt || a.publishedAt || 0).getTime();
+                const dateB = new Date(b.mergedVideoData?.publishedAt || b.publishedAt || 0).getTime();
                 return dateB - dateA;
             });
         }
