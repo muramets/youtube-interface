@@ -10,6 +10,24 @@ export interface VideoDeltaStats {
     delta24h: number | null;
     delta7d: number | null;
     delta30d: number | null;
+    /**
+     * Latest view count from the Trend Snapshot — the same data source used for delta calculation.
+     * 
+     * WHY THIS EXISTS (instead of using video.viewCount):
+     * `video.viewCount` in Firestore is updated only on manual/auto video sync.
+     * Trend snapshots are updated independently (daily cron). This creates a desync:
+     * the delta shows growth from the snapshot, but the base viewCount on the card
+     * is stale from the last video sync.
+     * 
+     * By sourcing both the counter AND the delta from the same snapshot,
+     * they are always mathematically consistent.
+     * 
+     * FUTURE (Variant C): When per-video view history graphs are implemented,
+     * Trend sync will write directly to `videos/{id}/viewHistory` subcollection,
+     * making this field redundant. Until then, this is the canonical "live" view count
+     * for videos tracked in Trends.
+     */
+    currentViews: number | null;
 }
 
 export interface PlaylistDeltaStats {
@@ -93,7 +111,7 @@ export const usePlaylistDeltaStats = (playlistVideos: VideoDetails[]): PlaylistD
                 // Each trend channel has its own snapshots
                 const videoIdSet = new Set(youtubeVideoIds);
 
-                // Track deltas per video
+                // Track deltas per video (current = latest snapshot views, past = historical snapshot views)
                 const videoDeltas: Map<string, { current: number; past24h?: number; past7d?: number; past30d?: number }> = new Map();
 
                 // Optimization: Only fetch snapshots for trend channels
@@ -161,7 +179,9 @@ export const usePlaylistDeltaStats = (playlistVideos: VideoDetails[]): PlaylistD
 
                 await Promise.all(snapshotPromises);
 
-                // Build per-video delta map and aggregate totals
+                // Build per-video delta map and aggregate totals.
+                // Each entry gets both deltas AND the currentViews from the same snapshot
+                // to guarantee consistency (see VideoDeltaStats.currentViews JSDoc).
                 const perVideoMap: Map<string, VideoDeltaStats> = new Map();
                 let total24h = 0;
                 let total7d = 0;
@@ -175,7 +195,7 @@ export const usePlaylistDeltaStats = (playlistVideos: VideoDetails[]): PlaylistD
                     const delta7d = entry.past7d !== undefined ? entry.current - entry.past7d : null;
                     const delta30d = entry.past30d !== undefined ? entry.current - entry.past30d : null;
 
-                    perVideoMap.set(videoId, { delta24h, delta7d, delta30d });
+                    perVideoMap.set(videoId, { delta24h, delta7d, delta30d, currentViews: entry.current });
 
                     if (delta24h !== null) {
                         total24h += delta24h;

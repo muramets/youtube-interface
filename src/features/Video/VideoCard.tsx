@@ -510,7 +510,25 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                 )}
               </div>
               <div>
-                {displayVideo.viewCount ? `${formatViewCount(displayVideo.viewCount)} views` : ''}
+                {/*
+                 * View count source priority:
+                 * 1. deltaStats.currentViews — from Trend Snapshot (same source as delta, always consistent)
+                 * 2. displayVideo.viewCount — from Firestore document (updated on manual video sync)
+                 * 
+                 * Using the snapshot value prevents desync where delta shows today's growth
+                 * but the base counter is stale from the last video sync.
+                 * 
+                 * FUTURE (Variant C): Trend sync will write to videos/{id}/viewHistory,
+                 * making this fallback logic unnecessary.
+                 */}
+                {(() => {
+                  const snapshotViews = deltaStats?.currentViews;
+                  const firestoreViews = displayVideo.viewCount;
+                  const viewsLabel = snapshotViews != null
+                    ? `${formatViewCount(snapshotViews)} views`
+                    : (firestoreViews ? `${formatViewCount(firestoreViews)} views` : '');
+                  return viewsLabel;
+                })()}
                 {deltaStats?.delta24h !== null && deltaStats?.delta24h !== undefined && (
                   <span className="text-green-400 ml-1">
                     (+{deltaStats.delta24h >= 1000 ? `${(deltaStats.delta24h / 1000).toFixed(1)}K` : deltaStats.delta24h})
@@ -554,7 +572,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                     onDetails={handleDetails}
                     onRemove={playlistId ? handleRemoveFromPlaylist : handleDeleteVideo}
                     onDelete={handleDeleteVideo}
-                    onSync={video.publishedVideoId ? handleSync : undefined}
+                    onSync={(!video.isCustom || video.publishedVideoId) ? handleSync : undefined}
                     isSyncing={isSyncing}
                     onSwitchView={video.publishedVideoId ? handleSwitchView : undefined}
                     onSetAsCover={onSetAsCover ? (e) => {
