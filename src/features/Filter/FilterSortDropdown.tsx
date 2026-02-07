@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { Filter, Check, ArrowDownUp, SlidersHorizontal, RotateCcw } from 'lucide-react';
+import { Filter, Check, ArrowDownUp, RotateCcw } from 'lucide-react';
 import { usePlaylists } from '../../core/hooks/usePlaylists';
 import { useSettings } from '../../core/hooks/useSettings';
 import { useAuth } from '../../core/hooks/useAuth';
@@ -97,7 +97,7 @@ export const FilterSortDropdown: React.FC<FilterSortDropdownProps> = ({
                 onClick={() => setIsOpen(!isOpen)}
                 title="Sort & Filter"
             >
-                <SlidersHorizontal size={20} />
+                <ArrowDownUp size={20} />
                 {activeFilterCount > 0 && (
                     <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-bg-primary" />
                 )}

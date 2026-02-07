@@ -117,6 +117,12 @@ export const usePlaylists = (userId: string, channelId: string) => {
         }
     });
 
+    const batchNormalizeOrdersMutation = useMutation({
+        mutationFn: async (orderUpdates: { id: string; order: number }[]) => {
+            await PlaylistService.batchNormalizeOrders(userId, channelId, orderUpdates);
+        }
+    });
+
     const renameGroupMutation = useMutation({
         mutationFn: async ({ oldName, newName }: { oldName: string, newName: string }) => {
             await PlaylistService.renameGroup(userId, channelId, oldName, newName);
@@ -202,6 +208,7 @@ export const usePlaylists = (userId: string, channelId: string) => {
         reorderGroupOrder: reorderGroupOrderMutation.mutateAsync,
         reorderPlaylistsInGroup: reorderPlaylistsInGroupMutation.mutateAsync,
         movePlaylistToGroup: movePlaylistToGroupMutation.mutateAsync,
+        batchNormalizeOrders: batchNormalizeOrdersMutation.mutateAsync,
         renameGroup: renameGroupMutation.mutateAsync,
         deleteGroup: deleteGroupMutation.mutateAsync,
     }), [
@@ -219,6 +226,7 @@ export const usePlaylists = (userId: string, channelId: string) => {
         reorderGroupOrderMutation.mutateAsync,
         reorderPlaylistsInGroupMutation.mutateAsync,
         movePlaylistToGroupMutation.mutateAsync,
+        batchNormalizeOrdersMutation.mutateAsync,
         renameGroupMutation.mutateAsync,
         deleteGroupMutation.mutateAsync,
         queryClient,

@@ -18,6 +18,7 @@ interface UsePlaylistDnDProps {
     onReorderGroups: (newOrder: string[]) => void;
     onReorderPlaylists: (newOrder: string[]) => void;
     onMovePlaylist: (id: string, newGroup: string, orderedIds: string[]) => void;
+    onBatchNormalizeOrders: (orderUpdates: { id: string; order: number }[]) => void;
     sortBy?: 'default' | 'views' | 'updated' | 'created';
     onSortModeSwitch?: (optimisticData?: Playlist[]) => void; // Pass optional optimistic data
 }
@@ -33,6 +34,7 @@ export const usePlaylistDnD = ({
     onReorderGroups,
     onReorderPlaylists,
     onMovePlaylist,
+    onBatchNormalizeOrders,
     sortBy = 'default',
     onSortModeSwitch
 }: UsePlaylistDnDProps) => {
@@ -71,6 +73,7 @@ export const usePlaylistDnD = ({
                 return;
             }
 
+
             const allPlaylists = groupedPlaylists.flatMap(([, ps]) => ps);
             const newGroupOrder = groupedPlaylists.map(([g]) => g);
 
@@ -94,6 +97,7 @@ export const usePlaylistDnD = ({
         // This prevents flickering on cancel, but allows local state to persist after drop
         // Check if we're in a "skip sync" state by comparing versions (both are state, safe for render)
         const hasPendingSkip = syncSkipVersion > lastProcessedVersion;
+
         if (!active.id && !hasPendingSkip) {
             return groupedPlaylists;
         }
@@ -248,13 +252,20 @@ export const usePlaylistDnD = ({
 
         // Auto-switch to Manual mode when dragging in any sorted mode
         if (sortBy !== 'default') {
-            // Capture current visual order BEFORE switching
-            const allPlaylists = groupedPlaylists.flatMap(([, playlists]) => playlists);
             const currentGroupOrder = groupedPlaylists.map(([name]) => name);
 
-            // FIRST: Execute the drag operation on captured visual order
-            // This ensures the operation completes with correct indices BEFORE mode switch
+            // Capture visual baseline: normalize order PER GROUP (not globally).
+            // Each group gets 0-based sequential order matching current visual positions.
+            // This "resets" manual order to match the sorted view the user sees.
+            const normalizedPlaylists = groupedPlaylists.flatMap(([, playlists]) =>
+                playlists.map((p, i) => ({ ...p, order: i }))
+            );
 
+            // Persist normalized order for ALL groups to Firestore.
+            // Without this, the Firestore snapshot would overwrite the optimistic
+            // cache with old order values for non-dragged groups.
+            const orderUpdates = normalizedPlaylists.map(p => ({ id: p.id, order: p.order! }));
+            onBatchNormalizeOrders(orderUpdates);
             // Group Reorder
             if (activeIdStr.startsWith('group-')) {
                 const overIdStr = String(over.id);
@@ -266,11 +277,9 @@ export const usePlaylistDnD = ({
                     const newIdx = currentGroupOrder.indexOf(overGrp);
 
                     if (oldIdx !== -1 && newIdx !== -1 && oldIdx !== newIdx) {
-                        const newGroupOrder = [...currentGroupOrder];
-                        const [movedGroup] = newGroupOrder.splice(oldIdx, 1);
-                        newGroupOrder.splice(newIdx, 0, movedGroup);
+                        const newGroupOrder = arrayMove(currentGroupOrder, oldIdx, newIdx);
 
-                        // Save to Firestore FIRST
+                        // Persist to Firestore
                         onReorderGroups(newGroupOrder);
 
                         // Update local state and block next sync
@@ -279,13 +288,13 @@ export const usePlaylistDnD = ({
                     }
                 }
 
-                // THEN: Switch mode (will trigger re-render with new mode)
-                onSortModeSwitch?.();
+                // Switch to default mode with full visual baseline
+                onSortModeSwitch?.(normalizedPlaylists);
                 return;
             }
 
             // Playlist reorder/move
-            const movedPlaylist = allPlaylists.find(p => String(p.id) === activeIdStr);
+            const movedPlaylist = normalizedPlaylists.find(p => String(p.id) === activeIdStr);
             if (movedPlaylist) {
                 const overIdStr = String(over.id);
                 let targetGroup = movedPlaylist.group || 'Ungrouped';
@@ -294,7 +303,7 @@ export const usePlaylistDnD = ({
                 if (overIdStr.startsWith('group-')) {
                     targetGroup = overIdStr.replace('group-', '');
                 } else {
-                    const overPlaylist = allPlaylists.find(p => String(p.id) === overIdStr);
+                    const overPlaylist = normalizedPlaylists.find(p => String(p.id) === overIdStr);
                     if (overPlaylist) {
                         targetGroup = overPlaylist.group || 'Ungrouped';
                     }
@@ -304,7 +313,7 @@ export const usePlaylistDnD = ({
 
                 if (currentGroup !== targetGroup) {
                     // Move to different group
-                    const updatedPlaylists = allPlaylists.map(p =>
+                    const updatedPlaylists = normalizedPlaylists.map(p =>
                         String(p.id) === activeIdStr
                             ? { ...p, group: targetGroup === 'Ungrouped' ? undefined : targetGroup }
                             : p
@@ -315,45 +324,38 @@ export const usePlaylistDnD = ({
                     );
                     const orderedIds = playlistsInTargetGroup.map(p => String(p.id));
 
-                    // Save to Firestore FIRST
                     onMovePlaylist(activeIdStr, targetGroup, orderedIds);
-
-                    // Update local state and block next sync
                     setLocalPlaylists(updatedPlaylists);
                     setSyncSkipVersion(v => v + 1);
 
-                    // THEN: Switch mode with optimistic data (batched update)
                     onSortModeSwitch?.(updatedPlaylists);
+                    return;
                 } else if (!overIdStr.startsWith('group-')) {
                     // Reorder within same group
-                    const oldIndex = allPlaylists.findIndex(p => String(p.id) === activeIdStr);
-                    const newIndex = allPlaylists.findIndex(p => String(p.id) === overIdStr);
+                    const currentGroupPlaylists = localPlaylists.filter(
+                        p => (p.group || 'Ungrouped') === currentGroup
+                    );
+                    const newOrderedIds = currentGroupPlaylists.map(p => String(p.id));
 
-                    if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-                        const newOrder = [...allPlaylists];
-                        const [moved] = newOrder.splice(oldIndex, 1);
-                        newOrder.splice(newIndex, 0, moved);
+                    const originalGroupEntry = groupedPlaylists.find(([gName]) => gName === currentGroup);
+                    const originalOrderedIds = originalGroupEntry
+                        ? originalGroupEntry[1].map(p => String(p.id))
+                        : [];
 
-                        const playlistsInGroup = newOrder.filter(
-                            p => (p.group || 'Ungrouped') === currentGroup
-                        );
-                        const orderedIds = playlistsInGroup.map(p => String(p.id));
-
-                        // Save to Firestore FIRST
-                        onReorderPlaylists(orderedIds);
-
-                        // Update local state and block next sync
-                        setLocalPlaylists(newOrder);
+                    if (JSON.stringify(newOrderedIds) !== JSON.stringify(originalOrderedIds)) {
+                        onReorderPlaylists(newOrderedIds);
                         setSyncSkipVersion(v => v + 1);
 
-                        // THEN: Switch mode with optimistic data (batched update)
-                        onSortModeSwitch?.(newOrder);
+                        // Rebuild with reorder applied, still per-group normalized
+                        const reorderedPlaylists = localPlaylists.map((p, i) => ({ ...p, order: i }));
+                        onSortModeSwitch?.(reorderedPlaylists);
+                        return;
                     }
                 }
             }
 
-            // THEN: Switch mode (will trigger re-render with new mode and data from Firestore)
-            onSortModeSwitch?.();
+            // Fallback: no reorder detected, switch mode with visual baseline
+            onSortModeSwitch?.(normalizedPlaylists);
             return;
         }
 
@@ -372,8 +374,11 @@ export const usePlaylistDnD = ({
                 const oldIdx = currentOrder.indexOf(activeGrp);
                 const newIdx = currentOrder.indexOf(overGrp);
 
+
                 if (oldIdx !== -1 && newIdx !== -1 && oldIdx !== newIdx) {
                     const newOrder = arrayMove(currentOrder, oldIdx, newIdx);
+
+
 
                     // Set flag BEFORE flushSync so the synchronous re-render sees it
                     setSyncSkipVersion(v => v + 1);
@@ -387,12 +392,14 @@ export const usePlaylistDnD = ({
                     onReorderGroups(newOrder);
                 }
             }
+
             return;
         }
 
         // Playlist Persist
         const movedPlaylist = localPlaylists.find(p => String(p.id) === activeIdStr);
         const overIdStr = String(over.id);
+
 
         if (movedPlaylist) {
             // Determine target group
@@ -408,10 +415,12 @@ export const usePlaylistDnD = ({
 
             const currentGroup = movedPlaylist.group || 'Ungrouped';
 
+
             // Find original playlist to check if group changed
             const originalPlaylist = groupedPlaylists.flatMap(g => g[1]).find(p => String(p.id) === activeIdStr);
 
             if (originalPlaylist && (originalPlaylist.group || 'Ungrouped') !== targetGroup) {
+
                 // Group Change - update localPlaylists with new group
                 const updatedPlaylists = localPlaylists.map(p =>
                     String(p.id) === activeIdStr
@@ -428,26 +437,29 @@ export const usePlaylistDnD = ({
                 onMovePlaylist(activeIdStr, targetGroup, orderedIds);
                 setSyncSkipVersion(v => v + 1);
             } else if (!overIdStr.startsWith('group-')) {
-                // Reorder within group - compute final order
-                const oldIndex = localPlaylists.findIndex(p => String(p.id) === activeIdStr);
-                const newIndex = localPlaylists.findIndex(p => String(p.id) === overIdStr);
+                // Reorder within same group
 
-                if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-                    const newOrder = arrayMove(localPlaylists, oldIndex, newIndex);
-                    setLocalPlaylists(newOrder);
+                // Since we mutated localPlaylists in DragOver, we can't reliably use index comparison
+                // Compare current order in localPlaylists with original order in groupedPlaylists
+                const currentGroupPlaylists = localPlaylists.filter(
+                    p => (p.group || 'Ungrouped') === currentGroup
+                );
+                const newOrderedIds = currentGroupPlaylists.map(p => String(p.id));
 
-                    const playlistsInGroup = newOrder.filter(
-                        p => (p.group || 'Ungrouped') === currentGroup
-                    );
-                    const orderedIds = playlistsInGroup.map(p => String(p.id));
+                // Find original order
+                const originalGroupEntry = groupedPlaylists.find(([gName]) => gName === currentGroup);
+                const originalOrderedIds = originalGroupEntry
+                    ? originalGroupEntry[1].map(p => String(p.id))
+                    : [];
 
-                    onReorderPlaylists(orderedIds);
+                if (JSON.stringify(newOrderedIds) !== JSON.stringify(originalOrderedIds)) {
+                    onReorderPlaylists(newOrderedIds);
                     setSyncSkipVersion(v => v + 1);
                 }
             }
         }
 
-    }, [groupedPlaylists, localPlaylists, onReorderGroups, onReorderPlaylists, onMovePlaylist, sortBy, onSortModeSwitch, setSyncSkipVersion, setLocalPlaylists, setLocalGroupOrder]);
+    }, [groupedPlaylists, localPlaylists, onReorderGroups, onReorderPlaylists, onMovePlaylist, onBatchNormalizeOrders, sortBy, onSortModeSwitch, setSyncSkipVersion, setLocalPlaylists, setLocalGroupOrder]);
 
     const clearJustDropped = useCallback(() => setJustDroppedId(null), []);
 

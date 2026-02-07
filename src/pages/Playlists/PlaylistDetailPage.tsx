@@ -196,12 +196,14 @@ export const PlaylistDetailPage: React.FC = () => {
             return playlist.coverImage;
         }
 
-        if (playlistVideos.length === 0) return playlist.coverImage || '';
+        if (basePlaylistVideos.length === 0) return playlist.coverImage || '';
 
-        const lastVideo = playlistVideos[playlistVideos.length - 1];
+        // Use basePlaylistVideos instead of playlistVideos to ignore sorting
+        const lastVideo = basePlaylistVideos[basePlaylistVideos.length - 1];
+
         if (lastVideo && playlist.coverImage !== lastVideo.thumbnail && playlist.coverImage !== lastVideo.customImage) {
             // Check if current cover belongs to any video in playlist
-            const coverBelongsToPlaylist = playlistVideos.some(v =>
+            const coverBelongsToPlaylist = basePlaylistVideos.some(v =>
                 v.thumbnail === playlist.coverImage || v.customImage === playlist.coverImage
             );
             if (!coverBelongsToPlaylist) {
@@ -210,7 +212,7 @@ export const PlaylistDetailPage: React.FC = () => {
         }
 
         return playlist.coverImage || lastVideo?.customImage || lastVideo?.thumbnail || '';
-    }, [playlist, playlistVideos]);
+    }, [playlist, basePlaylistVideos]);
 
     if (isPlaylistsLoading) {
         return (

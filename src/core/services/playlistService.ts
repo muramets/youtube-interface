@@ -156,6 +156,24 @@ export const PlaylistService = {
         await batch.commit();
     },
 
+    /**
+     * Batch update order values for multiple playlists at once.
+     * Used when switching from sorted→manual mode to persist
+     * the visual baseline for ALL groups, not just the one being dragged.
+     */
+    batchNormalizeOrders: async (
+        userId: string,
+        channelId: string,
+        orderUpdates: { id: string; order: number }[]
+    ) => {
+        const batch = await import('firebase/firestore').then(m => m.writeBatch(db));
+        orderUpdates.forEach(({ id, order }) => {
+            const playlistRef = doc(db, getPlaylistsPath(userId, channelId), id);
+            batch.update(playlistRef, { order });
+        });
+        await batch.commit();
+    },
+
     movePlaylistToGroup: async (
         userId: string,
         channelId: string,

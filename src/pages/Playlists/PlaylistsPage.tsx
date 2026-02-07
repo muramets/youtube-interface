@@ -13,8 +13,10 @@ import { AddContentMenu } from '../../components/ui/organisms/AddContentMenu';
 import { FolderPlus } from 'lucide-react';
 import {
     DndContext,
+    closestCorners,
     pointerWithin,
     DragOverlay,
+    type CollisionDetection,
 } from '@dnd-kit/core';
 import {
     SortableContext,
@@ -42,6 +44,7 @@ export const PlaylistsPage: React.FC = () => {
         reorderGroupOrder,
         reorderPlaylistsInGroup,
         movePlaylistToGroup,
+        batchNormalizeOrders,
         renameGroup,
         deleteGroup,
         updateCache,
@@ -114,22 +117,30 @@ export const PlaylistsPage: React.FC = () => {
         onReorderGroups: handleReorderGroups,
         onReorderPlaylists: handleReorderPlaylists,
         onMovePlaylist: handleMovePlaylist,
+        onBatchNormalizeOrders: batchNormalizeOrders,
         sortBy: playlistsSortBy,
         onSortModeSwitch: useCallback((optimisticData?: Playlist[]) => {
-            console.log('[PlaylistsPage] ========== MODE SWITCH REQUEST ==========');
-
             // React 18 Auto-Batching:
             // This ensures updateCache and setPlaylistsSortBy trigger a SINGLE render
             // This prevents the "render waterfall" where data is sorted by date before switching to manual
             if (optimisticData) {
-                console.log('[PlaylistsPage] Applying optimistic data before switch');
                 updateCache(optimisticData);
             }
 
-            console.log('[PlaylistsPage] Switching from', playlistsSortBy, 'to default');
             setPlaylistsSortBy('default');
-        }, [setPlaylistsSortBy, playlistsSortBy, updateCache]),
+        }, [setPlaylistsSortBy, updateCache]),
     });
+
+    // Custom collision detection: smooth for groups, precise for playlists
+    const collisionDetection: CollisionDetection = useCallback((args) => {
+        const activeId = String(args.active.id);
+        // Groups need closestCorners for smooth "parting" animation with variable heights
+        if (activeId.startsWith('group-')) {
+            return closestCorners(args);
+        }
+        // Playlists need pointerWithin to avoid cross-group interference
+        return pointerWithin(args);
+    }, []);
 
     // Menu handlers
     const handleMenuClick = (e: React.MouseEvent, id: string) => {
@@ -215,7 +226,7 @@ export const PlaylistsPage: React.FC = () => {
             <div className="p-6 pl-0 pt-2">
                 <DndContext
                     sensors={sensors}
-                    collisionDetection={pointerWithin}
+                    collisionDetection={collisionDetection}
                     onDragStart={handleDragStart}
                     onDragOver={handleDragOver}
                     onDragEnd={handleDragEnd}

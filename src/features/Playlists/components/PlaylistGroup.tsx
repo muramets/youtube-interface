@@ -251,6 +251,7 @@ function SortableGroupItem({ id, disabled, children }: SortableGroupItemProps) {
         transform,
         transition,
         isDragging,
+        isSorting,
     } = useSortable({
         id,
         disabled,
@@ -260,14 +261,23 @@ function SortableGroupItem({ id, disabled, children }: SortableGroupItemProps) {
             if (wasDragging) {
                 return false;
             }
-            return isSorting; // Default behavior for other cases
-        }
+            return isSorting; // Animate non-dragged items during sorting
+        },
+        // Custom smooth transition for group sliding
+        transition: {
+            duration: 250,
+            easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
+        },
     });
 
     const style: React.CSSProperties = {
         transform: CSS.Transform.toString(transform),
-        transition,
-        willChange: 'transform',
+        // Use the library transition for sorting, none for the dragged item itself
+        transition: isDragging ? 'none' : transition,
+        willChange: isSorting ? 'transform' : undefined,
+        // Give the dragged item a slight z-index boost
+        zIndex: isDragging ? 10 : undefined,
+        position: 'relative' as const,
     };
 
     return children({
