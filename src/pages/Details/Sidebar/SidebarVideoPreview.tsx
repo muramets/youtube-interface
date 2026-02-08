@@ -1,6 +1,8 @@
 import React from 'react';
+import { Play } from 'lucide-react';
 import { type VideoDetails, type PackagingVersion } from '../../../core/utils/youtubeApi';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
+import { useVideoPlayer } from '../../../core/hooks/useVideoPlayer';
 
 interface SidebarVideoPreviewProps {
     video: VideoDetails;
@@ -38,6 +40,14 @@ export const SidebarVideoPreview: React.FC<SidebarVideoPreviewProps> = ({
     viewingVersion = 'draft',
     versions = []
 }) => {
+    const { minimize } = useVideoPlayer();
+
+    // Resolve the YouTube video ID:
+    // - Custom videos: use publishedVideoId (set when published to YouTube)
+    // - Regular YouTube videos: video.id IS the YouTube ID
+    const youtubeVideoId = video.isCustom ? video.publishedVideoId : video.id;
+    const isPlayable = !!youtubeVideoId;
+
     // Determine title and thumbnail based on the viewed version
     let title = 'Untitled';
     let thumbnail = '';
@@ -71,20 +81,30 @@ export const SidebarVideoPreview: React.FC<SidebarVideoPreviewProps> = ({
     return (
         <div className="px-[15px] pb-4">
             {/* Thumbnail - full width with rounded corners */}
-            <div className="relative aspect-video rounded-xl overflow-hidden bg-bg-tertiary">
+            <div className="relative aspect-video rounded-xl overflow-hidden bg-bg-tertiary group cursor-pointer"
+                onClick={() => isPlayable && youtubeVideoId && minimize(youtubeVideoId, title)}
+            >
                 {thumbnail ? (
                     <img
                         src={thumbnail}
                         alt={title}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover transition-all duration-200 ease-out group-hover:scale-105 group-hover:brightness-110"
                     />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-text-secondary">
                         No thumbnail
                     </div>
                 )}
+                {/* Play button overlay — only for published videos */}
+                {isPlayable && (
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                        <div className="w-10 h-10 rounded-full bg-black/70 flex items-center justify-center shadow-lg transition-transform duration-150 ease-out group-hover:scale-110">
+                            <Play size={20} className="text-white fill-white ml-[2px]" />
+                        </div>
+                    </div>
+                )}
                 {video.duration && (
-                    <span className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/80 text-white text-xs font-medium rounded">
+                    <span className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/80 text-white text-xs font-medium rounded z-20">
                         {formatDuration(video.duration)}
                     </span>
                 )}

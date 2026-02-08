@@ -80,7 +80,18 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
     }, [setSearchParams]);
 
     const [isFormDirty, setIsFormDirty] = useState(false);
-    const [selectedSnapshot, setSelectedSnapshot] = useState<string | null>(null);
+    // Persist selected snapshot across navigation (per video)
+    const snapshotStorageKey = `traffic-snapshot:${video.id}`;
+    const [selectedSnapshot, setSelectedSnapshotRaw] = useState<string | null>(() => {
+        try { return sessionStorage.getItem(snapshotStorageKey); } catch { return null; }
+    });
+    const setSelectedSnapshot = useCallback((id: string | null) => {
+        setSelectedSnapshotRaw(id);
+        try {
+            if (id) sessionStorage.setItem(snapshotStorageKey, id);
+            else sessionStorage.removeItem(snapshotStorageKey);
+        } catch { /* quota exceeded — ignore */ }
+    }, [snapshotStorageKey]);
 
     // Gallery Sources state (lifted for sidebar access)
     const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
@@ -288,10 +299,13 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
                 versions.switchToVersion(versions.activeVersion);
             }
 
-            // Synchronous auto-select: pick latest snapshot for target version
+            // Restore persisted snapshot, or fall back to latest for target version
             const targetVersion = isNotViewingActive ? versions.activeVersion : versions.viewingVersion;
-            const latestId = getLatestSnapshotId(targetVersion);
-            setSelectedSnapshot(latestId); // null if no snapshots exist
+            const persisted = (() => { try { return sessionStorage.getItem(snapshotStorageKey); } catch { return null; } })();
+            if (!persisted) {
+                const latestId = getLatestSnapshotId(targetVersion);
+                setSelectedSnapshot(latestId);
+            }
         }
 
         // When entering Packaging tab → switch to active version
@@ -308,7 +322,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
             prev.set('tab', newTab);
             return prev;
         }, { replace: true, state: (location as { state?: unknown }).state }); // Preserve persisted state (playlistId)
-    }, [activeTab, versions, setSearchParams, location, getLatestSnapshotId]);
+    }, [activeTab, versions, setSearchParams, location, getLatestSnapshotId, setSelectedSnapshot, snapshotStorageKey]);
 
     // Handle draft deletion
     // Latest Ref Pattern: refs for stable handleDeleteDraft callback

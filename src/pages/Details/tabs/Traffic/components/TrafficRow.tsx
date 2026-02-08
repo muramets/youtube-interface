@@ -114,8 +114,9 @@ export const TrafficRow = ({
     const [editNoteText, setEditNoteText] = useState('');
     const noteInputRef = useRef<HTMLInputElement>(null);
 
-    // Connect to Video Player mainly to check if this video is minimized
-    const { minimize } = useVideoPlayer();
+    // Connect to Video Player
+    const { minimize, activeVideoId, isMinimized } = useVideoPlayer();
+    const isNowPlaying = isMinimized && activeVideoId === item.videoId;
 
     // Traffic Notes
     const { getNoteForVideo, setNote, deleteNote } = useTrafficNoteStore();
@@ -289,7 +290,7 @@ export const TrafficRow = ({
             {/* Video Thumbnail */}
             <div className="flex items-center justify-center py-1.5">
                 {videoDetails?.thumbnail ? (
-                    <div className="relative w-full overflow-hidden rounded-md" style={{ aspectRatio: '16/9' }}>
+                    <div className={`relative w-full overflow-hidden rounded-md ${isNowPlaying ? 'ring-1 ring-emerald-400/60' : ''}`} style={{ aspectRatio: '16/9' }}>
                         {/* Pulse placeholder — starts animating instantly, no compositor delay */}
                         <div className="absolute inset-0 bg-white/5 animate-pulse rounded-md" />
                         <img
@@ -300,18 +301,30 @@ export const TrafficRow = ({
                             className={`absolute inset-0 w-full h-full object-cover group-hover:scale-105 group-hover:brightness-110 group-hover:shadow-lg group-hover:shadow-white/10 ${isThumbLoaded ? 'opacity-100' : 'opacity-0'}`}
                             style={{ transition: 'opacity 500ms ease-out, transform 200ms ease-out, filter 200ms ease-out, box-shadow 200ms ease-out' }}
                         />
-                        {/* Play button overlay — visible on row hover */}
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (item.videoId) minimize(item.videoId, videoDetails?.title || item.sourceTitle);
-                            }}
-                            className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer bg-transparent border-none z-10"
-                        >
-                            <div className="w-6 h-6 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center shadow-lg transition-transform duration-150 ease-out hover:scale-110">
-                                <Play size={12} className="text-white fill-white ml-[1px]" />
+                        {/* Play button overlay — visible on row hover, hidden when already playing */}
+                        {!isNowPlaying && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (item.videoId) minimize(item.videoId, videoDetails?.title || item.sourceTitle);
+                                }}
+                                className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer bg-transparent border-none z-10"
+                            >
+                                <div className="w-6 h-6 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center shadow-lg transition-transform duration-150 ease-out hover:scale-110">
+                                    <Play size={12} className="text-white fill-white ml-[1px]" />
+                                </div>
+                            </button>
+                        )}
+                        {/* Now Playing indicator */}
+                        {isNowPlaying && (
+                            <div className="absolute bottom-0.5 left-0.5 flex items-center gap-1 px-1 py-px rounded bg-emerald-500/80 z-20">
+                                <div className="flex items-end gap-px h-[8px]">
+                                    <span className="w-[2px] bg-white rounded-full animate-[barBounce_0.8s_ease-in-out_infinite]" style={{ height: '4px' }} />
+                                    <span className="w-[2px] bg-white rounded-full animate-[barBounce_0.8s_ease-in-out_0.2s_infinite]" style={{ height: '7px' }} />
+                                    <span className="w-[2px] bg-white rounded-full animate-[barBounce_0.8s_ease-in-out_0.4s_infinite]" style={{ height: '5px' }} />
+                                </div>
                             </div>
-                        </button>
+                        )}
                     </div>
                 ) : (
                     <div className="w-full h-full rounded-md bg-white/5 transition-all duration-200 ease-out group-hover:bg-white/10 group-hover:shadow-lg group-hover:shadow-white/5"
@@ -440,7 +453,7 @@ export const TrafficRow = ({
                             {noteText && (
                                 <button
                                     onClick={handleStartEditNote}
-                                    className="truncate text-xs text-white/30 italic mt-0.5 cursor-pointer bg-transparent border-none p-0 text-left w-full hover:text-white/50 transition-colors"
+                                    className="truncate text-xs text-white/30 italic mt-0.5 cursor-pointer bg-transparent border-none p-0 text-left max-w-fit hover:text-white/50 transition-colors"
                                 >
                                     {noteText}
                                 </button>

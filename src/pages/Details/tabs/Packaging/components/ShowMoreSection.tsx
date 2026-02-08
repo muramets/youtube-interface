@@ -17,6 +17,34 @@ export const ShowMoreSection: React.FC<ShowMoreSectionProps> = ({
     audioRender,
     setAudioRender,
 }) => {
+    // Display the full YouTube URL, but store only the video ID internally
+    const displayUrl = publishedUrl
+        ? `https://youtu.be/${publishedUrl}`
+        : '';
+
+    // Extract video ID from various input formats
+    const handleUrlChange = (value: string) => {
+        const trimmed = value.trim();
+        if (!trimmed) {
+            setPublishedUrl('');
+            return;
+        }
+        // Try to extract video ID from full URL formats
+        let videoId = trimmed;
+        try {
+            const url = new URL(trimmed);
+            const vParam = url.searchParams.get('v');
+            if (vParam) {
+                videoId = vParam;
+            } else if (url.hostname === 'youtu.be') {
+                videoId = url.pathname.slice(1);
+            }
+        } catch {
+            // Not a URL — treat as raw video ID
+        }
+        setPublishedUrl(videoId);
+    };
+
     return (
         <div className="flex flex-col gap-4 pt-4 border-t border-border animate-fade-in">
             {/* Published URL */}
@@ -26,8 +54,8 @@ export const ShowMoreSection: React.FC<ShowMoreSectionProps> = ({
                 </label>
                 <input
                     type="url"
-                    value={publishedUrl}
-                    onChange={(e) => setPublishedUrl(e.target.value)}
+                    value={displayUrl}
+                    onChange={(e) => handleUrlChange(e.target.value)}
                     placeholder="https://youtube.com/watch?v=..."
                     className="w-full bg-bg-secondary border border-border rounded-lg p-3 text-base text-text-primary focus:border-text-primary outline-none transition-colors hover:border-text-primary placeholder-modal-placeholder"
                 />
