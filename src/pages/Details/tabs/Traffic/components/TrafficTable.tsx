@@ -19,6 +19,7 @@ import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 
 import type { TrafficType } from '../../../../../core/types/videoTrafficType';
 import type { ViewerType } from '../../../../../core/types/viewerType';
+import type { VideoReaction } from '../../../../../core/types/videoReaction';
 
 export type SortKey = keyof TrafficSource | 'trafficType' | 'viewerType';
 export interface SortConfig {
@@ -79,6 +80,10 @@ interface TrafficTableProps {
     viewerEdges?: Record<string, { type: ViewerType; source?: 'manual' | 'smart_assistant' }>;
     onToggleViewerType?: (videoId: string, currentType?: ViewerType) => void;
 
+    // Video Reactions (star/like/dislike — channel-level categorization)
+    reactionMap?: Record<string, VideoReaction>;
+    onToggleReaction?: (videoId: string, reaction: VideoReaction) => void;
+
     // Discrepancy reporting
     actualTotalRow?: TrafficSource;
     trashMetrics?: import('../hooks/useTrafficDataLoader').TrashMetrics;
@@ -115,6 +120,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
     onToggleTrafficType,
     viewerEdges,
     onToggleViewerType,
+    reactionMap,
+    onToggleReaction,
     currentVideo
 }) => {
     // Virtualization refs
@@ -234,8 +241,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
     }, [data, niches, assignments]);
 
     const gridClassName = showPropertyColumn
-        ? "grid-cols-[40px_72px_24px_1fr_22px_22px_70px_60px_70px_80px]"
-        : "grid-cols-[40px_72px_1fr_22px_22px_70px_60px_70px_80px]";
+        ? "grid-cols-[40px_72px_24px_1fr_22px_22px_70px_60px_70px_80px_66px]"
+        : "grid-cols-[40px_72px_1fr_22px_22px_70px_60px_70px_80px_66px]";
 
     const computedTotal = useMemo(() => {
         if (data.length === 0) return null;
@@ -324,6 +331,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                 {renderHeaderCell('CTR', 'ctr')}
                 {renderHeaderCell('Views', 'views')}
                 {renderHeaderCell('AVD', 'avgViewDuration')}
+                <div /> {/* Reactions Column */}
             </div>
 
             <div
@@ -415,6 +423,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                 <div className={`text-right ${sortConfig?.key === 'avgViewDuration' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
                                     {formatDuration(computedTotal.avgViewDuration)}
                                 </div>
+                                <div /> {/* Reactions Total Cell (Empty) */}
                             </div>
                         )}
 
@@ -477,6 +486,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             onTooltipEnter={handleTooltipEnter}
                                             onTooltipLeave={handleTooltipLeave}
                                             currentVideo={currentVideo}
+                                            reaction={item.videoId && reactionMap ? reactionMap[item.videoId] : undefined}
+                                            onToggleReaction={onToggleReaction}
                                         />
                                     </div>
                                 );

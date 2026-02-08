@@ -60,9 +60,7 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
         return () => observer.disconnect();
     }, [canLoad]);
 
-    if (isMinimized && activeVideoId === videoId) {
-        return null;
-    }
+    const isPlayingInMiniPlayer = isMinimized && activeVideoId === videoId;
 
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
@@ -102,29 +100,38 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
                             <span>Compare</span>
                         </button>
                     )}
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            minimize(videoId, title);
-                        }}
-                        className="flex items-center gap-1.5 text-[10px] bg-white/5 hover:bg-white/10 text-text-secondary hover:text-text-primary px-2 py-1 rounded-md transition-colors border border-white/5"
-                        title="Minimize player"
-                    >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M8 3v3a2 2 0 0 1-2 2H3" />
-                            <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
-                            <path d="M3 16h3a2 2 0 0 1 2 2v3" />
-                            <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
-                        </svg>
-                        <span>Minimize</span>
-                    </button>
+                    {!isPlayingInMiniPlayer && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                minimize(videoId, title);
+                            }}
+                            className="flex items-center gap-1.5 text-[10px] bg-white/5 hover:bg-white/10 text-text-secondary hover:text-text-primary px-2 py-1 rounded-md transition-colors border border-white/5"
+                            title="Minimize player"
+                        >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+                                <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+                                <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+                                <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+                            </svg>
+                            <span>Minimize</span>
+                        </button>
+                    )}
                 </div>
             </div>
 
             {/* Thumbnail / Mini Player */}
             <div className={`aspect-video w-full rounded-lg bg-black/40 overflow-hidden border border-border shrink-0 relative z-10 group/player transition-all duration-300 ${isComparing ? 'grayscale opacity-40' : ''}`}>
-                {canLoad ? (
+                {isPlayingInMiniPlayer ? (
+                    /* Static thumbnail when video is already playing in mini player */
+                    <img
+                        src={`https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`}
+                        alt={title}
+                        className="w-full h-full object-cover"
+                    />
+                ) : canLoad ? (
                     <iframe
                         width="100%"
                         height="100%"

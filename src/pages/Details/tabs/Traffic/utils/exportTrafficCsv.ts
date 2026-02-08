@@ -1,6 +1,7 @@
 import type { TrafficSource, EnrichedTrafficSource, TrafficFilter } from '../../../../../core/types/traffic';
 import type { TrafficType } from '../../../../../core/types/videoTrafficType';
 import type { ViewerType } from '../../../../../core/types/viewerType';
+import type { VideoReaction } from '../../../../../core/types/videoReaction';
 import type { TrafficNicheProperty } from '../../../../../core/types/suggestedTrafficNiches';
 import type { MetricDelta } from '../hooks/useTrafficDataLoader';
 import { csvLogger } from '../../../../../core/utils/logger';
@@ -30,6 +31,10 @@ export interface ExportTrafficCsvOptions {
     trafficEdges: Record<string, { type: TrafficType; source?: 'manual' | 'smart_assistant' }>;
     /** Viewer type edges */
     viewerEdges: Record<string, { type: ViewerType; source?: 'manual' | 'smart_assistant' }>;
+    /** Analyst notes (videoId -> text) — subjective comments */
+    noteMap?: Record<string, string>;
+    /** Analyst reactions (videoId -> reaction) — subjective video type */
+    reactionMap?: Record<string, VideoReaction>;
     /** Discrepancy report text if available */
     discrepancyReport?: string;
     /** Warnings from total row analysis */
@@ -142,6 +147,8 @@ export const exportTrafficCsv = (options: ExportTrafficCsvOptions): string => {
         assignments,
         trafficEdges,
         viewerEdges,
+        noteMap = {},
+        reactionMap = {},
         warnings = [],
         metadata
     } = options;
@@ -173,6 +180,11 @@ export const exportTrafficCsv = (options: ExportTrafficCsvOptions): string => {
     lines.push(`#      * Interested: 30% - 60%`);
     lines.push(`#      * Core:       60% - 95%`);
     lines.push(`#      * Passive:    > 95%`);
+    lines.push(`#`);
+    lines.push(`# Analyst Columns (Subjective):`);
+    lines.push(`# - analyst_comment: Free-text note added by the analyst for a given video.`);
+    lines.push(`# - analyst_video_type: Subjective categorization — star (remarkable content), like (positive signal), dislike (negative signal).`);
+    lines.push(`# These columns reflect the analyst's personal opinion and are NOT auto-generated.`);
     lines.push(`#`);
 
     lines.push(`# Total Sources: ${sources.length}`);
@@ -215,7 +227,9 @@ export const exportTrafficCsv = (options: ExportTrafficCsvOptions): string => {
         'avg_view_duration',
         'watch_time_hours',
         'published_at',
-        'thumbnail_url'
+        'thumbnail_url',
+        'analyst_comment',
+        'analyst_video_type'
     ];
     lines.push(headers.join(','));
 
@@ -245,7 +259,9 @@ export const exportTrafficCsv = (options: ExportTrafficCsvOptions): string => {
             escapeCSV(source.avgViewDuration),
             escapeCSV(source.watchTimeHours),
             escapeCSV(source.publishedAt ? new Date(source.publishedAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''),
-            escapeCSV(videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : '')
+            escapeCSV(videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : ''),
+            escapeCSV(videoId ? noteMap[videoId] : ''),
+            escapeCSV(videoId ? reactionMap[videoId] : '')
         ];
 
         lines.push(row.join(','));

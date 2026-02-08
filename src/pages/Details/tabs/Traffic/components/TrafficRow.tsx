@@ -1,11 +1,13 @@
 import React, { useRef, useState, useCallback } from 'react';
 import {
     ExternalLink, Info, Sparkles, Flag, CircleOff, Layers, Target,
-    MousePointerClick, HelpCircle, Wand2, ZapOff, Zap, Compass, Eye, Coffee, User, Play, MessageSquare
+    MousePointerClick, HelpCircle, Wand2, ZapOff, Zap, Compass, Eye, Coffee, User, Play, MessageSquare,
+    Star, ThumbsUp, ThumbsDown
 } from 'lucide-react';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import type { TrafficType } from '../../../../../core/types/videoTrafficType';
 import type { ViewerType } from '../../../../../core/types/viewerType';
+import type { VideoReaction } from '../../../../../core/types/videoReaction';
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
 import { VideoPreviewTooltip } from '../../../../../features/Video/components/VideoPreviewTooltip';
@@ -49,6 +51,9 @@ interface TrafficRowProps {
     onTooltipEnter?: (id: string) => void;
     onTooltipLeave?: () => void;
     currentVideo?: VideoDetails;
+    // Video Reactions (star/like/dislike)
+    reaction?: VideoReaction;
+    onToggleReaction?: (videoId: string, reaction: VideoReaction) => void;
 }
 
 const getCtrColor = (ctr: number | string, rules: CTRRule[]): string | undefined => {
@@ -96,7 +101,9 @@ export const TrafficRow = ({
     activeTooltipId,
     onTooltipEnter,
     onTooltipLeave,
-    currentVideo
+    currentVideo,
+    reaction,
+    onToggleReaction
 }: TrafficRowProps) => {
     // Connect to Niche Store
     const { niches, assignments } = useTrafficNicheStore();
@@ -108,7 +115,7 @@ export const TrafficRow = ({
     const noteInputRef = useRef<HTMLInputElement>(null);
 
     // Connect to Video Player mainly to check if this video is minimized
-    const { activeVideoId, isMinimized, minimize } = useVideoPlayer();
+    const { minimize } = useVideoPlayer();
 
     // Traffic Notes
     const { getNoteForVideo, setNote, deleteNote } = useTrafficNoteStore();
@@ -116,8 +123,6 @@ export const TrafficRow = ({
     const { currentChannel } = useChannelStore();
     const noteText = item.videoId ? getNoteForVideo(item.videoId) : undefined;
 
-    // Check if THIS specific video is minimized
-    const isThisVideoMinimized = isMinimized && activeVideoId === item.videoId;
 
     const handleStartEditNote = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
@@ -232,6 +237,28 @@ export const TrafficRow = ({
         return { icon: null, label: '' };
     }, [assignedNiches]);
 
+    // BUSINESS RULE: Star icon color derives from assigned niche property
+    // Priority: desired (emerald) > targeted (yellow) > adjacent (blue) > unrelated (red) > default (amber)
+    const starColor = React.useMemo(() => {
+        if (reaction !== 'star') return 'text-white/20'; // inactive ghost
+        if (!assignedNiches.length) return 'text-amber-400'; // no niche → default amber
+
+        const hasProperty = (p: string) => assignedNiches.some(n => n.property === p);
+        if (hasProperty('desired')) return 'text-emerald-400';
+        if (hasProperty('targeted')) return 'text-yellow-400';
+        if (hasProperty('adjacent')) return 'text-blue-400';
+        if (hasProperty('unrelated')) return 'text-red-400';
+
+        return 'text-amber-400';
+    }, [reaction, assignedNiches]);
+
+    // Reaction click handler — toggle on/off or switch reaction
+    const handleReactionClick = useCallback((e: React.MouseEvent, type: VideoReaction) => {
+        e.stopPropagation();
+        if (!item.videoId || !onToggleReaction) return;
+        onToggleReaction(item.videoId, type);
+    }, [item.videoId, onToggleReaction]);
+
 
 
     return (
@@ -342,8 +369,8 @@ export const TrafficRow = ({
                                     </button>
                                 )}
 
-                                {/* Info Icon - visible on group hover */}
-                                {item.videoId && !isThisVideoMinimized && (
+                                {/* Info Icon - visible on group hover (always available, even when mini player is active) */}
+                                {item.videoId && (
                                     <div
                                         ref={wrapperRef}
                                         className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity inline-flex -m-2 p-2"
@@ -522,6 +549,43 @@ export const TrafficRow = ({
 
             <div className={`text-right ${activeSortKey === 'avgViewDuration' ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
                 {formatDuration(item.avgViewDuration)}
+            </div>
+
+            {/* Video Reactions: Star / Like / Dislike */}
+            <div className="flex items-center justify-end gap-0.5">
+                {/* Star — color from niche property */}
+                <button
+                    onClick={(e) => handleReactionClick(e, 'star')}
+                    className={`
+                        p-1 rounded-full transition-all duration-150
+                        hover:bg-white/10 active:scale-90
+                        ${reaction === 'star' ? `${starColor} opacity-100` : 'text-white/20 opacity-0 group-hover:opacity-100'}
+                    `}
+                >
+                    <Star size={12} className={reaction === 'star' ? 'fill-current' : ''} />
+                </button>
+                {/* Like — green */}
+                <button
+                    onClick={(e) => handleReactionClick(e, 'like')}
+                    className={`
+                        p-1 rounded-full transition-all duration-150
+                        hover:bg-white/10 active:scale-90
+                        ${reaction === 'like' ? 'text-emerald-400 opacity-100' : 'text-white/20 opacity-0 group-hover:opacity-100'}
+                    `}
+                >
+                    <ThumbsUp size={12} className={reaction === 'like' ? 'fill-current' : ''} />
+                </button>
+                {/* Dislike — red */}
+                <button
+                    onClick={(e) => handleReactionClick(e, 'dislike')}
+                    className={`
+                        p-1 rounded-full transition-all duration-150
+                        hover:bg-white/10 active:scale-90
+                        ${reaction === 'dislike' ? 'text-red-400 opacity-100' : 'text-white/20 opacity-0 group-hover:opacity-100'}
+                    `}
+                >
+                    <ThumbsDown size={12} className={reaction === 'dislike' ? 'fill-current' : ''} />
+                </button>
             </div>
         </div>
     );

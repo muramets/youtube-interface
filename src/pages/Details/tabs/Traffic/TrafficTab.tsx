@@ -32,6 +32,7 @@ import { useSmartTrafficAutoApply } from './hooks/useSmartTrafficAutoApply';
 import { useViewerTypeStore } from '../../../../core/stores/useViewerTypeStore';
 import { useTrendStore } from '../../../../core/stores/trendStore';
 import { useSmartViewerTypeAutoApply } from './hooks/useSmartViewerTypeAutoApply';
+import { useVideoReactionStore } from '../../../../core/stores/useVideoReactionStore';
 
 import type { TrafficSource } from '../../../../core/types/traffic';
 
@@ -217,8 +218,17 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     // Traffic Notes Store
     const {
         initializeSubscription: initNotes,
-        cleanup: cleanupNotes
+        cleanup: cleanupNotes,
+        notes: noteEdges
     } = useTrafficNoteStore();
+
+    // Video Reactions Store (star/like/dislike — channel-level)
+    const {
+        initializeSubscription: initReactions,
+        cleanup: cleanupReactions,
+        toggleReaction,
+        reactions: reactionEdges
+    } = useVideoReactionStore();
 
     // Check if this is the first snapshot of a version (for specific message)
     const isFirstSnapshot = React.useMemo(() => {
@@ -375,6 +385,30 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         }
     }, [updateViewerType, deleteViewerTypeRecord]);
 
+    // Build reaction lookup map (videoId -> reaction) for TrafficTable
+    const reactionMap = useMemo(() => {
+        const map: Record<string, import('../../../../core/types/videoReaction').VideoReaction> = {};
+        for (const edge of reactionEdges) {
+            map[edge.videoId] = edge.reaction;
+        }
+        return map;
+    }, [reactionEdges]);
+
+    // Handle Reaction Toggle
+    const handleToggleReaction = useCallback((videoId: string, reaction: import('../../../../core/types/videoReaction').VideoReaction) => {
+        if (!user?.uid || !currentChannel?.id) return;
+        toggleReaction(videoId, reaction, user.uid, currentChannel.id);
+    }, [toggleReaction, user?.uid, currentChannel?.id]);
+
+    // Build note lookup map (videoId -> text) for CSV export
+    const noteMap = useMemo(() => {
+        const map: Record<string, string> = {};
+        for (const edge of noteEdges) {
+            map[edge.videoId] = edge.text;
+        }
+        return map;
+    }, [noteEdges]);
+
     // Handle CSV Export
     const handleExport = useCallback(() => {
         // Build assignments map
@@ -430,6 +464,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             assignments: assignmentsMap,
             trafficEdges,
             viewerEdges,
+            noteMap,
+            reactionMap,
             warnings: [],
             discrepancyReport: reports.length > 0 ? reports.join('\n# \n# ') : undefined,
             metadata: {
@@ -442,7 +478,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
         const filename = generateExportFilename(_video.title, viewMode) + (selectedIds.size > 0 ? '_selected' : '');
         downloadCsv(csvContent, filename);
-    }, [filteredSources, actualTotalRow, allNiches, allAssignments, trafficEdges, viewerEdges, viewMode, effectiveSnapshotId, filters, _video.title, trashMetrics, deltaContext, selectedIds]);
+    }, [filteredSources, actualTotalRow, allNiches, allAssignments, trafficEdges, viewerEdges, noteMap, reactionMap, viewMode, effectiveSnapshotId, filters, _video.title, trashMetrics, deltaContext, selectedIds]);
 
     // Handle Image Export (ZIP)
     const handleExportImages = useCallback(async () => {
@@ -504,12 +540,14 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         if (user?.uid && currentChannel?.id) {
             initializeSubscriptions(user.uid, currentChannel.id);
             initNotes(user.uid, currentChannel.id);
+            initReactions(user.uid, currentChannel.id);
         }
         return () => {
             cleanup();
             cleanupNotes();
+            cleanupReactions();
         };
-    }, [user?.uid, currentChannel?.id, initializeSubscriptions, cleanup, initNotes, cleanupNotes]);
+    }, [user?.uid, currentChannel?.id, initializeSubscriptions, cleanup, initNotes, cleanupNotes, initReactions, cleanupReactions]);
 
     // Detect scroll for sticky header shadow
     useEffect(() => {
@@ -954,6 +992,9 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                                     // Viewer Type Props
                                     viewerEdges={viewerEdges}
                                     onToggleViewerType={handleToggleViewerType}
+                                    // Video Reaction Props
+                                    reactionMap={reactionMap}
+                                    onToggleReaction={handleToggleReaction}
                                 />
 
                                 {/* Floating Action Bar - Positioned absolutely relative to parent container */}
