@@ -289,12 +289,12 @@ export const TrafficRow = ({
 
             {/* Video Thumbnail */}
             <div className="flex items-center justify-center py-1.5">
-                {videoDetails?.thumbnail ? (
+                {item.videoId ? (
                     <div className={`relative w-full overflow-hidden rounded-md ${isNowPlaying ? 'ring-1 ring-emerald-400/60' : ''}`} style={{ aspectRatio: '16/9' }}>
                         {/* Pulse placeholder — starts animating instantly, no compositor delay */}
                         <div className="absolute inset-0 bg-white/5 animate-pulse rounded-md" />
                         <img
-                            src={videoDetails.thumbnail}
+                            src={videoDetails?.thumbnail || `https://i.ytimg.com/vi/${item.videoId}/mqdefault.jpg`}
                             alt=""
                             loading="lazy"
                             onLoad={() => setIsThumbLoaded(true)}

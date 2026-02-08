@@ -61,7 +61,8 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
     };
 
     const getFirstDayOfMonth = (date: Date) => {
-        return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+        // Monday = 0, Tuesday = 1, ..., Sunday = 6
+        return (new Date(date.getFullYear(), date.getMonth(), 1).getDay() + 6) % 7;
     };
 
     const handleDateClick = (day: number) => {
@@ -186,7 +187,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
                 </div>
             ) : (
                 <div className="grid grid-cols-7 gap-y-2 mb-4">
-                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                    {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
                         <div key={i} className="text-center text-xs text-[#AAAAAA] font-medium">{d}</div>
                     ))}
 

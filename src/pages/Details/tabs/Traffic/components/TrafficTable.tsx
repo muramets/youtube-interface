@@ -21,7 +21,7 @@ import type { TrafficType } from '../../../../../core/types/videoTrafficType';
 import type { ViewerType } from '../../../../../core/types/viewerType';
 import type { VideoReaction } from '../../../../../core/types/videoReaction';
 
-export type SortKey = keyof TrafficSource | 'trafficType' | 'viewerType';
+export type SortKey = keyof TrafficSource | 'trafficType' | 'viewerType' | 'reaction';
 export interface SortConfig {
     key: SortKey;
     direction: 'asc' | 'desc';
@@ -171,6 +171,11 @@ export const TrafficTable = memo<TrafficTableProps>(({
                 const aType = a.videoId && viewerEdges ? (viewerEdges[a.videoId]?.type || '') : '';
                 const bType = b.videoId && viewerEdges ? (viewerEdges[b.videoId]?.type || '') : '';
                 comparison = aType.localeCompare(bType);
+            } else if (key === 'reaction') {
+                const reactionOrder: Record<string, number> = { star: 3, like: 2, dislike: 1 };
+                const aReaction = a.videoId && reactionMap ? (reactionOrder[reactionMap[a.videoId]] || 0) : 0;
+                const bReaction = b.videoId && reactionMap ? (reactionOrder[reactionMap[b.videoId]] || 0) : 0;
+                comparison = aReaction - bReaction;
             } else if (key === 'avgViewDuration') {
                 comparison = durationToSeconds(a.avgViewDuration) - durationToSeconds(b.avgViewDuration);
             } else {
@@ -193,7 +198,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
 
             return direction === 'asc' ? comparison : -comparison;
         });
-    }, [data, sortConfig, trafficEdges, viewerEdges]);
+    }, [data, sortConfig, trafficEdges, viewerEdges, reactionMap]);
 
     // eslint-disable-next-line react-hooks/incompatible-library
     const rowVirtualizer = useVirtualizer({
@@ -263,13 +268,13 @@ export const TrafficTable = memo<TrafficTableProps>(({
         };
     }, [data]);
 
-    const renderHeaderCell = (label: string, sortKey?: SortKey, align: 'left' | 'right' = 'right') => {
+    const renderHeaderCell = (label: string, sortKey?: SortKey, align: 'left' | 'right' | 'center' = 'right') => {
         const isSorted = sortConfig?.key === sortKey;
         const canSort = !!sortKey;
 
         return (
             <div
-                className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : 'justify-start'} ${canSort ? 'cursor-pointer hover:text-white transition-colors select-none' : ''}`}
+                className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'} ${canSort ? 'cursor-pointer hover:text-white transition-colors select-none' : ''}`}
                 onClick={() => canSort && handleSort(sortKey)}
             >
                 {label}
@@ -331,7 +336,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                 {renderHeaderCell('CTR', 'ctr')}
                 {renderHeaderCell('Views', 'views')}
                 {renderHeaderCell('AVD', 'avgViewDuration')}
-                <div /> {/* Reactions Column */}
+                {renderHeaderCell('', 'reaction', 'center')} {/* Reactions Column */}
             </div>
 
             <div
