@@ -24,6 +24,7 @@ import { useSnapshotManagement } from './hooks/useSnapshotManagement';
 import { useModalState } from './hooks/useModalState';
 import { DetailsModals } from './components/DetailsModals';
 import { useTrafficNicheStore } from '../../core/stores/useTrafficNicheStore';
+import { TrafficSnapshotService } from '../../core/services/traffic';
 
 // Static wrapper component to prevent re-mounting issues
 const GalleryDndWrapper: React.FC<{
@@ -363,6 +364,66 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
         }
     }, []); // Empty deps = 100% stable callback
 
+    // Handler for updating snapshot metadata (label, activeDate)
+    // PATTERN: Optimistic UI — update local state instantly, persist to Firestore in background.
+    // Uses Latest Ref Pattern for trafficState to avoid stale closures in stable callback.
+    // On Firestore error, rolls back by re-fetching from server.
+    const trafficStateRef = React.useRef(trafficState);
+    React.useEffect(() => { trafficStateRef.current = trafficState; }, [trafficState]);
+
+    const handleUpdateSnapshotMetadata = useCallback(async (
+        snapshotId: string,
+        metadata: { label?: string; activeDate?: { start: number; end: number } | null }
+    ) => {
+        const currentUser = userRef.current;
+        const currentChan = currentChannelRef.current;
+        const currentVideoId = videoIdRef.current;
+        const currentTrafficState = trafficStateRef.current;
+        if (!currentUser?.uid || !currentChan?.id || !currentVideoId) return;
+
+        // Optimistic local update — instant UI feedback
+        if (currentTrafficState.trafficData) {
+            const updatedSnapshots = currentTrafficState.trafficData.snapshots.map(s => {
+                if (s.id !== snapshotId) return s;
+                const updated = { ...s };
+                if (metadata.label !== undefined) {
+                    if (metadata.label) {
+                        updated.label = metadata.label;
+                    } else {
+                        delete updated.label;
+                    }
+                }
+                if (metadata.activeDate !== undefined) {
+                    if (metadata.activeDate) {
+                        updated.activeDate = metadata.activeDate;
+                    } else {
+                        delete updated.activeDate;
+                    }
+                }
+                return updated;
+            });
+            currentTrafficState.updateLocalData({
+                ...currentTrafficState.trafficData,
+                snapshots: updatedSnapshots
+            });
+        }
+
+        // Persist to Firestore in the background
+        try {
+            await TrafficSnapshotService.updateMetadata(
+                currentUser.uid,
+                currentChan.id,
+                currentVideoId,
+                snapshotId,
+                metadata
+            );
+        } catch (error) {
+            console.error('Failed to update snapshot metadata:', error);
+            // Rollback: refetch from Firestore on error
+            currentTrafficState.refetch();
+        }
+    }, []);
+
 
     // State to track the "previous" niche filter for restoration on "Back" navigation
     const previousNicheFilterRef = React.useRef<import('../../core/types/traffic').TrafficFilter | null>(null);
@@ -450,6 +511,26 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
                 previousSortConfigRef.current = null;
             }
         }
+        // BUSINESS RULE: Auto-switch view mode based on snapshot position
+        // - First snapshot (no predecessor) → 'cumulative' (total data)
+        //   because delta mode would show empty table (no history to diff against)
+        // - Any other snapshot → 'delta' (new/changed sources)
+        //   because users primarily care about what changed between snapshots
+        const currentTraffic = trafficStateRef.current.trafficData;
+        if (currentTraffic) {
+            const clickedSnapshot = currentTraffic.snapshots.find(s => s.id === snapshotId);
+            if (clickedSnapshot) {
+                const versionSnapshots = currentTraffic.snapshots
+                    .filter(s => s.version === clickedSnapshot.version)
+                    .sort((a, b) => a.timestamp - b.timestamp);
+                const isFirst = versionSnapshots.length > 0 && versionSnapshots[0].id === snapshotId;
+                if (isFirst) {
+                    setTrafficViewMode('cumulative');
+                } else {
+                    setTrafficViewMode('delta');
+                }
+            }
+        }
         snapshotMgmtRef.current.handleSnapshotClick(snapshotId);
     }, []); // Empty deps = 100% stable callback
 
@@ -492,6 +573,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
                     selectedSnapshot={selectedSnapshot}
                     onSnapshotClick={handleSnapshotClickWrapped}
                     onDeleteSnapshot={snapshotMgmt.handleDeleteSnapshot}
+                    onUpdateSnapshotMetadata={handleUpdateSnapshotMetadata}
                     activeTab={activeTab}
                     onTabChange={handleTabChange}
                     // NEW: Pass live calculated groups (niches)

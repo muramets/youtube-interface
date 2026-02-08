@@ -33,11 +33,11 @@ export const useTrafficVersions = ({
         }).sort((a, b) => b.timestamp - a.timestamp); // Latest first
     }, [snapshots]);
 
-    // Helper: Format date for tooltips
-    const formatSnapshotDate = (timestamp: number) => {
+    // Helper: Format a single timestamp for display
+    const formatTimestamp = useCallback((timestamp: number) => {
         const date = new Date(timestamp);
         const display = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        const tooltip = date.toLocaleString('en-US', {
+        const full = date.toLocaleString('en-US', {
             month: 'short',
             day: 'numeric',
             year: 'numeric',
@@ -45,8 +45,53 @@ export const useTrafficVersions = ({
             minute: '2-digit',
             hour12: true
         });
-        return { display, tooltip };
-    };
+        return { display, full };
+    }, []);
+
+    // Helper: Format a date range (e.g. "Jan 5 – 12" or "Jan 5 – Feb 3")
+    const formatDateRange = useCallback((start: number, end: number) => {
+        const startDate = new Date(start);
+        const endDate = new Date(end);
+        const sameMonth = startDate.getMonth() === endDate.getMonth() && startDate.getFullYear() === endDate.getFullYear();
+
+        if (sameMonth) {
+            const month = startDate.toLocaleDateString('en-US', { month: 'short' });
+            return `${month} ${startDate.getDate()} – ${endDate.getDate()}`;
+        }
+        const startStr = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const endStr = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return `${startStr} – ${endStr}`;
+    }, []);
+
+    // Format snapshot date with priority: label > activeDate range > timestamp
+    const formatSnapshotDate = useCallback((timestamp: number, snapshot?: TrafficSnapshot) => {
+        const uploaded = formatTimestamp(timestamp);
+
+        // Priority 1: Custom label
+        if (snapshot?.label) {
+            const tooltipParts = [snapshot.label];
+            if (snapshot.activeDate) {
+                tooltipParts.push(formatDateRange(snapshot.activeDate.start, snapshot.activeDate.end));
+            }
+            tooltipParts.push(`Uploaded: ${uploaded.full}`);
+            return {
+                display: snapshot.label,
+                tooltip: tooltipParts.join(' • ')
+            };
+        }
+
+        // Priority 2: Active date range
+        if (snapshot?.activeDate) {
+            const rangeStr = formatDateRange(snapshot.activeDate.start, snapshot.activeDate.end);
+            return {
+                display: rangeStr,
+                tooltip: `Active: ${rangeStr} • Uploaded: ${uploaded.full}`
+            };
+        }
+
+        // Priority 3: Fallback to upload timestamp
+        return { display: uploaded.display, tooltip: uploaded.full };
+    }, [formatTimestamp, formatDateRange]);
 
     const sortedVersions = useMemo(() => {
         const packagingVersionSet = new Set(versions.map(v => v.versionNumber));
@@ -299,7 +344,7 @@ export const useTrafficVersions = ({
         }));
 
         return sortedResults;
-    }, [versions, snapshots, activeVersion, getVirtualVersionSnapshots]);
+    }, [versions, snapshots, activeVersion, getVirtualVersionSnapshots, formatSnapshotDate]);
 
     return {
         sortedVersions,

@@ -24,6 +24,7 @@ interface TrafficNavProps {
     onVersionClick: (versionNumber: number | 'draft', periodIndex?: number) => void;
     onSnapshotClick: (snapshotId: string) => void;
     onDeleteSnapshot?: (snapshotId: string) => void;
+    onUpdateSnapshotMetadata?: (snapshotId: string, metadata: { label?: string; activeDate?: { start: number; end: number } | null }) => void;
     onSelect: () => void;
     isActive: boolean;
     isExpanded: boolean;
@@ -55,6 +56,7 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
     onVersionClick,
     onSnapshotClick,
     onDeleteSnapshot,
+    onUpdateSnapshotMetadata,
     onSelect,
     isActive,
     isExpanded,
@@ -84,6 +86,10 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
 
     // Optimistic deletion: locally hidden snapshots (instant visual removal)
     const [hiddenSnapshotIds, setHiddenSnapshotIds] = useState<Set<string>>(new Set());
+
+    // Metadata editing state
+    const [renamingSnapshotId, setRenamingSnapshotId] = useState<string | null>(null);
+    const [activeDateSnapshotId, setActiveDateSnapshotId] = useState<string | null>(null);
 
 
     // Calculate Niche Stats for the SELECTED snapshot
@@ -292,7 +298,7 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                 {isVersionExpanded && hasSnapshots && (
                                     <div className="flex flex-col gap-1 py-1">
                                         {versionSnapshots.map((snapshot) => {
-                                            const { display, tooltip } = formatSnapshotDate(snapshot.timestamp);
+                                            const { display, tooltip } = formatSnapshotDate(snapshot.timestamp, snapshot);
                                             const isSnapshotSelected = selectedSnapshot === snapshot.id;
 
                                             // Find globally latest snapshot (across all versions)
@@ -326,6 +332,16 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                                         groups={groups}
                                                         onNicheClick={onNicheClick}
                                                         activeNicheId={activeNicheId}
+                                                        // Metadata props
+                                                        label={snapshot.label}
+                                                        activeDate={snapshot.activeDate}
+                                                        onRename={onUpdateSnapshotMetadata ? (id, label) => onUpdateSnapshotMetadata(id, { label: label || undefined }) : undefined}
+                                                        onSetActiveDate={onUpdateSnapshotMetadata ? (id, date) => onUpdateSnapshotMetadata(id, { activeDate: date }) : undefined}
+                                                        isRenaming={renamingSnapshotId === snapshot.id}
+                                                        isSettingActiveDate={activeDateSnapshotId === snapshot.id}
+                                                        onStartRename={() => setRenamingSnapshotId(snapshot.id)}
+                                                        onStopRename={() => setRenamingSnapshotId(null)}
+                                                        onStopSettingActiveDate={() => setActiveDateSnapshotId(null)}
                                                     />
                                                 </div>
                                             );
@@ -343,9 +359,21 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                 isOpen={menuState.snapshotId !== null}
                 onClose={() => setMenuState({ snapshotId: null, position: { x: 0, y: 0 } })}
                 position={menuState.position}
+                isLatest={menuState.snapshotId ? menuState.snapshotId === snapshots.reduce((latest, s) => s.timestamp > (latest?.timestamp || 0) ? s : latest, snapshots[0])?.id : false}
+                canDelete={!!onDeleteSnapshot}
                 onDelete={() => {
                     if (menuState.snapshotId) {
                         setDeleteConfirmation({ isOpen: true, snapshotId: menuState.snapshotId });
+                    }
+                }}
+                onRename={() => {
+                    if (menuState.snapshotId) {
+                        setRenamingSnapshotId(menuState.snapshotId);
+                    }
+                }}
+                onSetActiveDate={() => {
+                    if (menuState.snapshotId) {
+                        setActiveDateSnapshotId(menuState.snapshotId);
                     }
                 }}
             />

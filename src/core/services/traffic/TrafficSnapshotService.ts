@@ -351,5 +351,57 @@ export const TrafficSnapshotService = {
 
         await TrafficDataService.save(userId, channelId, videoId, updated);
         return updated;
+    },
+
+    /**
+     * Updates only metadata fields (label, activeDate) on a snapshot.
+     * Lightweight operation — no CSV re-upload, no summary recalculation.
+     */
+    async updateMetadata(
+        userId: string,
+        channelId: string,
+        videoId: string,
+        snapshotId: string,
+        metadata: { label?: string; activeDate?: { start: number; end: number } | null }
+    ): Promise<void> {
+        const currentData = await TrafficDataService.fetch(userId, channelId, videoId);
+        if (!currentData) throw new Error('DATA_NOT_FOUND');
+
+        const snapshotIndex = currentData.snapshots.findIndex(s => s.id === snapshotId);
+        if (snapshotIndex === -1) throw new Error('SNAPSHOT_NOT_FOUND');
+
+        const snapshot = currentData.snapshots[snapshotIndex];
+        const updatedSnapshot = { ...snapshot };
+
+        // Apply metadata changes
+        if (metadata.label !== undefined) {
+            if (metadata.label) {
+                updatedSnapshot.label = metadata.label;
+            } else {
+                delete updatedSnapshot.label;
+            }
+        }
+        if (metadata.activeDate !== undefined) {
+            if (metadata.activeDate) {
+                updatedSnapshot.activeDate = metadata.activeDate;
+            } else {
+                delete updatedSnapshot.activeDate;
+            }
+        }
+
+        const newSnapshots = [...currentData.snapshots];
+        newSnapshots[snapshotIndex] = updatedSnapshot;
+
+        await TrafficDataService.save(userId, channelId, videoId, {
+            ...currentData,
+            snapshots: newSnapshots
+        });
+
+        logger.info('Snapshot metadata updated', {
+            component: 'TrafficSnapshotService',
+            snapshotId,
+            hasLabel: !!updatedSnapshot.label,
+            hasActiveDate: !!updatedSnapshot.activeDate
+        });
     }
 };

@@ -19,6 +19,7 @@ export const TrafficService = {
     createVersionSnapshot: TrafficSnapshotService.create,
     getVersionSources: TrafficSnapshotService.getVersionSources,
     deleteSnapshot: TrafficSnapshotService.delete,
+    updateSnapshotMetadata: TrafficSnapshotService.updateMetadata,
 
     // TrafficDeltaService methods
     calculateVersionDelta: TrafficDeltaService.calculateVersionDelta,

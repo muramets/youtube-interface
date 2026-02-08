@@ -87,6 +87,10 @@ export interface TrafficSnapshotBase {
     timestamp: number;
     createdAt: string;
     storagePath: string; // REQUIRED: путь к CSV в Cloud Storage (no legacy support)
+    /** Custom user-defined name for the snapshot (e.g. "Before title change") */
+    label?: string;
+    /** Period when this data was active in YT Studio (date range) */
+    activeDate?: { start: number; end: number };
     summary: {
         totalViews: number;
         totalWatchTime: number;

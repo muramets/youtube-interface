@@ -263,50 +263,77 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                 const anchorLeft = rect.left;
                 const anchorRight = rect.right ?? rect.left + rect.width;
                 const anchorCenter = rect.left + rect.width / 2;
+                const anchorMiddleY = rect.top + rect.height / 2;
 
-                // Determine horizontal alignment based on prop and available space
-                let effectiveAlign = propsRef.current.align;
-                const spaceLeft = anchorRight; // Space available for expanding left (align=right)
-                const spaceRight = viewportWidth - anchorLeft; // Space available for expanding right (align=left)
+                let finalTransformX = '0';
+                let finalTransformY = '0';
 
-                // Heuristic: If preferred side is tight (<200px) and other side has more space, flip.
-                if (effectiveAlign === 'left' && spaceRight < 200 && spaceLeft > spaceRight) {
-                    effectiveAlign = 'right';
-                } else if (effectiveAlign === 'right' && spaceLeft < 200 && spaceRight > spaceLeft) {
-                    effectiveAlign = 'left';
-                }
+                if (preferredSide === 'right' || preferredSide === 'left') {
+                    // --- HORIZONTAL SIDE MODE (right/left of anchor) ---
+                    if (preferredSide === 'right') {
+                        left = anchorRight + ANCHOR_GAP;
+                        finalTransformX = '0';
+                    } else {
+                        left = anchorLeft - ANCHOR_GAP;
+                        finalTransformX = '-100%';
+                    }
 
-                // Calculate Left position and Horizontal Transform
-                let activeTransformX = '0'; // Default for align='left'
+                    // Vertical: center on anchor
+                    top = anchorMiddleY;
+                    finalTransformY = '-50%';
 
-                if (effectiveAlign === 'left') {
-                    left = anchorLeft;
-                    activeTransformX = '0';
-                } else if (effectiveAlign === 'right') {
-                    left = anchorRight;
-                    activeTransformX = '-100%';
+                    // Clamp to viewport edges after transform
+                    // For side=right, we know the tooltip expands rightward from `left`.
+                    // For side=left, the transform shifts it leftward.
+                    // We rely on maxWidth + viewport clamping to prevent overflow.
+
+                    const originX = preferredSide === 'right' ? 'left' : 'right';
+                    setTransformOrigin(`${originX} center`);
+
                 } else {
-                    // Center
-                    left = anchorCenter;
-                    activeTransformX = '-50%';
+                    // --- VERTICAL SIDE MODE (bottom/top of anchor) ---
+
+                    // Determine horizontal alignment based on prop and available space
+                    let effectiveAlign = propsRef.current.align;
+                    const spaceLeft = anchorRight; // Space available for expanding left (align=right)
+                    const spaceRight = viewportWidth - anchorLeft; // Space available for expanding right (align=left)
+
+                    // Heuristic: If preferred side is tight (<200px) and other side has more space, flip.
+                    if (effectiveAlign === 'left' && spaceRight < 200 && spaceLeft > spaceRight) {
+                        effectiveAlign = 'right';
+                    } else if (effectiveAlign === 'right' && spaceLeft < 200 && spaceRight > spaceLeft) {
+                        effectiveAlign = 'left';
+                    }
+
+                    // Calculate Left position and Horizontal Transform
+
+                    if (effectiveAlign === 'left') {
+                        left = anchorLeft;
+                        finalTransformX = '0';
+                    } else if (effectiveAlign === 'right') {
+                        left = anchorRight;
+                        finalTransformX = '-100%';
+                    } else {
+                        // Center
+                        left = anchorCenter;
+                        finalTransformX = '-50%';
+                    }
+
+                    // Vertical positioning
+                    if (preferredSide === 'bottom') {
+                        top = anchorBottom + ANCHOR_GAP;
+                        finalTransformY = '0';
+                    } else {
+                        top = anchorTop - ANCHOR_GAP;
+                        finalTransformY = '-100%';
+                    }
+
+                    // Determine Transform Origin for animation
+                    const originY = preferredSide === 'bottom' ? 'top' : 'bottom';
+                    setTransformOrigin(`${originY} ${effectiveAlign}`);
                 }
 
-                // Vertical positioning
-                let activeTransformY = '0';
-                if (preferredSide === 'bottom') {
-                    top = anchorBottom + ANCHOR_GAP;
-                    activeTransformY = '0';
-                    // Check collision with bottom edge? (Optional enhancement)
-                } else {
-                    top = anchorTop - ANCHOR_GAP;
-                    activeTransformY = '-100%';
-                }
-
-                finalTransform = `translate(${activeTransformX}, ${activeTransformY})`;
-
-                // Determine Transform Origin for animation
-                const originY = preferredSide === 'bottom' ? 'top' : 'bottom';
-                setTransformOrigin(`${originY} ${effectiveAlign}`);
+                finalTransform = `translate(${finalTransformX}, ${finalTransformY})`;
             }
 
             // --- Debug Logging ---

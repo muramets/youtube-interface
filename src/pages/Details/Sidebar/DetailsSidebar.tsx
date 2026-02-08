@@ -30,6 +30,7 @@ interface DetailsSidebarProps {
     selectedSnapshot: string | null;
     onSnapshotClick: (snapshotId: string) => void;
     onDeleteSnapshot?: (snapshotId: string) => void;
+    onUpdateSnapshotMetadata?: (snapshotId: string, metadata: { label?: string; activeDate?: { start: number; end: number } | null }) => void;
     // Niche Data (Calculated in Layout)
     groups: TrafficGroup[];
     displayedSources: TrafficSource[];
@@ -63,6 +64,7 @@ export const DetailsSidebar = React.memo<DetailsSidebarProps>(({
     selectedSnapshot,
     onSnapshotClick,
     onDeleteSnapshot,
+    onUpdateSnapshotMetadata,
     groups,
     displayedSources,
     onAddFilter,
@@ -194,6 +196,7 @@ export const DetailsSidebar = React.memo<DetailsSidebarProps>(({
                             onSnapshotClick(snapshotId);
                         }}
                         onDeleteSnapshot={onDeleteSnapshot}
+                        onUpdateSnapshotMetadata={onUpdateSnapshotMetadata}
                         isActive={activeTab === 'traffic'}
                         isExpanded={expandedSection === 'traffic'}
                         onToggle={() => handleToggleSection('traffic')}
