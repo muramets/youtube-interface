@@ -1,7 +1,7 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import {
     ExternalLink, Info, Sparkles, Flag, CircleOff, Layers, Target,
-    MousePointerClick, HelpCircle, Wand2, ZapOff, Zap, Compass, Eye, Coffee, User
+    MousePointerClick, HelpCircle, Wand2, ZapOff, Zap, Compass, Eye, Coffee, User, Play, MessageSquare
 } from 'lucide-react';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import type { TrafficType } from '../../../../../core/types/videoTrafficType';
@@ -12,8 +12,11 @@ import { VideoPreviewTooltip } from '../../../../../features/Video/components/Vi
 import { formatDuration } from '../utils/formatters';
 import type { CTRRule } from '../../../../../core/services/settingsService';
 import { useTrafficNicheStore } from '../../../../../core/stores/useTrafficNicheStore';
+import { useTrafficNoteStore } from '../../../../../core/stores/useTrafficNoteStore';
 import { TrafficRowBadges } from './TrafficRowBadges';
 import { useVideoPlayer } from '../../../../../core/hooks/useVideoPlayer';
+import { useAuth } from '../../../../../core/hooks/useAuth';
+import { useChannelStore } from '../../../../../core/stores/channelStore';
 import type { SuggestedTrafficNiche } from '../../../../../core/types/suggestedTrafficNiches';
 
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
@@ -99,11 +102,47 @@ export const TrafficRow = ({
     const { niches, assignments } = useTrafficNicheStore();
     const enterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
+    const [isThumbLoaded, setIsThumbLoaded] = useState(false);
+    const [isEditingNote, setIsEditingNote] = useState(false);
+    const [editNoteText, setEditNoteText] = useState('');
+    const noteInputRef = useRef<HTMLInputElement>(null);
+
     // Connect to Video Player mainly to check if this video is minimized
-    const { activeVideoId, isMinimized } = useVideoPlayer();
+    const { activeVideoId, isMinimized, minimize } = useVideoPlayer();
+
+    // Traffic Notes
+    const { getNoteForVideo, setNote, deleteNote } = useTrafficNoteStore();
+    const { user } = useAuth();
+    const { currentChannel } = useChannelStore();
+    const noteText = item.videoId ? getNoteForVideo(item.videoId) : undefined;
 
     // Check if THIS specific video is minimized
     const isThisVideoMinimized = isMinimized && activeVideoId === item.videoId;
+
+    const handleStartEditNote = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!item.videoId) return;
+        setEditNoteText(noteText || '');
+        setIsEditingNote(true);
+        // Focus will be set by autoFocus on the input
+    }, [item.videoId, noteText]);
+
+    const handleSaveNote = useCallback(() => {
+        if (!item.videoId || !user?.uid || !currentChannel?.id) return;
+        const trimmed = editNoteText.trim();
+        if (trimmed) {
+            setNote(item.videoId, trimmed, user.uid, currentChannel.id);
+        } else if (noteText) {
+            // Had a note, now empty → delete
+            deleteNote(item.videoId, user.uid, currentChannel.id);
+        }
+        setIsEditingNote(false);
+    }, [item.videoId, editNoteText, noteText, user, currentChannel, setNote, deleteNote]);
+
+    const handleCancelNote = useCallback(() => {
+        setIsEditingNote(false);
+        setEditNoteText('');
+    }, []);
 
     // Traffic Type Icon Logic
     const { icon: TypeIcon, label: typeLabel, color: typeColor, activeClass: typeActiveClass } = React.useMemo(() => {
@@ -220,6 +259,39 @@ export const TrafficRow = ({
                 />
             </div>
 
+            {/* Video Thumbnail */}
+            <div className="flex items-center justify-center py-1.5">
+                {videoDetails?.thumbnail ? (
+                    <div className="relative w-full overflow-hidden rounded-md" style={{ aspectRatio: '16/9' }}>
+                        {/* Pulse placeholder — starts animating instantly, no compositor delay */}
+                        <div className="absolute inset-0 bg-white/5 animate-pulse rounded-md" />
+                        <img
+                            src={videoDetails.thumbnail}
+                            alt=""
+                            loading="lazy"
+                            onLoad={() => setIsThumbLoaded(true)}
+                            className={`absolute inset-0 w-full h-full object-cover group-hover:scale-105 group-hover:brightness-110 group-hover:shadow-lg group-hover:shadow-white/10 ${isThumbLoaded ? 'opacity-100' : 'opacity-0'}`}
+                            style={{ transition: 'opacity 500ms ease-out, transform 200ms ease-out, filter 200ms ease-out, box-shadow 200ms ease-out' }}
+                        />
+                        {/* Play button overlay — visible on row hover */}
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (item.videoId) minimize(item.videoId, videoDetails?.title || item.sourceTitle);
+                            }}
+                            className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer bg-transparent border-none z-10"
+                        >
+                            <div className="w-6 h-6 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center shadow-lg transition-transform duration-150 ease-out hover:scale-110">
+                                <Play size={12} className="text-white fill-white ml-[1px]" />
+                            </div>
+                        </button>
+                    </div>
+                ) : (
+                    <div className="w-full h-full rounded-md bg-white/5 transition-all duration-200 ease-out group-hover:bg-white/10 group-hover:shadow-lg group-hover:shadow-white/5"
+                        style={{ aspectRatio: '16/9' }} />
+                )}
+            </div>
+
             {showPropertyIcon && (
                 <div className="flex items-center justify-center">
                     {PropertyIcon && (
@@ -232,103 +304,132 @@ export const TrafficRow = ({
                 </div>
             )}
 
-            <div className="min-w-0 flex flex-col justify-center h-full py-1">
-                <div className="flex items-center gap-2 min-w-0 w-full">
-                    <div className="min-w-0 flex-1 flex items-center gap-2 overflow-hidden">
-                        {/* Title Group: Title + Info Icon */}
-                        <div className="min-w-0 flex items-center gap-1.5">
-                            <span className={`truncate block ${activeSortKey === 'sourceTitle' ? 'text-text-primary font-semibold' : 'text-text-primary font-medium'}`}>
-                                {item.sourceTitle}
-                            </span>
+            <div className="min-w-0 flex items-center gap-2 h-full py-1">
+                {isEditingNote ? (
+                    /* Inline Note Editor */
+                    <input
+                        ref={noteInputRef}
+                        type="text"
+                        value={editNoteText}
+                        onChange={(e) => setEditNoteText(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); handleSaveNote(); }
+                            if (e.key === 'Escape') { e.preventDefault(); handleCancelNote(); }
+                        }}
+                        onBlur={handleSaveNote}
+                        autoFocus
+                        placeholder="Add a note..."
+                        className="w-full bg-transparent border-none outline-none text-xs text-text-primary placeholder:text-white/20 py-0.5 caret-blue-400"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                ) : (
+                    <>
+                        {/* Left: Title + Note subtitle (stacked) */}
+                        <div className="min-w-0 flex-1 flex flex-col justify-center">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                                <span className={`truncate block ${activeSortKey === 'sourceTitle' ? 'text-text-primary font-semibold' : 'text-text-primary font-medium'}`}>
+                                    {item.sourceTitle}
+                                </span>
 
-                            {/* Info Icon - Moved here, visible on group hover */}
-                            {item.videoId && !isThisVideoMinimized && (
-                                <div
-                                    ref={wrapperRef}
-                                    className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity inline-flex -m-2 p-2"
-                                    onMouseEnter={() => {
-                                        if (enterTimeoutRef.current) clearTimeout(enterTimeoutRef.current);
-                                        enterTimeoutRef.current = setTimeout(() => {
-                                            if (onTooltipEnter) onTooltipEnter(`preview-${item.videoId}`);
-                                        }, 500);
-                                    }}
-                                    onMouseLeave={() => {
-                                        // Tooltip Stability Bridge: Start a grace period in TrafficTable.tsx 
-                                        // to handle iframe-induced focus flickers.
-                                        if (enterTimeoutRef.current) {
-                                            clearTimeout(enterTimeoutRef.current);
-                                            enterTimeoutRef.current = null;
-                                        }
-                                        if (onTooltipLeave) onTooltipLeave();
-                                    }}
-                                >
-                                    <PortalTooltip
-                                        content={
-                                            <div
-                                                className="pointer-events-auto w-full relative"
-                                                onMouseEnter={() => {
-                                                    // Maintain open state if hovering content
-                                                    // Note: We don't need delay here because it's already open
-                                                    if (enterTimeoutRef.current) clearTimeout(enterTimeoutRef.current);
-                                                    if (onTooltipEnter) onTooltipEnter(`preview-${item.videoId}`);
-                                                }}
-                                                onMouseLeave={(e: React.MouseEvent) => {
-                                                    // IGNORE LEAVE if we are moving back to our own trigger icon
-                                                    // This prevents the "flicker loop" where hovering the icon underneath closes the tooltip
-                                                    if (wrapperRef.current && wrapperRef.current.contains(e.relatedTarget as Node)) {
-                                                        return;
-                                                    }
-
-                                                    if (onTooltipLeave) onTooltipLeave();
-                                                }}
-                                            >
-                                                <VideoPreviewTooltip
-                                                    videoId={item.videoId}
-                                                    title={videoDetails?.title || item.sourceTitle}
-                                                    channelTitle={videoDetails?.channelTitle || item.channelTitle}
-                                                    viewCount={videoDetails?.viewCount ? parseInt(videoDetails.viewCount) : undefined}
-                                                    publishedAt={videoDetails?.publishedAt}
-                                                    description={videoDetails?.description}
-                                                    tags={videoDetails?.tags}
-                                                    className="w-full"
-                                                    comparisonVideo={currentVideo}
-                                                />
-                                            </div>
-                                        }
-                                        enterDelay={0}
-                                        triggerClassName="flex items-center justify-center"
-                                        variant="glass"
-                                        side="top"
-                                        align="center"
-                                        sizeMode="fixed"
-                                        className="!p-0"
-                                        forceOpen={activeTooltipId === `preview-${item.videoId}`}
+                                {/* Note Icon — before Info, same visual weight (14px) */}
+                                {item.videoId && (
+                                    <button
+                                        onClick={handleStartEditNote}
+                                        className={`flex-shrink-0 transition-all duration-150 cursor-pointer bg-transparent border-none p-0 ${noteText ? 'opacity-50 hover:opacity-100' : 'opacity-0 group-hover:opacity-30 hover:!opacity-60'}`}
+                                        title={noteText ? 'Edit note' : 'Add note'}
                                     >
-                                        <div
-                                            className="text-text-secondary hover:text-white cursor-pointer transition-colors"
-                                            onClick={(e) => e.stopPropagation()}
+                                        <MessageSquare size={14} className={noteText ? 'text-blue-400' : 'text-text-secondary'} />
+                                    </button>
+                                )}
+
+                                {/* Info Icon - visible on group hover */}
+                                {item.videoId && !isThisVideoMinimized && (
+                                    <div
+                                        ref={wrapperRef}
+                                        className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity inline-flex -m-2 p-2"
+                                        onMouseEnter={() => {
+                                            if (enterTimeoutRef.current) clearTimeout(enterTimeoutRef.current);
+                                            enterTimeoutRef.current = setTimeout(() => {
+                                                if (onTooltipEnter) onTooltipEnter(`preview-${item.videoId}`);
+                                            }, 500);
+                                        }}
+                                        onMouseLeave={() => {
+                                            if (enterTimeoutRef.current) {
+                                                clearTimeout(enterTimeoutRef.current);
+                                                enterTimeoutRef.current = null;
+                                            }
+                                            if (onTooltipLeave) onTooltipLeave();
+                                        }}
+                                    >
+                                        <PortalTooltip
+                                            content={
+                                                <div
+                                                    className="pointer-events-auto w-full relative"
+                                                    onMouseEnter={() => {
+                                                        if (enterTimeoutRef.current) clearTimeout(enterTimeoutRef.current);
+                                                        if (onTooltipEnter) onTooltipEnter(`preview-${item.videoId}`);
+                                                    }}
+                                                    onMouseLeave={(e: React.MouseEvent) => {
+                                                        if (wrapperRef.current && wrapperRef.current.contains(e.relatedTarget as Node)) {
+                                                            return;
+                                                        }
+                                                        if (onTooltipLeave) onTooltipLeave();
+                                                    }}
+                                                >
+                                                    <VideoPreviewTooltip
+                                                        videoId={item.videoId}
+                                                        title={videoDetails?.title || item.sourceTitle}
+                                                        channelTitle={videoDetails?.channelTitle || item.channelTitle}
+                                                        viewCount={videoDetails?.viewCount ? parseInt(videoDetails.viewCount) : undefined}
+                                                        publishedAt={videoDetails?.publishedAt}
+                                                        description={videoDetails?.description}
+                                                        tags={videoDetails?.tags}
+                                                        className="w-full"
+                                                        comparisonVideo={currentVideo}
+                                                    />
+                                                </div>
+                                            }
+                                            enterDelay={0}
+                                            triggerClassName="flex items-center justify-center"
+                                            variant="glass"
+                                            side="top"
+                                            align="center"
+                                            sizeMode="fixed"
+                                            className="!p-0"
+                                            forceOpen={activeTooltipId === `preview-${item.videoId}`}
                                         >
-                                            <Info size={14} />
-                                        </div>
-                                    </PortalTooltip>
-                                </div>
+                                            <div
+                                                className="text-text-secondary hover:text-white cursor-pointer transition-colors"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <Info size={14} />
+                                            </div>
+                                        </PortalTooltip>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Note subtitle — shown when note exists, below title row */}
+                            {noteText && (
+                                <button
+                                    onClick={handleStartEditNote}
+                                    className="truncate text-xs text-white/30 italic mt-0.5 cursor-pointer bg-transparent border-none p-0 text-left w-full hover:text-white/50 transition-colors"
+                                >
+                                    {noteText}
+                                </button>
                             )}
                         </div>
-                    </div>
 
-                    {/* Niche Badges - Fixed Position (Before External Link) */}
-                    <TrafficRowBadges
-                        niches={assignedNiches}
-                        suggested={suggestedNiche}
-                        isTrendsSuggestion={isTrendsSuggestion}
-                        onConfirmSuggestion={(niche) => item.videoId && onConfirmSuggestion?.(item.videoId, niche)}
-                    />
+                        {/* Right: Badges + Actions (vertically centered) */}
+                        <TrafficRowBadges
+                            niches={assignedNiches}
+                            suggested={suggestedNiche}
+                            isTrendsSuggestion={isTrendsSuggestion}
+                            onConfirmSuggestion={(niche) => item.videoId && onConfirmSuggestion?.(item.videoId, niche)}
+                        />
 
-                    {/* Actions Group - Appears on Row Hover */}
-                    <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                        {item.videoId && (
-                            <>
-                                {/* External Link */}
+                        <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                            {item.videoId && (
                                 <a
                                     href={`https://youtu.be/${item.videoId}`}
                                     target="_blank"
@@ -338,10 +439,10 @@ export const TrafficRow = ({
                                 >
                                     <ExternalLink size={14} />
                                 </a>
-                            </>
-                        )}
-                    </div>
-                </div>
+                            )}
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* Traffic Type Indicator */}

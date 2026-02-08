@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficType } from '../../../../../core/types/videoTrafficType';
 import { useTrafficTypeStore } from '../../../../../core/stores/useTrafficTypeStore';
 import { assistantLogger } from '../../../../../core/utils/logger';
 
@@ -13,7 +14,7 @@ export const useSmartTrafficAutoApply = (
     isAssistantEnabled: boolean,
     displayedSources: TrafficSource[]
 ) => {
-    const { edges, setTrafficType } = useTrafficTypeStore();
+    const { edges, setTrafficTypes } = useTrafficTypeStore();
 
     const edgesRef = useRef(edges);
     useEffect(() => {
@@ -23,7 +24,7 @@ export const useSmartTrafficAutoApply = (
     useEffect(() => {
         if (!isAssistantEnabled) return;
 
-        let appliedCount = 0;
+        const updates: Array<{ sourceVideoId: string; type: TrafficType; source: 'smart_assistant' }> = [];
 
         displayedSources.forEach(source => {
             if (!source.videoId) return;
@@ -38,15 +39,14 @@ export const useSmartTrafficAutoApply = (
                 // OPTIMIZATION: Check if traffic type is already set.
                 if (currentEdge?.type) return;
 
-                // Rule: 0 Impressions, >0 Views IMPLIES Autoplay
-                setTrafficType(source.videoId, 'autoplay', 'smart_assistant');
-                appliedCount++;
+                updates.push({ sourceVideoId: source.videoId, type: 'autoplay', source: 'smart_assistant' });
             }
         });
 
-        if (appliedCount > 0) {
-            assistantLogger.info(`Auto-applied Autoplay type to ${appliedCount} videos`);
+        if (updates.length > 0) {
+            setTrafficTypes(updates);
+            assistantLogger.info(`Auto-applied Autoplay type to ${updates.length} videos`);
         }
 
-    }, [isAssistantEnabled, displayedSources, setTrafficType]);
+    }, [isAssistantEnabled, displayedSources, setTrafficTypes]);
 };

@@ -1,9 +1,16 @@
 import type { TrafficSnapshot, TrafficSource } from '../../../../../core/types/traffic';
+import { downloadCsvSnapshot } from '../../../../../core/services/storageService';
+import { parseTrafficCsv } from './csvParser';
+import { snapshotCache } from './snapshotCache';
 import { logger } from '../../../../../core/utils/logger';
 
 /**
  * Загружает источники трафика из снапшота.
  * Поддерживает гибридное хранилище (CSV в Cloud Storage).
+ * 
+ * Optimizations:
+ * - Static imports (no dynamic import overhead)
+ * - In-memory LRU cache (snapshots are immutable)
  * 
  * @param snapshot - Снапшот для загрузки
  * @returns Promise с объектом { sources, totalRow }
@@ -11,15 +18,19 @@ import { logger } from '../../../../../core/utils/logger';
 export const loadSnapshotSources = async (snapshot: TrafficSnapshot): Promise<{ sources: TrafficSource[]; totalRow?: TrafficSource }> => {
     // Приоритет 1: Загрузка из Cloud Storage (новый подход)
     if (snapshot.storagePath) {
-        try {
-            const { downloadCsvSnapshot } = await import('../../../../../core/services/storageService');
-            const { parseTrafficCsv } = await import('./csvParser');
+        // Check in-memory cache first (snapshots are immutable)
+        const cached = snapshotCache.get(snapshot.storagePath);
+        if (cached) {
+            return cached;
+        }
 
+        try {
             const blob = await downloadCsvSnapshot(snapshot.storagePath);
             const file = new File([blob], 'snapshot.csv', { type: 'text/csv' });
             const { sources, totalRow } = await parseTrafficCsv(file);
 
-
+            // Store in cache for future access
+            snapshotCache.set(snapshot.storagePath, { sources, totalRow });
 
             return { sources, totalRow };
         } catch (error) {

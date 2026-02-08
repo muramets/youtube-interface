@@ -10,7 +10,7 @@ import { useMissingTitles, repairTrafficSources } from './hooks/useMissingTitles
 import { generateTrafficCsv } from './utils/csvGenerator';
 import { exportTrafficCsv, downloadCsv, generateExportFilename, generateDiscrepancyReport } from './utils/exportTrafficCsv';
 import { useApiKey } from '../../../../core/hooks/useApiKey';
-import { useSuggestedVideos } from './hooks/useSuggestedVideos';
+import { useSuggestedVideoLookup } from './hooks/useSuggestedVideoLookup';
 
 
 // ... imports
@@ -21,6 +21,7 @@ import { useTrafficSelection } from './hooks/useTrafficSelection';
 import { useSettings } from '../../../../core/hooks/useSettings';
 import { formatPremiumPeriod } from './utils/dateUtils';
 import { useTrafficNicheStore } from '../../../../core/stores/useTrafficNicheStore';
+import { useTrafficNoteStore } from '../../../../core/stores/useTrafficNoteStore';
 import { useAuth } from '../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../core/stores/channelStore';
 import { useVideos } from '../../../../core/hooks/useVideos';
@@ -123,14 +124,27 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     const { apiKey } = useApiKey();
     const { currentChannel } = useChannelStore();
 
-    // Video Data: Home Videos + Suggested Videos
+    // Video Data: Home Videos + per-document suggested video lookup
     const { videos: homeVideos } = useVideos(user?.uid || '', currentChannel?.id || '');
-    const { suggestedVideos } = useSuggestedVideos(user?.uid || '', currentChannel?.id || '');
 
-    // OPTIMIZATION: Merge home videos and suggested videos for tooltip lookup
+    // Extract video IDs from displayedSources for on-demand Firestore queries
+    const sourceVideoIds = useMemo(() => {
+        return displayedSources
+            .map(s => s.videoId)
+            .filter((id): id is string => !!id);
+    }, [displayedSources]);
+
+    // Fetch only the needed suggested videos (not the entire 4650-doc collection)
+    const { videoMap: suggestedVideoMap } = useSuggestedVideoLookup(
+        sourceVideoIds,
+        user?.uid || '',
+        currentChannel?.id || ''
+    );
+
+    // Merge home videos and fetched suggested videos for downstream consumers
     const allVideos = useMemo(() => {
-        return [...homeVideos, ...suggestedVideos];
-    }, [homeVideos, suggestedVideos]);
+        return [...homeVideos, ...Array.from(suggestedVideoMap.values())];
+    }, [homeVideos, suggestedVideoMap]);
 
     // 1. Existing/Post-Load Missing Titles Logic
     const {
@@ -169,7 +183,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         return pendingUpload.sources.filter(s => s.videoId && (!s.sourceTitle || s.sourceTitle.trim() === '')).length;
     }, [pendingUpload]);
 
-    const pendingEstimatedQuota = Math.ceil(pendingMissingCount / 50) * 7;
+    const pendingEstimatedQuota = Math.ceil(pendingMissingCount / 50) * 2;
     const [isRestoringPending, setIsRestoringPending] = useState(false);
 
     // Determines which "mode" the modal is in
@@ -199,6 +213,12 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         initializeSubscriptions,
         cleanup
     } = useTrafficNicheStore();
+
+    // Traffic Notes Store
+    const {
+        initializeSubscription: initNotes,
+        cleanup: cleanupNotes
+    } = useTrafficNoteStore();
 
     // Check if this is the first snapshot of a version (for specific message)
     const isFirstSnapshot = React.useMemo(() => {
@@ -483,11 +503,13 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     useEffect(() => {
         if (user?.uid && currentChannel?.id) {
             initializeSubscriptions(user.uid, currentChannel.id);
+            initNotes(user.uid, currentChannel.id);
         }
         return () => {
             cleanup();
+            cleanupNotes();
         };
-    }, [user?.uid, currentChannel?.id, initializeSubscriptions, cleanup]);
+    }, [user?.uid, currentChannel?.id, initializeSubscriptions, cleanup, initNotes, cleanupNotes]);
 
     // Detect scroll for sticky header shadow
     useEffect(() => {
@@ -523,7 +545,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         allNiches,
         allVideos,
         trendsNiches,
-        trendsVideoAssignments
+        trendsVideoAssignments,
+        isAssistantEnabled
     );
 
     // Wrapper to respect the toggle state - returns FULL suggestion for reason check
@@ -756,29 +779,10 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
         const snapshots = trafficData?.snapshots || [];
 
-        // Find snapshots for the viewing version
-        const versionSnapshots = snapshots.filter((s: import('../../../../core/types/traffic').TrafficSnapshot) => s.version === viewingVersion);
-        if (versionSnapshots.length === 0) return false;
-
-        // Get the period we're viewing
-        const versionData = packagingHistory.find((v: import('../../../../core/types/versioning').PackagingVersion) => v.versionNumber === viewingVersion);
-        if (!versionData?.activePeriods) return false;
-
-        const period = versionData.activePeriods[viewingPeriodIndex];
-        if (!period) return false;
-
-        // Check if any snapshot exists within this period's time range
-        const periodStart = period.startDate;
-        const periodEnd = period.endDate;
-
-        const hasSnapshotInPeriod = versionSnapshots.some((s: import('../../../../core/types/traffic').TrafficSnapshot) => {
-            const matchesStart = s.timestamp >= (periodStart - 5000);
-            const matchesEnd = periodEnd ? s.timestamp <= (periodEnd + 5000) : true;
-            return matchesStart && matchesEnd;
-        });
-
-        return hasSnapshotInPeriod;
-    }, [trafficData?.snapshots, viewingVersion, viewingPeriodIndex, selectedSnapshot, packagingHistory]);
+        // Check if any snapshots exist for the viewing version
+        // Simple check — no period matching needed. If version has snapshots, data exists.
+        return snapshots.some((s: import('../../../../core/types/traffic').TrafficSnapshot) => s.version === viewingVersion);
+    }, [trafficData?.snapshots, viewingVersion, selectedSnapshot]);
 
     // Compute Version Label (with Alias Support)
     // Returns object with main label and optional period label for separate styling
@@ -905,7 +909,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
             {/* Main Content - Table Area */}
             <div className="px-6 pb-0 pt-6 min-h-0 flex-1 flex flex-col overflow-hidden">
-                <div className="w-full max-w-[1050px] relative flex-1 flex flex-col min-h-0">
+                <div className="w-full max-w-[1200px] relative flex-1 flex flex-col min-h-0">
                     {error ? (
                         <div className="flex-1 min-h-[400px]">
                             <TrafficErrorState error={error} onRetry={retry} />

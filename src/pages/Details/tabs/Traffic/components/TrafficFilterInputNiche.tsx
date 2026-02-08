@@ -49,13 +49,19 @@ export const TrafficFilterInputNiche: React.FC<TrafficFilterInputNicheProps> = (
         onApply(newSelection);
     };
 
+    // 0. Filter groups to only those with at least one video in current sources
+    const relevantGroups = useMemo(() => {
+        const sourceVideoIds = new Set(sources.map(s => s.videoId).filter(Boolean));
+        return groups.filter(g => g.videoIds.some(vid => sourceVideoIds.has(vid)));
+    }, [groups, sources]);
+
     // 1. Calculate Counts dynamically (Impressions & Views)
     const nicheStats = useMemo(() => {
         const stats = new Map<string, { views: number; impressions: number }>();
 
         // Pre-compute videoId -> Set<NicheId> map
         const videoIdToGroupIds = new Map<string, string[]>();
-        groups.forEach(group => {
+        relevantGroups.forEach(group => {
             group.videoIds.forEach(vid => {
                 const list = videoIdToGroupIds.get(vid) || [];
                 list.push(group.id);
@@ -78,7 +84,7 @@ export const TrafficFilterInputNiche: React.FC<TrafficFilterInputNicheProps> = (
         });
 
         return stats;
-    }, [sources, groups]);
+    }, [sources, relevantGroups]);
 
     // Calculate unassigned stats
     const unassignedStats = useMemo(() => {
@@ -86,7 +92,7 @@ export const TrafficFilterInputNiche: React.FC<TrafficFilterInputNicheProps> = (
         let impressions = 0;
 
         const coveredVideoIds = new Set<string>();
-        groups.forEach(g => g.videoIds.forEach(vid => coveredVideoIds.add(vid)));
+        relevantGroups.forEach(g => g.videoIds.forEach(vid => coveredVideoIds.add(vid)));
 
         sources.forEach(source => {
             if (!source.videoId || !coveredVideoIds.has(source.videoId)) {
@@ -95,24 +101,24 @@ export const TrafficFilterInputNiche: React.FC<TrafficFilterInputNicheProps> = (
             }
         });
         return { views, impressions };
-    }, [sources, groups]);
+    }, [sources, relevantGroups]);
 
     // 2. Sort niches: View Count (desc), then Name (asc)
     // Identify Trash Group
     const trashGroup = useMemo(() => {
-        return groups.find(g => g.name.trim().toLowerCase() === 'trash');
-    }, [groups]);
+        return relevantGroups.find(g => g.name.trim().toLowerCase() === 'trash');
+    }, [relevantGroups]);
 
     // 2. Sort niches: View Count (desc), then Name (asc)
     const sortedNiches = useMemo(() => {
-        const otherGroups = trashGroup ? groups.filter(g => g.id !== trashGroup.id) : groups;
+        const otherGroups = trashGroup ? relevantGroups.filter(g => g.id !== trashGroup.id) : relevantGroups;
         return [...otherGroups].sort((a, b) => {
             const statsA = nicheStats.get(a.id) || { views: 0 };
             const statsB = nicheStats.get(b.id) || { views: 0 };
             if (statsA.views !== statsB.views) return statsB.views - statsA.views;
             return a.name.localeCompare(b.name);
         });
-    }, [groups, nicheStats, trashGroup]);
+    }, [relevantGroups, nicheStats, trashGroup]);
 
     // Filter logic (Applied to sortedNiches which now excludes Trash)
     const filteredNiches = useMemo(() => {

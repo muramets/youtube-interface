@@ -234,8 +234,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
     }, [data, niches, assignments]);
 
     const gridClassName = showPropertyColumn
-        ? "grid-cols-[40px_24px_1fr_22px_22px_70px_60px_70px_80px]"
-        : "grid-cols-[40px_1fr_22px_22px_70px_60px_70px_80px]";
+        ? "grid-cols-[40px_72px_24px_1fr_22px_22px_70px_60px_70px_80px]"
+        : "grid-cols-[40px_72px_1fr_22px_22px_70px_60px_70px_80px]";
 
     const computedTotal = useMemo(() => {
         if (data.length === 0) return null;
@@ -313,6 +313,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                         disabled={isLoading || data.length === 0}
                     />
                 </div>
+                <div /> {/* Thumbnail Column */}
                 {showPropertyColumn && <div></div>} {/* Property Icon Column */}
                 <div>Traffic Source</div>
                 {/* Traffic Type Header */}
@@ -371,6 +372,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                         {computedTotal && (
                             <div className={`sticky top-0 z-10 grid ${gridClassName} gap-2 px-4 py-3 border-b border-white/10 bg-video-edit-bg backdrop-blur-md font-bold text-text-primary text-xs select-none shadow-sm`}>
                                 <div />
+                                <div /> {/* Thumbnail spacer */}
                                 {showPropertyColumn && <div />}
                                 <div>Total</div>
                                 {/* Traffic Type Total Cell (Empty) */}

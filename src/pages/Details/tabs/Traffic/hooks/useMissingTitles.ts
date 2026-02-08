@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { TrafficSource, TrafficData, TrafficSnapshot } from '../../../../../core/types/traffic';
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 import { fetchVideosBatch } from '../../../../../core/utils/youtubeApi';
@@ -6,6 +7,7 @@ import { VideoService } from '../../../../../core/services/videoService';
 import { TrafficSnapshotService } from '../../../../../core/services/traffic/TrafficSnapshotService';
 import { generateTrafficCsv } from '../utils/csvGenerator';
 import { assistantLogger } from '../../../../../core/utils/logger';
+import { suggestedVideoQueryPrefix } from './useSuggestedVideoLookup';
 
 interface UseMissingTitlesProps {
     displayedSources: TrafficSource[];
@@ -121,6 +123,7 @@ export const useMissingTitles = ({
     trafficData
 }: UseMissingTitlesProps) => {
     const [isRestoring, setIsRestoring] = useState(false);
+    const queryClient = useQueryClient();
 
     // 1. Detect missing titles (Legacy Check for Dumb CSVs)
     const missingSources = useMemo(() => {
@@ -160,9 +163,31 @@ export const useMissingTitles = ({
     const unenrichedCount = unenrichedSources.length;
 
 
-    // 3. Calculate Quota
-    // Combined quota estimation if we ran repair on everything
-    const estimatedQuota = Math.ceil((missingCount + unenrichedCount) / 50) * 7;
+    // 3. Calculate Quota — mirrors repairTrafficSources filtering logic
+    const { estimatedQuota } = useMemo(() => {
+        // Combine all sources that need repair (missing title OR missing channelId)
+        const allRepairSources = displayedSources.filter(s => {
+            if (!s.videoId) return false;
+            const missingTitle = !s.sourceTitle || s.sourceTitle.trim() === '';
+            const missingChannelId = !s.channelId;
+            return missingTitle || missingChannelId;
+        });
+
+        // Get unique video IDs
+        const uniqueVideoIds = Array.from(new Set(allRepairSources.map(s => s.videoId!)));
+
+        // Exclude cached videos (same logic as repairTrafficSources lines 50-56)
+        const cachedMap = new Map(cachedVideos.map(v => [v.id, v]));
+        const toFetch = uniqueVideoIds.filter(id => {
+            const cached = cachedMap.get(id);
+            if (!cached) return true;
+            return !cached.channelId;
+        });
+
+        // 2 units per chunk: 1 for videos.list + 1 for channels.list
+        const quota = Math.ceil(toFetch.length / 50) * 2;
+        return { estimatedQuota: quota };
+    }, [displayedSources, cachedVideos]);
 
     // 4. Action: Fetch & Restore
     const fetchMissingTitles = useCallback(async () => {
@@ -201,6 +226,9 @@ export const useMissingTitles = ({
             // Use the extracted logic - it handles both missing titles and enriching metadata
             // because `repairTrafficSources` fetches everything not in cache.
             const updatedSources = await repairTrafficSources(sourcesToRepair, userId, channelId, apiKey, cachedVideos);
+
+            // Invalidate cached per-document suggestedVideo queries so useSuggestedVideoLookup picks up enriched data
+            queryClient.invalidateQueries({ queryKey: suggestedVideoQueryPrefix(userId, channelId) });
 
             assistantLogger.info('Repaired sources successfully', {
                 originalCount: sourcesToRepair.length,
@@ -255,7 +283,7 @@ export const useMissingTitles = ({
             setIsRestoring(false);
         }
 
-    }, [missingCount, unenrichedCount, apiKey, userId, channelId, trafficVideoId, activeVersion, displayedSources, onDataRestored, cachedVideos, currentSnapshotId, trafficData]);
+    }, [missingCount, unenrichedCount, apiKey, userId, channelId, trafficVideoId, activeVersion, displayedSources, onDataRestored, cachedVideos, currentSnapshotId, trafficData, queryClient]);
 
     return {
         missingCount,

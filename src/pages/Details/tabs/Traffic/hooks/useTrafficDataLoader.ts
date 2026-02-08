@@ -65,6 +65,11 @@ export const useTrafficDataLoader = ({
     const lastLoadedKeyRef = useRef<string | null>(null);
     const lastLoadContextRef = useRef<{ snapshotId?: string | null; viewMode?: string, versionKey?: string } | null>(null);
 
+    // Synchronous load-pending detection: computed DURING render, before effect fires.
+    // This bridges the gap between synchronous input changes and async effect execution.
+    const currentLoadKey = `${selectedSnapshot || ''}-${viewingVersion}-${viewingPeriodIndex}-${viewMode}-${trafficData?.lastUpdated}-${trafficData?.snapshots?.length}`;
+    const isLoadPending = currentLoadKey !== lastLoadedKeyRef.current;
+
     // Context for Delta Mode (Previous -> Current)
     const [deltaContext, setDeltaContext] = useState<DeltaContext | undefined>(undefined);
 
@@ -125,6 +130,8 @@ export const useTrafficDataLoader = ({
                 setDisplayedSources([]);
                 setActualTotalRow(undefined);
                 setTrashMetrics({ impressions: 0, views: 0 });
+                lastLoadedKeyRef.current = loadKey;
+                lastLoadContextRef.current = currentContext;
                 return;
             }
 
@@ -134,24 +141,20 @@ export const useTrafficDataLoader = ({
                 try {
                     const snapshot = trafficData.snapshots?.find((s: TrafficSnapshot) => s.id === selectedSnapshot);
                     if (snapshot) {
-                        const { sources: currentSources, totalRow: currentTotal } = await loadSnapshotSources(snapshot);
-
-                        if (viewMode === 'delta' && currentSources.length > 0) {
-                            const result = await calculateSnapshotDelta(
-                                currentSources,
-                                currentTotal,
-                                selectedSnapshot,
-                                trafficData.snapshots || []
-                            );
-
-                            // For Delta mode, trash metrics MUST be calculated from DELTA sources
-                            // setTrashMetrics removed here to avoid dependency loop
-                            setDisplayedSources(result.sources);
-                            setActualTotalRow(result.totalRow);
-                            setDeltaContext(result.deltaContext);
+                        if (viewMode === 'delta') {
+                            const result = await loadDeltaParallel(snapshot, trafficData.snapshots || []);
+                            if (result) {
+                                setDisplayedSources(result.sources);
+                                setActualTotalRow(result.totalRow);
+                                setDeltaContext(result.deltaContext);
+                            } else {
+                                setDisplayedSources([]);
+                                setActualTotalRow(undefined);
+                                setDeltaContext(undefined);
+                            }
                         } else {
                             // Cumulative mode
-                            // setTrashMetrics removed here
+                            const { sources: currentSources, totalRow: currentTotal } = await loadSnapshotSources(snapshot);
                             setDisplayedSources(currentSources);
                             setActualTotalRow(currentTotal || trafficData.totalRow);
                             setDeltaContext(undefined);
@@ -204,19 +207,16 @@ export const useTrafficDataLoader = ({
 
                         if (viewMode === 'delta' && periodSnapshots.length > 0) {
                             const latestSnap = periodSnapshots[0];
-                            const { sources: currentSources, totalRow: currentTotal } = await loadSnapshotSources(latestSnap);
-
-                            const result = await calculateSnapshotDelta(
-                                currentSources,
-                                currentTotal,
-                                latestSnap.id,
-                                trafficData.snapshots || []
-                            );
-
-                            // setTrashMetrics removed here
-                            setDisplayedSources(result.sources);
-                            setActualTotalRow(result.totalRow);
-                            setDeltaContext(result.deltaContext);
+                            const result = await loadDeltaParallel(latestSnap, trafficData.snapshots || []);
+                            if (result) {
+                                setDisplayedSources(result.sources);
+                                setActualTotalRow(result.totalRow);
+                                setDeltaContext(result.deltaContext);
+                            } else {
+                                setDisplayedSources([]);
+                                setActualTotalRow(undefined);
+                                setDeltaContext(undefined);
+                            }
                         } else {
                             const { sources, totalRow: currentTotal } = await TrafficService.getVersionSources(
                                 viewingVersion as number,
@@ -264,19 +264,16 @@ export const useTrafficDataLoader = ({
 
                 if (viewMode === 'delta' && periodSnapshots.length > 0) {
                     const latestSnap = periodSnapshots[0];
-                    const { sources: currentSources, totalRow: currentTotal } = await loadSnapshotSources(latestSnap);
-
-                    const result = await calculateSnapshotDelta(
-                        currentSources,
-                        currentTotal,
-                        latestSnap.id,
-                        trafficData.snapshots || []
-                    );
-
-                    // setTrashMetrics removed here
-                    setDisplayedSources(result.sources);
-                    setActualTotalRow(result.totalRow);
-                    setDeltaContext(result.deltaContext);
+                    const result = await loadDeltaParallel(latestSnap, trafficData.snapshots || []);
+                    if (result) {
+                        setDisplayedSources(result.sources);
+                        setActualTotalRow(result.totalRow);
+                        setDeltaContext(result.deltaContext);
+                    } else {
+                        setDisplayedSources([]);
+                        setActualTotalRow(undefined);
+                        setDeltaContext(undefined);
+                    }
                 } else {
                     const { sources, totalRow: currentTotal } = await TrafficService.getVersionSources(
                         viewingVersion as number,
@@ -334,58 +331,41 @@ export const useTrafficDataLoader = ({
         displayedSources,
         actualTotalRow,
         trashMetrics,
-        isLoadingSnapshot,
+        isLoadingSnapshot: isLoadingSnapshot || isLoadPending,
         error,
         retry,
         deltaContext
-    }), [displayedSources, actualTotalRow, trashMetrics, isLoadingSnapshot, error, deltaContext, retry]);
+    }), [displayedSources, actualTotalRow, trashMetrics, isLoadingSnapshot, isLoadPending, error, deltaContext, retry]);
+};
+
+/**
+ * Find the previous snapshot for delta calculation.
+ * Returns null if no previous snapshot exists.
+ */
+const findPreviousSnapshot = (
+    currentSnapshotId: string,
+    snapshots: TrafficSnapshot[]
+): TrafficSnapshot | null => {
+    const sortedSnapshots = [...snapshots].sort((a, b) => a.timestamp - b.timestamp);
+    const currentIndex = sortedSnapshots.findIndex(s => s.id === currentSnapshotId);
+    if (currentIndex <= 0) return null;
+    return sortedSnapshots[currentIndex - 1];
 };
 
 /**
  * Helper function to calculate delta between snapshots.
+ * Accepts pre-loaded sources for both current and previous snapshots
+ * to enable parallel loading by the caller.
  */
-const calculateSnapshotDelta = async (
+const calculateSnapshotDelta = (
     currentSources: TrafficSource[],
     currentTotal: TrafficSource | undefined,
-    currentSnapshotId: string,
-    snapshots: TrafficSnapshot[]
-): Promise<{ sources: TrafficSource[], totalRow?: TrafficSource, deltaContext?: DeltaContext }> => {
-    const sortedSnapshots = [...snapshots].sort((a, b) => a.timestamp - b.timestamp);
-    const currentIndex = sortedSnapshots.findIndex(s => s.id === currentSnapshotId);
-
-    if (currentIndex <= 0) {
-        return { sources: [], totalRow: undefined };
-    }
-
-    const prevSnapshot = sortedSnapshots[currentIndex - 1];
-
-    // FAST PATH: Try to get prevTotal from cached summary (no CSV download needed)
-    // This enables instant delta calculations for snapshots created after this fix
-    let prevTotalFromCache: TrafficSource | undefined;
-    if (prevSnapshot.summary?.totalImpressions !== undefined) {
-        prevTotalFromCache = {
-            sourceType: '',
-            sourceTitle: 'Total',
-            videoId: null,
-            impressions: prevSnapshot.summary.totalImpressions,
-            ctr: prevSnapshot.summary.totalCtr ?? 0,
-            views: prevSnapshot.summary.totalViews,
-            avgViewDuration: '',
-            watchTimeHours: prevSnapshot.summary.totalWatchTime
-        };
-    }
-
-    // Load previous sources (always needed for per-video delta)
-    const { sources: prevSources, totalRow: prevTotalFromCsv } = await loadSnapshotSources(prevSnapshot);
-
-    // Use cached totalRow if available, otherwise fall back to CSV-parsed totalRow
-    const prevTotal = prevTotalFromCache ?? prevTotalFromCsv;
-
+    prevSources: TrafficSource[],
+    prevTotal: TrafficSource | undefined
+): { sources: TrafficSource[], totalRow?: TrafficSource, deltaContext?: DeltaContext } => {
     if (prevSources.length === 0) {
         return { sources: [], totalRow: undefined };
     }
-
-
 
     const prevData = new Map<string, { views: number; impressions: number, watchTime: number }>();
     prevSources.forEach(s => {
@@ -465,3 +445,51 @@ const calculateSnapshotDelta = async (
 
     return { sources, totalRow, deltaContext };
 };
+
+/**
+ * Helper: Build prevTotal from snapshot summary cache (avoids CSV download just for totals).
+ */
+const buildCachedPrevTotal = (prevSnapshot: TrafficSnapshot): TrafficSource | undefined => {
+    if (prevSnapshot.summary?.totalImpressions === undefined) return undefined;
+    return {
+        sourceType: '',
+        sourceTitle: 'Total',
+        videoId: null,
+        impressions: prevSnapshot.summary.totalImpressions,
+        ctr: prevSnapshot.summary.totalCtr ?? 0,
+        views: prevSnapshot.summary.totalViews,
+        avgViewDuration: '',
+        watchTimeHours: prevSnapshot.summary.totalWatchTime
+    };
+};
+
+/**
+ * Load current + previous snapshot sources in parallel for delta mode.
+ * Returns ready-to-use delta result.
+ */
+const loadDeltaParallel = async (
+    currentSnapshot: TrafficSnapshot,
+    allSnapshots: TrafficSnapshot[]
+): Promise<{ sources: TrafficSource[], totalRow?: TrafficSource, deltaContext?: DeltaContext } | null> => {
+    const prevSnapshot = findPreviousSnapshot(currentSnapshot.id, allSnapshots);
+    if (!prevSnapshot) return null; // No previous = no delta
+
+    // Load both CSVs in parallel
+    const [currentResult, prevResult] = await Promise.all([
+        loadSnapshotSources(currentSnapshot),
+        loadSnapshotSources(prevSnapshot)
+    ]);
+
+    if (currentResult.sources.length === 0) return null;
+
+    // Use cached summary for prevTotal if available, otherwise use parsed CSV totalRow
+    const prevTotal = buildCachedPrevTotal(prevSnapshot) ?? prevResult.totalRow;
+
+    return calculateSnapshotDelta(
+        currentResult.sources,
+        currentResult.totalRow,
+        prevResult.sources,
+        prevTotal
+    );
+};
+

@@ -82,6 +82,10 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
         snapshotId: string | null;
     }>({ isOpen: false, snapshotId: null });
 
+    // Optimistic deletion: locally hidden snapshots (instant visual removal)
+    const [hiddenSnapshotIds, setHiddenSnapshotIds] = useState<Set<string>>(new Set());
+
+
     // Calculate Niche Stats for the SELECTED snapshot
     // We rely on displayedSources being the source of truth (already filtered by view mode)
     const selectedSnapshotNicheStats = useMemo(() => {
@@ -202,7 +206,8 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                 <div className="flex flex-col gap-1 py-1">
                     {/* Saved versions */}
                     {sortedVersions.map((item) => {
-                        const versionSnapshots = getVirtualVersionSnapshots(item.displayVersion, item.periodStart, item.periodEnd);
+                        const versionSnapshots = getVirtualVersionSnapshots(item.displayVersion, item.periodStart, item.periodEnd)
+                            .filter(s => !hiddenSnapshotIds.has(s.id));
                         const isVersionExpanded = expandedVersions.has(item.key);
                         const hasSnapshots = versionSnapshots.length > 0;
 
@@ -351,6 +356,12 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                 onClose={() => setDeleteConfirmation({ isOpen: false, snapshotId: null })}
                 onConfirm={() => {
                     if (deleteConfirmation.snapshotId && onDeleteSnapshot) {
+                        // Instantly hide snapshot in sidebar (same render frame)
+                        setHiddenSnapshotIds(prev => {
+                            const next = new Set(prev);
+                            next.add(deleteConfirmation.snapshotId!);
+                            return next;
+                        });
                         onDeleteSnapshot(deleteConfirmation.snapshotId);
                     }
                     setDeleteConfirmation({ isOpen: false, snapshotId: null });

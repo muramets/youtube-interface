@@ -199,6 +199,25 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
         groups: groups
     });
 
+    // Helper: Find latest snapshot ID for a given version
+    const getLatestSnapshotId = useCallback((targetVersion: number | 'draft'): string | null => {
+        const snapshots = trafficState.trafficData?.snapshots || [];
+        const versionSnapshots = snapshots
+            .filter(s => s.version === targetVersion)
+            .sort((a, b) => b.timestamp - a.timestamp);
+        return versionSnapshots.length > 0 ? versionSnapshots[0].id : null;
+    }, [trafficState.trafficData?.snapshots]);
+
+    // RENDER-PHASE AUTO-SELECT: Synchronously select latest snapshot when traffic tab
+    // is active and no snapshot is selected. This eliminates the ~850ms useEffect delay.
+    // Pattern: same as DetailsSidebar's render-phase activeTab sync (lines 104-107).
+    if (activeTab === 'traffic' && !selectedSnapshot) {
+        const latestId = getLatestSnapshotId(versions.viewingVersion);
+        if (latestId) {
+            setSelectedSnapshot(latestId);
+        }
+    }
+
     // Version management handlers
     const versionMgmt = useVersionManagement({
         versions,
@@ -264,13 +283,14 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
         if (newTab === 'traffic') {
             const isNotViewingActive = versions.viewingVersion !== versions.activeVersion;
 
-            // If not viewing active version OR handling a selected snapshot (stale from previous session)
-            if (isNotViewingActive || selectedSnapshot) {
-                if (isNotViewingActive) {
-                    versions.switchToVersion(versions.activeVersion);
-                }
-                setSelectedSnapshot(null);
+            if (isNotViewingActive) {
+                versions.switchToVersion(versions.activeVersion);
             }
+
+            // Synchronous auto-select: pick latest snapshot for target version
+            const targetVersion = isNotViewingActive ? versions.activeVersion : versions.viewingVersion;
+            const latestId = getLatestSnapshotId(targetVersion);
+            setSelectedSnapshot(latestId); // null if no snapshots exist
         }
 
         // When entering Packaging tab → switch to active version
@@ -287,7 +307,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
             prev.set('tab', newTab);
             return prev;
         }, { replace: true, state: (location as { state?: unknown }).state }); // Preserve persisted state (playlistId)
-    }, [activeTab, versions, selectedSnapshot, setSearchParams, location]);
+    }, [activeTab, versions, setSearchParams, location, getLatestSnapshotId]);
 
     // Handle draft deletion
     // Latest Ref Pattern: refs for stable handleDeleteDraft callback

@@ -255,33 +255,53 @@ export const useSnapshotManagement = ({
     }, [setSelectedSnapshot, setActiveTab]);
 
     /**
-     * Обработчик удаления снапшота
+     * Обработчик удаления снапшота (OPTIMISTIC)
+     * 
+     * 1. Immediately remove snapshot from local state → UI updates instantly
+     * 2. Switch selectedSnapshot to the next available one
+     * 3. Run actual Firestore/Storage deletion in background (DIRECT service call,
+     *    bypasses useTrafficData.handleDeleteSnapshot to avoid redundant setData/re-renders)
+     * 4. On error → rollback local state + show toast
      */
-    // Granular dependencies for stability
-    const trafficSnapshots = trafficState.trafficData?.snapshots;
-    const deleteSnapshotHandler = trafficState.handleDeleteSnapshot;
+    const updateLocalData = trafficState.updateLocalData;
 
     const handleDeleteSnapshot = useCallback(async (snapshotId: string) => {
+        const currentData = trafficState.trafficData;
+        if (!currentData || !user?.uid || !currentChannel?.id) return;
+
+        // --- STEP 1: Optimistic UI Update ---
         const isDeletingActive = selectedSnapshot === snapshotId;
+        const remainingSnapshots = (currentData.snapshots || []).filter(s => s.id !== snapshotId);
 
-        // Удаляем через trafficState
-        await deleteSnapshotHandler(snapshotId);
+        // Immediately update local state (removes snapshot from sidebar)
+        updateLocalData({
+            ...currentData,
+            snapshots: remainingSnapshots
+        });
 
-        // Если удалили активный снапшот, переключаемся на предыдущий
+        // --- STEP 2: Switch to next snapshot ---
         if (isDeletingActive) {
-            const allSnapshots = trafficSnapshots || [];
-            const sortedSnapshots = [...allSnapshots]
-                .filter(s => s.id !== snapshotId)
-                .sort((a, b) => b.timestamp - a.timestamp);
-
-            if (sortedSnapshots.length > 0) {
-                setSelectedSnapshot(sortedSnapshots[0].id);
+            const sorted = [...remainingSnapshots].sort((a, b) => b.timestamp - a.timestamp);
+            if (sorted.length > 0) {
+                setSelectedSnapshot(sorted[0].id);
             } else {
                 setSelectedSnapshot(null);
-                setActiveTab('traffic');
             }
         }
-    }, [selectedSnapshot, trafficSnapshots, deleteSnapshotHandler, setSelectedSnapshot, setActiveTab]);
+
+        // --- STEP 3: Background deletion (direct service call) ---
+        try {
+            await TrafficService.deleteSnapshot(user.uid, currentChannel.id, video.id, snapshotId);
+        } catch (err) {
+            console.error('[useSnapshotManagement] Snapshot deletion failed, rolling back:', err);
+            // Rollback: restore original data
+            updateLocalData(currentData);
+            if (isDeletingActive) {
+                setSelectedSnapshot(snapshotId);
+            }
+            showToast('Failed to delete snapshot', 'error');
+        }
+    }, [selectedSnapshot, trafficState.trafficData, user, currentChannel, video.id, updateLocalData, setSelectedSnapshot, showToast]);
 
     return {
         handleRequestSnapshot,

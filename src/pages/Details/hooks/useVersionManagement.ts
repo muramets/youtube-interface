@@ -84,12 +84,38 @@ export const useVersionManagement = ({
             // Если есть несохраненные изменения → показываем confirmation
             onOpenSwitchConfirm(versionNumber);
         } else {
-            // Очищаем selected snapshot
-            setSelectedSnapshot(null);
+            // Auto-select the latest snapshot for the target version/period
+            const snapshots = trafficState.trafficData?.snapshots || [];
+            const versionSnapshots = snapshots.filter(s => s.version === versionNumber);
+
+            if (versionSnapshots.length > 0) {
+                // Determine the period boundaries
+                const versionData = versions.packagingHistory.find(v => v.versionNumber === versionNumber);
+                const targetPeriodIndex = periodIndex ?? 0;
+                const period = versionData?.activePeriods?.[targetPeriodIndex];
+                const periodStart = period?.startDate;
+                const periodEnd = (targetPeriodIndex === 0) ? null : period?.endDate;
+
+                // Filter snapshots within the period
+                const periodSnapshots = versionSnapshots.filter(s =>
+                    (periodStart === undefined || s.timestamp >= periodStart) &&
+                    (!periodEnd || s.timestamp <= periodEnd)
+                ).sort((a, b) => b.timestamp - a.timestamp);
+
+                if (periodSnapshots.length > 0) {
+                    // Auto-select the latest snapshot in this period
+                    setSelectedSnapshot(periodSnapshots[0].id);
+                } else {
+                    setSelectedSnapshot(null);
+                }
+            } else {
+                setSelectedSnapshot(null);
+            }
+
             // Переключаем версию
             versions.switchToVersion(versionNumber, periodIndex);
         }
-    }, [versions, isFormDirty, activeTab, selectedSnapshot, setSelectedSnapshot, onOpenSwitchConfirm]);
+    }, [versions, isFormDirty, activeTab, selectedSnapshot, setSelectedSnapshot, onOpenSwitchConfirm, trafficState.trafficData?.snapshots]);
 
     /**
      * Подтверждение переключения версии (после discard changes)

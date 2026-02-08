@@ -90,8 +90,8 @@ export default {
                     'to': { opacity: '1', transform: 'translateY(0)' },
                 },
                 shimmer: {
-                    '0%': { backgroundPosition: '200% 0' },
-                    '100%': { backgroundPosition: '-200% 0' },
+                    '0%': { backgroundPosition: '100% 0' },
+                    '100%': { backgroundPosition: '-100% 0' },
                 },
                 'pulse-subtle': {
                     '0%, 100%': { opacity: '0.5', transform: 'scale(1)' },

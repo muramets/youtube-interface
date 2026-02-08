@@ -92,7 +92,7 @@ export const TrafficHeader: React.FC<TrafficHeaderProps> = ({
     return (
         <>
             <div className={`sticky top-0 z-10 px-6 py-4 transition-shadow duration-200 bg-video-edit-bg ${isScrolled ? 'shadow-[0_2px_8px_rgba(0,0,0,0.3)]' : ''}`}>
-                <div className="flex items-center justify-between gap-4 max-w-[1050px]">
+                <div className="flex items-center justify-between gap-4 max-w-[1200px]">
                     <div>
                         <h1 className="text-2xl font-medium text-text-primary">{headerTitle}</h1>
                         {/* Always show version stats info if viewing a specific version */}

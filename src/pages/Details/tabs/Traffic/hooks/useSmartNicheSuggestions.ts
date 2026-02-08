@@ -14,6 +14,9 @@ export interface SmartSuggestion {
     trendsNiche?: TrendNiche; // Original Trends niche data for badge display
 }
 
+const EMPTY_PREFS = new Map<string, { nicheId: string; score: number }>();
+const EMPTY_SUGGESTIONS = new Map<string, SmartSuggestion>();
+
 export const useSmartNicheSuggestions = (
     sources: TrafficSource[],
     assignments: TrafficNicheAssignment[],
@@ -21,11 +24,16 @@ export const useSmartNicheSuggestions = (
     videos: VideoDetails[],
     // NEW: Trends data for cross-tab suggestions
     trendsNiches: TrendNiche[] = [],
-    trendsVideoAssignments: Record<string, { nicheId: string; addedAt: number }[]> = {}
+    trendsVideoAssignments: Record<string, { nicheId: string; addedAt: number }[]> = {},
+    // Lazy calculation: skip all computation when assistant is disabled
+    isEnabled: boolean = true
 ) => {
     // 1. Build a map of Preference for each Channel using Hybrid Logic
     // Logic: Harmonic Decay Score = Sum(1 / (index + 1)) over sorted assignments
     const channelPreferences = useMemo(() => {
+        // LAZY: Skip computation when assistant is disabled
+        if (!isEnabled) return EMPTY_PREFS;
+
         const prefs = new Map<string, { nicheId: string; score: number }>();
         const videoToChannel = new Map<string, string>();
 
@@ -48,15 +56,6 @@ export const useSmartNicheSuggestions = (
         const assignmentsByChannel = new Map<string, TrafficNicheAssignment[]>();
 
         assignments.forEach(assignment => {
-            // We might not know the channel for EVERY video in history (if it's not in displayed sources),
-            // but for the Smart Assistant to be useful in the current table, we mostly care about
-            // channels that are currently visible or recently loaded. 
-            // However, to be robust, we really need the channel ID for ALL assignments.
-            // If `assignments` store doesn't have channelId, we rely on the `sources` lookup.
-            // *Correction*: The user passed `allAssignments` from the store.
-            // The `TrafficNicheAssignment` type DOES NOT have channelId. It only has videoId, nicheId, addedAt.
-            // We can only learn from assignments where we know the Channel ID.
-
             const channelId = videoToChannel.get(assignment.videoId);
             if (channelId) {
                 const list = assignmentsByChannel.get(channelId) || [];
@@ -74,14 +73,7 @@ export const useSmartNicheSuggestions = (
 
             // Apply Harmonic Decay Scoring
             channelAssignments.forEach((assignment, index) => {
-                // Score = 1 / (index + 1)
-                // 1st (Newest): 1.0
-                // 2nd: 0.5
-                // 3rd: 0.33
-                // ...
-                // This gives Recency a heavy initial weight, but allows Frequency to win if consistent.
                 const weight = 1 / (index + 1);
-
                 const currentScore = nicheScores.get(assignment.nicheId) || 0;
                 nicheScores.set(assignment.nicheId, currentScore + weight);
             });
@@ -109,13 +101,18 @@ export const useSmartNicheSuggestions = (
         });
 
         return prefs;
-    }, [sources, assignments, videos]);
+    }, [isEnabled, sources, assignments, videos]);
 
     // 2. Build a Lookup Map for Video -> Suggestion (Optimization)
     // This allows O(1) access during virtualization render cycles instead of searching arrays
     // PRIORITY: Trends-based suggestions > Channel-based suggestions
     const videoSuggestionMap = useMemo(() => {
+        // LAZY: Skip computation when assistant is disabled
+        if (!isEnabled) return EMPTY_SUGGESTIONS;
+
         const map = new Map<string, SmartSuggestion>();
+        let trendCount = 0;
+        let channelCount = 0;
 
         // Helper: Create a "virtual" SuggestedTrafficNiche from TrendNiche for display
         const createVirtualTrafficNiche = (trendNiche: TrendNiche): SuggestedTrafficNiche => ({
@@ -144,6 +141,7 @@ export const useSmartNicheSuggestions = (
                     score: 10, // High score to indicate priority
                     trendsNiche: trendsNiche // Include original for click handler
                 });
+                trendCount++;
             }
         });
 
@@ -165,6 +163,7 @@ export const useSmartNicheSuggestions = (
                 reason: 'hybrid',
                 score: pref.score
             });
+            channelCount++;
         };
 
         // 2a. Process Rich Video Details
@@ -179,12 +178,12 @@ export const useSmartNicheSuggestions = (
 
         assistantLogger.debug('Smart suggestions built', {
             totalSuggestions: map.size,
-            trendsBased: [...map.values()].filter(s => s.reason === 'trends').length,
-            channelBased: [...map.values()].filter(s => s.reason === 'hybrid').length
+            trendsBased: trendCount,
+            channelBased: channelCount
         });
 
         return map;
-    }, [channelPreferences, videos, sources, niches, trendsNiches, trendsVideoAssignments]);
+    }, [isEnabled, channelPreferences, videos, sources, niches, trendsNiches, trendsVideoAssignments]);
 
     // 3. Helper to get suggestion for a video (O(1) lookup)
     const getSuggestion = (videoId: string): SmartSuggestion | null => {
@@ -196,3 +195,4 @@ export const useSmartNicheSuggestions = (
         channelPreferences
     };
 };
+

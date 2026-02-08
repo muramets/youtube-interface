@@ -178,7 +178,8 @@ export const downloadCsvSnapshot = async (storagePath: string): Promise<Blob> =>
         );
 
         // Fetch the file with 30s timeout
-        const fetchPromise = fetch(downloadUrl + (downloadUrl.includes('?') ? '&' : '?') + `t=${Date.now()}`).then(async (response) => {
+        // No cache-busting: snapshot CSVs are immutable, browser cache is safe
+        const fetchPromise = fetch(downloadUrl).then(async (response) => {
             if (!response.ok) {
                 throw new Error(`Failed to download CSV: ${response.statusText}`);
             }

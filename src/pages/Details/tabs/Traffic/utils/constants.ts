@@ -3,7 +3,7 @@
  */
 export const TRAFFIC_TABLE = {
     /** Высота одной строки в пикселях */
-    ROW_HEIGHT: 44,
+    ROW_HEIGHT: 52,
     /** Количество строк для предзагрузки вне viewport */
     OVERSCAN_COUNT: 25
 } as const;

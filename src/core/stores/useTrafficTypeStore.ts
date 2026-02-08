@@ -18,6 +18,7 @@ interface TrafficTypeState {
     // Actions
     initialize: (userId: string, targetVideoId: string, snapshotId: string) => void;
     setTrafficType: (sourceVideoId: string, type: TrafficType, source?: 'manual' | 'smart_assistant') => Promise<void>;
+    setTrafficTypes: (updates: Array<{ sourceVideoId: string; type: TrafficType; source: 'manual' | 'smart_assistant' }>) => Promise<void>;
     deleteTrafficType: (sourceVideoId: string) => Promise<void>;
     cleanup: () => void;
 }
@@ -90,6 +91,29 @@ export const useTrafficTypeStore = create<TrafficTypeState>((set, get) => ({
         } catch (error) {
             console.error('Failed to set traffic type:', error);
             // Revert on error (optional, or just Refetch)
+        }
+    },
+
+    setTrafficTypes: async (updates: Array<{ sourceVideoId: string; type: TrafficType; source: 'manual' | 'smart_assistant' }>) => {
+        const { currentUserId, currentTargetVideoId, currentSnapshotId, edges } = get();
+        if (!currentUserId || !currentTargetVideoId || !currentSnapshotId || !updates.length) return;
+
+        // Optimistic update (single state change)
+        const newEdges = { ...edges };
+        updates.forEach(u => {
+            newEdges[u.sourceVideoId] = { type: u.type, source: u.source };
+        });
+        set({ edges: newEdges });
+
+        try {
+            await TrafficTypeService.batchSetEdgeTypes(
+                currentUserId,
+                currentTargetVideoId,
+                currentSnapshotId,
+                updates
+            );
+        } catch (error) {
+            console.error('Failed to batch set traffic types:', error);
         }
     },
 

@@ -6,7 +6,8 @@ import {
     setDoc,
     query,
     serverTimestamp,
-    deleteDoc
+    deleteDoc,
+    writeBatch
 } from 'firebase/firestore';
 import type { TrafficType, TrafficTypeEdge } from '../types/videoTrafficType';
 
@@ -98,5 +99,32 @@ export const TrafficTypeService = {
         const docRef = doc(db, collectionPath, sourceVideoId);
 
         await deleteDoc(docRef);
+    },
+
+    /**
+     * Set or update traffic types in bulk using a Firestore batch.
+     */
+    batchSetEdgeTypes: async (
+        userId: string,
+        targetVideoId: string,
+        snapshotId: string,
+        updates: Array<{ sourceVideoId: string; type: TrafficType; source: 'manual' | 'smart_assistant' }>
+    ) => {
+        if (!userId || !targetVideoId || !snapshotId || !updates.length) return;
+
+        const collectionPath = TrafficTypeService.getCollectionPath(userId, targetVideoId, snapshotId);
+        const batch = writeBatch(db);
+
+        updates.forEach(update => {
+            const docRef = doc(db, collectionPath, update.sourceVideoId);
+            batch.set(docRef, {
+                sourceVideoId: update.sourceVideoId,
+                type: update.type,
+                source: update.source,
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+        });
+
+        await batch.commit();
     }
 };
