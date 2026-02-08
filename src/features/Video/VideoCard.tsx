@@ -22,6 +22,12 @@ import { useUIStore } from '../../core/stores/uiStore';
 import { Toast } from '../../components/ui/molecules/Toast';
 import type { VideoDeltaStats } from '../Playlists/hooks/usePlaylistDeltaStats';
 
+export interface VideoCardAnonymizeData {
+  channelTitle: string;
+  channelAvatar: string;
+  viewCountLabel: string;
+}
+
 interface VideoCardProps {
   video: VideoDetails;
   playlistId?: string;
@@ -35,9 +41,11 @@ interface VideoCardProps {
   onToggleSelection?: (id: string) => void;
   isSelectionMode?: boolean;
   deltaStats?: VideoDeltaStats;
+  rankingOverlay?: number | null;
+  anonymizeData?: VideoCardAnonymizeData;
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange, onRemove, onSetAsCover, isOverlay, isSelected, onToggleSelection, isSelectionMode, deltaStats }) => {
+export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange, onRemove, onSetAsCover, isOverlay, isSelected, onToggleSelection, isSelectionMode, deltaStats, rankingOverlay, anonymizeData }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const currentChannel = useChannelStore(state => state.currentChannel);
@@ -463,6 +471,15 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
               {formatDuration(displayVideo.duration)}
             </div>
           )}
+
+          {/* Pick the Winner Ranking Overlay */}
+          {rankingOverlay != null && (
+            <div className="absolute inset-0 z-20 bg-black/50 backdrop-blur-[2px] flex items-center justify-center animate-in fade-in zoom-in duration-200">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-2xl shadow-amber-500/30 border border-amber-300/30">
+                <span className="text-2xl font-black text-black">{rankingOverlay}</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Info */}
@@ -470,10 +487,10 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
           {/* Channel Avatar */}
           <div className="flex-shrink-0">
             {/* Always use original video's channel data, not merged YouTube data */}
-            {video.channelAvatar ? (
+            {(anonymizeData?.channelAvatar || video.channelAvatar) ? (
               <img
-                src={video.channelAvatar}
-                alt={video.channelTitle}
+                src={anonymizeData?.channelAvatar || video.channelAvatar}
+                alt={anonymizeData?.channelTitle || video.channelTitle}
                 referrerPolicy="no-referrer"
                 className="w-9 h-9 rounded-full object-cover"
               />
@@ -494,7 +511,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
             </h3>
             <div className="text-sm text-text-secondary flex flex-col">
               <div className="hover:text-text-primary transition-colors w-fit">
-                {(displayVideo.isCustom) ? (
+                {anonymizeData ? (
+                  anonymizeData.channelTitle
+                ) : (displayVideo.isCustom) ? (
                   displayVideo.channelTitle
                 ) : displayVideo.channelId ? (
                   <a
@@ -511,31 +530,31 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                 )}
               </div>
               <div>
-                {/*
-                 * View count source priority:
-                 * 1. deltaStats.currentViews — from Trend Snapshot (same source as delta, always consistent)
-                 * 2. displayVideo.viewCount — from Firestore document (updated on manual video sync)
-                 * 
-                 * Using the snapshot value prevents desync where delta shows today's growth
-                 * but the base counter is stale from the last video sync.
-                 * 
-                 * FUTURE (Variant C): Trend sync will write to videos/{id}/viewHistory,
-                 * making this fallback logic unnecessary.
-                 */}
-                {(() => {
-                  const snapshotViews = deltaStats?.currentViews;
-                  const firestoreViews = displayVideo.viewCount;
-                  const viewsLabel = snapshotViews != null
-                    ? `${formatViewCount(snapshotViews)} views`
-                    : (firestoreViews ? `${formatViewCount(firestoreViews)} views` : '');
-                  return viewsLabel;
-                })()}
-                {deltaStats?.delta24h !== null && deltaStats?.delta24h !== undefined && (
-                  <span className="text-green-400 ml-1">
-                    (+{deltaStats.delta24h >= 1000 ? `${(deltaStats.delta24h / 1000).toFixed(1)}K` : deltaStats.delta24h})
-                  </span>
+                {anonymizeData ? (
+                  <>{anonymizeData.viewCountLabel} • {new Date(displayVideo.publishedAt).toLocaleDateString()}</>
+                ) : (
+                  <>
+                    {/*
+                     * View count source priority:
+                     * 1. deltaStats.currentViews — from Trend Snapshot (same source as delta, always consistent)
+                     * 2. displayVideo.viewCount — from Firestore document (updated on manual video sync)
+                     */}
+                    {(() => {
+                      const snapshotViews = deltaStats?.currentViews;
+                      const firestoreViews = displayVideo.viewCount;
+                      const viewsLabel = snapshotViews != null
+                        ? `${formatViewCount(snapshotViews)} views`
+                        : (firestoreViews ? `${formatViewCount(firestoreViews)} views` : '');
+                      return viewsLabel;
+                    })()}
+                    {deltaStats?.delta24h !== null && deltaStats?.delta24h !== undefined && (
+                      <span className="text-green-400 ml-1">
+                        (+{deltaStats.delta24h >= 1000 ? `${(deltaStats.delta24h / 1000).toFixed(1)}K` : deltaStats.delta24h})
+                      </span>
+                    )}
+                    {' '}• {new Date(displayVideo.publishedAt).toLocaleDateString()}
+                  </>
                 )}
-                {' '}• {new Date(displayVideo.publishedAt).toLocaleDateString()}
               </div>
             </div>
           </div>

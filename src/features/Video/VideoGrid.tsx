@@ -14,6 +14,7 @@ import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useUIStore } from '../../core/stores/uiStore';
 import type { VideoDeltaStats } from '../Playlists/hooks/usePlaylistDeltaStats';
+import type { VideoCardAnonymizeData } from './VideoCard';
 
 interface VideoGridProps {
   videos?: VideoDetails[];
@@ -25,6 +26,9 @@ interface VideoGridProps {
   selectedIds?: Set<string>;
   onToggleSelection?: (id: string) => void;
   videoDeltaStats?: Map<string, VideoDeltaStats>;
+  getRankingOverlay?: (videoId: string) => number | null;
+  anonymizeData?: VideoCardAnonymizeData;
+  isSelectionMode?: boolean;
 }
 
 const parseViewCount = (viewCount: string | number | undefined): number => {
@@ -56,7 +60,10 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
   onSetAsCover,
   selectedIds,
   onToggleSelection,
-  videoDeltaStats
+  videoDeltaStats,
+  getRankingOverlay,
+  anonymizeData,
+  isSelectionMode: propIsSelectionMode
 }) => {
   const { user, isLoading: authLoading } = useAuth();
   const currentChannel = useChannelStore(state => state.currentChannel);
@@ -442,8 +449,10 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
         onSetAsCover={onSetAsCover}
         selectedIds={selectedIds}
         onToggleSelection={onToggleSelection}
-        isSelectionMode={selectedIds && selectedIds.size > 0}
+        isSelectionMode={propIsSelectionMode ?? (selectedIds != null && selectedIds.size > 0)}
         videoDeltaStats={videoDeltaStats}
+        getRankingOverlay={getRankingOverlay}
+        anonymizeData={anonymizeData}
       />
     </VideoGridContainer>
   );

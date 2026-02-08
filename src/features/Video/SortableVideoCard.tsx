@@ -4,6 +4,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { VideoCard } from './VideoCard';
 import type { VideoDetails } from '../../core/utils/youtubeApi';
 import type { VideoDeltaStats } from '../Playlists/hooks/usePlaylistDeltaStats';
+import type { VideoCardAnonymizeData } from './VideoCard';
 
 interface SortableVideoCardProps {
     video: VideoDetails;
@@ -16,9 +17,11 @@ interface SortableVideoCardProps {
     onToggleSelection?: (id: string) => void;
     isSelectionMode?: boolean;
     deltaStats?: VideoDeltaStats;
+    rankingOverlay?: number | null;
+    anonymizeData?: VideoCardAnonymizeData;
 }
 
-export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, playlistId, scale = 1, onMenuOpenChange, onRemove, onSetAsCover, isSelected, onToggleSelection, isSelectionMode, deltaStats }) => {
+export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, playlistId, scale = 1, onMenuOpenChange, onRemove, onSetAsCover, isSelected, onToggleSelection, isSelectionMode, deltaStats, rankingOverlay, anonymizeData }) => {
     const {
         attributes,
         listeners,
@@ -53,6 +56,8 @@ export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, pla
                 onToggleSelection={onToggleSelection}
                 isSelectionMode={isSelectionMode}
                 deltaStats={deltaStats}
+                rankingOverlay={rankingOverlay}
+                anonymizeData={anonymizeData}
             />
         </div>
     );

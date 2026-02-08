@@ -1,11 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useVideos } from '../../core/hooks/useVideos';
 
 import { usePlaylists } from '../../core/hooks/usePlaylists';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
-import { ArrowLeft, PlaySquare } from 'lucide-react';
+import { ArrowLeft, PlaySquare, Trophy, Trash2, Check } from 'lucide-react';
 import { VideoGrid } from '../../features/Video/VideoGrid';
 import { ZoomControls } from '../../features/Video/ZoomControls';
 import { PlaylistExportControls } from '../../features/Playlists/components/PlaylistExportControls';
@@ -13,6 +13,10 @@ import { useFilterStore } from '../../core/stores/filterStore';
 import { SortButton } from '../../features/Filter/SortButton';
 import { usePlaylistDeltaStats, type PlaylistDeltaStats } from '../../features/Playlists/hooks/usePlaylistDeltaStats';
 import type { Playlist } from '../../core/services/playlistService';
+import { usePickTheWinner } from '../../features/Playlists/hooks/usePickTheWinner';
+import { usePlaylistRankings } from '../../features/Playlists/hooks/usePlaylistRankings';
+import { PickTheWinnerBar } from '../../features/Playlists/components/PickTheWinnerBar';
+import type { VideoCardAnonymizeData } from '../../features/Video/VideoCard';
 
 // Format number with K/M suffix
 const formatDelta = (value: number | null): string | null => {
@@ -61,6 +65,97 @@ export const PlaylistDetailPage: React.FC = () => {
     const navigate = useNavigate();
 
     const playlist = playlists.find(p => p.id === id);
+
+    // Pick the Winner
+    const picker = usePickTheWinner(playlist?.videoIds?.length ?? 0);
+    const { rankings, saveRanking, deleteRanking } = usePlaylistRankings(
+        currentChannel?.id || '',
+        id || ''
+    );
+
+    // Anonymization data for Pick the Winner
+    const anonymizeData: VideoCardAnonymizeData | undefined = useMemo(() => {
+        if (!picker.isActive || !currentChannel) return undefined;
+        return {
+            channelTitle: currentChannel.name || 'My Channel',
+            channelAvatar: currentChannel.avatar || '',
+            viewCountLabel: '✦✦✦ views',
+        };
+    }, [picker.isActive, currentChannel]);
+
+    // Ranking overlay getter
+    const getRankingOverlay = useCallback((videoId: string): number | null => {
+        if (!picker.isActive) return null;
+        return picker.getRank(videoId);
+    }, [picker]);
+
+    // Sort change handler with pick-winner support
+    const handleSortChange = useCallback((val: string) => {
+        if (val === 'pick-winner') {
+            picker.activate();
+            return;
+        }
+        if (picker.isActive) {
+            picker.deactivate();
+        }
+        setPlaylistVideoSortBy(val as 'views' | 'date' | 'delta24h' | 'delta7d' | 'delta30d' | 'default');
+    }, [picker, setPlaylistVideoSortBy]);
+
+    // Save ranking handler
+    const handleSaveRanking = useCallback((name: string) => {
+        saveRanking(name, picker.rankedVideoIds);
+        picker.deactivate();
+    }, [saveRanking, picker]);
+
+    // Custom section for SortButton
+    const sortCustomSection = useMemo(() => (
+        <>
+            <div className="border-t border-[#333333] mt-1 pt-1">
+                <button
+                    onClick={() => handleSortChange('pick-winner')}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors border-none cursor-pointer ${picker.isActive ? 'bg-amber-500/20 text-amber-300' : 'text-[#AAAAAA] hover:bg-[#161616] hover:text-white bg-transparent'}`}
+                >
+                    <Trophy size={14} />
+                    Pick the Winner
+                </button>
+            </div>
+            {rankings.length > 0 && (
+                <div className="border-t border-[#333333] mt-1 pt-1">
+                    <div className="px-3 py-1.5 text-xs font-bold text-[#666666] uppercase tracking-wider">
+                        Saved Rankings
+                    </div>
+                    {rankings.map(ranking => (
+                        <button
+                            key={ranking.id}
+                            onClick={() => handleSortChange(ranking.id)}
+                            className={`group/ranking w-full text-left px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors border-none cursor-pointer ${playlistVideoSortBy === ranking.id
+                                ? 'bg-[#333333] text-white'
+                                : 'text-[#AAAAAA] hover:bg-[#161616] hover:text-white bg-transparent'
+                                }`}
+                        >
+                            <Trophy size={14} className="text-amber-400 flex-shrink-0" />
+                            <span className="truncate flex-1">{ranking.name}</span>
+                            {playlistVideoSortBy === ranking.id && <Check size={14} className="flex-shrink-0" />}
+                            <span
+                                role="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (playlistVideoSortBy === ranking.id) {
+                                        setPlaylistVideoSortBy('default');
+                                    }
+                                    deleteRanking(ranking.id);
+                                }}
+                                className="p-1 rounded-md text-text-tertiary hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover/ranking:opacity-100 flex-shrink-0"
+                                title="Delete ranking"
+                            >
+                                <Trash2 size={14} />
+                            </span>
+                        </button>
+                    ))}
+                </div>
+            )}
+        </>
+    ), [picker.isActive, rankings, playlistVideoSortBy, handleSortChange, deleteRanking, setPlaylistVideoSortBy]);
 
     // Local state for optimistic video order (prevents jitter on Firestore sync)
     const [localVideoOrder, setLocalVideoOrder] = React.useState<string[]>([]);
@@ -129,8 +224,27 @@ export const PlaylistDetailPage: React.FC = () => {
         return basePlaylistVideos;
     }, [basePlaylistVideos, playlistVideoSortBy, deltaStats]);
 
+    // Apply saved ranking sort
+    const rankedPlaylistVideos = useMemo(() => {
+        if (!playlistVideoSortBy.startsWith('ranking-')) return sortedPlaylistVideos;
+        const ranking = rankings.find(r => r.id === playlistVideoSortBy);
+        if (!ranking) return sortedPlaylistVideos;
+
+        // Apply ranking order, gracefully skipping deleted videos
+        const videoMap = new Map(basePlaylistVideos.map(v => [v.id, v]));
+        const ordered = ranking.videoOrder
+            .map(vid => videoMap.get(vid))
+            .filter((v): v is NonNullable<typeof v> => v !== undefined);
+
+        // Add any videos not in the ranking (new additions) at the end
+        const rankedSet = new Set(ranking.videoOrder);
+        const unranked = basePlaylistVideos.filter(v => !rankedSet.has(v.id));
+
+        return [...ordered, ...unranked];
+    }, [sortedPlaylistVideos, playlistVideoSortBy, rankings, basePlaylistVideos]);
+
     // Alias for compatibility with rest of component
-    const playlistVideos = sortedPlaylistVideos;
+    const playlistVideos = rankedPlaylistVideos;
 
     // Lazy cleanup: auto-remove orphaned video IDs on playlist open
     const cleanupDoneRef = React.useRef<string | null>(null);
@@ -153,6 +267,11 @@ export const PlaylistDetailPage: React.FC = () => {
     const [selectedVideoIds, setSelectedVideoIds] = React.useState<Set<string>>(new Set());
 
     const handleToggleSelection = (id: string) => {
+        // In Pick the Winner mode, intercept clicks
+        if (picker.isActive) {
+            picker.handleVideoClick(id);
+            return;
+        }
         setSelectedVideoIds(prev => {
             const next = new Set(prev);
             if (next.has(id)) {
@@ -284,12 +403,21 @@ export const PlaylistDetailPage: React.FC = () => {
         }
     };
 
-
-
     return (
         <div className="animate-fade-in flex flex-col h-full relative pl-2">
+            {/* Pick the Winner Bar */}
+            {picker.isActive && (
+                <PickTheWinnerBar
+                    ranked={picker.progress.ranked}
+                    total={picker.progress.total}
+                    isComplete={picker.isComplete}
+                    onSave={handleSaveRanking}
+                    onDiscard={picker.deactivate}
+                />
+            )}
+
             {/* Header */}
-            <div className="pt-6 px-6 flex items-center gap-4 mb-3">
+            <div className={`pt-6 px-6 flex items-center gap-4 mb-3 ${picker.isActive ? 'pt-3' : ''}`}>
                 <button
                     onClick={() => navigate('/playlists')}
                     className="bg-transparent border-none text-text-primary cursor-pointer flex items-center hover:text-text-secondary transition-colors"
@@ -336,7 +464,8 @@ export const PlaylistDetailPage: React.FC = () => {
                             { label: 'Newest First', value: 'date' },
                         ]}
                         activeSort={playlistVideoSortBy}
-                        onSortChange={(val) => setPlaylistVideoSortBy(val as 'views' | 'date' | 'delta24h' | 'delta7d' | 'delta30d' | 'default')}
+                        onSortChange={handleSortChange}
+                        customSection={sortCustomSection}
                     />
                     <PlaylistExportControls
                         videos={videosToExport}
@@ -366,6 +495,9 @@ export const PlaylistDetailPage: React.FC = () => {
                 selectedIds={selectedVideoIds}
                 onToggleSelection={handleToggleSelection}
                 videoDeltaStats={deltaStats.perVideo}
+                getRankingOverlay={getRankingOverlay}
+                anonymizeData={anonymizeData}
+                isSelectionMode={picker.isActive || selectedVideoIds.size > 0}
             />
 
             {/* Floating Zoom Controls */}

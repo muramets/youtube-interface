@@ -6,6 +6,7 @@ import type { VideoDetails } from '../../core/utils/youtubeApi';
 import { useSettings } from '../../core/hooks/useSettings';
 import { GRID_LAYOUT } from './layout';
 import type { VideoDeltaStats } from '../Playlists/hooks/usePlaylistDeltaStats';
+import type { VideoCardAnonymizeData } from './VideoCard';
 import {
     DndContext,
     closestCenter,
@@ -33,6 +34,8 @@ interface VirtualVideoGridProps {
     onToggleSelection?: (id: string) => void;
     isSelectionMode?: boolean;
     videoDeltaStats?: Map<string, VideoDeltaStats>;
+    getRankingOverlay?: (videoId: string) => number | null;
+    anonymizeData?: VideoCardAnonymizeData;
 }
 
 interface InnerGridProps extends VirtualVideoGridProps {
@@ -51,7 +54,9 @@ const InnerGrid: React.FC<InnerGridProps> = ({
     isSelectionMode,
     containerWidth,
     scrollElement,
-    videoDeltaStats
+    videoDeltaStats,
+    getRankingOverlay,
+    anonymizeData
 }) => {
     const { generalSettings } = useSettings();
     const cardsPerRow = generalSettings.cardsPerRow;
@@ -181,6 +186,8 @@ const InnerGrid: React.FC<InnerGridProps> = ({
                                         onToggleSelection={onToggleSelection}
                                         isSelectionMode={isSelectionMode}
                                         deltaStats={videoDeltaStats?.get(video.id)}
+                                        rankingOverlay={getRankingOverlay?.(video.id)}
+                                        anonymizeData={anonymizeData}
                                     />
                                 ) : (
                                     <VideoCard
@@ -192,6 +199,8 @@ const InnerGrid: React.FC<InnerGridProps> = ({
                                         onToggleSelection={onToggleSelection}
                                         isSelectionMode={isSelectionMode}
                                         deltaStats={videoDeltaStats?.get(video.id)}
+                                        rankingOverlay={getRankingOverlay?.(video.id)}
+                                        anonymizeData={anonymizeData}
                                     />
                                 )}
                             </div>

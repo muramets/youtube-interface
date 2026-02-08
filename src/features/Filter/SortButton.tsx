@@ -11,12 +11,14 @@ interface SortButtonProps {
     sortOptions: SortOption[];
     activeSort: string;
     onSortChange: (value: string) => void;
+    customSection?: React.ReactNode;
 }
 
 export const SortButton: React.FC<SortButtonProps> = ({
     sortOptions,
     activeSort,
-    onSortChange
+    onSortChange,
+    customSection
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
@@ -95,6 +97,7 @@ export const SortButton: React.FC<SortButtonProps> = ({
                                 {activeSort === option.value && <Check size={16} />}
                             </button>
                         ))}
+                        {customSection}
                     </div>
                 </div>,
                 document.body
