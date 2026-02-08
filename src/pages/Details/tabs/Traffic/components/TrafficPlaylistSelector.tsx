@@ -44,13 +44,20 @@ export const TrafficPlaylistSelector: React.FC<TrafficPlaylistSelectorProps> = (
 
     const buttonRef = useRef<HTMLButtonElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const listRef = useRef<HTMLDivElement>(null);
 
-
-
-    // Auto-focus input when opening
+    // Auto-focus input and scroll list to bottom when opening above
     useEffect(() => {
-        if (isOpen) setTimeout(() => inputRef.current?.focus(), 50);
-    }, [isOpen]);
+        if (isOpen) {
+            setTimeout(() => {
+                inputRef.current?.focus();
+                // When opening above, scroll to bottom so the most recent playlist is visible near the input
+                if (openAbove && listRef.current) {
+                    listRef.current.scrollTop = listRef.current.scrollHeight;
+                }
+            }, 50);
+        }
+    }, [isOpen, openAbove]);
 
 
     const isMounted = useRef(true);
@@ -233,8 +240,8 @@ export const TrafficPlaylistSelector: React.FC<TrafficPlaylistSelectorProps> = (
             >
                 <div data-portal-wrapper className="flex flex-col h-full min-h-0">
                     <div data-portal-wrapper className="flex flex-col h-full min-h-0">
-                        {/* List Section (Now First, Reverse Column) */}
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-1 flex flex-col-reverse">
+                        {/* List Section — reverse order only when dropdown opens downward so recent items stay near the input */}
+                        <div ref={listRef} className={`flex-1 overflow-y-auto custom-scrollbar p-1 flex ${openAbove ? 'flex-col' : 'flex-col-reverse'}`}>
                             {playlists
                                 .filter(p => p.name.toLowerCase().includes(newPlaylistName.toLowerCase()))
                                 .map(playlist => {

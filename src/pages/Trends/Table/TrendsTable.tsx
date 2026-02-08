@@ -16,6 +16,7 @@ interface TrendsTableProps {
     selectedIds?: Set<string>;
     onToggleSelection?: (video: TrendVideo, position: { x: number; y: number }, isModifier: boolean) => void;
     onToggleAll?: () => void;
+    onChannelClick?: (channelId: string) => void;
 }
 
 interface HeaderCellProps {
@@ -58,7 +59,8 @@ export const TrendsTable = React.memo<TrendsTableProps>(({
     mode = 'videos',
     selectedIds,
     onToggleSelection,
-    onToggleAll
+    onToggleAll,
+    onChannelClick
 }) => {
     // Video Data Hook
     const videoData = useTrendTableData(channelId, videos);
@@ -175,7 +177,7 @@ export const TrendsTable = React.memo<TrendsTableProps>(({
                     {mode === 'channels' ? (
                         // CHANNEL ROWS
                         (rows as TrendChannelRow[]).map((row) => (
-                            <tr key={row.channel.id} className="hover:bg-white/5 transition-colors group cursor-pointer">
+                            <tr key={row.channel.id} className="hover:bg-white/5 transition-colors group cursor-pointer" onClick={() => onChannelClick?.(row.channel.id)}>
                                 <td className="py-3 px-6">
                                     <div className="flex items-center gap-4">
                                         <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-bg-primary border border-border">

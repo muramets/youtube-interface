@@ -15,7 +15,7 @@ import { useChannelStore } from '../../core/stores/channelStore';
 export const TrendsPage: React.FC = () => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { channels, selectedChannelId, timelineConfig, setTimelineConfig, trendsFilters, filterMode, videos, hiddenVideos, isLoadingChannels } = useTrendStore();
+    const { channels, selectedChannelId, setSelectedChannelId, timelineConfig, setTimelineConfig, trendsFilters, setTrendsFilters, filterMode, videos, hiddenVideos, isLoadingChannels } = useTrendStore();
     const [isLoadingLocal, setIsLoadingLocal] = useState(true);
     const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
 
@@ -139,6 +139,14 @@ export const TrendsPage: React.FC = () => {
         handleVideoClick(video, position.x, position.y, true);
     }, [handleVideoClick]);
 
+    // Handle channel click in table view → navigate to that channel's videos
+    const handleChannelClick = useCallback((channelId: string) => {
+        setSelectedChannelId(channelId);
+        // Restore root filters for the target channel (simplified: always go to root)
+        const rootFilters = useTrendStore.getState().channelRootFilters[channelId];
+        setTrendsFilters(rootFilters?.length > 0 ? rootFilters : []);
+    }, [setSelectedChannelId, setTrendsFilters]);
+
     const handleToggleAll = (videosToSelect: TrendVideo[]) => {
         if (videosToSelect.length === 0) return;
 
@@ -210,6 +218,7 @@ export const TrendsPage: React.FC = () => {
                     selectedIds={selectionState.selectedIds}
                     onToggleSelection={handleToggleSelection}
                     onToggleAll={() => handleToggleAll(filteredVideos)}
+                    onChannelClick={handleChannelClick}
                 />
             )}
 
