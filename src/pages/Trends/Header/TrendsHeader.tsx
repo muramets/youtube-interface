@@ -134,7 +134,6 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
                     <TrendsFilterButton
                         availableMinDate={availableMinDate}
                         availableMaxDate={availableMaxDate}
-                        disabled={currentViewMode === 'table'}
                     />
                     <TrendsSettings
                         timelineConfig={timelineConfig}
