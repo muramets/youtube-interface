@@ -164,6 +164,12 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         currentSnapshotId: selectedSnapshot,
         cachedVideos: allVideos,
         onDataRestored: (_newSources, newSnapshotId) => {
+            assistantLogger.debug('[DEBUG-MODAL] onDataRestored called', {
+                newSnapshotId,
+                newSourcesCount: _newSources.length,
+                newSourcesWithChannelId: _newSources.filter(s => !!s.channelId).length,
+                newSourcesWithoutChannelId: _newSources.filter(s => s.videoId && !s.channelId).length
+            });
             setIsMissingTitlesModalOpen(false);
 
             // Force reload of traffic data (CSV) because in-place update won't change ID
@@ -196,6 +202,10 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     // AND if user has not explicitly dismissed/handled it (could add flag, but current logic is fine)
     useEffect(() => {
         if (!pendingUpload && existingMissingCount > 0 && !isRestoringExisting) {
+            assistantLogger.debug('[DEBUG-MODAL] Auto-open: missing titles detected', {
+                existingMissingCount,
+                isRestoringExisting
+            });
             setIsMissingTitlesModalOpen(true);
         }
     }, [existingMissingCount, isRestoringExisting, pendingUpload]);
@@ -925,20 +935,27 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 }}
                 isAssistantEnabled={isAssistantEnabled}
                 onToggleAssistant={() => {
-                    assistantLogger.debug('onToggleAssistant clicked', {
+                    assistantLogger.debug('[DEBUG-MODAL] onToggleAssistant clicked', {
                         currentEnabled: isAssistantEnabled,
                         missingCount: existingMissingCount,
-                        unenrichedCount: existingUnenrichedCount
+                        unenrichedCount: existingUnenrichedCount,
+                        willBlock: !isAssistantEnabled && (existingMissingCount > 0 || existingUnenrichedCount > 0),
+                        cachedVideosCount: allVideos.length,
+                        displayedSourcesCount: displayedSources.length
                     });
 
                     // Smart Check: If we have missing titles OR unenriched data, prompt to sync first
                     if (!isAssistantEnabled && (existingMissingCount > 0 || existingUnenrichedCount > 0)) {
-                        assistantLogger.info('Blocking assistant activation, prompting for sync');
+                        assistantLogger.info('[DEBUG-MODAL] Blocking assistant activation', {
+                            missingCount: existingMissingCount,
+                            unenrichedCount: existingUnenrichedCount,
+                            reason: existingMissingCount > 0 ? 'missingTitles' : 'unenriched'
+                        });
                         setMissingTitlesVariant('assistant');
                         setIsMissingTitlesModalOpen(true);
                         return;
                     }
-                    assistantLogger.debug('Toggling assistant state');
+                    assistantLogger.debug('[DEBUG-MODAL] Toggling assistant state');
                     setIsAssistantEnabled(prev => !prev);
                 }}
                 onExport={handleExport}
@@ -947,7 +964,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
             {/* Main Content - Table Area */}
             <div className="px-6 pb-0 pt-6 min-h-0 flex-1 flex flex-col overflow-hidden">
-                <div className="w-full max-w-[1200px] relative flex-1 flex flex-col min-h-0">
+                <div className="w-full max-w-[1320px] relative flex-1 flex flex-col min-h-0">
                     {error ? (
                         <div className="flex-1 min-h-[400px]">
                             <TrafficErrorState error={error} onRetry={retry} />

@@ -103,19 +103,18 @@ export const TrafficFilterInputNiche: React.FC<TrafficFilterInputNicheProps> = (
         return { views, impressions };
     }, [sources, relevantGroups]);
 
-    // 2. Sort niches: View Count (desc), then Name (asc)
     // Identify Trash Group
     const trashGroup = useMemo(() => {
         return relevantGroups.find(g => g.name.trim().toLowerCase() === 'trash');
     }, [relevantGroups]);
 
-    // 2. Sort niches: View Count (desc), then Name (asc)
+    // 2. Sort niches: Impressions (desc), then Name (asc)
     const sortedNiches = useMemo(() => {
         const otherGroups = trashGroup ? relevantGroups.filter(g => g.id !== trashGroup.id) : relevantGroups;
         return [...otherGroups].sort((a, b) => {
-            const statsA = nicheStats.get(a.id) || { views: 0 };
-            const statsB = nicheStats.get(b.id) || { views: 0 };
-            if (statsA.views !== statsB.views) return statsB.views - statsA.views;
+            const statsA = nicheStats.get(a.id) || { impressions: 0 };
+            const statsB = nicheStats.get(b.id) || { impressions: 0 };
+            if (statsA.impressions !== statsB.impressions) return statsB.impressions - statsA.impressions;
             return a.name.localeCompare(b.name);
         });
     }, [relevantGroups, nicheStats, trashGroup]);

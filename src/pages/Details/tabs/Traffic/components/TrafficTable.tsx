@@ -6,6 +6,7 @@ import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { TrafficRow } from './TrafficRow';
 import { TrafficEmptyState } from './TrafficEmptyState';
 import { formatDuration, durationToSeconds } from '../utils/formatters';
+import { computeAverageDelta } from '../utils/publishDateFormatter';
 import { TRAFFIC_TABLE } from '../utils/constants';
 import type { CTRRule } from '../../../../../core/services/settingsService';
 import { useTrafficNicheStore } from '../../../../../core/stores/useTrafficNicheStore';
@@ -21,7 +22,7 @@ import type { TrafficType } from '../../../../../core/types/videoTrafficType';
 import type { ViewerType } from '../../../../../core/types/viewerType';
 import type { VideoReaction } from '../../../../../core/types/videoReaction';
 
-export type SortKey = keyof TrafficSource | 'trafficType' | 'viewerType' | 'reaction';
+export type SortKey = keyof TrafficSource | 'trafficType' | 'viewerType' | 'reaction' | 'publishDate';
 export interface SortConfig {
     key: SortKey;
     direction: 'asc' | 'desc';
@@ -176,6 +177,10 @@ export const TrafficTable = memo<TrafficTableProps>(({
                 const aReaction = a.videoId && reactionMap ? (reactionOrder[reactionMap[a.videoId]] || 0) : 0;
                 const bReaction = b.videoId && reactionMap ? (reactionOrder[reactionMap[b.videoId]] || 0) : 0;
                 comparison = aReaction - bReaction;
+            } else if (key === 'publishDate') {
+                const aDate = a.publishedAt || '';
+                const bDate = b.publishedAt || '';
+                comparison = aDate.localeCompare(bDate);
             } else if (key === 'avgViewDuration') {
                 comparison = durationToSeconds(a.avgViewDuration) - durationToSeconds(b.avgViewDuration);
             } else {
@@ -245,9 +250,21 @@ export const TrafficTable = memo<TrafficTableProps>(({
         });
     }, [data, niches, assignments]);
 
+    // Show Publish Date column when at least one video has a publishedAt date
+    const showPublishDateColumn = useMemo(() => {
+        return data.some(item => !!item.publishedAt);
+    }, [data]);
+
+    // IMPORTANT: Tailwind JIT requires full class strings to be statically analyzable.
+    // Dynamic construction like `grid-cols-[${...}]` breaks JIT — class won't be generated.
+    // Enumerate all 4 combinations: property × publishDate
     const gridClassName = showPropertyColumn
-        ? "grid-cols-[40px_72px_24px_1fr_22px_22px_70px_60px_70px_80px_66px]"
-        : "grid-cols-[40px_72px_1fr_22px_22px_70px_60px_70px_80px_66px]";
+        ? showPublishDateColumn
+            ? "grid-cols-[40px_72px_24px_1fr_22px_22px_70px_60px_70px_80px_96px_66px]"
+            : "grid-cols-[40px_72px_24px_1fr_22px_22px_70px_60px_70px_80px_66px]"
+        : showPublishDateColumn
+            ? "grid-cols-[40px_72px_1fr_22px_22px_70px_60px_70px_80px_96px_66px]"
+            : "grid-cols-[40px_72px_1fr_22px_22px_70px_60px_70px_80px_66px]";
 
     const computedTotal = useMemo(() => {
         if (data.length === 0) return null;
@@ -260,13 +277,25 @@ export const TrafficTable = memo<TrafficTableProps>(({
         const avgCtr = totalImpressions > 0 ? (totalViews / totalImpressions) * 100 : 0;
         const avgDurationSeconds = totalViews > 0 ? totalWatchTimeSeconds / totalViews : 0;
 
+        // For custom videos, publishedAt is the app creation date.
+        // Use mergedVideoData?.publishedAt (actual YouTube date) when available.
+        const myVideoPublishDate = currentVideo?.mergedVideoData?.publishedAt || currentVideo?.publishedAt;
+        let avgPublishDelta: string | null = null;
+        if (myVideoPublishDate && showPublishDateColumn) {
+            avgPublishDelta = computeAverageDelta(
+                data.map(s => s.publishedAt),
+                myVideoPublishDate
+            );
+        }
+
         return {
             impressions: totalImpressions,
             views: totalViews,
             ctr: parseFloat(avgCtr.toFixed(2)),
             avgViewDuration: Math.round(avgDurationSeconds).toString(),
+            avgPublishDelta,
         };
-    }, [data]);
+    }, [data, currentVideo?.mergedVideoData?.publishedAt, currentVideo?.publishedAt, showPublishDateColumn]);
 
     const renderHeaderCell = (label: string, sortKey?: SortKey, align: 'left' | 'right' | 'center' = 'right') => {
         const isSorted = sortConfig?.key === sortKey;
@@ -336,6 +365,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                 {renderHeaderCell('CTR', 'ctr')}
                 {renderHeaderCell('Views', 'views')}
                 {renderHeaderCell('AVD', 'avgViewDuration')}
+                {showPublishDateColumn && renderHeaderCell('Published', 'publishDate', 'right')}
                 {renderHeaderCell('', 'reaction', 'center')} {/* Reactions Column */}
             </div>
 
@@ -428,6 +458,15 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                 <div className={`text-right ${sortConfig?.key === 'avgViewDuration' ? 'text-text-primary font-semibold' : 'text-text-secondary'}`}>
                                     {formatDuration(computedTotal.avgViewDuration)}
                                 </div>
+                                {showPublishDateColumn && (
+                                    <div className={`text-right text-[10px] font-medium ${sortConfig?.key === 'publishDate' ? 'text-text-primary' : 'text-text-secondary'}`}>
+                                        {computedTotal.avgPublishDelta && (
+                                            <span className={`font-mono ${computedTotal.avgPublishDelta.startsWith('+') ? 'text-emerald-400/70' : computedTotal.avgPublishDelta.startsWith('-') ? 'text-orange-400/70' : 'text-text-secondary'}`}>
+                                                avg {computedTotal.avgPublishDelta}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
                                 <div /> {/* Reactions Total Cell (Empty) */}
                             </div>
                         )}
@@ -477,6 +516,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             ctrRules={ctrRules}
                                             gridClassName={gridClassName}
                                             showPropertyIcon={showPropertyColumn}
+                                            showPublishDate={showPublishDateColumn}
                                             videoDetails={videoDetails}
                                             suggestedNiche={suggestion?.targetNiche}
                                             isTrendsSuggestion={suggestion?.reason === 'trends'}

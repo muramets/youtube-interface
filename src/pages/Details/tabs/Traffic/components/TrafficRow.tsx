@@ -12,6 +12,7 @@ import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
 import { VideoPreviewTooltip } from '../../../../../features/Video/components/VideoPreviewTooltip';
 import { formatDuration } from '../utils/formatters';
+import { formatPublishDate, formatDateDelta } from '../utils/publishDateFormatter';
 import type { CTRRule } from '../../../../../core/services/settingsService';
 import { useTrafficNicheStore } from '../../../../../core/stores/useTrafficNicheStore';
 import { useTrafficNoteStore } from '../../../../../core/stores/useTrafficNoteStore';
@@ -51,6 +52,8 @@ interface TrafficRowProps {
     onTooltipEnter?: (id: string) => void;
     onTooltipLeave?: () => void;
     currentVideo?: VideoDetails;
+    // Publish Date Column
+    showPublishDate?: boolean;
     // Video Reactions (star/like/dislike)
     reaction?: VideoReaction;
     onToggleReaction?: (videoId: string, reaction: VideoReaction) => void;
@@ -102,6 +105,7 @@ export const TrafficRow = ({
     onTooltipEnter,
     onTooltipLeave,
     currentVideo,
+    showPublishDate,
     reaction,
     onToggleReaction
 }: TrafficRowProps) => {
@@ -563,6 +567,37 @@ export const TrafficRow = ({
             <div className={`text-right ${activeSortKey === 'avgViewDuration' ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
                 {formatDuration(item.avgViewDuration)}
             </div>
+
+            {/* Publish Date Cell */}
+            {showPublishDate && (
+                <div className={`text-right flex flex-col items-end justify-center leading-tight transition-opacity duration-[250ms] delay-75 group-hover:duration-75 group-hover:delay-0 ${isSelected ? 'opacity-100' : 'opacity-30 group-hover:opacity-100'} ${activeSortKey === 'publishDate' ? 'text-text-primary' : 'text-text-secondary'}`}>
+                    {item.publishedAt ? (
+                        <>
+                            {(() => {
+                                // For custom videos, publishedAt is the app creation date.
+                                // Use mergedVideoData?.publishedAt (actual YouTube date) when available.
+                                const myVideoDate = currentVideo?.mergedVideoData?.publishedAt || currentVideo?.publishedAt;
+                                if (!myVideoDate) return null;
+                                const delta = formatDateDelta(item.publishedAt!, myVideoDate);
+                                if (!delta) return null;
+                                const isPositive = delta.startsWith('+');
+                                const isNegative = delta.startsWith('-');
+                                return (
+                                    <span className={`text-[11px] font-mono font-medium ${isPositive ? 'text-emerald-400/80' : isNegative ? 'text-orange-400/80' : 'text-text-secondary'
+                                        }`}>
+                                        {delta}
+                                    </span>
+                                );
+                            })()}
+                            <span className="text-[9px] font-mono tracking-tight text-text-secondary/40">
+                                {formatPublishDate(item.publishedAt)}
+                            </span>
+                        </>
+                    ) : (
+                        <span className="text-[11px] text-white/10">—</span>
+                    )}
+                </div>
+            )}
 
             {/* Video Reactions: Star / Like / Dislike */}
             <div className="flex items-center justify-end gap-0.5">

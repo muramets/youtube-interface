@@ -152,10 +152,18 @@ export const useMissingTitles = ({
             return !hasSourceChannelId && !hasCachedChannelId;
         });
 
-        assistantLogger.debug('Unenriched calculation', {
+        assistantLogger.debug('[DEBUG-MODAL] Unenriched calculation', {
             displayedCount: displayedSources.length,
             unenrichedCount: results.length,
-            firstUnenriched: results[0]
+            cachedVideosCount: cachedVideos.length,
+            cachedWithChannelId: cachedVideos.filter(v => !!v.channelId).length,
+            firstUnenriched: results[0] ? {
+                videoId: results[0].videoId,
+                sourceTitle: results[0].sourceTitle?.slice(0, 30),
+                hasChannelId: !!results[0].channelId,
+                inCache: results[0].videoId ? cachedMap.has(results[0].videoId) : false,
+                cachedChannelId: results[0].videoId ? cachedMap.get(results[0].videoId)?.channelId : undefined
+            } : null
         });
         return results;
     }, [displayedSources, cachedVideos]);

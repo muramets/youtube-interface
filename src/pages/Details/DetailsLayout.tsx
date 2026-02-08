@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { useSearchParams, useLocation } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { type VideoDetails } from '../../core/utils/youtubeApi';
 import type { GalleryItem } from '../../core/types/gallery';
 import { DetailsSidebar } from './Sidebar/DetailsSidebar';
@@ -61,7 +61,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
     const { currentChannel } = useChannelStore();
     const { updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
 
-    const location = useLocation();
+
     // URL State for Tab Persistence
     const [searchParams, setSearchParams] = useSearchParams();
 
@@ -321,8 +321,8 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
         setSearchParams(prev => {
             prev.set('tab', newTab);
             return prev;
-        }, { replace: true, state: (location as { state?: unknown }).state }); // Preserve persisted state (playlistId)
-    }, [activeTab, versions, setSearchParams, location, getLatestSnapshotId, setSelectedSnapshot, snapshotStorageKey]);
+        }, { replace: true });
+    }, [activeTab, versions, setSearchParams, getLatestSnapshotId, setSelectedSnapshot, snapshotStorageKey]);
 
     // Handle draft deletion
     // Latest Ref Pattern: refs for stable handleDeleteDraft callback

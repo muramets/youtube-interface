@@ -230,7 +230,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     if (currentChannel) {
       // If cloned, navigate to the original video's details
       const targetVideoId = video.isCloned && video.clonedFromId ? video.clonedFromId : video.id;
-      navigate(`/video/${currentChannel.id}/${targetVideoId}/details`, { state: { playlistId } });
+      const detailsUrl = `/video/${currentChannel.id}/${targetVideoId}/details${playlistId ? `?from=${playlistId}` : ''}`;
+      navigate(detailsUrl);
     }
   };
 
