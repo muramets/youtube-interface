@@ -13,6 +13,14 @@ export interface FilterItem {
     label?: string; // e.g. "Views > 1000" for display chip
 }
 
+// Per-page saved filter/sort/channel state
+export interface PageFilterState {
+    selectedChannel: string | null;
+    sortBy: string;
+    filters: FilterItem[];
+    freshnessMode?: boolean;
+}
+
 interface FilterState {
     searchQuery: string;
     selectedChannel: string | null; // Legacy simple filter (can be kept for backward compat or migrated)
@@ -24,6 +32,13 @@ interface FilterState {
     channelFilters: Record<string, FilterItem[]>;
     channelPlaylistsSorts: Record<string, 'default' | 'views' | 'updated' | 'created'>; // Per-channel playlist sort settings
     currentChannelId: string | null;
+
+    // Per-page state persistence (keyed by pageId: 'home', 'playlists-list', 'playlist:{id}')
+    pageStates: Record<string, PageFilterState>;
+
+    // Freshness visualization toggle (per-page, persisted)
+    freshnessMode: boolean;
+    setFreshnessMode: (enabled: boolean) => void;
 
     // Actions
     setSearchQuery: (query: string) => void;
@@ -37,6 +52,10 @@ interface FilterState {
     updateFilter: (id: string, updates: Partial<FilterItem>) => void;
     clearFilters: () => void;
 
+    // Per-page state save/load
+    savePageState: (pageId: string) => void;
+    loadPageState: (pageId: string) => void;
+
     // New action to handle channel switching
     switchChannel: (channelId: string | null) => void;
 
@@ -49,15 +68,17 @@ import { persist } from 'zustand/middleware';
 
 export const useFilterStore = create<FilterState>()(
     persist(
-        (set) => ({
+        (set, get) => ({
             searchQuery: '',
             selectedChannel: null,
             homeSortBy: 'default',
             playlistVideoSortBy: 'default',
             playlistsSortBy: 'default',
+            freshnessMode: false,
             activeFilters: [],
             channelFilters: {},
             channelPlaylistsSorts: {},
+            pageStates: {},
             currentChannelId: null,
             userId: null,
 
@@ -70,6 +91,7 @@ export const useFilterStore = create<FilterState>()(
                     activeFilters: [],
                     channelFilters: {}, // Clear all channel presets
                     channelPlaylistsSorts: {},
+                    pageStates: {},
                     currentChannelId: null,
                     selectedChannel: null,
                     searchQuery: ''
@@ -81,6 +103,60 @@ export const useFilterStore = create<FilterState>()(
             setHomeSortBy: (sort) => set({ homeSortBy: sort }),
             setPlaylistVideoSortBy: (sort) => set({ playlistVideoSortBy: sort }),
             setPlaylistsSortBy: (sort) => set({ playlistsSortBy: sort }),
+            setFreshnessMode: (enabled) => set({ freshnessMode: enabled }),
+
+            // Per-page state: snapshot current state into pageStates[pageId]
+            savePageState: (pageId: string) => {
+                const state = get();
+                // Determine which sort key to save based on pageId
+                let sortBy: string;
+                if (pageId === 'home') sortBy = state.homeSortBy;
+                else if (pageId === 'playlists-list') sortBy = state.playlistsSortBy;
+                else sortBy = state.playlistVideoSortBy; // playlist:{id}
+
+                set({
+                    pageStates: {
+                        ...state.pageStates,
+                        [pageId]: {
+                            selectedChannel: state.selectedChannel,
+                            sortBy,
+                            filters: state.activeFilters,
+                            freshnessMode: state.freshnessMode,
+                        }
+                    }
+                });
+            },
+
+            // Per-page state: restore saved state from pageStates[pageId] into current fields
+            loadPageState: (pageId: string) => {
+                const state = get();
+                const saved = state.pageStates[pageId];
+
+                if (!saved) {
+                    // No saved state — reset to defaults
+                    const defaults: Partial<FilterState> = {
+                        selectedChannel: null,
+                        activeFilters: [],
+                        freshnessMode: false,
+                    };
+                    if (pageId === 'home') defaults.homeSortBy = 'default';
+                    else if (pageId === 'playlists-list') defaults.playlistsSortBy = 'default';
+                    else defaults.playlistVideoSortBy = 'default';
+                    set(defaults);
+                    return;
+                }
+
+                // Restore saved state
+                const restored: Partial<FilterState> = {
+                    selectedChannel: saved.selectedChannel,
+                    activeFilters: saved.filters,
+                    freshnessMode: saved.freshnessMode ?? false,
+                };
+                if (pageId === 'home') restored.homeSortBy = saved.sortBy as FilterState['homeSortBy'];
+                else if (pageId === 'playlists-list') restored.playlistsSortBy = saved.sortBy as FilterState['playlistsSortBy'];
+                else restored.playlistVideoSortBy = saved.sortBy as FilterState['playlistVideoSortBy'];
+                set(restored);
+            },
 
             addFilter: (filter) => {
                 const newFilter = { ...filter, id: crypto.randomUUID() };
@@ -168,6 +244,7 @@ export const useFilterStore = create<FilterState>()(
                 channelPlaylistsSorts: state.channelPlaylistsSorts,
                 activeFilters: state.activeFilters, // Persist current active filters too
                 channelFilters: state.channelFilters, // Persist all channel filters
+                pageStates: state.pageStates, // Per-page saved filter states
                 selectedChannel: state.selectedChannel,
                 currentChannelId: state.currentChannelId,
                 userId: state.userId

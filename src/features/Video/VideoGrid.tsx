@@ -29,6 +29,7 @@ interface VideoGridProps {
   getRankingOverlay?: (videoId: string) => number | null;
   anonymizeData?: VideoCardAnonymizeData;
   isSelectionMode?: boolean;
+  freshnessMap?: Map<string, { opacity: number; saturate: number }>;
 }
 
 const parseViewCount = (viewCount: string | number | undefined): number => {
@@ -63,7 +64,8 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
   videoDeltaStats,
   getRankingOverlay,
   anonymizeData,
-  isSelectionMode: propIsSelectionMode
+  isSelectionMode: propIsSelectionMode,
+  freshnessMap
 }) => {
   const { user, isLoading: authLoading } = useAuth();
   const currentChannel = useChannelStore(state => state.currentChannel);
@@ -453,6 +455,7 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
         videoDeltaStats={videoDeltaStats}
         getRankingOverlay={getRankingOverlay}
         anonymizeData={anonymizeData}
+        freshnessMap={freshnessMap}
       />
     </VideoGridContainer>
   );

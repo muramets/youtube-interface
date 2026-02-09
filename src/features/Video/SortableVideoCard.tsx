@@ -19,9 +19,10 @@ interface SortableVideoCardProps {
     deltaStats?: VideoDeltaStats;
     rankingOverlay?: number | null;
     anonymizeData?: VideoCardAnonymizeData;
+    freshnessStyle?: { opacity: number; saturate: number };
 }
 
-export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, playlistId, scale = 1, onMenuOpenChange, onRemove, onSetAsCover, isSelected, onToggleSelection, isSelectionMode, deltaStats, rankingOverlay, anonymizeData }) => {
+export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, playlistId, scale = 1, onMenuOpenChange, onRemove, onSetAsCover, isSelected, onToggleSelection, isSelectionMode, deltaStats, rankingOverlay, anonymizeData, freshnessStyle }) => {
     const {
         attributes,
         listeners,
@@ -58,6 +59,7 @@ export const SortableVideoCard: React.FC<SortableVideoCardProps> = ({ video, pla
                 deltaStats={deltaStats}
                 rankingOverlay={rankingOverlay}
                 anonymizeData={anonymizeData}
+                freshnessStyle={freshnessStyle}
             />
         </div>
     );

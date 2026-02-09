@@ -51,8 +51,14 @@ export const PlaylistsPage: React.FC = () => {
         updateCache,
     } = usePlaylists(user?.uid || '', currentChannel?.id || '');
     const { videos } = useVideos(user?.uid || '', currentChannel?.id || '');
-    const { playlistsSortBy, setPlaylistsSortBy } = useFilterStore();
+    const { playlistsSortBy, setPlaylistsSortBy, savePageState, loadPageState } = useFilterStore();
     const navigate = useNavigate();
+
+    // Per-page state persistence: load on enter, save on leave
+    React.useEffect(() => {
+        loadPageState('playlists-list');
+        return () => savePageState('playlists-list');
+    }, [loadPageState, savePageState]);
 
     // UI State
     const [editingPlaylist, setEditingPlaylist] = useState<Playlist | null>(null);

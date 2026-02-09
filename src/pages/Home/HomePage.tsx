@@ -7,12 +7,20 @@ import { useVideos } from '../../core/hooks/useVideos';
 import { usePlaylists } from '../../core/hooks/usePlaylists';
 import { useVideoSelection } from '../../features/Video/hooks/useVideoSelection';
 import { VideoSelectionFloatingBar } from '../../features/Video/components/VideoSelectionFloatingBar';
+import { useFilterStore } from '../../core/stores/filterStore';
 
 export const HomePage: React.FC = () => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { isLoading, updateVideo, removeVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { playlists } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+    const { savePageState, loadPageState } = useFilterStore();
+
+    // Per-page state persistence: load on enter, save on leave
+    React.useEffect(() => {
+        loadPageState('home');
+        return () => savePageState('home');
+    }, [loadPageState, savePageState]);
 
     const {
         selectedIds,

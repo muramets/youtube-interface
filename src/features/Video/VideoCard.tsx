@@ -44,9 +44,10 @@ interface VideoCardProps {
   deltaStats?: VideoDeltaStats;
   rankingOverlay?: number | null;
   anonymizeData?: VideoCardAnonymizeData;
+  freshnessStyle?: { opacity: number; saturate: number };
 }
 
-export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange, onRemove, onSetAsCover, isOverlay, isSelected, onToggleSelection, isSelectionMode, deltaStats, rankingOverlay, anonymizeData }) => {
+export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuOpenChange, onRemove, onSetAsCover, isOverlay, isSelected, onToggleSelection, isSelectionMode, deltaStats, rankingOverlay, anonymizeData, freshnessStyle }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const currentChannel = useChannelStore(state => state.currentChannel);
@@ -296,8 +297,23 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         style={{
           transform: isFlipping ? 'rotateY(90deg)' : 'rotateY(0deg)',
           transformStyle: 'preserve-3d',
-          cursor: isOverlay ? 'grabbing' : 'pointer'
+          cursor: isOverlay ? 'grabbing' : 'pointer',
+          ...(freshnessStyle ? {
+            opacity: freshnessStyle.opacity,
+            filter: `saturate(${freshnessStyle.saturate})`,
+            transition: 'opacity 0.3s ease, filter 0.3s ease',
+          } : {})
         }}
+        onMouseEnter={freshnessStyle ? (e) => {
+          const el = e.currentTarget;
+          el.style.opacity = '1';
+          el.style.filter = 'saturate(1)';
+        } : undefined}
+        onMouseLeave={freshnessStyle ? (e) => {
+          const el = e.currentTarget;
+          el.style.opacity = String(freshnessStyle.opacity);
+          el.style.filter = `saturate(${freshnessStyle.saturate})`;
+        } : undefined}
         onClick={(e) => {
           // Ctrl/Cmd + Click to toggle selection
           // OR if we are already in selection mode (isSelectionMode is true)

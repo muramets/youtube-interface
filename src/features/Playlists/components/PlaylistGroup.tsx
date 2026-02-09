@@ -7,9 +7,9 @@ import { SortablePlaylistCard } from './PlaylistCard';
 import type { Playlist } from '../../../core/services/playlistService';
 
 // Phantom Placeholder for empty groups - invisible but detectable by dnd-kit
-// Uses useSortable to register as a valid drop target
+// Uses useSortable to register as a valid drop target (collision anchor only, no visual)
 const PhantomPlaceholder = ({ id, isDragEnabled }: { id: string; isDragEnabled: boolean }) => {
-    const { setNodeRef, isOver } = useSortable({
+    const { setNodeRef } = useSortable({
         id,
         disabled: !isDragEnabled,
     });
@@ -17,10 +17,7 @@ const PhantomPlaceholder = ({ id, isDragEnabled }: { id: string; isDragEnabled: 
     return (
         <div
             ref={setNodeRef}
-            className={`min-h-[100px] rounded-lg transition-all duration-150 col-span-full ${isOver
-                ? 'border-2 border-dashed border-primary bg-primary/10'
-                : 'border-2 border-transparent'
-                }`}
+            className="min-h-[2px] col-span-full"
         />
     );
 };

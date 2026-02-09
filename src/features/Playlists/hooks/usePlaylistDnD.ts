@@ -195,13 +195,17 @@ export const usePlaylistDnD = ({
             const activePlaylist = localPlaylists.find(p => String(p.id) === activeIdStr);
             if (!activePlaylist) return;
 
+            // Skip migration for phantom placeholders — keep them mounted as collision targets.
+            // The actual group move is handled in handleDragEnd.
+            if (overIdStr.startsWith('placeholder-')) {
+                return;
+            }
+
             // Determine Target Group
             let targetGroup = activePlaylist.group || 'Ungrouped';
 
-            // Check for phantom placeholder (placeholder-{groupName}), droppable zone (group-drop-{name}), or sortable group (group-{name})
-            if (overIdStr.startsWith('placeholder-')) {
-                targetGroup = overIdStr.replace('placeholder-', '');
-            } else if (overIdStr.startsWith('group-drop-')) {
+            // Check for droppable zone (group-drop-{name}) or sortable group (group-{name})
+            if (overIdStr.startsWith('group-drop-')) {
                 targetGroup = overIdStr.replace('group-drop-', '');
             } else if (overIdStr.startsWith('group-')) {
                 targetGroup = overIdStr.replace('group-', '');
@@ -300,7 +304,9 @@ export const usePlaylistDnD = ({
                 let targetGroup = movedPlaylist.group || 'Ungrouped';
 
                 // Determine target group
-                if (overIdStr.startsWith('group-')) {
+                if (overIdStr.startsWith('placeholder-')) {
+                    targetGroup = overIdStr.replace('placeholder-', '');
+                } else if (overIdStr.startsWith('group-')) {
                     targetGroup = overIdStr.replace('group-', '');
                 } else {
                     const overPlaylist = normalizedPlaylists.find(p => String(p.id) === overIdStr);
@@ -404,7 +410,9 @@ export const usePlaylistDnD = ({
         if (movedPlaylist) {
             // Determine target group
             let targetGroup = movedPlaylist.group || 'Ungrouped';
-            if (overIdStr.startsWith('group-')) {
+            if (overIdStr.startsWith('placeholder-')) {
+                targetGroup = overIdStr.replace('placeholder-', '');
+            } else if (overIdStr.startsWith('group-')) {
                 targetGroup = overIdStr.replace('group-', '');
             } else {
                 const overPlaylist = localPlaylists.find(p => String(p.id) === overIdStr);

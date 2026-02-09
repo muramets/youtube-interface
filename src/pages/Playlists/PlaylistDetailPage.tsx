@@ -5,7 +5,7 @@ import { useVideos } from '../../core/hooks/useVideos';
 import { usePlaylists } from '../../core/hooks/usePlaylists';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
-import { ArrowLeft, PlaySquare, Trophy, Trash2, Check, Eye, EyeOff, X } from 'lucide-react';
+import { ArrowLeft, PlaySquare, Trophy, Trash2, Check, Eye, EyeOff, X, Hourglass } from 'lucide-react';
 import { VideoGrid } from '../../features/Video/VideoGrid';
 import { ZoomControls } from '../../features/Video/ZoomControls';
 import { PlaylistExportControls } from '../../features/Playlists/components/PlaylistExportControls';
@@ -67,8 +67,15 @@ export const PlaylistDetailPage: React.FC = () => {
     const { currentChannel } = useChannelStore();
     const { playlists, reorderPlaylistVideos, updatePlaylist, removeVideosFromPlaylist, isLoading: isPlaylistsLoading } = usePlaylists(user?.uid || '', currentChannel?.id || '');
     const { videos, isLoading: isVideosLoading, removeVideo, updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
-    const { playlistVideoSortBy, setPlaylistVideoSortBy, activeFilters, removeFilter, selectedChannel, setSelectedChannel } = useFilterStore();
+    const { playlistVideoSortBy, setPlaylistVideoSortBy, activeFilters, removeFilter, selectedChannel, setSelectedChannel, savePageState, loadPageState, freshnessMode, setFreshnessMode } = useFilterStore();
     const navigate = useNavigate();
+
+    // Per-playlist state persistence: load on enter, save on leave
+    const pageId = `playlist:${id}`;
+    React.useEffect(() => {
+        loadPageState(pageId);
+        return () => savePageState(pageId);
+    }, [pageId, loadPageState, savePageState]);
     const { pickerSettings } = useSettings();
 
     const playlist = playlists.find(p => p.id === id);
@@ -273,6 +280,40 @@ export const PlaylistDetailPage: React.FC = () => {
 
     // Alias for compatibility with rest of component
     const playlistVideos = filteredPlaylistVideos;
+
+    // Freshness visualization: compute per-video opacity/saturation based on publish date
+    const freshnessMap = useMemo(() => {
+        if (!freshnessMode || playlistVideos.length <= 1) return undefined;
+
+        // Helper to normalize date to start of day (ignore time)
+        const getDayTimestamp = (dateStr: string) => {
+            const d = new Date(dateStr);
+            d.setHours(0, 0, 0, 0);
+            return d.getTime();
+        };
+
+        const timestamps = playlistVideos.map(v => getDayTimestamp(v.publishedAt)).filter(t => t > 0);
+        if (timestamps.length === 0) return undefined;
+
+        const newest = Math.max(...timestamps);
+        const oldest = Math.min(...timestamps);
+        const range = newest - oldest;
+
+        // All same date — no effect
+        if (range === 0) return undefined;
+
+        const map = new Map<string, { opacity: number; saturate: number }>();
+        for (const video of playlistVideos) {
+            const t = getDayTimestamp(video.publishedAt);
+            const ageRatio = t > 0 ? (newest - t) / range : 1;
+
+            map.set(video.id, {
+                opacity: 1.0 - ageRatio * 0.8,    // 1.0 → 0.2
+                saturate: 1.0 - ageRatio * 0.85,   // 1.0 → 0.15
+            });
+        }
+        return map;
+    }, [freshnessMode, playlistVideos]);
 
     // Lazy cleanup: auto-remove orphaned video IDs on playlist open
     const cleanupDoneRef = React.useRef<string | null>(null);
@@ -496,6 +537,17 @@ export const PlaylistDetailPage: React.FC = () => {
                             customSection={sortCustomSection}
                         />
                         <FilterButton />
+                        <PortalTooltip content={freshnessMode ? 'Hide\u00A0freshness' : 'Show\u00A0freshness'}>
+                            <button
+                                onClick={() => setFreshnessMode(!freshnessMode)}
+                                className={`w-[34px] h-[34px] rounded-full flex items-center justify-center transition-colors border-none cursor-pointer flex-shrink-0 ${freshnessMode
+                                    ? 'bg-purple-500 text-white'
+                                    : 'bg-transparent text-text-primary hover:bg-hover-bg'
+                                    }`}
+                            >
+                                <Hourglass size={20} />
+                            </button>
+                        </PortalTooltip>
                         <PlaylistExportControls
                             videos={videosToExport}
                             playlistName={playlist.name}
@@ -578,6 +630,7 @@ export const PlaylistDetailPage: React.FC = () => {
                     getRankingOverlay={getRankingOverlay}
                     anonymizeData={anonymizeData}
                     isSelectionMode={picker.isActive || isSelectionMode}
+                    freshnessMap={freshnessMap}
                 />
 
                 {/* Floating Zoom Controls */}

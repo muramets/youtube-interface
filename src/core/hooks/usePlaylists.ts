@@ -188,7 +188,46 @@ export const usePlaylists = (userId: string, channelId: string) => {
             const currentOrder = playlistSettings?.groupOrder || [];
             const newOrder = currentOrder.filter(g => g !== groupName);
             await PlaylistService.updatePlaylistSettings(userId, channelId, { groupOrder: newOrder });
-        }
+        },
+        onMutate: async (groupName: string) => {
+            // Cancel outgoing refetches
+            await queryClient.cancelQueries({ queryKey });
+            await queryClient.cancelQueries({ queryKey: settingsKey });
+
+            // Snapshot previous values for rollback
+            const previousPlaylists = queryClient.getQueryData<Playlist[]>(queryKey);
+            const previousSettings = queryClient.getQueryData<PlaylistSettings>(settingsKey);
+
+            // Optimistic update: ungroup all playlists in deleted group
+            if (previousPlaylists) {
+                queryClient.setQueryData<Playlist[]>(queryKey, (old) => {
+                    return old ? old.map(p =>
+                        p.group === groupName ? { ...p, group: undefined } : p
+                    ) : [];
+                });
+            }
+
+            // Optimistic update: remove group from groupOrder
+            if (previousSettings) {
+                queryClient.setQueryData<PlaylistSettings>(settingsKey, (old) => {
+                    if (!old) return { groupOrder: [] };
+                    return {
+                        ...old,
+                        groupOrder: (old.groupOrder || []).filter(g => g !== groupName)
+                    };
+                });
+            }
+
+            return { previousPlaylists, previousSettings };
+        },
+        onError: (_err, _groupName, context) => {
+            if (context?.previousPlaylists) {
+                queryClient.setQueryData(queryKey, context.previousPlaylists);
+            }
+            if (context?.previousSettings) {
+                queryClient.setQueryData(settingsKey, context.previousSettings);
+            }
+        },
     });
 
     return useMemo(() => ({

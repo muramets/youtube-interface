@@ -36,6 +36,7 @@ interface VirtualVideoGridProps {
     videoDeltaStats?: Map<string, VideoDeltaStats>;
     getRankingOverlay?: (videoId: string) => number | null;
     anonymizeData?: VideoCardAnonymizeData;
+    freshnessMap?: Map<string, { opacity: number; saturate: number }>;
 }
 
 interface InnerGridProps extends VirtualVideoGridProps {
@@ -56,7 +57,8 @@ const InnerGrid: React.FC<InnerGridProps> = ({
     scrollElement,
     videoDeltaStats,
     getRankingOverlay,
-    anonymizeData
+    anonymizeData,
+    freshnessMap
 }) => {
     const { generalSettings } = useSettings();
     const cardsPerRow = generalSettings.cardsPerRow;
@@ -188,6 +190,7 @@ const InnerGrid: React.FC<InnerGridProps> = ({
                                         deltaStats={videoDeltaStats?.get(video.id)}
                                         rankingOverlay={getRankingOverlay?.(video.id)}
                                         anonymizeData={anonymizeData}
+                                        freshnessStyle={freshnessMap?.get(video.id)}
                                     />
                                 ) : (
                                     <VideoCard
@@ -201,6 +204,7 @@ const InnerGrid: React.FC<InnerGridProps> = ({
                                         deltaStats={videoDeltaStats?.get(video.id)}
                                         rankingOverlay={getRankingOverlay?.(video.id)}
                                         anonymizeData={anonymizeData}
+                                        freshnessStyle={freshnessMap?.get(video.id)}
                                     />
                                 )}
                             </div>
