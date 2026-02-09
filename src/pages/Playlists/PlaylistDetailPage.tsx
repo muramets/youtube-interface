@@ -482,7 +482,6 @@ export const PlaylistDetailPage: React.FC = () => {
                     <PickTheWinnerBar
                         ranked={picker.progress.ranked}
                         total={picker.progress.total}
-                        isComplete={picker.isComplete}
                         canSave={picker.canSave}
                         onSave={handleSaveRanking}
                         onDiscard={picker.deactivate}
@@ -695,7 +694,8 @@ export const PlaylistDetailPage: React.FC = () => {
                     const ranking = rankings.find(r => r.id === playlistVideoSortBy);
                     if (!ranking) return;
                     const winnerIds = new Set(ranking.videoOrder.slice(0, pickerSettings.winnerCount));
-                    const loserIds = ranking.videoOrder.filter(vid => !winnerIds.has(vid));
+                    // Losers = all playlist videos that aren't winners (ranked non-winners + unranked)
+                    const loserIds = (playlist.videoIds || []).filter(vid => !winnerIds.has(vid));
 
                     // Only delete pure custom videos (no YouTube link)
                     const videosMap = new Map(videos.map(v => [v.id, v]));

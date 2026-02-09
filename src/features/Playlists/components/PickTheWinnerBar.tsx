@@ -4,7 +4,6 @@ import { Trophy, X, Save } from 'lucide-react';
 interface PickTheWinnerBarProps {
     ranked: number;
     total: number;
-    isComplete: boolean;
     canSave: boolean;
     onSave: (name: string) => void;
     onDiscard: () => void;
@@ -13,7 +12,6 @@ interface PickTheWinnerBarProps {
 export const PickTheWinnerBar: React.FC<PickTheWinnerBarProps> = ({
     ranked,
     total,
-    isComplete,
     canSave,
     onSave,
     onDiscard,
