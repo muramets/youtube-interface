@@ -65,7 +65,7 @@ export const PlaylistDetailPage: React.FC = () => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { playlists, reorderPlaylistVideos, updatePlaylist, removeVideosFromPlaylist, isLoading: isPlaylistsLoading } = usePlaylists(user?.uid || '', currentChannel?.id || '');
-    const { videos, isLoading: isVideosLoading, removeVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const { videos, isLoading: isVideosLoading, removeVideo, updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { playlistVideoSortBy, setPlaylistVideoSortBy } = useFilterStore();
     const navigate = useNavigate();
     const { pickerSettings } = useSettings();
@@ -533,6 +533,12 @@ export const PlaylistDetailPage: React.FC = () => {
                             await removeVideosFromPlaylist({ playlistId: playlist.id, videoIds: ids });
                             clearSelection();
                         }
+                    }}
+                    onAddToHome={async (ids) => {
+                        await Promise.all(ids.map(id =>
+                            updateVideo({ videoId: id, updates: { isPlaylistOnly: false, addedToHomeAt: Date.now() } })
+                        ));
+                        clearSelection();
                     }}
                 />
 

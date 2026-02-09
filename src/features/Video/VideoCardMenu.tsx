@@ -1,5 +1,5 @@
 import React from 'react';
-import { ListPlus, Trash2, RefreshCw, MinusCircle, ArrowLeftRight, FileText } from 'lucide-react';
+import { ListPlus, Trash2, RefreshCw, MinusCircle, ArrowLeftRight, FileText, Home } from 'lucide-react';
 import { Dropdown } from '../../components/ui/molecules/Dropdown';
 
 interface VideoCardMenuProps {
@@ -15,6 +15,7 @@ interface VideoCardMenuProps {
     onSwitchView?: (e: React.MouseEvent) => void;
     onDetails?: (e: React.MouseEvent) => void;
     onSetAsCover?: (e: React.MouseEvent) => void;
+    onAddToHome?: (e: React.MouseEvent) => void;
 }
 
 export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
@@ -29,7 +30,8 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
     isSyncing,
     onSwitchView,
     onDetails,
-    onSetAsCover
+    onSetAsCover,
+    onAddToHome
 }) => {
     const showSaveToPlaylist = true; // Always allow saving/toggling playlists
 
@@ -66,6 +68,16 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
                 >
                     <ListPlus size={20} />
                     <span>Make playlist cover</span>
+                </div>
+            )}
+
+            {onAddToHome && (
+                <div
+                    className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"
+                    onClick={onAddToHome}
+                >
+                    <Home size={20} />
+                    <span>Add to Home</span>
                 </div>
             )}
 

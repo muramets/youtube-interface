@@ -8,6 +8,7 @@ import { formatDuration, formatViewCount } from '../../core/utils/formatUtils';
 import { useVideoSync } from '../../core/hooks/useVideoSync';
 
 import { usePlaylists } from '../../core/hooks/usePlaylists';
+import { useVideos } from '../../core/hooks/useVideos';
 
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { VideoCardMenu } from './VideoCardMenu';
@@ -53,6 +54,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const { syncVideo } = useVideoSync(user?.uid || '', currentChannel?.id || '');
 
   const { removeVideosFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+  const { updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
   const { generalSettings } = useSettings();
   const apiKey = generalSettings.apiKey;
 
@@ -229,6 +231,15 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     e.stopPropagation();
     handleMenuClose();
     setShowPlaylistModal(true);
+  };
+
+  const handleAddToHome = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    handleMenuClose();
+    updateVideo({
+      videoId: video.id,
+      updates: { isPlaylistOnly: false, addedToHomeAt: Date.now() }
+    });
   };
 
   // MODIFIED: Navigate to original video details if cloned
@@ -600,6 +611,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                       onSetAsCover(video.id);
                       handleMenuClose();
                     } : undefined}
+                    onAddToHome={playlistId ? handleAddToHome : undefined}
                   />
                 </>
               )

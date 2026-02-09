@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trash2, ListPlus } from 'lucide-react';
+import { Trash2, ListPlus, Home } from 'lucide-react';
 import { FloatingBar } from '../../../components/ui/organisms/FloatingBar';
 import { AddToPlaylistModal } from '../../Playlists/modals/AddToPlaylistModal';
 
@@ -8,13 +8,15 @@ interface VideoSelectionFloatingBarProps {
     onClearSelection: () => void;
     onDelete: (ids: string[]) => void;
     isDeleting?: boolean;
+    onAddToHome?: (ids: string[]) => void;
 }
 
 export const VideoSelectionFloatingBar: React.FC<VideoSelectionFloatingBarProps> = ({
     selectedIds,
     onClearSelection,
     onDelete,
-    isDeleting = false
+    isDeleting = false,
+    onAddToHome
 }) => {
     const [showPlaylistModal, setShowPlaylistModal] = useState(false);
 
@@ -38,6 +40,16 @@ export const VideoSelectionFloatingBar: React.FC<VideoSelectionFloatingBarProps>
                         >
                             <ListPlus size={20} />
                         </button>
+
+                        {onAddToHome && (
+                            <button
+                                onClick={() => onAddToHome(Array.from(selectedIds))}
+                                className="p-2 hover:bg-white/10 rounded-full text-text-primary transition-colors border-none cursor-pointer flex items-center justify-center"
+                                title="Add to Home"
+                            >
+                                <Home size={20} />
+                            </button>
+                        )}
 
                         <div className="w-px h-6 bg-white/10 mx-1" />
 
