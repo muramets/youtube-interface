@@ -52,6 +52,12 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({ activeCategory
                 onClick={() => onCategoryChange('upload_defaults')}
                 theme={theme}
             />
+            <SidebarItem
+                label="Pick the Winner"
+                isActive={activeCategory === 'picker'}
+                onClick={() => onCategoryChange('picker')}
+                theme={theme}
+            />
         </div>
     );
 };

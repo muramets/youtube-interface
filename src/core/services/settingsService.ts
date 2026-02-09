@@ -63,6 +63,10 @@ export interface TrafficSettings {
     ctrRules: CTRRule[];
 }
 
+export interface PickerSettings {
+    winnerCount: number;
+}
+
 const getSettingsPath = (userId: string, channelId: string) =>
     `users/${userId}/channels/${channelId}/settings`;
 
@@ -325,6 +329,35 @@ export const SettingsService = {
         await setDocument(
             getSettingsPath(userId, channelId),
             'traffic',
+            settings,
+            true
+        );
+    },
+
+    fetchPickerSettings: async (userId: string, channelId: string) => {
+        return fetchDoc<PickerSettings>(getSettingsPath(userId, channelId), 'picker');
+    },
+
+    subscribeToPickerSettings: (
+        userId: string,
+        channelId: string,
+        callback: (settings: PickerSettings | null) => void
+    ) => {
+        return subscribeToDoc<PickerSettings>(
+            getSettingsPath(userId, channelId),
+            'picker',
+            callback
+        );
+    },
+
+    updatePickerSettings: async (
+        userId: string,
+        channelId: string,
+        settings: PickerSettings
+    ) => {
+        await setDocument(
+            getSettingsPath(userId, channelId),
+            'picker',
             settings,
             true
         );

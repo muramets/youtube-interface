@@ -1,11 +1,11 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useVideos } from '../../core/hooks/useVideos';
 
 import { usePlaylists } from '../../core/hooks/usePlaylists';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
-import { ArrowLeft, PlaySquare, Trophy, Trash2, Check } from 'lucide-react';
+import { ArrowLeft, PlaySquare, Trophy, Trash2, Check, Eye, EyeOff } from 'lucide-react';
 import { VideoGrid } from '../../features/Video/VideoGrid';
 import { ZoomControls } from '../../features/Video/ZoomControls';
 import { PlaylistExportControls } from '../../features/Playlists/components/PlaylistExportControls';
@@ -17,6 +17,9 @@ import { usePickTheWinner } from '../../features/Playlists/hooks/usePickTheWinne
 import { usePlaylistRankings } from '../../features/Playlists/hooks/usePlaylistRankings';
 import { PickTheWinnerBar } from '../../features/Playlists/components/PickTheWinnerBar';
 import type { VideoCardAnonymizeData } from '../../features/Video/VideoCard';
+import { useSettings } from '../../core/hooks/useSettings';
+import { ConfirmationModal } from '../../components/ui/organisms/ConfirmationModal';
+import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 
 // Format number with K/M suffix
 const formatDelta = (value: number | null): string | null => {
@@ -60,18 +63,25 @@ export const PlaylistDetailPage: React.FC = () => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { playlists, reorderPlaylistVideos, updatePlaylist, isLoading: isPlaylistsLoading } = usePlaylists(user?.uid || '', currentChannel?.id || '');
-    const { videos, isLoading: isVideosLoading } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const { videos, isLoading: isVideosLoading, removeVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { playlistVideoSortBy, setPlaylistVideoSortBy } = useFilterStore();
     const navigate = useNavigate();
+    const { pickerSettings } = useSettings();
 
     const playlist = playlists.find(p => p.id === id);
 
     // Pick the Winner
     const picker = usePickTheWinner(playlist?.videoIds?.length ?? 0);
     const { rankings, saveRanking, deleteRanking } = usePlaylistRankings(
+        user?.uid || '',
         currentChannel?.id || '',
         id || ''
     );
+
+    // Hide/Delete Losers state
+    const [hideLosers, setHideLosers] = useState(false);
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const isViewingRanking = playlistVideoSortBy.startsWith('ranking-');
 
     // Anonymization data for Pick the Winner
     const anonymizeData: VideoCardAnonymizeData | undefined = useMemo(() => {
@@ -135,20 +145,23 @@ export const PlaylistDetailPage: React.FC = () => {
                         >
                             <Trophy size={14} className="text-amber-400 flex-shrink-0" />
                             <span className="truncate flex-1">{ranking.name}</span>
-                            {playlistVideoSortBy === ranking.id && <Check size={14} className="flex-shrink-0" />}
-                            <span
-                                role="button"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (playlistVideoSortBy === ranking.id) {
-                                        setPlaylistVideoSortBy('default');
-                                    }
-                                    deleteRanking(ranking.id);
-                                }}
-                                className="p-1 rounded-md text-text-tertiary hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover/ranking:opacity-100 flex-shrink-0"
-                                title="Delete ranking"
-                            >
-                                <Trash2 size={14} />
+                            <span className="relative flex-shrink-0 w-[22px] h-[22px] flex items-center justify-center">
+                                {playlistVideoSortBy === ranking.id && (
+                                    <Check size={14} className="transition-opacity group-hover/ranking:opacity-0" />
+                                )}
+                                <span
+                                    role="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (playlistVideoSortBy === ranking.id) {
+                                            setPlaylistVideoSortBy('default');
+                                        }
+                                        deleteRanking(ranking.id);
+                                    }}
+                                    className="absolute inset-0 flex items-center justify-center rounded-md text-text-tertiary hover:text-red-400 hover:bg-red-500/10 transition-all opacity-0 group-hover/ranking:opacity-100"
+                                >
+                                    <Trash2 size={14} />
+                                </span>
                             </span>
                         </button>
                     ))}
@@ -243,8 +256,14 @@ export const PlaylistDetailPage: React.FC = () => {
         return [...ordered, ...unranked];
     }, [sortedPlaylistVideos, playlistVideoSortBy, rankings, basePlaylistVideos]);
 
+    // Apply hide losers filter
+    const filteredPlaylistVideos = useMemo(() => {
+        if (!hideLosers || !isViewingRanking) return rankedPlaylistVideos;
+        return rankedPlaylistVideos.slice(0, pickerSettings.winnerCount);
+    }, [rankedPlaylistVideos, hideLosers, isViewingRanking, pickerSettings.winnerCount]);
+
     // Alias for compatibility with rest of component
-    const playlistVideos = rankedPlaylistVideos;
+    const playlistVideos = filteredPlaylistVideos;
 
     // Lazy cleanup: auto-remove orphaned video IDs on playlist open
     const cleanupDoneRef = React.useRef<string | null>(null);
@@ -404,116 +423,182 @@ export const PlaylistDetailPage: React.FC = () => {
     };
 
     return (
-        <div className="animate-fade-in flex flex-col h-full relative pl-2">
-            {/* Pick the Winner Bar */}
-            {picker.isActive && (
-                <PickTheWinnerBar
-                    ranked={picker.progress.ranked}
-                    total={picker.progress.total}
-                    isComplete={picker.isComplete}
-                    onSave={handleSaveRanking}
-                    onDiscard={picker.deactivate}
-                />
-            )}
+        <>
+            <div className="animate-fade-in flex flex-col h-full relative pl-2">
+                {/* Pick the Winner Bar */}
+                {picker.isActive && (
+                    <PickTheWinnerBar
+                        ranked={picker.progress.ranked}
+                        total={picker.progress.total}
+                        isComplete={picker.isComplete}
+                        onSave={handleSaveRanking}
+                        onDiscard={picker.deactivate}
+                    />
+                )}
 
-            {/* Header */}
-            <div className={`pt-6 px-6 flex items-center gap-4 mb-3 ${picker.isActive ? 'pt-3' : ''}`}>
-                <button
-                    onClick={() => navigate('/playlists')}
-                    className="bg-transparent border-none text-text-primary cursor-pointer flex items-center hover:text-text-secondary transition-colors"
-                >
-                    <ArrowLeft size={24} />
-                </button>
-                <div className="flex items-center gap-4 flex-1">
-                    <div className="w-20 h-[45px] bg-bg-secondary rounded-lg flex items-center justify-center overflow-hidden">
-                        {effectiveCoverImage ? (
-                            <img src={effectiveCoverImage} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                            <PlaySquare size={24} className="text-text-secondary" />
-                        )}
+                {/* Header */}
+                <div className={`pt-6 px-6 flex items-center gap-4 mb-3 ${picker.isActive ? 'pt-3' : ''}`}>
+                    <button
+                        onClick={() => navigate('/playlists')}
+                        className="bg-transparent border-none text-text-primary cursor-pointer flex items-center hover:text-text-secondary transition-colors"
+                    >
+                        <ArrowLeft size={24} />
+                    </button>
+                    <div className="flex items-center gap-4 flex-1">
+                        <div className="w-20 h-[45px] bg-bg-secondary rounded-lg flex items-center justify-center overflow-hidden">
+                            {effectiveCoverImage ? (
+                                <img src={effectiveCoverImage} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                                <PlaySquare size={24} className="text-text-secondary" />
+                            )}
+                        </div>
+                        <div>
+                            <h1 className="m-0 text-2xl font-bold text-text-primary">{playlist.name}</h1>
+                            <PlaylistSubtitle
+                                videoCount={playlistVideos.length}
+                                playlist={playlist}
+                                deltaStats={deltaStats}
+                            />
+                        </div>
                     </div>
-                    <div>
-                        <h1 className="m-0 text-2xl font-bold text-text-primary">{playlist.name}</h1>
-                        <PlaylistSubtitle
-                            videoCount={playlistVideos.length}
-                            playlist={playlist}
-                            deltaStats={deltaStats}
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2">
+                        {selectedVideoIds.size > 0 && (
+                            <button
+                                onClick={handleClearSelection}
+                                className="bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors border-none cursor-pointer flex items-center gap-2"
+                            >
+                                <span>{selectedVideoIds.size} selected</span>
+                                <span className="text-white/60">×</span>
+                            </button>
+                        )}
+
+                        {isViewingRanking && (
+                            <>
+                                <PortalTooltip content={hideLosers ? 'Show all videos' : `Hide all except top ${pickerSettings.winnerCount}`}>
+                                    <button
+                                        onClick={() => setHideLosers(prev => !prev)}
+                                        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors border-none cursor-pointer flex items-center gap-1.5 ${hideLosers
+                                            ? 'bg-amber-500/20 text-amber-300'
+                                            : 'bg-white/10 hover:bg-white/20 text-white'
+                                            }`}
+                                    >
+                                        {hideLosers ? <EyeOff size={14} /> : <Eye size={14} />}
+                                        {hideLosers ? 'Show All' : 'Hide Losers'}
+                                    </button>
+                                </PortalTooltip>
+                                <PortalTooltip content={`Delete custom drafts ranked below top ${pickerSettings.winnerCount}. YouTube videos will be hidden, not deleted.`}>
+                                    <button
+                                        onClick={() => setDeleteConfirmOpen(true)}
+                                        className="px-3 py-1.5 rounded-md text-sm font-medium transition-colors border-none cursor-pointer flex items-center gap-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400"
+                                    >
+                                        <Trash2 size={14} />
+                                        Clean Up Losers
+                                    </button>
+                                </PortalTooltip>
+                            </>
+                        )}
+
+                        <SortButton
+                            sortOptions={[
+                                { label: 'Manual Order', value: 'default' },
+                                { label: 'Most Viewed', value: 'views' },
+                                ...(deltaStats.totals.delta24h !== null ? [{ label: 'Views (24h)', value: 'delta24h' }] : []),
+                                ...(deltaStats.totals.delta7d !== null ? [{ label: 'Views (7d)', value: 'delta7d' }] : []),
+                                ...(deltaStats.totals.delta30d !== null ? [{ label: 'Views (30d)', value: 'delta30d' }] : []),
+                                { label: 'Newest First', value: 'date' },
+                            ]}
+                            activeSort={playlistVideoSortBy}
+                            onSortChange={handleSortChange}
+                            customSection={sortCustomSection}
+                        />
+                        <PlaylistExportControls
+                            videos={videosToExport}
+                            playlistName={playlist.name}
                         />
                     </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-2">
-                    {selectedVideoIds.size > 0 && (
-                        <button
-                            onClick={handleClearSelection}
-                            className="bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors border-none cursor-pointer flex items-center gap-2"
-                        >
-                            <span>{selectedVideoIds.size} selected</span>
-                            <span className="text-white/60">×</span>
-                        </button>
-                    )}
+                {/* Reusable Video Grid */}
+                <VideoGrid
+                    videos={playlistVideos}
+                    onVideoMove={handlePlaylistReorder}
+                    disableChannelFilter={true}
+                    playlistId={playlist.id}
+                    isLoading={isVideosLoading}
+                    onSetAsCover={(videoId) => {
+                        const video = playlistVideos.find(v => v.id === videoId);
+                        if (video && user && currentChannel) {
+                            updatePlaylist({
+                                playlistId: playlist.id,
+                                updates: {
+                                    coverImage: video.customImage || video.thumbnail
+                                }
+                            });
+                        }
+                    }}
+                    selectedIds={selectedVideoIds}
+                    onToggleSelection={handleToggleSelection}
+                    videoDeltaStats={deltaStats.perVideo}
+                    getRankingOverlay={getRankingOverlay}
+                    anonymizeData={anonymizeData}
+                    isSelectionMode={picker.isActive || selectedVideoIds.size > 0}
+                />
 
-                    <SortButton
-                        sortOptions={[
-                            { label: 'Manual Order', value: 'default' },
-                            { label: 'Most Viewed', value: 'views' },
-                            ...(deltaStats.totals.delta24h !== null ? [{ label: 'Views (24h)', value: 'delta24h' }] : []),
-                            ...(deltaStats.totals.delta7d !== null ? [{ label: 'Views (7d)', value: 'delta7d' }] : []),
-                            ...(deltaStats.totals.delta30d !== null ? [{ label: 'Views (30d)', value: 'delta30d' }] : []),
-                            { label: 'Newest First', value: 'date' },
-                        ]}
-                        activeSort={playlistVideoSortBy}
-                        onSortChange={handleSortChange}
-                        customSection={sortCustomSection}
-                    />
-                    <PlaylistExportControls
-                        videos={videosToExport}
-                        playlistName={playlist.name}
-                    />
-                </div>
+                {/* Floating Zoom Controls */}
+                <ZoomControls />
+
+                {playlistVideos.length === 0 && (
+                    <div className="text-center text-text-secondary mt-12">
+                        <p>No videos in this playlist yet.</p>
+                        <button
+                            onClick={() => navigate('/')}
+                            className="mt-3 px-4 py-2 rounded-full border-none bg-bg-secondary text-text-primary cursor-pointer hover:bg-hover-bg transition-colors"
+                        >
+                            Go to Home to add videos
+                        </button>
+                    </div>
+                )}
             </div>
 
-            {/* Reusable Video Grid */}
-            <VideoGrid
-                videos={playlistVideos}
-                onVideoMove={handlePlaylistReorder}
-                disableChannelFilter={true}
-                playlistId={playlist.id}
-                isLoading={isVideosLoading}
-                onSetAsCover={(videoId) => {
-                    const video = playlistVideos.find(v => v.id === videoId);
-                    if (video && user && currentChannel) {
-                        updatePlaylist({
-                            playlistId: playlist.id,
-                            updates: {
-                                coverImage: video.customImage || video.thumbnail
-                            }
-                        });
+            {/* Clean Up Losers Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={deleteConfirmOpen}
+                onClose={() => setDeleteConfirmOpen(false)}
+                onConfirm={async () => {
+                    const ranking = rankings.find(r => r.id === playlistVideoSortBy);
+                    if (!ranking) return;
+                    const winnerIds = new Set(ranking.videoOrder.slice(0, pickerSettings.winnerCount));
+                    const loserIds = ranking.videoOrder.filter(vid => !winnerIds.has(vid));
+
+                    // Only delete pure custom videos (no YouTube link)
+                    const videosMap = new Map(videos.map(v => [v.id, v]));
+                    const toDelete = loserIds.filter(vid => {
+                        const v = videosMap.get(vid);
+                        return v?.isCustom && !v.publishedVideoId;
+                    });
+
+                    // Optimistic: hide & close immediately
+                    setHideLosers(true);
+                    setDeleteConfirmOpen(false);
+
+                    // Fire-and-forget deletions in background
+                    if (toDelete.length > 0) {
+                        Promise.all(toDelete.map(vid => removeVideo(vid)));
                     }
                 }}
-                selectedIds={selectedVideoIds}
-                onToggleSelection={handleToggleSelection}
-                videoDeltaStats={deltaStats.perVideo}
-                getRankingOverlay={getRankingOverlay}
-                anonymizeData={anonymizeData}
-                isSelectionMode={picker.isActive || selectedVideoIds.size > 0}
+                title="Clean Up Losers"
+                message={<>
+                    <p>Videos ranked below top {pickerSettings.winnerCount}:</p>
+                    <ul style={{ margin: '8px 0', paddingLeft: 20 }}>
+                        <li><strong>Custom drafts</strong> (without YouTube URL) will be <strong>permanently deleted</strong></li>
+                        <li><strong>YouTube videos</strong> and custom videos with a published URL will be <strong>hidden</strong></li>
+                    </ul>
+                    <p>Deletion cannot be undone.</p>
+                </>}
+                confirmLabel="Clean Up"
             />
-
-            {/* Floating Zoom Controls */}
-            <ZoomControls />
-
-            {playlistVideos.length === 0 && (
-                <div className="text-center text-text-secondary mt-12">
-                    <p>No videos in this playlist yet.</p>
-                    <button
-                        onClick={() => navigate('/')}
-                        className="mt-3 px-4 py-2 rounded-full border-none bg-bg-secondary text-text-primary cursor-pointer hover:bg-hover-bg transition-colors"
-                    >
-                        Go to Home to add videos
-                    </button>
-                </div>
-            )}
-        </div>
+        </>
     );
 };

@@ -1,58 +1,88 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { RankingService, type SavedRanking } from '../../../core/services/rankingService';
 
-export interface SavedRanking {
-    id: string;
-    name: string;
-    playlistId: string;
-    videoOrder: string[];
-    createdAt: number;
-}
+export type { SavedRanking } from '../../../core/services/rankingService';
 
-const STORAGE_KEY_PREFIX = 'rankings';
+export function usePlaylistRankings(userId: string, channelId: string, playlistId: string) {
+    const queryClient = useQueryClient();
+    const queryKey = useMemo(() => ['rankings', userId, channelId, playlistId], [userId, channelId, playlistId]);
+    const enabled = !!userId && !!channelId && !!playlistId;
 
-function getStorageKey(channelId: string, playlistId: string): string {
-    return `${STORAGE_KEY_PREFIX}-${channelId}-${playlistId}`;
-}
+    // Initial fetch
+    useQuery<SavedRanking[]>({
+        queryKey,
+        queryFn: () => Promise.resolve([]), // Populated by subscription
+        enabled,
+        staleTime: Infinity,
+    });
 
-function loadRankings(channelId: string, playlistId: string): SavedRanking[] {
-    try {
-        const raw = localStorage.getItem(getStorageKey(channelId, playlistId));
-        return raw ? JSON.parse(raw) : [];
-    } catch {
-        return [];
-    }
-}
+    // Realtime subscription
+    useEffect(() => {
+        if (!enabled) return;
+        const unsubscribe = RankingService.subscribeToRankings(userId, channelId, playlistId, (data) => {
+            queryClient.setQueryData(queryKey, data);
+        });
+        return () => unsubscribe();
+    }, [userId, channelId, playlistId, enabled, queryClient, queryKey]);
 
-function persistRankings(channelId: string, playlistId: string, rankings: SavedRanking[]): void {
-    localStorage.setItem(getStorageKey(channelId, playlistId), JSON.stringify(rankings));
-}
+    const rawRankings = queryClient.getQueryData<SavedRanking[]>(queryKey);
+    const rankings = useMemo(() => rawRankings || [], [rawRankings]);
 
-export function usePlaylistRankings(channelId: string, playlistId: string) {
-    const [rankings, setRankings] = useState<SavedRanking[]>(() => loadRankings(channelId, playlistId));
+    // Save mutation
+    const saveMutation = useMutation({
+        mutationFn: async ({ name, videoOrder }: { name: string; videoOrder: string[] }) => {
+            const ranking: SavedRanking = {
+                id: `ranking-${Date.now()}`,
+                name,
+                playlistId,
+                videoOrder,
+                createdAt: Date.now(),
+            };
+            await RankingService.saveRanking(userId, channelId, playlistId, ranking);
+            return ranking;
+        },
+        onMutate: async ({ name, videoOrder }) => {
+            await queryClient.cancelQueries({ queryKey });
+            const prev = queryClient.getQueryData<SavedRanking[]>(queryKey) || [];
+            const optimistic: SavedRanking = {
+                id: `ranking-${Date.now()}`,
+                name,
+                playlistId,
+                videoOrder,
+                createdAt: Date.now(),
+            };
+            queryClient.setQueryData(queryKey, [...prev, optimistic]);
+            return { prev };
+        },
+        onError: (_err, _vars, context) => {
+            if (context?.prev) queryClient.setQueryData(queryKey, context.prev);
+        },
+    });
+
+    // Delete mutation
+    const deleteMutation = useMutation({
+        mutationFn: async (rankingId: string) => {
+            await RankingService.deleteRanking(userId, channelId, playlistId, rankingId);
+        },
+        onMutate: async (rankingId: string) => {
+            await queryClient.cancelQueries({ queryKey });
+            const prev = queryClient.getQueryData<SavedRanking[]>(queryKey) || [];
+            queryClient.setQueryData(queryKey, prev.filter(r => r.id !== rankingId));
+            return { prev };
+        },
+        onError: (_err, _vars, context) => {
+            if (context?.prev) queryClient.setQueryData(queryKey, context.prev);
+        },
+    });
 
     const saveRanking = useCallback((name: string, videoOrder: string[]) => {
-        const newRanking: SavedRanking = {
-            id: `ranking-${Date.now()}`,
-            name,
-            playlistId,
-            videoOrder,
-            createdAt: Date.now(),
-        };
-        setRankings(prev => {
-            const next = [...prev, newRanking];
-            persistRankings(channelId, playlistId, next);
-            return next;
-        });
-        return newRanking;
-    }, [channelId, playlistId]);
+        saveMutation.mutate({ name, videoOrder });
+    }, [saveMutation]);
 
     const deleteRanking = useCallback((rankingId: string) => {
-        setRankings(prev => {
-            const next = prev.filter(r => r.id !== rankingId);
-            persistRankings(channelId, playlistId, next);
-            return next;
-        });
-    }, [channelId, playlistId]);
+        deleteMutation.mutate(rankingId);
+    }, [deleteMutation]);
 
     const getRanking = useCallback((rankingId: string) => {
         return rankings.find(r => r.id === rankingId) ?? null;

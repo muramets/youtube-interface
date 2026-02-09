@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useAuth } from './useAuth';
 import { useChannelStore } from '../stores/channelStore';
-import { SettingsService, type GeneralSettings, type SyncSettings, type CloneSettings, type RecommendationOrder, type PackagingSettings, type UploadDefaults, type TrafficSettings } from '../services/settingsService';
+import { SettingsService, type GeneralSettings, type SyncSettings, type CloneSettings, type RecommendationOrder, type PackagingSettings, type UploadDefaults, type TrafficSettings, type PickerSettings } from '../services/settingsService';
 
 const DEFAULT_GENERAL_SETTINGS: GeneralSettings = {
     cardsPerRow: 3,
@@ -35,6 +35,10 @@ const DEFAULT_UPLOAD_DEFAULTS: UploadDefaults = {
 
 const DEFAULT_TRAFFIC_SETTINGS: TrafficSettings = {
     ctrRules: []
+};
+
+const DEFAULT_PICKER_SETTINGS: PickerSettings = {
+    winnerCount: 3
 };
 
 export const useSettings = () => {
@@ -141,6 +145,17 @@ export const useSettings = () => {
     });
     const trafficSettings = trafficQuery.data || DEFAULT_TRAFFIC_SETTINGS;
 
+    const pickerQuery = useQuery({
+        queryKey: ['settings', 'picker', userId, channelId],
+        queryFn: async () => {
+            const data = await SettingsService.fetchPickerSettings(userId, channelId);
+            return data || DEFAULT_PICKER_SETTINGS;
+        },
+        enabled,
+        staleTime: Infinity
+    });
+    const pickerSettings = pickerQuery.data || DEFAULT_PICKER_SETTINGS;
+
     // --- Subscriptions ---
 
     useEffect(() => {
@@ -182,6 +197,10 @@ export const useSettings = () => {
             if (data) queryClient.setQueryData(['settings', 'traffic', userId, channelId], data);
         });
 
+        const unsubPicker = SettingsService.subscribeToPickerSettings(userId, channelId, (data) => {
+            if (data) queryClient.setQueryData(['settings', 'picker', userId, channelId], data);
+        });
+
         return () => {
             unsubGeneral();
             unsubSync();
@@ -192,6 +211,7 @@ export const useSettings = () => {
             unsubPackaging();
             unsubUploadDefaults();
             unsubTraffic();
+            unsubPicker();
         };
     }, [userId, channelId, enabled, queryClient]);
 
@@ -332,6 +352,21 @@ export const useSettings = () => {
         }
     });
 
+    const updatePickerSettingsMutation = useMutation({
+        mutationFn: async (settings: PickerSettings) => {
+            await SettingsService.updatePickerSettings(userId, channelId, settings);
+        },
+        onMutate: async (newSettings) => {
+            await queryClient.cancelQueries({ queryKey: ['settings', 'picker', userId, channelId] });
+            const previousSettings = queryClient.getQueryData(['settings', 'picker', userId, channelId]);
+            queryClient.setQueryData(['settings', 'picker', userId, channelId], newSettings);
+            return { previousSettings };
+        },
+        onError: (_err, _newSettings, context) => {
+            queryClient.setQueryData(['settings', 'picker', userId, channelId], context?.previousSettings);
+        }
+    });
+
     // Wrapper functions to match store signature
     // Note: The store had (userId, channelId, settings) signature.
     // The hook already knows userId and channelId, but for compatibility we might need to ignore them or check them.
@@ -359,6 +394,8 @@ export const useSettings = () => {
         updateUploadDefaults: (_uid: string, _cid: string, settings: UploadDefaults) => updateUploadDefaultsMutation.mutateAsync(settings),
         updateTrafficSettings: (_uid: string, _cid: string, settings: TrafficSettings) => updateTrafficSettingsMutation.mutateAsync(settings),
         trafficSettings,
-        isLoading: generalQuery.isLoading || syncQuery.isLoading || packagingQuery.isLoading || trafficQuery.isLoading
+        pickerSettings,
+        updatePickerSettings: (_uid: string, _cid: string, settings: PickerSettings) => updatePickerSettingsMutation.mutateAsync(settings),
+        isLoading: generalQuery.isLoading || syncQuery.isLoading || packagingQuery.isLoading || trafficQuery.isLoading || pickerQuery.isLoading
     };
 };
