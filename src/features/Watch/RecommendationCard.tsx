@@ -365,7 +365,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
             {showPlaylistModal && (
                 <AddToPlaylistModal
                     onClose={() => setShowPlaylistModal(false)}
-                    videoId={video.id}
+                    videoIds={[video.id]}
                 />
             )}
 

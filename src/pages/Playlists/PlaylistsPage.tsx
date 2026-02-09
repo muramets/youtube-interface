@@ -5,6 +5,7 @@ import { usePlaylists } from '../../core/hooks/usePlaylists';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { type Playlist } from '../../core/services/playlistService';
+import { VideoService } from '../../core/services/videoService';
 import { useNavigate } from 'react-router-dom';
 import { PlaylistEditModal } from '../../features/Playlists/modals/PlaylistEditModal';
 import { ConfirmationModal } from '../../components/ui/organisms/ConfirmationModal';
@@ -154,11 +155,53 @@ export const PlaylistsPage: React.FC = () => {
         setOpenMenuId(null);
     };
 
-    const confirmDelete = () => {
-        if (deleteConfirmation.playlistId && user && currentChannel) {
-            deletePlaylist(deleteConfirmation.playlistId);
+    const confirmDelete = async () => {
+        if (!deleteConfirmation.playlistId || !user || !currentChannel) {
+            setDeleteConfirmation({ isOpen: false, playlistId: null });
+            return;
         }
+
+        const playlistId = deleteConfirmation.playlistId;
+        const playlist = playlists.find(p => p.id === playlistId);
+
+        // 1. Optimistic UI: remove playlist from cache immediately
+        updateCache(playlists.filter(p => p.id !== playlistId));
         setDeleteConfirmation({ isOpen: false, playlistId: null });
+
+        // 2. Background cleanup (fire-and-forget — Firestore subscription will reconcile)
+        const uid = user.uid;
+        const chId = currentChannel.id;
+
+        (async () => {
+            try {
+                // Smart orphan cleanup
+                if (playlist && playlist.videoIds.length > 0) {
+                    const otherPlaylists = playlists.filter(p => p.id !== playlistId);
+
+                    await Promise.all(playlist.videoIds.map(async (videoId) => {
+                        const isInOtherPlaylist = otherPlaylists.some(p => p.videoIds.includes(videoId));
+                        if (isInOtherPlaylist) return;
+
+                        const video = videos.find(v => v.id === videoId);
+                        if (!video || !video.isCustom) return;
+
+                        if (!video.publishedVideoId) {
+                            await VideoService.deleteVideo(uid, chId, videoId);
+                        } else {
+                            await VideoService.updateVideo(uid, chId, videoId, {
+                                isPlaylistOnly: false,
+                                addedToHomeAt: Date.now(),
+                            });
+                        }
+                    }));
+                }
+
+                // Delete the playlist doc from Firestore
+                await deletePlaylist(playlistId);
+            } catch (error) {
+                console.error('[PlaylistsPage] Background cleanup failed:', error);
+            }
+        })();
     };
 
     const handleEdit = (e: React.MouseEvent, playlist: Playlist) => {
@@ -297,7 +340,7 @@ export const PlaylistsPage: React.FC = () => {
                     onClose={() => setDeleteConfirmation({ isOpen: false, playlistId: null })}
                     onConfirm={confirmDelete}
                     title="Delete Playlist"
-                    message="Are you sure you want to delete this playlist? This action cannot be undone."
+                    message="Are you sure you want to delete this playlist? Custom videos without a YouTube link that aren't in other playlists will be permanently deleted. Custom videos with a YouTube link will be moved to your Home page."
                     confirmLabel="Delete"
                 />
 

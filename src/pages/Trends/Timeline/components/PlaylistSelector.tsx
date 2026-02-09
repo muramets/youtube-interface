@@ -95,12 +95,14 @@ export const PlaylistSelector: React.FC<PlaylistSelectorProps> = ({
                 }
             }));
 
-            const playlistId = `playlist-${Date.now()}`;
+            const now = Date.now();
+            const playlistId = `playlist-${now}`;
             await PlaylistService.createPlaylist(user.uid, currentChannel.id, {
                 id: playlistId,
                 name: newPlaylistName.trim(),
                 videoIds: videoIdsToAdd,
-                createdAt: Date.now()
+                createdAt: now,
+                updatedAt: now,
             });
 
             showToast(`Created "${newPlaylistName}" with ${videos.length} videos`, 'success');

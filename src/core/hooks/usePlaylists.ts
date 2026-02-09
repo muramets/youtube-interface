@@ -42,12 +42,14 @@ export const usePlaylists = (userId: string, channelId: string) => {
     // Mutations
     const createPlaylistMutation = useMutation({
         mutationFn: async ({ name, videoIds = [], group }: { name: string, videoIds?: string[], group?: string }) => {
-            const id = `playlist-${Date.now()}`;
+            const now = Date.now();
+            const id = `playlist-${now}`;
             const newPlaylist: Playlist = {
                 id,
                 name,
                 videoIds,
-                createdAt: Date.now(),
+                createdAt: now,
+                updatedAt: now,
                 order: 0, // New playlists go to top
                 // Only include group if defined (Firestore doesn't accept undefined)
                 ...(group ? { group } : {}),

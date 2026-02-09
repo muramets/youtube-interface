@@ -6,11 +6,11 @@ import { useChannelStore } from '../../../core/stores/channelStore';
 import { X, Plus, Check } from 'lucide-react';
 
 interface AddToPlaylistModalProps {
-    videoId: string;
+    videoIds: string[];
     onClose: () => void;
 }
 
-export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoId, onClose }) => {
+export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoIds, onClose }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { playlists, createPlaylist, addVideosToPlaylist, removeVideosFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
@@ -20,23 +20,22 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoId,
     const handleCreate = (e: React.FormEvent) => {
         e.preventDefault();
         if (newPlaylistName.trim() && user && currentChannel) {
-            createPlaylist({ name: newPlaylistName.trim(), videoIds: [videoId] });
+            createPlaylist({ name: newPlaylistName.trim(), videoIds: videoIds });
             setNewPlaylistName('');
             setIsCreating(false);
         }
     };
-    // ...
-    // ...
+
     const togglePlaylist = (playlistId: string, isInPlaylist: boolean) => {
         if (!user || !currentChannel) return;
         if (!isInPlaylist) {
-            addVideosToPlaylist({ playlistId, videoIds: [videoId] });
+            addVideosToPlaylist({ playlistId, videoIds: videoIds });
         } else {
-            removeVideosFromPlaylist({ playlistId, videoIds: [videoId] });
+            removeVideosFromPlaylist({ playlistId, videoIds: videoIds });
         }
     };
 
-    // Calcluate initial sort order ONCE on mount to preventing jumping
+    // Calculate initial sort order ONCE on mount to preventing jumping
     const [initialSortOrder] = React.useState(() => {
         return [...playlists].sort((a, b) => {
             const timeA = a.updatedAt || a.createdAt;
@@ -84,7 +83,11 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoId,
 
                 <div className="py-2 overflow-y-auto custom-scrollbar">
                     {displayPlaylists.map(playlist => {
-                        const isInPlaylist = playlist.videoIds.includes(videoId);
+                        // Check if ALL selected videos are in the playlist
+                        const isInPlaylist = videoIds.every(id => playlist.videoIds.includes(id));
+                        // Check if SOME videos are in the playlist (for partial state UI if needed, currently just using isInPlaylist)
+                        // const isPartiallyInPlaylist = videoIds.some(id => playlist.videoIds.includes(id));
+
                         return (
                             <div
                                 key={playlist.id}

@@ -615,7 +615,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
         showPlaylistModal && (
           <PlaylistSelectionModal
             onClose={() => setShowPlaylistModal(false)}
-            videoId={video.id}
+            videoIds={[video.id]}
           />
         )
       }

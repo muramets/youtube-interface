@@ -52,8 +52,12 @@ export const FloatingBar: React.FC<FloatingBarProps> = ({
     return (
         <div
             ref={barRef}
-            className={`flex items-center gap-2 bg-bg-secondary/90 backdrop-blur-md border border-border shadow-lg rounded-full px-4 py-2 z-[1000] ${className}`}
-            style={style}
+            className={`flex items-center gap-2 backdrop-blur-xl backdrop-saturate-150 shadow-[0_8px_32px_rgba(0,0,0,0.4)] rounded-full px-4 py-2 z-[1000] ${className}`}
+            style={{
+                ...style,
+                background: 'var(--floating-bar-bg)',
+                border: '1px solid var(--floating-bar-border)',
+            }}
             onMouseDown={(e) => e.stopPropagation()}
             onMouseMove={(e) => e.stopPropagation()}
             onMouseUp={(e) => e.stopPropagation()}
@@ -66,8 +70,8 @@ export const FloatingBar: React.FC<FloatingBarProps> = ({
                 }
             }}
         >
-            <div className="flex items-center gap-3 pr-3 border-r border-white/10">
-                <span className="text-sm font-medium text-white whitespace-nowrap max-w-[150px] truncate">
+            <div className="flex items-center gap-3 pr-3 border-r border-text-secondary/20">
+                <span className="text-sm font-medium text-text-primary whitespace-nowrap max-w-[150px] truncate">
                     {title}
                 </span>
                 <button

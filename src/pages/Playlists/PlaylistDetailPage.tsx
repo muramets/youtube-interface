@@ -20,6 +20,8 @@ import type { VideoCardAnonymizeData } from '../../features/Video/VideoCard';
 import { useSettings } from '../../core/hooks/useSettings';
 import { ConfirmationModal } from '../../components/ui/organisms/ConfirmationModal';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
+import { useVideoSelection } from '../../features/Video/hooks/useVideoSelection';
+import { VideoSelectionFloatingBar } from '../../features/Video/components/VideoSelectionFloatingBar';
 
 // Format number with K/M suffix
 const formatDelta = (value: number | null): string | null => {
@@ -62,7 +64,7 @@ export const PlaylistDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { playlists, reorderPlaylistVideos, updatePlaylist, isLoading: isPlaylistsLoading } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+    const { playlists, reorderPlaylistVideos, updatePlaylist, removeVideosFromPlaylist, isLoading: isPlaylistsLoading } = usePlaylists(user?.uid || '', currentChannel?.id || '');
     const { videos, isLoading: isVideosLoading, removeVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { playlistVideoSortBy, setPlaylistVideoSortBy } = useFilterStore();
     const navigate = useNavigate();
@@ -283,7 +285,13 @@ export const PlaylistDetailPage: React.FC = () => {
         }
     }, [playlist, videos, user, currentChannel, updatePlaylist]);
 
-    const [selectedVideoIds, setSelectedVideoIds] = React.useState<Set<string>>(new Set());
+    const {
+        selectedIds,
+        toggleSelection,
+        clearSelection,
+        count: selectedCount,
+        isSelectionMode
+    } = useVideoSelection();
 
     const handleToggleSelection = (id: string) => {
         // In Pick the Winner mode, intercept clicks
@@ -291,39 +299,16 @@ export const PlaylistDetailPage: React.FC = () => {
             picker.handleVideoClick(id);
             return;
         }
-        setSelectedVideoIds(prev => {
-            const next = new Set(prev);
-            if (next.has(id)) {
-                next.delete(id);
-            } else {
-                next.add(id);
-            }
-            return next;
-        });
+        toggleSelection(id);
     };
-
-    const handleClearSelection = React.useCallback(() => {
-        setSelectedVideoIds(new Set());
-    }, []);
-
-    React.useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && selectedVideoIds.size > 0) {
-                handleClearSelection();
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedVideoIds.size, handleClearSelection]);
 
     // Filter playlistVideos based on selection for export
     const selectedVideos = React.useMemo(() => {
-        if (selectedVideoIds.size === 0) return [];
-        return playlistVideos.filter(v => selectedVideoIds.has(v.id));
-    }, [playlistVideos, selectedVideoIds]);
+        if (selectedCount === 0) return [];
+        return playlistVideos.filter(v => selectedIds.has(v.id));
+    }, [playlistVideos, selectedIds, selectedCount]);
 
-    const videosToExport = selectedVideoIds.size > 0 ? selectedVideos : playlistVideos;
+    const videosToExport = selectedCount > 0 ? selectedVideos : playlistVideos;
 
     // Compute effective cover image (same logic as PlaylistCard)
     const effectiveCoverImage = useMemo(() => {
@@ -464,16 +449,6 @@ export const PlaylistDetailPage: React.FC = () => {
 
                     {/* Actions */}
                     <div className="flex items-center gap-2">
-                        {selectedVideoIds.size > 0 && (
-                            <button
-                                onClick={handleClearSelection}
-                                className="bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors border-none cursor-pointer flex items-center gap-2"
-                            >
-                                <span>{selectedVideoIds.size} selected</span>
-                                <span className="text-white/60">×</span>
-                            </button>
-                        )}
-
                         {isViewingRanking && (
                             <>
                                 <PortalTooltip content={hideLosers ? 'Show all videos' : `Hide all except top ${pickerSettings.winnerCount}`}>
@@ -538,16 +513,28 @@ export const PlaylistDetailPage: React.FC = () => {
                             });
                         }
                     }}
-                    selectedIds={selectedVideoIds}
+                    selectedIds={selectedIds}
                     onToggleSelection={handleToggleSelection}
                     videoDeltaStats={deltaStats.perVideo}
                     getRankingOverlay={getRankingOverlay}
                     anonymizeData={anonymizeData}
-                    isSelectionMode={picker.isActive || selectedVideoIds.size > 0}
+                    isSelectionMode={picker.isActive || isSelectionMode}
                 />
 
                 {/* Floating Zoom Controls */}
                 <ZoomControls />
+
+                {/* Floating Action Bar */}
+                <VideoSelectionFloatingBar
+                    selectedIds={selectedIds}
+                    onClearSelection={clearSelection}
+                    onDelete={async (ids) => {
+                        if (playlist) {
+                            await removeVideosFromPlaylist({ playlistId: playlist.id, videoIds: ids });
+                            clearSelection();
+                        }
+                    }}
+                />
 
                 {playlistVideos.length === 0 && (
                     <div className="text-center text-text-secondary mt-12">
