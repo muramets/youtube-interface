@@ -27,6 +27,8 @@ export interface VideoCardAnonymizeData {
   channelTitle: string;
   channelAvatar: string;
   viewCountLabel: string;
+  titleMap: Record<string, string>;  // videoId -> "Video A", "Video B", etc.
+  publishedAtLabel: string;          // common date label for all cards
 }
 
 interface VideoCardProps {
@@ -528,12 +530,11 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
 
           <div className="flex flex-col flex-1 min-w-0">
             <h3 className="text-base font-bold text-text-primary line-clamp-2 leading-tight mb-1">
-              {/* MODIFIED: Prioritize clone local title */}
-              {/* Use first A/B test title if available */}
-              {/* For clones, ALWAYS use the local title (video.title) which contains the override, ignoring mergedVideoData */}
-              {(displayVideo.abTestTitles && displayVideo.abTestTitles.length > 0)
-                ? displayVideo.abTestTitles[0]
-                : displayVideo.title
+              {anonymizeData
+                ? (anonymizeData.titleMap[video.id] ?? 'Video')
+                : (displayVideo.abTestTitles && displayVideo.abTestTitles.length > 0)
+                  ? displayVideo.abTestTitles[0]
+                  : displayVideo.title
               }
             </h3>
             <div className="text-sm text-text-secondary flex flex-col">
@@ -558,7 +559,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
               </div>
               <div>
                 {anonymizeData ? (
-                  <>{anonymizeData.viewCountLabel} • {new Date(displayVideo.publishedAt).toLocaleDateString()}</>
+                  <>{anonymizeData.viewCountLabel} • {anonymizeData.publishedAtLabel}</>
                 ) : (
                   <>
                     {/*

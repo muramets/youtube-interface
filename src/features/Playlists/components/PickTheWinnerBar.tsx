@@ -5,6 +5,7 @@ interface PickTheWinnerBarProps {
     ranked: number;
     total: number;
     isComplete: boolean;
+    canSave: boolean;
     onSave: (name: string) => void;
     onDiscard: () => void;
 }
@@ -13,6 +14,7 @@ export const PickTheWinnerBar: React.FC<PickTheWinnerBarProps> = ({
     ranked,
     total,
     isComplete,
+    canSave,
     onSave,
     onDiscard,
 }) => {
@@ -47,10 +49,10 @@ export const PickTheWinnerBar: React.FC<PickTheWinnerBarProps> = ({
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => setShowModal(true)}
-                        disabled={!isComplete}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border-none cursor-pointer ${isComplete
-                                ? 'bg-amber-500 text-black hover:bg-amber-400'
-                                : 'bg-white/5 text-text-tertiary cursor-not-allowed'
+                        disabled={!canSave}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border-none cursor-pointer ${canSave
+                            ? 'bg-amber-500 text-black hover:bg-amber-400'
+                            : 'bg-white/5 text-text-tertiary cursor-not-allowed'
                             }`}
                     >
                         <Save size={14} />

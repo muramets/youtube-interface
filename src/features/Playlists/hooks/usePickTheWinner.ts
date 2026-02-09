@@ -51,6 +51,7 @@ export function usePickTheWinner(totalVideoCount: number) {
 
     return useMemo(() => {
         const isComplete = state.rankedVideoIds.length === totalVideoCount && totalVideoCount > 0;
+        const canSave = state.rankedVideoIds.length >= 3;
         const progress = { ranked: state.rankedVideoIds.length, total: totalVideoCount };
 
         return {
@@ -61,6 +62,7 @@ export function usePickTheWinner(totalVideoCount: number) {
             handleVideoClick,
             getRank,
             isComplete,
+            canSave,
             progress,
         };
     }, [state, activate, deactivate, handleVideoClick, getRank, totalVideoCount]);

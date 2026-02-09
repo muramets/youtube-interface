@@ -94,12 +94,14 @@ export const PlaylistDetailPage: React.FC = () => {
     const isViewingRanking = playlistVideoSortBy.startsWith('ranking-');
 
     // Anonymization data for Pick the Winner
-    const anonymizeData: VideoCardAnonymizeData | undefined = useMemo(() => {
+    // NOTE: titleMap is generated lazily below (after playlistVideos is defined)
+    const anonymizeBase = useMemo(() => {
         if (!picker.isActive || !currentChannel) return undefined;
         return {
             channelTitle: currentChannel.name || 'My Channel',
             channelAvatar: currentChannel.avatar || '',
             viewCountLabel: '✦✦✦ views',
+            publishedAtLabel: new Date().toLocaleDateString(),
         };
     }, [picker.isActive, currentChannel]);
 
@@ -280,6 +282,23 @@ export const PlaylistDetailPage: React.FC = () => {
 
     // Alias for compatibility with rest of component
     const playlistVideos = filteredPlaylistVideos;
+
+    // Build full anonymization data with per-video title labels
+    const anonymizeData: VideoCardAnonymizeData | undefined = useMemo(() => {
+        if (!anonymizeBase) return undefined;
+        const titleMap: Record<string, string> = {};
+        playlistVideos.forEach((v, i) => {
+            // A, B, ..., Z, AA, AB, ...
+            let label = '';
+            let n = i;
+            do {
+                label = String.fromCharCode(65 + (n % 26)) + label;
+                n = Math.floor(n / 26) - 1;
+            } while (n >= 0);
+            titleMap[v.id] = `Video ${label}`;
+        });
+        return { ...anonymizeBase, titleMap };
+    }, [anonymizeBase, playlistVideos]);
 
     // Freshness visualization: compute per-video opacity/saturation based on publish date
     const freshnessMap = useMemo(() => {
@@ -464,6 +483,7 @@ export const PlaylistDetailPage: React.FC = () => {
                         ranked={picker.progress.ranked}
                         total={picker.progress.total}
                         isComplete={picker.isComplete}
+                        canSave={picker.canSave}
                         onSave={handleSaveRanking}
                         onDiscard={picker.deactivate}
                     />
