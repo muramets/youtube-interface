@@ -5,12 +5,13 @@ import { useVideos } from '../../core/hooks/useVideos';
 import { usePlaylists } from '../../core/hooks/usePlaylists';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
-import { ArrowLeft, PlaySquare, Trophy, Trash2, Check, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, PlaySquare, Trophy, Trash2, Check, Eye, EyeOff, X } from 'lucide-react';
 import { VideoGrid } from '../../features/Video/VideoGrid';
 import { ZoomControls } from '../../features/Video/ZoomControls';
 import { PlaylistExportControls } from '../../features/Playlists/components/PlaylistExportControls';
 import { useFilterStore } from '../../core/stores/filterStore';
 import { SortButton } from '../../features/Filter/SortButton';
+import { FilterButton } from '../../features/Filter/FilterButton';
 import { usePlaylistDeltaStats, type PlaylistDeltaStats } from '../../features/Playlists/hooks/usePlaylistDeltaStats';
 import type { Playlist } from '../../core/services/playlistService';
 import { usePickTheWinner } from '../../features/Playlists/hooks/usePickTheWinner';
@@ -66,7 +67,7 @@ export const PlaylistDetailPage: React.FC = () => {
     const { currentChannel } = useChannelStore();
     const { playlists, reorderPlaylistVideos, updatePlaylist, removeVideosFromPlaylist, isLoading: isPlaylistsLoading } = usePlaylists(user?.uid || '', currentChannel?.id || '');
     const { videos, isLoading: isVideosLoading, removeVideo, updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
-    const { playlistVideoSortBy, setPlaylistVideoSortBy } = useFilterStore();
+    const { playlistVideoSortBy, setPlaylistVideoSortBy, activeFilters, removeFilter, selectedChannel, setSelectedChannel } = useFilterStore();
     const navigate = useNavigate();
     const { pickerSettings } = useSettings();
 
@@ -195,6 +196,12 @@ export const PlaylistDetailPage: React.FC = () => {
             .map(videoId => videos.find(v => v.id === videoId))
             .filter((v): v is NonNullable<typeof v> => v !== undefined);
     }, [localVideoOrder, videos]);
+
+    // Unique channels from playlist videos (for category pills)
+    const uniqueChannels = useMemo(() => {
+        const channels = new Set(basePlaylistVideos.map(v => v.channelTitle));
+        return Array.from(channels).sort();
+    }, [basePlaylistVideos]);
 
     // Delta statistics from trend data
     // We pass the BASE videos to ensure stats are fetched for all videos, regardless of sort
@@ -488,6 +495,7 @@ export const PlaylistDetailPage: React.FC = () => {
                             onSortChange={handleSortChange}
                             customSection={sortCustomSection}
                         />
+                        <FilterButton />
                         <PlaylistExportControls
                             videos={videosToExport}
                             playlistName={playlist.name}
@@ -495,11 +503,62 @@ export const PlaylistDetailPage: React.FC = () => {
                     </div>
                 </div>
 
+                {/* Channel Category Pills + Filter Chips */}
+                {(uniqueChannels.length > 1 || activeFilters.length > 0) && (
+                    <div className="flex flex-col px-6 pb-2 gap-2">
+                        {uniqueChannels.length > 1 && (
+                            <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+                                <button
+                                    className={`px-3 py-1.5 rounded-lg border-none cursor-pointer whitespace-nowrap font-medium text-sm transition-colors flex-shrink-0 ${!selectedChannel || selectedChannel === 'All'
+                                        ? 'bg-text-primary text-bg-primary'
+                                        : 'bg-bg-secondary text-text-primary hover:bg-hover-bg'
+                                        }`}
+                                    onClick={() => setSelectedChannel('All')}
+                                >
+                                    All
+                                </button>
+                                {uniqueChannels.map(channel => (
+                                    <button
+                                        key={channel}
+                                        className={`px-3 py-1.5 rounded-lg border-none cursor-pointer whitespace-nowrap font-medium text-sm transition-colors flex-shrink-0 ${selectedChannel === channel
+                                            ? 'bg-text-primary text-bg-primary'
+                                            : 'bg-bg-secondary text-text-primary hover:bg-hover-bg'
+                                            }`}
+                                        onClick={() => setSelectedChannel(channel)}
+                                    >
+                                        {channel === currentChannel?.name ? 'My Channel' : channel}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Active Filter Chips */}
+                        {activeFilters.length > 0 && (
+                            <div className="flex gap-2 px-6 pb-3 overflow-x-auto scrollbar-hide animate-fade-in">
+                                {activeFilters.map(filter => (
+                                    <div
+                                        key={filter.id}
+                                        className="flex items-center gap-2 bg-[#F2F2F2]/10 hover:bg-[#F2F2F2]/20 border-none rounded-lg px-3 py-1.5 text-sm font-medium text-text-primary whitespace-nowrap animate-scale-in group transition-colors"
+                                    >
+                                        <span>{filter.label}</span>
+                                        <button
+                                            onClick={() => removeFilter(filter.id)}
+                                            className="p-0.5 rounded-full hover:text-red-500 transition-colors"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Reusable Video Grid */}
                 <VideoGrid
                     videos={playlistVideos}
                     onVideoMove={handlePlaylistReorder}
-                    disableChannelFilter={true}
+                    disableChannelFilter={false}
                     playlistId={playlist.id}
                     isLoading={isVideosLoading}
                     onSetAsCover={(videoId) => {
