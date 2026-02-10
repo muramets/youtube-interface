@@ -48,7 +48,8 @@ export const fetchImageBlob = async (imageUrl: string): Promise<Blob> => {
 
     // 2. Fallback to original URL if no high-res response
     if (!response) {
-        response = await fetch(imageUrl, { cache: 'force-cache', credentials: 'omit' });
+        const isExternalStorage = imageUrl.includes('firebasestorage.googleapis.com');
+        response = await fetch(imageUrl, { cache: isExternalStorage ? 'no-store' : 'force-cache', credentials: 'omit' });
     }
 
     if (!response.ok) throw new Error(`Failed to fetch ${imageUrl}`);
