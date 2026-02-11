@@ -16,6 +16,7 @@ interface VideoCardMenuProps {
     onDetails?: (e: React.MouseEvent) => void;
     onSetAsCover?: (e: React.MouseEvent) => void;
     onAddToHome?: (e: React.MouseEvent) => void;
+    isOrphanInPlaylist?: boolean;
 }
 
 export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
@@ -31,7 +32,8 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
     onSwitchView,
     onDetails,
     onSetAsCover,
-    onAddToHome
+    onAddToHome,
+    isOrphanInPlaylist
 }) => {
     const showSaveToPlaylist = true; // Always allow saving/toggling playlists
 
@@ -114,17 +116,19 @@ export const VideoCardMenu: React.FC<VideoCardMenuProps> = ({
                             className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"
                             onClick={onRemove}
                         >
-                            <MinusCircle size={20} />
-                            <span>Remove from playlist</span>
+                            {isOrphanInPlaylist ? <Trash2 size={20} /> : <MinusCircle size={20} />}
+                            <span>{isOrphanInPlaylist ? 'Remove from playlist and delete' : 'Remove from playlist'}</span>
                         </div>
                     )}
-                    <div
-                        className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"
-                        onClick={playlistId ? onDelete : onRemove}
-                    >
-                        <Trash2 size={20} />
-                        <span>Delete</span>
-                    </div>
+                    {!isOrphanInPlaylist && (
+                        <div
+                            className="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-hover-bg text-sm"
+                            onClick={playlistId ? onDelete : onRemove}
+                        >
+                            <Trash2 size={20} />
+                            <span>Delete</span>
+                        </div>
+                    )}
                 </>
             )}
 

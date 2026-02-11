@@ -56,7 +56,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
 
   const { syncVideo } = useVideoSync(user?.uid || '', currentChannel?.id || '');
 
-  const { removeVideosFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
+  const { removeVideosFromPlaylist, playlists } = usePlaylists(user?.uid || '', currentChannel?.id || '');
   const { updateVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
   const { generalSettings } = useSettings();
   const apiKey = generalSettings.apiKey;
@@ -187,11 +187,18 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     });
   };
 
+  // A video is "orphan" if it only lives in this playlist and not on Home Page
+  const isOrphanInPlaylist = !!(playlistId && video.isPlaylistOnly &&
+    !playlists.some(p => p.id !== playlistId && p.videoIds?.includes(video.id)));
+
   const handleRemoveFromPlaylist = async (e: React.MouseEvent) => {
     e.stopPropagation();
     handleMenuClose();
     if (playlistId) {
       await removeVideosFromPlaylist({ playlistId, videoIds: [video.id] });
+      if (isOrphanInPlaylist) {
+        onRemove(video.id);
+      }
     }
   };
 
@@ -629,6 +636,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
                       handleMenuClose();
                     } : undefined}
                     onAddToHome={playlistId ? handleAddToHome : undefined}
+                    isOrphanInPlaylist={isOrphanInPlaylist}
                   />
                 </>
               )

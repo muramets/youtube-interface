@@ -661,7 +661,17 @@ export const PlaylistDetailPage: React.FC = () => {
                     onClearSelection={clearSelection}
                     onDelete={async (ids) => {
                         if (playlist) {
+                            // Detect orphan videos BEFORE removing from playlist
+                            const orphanIds = ids.filter(vid => {
+                                const v = videos.find(v => v.id === vid);
+                                return v?.isPlaylistOnly &&
+                                    !playlists.some(p => p.id !== playlist.id && p.videoIds?.includes(vid));
+                            });
                             await removeVideosFromPlaylist({ playlistId: playlist.id, videoIds: ids });
+                            // Auto-delete orphan videos
+                            if (orphanIds.length > 0) {
+                                await Promise.all(orphanIds.map(vid => removeVideo(vid)));
+                            }
                             clearSelection();
                         }
                     }}
