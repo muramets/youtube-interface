@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshCw, LayoutGrid, Table2 } from 'lucide-react';
+import { RefreshCw, LayoutGrid, Table2, ChevronRight } from 'lucide-react';
 import { useTrendsSync } from '../hooks/useTrendsSync';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/molecules/Tooltip';
 import type { TimelineConfig } from '../../../core/types/trends';
@@ -23,6 +23,8 @@ interface TrendsHeaderProps {
     currentViewMode: 'timeline' | 'table';
     onViewModeChange: (mode: 'timeline' | 'table') => void;
     filteredVideos: TrendVideo[];
+    isInsideChannel?: boolean;
+    onBackToChannels?: () => void;
 }
 
 export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
@@ -37,7 +39,9 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
     availableMaxDate,
     currentViewMode,
     onViewModeChange,
-    filteredVideos
+    filteredVideos,
+    isInsideChannel = false,
+    onBackToChannels
 }) => {
     const { handleSync, isSyncing, canSync, syncTooltip } = useTrendsSync();
 
@@ -46,7 +50,21 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
             {/* Left side: Title + Chips with flex-1 to allow shrinking */}
             <div className="flex items-center gap-4 flex-1 min-w-0 overflow-hidden">
                 <h1 className="text-xl font-semibold text-text-primary flex-shrink-0 whitespace-nowrap">
-                    <span className="text-text-secondary">Trends Analysis:</span> {title}
+                    <span className="text-text-secondary">Trends Analysis:</span>{' '}
+                    {isInsideChannel && onBackToChannels ? (
+                        <>
+                            <button
+                                onClick={onBackToChannels}
+                                className="text-text-secondary hover:text-text-primary transition-colors cursor-pointer bg-transparent border-none p-0 font-semibold text-xl"
+                            >
+                                All Channels
+                            </button>
+                            <ChevronRight size={16} className="inline mx-1 text-text-tertiary align-middle" />
+                            <span>{title}</span>
+                        </>
+                    ) : (
+                        title
+                    )}
                 </h1>
                 <TrendsFilterChips />
             </div>

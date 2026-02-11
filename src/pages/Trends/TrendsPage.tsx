@@ -147,6 +147,11 @@ export const TrendsPage: React.FC = () => {
         setTrendsFilters(rootFilters?.length > 0 ? rootFilters : []);
     }, [setSelectedChannelId, setTrendsFilters]);
 
+    // Handle back to all channels from breadcrumb
+    const handleBackToChannels = useCallback(() => {
+        setSelectedChannelId(null);
+    }, [setSelectedChannelId]);
+
     const handleToggleAll = (videosToSelect: TrendVideo[]) => {
         if (videosToSelect.length === 0) return;
 
@@ -186,6 +191,8 @@ export const TrendsPage: React.FC = () => {
                 currentViewMode={viewMode}
                 onViewModeChange={setViewMode}
                 filteredVideos={filteredVideos}
+                isInsideChannel={!!selectedChannelId}
+                onBackToChannels={handleBackToChannels}
             />
 
             {viewMode === 'timeline' ? (
