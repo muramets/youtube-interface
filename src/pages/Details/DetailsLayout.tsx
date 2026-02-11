@@ -25,6 +25,7 @@ import { useModalState } from './hooks/useModalState';
 import { DetailsModals } from './components/DetailsModals';
 import { useTrafficNicheStore } from '../../core/stores/useTrafficNicheStore';
 import { TrafficSnapshotService } from '../../core/services/traffic';
+import { VersionService } from './services/VersionService';
 
 // Static wrapper component to prevent re-mounting issues
 const GalleryDndWrapper: React.FC<{
@@ -362,12 +363,28 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
                 currentVersions.switchToVersion(lastVersion);
             }
 
+            // Build rollback updates from the previous version's snapshot
+            // so video metadata (title, description, tags, thumbnail, etc.) reverts
+            let rollbackUpdates: Record<string, unknown> = {};
+            if (lastVersion) {
+                const targetVersion = currentVersions.packagingHistory.find(
+                    v => v.versionNumber === lastVersion
+                );
+                if (targetVersion?.configurationSnapshot) {
+                    rollbackUpdates = VersionService.prepareRestoreVersionData(
+                        lastVersion,
+                        targetVersion.configurationSnapshot
+                    );
+                }
+            }
+
             // Save to Firestore
             await currentUpdateVideo({
                 videoId: currentVideoId,
                 updates: {
                     isDraft: false,
-                    activeVersion: lastVersion || undefined
+                    activeVersion: lastVersion || undefined,
+                    ...rollbackUpdates
                 }
             });
 
