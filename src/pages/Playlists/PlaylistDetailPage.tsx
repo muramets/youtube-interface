@@ -15,7 +15,7 @@ import { FilterButton } from '../../features/Filter/FilterButton';
 import { usePlaylistDeltaStats, type PlaylistDeltaStats } from '../../features/Playlists/hooks/usePlaylistDeltaStats';
 import type { Playlist } from '../../core/services/playlistService';
 import { usePickTheWinner } from '../../features/Playlists/hooks/usePickTheWinner';
-import { usePlaylistRankings } from '../../features/Playlists/hooks/usePlaylistRankings';
+import { useRankings } from '../../features/Playlists/hooks/usePlaylistRankings';
 import { PickTheWinnerBar } from '../../features/Playlists/components/PickTheWinnerBar';
 import type { VideoCardAnonymizeData } from '../../features/Video/VideoCard';
 import { useSettings } from '../../core/hooks/useSettings';
@@ -82,10 +82,10 @@ export const PlaylistDetailPage: React.FC = () => {
 
     // Pick the Winner
     const picker = usePickTheWinner(playlist?.videoIds?.length ?? 0);
-    const { rankings, saveRanking, deleteRanking } = usePlaylistRankings(
+    const { rankings, saveRanking, deleteRanking } = useRankings(
         user?.uid || '',
         currentChannel?.id || '',
-        id || ''
+        `playlists/${id || ''}`
     );
 
     // Hide/Delete Losers state

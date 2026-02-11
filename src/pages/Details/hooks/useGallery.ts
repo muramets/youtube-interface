@@ -13,6 +13,7 @@ import { DEFAULT_SOURCE_ID } from '../../../core/types/gallery';
 import {
     addGalleryItem,
     removeGalleryItem,
+    removeGalleryItems,
     updateGalleryOrder,
     setGalleryItemRating,
     downloadGalleryItem,
@@ -33,9 +34,10 @@ interface UseGalleryOptions {
 
 // Type for files currently being uploaded
 export interface UploadingFile {
-    id: string;        // Unique ID for React key
-    filename: string;  // Display name
+    id: string;           // Unique ID for React key
+    filename: string;     // Display name
     status: 'pending' | 'uploading' | 'done';
+    galleryItemId?: string; // Set when item is created — placeholder stays until image loads
 }
 
 interface UseGalleryReturn {
@@ -61,6 +63,7 @@ interface UseGalleryReturn {
     uploadImage: (file: File) => Promise<void>;
     uploadImages: (files: File[]) => Promise<void>;
     removeImage: (item: GalleryItem) => Promise<void>;
+    removeImages: (items: GalleryItem[]) => Promise<void>;
     reorderItems: (reorderedItems: GalleryItem[]) => Promise<void>;
     rateImage: (itemId: string, rating: 1 | 0 | -1) => Promise<void>;
     downloadOriginal: (item: GalleryItem) => Promise<void>;
@@ -74,6 +77,7 @@ interface UseGalleryReturn {
     // Setters for external updates
     setItems: (items: GalleryItem[]) => void;
     setSources: (sources: GallerySource[]) => void;
+    onItemImageLoaded: (itemId: string) => void;
 }
 
 export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGalleryOptions): UseGalleryReturn => {
@@ -167,10 +171,10 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
             { id: uploadId, filename: file.name, status: 'uploading' }
         ]);
 
-        // Safety cleanup timeout (15s)
+        // Emergency-only fallback (60s) — should never fire in normal operation
         setTimeout(() => {
             setUploadingFiles(prev => prev.filter(f => f.id !== uploadId));
-        }, 15000);
+        }, 60000);
 
         try {
             const item = await addGalleryItem(
@@ -182,14 +186,8 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
                 activeSourceId || DEFAULT_SOURCE_ID
             );
 
-            // Manual cleanup on success
+            // Event-driven cleanup: real item is ready → remove placeholder immediately
             setUploadingFiles(prev => prev.filter(f => f.id !== uploadId));
-
-            // Note: addGalleryItem (singular) already saves to DB,
-            // so we don't strictly need optimistic update here, 
-            // but we could do it for consistency if we returned the item.
-            // For now, reliance on Firestore listener for single item is acceptable,
-            // OR we can optimistic update:
             setItems(prev => [...prev, item]);
 
         } catch (error) {
@@ -227,10 +225,10 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
                     prev.map(f => f.id === uploadId ? { ...f, status: 'uploading' as const } : f)
                 );
 
-                // Safety cleanup timeout (15s)
+                // Emergency-only fallback (60s) — should never fire in normal operation
                 setTimeout(() => {
                     setUploadingFiles(prev => prev.filter(f => f.id !== uploadId));
-                }, 15000);
+                }, 60000);
 
                 try {
                     // 1. Prepare item (Upload + Create Object) - NO DB WRITE YET
@@ -243,13 +241,9 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
                         activeSourceId || DEFAULT_SOURCE_ID
                     );
 
-                    // 2. Optimistic Update: Add to local state immediately
-                    // This ensures the "Real Card" appears as soon as this individual file is ready
+                    // 2. Event-driven cleanup: real item is ready → swap placeholder for real card
                     setItems(prev => [...prev, item]);
                     successfulItems.push(item);
-
-                    // Cleanup uploading state for this file (it's now in items)
-                    // The useEffect monitoring 'items' will also do this, but explicit is safer
                     setUploadingFiles(prev => prev.filter(f => f.id !== uploadId));
 
                 } catch (error) {
@@ -305,6 +299,27 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
         } catch (error) {
             // Rollback on error
             setItems(prev => [...prev, item]);
+            throw error;
+        }
+    }, [user, currentChannel, videoId]);
+
+    // Batch remove images
+    const removeImages = useCallback(async (itemsToRemove: GalleryItem[]) => {
+        if (!user?.uid || !currentChannel?.id) {
+            throw new Error('User or channel not available');
+        }
+        if (itemsToRemove.length === 0) return;
+
+        // Optimistic: remove all at once
+        const idsToRemove = new Set(itemsToRemove.map(i => i.id));
+        setItems(prev => prev.filter(i => !idsToRemove.has(i.id)));
+
+        // Single Firestore write — prevents sync listener from restoring items
+        try {
+            await removeGalleryItems(user.uid, currentChannel.id, videoId, itemsToRemove);
+        } catch (error) {
+            // Rollback on error
+            setItems(prev => [...prev, ...itemsToRemove]);
             throw error;
         }
     }, [user, currentChannel, videoId]);
@@ -476,6 +491,11 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
         }
     }, [user, currentChannel, videoId, items]);
 
+    // Called by GalleryCard when image has loaded — removes the upload placeholder
+    const onItemImageLoaded = useCallback((itemId: string) => {
+        setUploadingFiles(prev => prev.filter(f => f.galleryItemId !== itemId));
+    }, []);
+
     return {
         items,
         sortedItems,
@@ -490,6 +510,7 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
         uploadImage,
         uploadImages,
         removeImage,
+        removeImages,
         reorderItems,
         rateImage,
         downloadOriginal,
@@ -498,6 +519,7 @@ export const useGallery = ({ videoId, initialItems, initialSources = [] }: UseGa
         updateSource: updateSourceHandler,
         moveItemToSource: moveItemToSourceHandler,
         setItems,
-        setSources
+        setSources,
+        onItemImageLoaded
     };
 };

@@ -90,16 +90,31 @@ export const useThumbnailActions = (videoId: string) => {
             // Execute operations in parallel to avoid race conditions (visual glitches)
             const operations: Promise<unknown>[] = [removeVideo(videoId)];
 
-            // Find original video and update history if found
+            // Find original video and update history + gallery items if found
             const originalVideo = videos.find(v => v.id === video.clonedFromId);
             if (originalVideo) {
                 const updatedHistory = (originalVideo.coverHistory || []).filter(v => v.version !== version);
                 console.log('[useThumbnailActions] Removing from original video history:', video.clonedFromId, 'updated history:', updatedHistory);
 
+                const updates: Record<string, unknown> = { coverHistory: updatedHistory };
+
+                // Also remove matching gallery item by filename
+                if (video.customImageName) {
+                    const galleryItems = originalVideo.galleryItems || [];
+                    const updatedGalleryItems = galleryItems.filter(
+                        item => item.filename !== video.customImageName
+                    );
+
+                    if (updatedGalleryItems.length !== galleryItems.length) {
+                        console.log('[useThumbnailActions] Removing gallery item with filename:', video.customImageName);
+                        updates.galleryItems = updatedGalleryItems;
+                    }
+                }
+
                 operations.push(
                     updateVideo({
                         videoId: video.clonedFromId,
-                        updates: { coverHistory: updatedHistory }
+                        updates
                     })
                 );
             }

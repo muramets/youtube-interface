@@ -12,7 +12,6 @@ import type { GalleryItem, GallerySource, GallerySourceType } from '../types/gal
 import { DEFAULT_SOURCE_ID } from '../types/gallery';
 import {
     uploadGalleryImage,
-    waitForThumbnail,
     deleteGalleryImage,
     triggerFileDownload
 } from './storageService';
@@ -40,22 +39,19 @@ export const prepareGalleryItem = async (
     sourceId?: string
 ): Promise<GalleryItem> => {
     // 1. Upload to Storage
-    const { storagePath, originalUrl, thumbnailPath, filename, fileSize } = await uploadGalleryImage(
+    const { storagePath, originalUrl, filename, fileSize } = await uploadGalleryImage(
         userId,
         channelId,
         videoId,
         file
     );
 
-    // 2. Wait for thumbnail generation (using list polling to avoid console 404s)
-    let thumbnailUrl: string;
-    try {
-        thumbnailUrl = await waitForThumbnail(thumbnailPath);
-    } catch {
-        // If thumbnail times out, use original as fallback
-        console.warn('Thumbnail generation timed out, using original as thumbnail');
-        thumbnailUrl = originalUrl;
-    }
+    // 2. Use original as thumbnail URL immediately.
+    // waitForThumbnail polling is broken — Workbox CacheFirst caches the Storage
+    // listing response, so new thumbnails are never discovered during polling.
+    // Firebase Extension generates thumbnails in the background; they'll be
+    // picked up on next page load via the Firestore-stored thumbnailUrl.
+    const thumbnailUrl = originalUrl;
 
     // 3. Create GalleryItem
     return {
@@ -139,6 +135,28 @@ export const removeGalleryItem = async (
     const videoRef = doc(db, 'users', userId, 'channels', channelId, 'videos', videoId);
     await updateDoc(videoRef, {
         galleryItems: arrayRemove(item)
+    });
+};
+
+/**
+ * Batch remove multiple gallery items.
+ * Single Firestore write to prevent sync listener from restoring items mid-deletion.
+ */
+export const removeGalleryItems = async (
+    userId: string,
+    channelId: string,
+    videoId: string,
+    items: GalleryItem[]
+): Promise<void> => {
+    if (items.length === 0) return;
+
+    // 1. Delete all from Storage in parallel (fire-and-forget errors per item)
+    await Promise.allSettled(items.map(item => deleteGalleryImage(item.storagePath)));
+
+    // 2. Single Firestore write — removes all items atomically
+    const videoRef = doc(db, 'users', userId, 'channels', channelId, 'videos', videoId);
+    await updateDoc(videoRef, {
+        galleryItems: arrayRemove(...items)
     });
 };
 

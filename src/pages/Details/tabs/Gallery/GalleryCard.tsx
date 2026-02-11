@@ -30,6 +30,13 @@ interface GalleryCardProps {
     isConverting?: boolean;
     isCloning?: boolean;
     isSettingCover?: boolean;
+    onClick?: () => void;
+    rankingOverlay?: number | null;
+    onImageLoaded?: () => void;
+    // Selection support
+    isSelected?: boolean;
+    onToggleSelection?: () => void;
+    isSelectionMode?: boolean;
 }
 
 // Export Inner component for use in Ghost
@@ -63,7 +70,13 @@ export const GalleryCardInner: React.FC<GalleryCardInnerProps> = ({
     onSetAsCover,
     isConverting = false,
     isCloning = false,
-    isSettingCover = false
+    isSettingCover = false,
+    onClick,
+    rankingOverlay,
+    onImageLoaded,
+    isSelected,
+    onToggleSelection,
+    isSelectionMode
 }) => {
     const [showMenu, setShowMenu] = useState(false);
     const [showInfoTooltip, setShowInfoTooltip] = useState(false);
@@ -130,7 +143,19 @@ export const GalleryCardInner: React.FC<GalleryCardInnerProps> = ({
 
     // Determine visual state
     // If overlay, force hover state active
-    const isActive = isOverlay || showMenu || showInfoTooltip;
+    const isActive = isOverlay || showMenu || showInfoTooltip || isSelected;
+
+    const handleCardClick = (e: React.MouseEvent) => {
+        // Cmd/Ctrl + Click or click in selection mode → toggle selection
+        if ((e.metaKey || e.ctrlKey || isSelectionMode) && onToggleSelection) {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleSelection();
+            return;
+        }
+        // Normal click → delegate to onClick (Pick the Winner, etc.)
+        onClick?.();
+    };
 
     return (
         <div
@@ -143,12 +168,29 @@ export const GalleryCardInner: React.FC<GalleryCardInnerProps> = ({
                 ${isOverlay ? 'cursor-grabbing' : 'cursor-pointer'}
                 ${className || ''}
                 ${showMenu ? 'z-[100]' : ''}
+                ${isSelected ? 'ring-2 ring-blue-500 bg-blue-500/10' : ''}
             `}
+            onClick={handleCardClick}
         >
+            {/* Selection Checkbox */}
+            {onToggleSelection && (
+                <div
+                    className={`absolute top-2 left-2 z-30 transition-all duration-200 ${isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-90 pointer-events-none'}`}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleSelection();
+                    }}
+                >
+                    <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-500 border-blue-500' : 'bg-black/40 border-white/50 hover:bg-black/60 hover:border-white'}`}>
+                        {isSelected && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-white"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                    </div>
+                </div>
+            )}
+
             {/* Hover Substrate - matching VideoCard */}
             <div className={`absolute inset-0 rounded-xl transition-all duration-200 ease-out -z-10 pointer-events-none 
                 ${isActive ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'} 
-                bg-white/10 border-2 border-white/20`}
+                ${isSelected ? 'bg-blue-500/5 border-2 border-blue-500/50' : 'bg-white/10 border-2 border-white/20'}`}
             />
             {/* Thumbnail */}
             <div className="relative aspect-video rounded-xl overflow-hidden bg-[#1a1a1a] flex items-center justify-center">
@@ -168,7 +210,10 @@ export const GalleryCardInner: React.FC<GalleryCardInnerProps> = ({
                         ${isImageLoaded ? 'opacity-100' : 'opacity-0'}
                     `}
                     loading="lazy"
-                    onLoad={() => setIsImageLoaded(true)}
+                    onLoad={() => {
+                        setIsImageLoaded(true);
+                        onImageLoaded?.();
+                    }}
                 />
 
                 {/* Info icon (top-right) - matching VideoCard pattern */}
@@ -270,6 +315,15 @@ export const GalleryCardInner: React.FC<GalleryCardInnerProps> = ({
                 {item.rating === -1 && (
                     <div className="absolute top-2 left-2">
                         <ThumbsDown size={16} className="text-red-500" fill="currentColor" />
+                    </div>
+                )}
+
+                {/* Pick the Winner Ranking Overlay */}
+                {rankingOverlay != null && (
+                    <div className="absolute inset-0 z-20 bg-black/50 backdrop-blur-[2px] flex items-center justify-center animate-in fade-in zoom-in duration-200">
+                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-2xl shadow-amber-500/30 border border-amber-300/30">
+                            <span className="text-2xl font-black text-black">{rankingOverlay}</span>
+                        </div>
                     </div>
                 )}
             </div>
@@ -430,7 +484,13 @@ export const GalleryCard: React.FC<GalleryCardProps> = ({
     onSetAsCover,
     isConverting,
     isCloning,
-    isSettingCover
+    isSettingCover,
+    onClick,
+    rankingOverlay,
+    onImageLoaded,
+    isSelected,
+    onToggleSelection,
+    isSelectionMode
 }) => {
 
     // Sortable setup
@@ -474,6 +534,12 @@ export const GalleryCard: React.FC<GalleryCardProps> = ({
             isConverting={isConverting}
             isCloning={isCloning}
             isSettingCover={isSettingCover}
+            onClick={onClick}
+            rankingOverlay={rankingOverlay}
+            onImageLoaded={onImageLoaded}
+            isSelected={isSelected}
+            onToggleSelection={onToggleSelection}
+            isSelectionMode={isSelectionMode}
         />
     );
 };

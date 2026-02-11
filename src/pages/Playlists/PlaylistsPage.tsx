@@ -17,6 +17,7 @@ import {
     closestCorners,
     pointerWithin,
     DragOverlay,
+    MeasuringStrategy,
     type CollisionDetection,
 } from '@dnd-kit/core';
 import {
@@ -32,6 +33,14 @@ import { usePlaylistsGrouping } from '../../features/Playlists/hooks/usePlaylist
 import { usePlaylistDnD } from '../../features/Playlists/hooks/usePlaylistDnD';
 import { PlaylistGroup } from '../../features/Playlists/components/PlaylistGroup';
 import { GroupSettingsModal } from '../../features/Playlists/modals/GroupSettingsModal';
+
+// Stable measuring config — prevents measureRect → setState infinite loop
+// when dragging items across groups by only measuring droppables before drag starts
+const DND_MEASURING_CONFIG = {
+    droppable: {
+        strategy: MeasuringStrategy.BeforeDragging,
+    },
+};
 
 export const PlaylistsPage: React.FC = () => {
     const { user } = useAuth();
@@ -279,6 +288,7 @@ export const PlaylistsPage: React.FC = () => {
                     onDragStart={handleDragStart}
                     onDragOver={handleDragOver}
                     onDragEnd={handleDragEnd}
+                    measuring={DND_MEASURING_CONFIG}
                 >
                     <SortableContext
                         items={optimisticGroupedPlaylists.map(([name]) => `group-${name}`)}

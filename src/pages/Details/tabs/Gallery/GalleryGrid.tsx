@@ -8,7 +8,7 @@
  * This component only uses SortableContext for reordering.
  */
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
     SortableContext,
     rectSortingStrategy
@@ -30,6 +30,7 @@ interface GalleryGridProps {
     // File upload props
     onUploadFiles: (files: File[]) => Promise<void>;
     uploadingFiles: UploadingFile[];
+    onItemImageLoaded?: (itemId: string) => void;
     // Gallery card action handlers
     onConvertToVideo?: (item: GalleryItem) => void;
     onConvertToVideoInPlaylist?: (item: GalleryItem) => void;
@@ -39,6 +40,13 @@ interface GalleryGridProps {
     isConverting?: boolean;
     isCloning?: boolean;
     isSettingCover?: boolean;
+    // Pick the Winner support
+    onItemClick?: (itemId: string) => void;
+    getRankingOverlay?: (itemId: string) => number | null;
+    // Selection support
+    selectedIds?: Set<string>;
+    onToggleSelection?: (id: string) => void;
+    isSelectionMode?: boolean;
 }
 
 // Map zoom level to column count
@@ -71,6 +79,7 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
     onRate,
     onUploadFiles,
     uploadingFiles,
+    onItemImageLoaded,
     onConvertToVideo,
     onConvertToVideoInPlaylist,
     onCloneToHome,
@@ -78,10 +87,15 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
     onSetAsCover,
     isConverting = false,
     isCloning = false,
-    isSettingCover = false
+    isSettingCover = false,
+    onItemClick,
+    getRankingOverlay,
+    selectedIds,
+    onToggleSelection,
+    isSelectionMode
 }) => {
-    // Always enable drag
-    const isDragEnabled = true;
+    // Disable drag when pick mode is active
+    const isDragEnabled = !onItemClick;
     const [isDragOver, setIsDragOver] = useState(false);
 
     // Ref for container to measure width
@@ -145,6 +159,21 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
     // Derived state: is any upload in progress
     const isUploading = uploadingFiles.length > 0;
 
+    // Items that still have an active upload placeholder — hide them from the items list
+    // so users see the upload placeholder instead of a "loading spinner" GalleryCard
+    const hiddenItemIds = useMemo(() => {
+        const ids = new Set<string>();
+        for (const uf of uploadingFiles) {
+            if (uf.galleryItemId) ids.add(uf.galleryItemId);
+        }
+        return ids;
+    }, [uploadingFiles]);
+
+    const visibleItems = useMemo(
+        () => items.filter(item => !hiddenItemIds.has(item.id)),
+        [items, hiddenItemIds]
+    );
+
     return (
         <div
             ref={containerRef}
@@ -154,7 +183,7 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
             onDrop={handleFileDrop}
         >
             <SortableContext
-                items={items.map(item => item.id)}
+                items={visibleItems.map(item => item.id)}
                 strategy={rectSortingStrategy}
             >
                 <div className={`grid ${ZOOM_TO_GRID_CLASS[zoomLevel] || 'grid-cols-4'} gap-4 content-start`}>
@@ -196,7 +225,7 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
                         </div>
                     ))}
 
-                    {items.map((item) => (
+                    {visibleItems.map((item) => (
                         <GalleryCard
                             key={item.id}
                             item={item}
@@ -214,6 +243,12 @@ export const GalleryGrid: React.FC<GalleryGridProps> = ({
                             isConverting={isConverting}
                             isCloning={isCloning}
                             isSettingCover={isSettingCover}
+                            onClick={onItemClick ? () => onItemClick(item.id) : undefined}
+                            rankingOverlay={getRankingOverlay?.(item.id)}
+                            onImageLoaded={onItemImageLoaded ? () => onItemImageLoaded(item.id) : undefined}
+                            isSelected={selectedIds?.has(item.id)}
+                            onToggleSelection={onToggleSelection ? () => onToggleSelection(item.id) : undefined}
+                            isSelectionMode={isSelectionMode}
                         />
                     ))}
                 </div>

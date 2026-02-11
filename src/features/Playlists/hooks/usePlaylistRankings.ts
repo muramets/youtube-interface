@@ -4,10 +4,10 @@ import { RankingService, type SavedRanking } from '../../../core/services/rankin
 
 export type { SavedRanking } from '../../../core/services/rankingService';
 
-export function usePlaylistRankings(userId: string, channelId: string, playlistId: string) {
+export function useRankings(userId: string, channelId: string, scopePath: string) {
     const queryClient = useQueryClient();
-    const queryKey = useMemo(() => ['rankings', userId, channelId, playlistId], [userId, channelId, playlistId]);
-    const enabled = !!userId && !!channelId && !!playlistId;
+    const queryKey = useMemo(() => ['rankings', userId, channelId, scopePath], [userId, channelId, scopePath]);
+    const enabled = !!userId && !!channelId && !!scopePath;
 
     // Initial fetch
     useQuery<SavedRanking[]>({
@@ -20,11 +20,11 @@ export function usePlaylistRankings(userId: string, channelId: string, playlistI
     // Realtime subscription
     useEffect(() => {
         if (!enabled) return;
-        const unsubscribe = RankingService.subscribeToRankings(userId, channelId, playlistId, (data) => {
+        const unsubscribe = RankingService.subscribeToRankings(userId, channelId, scopePath, (data) => {
             queryClient.setQueryData(queryKey, data);
         });
         return () => unsubscribe();
-    }, [userId, channelId, playlistId, enabled, queryClient, queryKey]);
+    }, [userId, channelId, scopePath, enabled, queryClient, queryKey]);
 
     const rawRankings = queryClient.getQueryData<SavedRanking[]>(queryKey);
     const rankings = useMemo(() => rawRankings || [], [rawRankings]);
@@ -35,11 +35,10 @@ export function usePlaylistRankings(userId: string, channelId: string, playlistI
             const ranking: SavedRanking = {
                 id: `ranking-${Date.now()}`,
                 name,
-                playlistId,
                 videoOrder,
                 createdAt: Date.now(),
             };
-            await RankingService.saveRanking(userId, channelId, playlistId, ranking);
+            await RankingService.saveRanking(userId, channelId, scopePath, ranking);
             return ranking;
         },
         onMutate: async ({ name, videoOrder }) => {
@@ -48,7 +47,6 @@ export function usePlaylistRankings(userId: string, channelId: string, playlistI
             const optimistic: SavedRanking = {
                 id: `ranking-${Date.now()}`,
                 name,
-                playlistId,
                 videoOrder,
                 createdAt: Date.now(),
             };
@@ -63,7 +61,7 @@ export function usePlaylistRankings(userId: string, channelId: string, playlistI
     // Delete mutation
     const deleteMutation = useMutation({
         mutationFn: async (rankingId: string) => {
-            await RankingService.deleteRanking(userId, channelId, playlistId, rankingId);
+            await RankingService.deleteRanking(userId, channelId, scopePath, rankingId);
         },
         onMutate: async (rankingId: string) => {
             await queryClient.cancelQueries({ queryKey });

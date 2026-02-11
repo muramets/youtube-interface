@@ -18,6 +18,8 @@ interface GalleryHeaderProps {
     onUploadClick: () => void;
     isScrolled: boolean;
     subtitle?: string;
+    customSection?: React.ReactNode;
+    actions?: React.ReactNode;
 }
 
 const SORT_OPTIONS: SortOption[] = [
@@ -32,7 +34,9 @@ export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
     sortMode,
     onSortChange,
     onUploadClick,
-    isScrolled
+    isScrolled,
+    customSection,
+    actions
 }) => {
     return (
         <div className={`sticky top-0 z-10 px-6 py-4 transition-shadow duration-200 bg-video-edit-bg ${isScrolled ? 'shadow-[0_2px_8px_rgba(0,0,0,0.3)]' : ''}`}>
@@ -56,11 +60,15 @@ export const GalleryHeader: React.FC<GalleryHeaderProps> = ({
 
                 <div className="flex-1" />
 
+                {/* Action buttons (e.g. Hide/Delete Losers when viewing a ranking) */}
+                {actions}
+
                 {/* Sort Button (reused from Filter) */}
                 <SortButton
                     sortOptions={SORT_OPTIONS}
                     activeSort={sortMode}
                     onSortChange={(value) => onSortChange(value as GallerySortMode)}
+                    customSection={customSection}
                 />
 
                 {/* Upload Button */}
