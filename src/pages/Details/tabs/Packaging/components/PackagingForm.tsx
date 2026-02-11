@@ -53,6 +53,8 @@ interface PackagingFormProps {
     onLikeThumbnail?: (version: number) => void;
     onRemoveThumbnail?: (version: number) => void;
     expandShowMore?: boolean;
+    /** Callback to notify parent when thumbnail upload state changes */
+    onUploadingChange?: (isUploading: boolean) => void;
 }
 
 export const PackagingForm: React.FC<PackagingFormProps> = ({
@@ -89,7 +91,8 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
     likedThumbnailVersions,
     onLikeThumbnail,
     onRemoveThumbnail,
-    expandShowMore = false
+    expandShowMore = false,
+    onUploadingChange
 }) => {
     const [showMore, setShowMore] = useState(false);
 
@@ -144,6 +147,7 @@ export const PackagingForm: React.FC<PackagingFormProps> = ({
                 likedThumbnailVersions={likedThumbnailVersions}
                 onLikeThumbnail={onLikeThumbnail}
                 onRemoveThumbnail={onRemoveThumbnail}
+                onUploadingChange={onUploadingChange}
             />
 
             {/* Tags */}

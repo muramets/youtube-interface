@@ -48,6 +48,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
     const sentinelRef = useRef<HTMLDivElement>(null);
     // Detect scroll for sticky header shadow
     const [isScrolled, setIsScrolled] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
     const [searchParams] = useSearchParams();
 
     // Is the user viewing an old version (read-only)?
@@ -300,10 +301,10 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                                 variant="primary"
                                 size="sm"
                                 onClick={actions.handleSave}
-                                disabled={!formState.isDirty || actions.isSaving}
-                                isLoading={actions.isSavingDraft}
+                                disabled={!formState.isDirty || actions.isSaving || isUploading}
+                                isLoading={actions.isSavingDraft || isUploading}
                             >
-                                {formState.isDirty ? 'Save as draft' : 'Save'}
+                                {isUploading ? 'Uploading...' : formState.isDirty ? 'Save as draft' : 'Save'}
                             </Button>
 
                             {(formState.isDirty || versionState.viewingVersion === 'draft') && (
@@ -311,7 +312,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                                     variant="outline"
                                     size="sm"
                                     onClick={actions.handleSaveAsNewVersion}
-                                    disabled={actions.isSaving}
+                                    disabled={actions.isSaving || isUploading}
                                     isLoading={actions.isSavingNewVersion}
                                 >
                                     Save as v.{versionState.nextVisualVersionNumber}
@@ -450,6 +451,7 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
                             onLikeThumbnail={(version) => handleRateImage(version, 1)}
                             onRemoveThumbnail={handleRemoveThumbnail}
                             expandShowMore={searchParams.get('action') === 'update_link'}
+                            onUploadingChange={setIsUploading}
                         />
                     </div>
 

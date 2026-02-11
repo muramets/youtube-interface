@@ -29,6 +29,8 @@ interface ThumbnailSectionProps {
     likedThumbnailVersions?: number[];
     onLikeThumbnail?: (version: number) => void;
     onRemoveThumbnail?: (version: number) => void;
+    /** Callback to notify parent when upload state changes */
+    onUploadingChange?: (isUploading: boolean) => void;
 }
 
 /**
@@ -67,12 +69,17 @@ export const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({
     checkIsCloned,
     likedThumbnailVersions,
     onLikeThumbnail,
-    onRemoveThumbnail
+    onRemoveThumbnail,
+    onUploadingChange
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showDropdown, setShowDropdown] = useState(false);
     const [historyModalOpen, setHistoryModalOpen] = useState(false);
-    const [isUploading, setIsUploading] = useState(false);
+    const [isUploading, setIsUploadingLocal] = useState(false);
+    const setIsUploading = (value: boolean) => {
+        setIsUploadingLocal(value);
+        onUploadingChange?.(value);
+    };
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
