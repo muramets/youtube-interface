@@ -157,7 +157,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             {...attributes}
             onClick={(e) => { e.stopPropagation(); onSelect(track.id); }}
 
-            className={`group flex items-center gap-4 px-4 py-4 rounded-lg transition-all duration-150 cursor-pointer
+            className={`group flex items-center gap-4 px-4 py-4 rounded-lg transition-all duration-300 cursor-pointer
                 ${isDragging ? 'opacity-40' : ''}
                 ${isCurrentTrack
                     ? 'bg-white/[0.06] hover:bg-white/[0.09]'
@@ -240,6 +240,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                 <PortalTooltip
                     content={currentVariant === 'vocal' ? 'Switch to instrumental' : 'Switch to vocal'}
                     triggerClassName="!block"
+                    enterDelay={300}
                 >
                     <button
                         onClick={(e) => {
@@ -251,7 +252,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                                 setPlayingTrack(track.id, variant);
                             }
                         }}
-                        className={`p-1.5 rounded-lg text-xs flex items-center gap-1 flex-shrink-0 transition-all duration-150
+                        className={`p-1.5 rounded-lg text-xs flex items-center gap-1 flex-shrink-0 transition-all duration-300
                             ${isCurrentTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
                             ${currentVariant === 'instrumental'
                                 ? 'bg-white/10 text-white'
@@ -283,7 +284,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             </div>
 
             {/* 4. Duration / BPM */}
-            <div className="flex flex-col items-end w-[52px] flex-shrink-0">
+            <div className="flex flex-col items-end flex-shrink-0">
                 <span className="text-[11px] text-text-secondary tabular-nums">
                     {track.duration > 0 ? formatDuration(track.duration) : '—'}
                 </span>
@@ -295,12 +296,14 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             </div>
 
             {/* 5. Genre */}
-            <div className="w-[72px] flex-shrink-0 flex items-center">
+            <div className="w-[72px] flex-shrink-0 flex items-center justify-center">
                 {genreInfo && (
                     <button
                         onClick={(e) => { e.stopPropagation(); setGenreFilter(genreInfo.id); }}
-                        className="text-[10px] font-medium truncate max-w-full transition-all hover:brightness-125 cursor-pointer"
-                        style={{ color: genreInfo.color }}
+                        className="text-[10px] font-medium truncate max-w-full transition-colors cursor-pointer text-text-tertiary hover:brightness-125"
+                        style={{ '--genre-color': genreInfo.color } as React.CSSProperties}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = genreInfo.color)}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = '')}
                     >
                         {genreInfo.name}
                     </button>

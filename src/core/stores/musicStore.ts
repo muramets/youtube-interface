@@ -20,6 +20,7 @@ interface MusicState {
     playingTrackId: string | null;
     playingVariant: 'vocal' | 'instrumental';
     isPlaying: boolean;
+    repeatMode: 'off' | 'all' | 'one';
     currentTime: number;
     duration: number;
     /** AudioPlayer registers this callback so TrackCard can request seeks */
@@ -61,6 +62,7 @@ interface MusicState {
     setPlayingTrack: (id: string | null, variant?: 'vocal' | 'instrumental') => void;
     setIsPlaying: (isPlaying: boolean) => void;
     toggleVariant: () => void;
+    cycleRepeatMode: () => void;
     setCurrentTime: (time: number) => void;
     setDuration: (duration: number) => void;
     registerSeek: (fn: ((position: number) => void) | null) => void;
@@ -86,6 +88,7 @@ export const useMusicStore = create<MusicState>((set) => ({
     playingTrackId: null,
     playingVariant: 'vocal',
     isPlaying: false,
+    repeatMode: 'off',
     currentTime: 0,
     duration: 0,
     seekTo: null,
@@ -150,6 +153,10 @@ export const useMusicStore = create<MusicState>((set) => ({
 
     toggleVariant: () => set((state) => ({
         playingVariant: state.playingVariant === 'vocal' ? 'instrumental' : 'vocal',
+    })),
+
+    cycleRepeatMode: () => set((state) => ({
+        repeatMode: state.repeatMode === 'off' ? 'all' : state.repeatMode === 'all' ? 'one' : 'off',
     })),
 
     setCurrentTime: (time) => set({ currentTime: time }),

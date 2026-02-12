@@ -3,8 +3,9 @@
 // =============================================================================
 
 import React, { useRef, useEffect, useCallback } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Mic, Piano, X } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Mic, Piano, X, Repeat, Repeat1 } from 'lucide-react';
 import { WaveformCanvas } from './WaveformCanvas';
+import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import { useMusicStore } from '../../../core/stores/musicStore';
 import { formatDuration } from '../utils/formatDuration';
 
@@ -16,7 +17,8 @@ export const AudioPlayer: React.FC = () => {
     const genres = useMusicStore((s) => s.genres);
     const currentTime = useMusicStore((s) => s.currentTime);
     const duration = useMusicStore((s) => s.duration);
-    const { setPlayingTrack, setIsPlaying, toggleVariant, setCurrentTime: setStoreTime, setDuration: setStoreDuration, registerSeek } = useMusicStore.getState();
+    const repeatMode = useMusicStore((s) => s.repeatMode);
+    const { setPlayingTrack, setIsPlaying, toggleVariant, cycleRepeatMode, setCurrentTime: setStoreTime, setDuration: setStoreDuration, registerSeek } = useMusicStore.getState();
 
     const audioRef = useRef<HTMLAudioElement>(null);
     const [volume, setVolume] = React.useState(0.8);
@@ -107,12 +109,23 @@ export const AudioPlayer: React.FC = () => {
             setStoreDuration(audio.duration || 0);
         };
         const onEnded = () => {
-            // Auto-play next track
+            const rm = useMusicStore.getState().repeatMode;
+            if (rm === 'one') {
+                // Repeat current track
+                audio.currentTime = 0;
+                audio.play();
+                return;
+            }
             const currentIndex = tracks.findIndex((t) => t.id === playingTrackId);
             if (currentIndex >= 0 && currentIndex < tracks.length - 1) {
                 const nextTrack = tracks[currentIndex + 1];
                 const variant = nextTrack.vocalUrl ? 'vocal' : 'instrumental';
                 setPlayingTrack(nextTrack.id, variant);
+            } else if (rm === 'all' && tracks.length > 0) {
+                // Wrap to first track
+                const first = tracks[0];
+                const variant = first.vocalUrl ? 'vocal' : 'instrumental';
+                setPlayingTrack(first.id, variant);
             } else {
                 setIsPlaying(false);
             }
@@ -145,19 +158,33 @@ export const AudioPlayer: React.FC = () => {
 
     const handlePrevious = () => {
         const currentIndex = tracks.findIndex((t) => t.id === playingTrackId);
-        if (currentIndex > 0) {
-            const prev = tracks[currentIndex - 1];
-            prevAudioUrlRef.current = null; // Reset — this is a track change, not variant
-            setPlayingTrack(prev.id, prev.vocalUrl ? 'vocal' : 'instrumental');
+        if (tracks.length <= 1 || currentIndex <= 0) {
+            // Single track or first track — restart from beginning
+            const audio = audioRef.current;
+            if (audio) {
+                audio.currentTime = 0;
+                setStoreTime(0);
+                if (!isPlaying) setIsPlaying(true);
+            }
+            return;
         }
+        const prev = tracks[currentIndex - 1];
+        prevAudioUrlRef.current = null;
+        setPlayingTrack(prev.id, prev.vocalUrl ? 'vocal' : 'instrumental');
     };
 
     const handleNext = () => {
         const currentIndex = tracks.findIndex((t) => t.id === playingTrackId);
+        if (tracks.length <= 1) return; // Single track — do nothing
         if (currentIndex >= 0 && currentIndex < tracks.length - 1) {
             const next = tracks[currentIndex + 1];
-            prevAudioUrlRef.current = null; // Reset — this is a track change, not variant
+            prevAudioUrlRef.current = null;
             setPlayingTrack(next.id, next.vocalUrl ? 'vocal' : 'instrumental');
+        } else if (repeatMode === 'all' && tracks.length > 0) {
+            // Wrap to first track
+            const first = tracks[0];
+            prevAudioUrlRef.current = null;
+            setPlayingTrack(first.id, first.vocalUrl ? 'vocal' : 'instrumental');
         }
     };
 
@@ -235,7 +262,10 @@ export const AudioPlayer: React.FC = () => {
                         </button>
                         <button
                             onClick={handleNext}
-                            className="p-1.5 text-text-secondary hover:text-text-primary transition-colors"
+                            disabled={tracks.length <= 1}
+                            className={`p-1.5 transition-colors ${tracks.length <= 1
+                                ? 'text-text-tertiary opacity-30 cursor-not-allowed'
+                                : 'text-text-secondary hover:text-text-primary'}`}
                         >
                             <SkipForward size={16} fill="currentColor" />
                         </button>
@@ -266,20 +296,47 @@ export const AudioPlayer: React.FC = () => {
                     {/* Right: Variant + Volume + Close */}
                     <div className="flex items-center gap-2 flex-shrink-0">
                         {hasBothVariants && (
+                            <PortalTooltip
+                                content={playingVariant === 'vocal' ? 'Switch to instrumental' : 'Switch to vocal'}
+                                enterDelay={800}
+                                side="top"
+                            >
+                                <button
+                                    onClick={() => toggleVariant()}
+                                    className={`p-1.5 rounded-lg text-xs flex items-center gap-1 transition-colors ${playingVariant === 'instrumental'
+                                        ? 'text-white'
+                                        : 'text-text-secondary hover:text-text-primary'
+                                        }`}
+                                >
+                                    {playingVariant === 'vocal' ? <Mic size={14} /> : <Piano size={14} />}
+                                    <span className="text-[10px] uppercase tracking-wider">
+                                        {playingVariant === 'vocal' ? 'VOC' : 'INST'}
+                                    </span>
+                                </button>
+                            </PortalTooltip>
+                        )}
+
+                        {/* Repeat toggle */}
+                        <PortalTooltip
+                            content={repeatMode === 'off' ? 'Enable repeat' : repeatMode === 'all' ? 'Repeat current track' : 'Disable repeat'}
+                            enterDelay={800}
+                            side="top"
+                        >
                             <button
-                                onClick={() => toggleVariant()}
-                                className={`p-1.5 rounded-lg text-xs flex items-center gap-1 transition-colors ${playingVariant === 'instrumental'
-                                    ? 'bg-white/10 text-white'
+                                onClick={() => cycleRepeatMode()}
+                                className={`p-1.5 rounded-lg transition-colors ${repeatMode !== 'off'
+                                    ? ''
                                     : 'text-text-secondary hover:text-text-primary'
                                     }`}
-                                title={playingVariant === 'vocal' ? 'Switch to instrumental' : 'Switch to vocal'}
+                                style={repeatMode === 'one'
+                                    ? { color: genreInfo?.color || '#6366F1' }
+                                    : repeatMode === 'all'
+                                        ? { color: '#22c55e' }
+                                        : undefined}
                             >
-                                {playingVariant === 'vocal' ? <Mic size={14} /> : <Piano size={14} />}
-                                <span className="text-[10px] uppercase tracking-wider">
-                                    {playingVariant === 'vocal' ? 'VOC' : 'INST'}
-                                </span>
+                                {repeatMode === 'one' ? <Repeat1 size={14} /> : <Repeat size={14} />}
                             </button>
-                        )}
+                        </PortalTooltip>
 
                         {/* Volume */}
                         <button

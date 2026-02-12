@@ -2,12 +2,47 @@
 // AUDIO FILE SLOTS: Vocal/Instrumental selectors with swap + preview
 // =============================================================================
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { Mic, Piano, Loader2, Play, Pause, X, ArrowLeftRight } from 'lucide-react';
 import { PortalTooltip } from '../../../../components/ui/atoms/PortalTooltip';
 import { EMPTY_FILE, type FileState } from '../../hooks/useTrackForm';
 
 const ACCEPTED_AUDIO = '.mp3,.wav,.flac,.aac,.ogg,.m4a,.wma';
+
+/** Inline text that shows PortalTooltip only when truncated, with 500ms delay */
+const TruncatedText: React.FC<{ text: string; placeholder?: string }> = ({ text, placeholder = 'Select file...' }) => {
+    const ref = useRef<HTMLSpanElement>(null);
+    const [isTruncated, setIsTruncated] = useState(false);
+
+    // Keep truncation state in sync via ResizeObserver
+    React.useEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+
+        const check = () => setIsTruncated(el.scrollWidth > el.clientWidth);
+        check();
+
+        const ro = new ResizeObserver(check);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [text]);
+
+    return (
+        <PortalTooltip
+            content={<span className="whitespace-nowrap">{text}</span>}
+            triggerClassName="flex-1 min-w-0 !justify-start"
+            enterDelay={500}
+            disabled={!isTruncated}
+        >
+            <span
+                ref={ref}
+                className="text-xs text-text-primary truncate block text-left"
+            >
+                {text || placeholder}
+            </span>
+        </PortalTooltip>
+    );
+};
 
 interface AudioFileSlotsProps {
     isInstrumentalOnly: boolean;
@@ -89,11 +124,7 @@ export const AudioFileSlots: React.FC<AudioFileSlotsProps> = ({
                             ) : (
                                 <Mic size={16} className={vocalLoaded ? 'text-green-500' : 'text-text-secondary'} />
                             )}
-                            <PortalTooltip content={vocalFile.name ? <span className="whitespace-nowrap">{vocalFile.name}</span> : null} triggerClassName="flex-1 min-w-0">
-                                <span className="text-xs text-text-primary truncate block">
-                                    {vocalFile.name || 'Select file...'}
-                                </span>
-                            </PortalTooltip>
+                            <TruncatedText text={vocalFile.name} />
                             {vocalLoaded && (
                                 <>
                                     <button
@@ -163,11 +194,7 @@ export const AudioFileSlots: React.FC<AudioFileSlotsProps> = ({
                         ) : (
                             <Piano size={16} className={instrumentalLoaded ? 'text-green-500' : 'text-text-secondary'} />
                         )}
-                        <PortalTooltip content={instrumentalFile.name ? <span className="whitespace-nowrap">{instrumentalFile.name}</span> : null} triggerClassName="flex-1 min-w-0">
-                            <span className="text-xs text-text-primary truncate block">
-                                {instrumentalFile.name || 'Select file...'}
-                            </span>
-                        </PortalTooltip>
+                        <TruncatedText text={instrumentalFile.name} />
                         {instrumentalLoaded && (
                             <>
                                 <button

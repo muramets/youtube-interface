@@ -96,7 +96,9 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
 
     const togglePreview = useCallback((variant: 'vocal' | 'instrumental') => {
         const file = variant === 'vocal' ? vocalFile.file : instrumentalFile.file;
-        if (!file) return;
+        // In edit mode, files may not be locally loaded — use remote URL
+        const remoteUrl = variant === 'vocal' ? editTrack?.vocalUrl : editTrack?.instrumentalUrl;
+        if (!file && !remoteUrl) return;
 
         if (previewPlaying === variant) {
             stopPreview();
@@ -105,7 +107,7 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
 
         const urlRef = variant === 'vocal' ? vocalUrlRef : instrumentalUrlRef;
         if (!urlRef.current) {
-            urlRef.current = URL.createObjectURL(file);
+            urlRef.current = file ? URL.createObjectURL(file) : remoteUrl!;
         }
 
         if (!audioPreviewRef.current) {
@@ -116,11 +118,11 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
         audioPreviewRef.current.src = urlRef.current;
         audioPreviewRef.current.play();
         setPreviewPlaying(variant);
-    }, [previewPlaying, vocalFile.file, instrumentalFile.file, stopPreview]);
+    }, [previewPlaying, vocalFile.file, instrumentalFile.file, editTrack, stopPreview]);
 
-    // Cleanup object URLs when files are removed
+    // Cleanup object URLs when files are removed (skip remote URLs from edit mode)
     useEffect(() => {
-        if (!vocalFile.file && vocalUrlRef.current) {
+        if (!vocalFile.file && vocalUrlRef.current && vocalUrlRef.current.startsWith('blob:')) {
             URL.revokeObjectURL(vocalUrlRef.current);
             vocalUrlRef.current = null;
             if (previewPlaying === 'vocal') stopPreview();
@@ -128,7 +130,7 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
     }, [vocalFile.file, previewPlaying, stopPreview]);
 
     useEffect(() => {
-        if (!instrumentalFile.file && instrumentalUrlRef.current) {
+        if (!instrumentalFile.file && instrumentalUrlRef.current && instrumentalUrlRef.current.startsWith('blob:')) {
             URL.revokeObjectURL(instrumentalUrlRef.current);
             instrumentalUrlRef.current = null;
             if (previewPlaying === 'instrumental') stopPreview();

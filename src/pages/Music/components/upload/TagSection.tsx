@@ -5,7 +5,7 @@
 // =============================================================================
 
 import React, { useState } from 'react';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Search } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import type { MusicGenre, MusicTag, MusicSettings } from '../../../../core/types/track';
 
@@ -34,6 +34,7 @@ export const TagSection: React.FC<TagSectionProps> = ({
     const [newTagName, setNewTagName] = useState('');
     const [isAddingCategory, setIsAddingCategory] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
 
     const toggleTag = (tagName: string) => {
         onSelectedChange(
@@ -43,8 +44,12 @@ export const TagSection: React.FC<TagSectionProps> = ({
         );
     };
 
-    // Group tags by category
-    const tagsByCategory = tags.reduce<Record<string, typeof tags>>((acc, tag) => {
+    // Group tags by category, filtered by search
+    const filteredTags = searchQuery.trim()
+        ? tags.filter((t) => t.name.toLowerCase().includes(searchQuery.toLowerCase()))
+        : tags;
+
+    const tagsByCategory = filteredTags.reduce<Record<string, typeof tags>>((acc, tag) => {
         const cat = tag.category || 'Other';
         if (!acc[cat]) acc[cat] = [];
         acc[cat].push(tag);
@@ -61,6 +66,24 @@ export const TagSection: React.FC<TagSectionProps> = ({
             <label className="text-xs text-text-secondary font-medium tracking-wider uppercase mb-2 block">
                 Tags
             </label>
+            <div className="relative mb-3">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search tags..."
+                    className="modal-input !pl-9 !py-1.5 text-xs"
+                />
+                {searchQuery && (
+                    <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary"
+                    >
+                        <X size={12} />
+                    </button>
+                )}
+            </div>
             <div className="space-y-2.5">
                 {Object.entries(tagsByCategory).map(([category, categoryTags]) => (
                     <div key={category}>
