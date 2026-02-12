@@ -185,8 +185,8 @@ export const MusicPage: React.FC = () => {
                             </>
                         ) : (
                             <>
-                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                                    <Music size={20} className="text-white" />
+                                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
+                                    <Music size={20} className="text-text-secondary" />
                                 </div>
                                 <div>
                                     <h1 className="text-xl font-semibold text-text-primary">Music Library</h1>
