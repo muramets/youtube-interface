@@ -11,4 +11,7 @@
 
 // Export molecules here
 export { FilterChips } from './FilterChips';
+export { CreateNameModal } from './CreateNameModal';
+export { AddToCollectionModal } from './AddToCollectionModal';
+export type { CollectionItem } from './AddToCollectionModal';
 // export { TagsInput } from './TagsInput';

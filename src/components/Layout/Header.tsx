@@ -3,6 +3,7 @@ import { Menu, Search, Bell, User } from 'lucide-react';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { ChannelDropdown } from '../../features/Profile/ChannelDropdown';
 import { useFilterStore } from '../../core/stores/filterStore';
+import { useMusicStore } from '../../core/stores/musicStore';
 import { useNotificationStore } from '../../core/stores/notificationStore';
 import { NotificationDropdown } from '../../features/Notifications/NotificationDropdown';
 import { Dropdown } from '../../components/ui/molecules/Dropdown';
@@ -24,6 +25,12 @@ export const Header: React.FC<{ className?: string }> = ({ className }) => {
   const isLoading = isAuthLoading || (!!user && isChannelsLoading && !currentChannel);
 
   const { searchQuery, setSearchQuery } = useFilterStore();
+  const { searchQuery: musicSearchQuery, setSearchQuery: setMusicSearchQuery } = useMusicStore();
+
+  const isMusicPage = location.pathname === '/music';
+  const activeSearchValue = isMusicPage ? musicSearchQuery : searchQuery;
+  const setActiveSearchValue = isMusicPage ? setMusicSearchQuery : setSearchQuery;
+  const searchPlaceholder = isMusicPage ? 'Search music...' : 'Search';
   const [channelAnchor, setChannelAnchor] = React.useState<HTMLElement | null>(null);
   const [isCreateMenuOpen, setIsCreateMenuOpen] = React.useState(false);
 
@@ -82,9 +89,9 @@ export const Header: React.FC<{ className?: string }> = ({ className }) => {
                 id="search"
                 name="search_query"
                 type="text"
-                placeholder="Search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={searchPlaceholder}
+                value={activeSearchValue}
+                onChange={(e) => setActiveSearchValue(e.target.value)}
                 className="w-full bg-transparent border-none outline-none text-text-primary text-base font-normal placeholder-text-secondary"
               />
             </div>

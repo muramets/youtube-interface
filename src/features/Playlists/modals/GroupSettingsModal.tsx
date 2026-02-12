@@ -1,8 +1,17 @@
+// =============================================================================
+// GROUP SETTINGS MODAL — Playlists Feature
+// =============================================================================
+// Dual-mode modal for groups:
+//   - Create mode (groupName === null): delegates to shared CreateNameModal
+//   - Edit mode (groupName !== null): inline edit form with delete support
+// =============================================================================
+
 import { useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { Trash2 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { Button } from '../../../components/ui/atoms/Button';
+import { CreateNameModal } from '../../../components/ui/molecules/CreateNameModal';
 
 interface GroupSettingsModalProps {
     isOpen: boolean;
@@ -20,11 +29,52 @@ export function GroupSettingsModal({
     onDelete
 }: GroupSettingsModalProps) {
     const isCreateMode = groupName === null;
+
+    // ---------- CREATE MODE: delegate to shared CreateNameModal ----------
+    if (isCreateMode) {
+        return (
+            <CreateNameModal
+                isOpen={isOpen}
+                onClose={onClose}
+                onConfirm={(name) => onSave(name, null)}
+                title="Create Group"
+                placeholder="e.g. Music, Tutorials, Research"
+                nameLabel="Group Name"
+                confirmLabel="Create"
+            />
+        );
+    }
+
+    // ---------- EDIT MODE: keep original inline form ----------
+    return (
+        <EditGroupModalInner
+            isOpen={isOpen}
+            onClose={onClose}
+            groupName={groupName}
+            onSave={onSave}
+            onDelete={onDelete}
+        />
+    );
+}
+
+// Extracted edit-mode into a sub-component to avoid hooks-after-early-return issues
+function EditGroupModalInner({
+    isOpen,
+    onClose,
+    groupName,
+    onSave,
+    onDelete,
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+    groupName: string;
+    onSave: (name: string, originalName: string | null) => Promise<void>;
+    onDelete?: (groupName: string) => Promise<void>;
+}) {
     const [name, setName] = useState(groupName || '');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-    // Sync state with props when modal opens or group changes
     useEffect(() => {
         if (isOpen) {
             setName(groupName || '');
@@ -32,24 +82,19 @@ export function GroupSettingsModal({
         }
     }, [isOpen, groupName]);
 
-    // Handle ESC key
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && isOpen) {
-                onClose();
-            }
+            if (e.key === 'Escape' && isOpen) onClose();
         };
-
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, onClose]);
 
-    const hasChanges = name.trim() !== '' && (isCreateMode || name.trim() !== groupName);
+    const hasChanges = name.trim() !== '' && name.trim() !== groupName;
 
     const handleSubmit = async (e?: FormEvent) => {
         if (e) e.preventDefault();
         if (!hasChanges || isSubmitting) return;
-
         setIsSubmitting(true);
         try {
             await onSave(name.trim(), groupName);
@@ -63,7 +108,6 @@ export function GroupSettingsModal({
 
     const handleDelete = async () => {
         if (!groupName || !onDelete || isSubmitting) return;
-
         setIsSubmitting(true);
         try {
             await onDelete(groupName);
@@ -79,31 +123,11 @@ export function GroupSettingsModal({
 
     return createPortal(
         <div className="fixed inset-0 z-[1001] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
-            {/* Backdrop click handler is now implicit on the container if we want, or we can use a wrapper. 
-                CreatePlaylistModal uses a single container for alignment and bg. 
-                However, to handle clicks strictly on the backdrop and not the modal, 
-                we usually need a check or separate elements.
-                
-                Looking at CreatePlaylistModal again from context:
-                It doesn't seem to have an explicit onBackdropClick in the earlier snippet? 
-                Wait, I saw `onClick={onClose}` on the close button, but didn't see it on the container.
-                
-                Let's stick to the structure that works reliably:
-                Container covers screen with BG.
-                Modal is inside.
-                We need to close when clicking BG.
-            */}
-
-            {/* Click handler for backdrop */}
             <div className="absolute inset-0" onClick={onClose} />
-
-            {/* Modal */}
             <div className="relative bg-bg-secondary border border-border rounded-xl shadow-2xl w-full max-w-md mx-4 animate-scale-in z-10">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-border">
-                    <h2 className="text-lg font-bold text-text-primary">
-                        {isCreateMode ? 'Create Group' : 'Edit Group'}
-                    </h2>
+                    <h2 className="text-lg font-bold text-text-primary">Edit Group</h2>
                 </div>
 
                 {/* Content */}
@@ -128,9 +152,9 @@ export function GroupSettingsModal({
 
                 {/* Footer */}
                 <div className="px-6 py-4 border-t border-border flex items-center justify-between">
-                    {/* Delete Button (only for edit mode) */}
+                    {/* Delete Button */}
                     <div>
-                        {!isCreateMode && onDelete && (
+                        {onDelete && (
                             <button
                                 type="button"
                                 onClick={showDeleteConfirm ? handleDelete : () => setShowDeleteConfirm(true)}
@@ -156,10 +180,7 @@ export function GroupSettingsModal({
 
                     {/* Action Buttons */}
                     <div className="flex items-center gap-2">
-                        <Button
-                            variant="secondary"
-                            onClick={onClose}
-                        >
+                        <Button variant="secondary" onClick={onClose}>
                             Cancel
                         </Button>
                         <Button
@@ -169,7 +190,7 @@ export function GroupSettingsModal({
                             disabled={!hasChanges || isSubmitting}
                             onClick={() => handleSubmit()}
                         >
-                            {isCreateMode ? 'Create' : 'Save'}
+                            Save
                         </Button>
                     </div>
                 </div>

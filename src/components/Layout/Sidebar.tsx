@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, List, Settings, TrendingUp } from 'lucide-react';
+import { Home, List, Settings, TrendingUp, Music } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { SettingsModal } from '../../features/Settings/SettingsModal';
 import { useUIStore } from '../../core/stores/uiStore';
@@ -7,6 +7,7 @@ import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useChannels } from '../../core/hooks/useChannels';
 import { TrendsSidebarSection } from '../../pages/Trends/Sidebar/TrendsSidebarSection';
+import { MusicSidebarSection } from '../../pages/Music/Sidebar/MusicSidebarSection';
 import { AddChannelModal } from '../../pages/Trends/Sidebar/AddChannelModal';
 import { useTrendStore } from '../../core/stores/trendStore';
 import type { TrendChannel } from '../../core/types/trends';
@@ -297,6 +298,7 @@ export const Sidebar: React.FC = () => {
   const isHome = location.pathname === '/';
   const isPlaylists = location.pathname.startsWith('/playlists');
   const isTrends = location.pathname.startsWith('/trends');
+  const isMusic = location.pathname.startsWith('/music');
 
   // Icons - normal (outline) and active (filled/bold)
   const homeIcon = <Home size={24} strokeWidth={1.5} />;
@@ -307,6 +309,8 @@ export const Sidebar: React.FC = () => {
   const settingsActiveIcon = <Settings size={24} strokeWidth={2.5} />;
   const trendsIcon = <TrendingUp size={24} strokeWidth={1.5} />;
   const trendsActiveIcon = <TrendingUp size={24} strokeWidth={2.5} />;
+  const musicIcon = <Music size={24} strokeWidth={1.5} />;
+  const musicActiveIcon = <Music size={24} strokeWidth={2.5} fill="currentColor" />;
 
   return (
     <>
@@ -317,7 +321,7 @@ export const Sidebar: React.FC = () => {
       >
         <div
           ref={scrollRef}
-          className={`flex-1 w-full flex flex-col overflow-y-auto overflow-x-hidden ${isSidebarExpanded ? 'px-3 py-1' : ''}`}
+          className={`flex-1 w-full flex flex-col overflow-x-hidden ${isSidebarExpanded ? 'px-3 py-1 overflow-y-auto' : 'overflow-hidden'}`}
         >
           {isSidebarExpanded ? (
             // Expanded view - icon left, text right
@@ -337,6 +341,7 @@ export const Sidebar: React.FC = () => {
                   active={isPlaylists}
                   onClick={() => navigate('/playlists')}
                 />
+                <MusicSidebarSection expanded={true} />
 
                 <TrendsSidebarSection expanded={true} />
 
@@ -371,6 +376,14 @@ export const Sidebar: React.FC = () => {
                 active={isPlaylists}
                 noBackground={true}
                 onClick={() => navigate('/playlists')}
+              />
+              <CollapsedSidebarItem
+                icon={musicIcon}
+                activeIcon={musicActiveIcon}
+                label="Music"
+                active={isMusic}
+                noBackground={true}
+                onClick={() => navigate('/music')}
               />
               {/* Trends Section with Hover Dropdown */}
               <div

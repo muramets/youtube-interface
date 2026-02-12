@@ -9,6 +9,7 @@ import { PlaylistsPage } from './pages/Playlists/PlaylistsPage';
 import { PlaylistDetailPage } from './pages/Playlists/PlaylistDetailPage';
 import { HomePage } from './pages/Home/HomePage';
 import { TrendsPage } from './pages/Trends/TrendsPage';
+import { MusicPage } from './pages/Music/MusicPage';
 import { DetailsPage } from './pages/Details';
 import { useStoreInitialization } from './core/hooks/useStoreInitialization';
 
@@ -28,6 +29,7 @@ import { useUserPersistence } from './core/hooks/useUserPersistence';
 import { VideoPlayerProvider } from './core/contexts/VideoPlayerContext';
 import { GlobalMiniPlayer } from './features/Player/GlobalMiniPlayer';
 import { TrendsDndProvider } from './pages/Trends/TrendsDndProvider';
+import { AudioPlayer } from './pages/Music/components/AudioPlayer';
 
 function AppContent() {
   useCheckinScheduler();
@@ -76,6 +78,7 @@ function AppContent() {
                       <Route path="/playlists" element={<PlaylistsPage />} />
                       <Route path="/playlists/:id" element={<PlaylistDetailPage />} />
                       <Route path="/trends" element={<TrendsPage />} />
+                      <Route path="/music/*" element={<MusicPage />} />
                     </Routes>
                   </main>
                 </div>
@@ -85,6 +88,7 @@ function AppContent() {
         } />
       </Routes>
       <GlobalMiniPlayer />
+      <AudioPlayer />
     </div >
   );
 }

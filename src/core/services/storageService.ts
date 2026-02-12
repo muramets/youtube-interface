@@ -235,6 +235,92 @@ export const getCsvDownloadUrl = async (storagePath: string): Promise<string> =>
 
 
 // ============================================================================
+// AUDIO TRACK STORAGE
+// ============================================================================
+
+/**
+ * Upload an audio file (vocal or instrumental variant) for a track.
+ *
+ * Storage path: users/{userId}/channels/{channelId}/tracks/{trackId}/{variant}.{ext}
+ */
+export const uploadTrackAudio = async (
+    userId: string,
+    channelId: string,
+    trackId: string,
+    variant: 'vocal' | 'instrumental',
+    file: File
+): Promise<{ storagePath: string; downloadUrl: string }> => {
+    const ext = file.name.split('.').pop() || 'mp3';
+    const storagePath = `users/${userId}/channels/${channelId}/tracks/${trackId}/${variant}.${ext}`;
+    const storageRef = ref(storage, storagePath);
+
+    await uploadBytes(storageRef, file, {
+        contentType: file.type || 'audio/mpeg',
+        cacheControl: 'public,max-age=31536000',
+        customMetadata: {
+            originalFilename: file.name,
+            variant,
+            uploadedAt: new Date().toISOString(),
+        },
+    });
+
+    const downloadUrl = await getDownloadURL(storageRef);
+    return { storagePath, downloadUrl };
+};
+
+/**
+ * Delete an audio file for a track variant.
+ */
+export const deleteTrackAudio = async (storagePath: string): Promise<void> => {
+    try {
+        const storageRef = ref(storage, storagePath);
+        await deleteObject(storageRef);
+    } catch (error: unknown) {
+        if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === 'storage/object-not-found') {
+            return;
+        }
+        console.error('Error deleting track audio:', error);
+        throw error;
+    }
+};
+
+/**
+ * Upload cover art for a track.
+ *
+ * Storage path: users/{userId}/channels/{channelId}/tracks/{trackId}/cover.{ext}
+ */
+export const uploadTrackCover = async (
+    userId: string,
+    channelId: string,
+    trackId: string,
+    file: File
+): Promise<{ storagePath: string; downloadUrl: string }> => {
+    const ext = file.name.split('.').pop() || 'jpg';
+    const storagePath = `users/${userId}/channels/${channelId}/tracks/${trackId}/cover.${ext}`;
+    const storageRef = ref(storage, storagePath);
+
+    await uploadBytes(storageRef, file, {
+        contentType: file.type || 'image/jpeg',
+        cacheControl: 'public,max-age=31536000',
+    });
+
+    const downloadUrl = await getDownloadURL(storageRef);
+    return { storagePath, downloadUrl };
+};
+
+/**
+ * Delete all storage files for a track (audio files + cover).
+ */
+export const deleteTrackFolder = async (
+    userId: string,
+    channelId: string,
+    trackId: string
+): Promise<void> => {
+    const path = `users/${userId}/channels/${channelId}/tracks/${trackId}`;
+    await deleteFolder(path);
+};
+
+// ============================================================================
 // GALLERY IMAGE STORAGE
 // ============================================================================
 

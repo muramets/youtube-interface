@@ -100,6 +100,10 @@ export default {
                 'barBounce': {
                     '0%, 100%': { height: '3px' },
                     '50%': { height: '8px' },
+                },
+                'slide-down': {
+                    '0%': { opacity: '0', maxHeight: '0', transform: 'translateY(-4px)' },
+                    '100%': { opacity: '1', maxHeight: '500px', transform: 'translateY(0)' },
                 }
             },
             animation: {
@@ -113,6 +117,8 @@ export default {
                 'scale-in-center': 'scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
                 'slide-up': 'slideUpFade 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
                 'shimmer': 'shimmer 2s linear infinite',
+                'slide-down': 'slide-down 0.3s ease-out forwards',
+                'bar-bounce': 'barBounce 0.6s ease-in-out infinite',
             }
         },
     },

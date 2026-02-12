@@ -8,83 +8,83 @@
    ============================================================================= */
 
 :root {
-  /* ---------------------------------------------------------------------------
+   /* ---------------------------------------------------------------------------
      Core Palette
      --------------------------------------------------------------------------- */
-  --bg-primary: #ffffff;
-  --bg-secondary: #f9f9f9;
-  --text-primary: #0f0f0f;
-  --text-secondary: #606060;
-  --text-tertiary: #909090;
-  --accent: #ff0000;
-  --border: #e5e5e5;
-  --hover: #f2f2f2;
-  --hover-bg: #f2f2f2;
+   --bg-primary: #ffffff;
+   --bg-secondary: #f9f9f9;
+   --text-primary: #0f0f0f;
+   --text-secondary: #606060;
+   --text-tertiary: #909090;
+   --accent: #ff0000;
+   --border: #e5e5e5;
+   --hover: #f2f2f2;
+   --hover-bg: #f2f2f2;
 
-  /* ---------------------------------------------------------------------------
+   /* ---------------------------------------------------------------------------
      Semantic Colors
      --------------------------------------------------------------------------- */
-  --modal-overlay: rgba(0, 0, 0, 0.6);
-  --primary-button-bg: #065fd4;
-  --primary-button-hover: #0056b3;
-  --primary-button-text: #ffffff;
-  --danger-color: #cc0000;
+   --modal-overlay: rgba(0, 0, 0, 0.6);
+   --primary-button-bg: #065fd4;
+   --primary-button-hover: #0056b3;
+   --primary-button-text: #ffffff;
+   --danger-color: #cc0000;
 
-  /* ---------------------------------------------------------------------------
+   /* ---------------------------------------------------------------------------
      Component: Modals
      --------------------------------------------------------------------------- */
-  --modal-bg: #FFFFFF;
-  --modal-surface: #F5F5F5;
-  --modal-surface-hover: #E8E8E8;
-  --modal-card-bg: #EEEEEE;
-  --modal-input-bg: #FFFFFF;
-  --modal-button-bg: #F0F0F0;
-  --modal-button-hover: #E9E9E9;
-  --modal-button-text: #0D0D0D;
-  --modal-button-active-bg: #0D0D0D;
-  --modal-button-active-text: #FFFFFF;
-  --modal-text-primary: #0f0f0f;
-  --modal-text-secondary: #606060;
-  --modal-placeholder: #909090;
-  --modal-border: #E0E0E0;
+   --modal-bg: #FFFFFF;
+   --modal-surface: #F5F5F5;
+   --modal-surface-hover: #E8E8E8;
+   --modal-card-bg: #EEEEEE;
+   --modal-input-bg: #FFFFFF;
+   --modal-button-bg: #F0F0F0;
+   --modal-button-hover: #E9E9E9;
+   --modal-button-text: #0D0D0D;
+   --modal-button-active-bg: #0D0D0D;
+   --modal-button-active-text: #FFFFFF;
+   --modal-text-primary: #0f0f0f;
+   --modal-text-secondary: #606060;
+   --modal-placeholder: #909090;
+   --modal-border: #E0E0E0;
 
-  /* ---------------------------------------------------------------------------
+   /* ---------------------------------------------------------------------------
      Component: Settings Modal
      --------------------------------------------------------------------------- */
-  --settings-menu-active: #e5e5e5;
-  --settings-menu-hover: #f2f2f2;
-  --settings-input-bg: #ffffff;
-  --settings-dropdown-bg: #ffffff;
-  --settings-dropdown-hover: #f2f2f2;
+   --settings-menu-active: #e5e5e5;
+   --settings-menu-hover: #f2f2f2;
+   --settings-input-bg: #ffffff;
+   --settings-dropdown-bg: #ffffff;
+   --settings-dropdown-hover: #f2f2f2;
 
-  /* ---------------------------------------------------------------------------
+   /* ---------------------------------------------------------------------------
      Component: Sidebar
      --------------------------------------------------------------------------- */
-  --sidebar-active: #f2f2f2;
-  --sidebar-hover: #f2f2f2;
+   --sidebar-active: #f2f2f2;
+   --sidebar-hover: #f2f2f2;
 
-  /* ---------------------------------------------------------------------------
+   /* ---------------------------------------------------------------------------
      Component: Video Details & Packaging
      --------------------------------------------------------------------------- */
-  --video-edit-bg: #ffffff;
-  --card-bg: #f9f9f9;
-  --input-bg: #ffffff;
-  --button-secondary-bg: #F2F2F2;
-  --button-secondary-hover: #E5E5E5;
-  --button-secondary-text: #030303;
-  --tag-bg: #e5e5e5;
-  --tag-hover: #d4d4d4;
+   --video-edit-bg: #ffffff;
+   --card-bg: #f9f9f9;
+   --input-bg: #ffffff;
+   --button-secondary-bg: #F2F2F2;
+   --button-secondary-hover: #E5E5E5;
+   --button-secondary-text: #030303;
+   --tag-bg: #e5e5e5;
+   --tag-hover: #d4d4d4;
 
-  /* ---------------------------------------------------------------------------
+   /* ---------------------------------------------------------------------------
      Component: Timeline
      --------------------------------------------------------------------------- */
-  --dot-glow-rgb: 0, 0, 0;
+   --dot-glow-rgb: 0, 0, 0;
 
-  /* ---------------------------------------------------------------------------
+   /* ---------------------------------------------------------------------------
      Component: Floating Bar
      --------------------------------------------------------------------------- */
-  --floating-bar-bg: rgba(240, 240, 240, 0.82);
-  --floating-bar-border: rgba(0, 0, 0, 0.08);
+   --floating-bar-bg: rgba(240, 240, 240, 0.82);
+   --floating-bar-border: rgba(0, 0, 0, 0.08);
 }
 
 /* =============================================================================
@@ -92,74 +92,74 @@
    ============================================================================= */
 
 .dark {
-  /* ---------------------------------------------------------------------------
+   /* ---------------------------------------------------------------------------
      Core Palette
      --------------------------------------------------------------------------- */
-  --bg-primary: #0f0f0f;
-  --bg-secondary: #272727;
-  --text-primary: #ffffff;
-  --text-secondary: #aaaaaa;
-  --text-tertiary: #666666;
-  --accent: #ff0000;
-  --border: #3f3f3f;
-  --hover: #3f3f3f;
-  --hover-bg: #3f3f3f;
+   --bg-primary: #0f0f0f;
+   --bg-secondary: #272727;
+   --text-primary: #ffffff;
+   --text-secondary: #aaaaaa;
+   --text-tertiary: #666666;
+   --accent: #ff0000;
+   --border: #3f3f3f;
+   --hover: #3f3f3f;
+   --hover-bg: #3f3f3f;
 
-  /* ---------------------------------------------------------------------------
+   /* ---------------------------------------------------------------------------
      Component: Modals
      --------------------------------------------------------------------------- */
-  --modal-bg: #282828;
-  --modal-surface: #1F1F1F;
-  --modal-surface-hover: #2A2A2A;
-  --modal-card-bg: #1F1F1F;
-  --modal-input-bg: #282828;
-  --modal-button-bg: #3F3F3F;
-  --modal-button-hover: #0D0D0D;
-  --modal-button-text: #FFFFFF;
-  --modal-button-active-bg: #FFFFFF;
-  --modal-button-active-text: #0D0D0D;
-  --modal-text-primary: #FFFFFF;
-  --modal-text-secondary: #AAAAAA;
-  --modal-placeholder: #717171;
-  --modal-border: #3F3F3F;
+   --modal-bg: #282828;
+   --modal-surface: #1F1F1F;
+   --modal-surface-hover: #2A2A2A;
+   --modal-card-bg: #1F1F1F;
+   --modal-input-bg: #282828;
+   --modal-button-bg: #3F3F3F;
+   --modal-button-hover: #0D0D0D;
+   --modal-button-text: #FFFFFF;
+   --modal-button-active-bg: #FFFFFF;
+   --modal-button-active-text: #0D0D0D;
+   --modal-text-primary: #FFFFFF;
+   --modal-text-secondary: #AAAAAA;
+   --modal-placeholder: #717171;
+   --modal-border: #3F3F3F;
 
-  /* ---------------------------------------------------------------------------
+   /* ---------------------------------------------------------------------------
      Component: Settings Modal
      --------------------------------------------------------------------------- */
-  --settings-menu-active: #1F1F1F;
-  --settings-menu-hover: #161616;
-  --settings-input-bg: #282828;
-  --settings-dropdown-bg: #1F1F1F;
-  --settings-dropdown-hover: #161616;
+   --settings-menu-active: #1F1F1F;
+   --settings-menu-hover: #161616;
+   --settings-input-bg: #282828;
+   --settings-dropdown-bg: #1F1F1F;
+   --settings-dropdown-hover: #161616;
 
-  /* ---------------------------------------------------------------------------
+   /* ---------------------------------------------------------------------------
      Component: Sidebar
      --------------------------------------------------------------------------- */
-  --sidebar-active: #1F1F1F;
-  --sidebar-hover: #1F1F1F;
+   --sidebar-active: #1F1F1F;
+   --sidebar-hover: #1F1F1F;
 
-  /* ---------------------------------------------------------------------------
+   /* ---------------------------------------------------------------------------
      Component: Video Details & Packaging
      --------------------------------------------------------------------------- */
-  --video-edit-bg: #282828;
-  --card-bg: #1F1F1F;
-  --input-bg: #282828;
-  --button-secondary-bg: #3E3E3E;
-  --button-secondary-hover: #535353;
-  --button-secondary-text: #FFFFFF;
-  --tag-bg: #3E3E3E;
-  --tag-hover: #0D0D0D;
+   --video-edit-bg: #282828;
+   --card-bg: #1F1F1F;
+   --input-bg: #282828;
+   --button-secondary-bg: #3E3E3E;
+   --button-secondary-hover: #535353;
+   --button-secondary-text: #FFFFFF;
+   --tag-bg: #3E3E3E;
+   --tag-hover: #0D0D0D;
 
-  /* ---------------------------------------------------------------------------
+   /* ---------------------------------------------------------------------------
      Component: Timeline
      --------------------------------------------------------------------------- */
-  --dot-glow-rgb: 255, 255, 255;
+   --dot-glow-rgb: 255, 255, 255;
 
-  /* ---------------------------------------------------------------------------
+   /* ---------------------------------------------------------------------------
      Component: Floating Bar
      --------------------------------------------------------------------------- */
-  --floating-bar-bg: rgba(30, 30, 30, 0.82);
-  --floating-bar-border: rgba(255, 255, 255, 0.08);
+   --floating-bar-bg: rgba(30, 30, 30, 0.82);
+   --floating-bar-border: rgba(255, 255, 255, 0.08);
 }
 
 /* =============================================================================
@@ -167,17 +167,17 @@
    ============================================================================= */
 
 body {
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  transition: background-color 0.3s, color 0.3s;
-  margin: 0;
-  padding: 0;
-  overflow-x: hidden;
+   background-color: var(--bg-primary);
+   color: var(--text-primary);
+   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+   transition: background-color 0.3s, color 0.3s;
+   margin: 0;
+   padding: 0;
+   overflow-x: hidden;
 }
 
 * {
-  box-sizing: border-box;
+   box-sizing: border-box;
 }
 
 /* =============================================================================
@@ -185,29 +185,29 @@ body {
    ============================================================================= */
 
 ::-webkit-scrollbar {
-  width: 8px;
+   width: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-primary);
+   background: var(--bg-primary);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--text-secondary);
-  border-radius: 4px;
+   background: var(--text-secondary);
+   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-primary);
+   background: var(--text-primary);
 }
 
 .scrollbar-hide::-webkit-scrollbar {
-  display: none;
+   display: none;
 }
 
 .scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+   -ms-overflow-style: none;
+   scrollbar-width: none;
 }
 
 /* =============================================================================
@@ -216,48 +216,89 @@ body {
 
 .no-spinner::-webkit-inner-spin-button,
 .no-spinner::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+   -webkit-appearance: none;
+   margin: 0;
 }
 
 .no-spinner {
-  appearance: textfield;
-  -moz-appearance: textfield;
+   appearance: textfield;
+   -moz-appearance: textfield;
 }
 
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
 input:-webkit-autofill:active {
-  -webkit-text-fill-color: var(--text-primary) !important;
-  transition: background-color 5000s ease-in-out 0s;
+   -webkit-text-fill-color: var(--text-primary) !important;
+   transition: background-color 5000s ease-in-out 0s;
 }
 
 .modal-input {
-  width: 100%;
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  padding: 0.75rem;
-  font-size: 1rem;
-  line-height: 1.5rem;
-  color: var(--text-primary);
-  outline: none;
-  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
+   width: 100%;
+   background-color: var(--bg-secondary);
+   border: 1px solid var(--border);
+   border-radius: 0.5rem;
+   padding: 0.75rem;
+   font-size: 1rem;
+   line-height: 1.5rem;
+   color: var(--text-primary);
+   outline: none;
+   transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+   transition-duration: 150ms;
 }
 
 .modal-input:hover {
-  border-color: var(--text-primary);
+   border-color: var(--text-primary);
 }
 
 .modal-input:focus {
-  border-color: var(--text-primary);
+   border-color: var(--text-primary);
 }
 
 .modal-input::placeholder {
-  color: var(--modal-placeholder);
+   color: var(--modal-placeholder);
+}
+
+/* Custom resize handle for textarea */
+textarea.modal-input {
+   position: relative;
+}
+
+textarea.modal-input::-webkit-resizer {
+   display: none;
+}
+
+textarea.modal-input::-webkit-scrollbar {
+   width: 6px;
+}
+
+textarea.modal-input::-webkit-scrollbar-track {
+   background: transparent;
+   margin: 4px 0 6px 0;
+}
+
+textarea.modal-input::-webkit-scrollbar-thumb {
+   background: rgba(255, 255, 255, 0.15);
+   border-radius: 3px;
+}
+
+textarea.modal-input::-webkit-scrollbar-thumb:hover {
+   background: rgba(255, 255, 255, 0.25);
+}
+
+textarea.modal-input::-webkit-scrollbar-corner {
+   background: transparent;
+}
+
+textarea.modal-input {
+   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Ccircle cx='9' cy='9' r='1.5' fill='%23666'/%3E%3Ccircle cx='5' cy='9' r='1.5' fill='%23666'/%3E%3Ccircle cx='9' cy='5' r='1.5' fill='%23666'/%3E%3C/svg%3E");
+   background-position: bottom 2px right 2px;
+   background-repeat: no-repeat;
+}
+
+textarea.modal-input:hover {
+   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Ccircle cx='9' cy='9' r='1.5' fill='%23999'/%3E%3Ccircle cx='5' cy='9' r='1.5' fill='%23999'/%3E%3Ccircle cx='9' cy='5' r='1.5' fill='%23999'/%3E%3C/svg%3E");
 }
 
 /* =============================================================================
@@ -265,10 +306,10 @@ input:-webkit-autofill:active {
    ============================================================================= */
 
 .interactive-text {
-  color: var(--text-tertiary);
-  transition: color 150ms ease;
+   color: var(--text-tertiary);
+   transition: color 150ms ease;
 }
 
 .interactive-text:hover {
-  color: var(--text-primary);
+   color: var(--text-primary);
 }

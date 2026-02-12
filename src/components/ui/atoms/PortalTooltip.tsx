@@ -93,6 +93,8 @@ interface PortalTooltipProps {
     fixedWidth?: number;
     /** Completely disable the tooltip */
     disabled?: boolean;
+    /** Override the default max-width for auto sizeMode (default: 360px) */
+    maxWidth?: number;
 }
 
 interface TooltipPosition {
@@ -140,7 +142,8 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
     title,
     estimatedHeight = 80,
     fixedWidth,
-    disabled
+    disabled,
+    maxWidth,
 }) => {
     // =========================================================================
     // STATE
@@ -552,7 +555,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                         // Fixed mode: explicit dimensions, Auto mode: let content determine size
                         width: sizeMode === 'fixed' ? (fixedWidth ?? calculatedWidth) : undefined,
                         height: sizeMode === 'fixed' ? position.maxHeight : undefined,
-                        maxWidth: sizeMode === 'auto' ? AUTO_MAX_WIDTH : undefined,
+                        maxWidth: sizeMode === 'auto' ? (maxWidth ?? AUTO_MAX_WIDTH) : undefined,
                         // Prevent tooltip from intercepting events during initial positioning
                         pointerEvents: isVisible ? 'auto' : 'none',
                     }}

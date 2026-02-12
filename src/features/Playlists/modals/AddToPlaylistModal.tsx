@@ -1,9 +1,16 @@
-import React from 'react';
-import { createPortal } from 'react-dom';
+// =============================================================================
+// ADD TO PLAYLIST MODAL — Video Playlists
+// =============================================================================
+// Thin wrapper around AddToCollectionModal for adding videos to playlists.
+// Business logic (usePlaylists) stays here; presentation is shared.
+// =============================================================================
+
+import React, { useMemo, useState } from 'react';
+import { AddToCollectionModal } from '../../../components/ui/molecules/AddToCollectionModal';
+import type { CollectionItem } from '../../../components/ui/molecules/AddToCollectionModal';
 import { usePlaylists } from '../../../core/hooks/usePlaylists';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
-import { X, Plus, Check } from 'lucide-react';
 
 interface AddToPlaylistModalProps {
     videoIds: string[];
@@ -14,29 +21,9 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoIds
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { playlists, createPlaylist, addVideosToPlaylist, removeVideosFromPlaylist } = usePlaylists(user?.uid || '', currentChannel?.id || '');
-    const [isCreating, setIsCreating] = React.useState(false);
-    const [newPlaylistName, setNewPlaylistName] = React.useState('');
 
-    const handleCreate = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (newPlaylistName.trim() && user && currentChannel) {
-            createPlaylist({ name: newPlaylistName.trim(), videoIds: videoIds });
-            setNewPlaylistName('');
-            setIsCreating(false);
-        }
-    };
-
-    const togglePlaylist = (playlistId: string, isInPlaylist: boolean) => {
-        if (!user || !currentChannel) return;
-        if (!isInPlaylist) {
-            addVideosToPlaylist({ playlistId, videoIds: videoIds });
-        } else {
-            removeVideosFromPlaylist({ playlistId, videoIds: videoIds });
-        }
-    };
-
-    // Calculate initial sort order ONCE on mount to preventing jumping
-    const [initialSortOrder] = React.useState(() => {
+    // Stable sort order captured on mount to prevent reordering during toggles
+    const [initialSortOrder] = useState(() => {
         return [...playlists].sort((a, b) => {
             const timeA = a.updatedAt || a.createdAt;
             const timeB = b.updatedAt || b.createdAt;
@@ -44,99 +31,49 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({ videoIds
         }).map(p => p.id);
     });
 
-    const displayPlaylists = React.useMemo(() => {
-        // 1. Get all playlists currently available
-        const currentPlaylistsMap = new Map(playlists.map(p => [p.id, p]));
+    const items: CollectionItem[] = useMemo(() => {
+        const currentMap = new Map(playlists.map(p => [p.id, p]));
 
-        // 2. Map the initial stable order to current playlist objects
+        // Stable list from initial order
         const stableList = initialSortOrder
-            .map(id => currentPlaylistsMap.get(id))
+            .map(id => currentMap.get(id))
             .filter((p): p is NonNullable<typeof p> => !!p);
 
-        // 3. Find any NEW playlists created since mount (not in initial order)
+        // New playlists created since mount
         const newPlaylists = playlists.filter(p => !initialSortOrder.includes(p.id));
 
-        // 4. Combine: New playlists at top (optional, or bottom), followed by stable list
-        // Usually newly created playlists should be visible, so putting them at top makes sense.
-        return [...newPlaylists, ...stableList];
-    }, [playlists, initialSortOrder]);
+        return [...newPlaylists, ...stableList].map(playlist => ({
+            id: playlist.id,
+            name: playlist.name,
+            isMember: videoIds.every(id => playlist.videoIds.includes(id)),
+        }));
+    }, [playlists, initialSortOrder, videoIds]);
 
-    return createPortal(
+    const handleToggle = (playlistId: string, currentlyMember: boolean) => {
+        if (!user || !currentChannel) return;
+        if (currentlyMember) {
+            removeVideosFromPlaylist({ playlistId, videoIds });
+        } else {
+            addVideosToPlaylist({ playlistId, videoIds });
+        }
+    };
 
-        <div
-            className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
-            onClick={onClose}
-        >
-            <div
-                className="bg-bg-secondary rounded-xl w-[400px] max-h-[80vh] flex flex-col overflow-hidden animate-scale-in border border-border shadow-2xl"
-                onClick={e => e.stopPropagation()}
-            >
-                <div className="px-4 py-4 flex items-center justify-between border-b border-border">
-                    <h3 className="m-0 text-base font-bold text-text-primary">Save to playlist</h3>
-                    <button
-                        onClick={onClose}
-                        className="bg-transparent border-none text-text-primary cursor-pointer hover:opacity-70 transition-opacity"
-                    >
-                        <X size={24} />
-                    </button>
-                </div>
+    const handleCreate = (name: string) => {
+        if (!user || !currentChannel) return;
+        createPlaylist({ name, videoIds });
+    };
 
-                <div className="py-2 overflow-y-auto custom-scrollbar">
-                    {displayPlaylists.map(playlist => {
-                        // Check if ALL selected videos are in the playlist
-                        const isInPlaylist = videoIds.every(id => playlist.videoIds.includes(id));
-                        // Check if SOME videos are in the playlist (for partial state UI if needed, currently just using isInPlaylist)
-                        // const isPartiallyInPlaylist = videoIds.some(id => playlist.videoIds.includes(id));
-
-                        return (
-                            <div
-                                key={playlist.id}
-                                className="px-4 py-2 flex items-center gap-3 cursor-pointer hover:bg-hover-bg transition-colors"
-                                onClick={() => togglePlaylist(playlist.id, isInPlaylist)}
-                            >
-                                <div className={`w-5 h-5 border border-text-secondary rounded flex items-center justify-center ${isInPlaylist ? 'bg-text-primary border-text-primary' : 'bg-transparent'}`}>
-                                    {isInPlaylist && <Check size={14} className="text-bg-primary" />}
-                                </div>
-                                <span className="text-text-primary">{playlist.name}</span>
-                            </div>
-                        );
-                    })}
-                </div>
-
-                <div className="p-4 border-t border-border">
-                    {!isCreating ? (
-                        <button
-                            onClick={() => setIsCreating(true)}
-                            className="bg-transparent border-none text-text-primary cursor-pointer flex items-center gap-2 text-sm font-medium hover:opacity-80 transition-opacity"
-                        >
-                            <Plus size={20} />
-                            Create new playlist
-                        </button>
-                    ) : (
-                        <form onSubmit={handleCreate} className="flex flex-col gap-3">
-                            <input
-                                autoFocus
-                                type="text"
-                                placeholder="Name"
-                                value={newPlaylistName}
-                                onChange={e => setNewPlaylistName(e.target.value)}
-                                className="p-2 rounded border border-border bg-bg-primary text-text-primary outline-none focus:border-text-primary transition-colors"
-                                onKeyDown={(e) => e.stopPropagation()}
-                            />
-                            <div className="flex justify-end">
-                                <button
-                                    type="submit"
-                                    disabled={!newPlaylistName.trim()}
-                                    className={`bg-transparent border-none font-bold cursor-pointer transition-opacity ${!newPlaylistName.trim() ? 'text-gray-500 cursor-not-allowed' : 'text-[#3ea6ff] hover:opacity-80'}`}
-                                >
-                                    Create
-                                </button>
-                            </div>
-                        </form>
-                    )}
-                </div>
-            </div>
-        </div>,
-        document.body
+    return (
+        <AddToCollectionModal
+            isOpen={true}
+            onClose={onClose}
+            title="Save to playlist"
+            items={items}
+            onToggle={handleToggle}
+            onCreate={handleCreate}
+            createLabel="Create new playlist"
+            createPlaceholder="Name"
+            emptyText="No playlists yet"
+        />
     );
 };
