@@ -3,12 +3,14 @@
 // =============================================================================
 
 import React, { useState } from 'react';
-import { Settings2 } from 'lucide-react';
+import { Settings2, ChevronRight } from 'lucide-react';
 import type { MusicGenre, MusicTag } from '../../../core/types/track';
 
 interface MusicFilterBarProps {
     genres: MusicGenre[];
     tags: MusicTag[];
+    categoryOrder: string[];
+    featuredCategories: string[];
     genreFilter: string | null;
     tagFilters: string[];
     bpmFilter: [number, number] | null;
@@ -23,6 +25,8 @@ interface MusicFilterBarProps {
 export const MusicFilterBar: React.FC<MusicFilterBarProps> = ({
     genres,
     tags,
+    categoryOrder,
+    featuredCategories,
     genreFilter,
     tagFilters,
     bpmFilter,
@@ -35,6 +39,7 @@ export const MusicFilterBar: React.FC<MusicFilterBarProps> = ({
 }) => {
     const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
     const [filterIconHovered, setFilterIconHovered] = useState(false);
+    const [showAll, setShowAll] = useState(false);
 
     if (genres.length === 0 && tags.length === 0) return null;
 
@@ -54,11 +59,34 @@ export const MusicFilterBar: React.FC<MusicFilterBarProps> = ({
         return acc;
     }, {});
 
+    // Sort tag categories by categoryOrder
+    const sortedTagCategoryKeys = Object.keys(tagsByCategory).sort((a, b) => {
+        const idxA = categoryOrder.indexOf(a);
+        const idxB = categoryOrder.indexOf(b);
+        if (idxA === -1 && idxB === -1) return 0;
+        if (idxA === -1) return 1;
+        if (idxB === -1) return -1;
+        return idxA - idxB;
+    });
+
+    // Build all categories in stable order (Genres first, then tags by categoryOrder, BPM last)
     const allCategories: { key: string; label: string; type: 'genre' | 'tag' | 'bpm' }[] = [
         ...(genres.length > 0 ? [{ key: '__genre__', label: 'Genres', type: 'genre' as const }] : []),
-        ...Object.keys(tagsByCategory).map(cat => ({ key: cat, label: cat, type: 'tag' as const })),
+        ...sortedTagCategoryKeys.map(cat => ({ key: cat, label: cat, type: 'tag' as const })),
         { key: '__bpm__', label: 'BPM', type: 'bpm' as const },
     ];
+
+    // Determine which categories are featured
+    const hasFeatured = featuredCategories.length > 0;
+    const isFeatured = (key: string) => featuredCategories.includes(key);
+
+    // Visible categories: featured-only when collapsed, all when expanded or no featured set
+    const visibleCategories = (!hasFeatured || showAll)
+        ? allCategories
+        : allCategories.filter(c => isFeatured(c.key));
+
+    // Are there any non-featured categories that can be toggled?
+    const hasNonFeatured = hasFeatured && allCategories.some(c => !isFeatured(c.key));
 
     return (
         <div className="flex flex-col gap-2.5">
@@ -68,7 +96,8 @@ export const MusicFilterBar: React.FC<MusicFilterBarProps> = ({
                     onMouseEnter={() => setFilterIconHovered(true)}
                     onMouseLeave={() => setFilterIconHovered(false)}
                     onClick={() => {
-                        const allKeys = allCategories.map(c => c.key);
+                        const targetKeys = (showAll || !hasFeatured) ? allCategories : visibleCategories;
+                        const allKeys = targetKeys.map(c => c.key);
                         const allExpanded = allKeys.every(k => expandedCategories.has(k));
                         setExpandedCategories(allExpanded ? new Set() : new Set(allKeys));
                     }}
@@ -76,7 +105,7 @@ export const MusicFilterBar: React.FC<MusicFilterBarProps> = ({
                 >
                     <Settings2 size={16} />
                 </button>
-                {allCategories.map(({ key, label, type }) => {
+                {visibleCategories.map(({ key, label, type }) => {
                     const isExpanded = expandedCategories.has(key);
                     const isActive = type === 'genre'
                         ? !!genreFilter
@@ -98,6 +127,19 @@ export const MusicFilterBar: React.FC<MusicFilterBarProps> = ({
                         </button>
                     );
                 })}
+
+                {/* Expand arrow to show non-featured categories */}
+                {hasNonFeatured && (
+                    <button
+                        onClick={() => setShowAll(prev => !prev)}
+                        className="bg-transparent border-none cursor-pointer p-0 flex-shrink-0 text-text-tertiary hover:text-text-primary transition-all"
+                    >
+                        <ChevronRight
+                            size={16}
+                            className={`transition-transform duration-200 ${showAll ? 'rotate-180' : ''}`}
+                        />
+                    </button>
+                )}
 
                 {hasActiveFilters && (
                     <button

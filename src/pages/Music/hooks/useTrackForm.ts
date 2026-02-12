@@ -47,7 +47,7 @@ function getAudioDuration(file: File): Promise<number> {
 }
 
 export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: UseTrackFormProps) {
-    const { genres, tags, saveSettings } = useMusicStore();
+    const { genres, tags, categoryOrder, saveSettings } = useMusicStore();
     const isEditMode = !!editTrack;
 
     // Form state
@@ -238,14 +238,36 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
                 }
             } else {
                 if (!vocalFile.file) {
-                    setVocalFile(fileState);
-                    if (!title) {
-                        const name = firstFile.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
-                        setTitle(name);
-                    }
-                    applyMetadata(firstFile);
                     if (audioFiles.length > 1) {
-                        setInstrumentalFile({ file: audioFiles[1], name: audioFiles[1].name, uploading: false, progress: 0 });
+                        // Smart detection: check if one file is instrumental by name
+                        const instrPattern = /instr/i;
+                        const instrIndex = audioFiles.findIndex(f => instrPattern.test(f.name.replace(/\.[^/.]+$/, '')));
+
+                        let vocalF: File, instrF: File;
+                        if (instrIndex >= 0) {
+                            instrF = audioFiles[instrIndex];
+                            vocalF = audioFiles[instrIndex === 0 ? 1 : 0];
+                        } else {
+                            vocalF = audioFiles[0];
+                            instrF = audioFiles[1];
+                        }
+
+                        setVocalFile({ file: vocalF, name: vocalF.name, uploading: false, progress: 0 });
+                        setInstrumentalFile({ file: instrF, name: instrF.name, uploading: false, progress: 0 });
+
+                        if (!title) {
+                            // Use vocal file name for title (cleaner)
+                            const name = vocalF.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+                            setTitle(name);
+                        }
+                        applyMetadata(vocalF);
+                    } else {
+                        setVocalFile(fileState);
+                        if (!title) {
+                            const name = firstFile.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+                            setTitle(name);
+                        }
+                        applyMetadata(firstFile);
                     }
                 } else if (!instrumentalFile.file) {
                     setInstrumentalFile(fileState);
@@ -457,6 +479,7 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
         // Settings from store
         genres,
         tags,
+        categoryOrder,
         saveSettings,
 
         // Handlers

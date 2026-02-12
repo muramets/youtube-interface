@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Palette, Tag } from 'lucide-react';
+import { X, Disc, Tag } from 'lucide-react';
 import { useMusicStore } from '../../../core/stores/musicStore';
 import { Button } from '../../../components/ui/atoms';
 import type { MusicGenre, MusicTag, MusicSettings } from '../../../core/types/track';
@@ -27,7 +27,7 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
     userId,
     channelId,
 }) => {
-    const { genres, tags, saveSettings } = useMusicStore();
+    const { genres, tags, categoryOrder, featuredCategories, saveSettings } = useMusicStore();
 
     const [activeTab, setActiveTab] = useState<Tab>('genres');
     const [isClosing, setIsClosing] = useState(false);
@@ -52,14 +52,30 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
         setIsDirty(true);
     }, []);
 
+    const [localCategoryOrder, setLocalCategoryOrderRaw] = useState<string[]>([]);
+    const setLocalCategoryOrder: typeof setLocalCategoryOrderRaw = useCallback((action) => {
+        setLocalCategoryOrderRaw(action);
+        isDirtyRef.current = true;
+        setIsDirty(true);
+    }, []);
+
+    const [localFeaturedCategories, setLocalFeaturedCategoriesRaw] = useState<string[]>([]);
+    const setLocalFeaturedCategories: typeof setLocalFeaturedCategoriesRaw = useCallback((action) => {
+        setLocalFeaturedCategoriesRaw(action);
+        isDirtyRef.current = true;
+        setIsDirty(true);
+    }, []);
+
     useEffect(() => {
         if (isOpen) {
             setLocalGenresRaw([...genres]);
             setLocalTagsRaw([...tags]);
+            setLocalCategoryOrderRaw([...categoryOrder]);
+            setLocalFeaturedCategoriesRaw([...featuredCategories]);
             isDirtyRef.current = false;
             setIsDirty(false);
         }
-    }, [isOpen, genres, tags]);
+    }, [isOpen, genres, tags, categoryOrder, featuredCategories]);
 
     const handleClose = () => {
         setIsClosing(true);
@@ -75,6 +91,8 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
             const settings: MusicSettings = {
                 genres: localGenres,
                 tags: localTags,
+                categoryOrder: localCategoryOrder,
+                featuredCategories: localFeaturedCategories,
             };
             await saveSettings(userId, channelId, settings);
             handleClose();
@@ -120,7 +138,7 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
                                 }`}
                         >
                             <span className="flex items-center gap-1.5">
-                                {tab === 'genres' ? <Palette size={14} /> : <Tag size={14} />}
+                                {tab === 'genres' ? <Disc size={14} /> : <Tag size={14} />}
                                 {tab === 'genres' ? 'Genres' : 'Tags'}
                             </span>
                             {activeTab === tab && (
@@ -136,7 +154,7 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
                         <GenreTab localGenres={localGenres} setLocalGenres={setLocalGenres} />
                     )}
                     {activeTab === 'tags' && (
-                        <TagTab localTags={localTags} setLocalTags={setLocalTags} />
+                        <TagTab localTags={localTags} setLocalTags={setLocalTags} categoryOrder={localCategoryOrder} setCategoryOrder={setLocalCategoryOrder} featuredCategories={localFeaturedCategories} setFeaturedCategories={setLocalFeaturedCategories} />
                     )}
                 </div>
 

@@ -40,6 +40,8 @@ export const MusicPage: React.FC = () => {
         clearFilters,
         genres,
         tags,
+        categoryOrder,
+        featuredCategories,
         musicPlaylists,
         activePlaylistId,
         setActivePlaylist,
@@ -109,13 +111,10 @@ export const MusicPage: React.FC = () => {
             result = result.filter((t) => t.genre === genreFilter);
         }
 
-        // Tag filters
+        // Tag filters (track.tags and tagFilters are both ID-based)
         if (tagFilters.length > 0) {
             result = result.filter((t) =>
-                tagFilters.every((tagId) => {
-                    const tagDef = tags.find((td) => td.id === tagId);
-                    return tagDef && t.tags.includes(tagDef.name);
-                })
+                tagFilters.every((tagId) => t.tags.includes(tagId))
             );
         }
 
@@ -133,7 +132,7 @@ export const MusicPage: React.FC = () => {
         }
 
         return result;
-    }, [tracks, searchQuery, genreFilter, tagFilters, tags, bpmFilter, activePlaylistId, musicPlaylists]);
+    }, [tracks, searchQuery, genreFilter, tagFilters, bpmFilter, activePlaylistId, musicPlaylists]);
 
     // Compute BPM range from available tracks
     const bpmRange = useMemo(() => {
@@ -221,6 +220,8 @@ export const MusicPage: React.FC = () => {
                 <MusicFilterBar
                     genres={genres}
                     tags={tags}
+                    categoryOrder={categoryOrder}
+                    featuredCategories={featuredCategories}
                     genreFilter={genreFilter}
                     tagFilters={tagFilters}
                     bpmFilter={bpmFilter}

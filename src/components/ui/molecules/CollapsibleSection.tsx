@@ -7,7 +7,7 @@ interface CollapsibleSectionProps {
     defaultOpen?: boolean;
     trailing?: React.ReactNode;
     className?: string;
-    variant?: 'default' | 'mini';
+    variant?: 'default' | 'mini' | 'micro';
     isOpen?: boolean;
     onToggle?: () => void;
     dragHandle?: React.ReactNode;
@@ -27,17 +27,19 @@ export function CollapsibleSection({
     const [internalIsOpen, setInternalIsOpen] = useState(defaultOpen);
     const [isOverflowVisible, setOverflowVisible] = useState(defaultOpen);
 
-    const isMini = variant === 'mini';
-    const headerClass = isMini
-        ? "text-xs font-bold uppercase tracking-widest"
-        : "text-xl font-semibold";
+    const isCompact = variant === 'mini' || variant === 'micro';
+    const headerClass = variant === 'micro'
+        ? "text-[10px] font-medium uppercase tracking-widest"
+        : variant === 'mini'
+            ? "text-xs font-bold uppercase tracking-widest"
+            : "text-xl font-semibold";
 
     // Shared color transition logic
     const colorClass = "text-text-tertiary group-hover:text-text-primary transition-colors duration-200";
 
-    const iconClass = isMini ? "w-2.5 h-2.5" : "w-5 h-5";
-    const gapClass = isMini ? "gap-2" : "gap-3";
-    const mbClass = isMini ? "mb-2" : "mb-4";
+    const iconClass = isCompact ? "w-2.5 h-2.5" : "w-5 h-5";
+    const gapClass = isCompact ? "gap-2" : "gap-3";
+    const mbClass = isCompact ? "mb-2" : "mb-4";
 
     const isSectionOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
 
@@ -102,7 +104,7 @@ export function CollapsibleSection({
                     ${isOverflowVisible ? 'overflow-visible' : 'overflow-hidden'}
                 `}
             >
-                <div className={`${isMini ? "py-0" : "py-1"} min-h-0`}>
+                <div className={`${isCompact ? "py-0" : "py-1"} min-h-0`}>
                     {children}
                 </div>
             </div>

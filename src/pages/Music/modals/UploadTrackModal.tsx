@@ -243,6 +243,7 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
                             <TagSection
                                 tags={form.tags}
                                 genres={form.genres}
+                                categoryOrder={form.categoryOrder}
                                 selectedTags={form.selectedTags}
                                 onSelectedChange={form.setSelectedTags}
                                 userId={userId}

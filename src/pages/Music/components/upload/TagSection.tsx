@@ -12,6 +12,7 @@ import type { MusicGenre, MusicTag, MusicSettings } from '../../../../core/types
 interface TagSectionProps {
     tags: MusicTag[];
     genres: MusicGenre[];
+    categoryOrder: string[];
     selectedTags: string[];
     onSelectedChange: (tags: string[]) => void;
     // Persist new tags to settings
@@ -23,6 +24,7 @@ interface TagSectionProps {
 export const TagSection: React.FC<TagSectionProps> = ({
     tags,
     genres,
+    categoryOrder,
     selectedTags,
     onSelectedChange,
     userId,
@@ -36,11 +38,11 @@ export const TagSection: React.FC<TagSectionProps> = ({
     const [newCategoryName, setNewCategoryName] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
 
-    const toggleTag = (tagName: string) => {
+    const toggleTag = (tagId: string) => {
         onSelectedChange(
-            selectedTags.includes(tagName)
-                ? selectedTags.filter((t) => t !== tagName)
-                : [...selectedTags, tagName]
+            selectedTags.includes(tagId)
+                ? selectedTags.filter((t) => t !== tagId)
+                : [...selectedTags, tagId]
         );
     };
 
@@ -85,76 +87,85 @@ export const TagSection: React.FC<TagSectionProps> = ({
                 )}
             </div>
             <div className="space-y-2.5">
-                {Object.entries(tagsByCategory).map(([category, categoryTags]) => (
-                    <div key={category}>
-                        <span className="text-[10px] text-text-tertiary uppercase tracking-widest">
-                            {category}
-                        </span>
-                        <div className="flex flex-wrap gap-1.5 mt-1">
-                            {categoryTags.map((tag) => {
-                                const isSelected = selectedTags.includes(tag.name);
-                                return (
+                {Object.entries(tagsByCategory)
+                    .sort(([a], [b]) => {
+                        const idxA = categoryOrder.indexOf(a);
+                        const idxB = categoryOrder.indexOf(b);
+                        if (idxA === -1 && idxB === -1) return 0;
+                        if (idxA === -1) return 1;
+                        if (idxB === -1) return -1;
+                        return idxA - idxB;
+                    })
+                    .map(([category, categoryTags]) => (
+                        <div key={category}>
+                            <span className="text-[10px] text-text-tertiary uppercase tracking-widest">
+                                {category}
+                            </span>
+                            <div className="flex flex-wrap gap-1.5 mt-1">
+                                {categoryTags.map((tag) => {
+                                    const isSelected = selectedTags.includes(tag.id);
+                                    return (
+                                        <button
+                                            key={tag.id}
+                                            onClick={() => toggleTag(tag.id)}
+                                            className={`text-xs px-3 py-1.5 rounded-lg transition-all cursor-pointer border-none font-medium ${isSelected
+                                                ? 'bg-text-primary text-bg-primary'
+                                                : 'bg-[#F2F2F2]/10 text-text-primary hover:bg-[#F2F2F2]/20'
+                                                }`}
+                                        >
+                                            {tag.name}
+                                        </button>
+                                    );
+                                })}
+                                {/* Inline add tag to this category */}
+                                {addingTagCategory === category ? (
+                                    <div className="flex items-center gap-1">
+                                        <input
+                                            type="text"
+                                            value={newTagName}
+                                            onChange={(e) => setNewTagName(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    if (!newTagName.trim()) return;
+                                                    const newTag = {
+                                                        id: uuidv4(),
+                                                        name: newTagName.trim(),
+                                                        category: category === 'Uncategorized' ? undefined : category,
+                                                    };
+                                                    const updatedTags = [...tags, newTag];
+                                                    onSaveSettings(userId, channelId, { genres, tags: updatedTags });
+                                                    onSelectedChange([...selectedTags, newTag.id]);
+                                                    setNewTagName('');
+                                                    setAddingTagCategory(null);
+                                                }
+                                                if (e.key === 'Escape') {
+                                                    setAddingTagCategory(null);
+                                                    setNewTagName('');
+                                                }
+                                            }}
+                                            placeholder="Tag name..."
+                                            className="text-xs px-2 py-1 rounded-lg bg-[#F2F2F2]/10 border border-border text-text-primary w-24 outline-none focus:border-text-secondary"
+                                            autoFocus
+                                        />
+                                        <button
+                                            onClick={() => { setAddingTagCategory(null); setNewTagName(''); }}
+                                            className="text-text-tertiary hover:text-text-primary"
+                                        >
+                                            <X size={12} />
+                                        </button>
+                                    </div>
+                                ) : (
                                     <button
-                                        key={tag.id}
-                                        onClick={() => toggleTag(tag.name)}
-                                        className={`text-xs px-3 py-1.5 rounded-lg transition-all cursor-pointer border-none font-medium ${isSelected
-                                            ? 'bg-text-primary text-bg-primary'
-                                            : 'bg-[#F2F2F2]/10 text-text-primary hover:bg-[#F2F2F2]/20'
-                                            }`}
+                                        onClick={() => { setAddingTagCategory(category); setNewTagName(''); }}
+                                        className="text-xs px-2.5 py-1.5 rounded-lg bg-[#F2F2F2]/5 text-text-tertiary hover:text-text-primary hover:bg-[#F2F2F2]/10 transition-colors flex items-center gap-1 border-none cursor-pointer"
                                     >
-                                        {tag.name}
+                                        <Plus size={11} />
                                     </button>
-                                );
-                            })}
-                            {/* Inline add tag to this category */}
-                            {addingTagCategory === category ? (
-                                <div className="flex items-center gap-1">
-                                    <input
-                                        type="text"
-                                        value={newTagName}
-                                        onChange={(e) => setNewTagName(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                e.preventDefault();
-                                                if (!newTagName.trim()) return;
-                                                const newTag = {
-                                                    id: uuidv4(),
-                                                    name: newTagName.trim(),
-                                                    category: category === 'Uncategorized' ? undefined : category,
-                                                };
-                                                const updatedTags = [...tags, newTag];
-                                                onSaveSettings(userId, channelId, { genres, tags: updatedTags });
-                                                onSelectedChange([...selectedTags, newTag.name]);
-                                                setNewTagName('');
-                                                setAddingTagCategory(null);
-                                            }
-                                            if (e.key === 'Escape') {
-                                                setAddingTagCategory(null);
-                                                setNewTagName('');
-                                            }
-                                        }}
-                                        placeholder="Tag name..."
-                                        className="text-xs px-2 py-1 rounded-lg bg-[#F2F2F2]/10 border border-border text-text-primary w-24 outline-none focus:border-text-secondary"
-                                        autoFocus
-                                    />
-                                    <button
-                                        onClick={() => { setAddingTagCategory(null); setNewTagName(''); }}
-                                        className="text-text-tertiary hover:text-text-primary"
-                                    >
-                                        <X size={12} />
-                                    </button>
-                                </div>
-                            ) : (
-                                <button
-                                    onClick={() => { setAddingTagCategory(category); setNewTagName(''); }}
-                                    className="text-xs px-2.5 py-1.5 rounded-lg bg-[#F2F2F2]/5 text-text-tertiary hover:text-text-primary hover:bg-[#F2F2F2]/10 transition-colors flex items-center gap-1 border-none cursor-pointer"
-                                >
-                                    <Plus size={11} />
-                                </button>
-                            )}
+                                )}
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    ))}
 
                 {/* Add new category */}
                 {isAddingCategory ? (

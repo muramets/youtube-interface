@@ -35,6 +35,8 @@ interface MusicState {
     // Music settings (genres & tags management)
     genres: MusicGenre[];
     tags: MusicTag[];
+    categoryOrder: string[];
+    featuredCategories: string[];
     isSettingsLoaded: boolean;
 
     // Music playlists
@@ -98,6 +100,8 @@ export const useMusicStore = create<MusicState>((set) => ({
     bpmFilter: null,
     genres: DEFAULT_GENRES,
     tags: DEFAULT_TAGS,
+    categoryOrder: [],
+    featuredCategories: [],
     isSettingsLoaded: false,
     musicPlaylists: [],
     activePlaylistId: null,
@@ -119,6 +123,8 @@ export const useMusicStore = create<MusicState>((set) => ({
             set({
                 genres: settings.genres,
                 tags: settings.tags,
+                categoryOrder: settings.categoryOrder || [],
+                featuredCategories: settings.featuredCategories || [],
                 isSettingsLoaded: true,
             });
         } catch (error) {
@@ -126,15 +132,17 @@ export const useMusicStore = create<MusicState>((set) => ({
         }
     },
 
-    // Save music settings
+    // Save music settings (optimistic: update store immediately, rollback on error)
     saveSettings: async (userId, channelId, settings) => {
+        const state = useMusicStore.getState();
+        const prev = { genres: state.genres, tags: state.tags, categoryOrder: state.categoryOrder, featuredCategories: state.featuredCategories };
+        // Optimistic update
+        set({ genres: settings.genres, tags: settings.tags, categoryOrder: settings.categoryOrder || prev.categoryOrder, featuredCategories: settings.featuredCategories || prev.featuredCategories });
         try {
             await TrackService.saveMusicSettings(userId, channelId, settings);
-            set({
-                genres: settings.genres,
-                tags: settings.tags,
-            });
         } catch (error) {
+            // Rollback on failure
+            set({ genres: prev.genres, tags: prev.tags, categoryOrder: prev.categoryOrder, featuredCategories: prev.featuredCategories });
             console.error('[MusicStore] Failed to save settings:', error);
             throw error;
         }

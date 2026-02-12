@@ -3,7 +3,7 @@
 // Sub-component of MusicSettingsModal
 // =============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { X, Plus, Trash2, GripVertical, Search } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
@@ -11,6 +11,7 @@ import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } 
 import { CSS } from '@dnd-kit/utilities';
 import type { MusicGenre } from '../../../../core/types/track';
 import { PRESET_COLORS } from '../../utils/constants';
+import { ColorPickerPopover } from '../../../../components/ui/molecules/ColorPickerPopover';
 
 // --- Sortable Genre Item ---
 interface SortableGenreItemProps {
@@ -22,6 +23,7 @@ interface SortableGenreItemProps {
 }
 
 const SortableGenreItem: React.FC<SortableGenreItemProps> = ({ genre, onUpdateColor, onUpdateName, onRemove, showHandle }) => {
+    const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
     const {
         attributes,
         listeners,
@@ -36,8 +38,13 @@ const SortableGenreItem: React.FC<SortableGenreItemProps> = ({ genre, onUpdateCo
         transition: isDragging ? undefined : transition,
         opacity: isDragging ? 0.5 : 1,
         position: 'relative' as const,
-        zIndex: isDragging ? 50 : 1,
+        zIndex: isDragging ? 50 : isColorPickerOpen ? 20 : 1,
     };
+
+    const handleColorChange = useCallback((color: string) => {
+        onUpdateColor(genre.id, color);
+        setIsColorPickerOpen(false);
+    }, [genre.id, onUpdateColor]);
 
     return (
         <div
@@ -55,16 +62,24 @@ const SortableGenreItem: React.FC<SortableGenreItemProps> = ({ genre, onUpdateCo
             {/* Color picker */}
             <div className="relative">
                 <div
-                    className="w-5 h-5 rounded-full cursor-pointer ring-1 ring-white/10 hover:ring-white/30 transition-all"
+                    role="button"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setIsColorPickerOpen(!isColorPickerOpen);
+                    }}
+                    className="w-5 h-5 rounded-full cursor-pointer ring-1 ring-white/10 hover:ring-white/30 hover:scale-110 transition-all"
                     style={{ backgroundColor: genre.color }}
-                >
-                    <input
-                        type="color"
-                        value={genre.color}
-                        onChange={(e) => onUpdateColor(genre.id, e.target.value)}
-                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                />
+
+                {isColorPickerOpen && (
+                    <ColorPickerPopover
+                        currentColor={genre.color}
+                        colors={PRESET_COLORS}
+                        onColorChange={handleColorChange}
+                        onClose={() => setIsColorPickerOpen(false)}
                     />
-                </div>
+                )}
             </div>
 
             {/* Name */}

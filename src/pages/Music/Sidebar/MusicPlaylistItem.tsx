@@ -9,13 +9,14 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 
 import { useDroppable } from '@dnd-kit/core';
-import { Heart, MoreVertical, Check } from 'lucide-react';
+import { Heart, MoreVertical } from 'lucide-react';
 import { MusicPlaylistContextMenu } from './MusicPlaylistContextMenu';
 import type { MusicPlaylist } from '../../../core/types/musicPlaylist';
 import { useMusicStore } from '../../../core/stores/musicStore';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { MANUAL_NICHE_PALETTE } from '../../../core/stores/trendStore';
+import { ColorPickerPopover } from '../../../components/ui/molecules/ColorPickerPopover';
 
 interface MusicPlaylistItemProps {
     id: string;
@@ -44,7 +45,6 @@ export const MusicPlaylistItem: React.FC<MusicPlaylistItemProps> = ({
     existingGroups = [],
 }) => {
     const nameRef = useRef<HTMLSpanElement>(null);
-    const colorPickerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const menuButtonRef = useRef<HTMLButtonElement>(null);
     const [isTruncated, setIsTruncated] = useState(false);
@@ -82,18 +82,6 @@ export const MusicPlaylistItem: React.FC<MusicPlaylistItemProps> = ({
         ro.observe(el);
         return () => ro.disconnect();
     }, [name]);
-
-    // Close color picker on outside click
-    useEffect(() => {
-        if (!isColorPickerOpen) return;
-        const handleClickOutside = (e: MouseEvent) => {
-            if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
-                setIsColorPickerOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isColorPickerOpen]);
 
     // Focus input when entering edit mode
     useEffect(() => {
@@ -169,9 +157,10 @@ export const MusicPlaylistItem: React.FC<MusicPlaylistItemProps> = ({
                                 className={isActive ? 'text-red-400 fill-red-400' : 'text-red-400/60'}
                             />
                         ) : (
-                            <div ref={colorPickerRef} className="relative flex items-center justify-center">
+                            <div className="relative flex items-center justify-center">
                                 <div
                                     role="button"
+                                    onMouseDown={(e) => e.stopPropagation()}
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         setIsColorPickerOpen(!isColorPickerOpen);
@@ -183,31 +172,12 @@ export const MusicPlaylistItem: React.FC<MusicPlaylistItemProps> = ({
 
                                 {/* Color Picker Dropdown */}
                                 {isColorPickerOpen && (
-                                    <div
-                                        className="absolute left-0 top-6 z-50 bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-fade-in"
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
-                                        <div
-                                            className="grid gap-2"
-                                            style={{ gridTemplateColumns: 'repeat(5, min-content)' }}
-                                        >
-                                            {PRESET_COLORS.map(c => (
-                                                <button
-                                                    key={c}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleColorChange(c);
-                                                    }}
-                                                    className="w-6 h-6 rounded-full transition-shadow relative hover:ring-2 hover:ring-white/50 ring-offset-1 ring-offset-[#1a1a1a] border-none cursor-pointer"
-                                                    style={{ backgroundColor: c }}
-                                                >
-                                                    {displayColor === c && (
-                                                        <Check size={12} className="absolute inset-0 m-auto text-white drop-shadow-sm" strokeWidth={3} />
-                                                    )}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
+                                    <ColorPickerPopover
+                                        currentColor={displayColor}
+                                        colors={PRESET_COLORS}
+                                        onColorChange={handleColorChange}
+                                        onClose={() => setIsColorPickerOpen(false)}
+                                    />
                                 )}
                             </div>
                         )}

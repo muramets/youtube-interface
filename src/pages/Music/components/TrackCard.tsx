@@ -41,6 +41,8 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
     const playingVariant = useMusicStore((s) => s.playingVariant);
     const isPlaying = useMusicStore((s) => s.isPlaying);
     const genres = useMusicStore((s) => s.genres);
+    const allTags = useMusicStore((s) => s.tags);
+    const featuredCategories = useMusicStore((s) => s.featuredCategories);
 
     // Only subscribe to time-sensitive data for the active track
     const currentTime = useMusicStore((s) => isCurrentTrack ? s.currentTime : 0);
@@ -101,6 +103,11 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
     const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [tooltipOpen, setTooltipOpen] = useState(false);
+    const [downloadVisible, setDownloadVisible] = useState(true);
+
+    const cardRef = useRef<HTMLDivElement>(null);
+    const overflowRef = useRef<HTMLDivElement>(null);
+    const neededWidthRef = useRef<number>(0);
 
     const hasVocal = !!track.vocalUrl;
     const hasInstrumental = !!track.instrumentalUrl;
@@ -150,9 +157,42 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
         data: { type: 'music-track', track },
     });
 
+    // Detect whether like+download buttons overflow the card
+    useEffect(() => {
+        const card = cardRef.current;
+        if (!card) return;
+
+        const check = () => {
+            const overflows = card.scrollWidth > card.clientWidth + 1;
+            if (overflows) {
+                // Store the full width needed (including buttons) so we know
+                // when the card is wide enough to show them again
+                neededWidthRef.current = card.scrollWidth;
+                setDownloadVisible(false);
+            } else if (neededWidthRef.current > 0) {
+                // Buttons are hidden — show them if card is now wide enough
+                if (card.clientWidth >= neededWidthRef.current) {
+                    neededWidthRef.current = 0;
+                    setDownloadVisible(true);
+                }
+            }
+        };
+
+        const observer = new ResizeObserver(check);
+        observer.observe(card);
+        check();
+        return () => observer.disconnect();
+    }, []);
+
+    // Merge drag ref + card ref
+    const mergedRef = useCallback((node: HTMLDivElement | null) => {
+        setDragRef(node);
+        (cardRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+    }, [setDragRef]);
+
     return (
         <div
-            ref={setDragRef}
+            ref={mergedRef}
             {...listeners}
             {...attributes}
             onClick={(e) => { e.stopPropagation(); onSelect(track.id); }}
@@ -312,19 +352,27 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
 
             {/* 6. Tags */}
             <div className="flex-1 min-w-0 max-w-[200px] line-clamp-2 text-[10px] text-text-tertiary leading-relaxed">
-                {track.tags.map((tag, i) => (
-                    <span key={tag}>
-                        <span
-                            role="button"
-                            tabIndex={0}
-                            onClick={(e) => { e.stopPropagation(); toggleTagFilter(tag); }}
-                            className="text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
-                        >
-                            {tag}
+                {track.tags
+                    .map(tagId => allTags.find(t => t.id === tagId))
+                    .filter((tagDef): tagDef is NonNullable<typeof tagDef> => {
+                        if (!tagDef) return false;
+                        if (featuredCategories.length === 0) return true;
+                        return featuredCategories.includes(tagDef.category || 'Uncategorized');
+                    })
+                    .map((tagDef, i, visible) => (
+                        <span key={tagDef.id}>
+                            <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => { e.stopPropagation(); toggleTagFilter(tagDef.id); }}
+                                className="text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
+                            >
+                                {tagDef.name}
+                            </span>
+                            {i < visible.length - 1 && <span className="text-text-tertiary/50">,{' '}</span>}
                         </span>
-                        {i < track.tags.length - 1 && <span className="text-text-tertiary/50">,{' '}</span>}
-                    </span>
-                ))}
+                    ))
+                }
             </div>
 
             {/* 7+8+icons: Actions */}
@@ -388,48 +436,53 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                     </PortalTooltip>
                 )}
 
-                {/* Like heart */}
-                <button
-                    onClick={(e) => { e.stopPropagation(); toggleLike(userId, channelId, track.id); }}
-                    className={`p-1.5 rounded-lg transition-colors ${track.liked
-                        ? 'text-red-400 hover:text-red-300'
-                        : 'text-text-tertiary hover:text-text-primary'
-                        }`}
-                >
-                    <Heart size={14} fill={track.liked ? 'currentColor' : 'none'} />
-                </button>
+                {/* Like + Download (visible when they fit) */}
+                {downloadVisible && (
+                    <div ref={overflowRef} className="flex items-center gap-0.5">
+                        {/* Like heart */}
+                        <button
+                            onClick={(e) => { e.stopPropagation(); toggleLike(userId, channelId, track.id); }}
+                            className={`p-1.5 rounded-lg transition-colors ${track.liked
+                                ? 'text-red-400 hover:text-red-300'
+                                : 'text-text-tertiary hover:text-text-primary'
+                                }`}
+                        >
+                            <Heart size={14} fill={track.liked ? 'currentColor' : 'none'} />
+                        </button>
 
-                {/* Download */}
-                {hasBothVariants ? (
-                    <DropdownMenu onOpenChange={setDropdownOpen}>
-                        <DropdownMenuTrigger asChild>
+                        {/* Download */}
+                        {hasBothVariants ? (
+                            <DropdownMenu onOpenChange={setDropdownOpen}>
+                                <DropdownMenuTrigger asChild>
+                                    <button
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary transition-colors flex items-center"
+                                    >
+                                        <Download size={14} />
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" sideOffset={4}>
+                                    {hasVocal && (
+                                        <DropdownMenuItem onClick={() => handleDownload(track.vocalUrl, 'Vocal')}>
+                                            <Mic size={14} className="mr-2" /> Vocal
+                                        </DropdownMenuItem>
+                                    )}
+                                    {hasInstrumental && (
+                                        <DropdownMenuItem onClick={() => handleDownload(track.instrumentalUrl, 'Instrumental')}>
+                                            <Piano size={14} className="mr-2" /> Instrumental
+                                        </DropdownMenuItem>
+                                    )}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        ) : (
                             <button
-                                onClick={(e) => e.stopPropagation()}
-                                className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary transition-colors flex items-center"
+                                onClick={(e) => { e.stopPropagation(); handleDownload(track.vocalUrl || track.instrumentalUrl); }}
+                                className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary transition-colors"
                             >
                                 <Download size={14} />
                             </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" sideOffset={4}>
-                            {hasVocal && (
-                                <DropdownMenuItem onClick={() => handleDownload(track.vocalUrl, 'Vocal')}>
-                                    <Mic size={14} className="mr-2" /> Vocal
-                                </DropdownMenuItem>
-                            )}
-                            {hasInstrumental && (
-                                <DropdownMenuItem onClick={() => handleDownload(track.instrumentalUrl, 'Instrumental')}>
-                                    <Piano size={14} className="mr-2" /> Instrumental
-                                </DropdownMenuItem>
-                            )}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                ) : (
-                    <button
-                        onClick={(e) => { e.stopPropagation(); handleDownload(track.vocalUrl || track.instrumentalUrl); }}
-                        className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary transition-colors"
-                    >
-                        <Download size={14} />
-                    </button>
+                        )}
+                    </div>
                 )}
 
                 {/* More menu */}
@@ -446,6 +499,29 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                         <DropdownMenuItem onClick={() => setShowAddToPlaylist(true)}>
                             <ListMusic size={14} className="mr-2" /> Add to Playlist
                         </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {!downloadVisible && (
+                            <>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); toggleLike(userId, channelId, track.id); }}>
+                                    <Heart size={14} className="mr-2" fill={track.liked ? 'currentColor' : 'none'} />
+                                    {track.liked ? 'Unlike' : 'Like'}
+                                </DropdownMenuItem>
+                                {hasBothVariants ? (
+                                    <>
+                                        <DropdownMenuItem onClick={() => handleDownload(track.vocalUrl, 'Vocal')}>
+                                            <Download size={14} className="mr-2" /> Download Vocal
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleDownload(track.instrumentalUrl, 'Instrumental')}>
+                                            <Download size={14} className="mr-2" /> Download Instrumental
+                                        </DropdownMenuItem>
+                                    </>
+                                ) : (
+                                    <DropdownMenuItem onClick={() => handleDownload(track.vocalUrl || track.instrumentalUrl)}>
+                                        <Download size={14} className="mr-2" /> Download
+                                    </DropdownMenuItem>
+                                )}
+                            </>
+                        )}
                         {onEdit && (
                             <>
                                 <DropdownMenuSeparator />
