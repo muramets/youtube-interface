@@ -8,7 +8,7 @@
 // =============================================================================
 
 import React, { useState, useCallback, useMemo } from 'react';
-import { X, Plus, Search, GripVertical, Pencil, Trash2, Star } from 'lucide-react';
+import { X, Plus, Search, GripVertical, Pencil, Trash2, Star, ArrowDownUp } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import {
     DndContext,
@@ -36,6 +36,8 @@ interface TagTabProps {
     setCategoryOrder: React.Dispatch<React.SetStateAction<string[]>>;
     featuredCategories: string[];
     setFeaturedCategories: React.Dispatch<React.SetStateAction<string[]>>;
+    sortableCategories: string[];
+    setSortableCategories: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
 // ID helpers
@@ -158,7 +160,9 @@ const SortableCategorySection: React.FC<{
     onDelete: (category: string) => void;
     isFeatured: boolean;
     onToggleFeatured: (category: string) => void;
-}> = ({ category, children, isCatDragging, isEmpty, editingCategory, editingCatName, onStartEdit, onEditChange, onEditCommit, onEditCancel, onDelete, isFeatured, onToggleFeatured }) => {
+    isSortable: boolean;
+    onToggleSortable: (category: string) => void;
+}> = ({ category, children, isCatDragging, isEmpty, editingCategory, editingCatName, onStartEdit, onEditChange, onEditCommit, onEditCancel, onDelete, isFeatured, onToggleFeatured, isSortable, onToggleSortable }) => {
     const {
         attributes,
         listeners,
@@ -197,6 +201,14 @@ const SortableCategorySection: React.FC<{
 
     const trailingEl = (
         <div className="flex items-center gap-1">
+            {!isEditing && (
+                <button
+                    onClick={() => onToggleSortable(category)}
+                    className={`opacity-0 group-hover:opacity-100 transition-all p-0.5 ${isSortable ? 'text-blue-400 opacity-100' : 'text-text-tertiary hover:text-blue-400'}`}
+                >
+                    <ArrowDownUp size={10} />
+                </button>
+            )}
             {!isEditing && (
                 <button
                     onClick={() => onToggleFeatured(category)}
@@ -241,7 +253,7 @@ const SortableCategorySection: React.FC<{
 };
 
 // --------------- Main TagTab ---------------
-export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categoryOrder, setCategoryOrder, featuredCategories, setFeaturedCategories }) => {
+export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categoryOrder, setCategoryOrder, featuredCategories, setFeaturedCategories, sortableCategories, setSortableCategories }) => {
     const [tagSearch, setTagSearch] = useState('');
     const [addingToCategory, setAddingToCategory] = useState<string | null>(null);
     const [inlineTagName, setInlineTagName] = useState('');
@@ -364,6 +376,8 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
             setCategoryOrder(prev => prev.map(c => c === oldName ? newName : c));
             // Update featuredCategories
             setFeaturedCategories(prev => prev.map(c => c === oldName ? newName : c));
+            // Update sortableCategories
+            setSortableCategories(prev => prev.map(c => c === oldName ? newName : c));
             // Update tags belonging to this category
             setLocalTags(prev => prev.map(t =>
                 (t.category || 'Uncategorized') === oldName
@@ -550,6 +564,10 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
                                                 onDelete={deleteCategory}
                                                 isFeatured={featuredCategories.includes(category)}
                                                 onToggleFeatured={(cat) => setFeaturedCategories(prev =>
+                                                    prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+                                                )}
+                                                isSortable={sortableCategories.includes(category)}
+                                                onToggleSortable={(cat) => setSortableCategories(prev =>
                                                     prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
                                                 )}
                                             >

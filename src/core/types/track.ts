@@ -76,6 +76,7 @@ export interface MusicSettings {
     tags: MusicTag[];
     categoryOrder?: string[];
     featuredCategories?: string[];
+    sortableCategories?: string[];
 }
 
 // Default genres with curated colors

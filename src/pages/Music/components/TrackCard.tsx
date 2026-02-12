@@ -18,7 +18,7 @@ interface TrackCardProps {
     isSelected: boolean;
     userId: string;
     channelId: string;
-    onSelect: (trackId: string) => void;
+    onSelect: (trackId: string | null) => void;
     onDelete?: (trackId: string) => void;
     onEdit?: (track: Track) => void;
 }
@@ -122,6 +122,11 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
         a.click();
     }, [track.title]);
 
+    const handleDownloadBoth = useCallback(() => {
+        handleDownload(track.vocalUrl, 'Vocal');
+        setTimeout(() => handleDownload(track.instrumentalUrl, 'Instrumental'), 300);
+    }, [handleDownload, track.vocalUrl, track.instrumentalUrl]);
+
     const currentVariant = isCurrentTrack ? playingVariant : 'vocal';
     const currentPeaks = currentVariant === 'vocal' ? track.vocalPeaks : track.instrumentalPeaks;
     const currentUrl = currentVariant === 'vocal' ? track.vocalUrl : track.instrumentalUrl;
@@ -136,18 +141,9 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             seekTo(position);
             if (!isPlaying) setIsPlaying(true);
         } else {
-            // Start playing this track, then seek
+            // Start playing this track and seek to position once audio loads
             const variant = track.vocalUrl ? 'vocal' : 'instrumental';
-            setPlayingTrack(track.id, variant);
-            // Wait for AudioPlayer to register seek callback after track change
-            const unsub = useMusicStore.subscribe((state) => {
-                if (state.seekTo) {
-                    state.seekTo(position);
-                    unsub();
-                }
-            });
-            // Safety fallback — unsubscribe after 3s if AudioPlayer never loads
-            setTimeout(() => unsub(), 3000);
+            setPlayingTrack(track.id, variant, position);
         }
     }, [isCurrentTrack, seekTo, isPlaying, setIsPlaying, setPlayingTrack, track.id, track.vocalUrl]);
 
@@ -195,7 +191,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             ref={mergedRef}
             {...listeners}
             {...attributes}
-            onClick={(e) => { e.stopPropagation(); onSelect(track.id); }}
+            onClick={(e) => { e.stopPropagation(); if (e.metaKey || e.ctrlKey) { onSelect(isSelected ? null : track.id); } else { onSelect(null); } }}
 
             className={`group flex items-center gap-4 px-4 py-4 rounded-lg transition-all duration-300 cursor-pointer
                 ${isDragging ? 'opacity-40' : ''}
@@ -472,6 +468,9 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                                             <Piano size={14} className="mr-2" /> Instrumental
                                         </DropdownMenuItem>
                                     )}
+                                    <DropdownMenuItem onClick={handleDownloadBoth}>
+                                        <Download size={14} className="mr-2" /> Both
+                                    </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
                         ) : (
@@ -513,6 +512,9 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                                         </DropdownMenuItem>
                                         <DropdownMenuItem onClick={() => handleDownload(track.instrumentalUrl, 'Instrumental')}>
                                             <Download size={14} className="mr-2" /> Download Instrumental
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={handleDownloadBoth}>
+                                            <Download size={14} className="mr-2" /> Download Both
                                         </DropdownMenuItem>
                                     </>
                                 ) : (

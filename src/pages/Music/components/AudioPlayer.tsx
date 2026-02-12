@@ -24,8 +24,9 @@ export const AudioPlayer: React.FC = () => {
     const [volume, setVolume] = React.useState(0.8);
     const [isMuted, setIsMuted] = React.useState(false);
 
-    // Track previous URL to detect variant-only changes
+    // Track previous URL and track ID to detect variant-only changes
     const prevAudioUrlRef = useRef<string | null>(null);
+    const prevTrackIdRef = useRef<string | null>(null);
     const seekAfterLoadRef = useRef<number | null>(null);
 
     const track = tracks.find((t) => t.id === playingTrackId);
@@ -41,10 +42,12 @@ export const AudioPlayer: React.FC = () => {
         if (!audio || !audioUrl) return;
 
         const prevUrl = prevAudioUrlRef.current;
+        const prevTrackId = prevTrackIdRef.current;
         prevAudioUrlRef.current = audioUrl;
+        prevTrackIdRef.current = playingTrackId;
 
         // Detect variant-only switch (same track, different URL)
-        const isVariantSwitch = prevUrl && prevUrl !== audioUrl && audio.currentTime > 0;
+        const isVariantSwitch = prevUrl && prevUrl !== audioUrl && audio.currentTime > 0 && prevTrackId === playingTrackId;
 
         if (isVariantSwitch) {
             // Save current position to restore after load
@@ -64,12 +67,21 @@ export const AudioPlayer: React.FC = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [audioUrl]);
 
-    // Restore timecode after variant switch
+    // Restore timecode after variant switch or cross-track waveform seek
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return;
 
         const handleLoadedData = () => {
+            // Check store for pending seek from cross-track waveform click
+            const { pendingSeekPosition } = useMusicStore.getState();
+            if (pendingSeekPosition !== null) {
+                audio.currentTime = pendingSeekPosition * audio.duration;
+                useMusicStore.setState({ pendingSeekPosition: null });
+                if (isPlaying) audio.play().catch(console.error);
+                return;
+            }
+            // Check ref for variant switch position restore
             if (seekAfterLoadRef.current !== null) {
                 audio.currentTime = seekAfterLoadRef.current;
                 seekAfterLoadRef.current = null;
@@ -131,24 +143,37 @@ export const AudioPlayer: React.FC = () => {
             }
         };
 
+        const onPause = () => {
+            // Sync store when paused externally (media keys, MediaSession)
+            if (useMusicStore.getState().isPlaying) setIsPlaying(false);
+        };
+        const onPlay = () => {
+            // Sync store when resumed externally
+            if (!useMusicStore.getState().isPlaying) setIsPlaying(true);
+        };
+
         audio.addEventListener('timeupdate', onTimeUpdate);
         audio.addEventListener('durationchange', onDurationChange);
         audio.addEventListener('ended', onEnded);
+        audio.addEventListener('pause', onPause);
+        audio.addEventListener('play', onPlay);
 
         return () => {
             audio.removeEventListener('timeupdate', onTimeUpdate);
             audio.removeEventListener('durationchange', onDurationChange);
             audio.removeEventListener('ended', onEnded);
+            audio.removeEventListener('pause', onPause);
+            audio.removeEventListener('play', onPlay);
         };
     }, [playingTrackId, tracks, setPlayingTrack, setIsPlaying, setStoreTime, setStoreDuration]);
 
     const handleSeek = useCallback((position: number) => {
         const audio = audioRef.current;
-        if (audio && duration) {
-            audio.currentTime = position * duration;
+        if (audio && audio.duration && isFinite(audio.duration)) {
+            audio.currentTime = position * audio.duration;
             setStoreTime(audio.currentTime);
         }
-    }, [duration, setStoreTime]);
+    }, [setStoreTime]);
 
     // Register seek callback so TrackCard can trigger seeks
     useEffect(() => {

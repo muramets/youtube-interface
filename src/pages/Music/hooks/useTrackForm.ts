@@ -105,6 +105,9 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
             return;
         }
 
+        // Pause background audio player if it's playing
+        useMusicStore.getState().setIsPlaying(false);
+
         const urlRef = variant === 'vocal' ? vocalUrlRef : instrumentalUrlRef;
         if (!urlRef.current) {
             urlRef.current = file ? URL.createObjectURL(file) : remoteUrl!;
@@ -125,17 +128,24 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
         if (!vocalFile.file && vocalUrlRef.current && vocalUrlRef.current.startsWith('blob:')) {
             URL.revokeObjectURL(vocalUrlRef.current);
             vocalUrlRef.current = null;
-            if (previewPlaying === 'vocal') stopPreview();
+            // Stop preview audio directly (avoids calling stopPreview which has setState)
+            if (audioPreviewRef.current && !audioPreviewRef.current.paused) {
+                audioPreviewRef.current.pause();
+                audioPreviewRef.current.src = '';
+            }
         }
-    }, [vocalFile.file, previewPlaying, stopPreview]);
+    }, [vocalFile.file]);
 
     useEffect(() => {
         if (!instrumentalFile.file && instrumentalUrlRef.current && instrumentalUrlRef.current.startsWith('blob:')) {
             URL.revokeObjectURL(instrumentalUrlRef.current);
             instrumentalUrlRef.current = null;
-            if (previewPlaying === 'instrumental') stopPreview();
+            if (audioPreviewRef.current && !audioPreviewRef.current.paused) {
+                audioPreviewRef.current.pause();
+                audioPreviewRef.current.src = '';
+            }
         }
-    }, [instrumentalFile.file, previewPlaying, stopPreview]);
+    }, [instrumentalFile.file]);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -152,6 +162,7 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
     // Pre-populate form when opening in edit mode
     useEffect(() => {
         if (!isOpen || !editTrack) return;
+        /* eslint-disable react-hooks/set-state-in-effect -- legitimate prop-sync on modal open */
         setTitle(editTrack.title || '');
         setArtist(editTrack.artist || '');
         setSelectedGenre(editTrack.genre || '');
@@ -167,6 +178,7 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
         if (editTrack.instrumentalUrl) {
             setInstrumentalFile({ file: null, name: editTrack.instrumentalFileName || `${editTrack.title} (Instrumental).mp3`, uploading: false, progress: 100 });
         }
+        /* eslint-enable react-hooks/set-state-in-effect */
     }, [isOpen, editTrack]);
 
     const handleClose = useCallback(() => {
@@ -177,6 +189,7 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
         setTimeout(() => {
             onClose();
             setIsClosing(false);
+            setIsSubmitting(false);
             setTitle('');
             setArtist('');
             setSelectedGenre('');
@@ -433,7 +446,6 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
         } catch (err) {
             console.error(isEditMode ? '[Edit] Failed:' : '[Upload] Failed:', err);
             setError(isEditMode ? 'Save failed. Please try again.' : 'Upload failed. Please try again.');
-        } finally {
             setIsSubmitting(false);
         }
     }, [title, artist, selectedGenre, selectedTags, bpm, lyrics, prompt, vocalFile, instrumentalFile, coverFile, isEditMode, editTrack, userId, channelId, handleClose]);

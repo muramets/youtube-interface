@@ -3,7 +3,7 @@
 // =============================================================================
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Settings, Upload, Music, Heart, ArrowLeft, ListMusic } from 'lucide-react';
+import { Plus, Search, Settings, Upload, Music, Heart, ArrowLeft, ListMusic, ArrowUp, ArrowDown } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
@@ -18,6 +18,8 @@ import { Button } from '../../components/ui/atoms';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { MusicFilterBar } from './components/MusicFilterBar';
 import { MusicErrorBoundary } from './components/MusicErrorBoundary';
+import { SortButton } from '../../features/Filter/SortButton';
+import { useFilterStore } from '../../core/stores/filterStore';
 
 export const MusicPage: React.FC = () => {
     const { user } = useAuth();
@@ -42,14 +44,17 @@ export const MusicPage: React.FC = () => {
         tags,
         categoryOrder,
         featuredCategories,
+        sortableCategories,
         musicPlaylists,
         activePlaylistId,
         setActivePlaylist,
     } = useMusicStore();
 
+    const { musicSortBy, musicSortAsc, setMusicSortBy, setMusicSortAsc } = useFilterStore();
+
     const [showUpload, setShowUpload] = useState(false);
     const [editingTrack, setEditingTrack] = useState<Track | null>(null);
-    const [showSettings, setShowSettings] = useState(false);
+    const [showSettings, setShowSettings] = useState<'genres' | 'tags' | null>(null);
 
     const location = useLocation();
     const navigate = useNavigate();
@@ -128,11 +133,31 @@ export const MusicPage: React.FC = () => {
 
         // Sort by newest first (only when not in a playlist, which preserves playlist order)
         if (!activePlaylistId || activePlaylistId === 'liked') {
-            result.sort((a, b) => b.createdAt - a.createdAt);
+            // Tag-based sorting: group by tag position within a category
+            if (musicSortBy.startsWith('tag:')) {
+                const categoryName = musicSortBy.slice(4);
+                const categoryTags = tags.filter(t => (t.category || 'Uncategorized') === categoryName);
+                result.sort((a, b) => {
+                    // Find the best (lowest index) matching tag for each track
+                    let idxA = Infinity;
+                    let idxB = Infinity;
+                    for (let i = 0; i < categoryTags.length; i++) {
+                        if (a.tags.includes(categoryTags[i].id) && i < idxA) idxA = i;
+                        if (b.tags.includes(categoryTags[i].id) && i < idxB) idxB = i;
+                    }
+                    // Apply asc/desc
+                    const dir = musicSortAsc ? 1 : -1;
+                    if (idxA !== idxB) return (idxA - idxB) * dir;
+                    // Secondary sort: newest first
+                    return b.createdAt - a.createdAt;
+                });
+            } else {
+                result.sort((a, b) => b.createdAt - a.createdAt);
+            }
         }
 
         return result;
-    }, [tracks, searchQuery, genreFilter, tagFilters, bpmFilter, activePlaylistId, musicPlaylists]);
+    }, [tracks, searchQuery, genreFilter, tagFilters, bpmFilter, activePlaylistId, musicPlaylists, musicSortBy, musicSortAsc, tags]);
 
     // Compute BPM range from available tracks
     const bpmRange = useMemo(() => {
@@ -198,9 +223,45 @@ export const MusicPage: React.FC = () => {
                         )}
                     </div>
                     <div className="flex items-center gap-2">
-                        <PortalTooltip content={<span className="whitespace-nowrap">Manage genres & tags</span>}>
+                        {musicSortBy.startsWith('tag:') && (() => {
+                            const catName = musicSortBy.slice(4);
+                            const catTags = tags.filter(t => (t.category || 'Uncategorized') === catName);
+                            const top3 = (musicSortAsc ? catTags : [...catTags].reverse()).slice(0, 3).map(t => t.name);
+                            return top3.length > 0 ? (
+                                <span className="text-[11px] text-text-tertiary whitespace-nowrap">
+                                    {top3.join(' › ')}{catTags.length > 3 ? ' …' : ''}
+                                </span>
+                            ) : null;
+                        })()}
+                        {sortableCategories.length > 0 && (
+                            <div className={`flex items-center rounded-full overflow-hidden transition-colors ${musicSortBy !== 'default' ? 'bg-hover-bg' : ''}`}>
+                                <SortButton
+                                    sortOptions={[
+                                        { label: 'Default', value: 'default' },
+                                        ...sortableCategories.map(cat => ({ label: cat, value: `tag:${cat}` }))
+                                    ]}
+                                    activeSort={musicSortBy}
+                                    onSortChange={setMusicSortBy}
+                                    buttonClassName="w-[34px] h-[34px] flex items-center justify-center transition-colors border-none cursor-pointer relative flex-shrink-0 bg-transparent text-text-primary hover:text-white"
+                                />
+                                {musicSortBy !== 'default' && (
+                                    <>
+                                        <div className="w-[1px] h-[16px] bg-white/15" />
+                                        <PortalTooltip content={musicSortAsc ? 'Ascending' : 'Descending'}>
+                                            <button
+                                                onClick={() => setMusicSortAsc(!musicSortAsc)}
+                                                className="w-[30px] h-[34px] flex items-center justify-center border-none cursor-pointer bg-transparent text-text-primary hover:text-white transition-colors"
+                                            >
+                                                {musicSortAsc ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                                            </button>
+                                        </PortalTooltip>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                        <PortalTooltip content={<span className="whitespace-nowrap">Manage genres & tags</span>} enterDelay={500} disabled={!!showSettings} noAnimation>
                             <button
-                                onClick={() => setShowSettings(true)}
+                                onClick={() => setShowSettings('tags')}
                                 className="p-2 rounded-full text-text-secondary hover:text-text-primary hover:bg-hover-bg transition-colors"
                             >
                                 <Settings size={18} />
@@ -320,12 +381,14 @@ export const MusicPage: React.FC = () => {
                 userId={userId}
                 channelId={channelId}
                 editTrack={editingTrack}
+                initialTab={editingTrack ? 'library' : 'track'}
             />
             <MusicSettingsModal
-                isOpen={showSettings}
-                onClose={() => setShowSettings(false)}
+                isOpen={!!showSettings}
+                onClose={() => setShowSettings(null)}
                 userId={userId}
                 channelId={channelId}
+                initialTab={showSettings || undefined}
             />
         </div>
     );

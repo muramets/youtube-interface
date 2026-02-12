@@ -27,6 +27,8 @@ interface FilterState {
     homeSortBy: 'default' | 'views' | 'date' | 'recently_added';
     playlistVideoSortBy: 'default' | 'views' | 'date' | 'delta24h' | 'delta7d' | 'delta30d'; // Persistent sort for videos INSIDE a playlist
     playlistsSortBy: 'default' | 'views' | 'updated' | 'created'; // Persistent sort for the LIST of playlists
+    musicSortBy: string; // 'default' or 'tag:CategoryName'
+    musicSortAsc: boolean;
 
     activeFilters: FilterItem[];
     channelFilters: Record<string, FilterItem[]>;
@@ -46,6 +48,8 @@ interface FilterState {
     setHomeSortBy: (sort: 'default' | 'views' | 'date' | 'recently_added') => void;
     setPlaylistVideoSortBy: (sort: 'default' | 'views' | 'date' | 'delta24h' | 'delta7d' | 'delta30d') => void;
     setPlaylistsSortBy: (sort: 'default' | 'views' | 'updated' | 'created') => void;
+    setMusicSortBy: (sort: string) => void;
+    setMusicSortAsc: (asc: boolean) => void;
 
     addFilter: (filter: Omit<FilterItem, 'id'>) => void;
     removeFilter: (id: string) => void;
@@ -74,6 +78,8 @@ export const useFilterStore = create<FilterState>()(
             homeSortBy: 'default',
             playlistVideoSortBy: 'default',
             playlistsSortBy: 'default',
+            musicSortBy: 'default',
+            musicSortAsc: true,
             freshnessMode: false,
             activeFilters: [],
             channelFilters: {},
@@ -103,6 +109,8 @@ export const useFilterStore = create<FilterState>()(
             setHomeSortBy: (sort) => set({ homeSortBy: sort }),
             setPlaylistVideoSortBy: (sort) => set({ playlistVideoSortBy: sort }),
             setPlaylistsSortBy: (sort) => set({ playlistsSortBy: sort }),
+            setMusicSortBy: (sort) => set({ musicSortBy: sort }),
+            setMusicSortAsc: (asc) => set({ musicSortAsc: asc }),
             setFreshnessMode: (enabled) => set({ freshnessMode: enabled }),
 
             // Per-page state: snapshot current state into pageStates[pageId]
@@ -241,6 +249,8 @@ export const useFilterStore = create<FilterState>()(
                 homeSortBy: state.homeSortBy,
                 playlistVideoSortBy: state.playlistVideoSortBy,
                 playlistsSortBy: state.playlistsSortBy,
+                musicSortBy: state.musicSortBy,
+                musicSortAsc: state.musicSortAsc,
                 channelPlaylistsSorts: state.channelPlaylistsSorts,
                 activeFilters: state.activeFilters, // Persist current active filters too
                 channelFilters: state.channelFilters, // Persist all channel filters

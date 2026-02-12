@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Upload, X, Check } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
@@ -16,6 +16,7 @@ interface UploadTrackModalProps {
     userId: string;
     channelId: string;
     editTrack?: Track | null;
+    initialTab?: 'track' | 'library';
 }
 
 export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
@@ -24,9 +25,16 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
     userId,
     channelId,
     editTrack,
+    initialTab,
 }) => {
     const form = useTrackForm({ isOpen, onClose, userId, channelId, editTrack });
-    const [activeTab, setActiveTab] = useState<'track' | 'library'>('track');
+    const [activeTab, setActiveTab] = useState<'track' | 'library'>(initialTab ?? 'track');
+
+    // Reset tab when modal opens
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- legitimate prop-sync on modal open
+        if (isOpen) setActiveTab(initialTab ?? 'track');
+    }, [isOpen, initialTab]);
 
     if (!isOpen && !form.isClosing) return null;
 

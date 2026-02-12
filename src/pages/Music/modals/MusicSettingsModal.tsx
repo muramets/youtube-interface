@@ -17,6 +17,7 @@ interface MusicSettingsModalProps {
     onClose: () => void;
     userId: string;
     channelId: string;
+    initialTab?: Tab;
 }
 
 type Tab = 'genres' | 'tags';
@@ -26,8 +27,9 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
     onClose,
     userId,
     channelId,
+    initialTab,
 }) => {
-    const { genres, tags, categoryOrder, featuredCategories, saveSettings } = useMusicStore();
+    const { genres, tags, categoryOrder, featuredCategories, sortableCategories, saveSettings } = useMusicStore();
 
     const [activeTab, setActiveTab] = useState<Tab>('genres');
     const [isClosing, setIsClosing] = useState(false);
@@ -66,16 +68,25 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
         setIsDirty(true);
     }, []);
 
+    const [localSortableCategories, setLocalSortableCategoriesRaw] = useState<string[]>([]);
+    const setLocalSortableCategories: typeof setLocalSortableCategoriesRaw = useCallback((action) => {
+        setLocalSortableCategoriesRaw(action);
+        isDirtyRef.current = true;
+        setIsDirty(true);
+    }, []);
+
     useEffect(() => {
         if (isOpen) {
+            setActiveTab(initialTab || 'genres');
             setLocalGenresRaw([...genres]);
             setLocalTagsRaw([...tags]);
             setLocalCategoryOrderRaw([...categoryOrder]);
             setLocalFeaturedCategoriesRaw([...featuredCategories]);
+            setLocalSortableCategoriesRaw([...sortableCategories]);
             isDirtyRef.current = false;
             setIsDirty(false);
         }
-    }, [isOpen, genres, tags, categoryOrder, featuredCategories]);
+    }, [isOpen, genres, tags, categoryOrder, featuredCategories, sortableCategories, initialTab]);
 
     const handleClose = () => {
         setIsClosing(true);
@@ -93,6 +104,7 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
                 tags: localTags,
                 categoryOrder: localCategoryOrder,
                 featuredCategories: localFeaturedCategories,
+                sortableCategories: localSortableCategories,
             };
             await saveSettings(userId, channelId, settings);
             handleClose();
@@ -154,7 +166,7 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
                         <GenreTab localGenres={localGenres} setLocalGenres={setLocalGenres} />
                     )}
                     {activeTab === 'tags' && (
-                        <TagTab localTags={localTags} setLocalTags={setLocalTags} categoryOrder={localCategoryOrder} setCategoryOrder={setLocalCategoryOrder} featuredCategories={localFeaturedCategories} setFeaturedCategories={setLocalFeaturedCategories} />
+                        <TagTab localTags={localTags} setLocalTags={setLocalTags} categoryOrder={localCategoryOrder} setCategoryOrder={setLocalCategoryOrder} featuredCategories={localFeaturedCategories} setFeaturedCategories={setLocalFeaturedCategories} sortableCategories={localSortableCategories} setSortableCategories={setLocalSortableCategories} />
                     )}
                 </div>
 

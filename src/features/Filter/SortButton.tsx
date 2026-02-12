@@ -12,13 +12,15 @@ interface SortButtonProps {
     activeSort: string;
     onSortChange: (value: string) => void;
     customSection?: React.ReactNode;
+    buttonClassName?: string;
 }
 
 export const SortButton: React.FC<SortButtonProps> = ({
     sortOptions,
     activeSort,
     onSortChange,
-    customSection
+    customSection,
+    buttonClassName
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const buttonRef = useRef<HTMLButtonElement>(null);
@@ -64,7 +66,7 @@ export const SortButton: React.FC<SortButtonProps> = ({
         <>
             <button
                 ref={buttonRef}
-                className={`w-[34px] h-[34px] rounded-full flex items-center justify-center transition-colors border-none cursor-pointer relative flex-shrink-0 ${isOpen ? 'bg-text-primary text-bg-primary' : 'bg-transparent text-text-primary hover:bg-hover-bg'}`}
+                className={buttonClassName ?? `w-[34px] h-[34px] rounded-full flex items-center justify-center transition-colors border-none cursor-pointer relative flex-shrink-0 ${isOpen ? 'bg-text-primary text-bg-primary' : 'bg-transparent text-text-primary hover:bg-hover-bg'}`}
                 onClick={() => setIsOpen(!isOpen)}
                 title="Sort"
             >

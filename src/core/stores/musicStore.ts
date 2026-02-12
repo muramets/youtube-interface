@@ -23,6 +23,8 @@ interface MusicState {
     repeatMode: 'off' | 'all' | 'one';
     currentTime: number;
     duration: number;
+    /** Pending seek ratio (0–1) for cross-track waveform clicks */
+    pendingSeekPosition: number | null;
     /** AudioPlayer registers this callback so TrackCard can request seeks */
     seekTo: ((position: number) => void) | null;
 
@@ -37,6 +39,7 @@ interface MusicState {
     tags: MusicTag[];
     categoryOrder: string[];
     featuredCategories: string[];
+    sortableCategories: string[];
     isSettingsLoaded: boolean;
 
     // Music playlists
@@ -61,7 +64,7 @@ interface MusicState {
 
     // Actions: Selection & Playback
     setSelectedTrackId: (id: string | null) => void;
-    setPlayingTrack: (id: string | null, variant?: 'vocal' | 'instrumental') => void;
+    setPlayingTrack: (id: string | null, variant?: 'vocal' | 'instrumental', seekPosition?: number) => void;
     setIsPlaying: (isPlaying: boolean) => void;
     toggleVariant: () => void;
     cycleRepeatMode: () => void;
@@ -93,6 +96,7 @@ export const useMusicStore = create<MusicState>((set) => ({
     repeatMode: 'off',
     currentTime: 0,
     duration: 0,
+    pendingSeekPosition: null,
     seekTo: null,
     searchQuery: '',
     genreFilter: null,
@@ -102,6 +106,7 @@ export const useMusicStore = create<MusicState>((set) => ({
     tags: DEFAULT_TAGS,
     categoryOrder: [],
     featuredCategories: [],
+    sortableCategories: [],
     isSettingsLoaded: false,
     musicPlaylists: [],
     activePlaylistId: null,
@@ -125,6 +130,7 @@ export const useMusicStore = create<MusicState>((set) => ({
                 tags: settings.tags,
                 categoryOrder: settings.categoryOrder || [],
                 featuredCategories: settings.featuredCategories || [],
+                sortableCategories: settings.sortableCategories || [],
                 isSettingsLoaded: true,
             });
         } catch (error) {
@@ -135,14 +141,14 @@ export const useMusicStore = create<MusicState>((set) => ({
     // Save music settings (optimistic: update store immediately, rollback on error)
     saveSettings: async (userId, channelId, settings) => {
         const state = useMusicStore.getState();
-        const prev = { genres: state.genres, tags: state.tags, categoryOrder: state.categoryOrder, featuredCategories: state.featuredCategories };
+        const prev = { genres: state.genres, tags: state.tags, categoryOrder: state.categoryOrder, featuredCategories: state.featuredCategories, sortableCategories: state.sortableCategories };
         // Optimistic update
-        set({ genres: settings.genres, tags: settings.tags, categoryOrder: settings.categoryOrder || prev.categoryOrder, featuredCategories: settings.featuredCategories || prev.featuredCategories });
+        set({ genres: settings.genres, tags: settings.tags, categoryOrder: settings.categoryOrder || prev.categoryOrder, featuredCategories: settings.featuredCategories || prev.featuredCategories, sortableCategories: settings.sortableCategories || prev.sortableCategories });
         try {
             await TrackService.saveMusicSettings(userId, channelId, settings);
         } catch (error) {
             // Rollback on failure
-            set({ genres: prev.genres, tags: prev.tags, categoryOrder: prev.categoryOrder, featuredCategories: prev.featuredCategories });
+            set({ genres: prev.genres, tags: prev.tags, categoryOrder: prev.categoryOrder, featuredCategories: prev.featuredCategories, sortableCategories: prev.sortableCategories });
             console.error('[MusicStore] Failed to save settings:', error);
             throw error;
         }
@@ -151,10 +157,14 @@ export const useMusicStore = create<MusicState>((set) => ({
     // Selection & Playback
     setSelectedTrackId: (id) => set({ selectedTrackId: id }),
 
-    setPlayingTrack: (id, variant) => set({
+    setPlayingTrack: (id, variant, seekPosition) => set({
         playingTrackId: id,
         playingVariant: variant || 'vocal',
         isPlaying: id !== null,
+        selectedTrackId: null,
+        pendingSeekPosition: seekPosition ?? null,
+        currentTime: 0,
+        duration: 0,
     }),
 
     setIsPlaying: (isPlaying) => set({ isPlaying }),
