@@ -4,14 +4,15 @@ import type { DragStartEvent, DragOverEvent, DragEndEvent } from '@dnd-kit/core'
 import { useTrendsDragDrop } from './hooks/useTrendsDragDrop';
 import { useMusicDragDrop } from '../Music/hooks/useMusicDragDrop';
 import { VideoNodeGhost } from './Timeline/nodes/DraggableVideoNode';
-import { Music } from 'lucide-react';
+
+import { TrackCard } from '../Music/components/TrackCard';
 
 /**
  * Provider for all DnD functionality (Trends + Music).
  * Wraps children in a single DndContext and renders appropriate DragOverlay.
  *
  * Polymorphic event handling: discriminates by `data.current.type`:
- *   - 'music-track' → Music track → Playlist drop
+ *   - 'music-track' → Music track → Playlist/Track drop
  *   - (default)     → Trend video → Niche drop
  */
 export const TrendsDndProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -25,6 +26,7 @@ export const TrendsDndProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     const {
         draggedTrack,
+        draggedWidth,
         handleMusicDragStart,
         handleMusicDragEnd,
         handleMusicDragCancel,
@@ -84,9 +86,17 @@ export const TrendsDndProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             <DragOverlay dropAnimation={null}>
                 {draggedVideo && <VideoNodeGhost video={draggedVideo} />}
                 {draggedTrack && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-[#1a1a1a]/90 backdrop-blur-sm border border-white/10 rounded-lg shadow-2xl text-sm text-white max-w-[240px]">
-                        <Music size={14} className="text-indigo-400 shrink-0" />
-                        <span className="truncate">{draggedTrack.title}</span>
+                    <div
+                        className="pointer-events-none bg-[#141416] border border-white/[0.08] rounded-xl shadow-2xl"
+                        style={{ width: draggedWidth || 'auto' }}
+                    >
+                        <TrackCard
+                            track={draggedTrack}
+                            isSelected={false}
+                            userId=""
+                            channelId=""
+                            onSelect={() => { }}
+                        />
                     </div>
                 )}
             </DragOverlay>

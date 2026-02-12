@@ -28,6 +28,9 @@ interface MusicState {
     /** AudioPlayer registers this callback so TrackCard can request seeks */
     seekTo: ((position: number) => void) | null;
 
+    // Playback queue (visual order, flattened with groups)
+    playbackQueue: string[];
+
     // Filters
     searchQuery: string;
     genreFilter: string | null;
@@ -71,6 +74,7 @@ interface MusicState {
     setCurrentTime: (time: number) => void;
     setDuration: (duration: number) => void;
     registerSeek: (fn: ((position: number) => void) | null) => void;
+    setPlaybackQueue: (queue: string[]) => void;
 
     // Actions: Filters
     setSearchQuery: (query: string) => void;
@@ -83,6 +87,15 @@ interface MusicState {
     setGenres: (genres: MusicGenre[]) => void;
     setTags: (tags: MusicTag[]) => void;
     toggleLike: (userId: string, channelId: string, trackId: string) => void;
+
+    // Actions: Version grouping
+    linkAsVersion: (userId: string, channelId: string, sourceTrackId: string, targetTrackId: string) => Promise<void>;
+    unlinkFromGroup: (userId: string, channelId: string, trackId: string) => Promise<void>;
+    reorderGroupTracks: (userId: string, channelId: string, groupId: string, orderedIds: string[]) => Promise<void>;
+
+    // DnD visibility
+    draggingTrackId: string | null;
+    setDraggingTrackId: (id: string | null) => void;
 }
 
 export const useMusicStore = create<MusicState>((set) => ({
@@ -98,6 +111,7 @@ export const useMusicStore = create<MusicState>((set) => ({
     duration: 0,
     pendingSeekPosition: null,
     seekTo: null,
+    playbackQueue: [],
     searchQuery: '',
     genreFilter: null,
     tagFilters: [],
@@ -111,6 +125,8 @@ export const useMusicStore = create<MusicState>((set) => ({
     musicPlaylists: [],
     activePlaylistId: null,
     playlistGroupOrder: [],
+    draggingTrackId: null,
+    setDraggingTrackId: (id) => set({ draggingTrackId: id }),
 
     // Subscribe to real-time track updates
     subscribe: (userId, channelId) => {
@@ -180,6 +196,7 @@ export const useMusicStore = create<MusicState>((set) => ({
     setCurrentTime: (time) => set({ currentTime: time }),
     setDuration: (duration) => set({ duration }),
     registerSeek: (fn) => set({ seekTo: fn }),
+    setPlaybackQueue: (queue) => set({ playbackQueue: queue }),
 
     // Filters
     setSearchQuery: (query) => set({ searchQuery: query }),
@@ -222,6 +239,87 @@ export const useMusicStore = create<MusicState>((set) => ({
         TrackService.updateTrack(userId, channelId, trackId, { liked: newLiked }).catch((err) => {
             console.error('[MusicStore] Failed to persist like:', err);
         });
+    },
+
+    // Version grouping
+    linkAsVersion: async (userId, channelId, sourceTrackId, targetTrackId) => {
+        const { tracks } = useMusicStore.getState();
+        const sourceTrack = tracks.find((t) => t.id === sourceTrackId);
+        const targetTrack = tracks.find((t) => t.id === targetTrackId);
+        if (!sourceTrack || !targetTrack) return;
+
+        // Determine groupId: reuse existing from either track, or generate new
+        const groupId = sourceTrack.groupId || targetTrack.groupId || uuidv4();
+
+        // Collect all track IDs that need this groupId
+        const idsToLink = new Set<string>([sourceTrackId, targetTrackId]);
+        // If either track is already in a group, include all members
+        for (const t of tracks) {
+            if (t.groupId && (t.groupId === sourceTrack.groupId || t.groupId === targetTrack.groupId)) {
+                idsToLink.add(t.id);
+            }
+        }
+
+        // Optimistic update
+        set((state) => ({
+            tracks: state.tracks.map((t) =>
+                idsToLink.has(t.id) ? { ...t, groupId } : t
+            ),
+        }));
+
+        try {
+            await TrackService.linkAsVersion(userId, channelId, [...idsToLink], groupId);
+        } catch (err) {
+            console.error('[MusicStore] Failed to link tracks:', err);
+        }
+    },
+
+    unlinkFromGroup: async (userId, channelId, trackId) => {
+        const { tracks } = useMusicStore.getState();
+        const track = tracks.find((t) => t.id === trackId);
+        if (!track?.groupId) return;
+
+        const groupId = track.groupId;
+        const remaining = tracks.filter((t) => t.groupId === groupId && t.id !== trackId);
+
+        // Optimistic update: remove groupId from target
+        // If only 1 remains, also clear its groupId
+        set((state) => ({
+            tracks: state.tracks.map((t) => {
+                if (t.id === trackId) return { ...t, groupId: undefined };
+                if (remaining.length === 1 && t.id === remaining[0].id) return { ...t, groupId: undefined };
+                return t;
+            }),
+        }));
+
+        try {
+            await TrackService.unlinkFromGroup(userId, channelId, trackId, tracks);
+        } catch (err) {
+            console.error('[MusicStore] Failed to unlink track:', err);
+        }
+    },
+
+    reorderGroupTracks: async (userId, channelId, groupId, orderedIds) => {
+        // Optimistic update: set groupOrder based on position in orderedIds
+        set((state) => ({
+            tracks: state.tracks.map((t) => {
+                if (t.groupId !== groupId) return t;
+                const idx = orderedIds.indexOf(t.id);
+                return idx >= 0 ? { ...t, groupOrder: idx } : t;
+            }),
+        }));
+
+        // Persist atomically — single batch commit → single snapshot
+        try {
+            await TrackService.batchUpdateTracks(
+                userId,
+                channelId,
+                orderedIds.map((id, idx) => ({ trackId: id, data: { groupOrder: idx } })),
+                { quiet: true }
+            );
+        } catch (err) {
+            console.error('[MusicStore] Failed to reorder group tracks:', err);
+        }
     },
 
     // Playlists

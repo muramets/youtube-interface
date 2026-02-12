@@ -2,7 +2,7 @@
 // MUSIC FILTER BAR: Genre, tag, and BPM filter categories with chip rows
 // =============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Settings2, ChevronRight } from 'lucide-react';
 import type { MusicGenre, MusicTag } from '../../../core/types/track';
 
@@ -37,14 +37,35 @@ export const MusicFilterBar: React.FC<MusicFilterBarProps> = ({
     setBpmFilter,
     clearFilters,
 }) => {
-    const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+    const [manualExpanded, setManualExpanded] = useState<Set<string>>(new Set());
     const [filterIconHovered, setFilterIconHovered] = useState(false);
     const [showAll, setShowAll] = useState(false);
+
+    // Derive auto-expanded categories from active filters (no setState needed)
+    const autoExpanded = useMemo(() => {
+        const keys = new Set<string>();
+        if (genreFilter) keys.add('__genre__');
+        if (bpmFilter) keys.add('__bpm__');
+        for (const tag of tags) {
+            if (tagFilters.includes(tag.id)) {
+                keys.add(tag.category || 'Other');
+            }
+        }
+        return keys;
+    }, [genreFilter, tagFilters, bpmFilter, tags]);
+
+    // Effective expanded = manual toggles ∪ auto-expanded from active filters
+    const expandedCategories = useMemo(() => {
+        if (autoExpanded.size === 0) return manualExpanded;
+        const merged = new Set(manualExpanded);
+        for (const k of autoExpanded) merged.add(k);
+        return merged;
+    }, [manualExpanded, autoExpanded]);
 
     if (genres.length === 0 && tags.length === 0) return null;
 
     const toggleCategory = (cat: string) => {
-        setExpandedCategories(prev => {
+        setManualExpanded(prev => {
             const next = new Set(prev);
             if (next.has(cat)) next.delete(cat);
             else next.add(cat);
@@ -99,7 +120,7 @@ export const MusicFilterBar: React.FC<MusicFilterBarProps> = ({
                         const targetKeys = (showAll || !hasFeatured) ? allCategories : visibleCategories;
                         const allKeys = targetKeys.map(c => c.key);
                         const allExpanded = allKeys.every(k => expandedCategories.has(k));
-                        setExpandedCategories(allExpanded ? new Set() : new Set(allKeys));
+                        setManualExpanded(allExpanded ? new Set() : new Set(allKeys));
                     }}
                     className="bg-transparent border-none cursor-pointer p-0 flex-shrink-0 text-text-secondary hover:text-text-primary transition-colors"
                 >

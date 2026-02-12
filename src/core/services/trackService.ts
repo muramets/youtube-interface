@@ -8,7 +8,8 @@ import {
     setDocument,
     updateDocument,
     deleteDocument,
-    fetchDoc
+    fetchDoc,
+    batchUpdateDocuments,
 } from './firestore';
 import type { Track, TrackCreateData, MusicSettings } from '../types/track';
 import { DEFAULT_GENRES, DEFAULT_TAGS } from '../types/track';
@@ -89,6 +90,27 @@ export const TrackService = {
     },
 
     /**
+     * Batch-update multiple tracks atomically (single snapshot trigger).
+     * Pass `quiet: true` to skip updatedAt (Quiet Reordering pattern).
+     */
+    async batchUpdateTracks(
+        userId: string,
+        channelId: string,
+        updates: { trackId: string; data: Partial<Track> }[],
+        options?: { quiet?: boolean }
+    ): Promise<void> {
+        const path = getTracksPath(userId, channelId);
+        const now = Date.now();
+        await batchUpdateDocuments(
+            updates.map(({ trackId, data }) => ({
+                path,
+                id: trackId,
+                data: (options?.quiet ? data : { ...data, updatedAt: now }) as UpdateData<DocumentData>,
+            }))
+        );
+    },
+
+    /**
      * Delete a track document from Firestore.
      * Note: Storage cleanup (audio files, cover) is handled separately.
      */
@@ -137,4 +159,65 @@ export const TrackService = {
         const path = getMusicSettingsPath(userId, channelId);
         await setDocument(path, MUSIC_SETTINGS_DOC_ID, settings as unknown as DocumentData, true);
     },
+
+    // -----------------------------------------------------------------------
+    // Version Grouping
+    // -----------------------------------------------------------------------
+
+    /**
+     * Link tracks as versions of each other.
+     * If any track already has a groupId, reuse it. Otherwise generate a new one.
+     */
+    async linkAsVersion(
+        userId: string,
+        channelId: string,
+        trackIds: string[],
+        existingGroupId?: string
+    ): Promise<string> {
+        const path = getTracksPath(userId, channelId);
+        const groupId = existingGroupId || uuidv4();
+        await Promise.all(
+            trackIds.map((id) =>
+                updateDocument(path, id, { groupId, updatedAt: Date.now() } as UpdateData<DocumentData>)
+            )
+        );
+        return groupId;
+    },
+
+    /**
+     * Unlink a track from its group.
+     * If only one track remains in the group, auto-remove its groupId too.
+     */
+    async unlinkFromGroup(
+        userId: string,
+        channelId: string,
+        trackId: string,
+        allTracks: Track[]
+    ): Promise<void> {
+        const path = getTracksPath(userId, channelId);
+        const track = allTracks.find((t) => t.id === trackId);
+        if (!track?.groupId) return;
+
+        const groupId = track.groupId;
+
+        // Remove groupId from the target track
+        await updateDocument(path, trackId, {
+            groupId: null,
+            updatedAt: Date.now(),
+        } as UpdateData<DocumentData>);
+
+        // Check how many remain in the group (excluding the one we just removed)
+        const remaining = allTracks.filter(
+            (t) => t.groupId === groupId && t.id !== trackId
+        );
+
+        // Auto-clean: if only 1 track left, remove its groupId too
+        if (remaining.length === 1) {
+            await updateDocument(path, remaining[0].id, {
+                groupId: null,
+                updatedAt: Date.now(),
+            } as UpdateData<DocumentData>);
+        }
+    },
 };
+

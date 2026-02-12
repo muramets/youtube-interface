@@ -3,8 +3,8 @@
 // =============================================================================
 
 import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
-import { useDraggable } from '@dnd-kit/core';
-import { Play, Pause, Mic, Piano, Sparkles, Copy, Check, Heart, Download, BookOpen, MoreHorizontal, Trash2, Settings, ListMusic } from 'lucide-react';
+import { useDraggable, useDroppable } from '@dnd-kit/core';
+import { Play, Pause, Mic, Piano, Sparkles, Copy, Check, Heart, Download, BookOpen, MoreHorizontal, Trash2, Settings, ListMusic, Link, Unlink } from 'lucide-react';
 import { WaveformCanvas } from './WaveformCanvas';
 import { useMusicStore } from '../../../core/stores/musicStore';
 import type { Track } from '../../../core/types/track';
@@ -12,6 +12,7 @@ import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '../../../components/ui/molecules/DropdownMenu';
 import { ConfirmationModal } from '../../../components/ui/organisms/ConfirmationModal';
 import { AddToMusicPlaylistModal } from '../modals/AddToMusicPlaylistModal';
+import { LinkVersionModal } from '../modals/LinkVersionModal';
 
 interface TrackCardProps {
     track: Track;
@@ -21,6 +22,9 @@ interface TrackCardProps {
     onSelect: (trackId: string | null) => void;
     onDelete?: (trackId: string) => void;
     onEdit?: (track: Track) => void;
+    trailingElement?: React.ReactNode;
+    disableDropTarget?: boolean;
+    disableDrag?: boolean;
 }
 
 import { formatDuration } from '../utils/formatDuration';
@@ -33,10 +37,15 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
     onSelect,
     onDelete,
     onEdit,
+    trailingElement,
+    disableDropTarget,
+    disableDrag,
 }) => {
     // Granular selectors — only subscribe to what this card needs
     const playingTrackId = useMusicStore((s) => s.playingTrackId);
     const isCurrentTrack = playingTrackId === track.id;
+    const draggingTrackId = useMusicStore((s) => s.draggingTrackId);
+    const isHidden = draggingTrackId === track.id;
 
     const playingVariant = useMusicStore((s) => s.playingVariant);
     const isPlaying = useMusicStore((s) => s.isPlaying);
@@ -50,7 +59,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
     const seekTo = useMusicStore((s) => isCurrentTrack ? s.seekTo : null);
 
     // Stable action references — don't subscribe to state changes
-    const { setPlayingTrack, setIsPlaying, toggleLike, toggleVariant, setGenreFilter, toggleTagFilter, setSearchQuery } = useMusicStore.getState();
+    const { setPlayingTrack, setIsPlaying, toggleLike, toggleVariant, setGenreFilter, toggleTagFilter, setSearchQuery, unlinkFromGroup } = useMusicStore.getState();
     const isCurrentlyPlaying = isCurrentTrack && isPlaying;
 
     const genreInfo = useMemo(() =>
@@ -101,6 +110,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
 
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
+    const [showLinkVersion, setShowLinkVersion] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [tooltipOpen, setTooltipOpen] = useState(false);
     const [downloadVisible, setDownloadVisible] = useState(true);
@@ -151,6 +161,14 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
     const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
         id: `track-${track.id}`,
         data: { type: 'music-track', track },
+        disabled: disableDrag,
+    });
+
+    // DnD: Make track a drop target for grouping
+    const { setNodeRef: setDropRef, isOver } = useDroppable({
+        id: `track-drop-${track.id}`,
+        data: { type: 'music-track-target', trackId: track.id, groupId: track.groupId },
+        disabled: disableDropTarget,
     });
 
     // Detect whether like+download buttons overflow the card
@@ -180,11 +198,12 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
         return () => observer.disconnect();
     }, []);
 
-    // Merge drag ref + card ref
+    // Merge drag ref + drop ref + card ref
     const mergedRef = useCallback((node: HTMLDivElement | null) => {
         setDragRef(node);
+        setDropRef(node);
         (cardRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
-    }, [setDragRef]);
+    }, [setDragRef, setDropRef]);
 
     return (
         <div
@@ -194,7 +213,8 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             onClick={(e) => { e.stopPropagation(); if (e.metaKey || e.ctrlKey) { onSelect(isSelected ? null : track.id); } else { onSelect(null); } }}
 
             className={`group flex items-center gap-4 px-4 py-4 rounded-lg transition-all duration-300 cursor-pointer
-                ${isDragging ? 'opacity-40' : ''}
+                ${isHidden ? 'opacity-0' : ''}
+                ${isOver && !isDragging ? 'ring-2 ring-indigo-400/50 bg-indigo-500/[0.06]' : ''}
                 ${isCurrentTrack
                     ? 'bg-white/[0.06] hover:bg-white/[0.09]'
                     : (dropdownOpen || tooltipOpen)
@@ -270,6 +290,9 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                     {track.artist || 'Unknown'}
                 </p>
             </div>
+
+            {/* Version badge (if passed from TrackGroupCard) */}
+            {trailingElement}
 
             {/* 2.5 Variant toggle */}
             {hasBothVariants && (
@@ -484,6 +507,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                     </div>
                 )}
 
+
                 {/* More menu */}
                 <DropdownMenu onOpenChange={setDropdownOpen}>
                     <DropdownMenuTrigger asChild>
@@ -498,6 +522,15 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                         <DropdownMenuItem onClick={() => setShowAddToPlaylist(true)}>
                             <ListMusic size={14} className="mr-2" /> Add to Playlist
                         </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setShowLinkVersion(true)}>
+                            <Link size={14} className="mr-2" /> Link as Version
+                        </DropdownMenuItem>
+                        {track.groupId && (
+                            <DropdownMenuItem onClick={() => unlinkFromGroup(userId, channelId, track.id)}>
+                                <Unlink size={14} className="mr-2" /> Unlink from Group
+                            </DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
                         {!downloadVisible && (
                             <>
@@ -560,6 +593,12 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                 isOpen={showAddToPlaylist}
                 onClose={() => setShowAddToPlaylist(false)}
                 trackId={track.id}
+            />
+            {/* Link Version */}
+            <LinkVersionModal
+                isOpen={showLinkVersion}
+                onClose={() => setShowLinkVersion(false)}
+                sourceTrackId={track.id}
             />
         </div>
     );

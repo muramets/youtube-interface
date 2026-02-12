@@ -10,6 +10,8 @@ export interface Track {
     id: string;
     title: string;
     artist?: string;
+    groupId?: string;              // Tracks with same groupId are versions of each other
+    groupOrder?: number;           // Display order within a version group (0-based)
     genre: string;                 // Primary genre from managed genre list
     tags: string[];                // Free-form user tags from managed tag list
     bpm?: number;

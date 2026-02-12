@@ -11,6 +11,7 @@ import { formatDuration } from '../utils/formatDuration';
 
 export const AudioPlayer: React.FC = () => {
     const tracks = useMusicStore((s) => s.tracks);
+    const playbackQueue = useMusicStore((s) => s.playbackQueue);
     const playingTrackId = useMusicStore((s) => s.playingTrackId);
     const playingVariant = useMusicStore((s) => s.playingVariant);
     const isPlaying = useMusicStore((s) => s.isPlaying);
@@ -109,6 +110,9 @@ export const AudioPlayer: React.FC = () => {
         if (audio) audio.volume = isMuted ? 0 : volume;
     }, [volume, isMuted]);
 
+    // Helper: find next/prev track by playback queue (visual order)
+    const findTrackById = useCallback((id: string) => tracks.find((t) => t.id === id), [tracks]);
+
     // Progress tracking
     useEffect(() => {
         const audio = audioRef.current;
@@ -121,23 +125,27 @@ export const AudioPlayer: React.FC = () => {
             setStoreDuration(audio.duration || 0);
         };
         const onEnded = () => {
-            const rm = useMusicStore.getState().repeatMode;
+            const { repeatMode: rm, playbackQueue: queue } = useMusicStore.getState();
             if (rm === 'one') {
                 // Repeat current track
                 audio.currentTime = 0;
                 audio.play();
                 return;
             }
-            const currentIndex = tracks.findIndex((t) => t.id === playingTrackId);
-            if (currentIndex >= 0 && currentIndex < tracks.length - 1) {
-                const nextTrack = tracks[currentIndex + 1];
-                const variant = nextTrack.vocalUrl ? 'vocal' : 'instrumental';
-                setPlayingTrack(nextTrack.id, variant);
-            } else if (rm === 'all' && tracks.length > 0) {
-                // Wrap to first track
-                const first = tracks[0];
-                const variant = first.vocalUrl ? 'vocal' : 'instrumental';
-                setPlayingTrack(first.id, variant);
+            const currentIndex = queue.indexOf(playingTrackId!);
+            if (currentIndex >= 0 && currentIndex < queue.length - 1) {
+                const nextId = queue[currentIndex + 1];
+                const next = findTrackById(nextId);
+                if (next) {
+                    setPlayingTrack(next.id, next.vocalUrl ? 'vocal' : 'instrumental');
+                }
+            } else if (rm === 'all' && queue.length > 0) {
+                // Wrap to first track in queue
+                const firstId = queue[0];
+                const first = findTrackById(firstId);
+                if (first) {
+                    setPlayingTrack(first.id, first.vocalUrl ? 'vocal' : 'instrumental');
+                }
             } else {
                 setIsPlaying(false);
             }
@@ -165,7 +173,7 @@ export const AudioPlayer: React.FC = () => {
             audio.removeEventListener('pause', onPause);
             audio.removeEventListener('play', onPlay);
         };
-    }, [playingTrackId, tracks, setPlayingTrack, setIsPlaying, setStoreTime, setStoreDuration]);
+    }, [playingTrackId, findTrackById, setPlayingTrack, setIsPlaying, setStoreTime, setStoreDuration]);
 
     const handleSeek = useCallback((position: number) => {
         const audio = audioRef.current;
@@ -182,8 +190,8 @@ export const AudioPlayer: React.FC = () => {
     }, [handleSeek, registerSeek]);
 
     const handlePrevious = () => {
-        const currentIndex = tracks.findIndex((t) => t.id === playingTrackId);
-        if (tracks.length <= 1 || currentIndex <= 0) {
+        const currentIndex = playbackQueue.indexOf(playingTrackId!);
+        if (playbackQueue.length <= 1 || currentIndex <= 0) {
             // Single track or first track — restart from beginning
             const audio = audioRef.current;
             if (audio) {
@@ -193,23 +201,32 @@ export const AudioPlayer: React.FC = () => {
             }
             return;
         }
-        const prev = tracks[currentIndex - 1];
-        prevAudioUrlRef.current = null;
-        setPlayingTrack(prev.id, prev.vocalUrl ? 'vocal' : 'instrumental');
+        const prevId = playbackQueue[currentIndex - 1];
+        const prev = tracks.find((t) => t.id === prevId);
+        if (prev) {
+            prevAudioUrlRef.current = null;
+            setPlayingTrack(prev.id, prev.vocalUrl ? 'vocal' : 'instrumental');
+        }
     };
 
     const handleNext = () => {
-        const currentIndex = tracks.findIndex((t) => t.id === playingTrackId);
-        if (tracks.length <= 1) return; // Single track — do nothing
-        if (currentIndex >= 0 && currentIndex < tracks.length - 1) {
-            const next = tracks[currentIndex + 1];
-            prevAudioUrlRef.current = null;
-            setPlayingTrack(next.id, next.vocalUrl ? 'vocal' : 'instrumental');
-        } else if (repeatMode === 'all' && tracks.length > 0) {
+        const currentIndex = playbackQueue.indexOf(playingTrackId!);
+        if (playbackQueue.length <= 1) return; // Single track — do nothing
+        if (currentIndex >= 0 && currentIndex < playbackQueue.length - 1) {
+            const nextId = playbackQueue[currentIndex + 1];
+            const next = tracks.find((t) => t.id === nextId);
+            if (next) {
+                prevAudioUrlRef.current = null;
+                setPlayingTrack(next.id, next.vocalUrl ? 'vocal' : 'instrumental');
+            }
+        } else if (repeatMode === 'all' && playbackQueue.length > 0) {
             // Wrap to first track
-            const first = tracks[0];
-            prevAudioUrlRef.current = null;
-            setPlayingTrack(first.id, first.vocalUrl ? 'vocal' : 'instrumental');
+            const firstId = playbackQueue[0];
+            const first = tracks.find((t) => t.id === firstId);
+            if (first) {
+                prevAudioUrlRef.current = null;
+                setPlayingTrack(first.id, first.vocalUrl ? 'vocal' : 'instrumental');
+            }
         }
     };
 
@@ -287,8 +304,8 @@ export const AudioPlayer: React.FC = () => {
                         </button>
                         <button
                             onClick={handleNext}
-                            disabled={tracks.length <= 1}
-                            className={`p-1.5 transition-colors ${tracks.length <= 1
+                            disabled={playbackQueue.length <= 1}
+                            className={`p-1.5 transition-colors ${playbackQueue.length <= 1
                                 ? 'text-text-tertiary opacity-30 cursor-not-allowed'
                                 : 'text-text-secondary hover:text-text-primary'}`}
                         >

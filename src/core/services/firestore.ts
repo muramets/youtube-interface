@@ -9,6 +9,7 @@ import {
     query,
     onSnapshot,
     runTransaction,
+    writeBatch,
     type DocumentData,
     type QueryConstraint,
     type WithFieldValue,
@@ -122,6 +123,19 @@ export const updateDocument = async <T extends DocumentData>(
 export const deleteDocument = async (path: string, id: string) => {
     const docRef = doc(db, path, id);
     await deleteDoc(docRef);
+};
+
+/**
+ * Batch-update multiple documents atomically (single snapshot trigger).
+ */
+export const batchUpdateDocuments = async (
+    updates: { path: string; id: string; data: UpdateData<DocumentData> }[]
+) => {
+    const batch = writeBatch(db);
+    for (const { path: p, id, data } of updates) {
+        batch.update(doc(db, p, id), data);
+    }
+    await batch.commit();
 };
 
 /**

@@ -2,13 +2,15 @@
 // MUSIC PAGE: Main library page with track list, filters, and player
 // =============================================================================
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Plus, Search, Settings, Upload, Music, Heart, ArrowLeft, ListMusic, ArrowUp, ArrowDown } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useMusicStore } from '../../core/stores/musicStore';
 import { TrackCard } from './components/TrackCard';
+import { TrackGroupCard } from './components/TrackGroupCard';
 import { UploadTrackModal } from './modals/UploadTrackModal';
 import { MusicSettingsModal } from './modals/MusicSettingsModal';
 import { TrackService } from '../../core/services/trackService';
@@ -55,6 +57,9 @@ export const MusicPage: React.FC = () => {
     const [showUpload, setShowUpload] = useState(false);
     const [editingTrack, setEditingTrack] = useState<Track | null>(null);
     const [showSettings, setShowSettings] = useState<'genres' | 'tags' | null>(null);
+
+    // Scroll container ref for virtualizer
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     const location = useLocation();
     const navigate = useNavigate();
@@ -168,16 +173,103 @@ export const MusicPage: React.FC = () => {
 
     const hasActiveFilters = !!(searchQuery || genreFilter || tagFilters.length > 0 || bpmFilter);
 
-    const handleDeleteTrack = async (trackId: string) => {
+    const handleDeleteTrack = useCallback(async (trackId: string) => {
         if (!userId || !channelId) return;
 
         try {
+            // Auto-cleanup: if this track is in a group, check remaining members
+            const track = tracks.find((t) => t.id === trackId);
+            if (track?.groupId) {
+                const remaining = tracks.filter(
+                    (t) => t.groupId === track.groupId && t.id !== trackId
+                );
+                // If only 1 track remains, remove its groupId
+                if (remaining.length === 1) {
+                    await TrackService.updateTrack(userId, channelId, remaining[0].id, {
+                        groupId: undefined,
+                    });
+                }
+            }
+
             await deleteTrackFolder(userId, channelId, trackId);
             await TrackService.deleteTrack(userId, channelId, trackId);
         } catch (error) {
             console.error('[Music] Failed to delete track:', error);
         }
-    };
+    }, [userId, channelId, tracks]);
+
+    const handleEditTrack = useCallback((track: Track) => {
+        setEditingTrack(track);
+    }, []);
+
+    // -------------------------------------------------------------------------
+    // Group filtered tracks by groupId for version stacking
+    // -------------------------------------------------------------------------
+    type DisplayItem =
+        | { type: 'single'; track: Track }
+        | { type: 'group'; groupId: string; tracks: Track[] };
+
+    const displayItems: DisplayItem[] = useMemo(() => {
+        const items: DisplayItem[] = [];
+        const seenGroupIds = new Set<string>();
+
+        for (const track of filteredTracks) {
+            if (track.groupId) {
+                if (seenGroupIds.has(track.groupId)) continue;
+                seenGroupIds.add(track.groupId);
+                // Collect all tracks in this group from the filtered list
+                const groupTracks = filteredTracks.filter((t) => t.groupId === track.groupId);
+                if (groupTracks.length >= 2) {
+                    items.push({ type: 'group', groupId: track.groupId, tracks: groupTracks });
+                } else {
+                    // Only 1 filtered — show as standalone
+                    items.push({ type: 'single', track: groupTracks[0] });
+                }
+            } else {
+                items.push({ type: 'single', track });
+            }
+        }
+        return items;
+    }, [filteredTracks]);
+
+    // -------------------------------------------------------------------------
+    // Playback queue: flattened visual order with groups sorted by groupOrder
+    // -------------------------------------------------------------------------
+    const setPlaybackQueue = useMusicStore((s) => s.setPlaybackQueue);
+
+    useEffect(() => {
+        const queue: string[] = [];
+        for (const item of displayItems) {
+            if (item.type === 'single') {
+                queue.push(item.track.id);
+            } else {
+                // Sort group tracks by groupOrder, then createdAt (same as TrackGroupCard)
+                const sorted = [...item.tracks].sort((a, b) => {
+                    if (a.groupOrder !== undefined && b.groupOrder !== undefined) {
+                        return a.groupOrder - b.groupOrder;
+                    }
+                    return b.createdAt - a.createdAt;
+                });
+                for (const t of sorted) {
+                    queue.push(t.id);
+                }
+            }
+        }
+        setPlaybackQueue(queue);
+    }, [displayItems, setPlaybackQueue]);
+
+    // -------------------------------------------------------------------------
+    // Virtualizer — only mount visible rows in the DOM
+    // -------------------------------------------------------------------------
+    const TRACK_ROW_HEIGHT = 72; // px — matches py-4 + h-14 cover + gaps
+
+    // eslint-disable-next-line react-hooks/incompatible-library
+    const virtualizer = useVirtualizer({
+        count: displayItems.length,
+        getScrollElement: () => scrollContainerRef.current,
+        estimateSize: () => TRACK_ROW_HEIGHT,
+        overscan: 8,
+    });
 
     return (
         <div className="flex flex-col h-full">
@@ -295,8 +387,12 @@ export const MusicPage: React.FC = () => {
                 />
             </div>
 
-            {/* Track grid */}
-            <div className="flex-1 overflow-y-auto px-6 pb-6" onClick={() => setSelectedTrackId(null)}>
+            {/* Track list */}
+            <div
+                ref={scrollContainerRef}
+                className="flex-1 overflow-y-auto px-6 pb-6"
+                onClick={() => setSelectedTrackId(null)}
+            >
                 <MusicErrorBoundary>
                     {isLoading ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -354,19 +450,49 @@ export const MusicPage: React.FC = () => {
                             )}
                         </div>
                     ) : (
-                        <div className="flex flex-col gap-0.5 pt-3">
-                            {filteredTracks.map((track) => (
-                                <TrackCard
-                                    key={track.id}
-                                    track={track}
-                                    isSelected={selectedTrackId === track.id}
-                                    userId={userId}
-                                    channelId={channelId}
-                                    onSelect={setSelectedTrackId}
-                                    onDelete={(id) => handleDeleteTrack(id)}
-                                    onEdit={(t) => setEditingTrack(t)}
-                                />
-                            ))}
+                        <div
+                            className="pt-3 relative w-full"
+                            style={{ height: virtualizer.getTotalSize() + 12 }}
+                        >
+                            {virtualizer.getVirtualItems().map((virtualRow) => {
+                                const item = displayItems[virtualRow.index];
+                                return (
+                                    <div
+                                        key={item.type === 'group' ? item.groupId : item.track.id}
+                                        data-index={virtualRow.index}
+                                        ref={virtualizer.measureElement}
+                                        style={{
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                            width: '100%',
+                                            transform: `translateY(${virtualRow.start}px)`,
+                                        }}
+                                    >
+                                        {item.type === 'group' ? (
+                                            <TrackGroupCard
+                                                tracks={item.tracks}
+                                                selectedTrackId={selectedTrackId}
+                                                userId={userId}
+                                                channelId={channelId}
+                                                onSelect={setSelectedTrackId}
+                                                onDelete={handleDeleteTrack}
+                                                onEdit={handleEditTrack}
+                                            />
+                                        ) : (
+                                            <TrackCard
+                                                track={item.track}
+                                                isSelected={selectedTrackId === item.track.id}
+                                                userId={userId}
+                                                channelId={channelId}
+                                                onSelect={setSelectedTrackId}
+                                                onDelete={handleDeleteTrack}
+                                                onEdit={handleEditTrack}
+                                            />
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
                 </MusicErrorBoundary>
