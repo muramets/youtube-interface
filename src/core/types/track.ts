@@ -20,8 +20,10 @@ export interface Track {
     // Two versions of the same track
     vocalUrl?: string;             // Firebase Storage download URL
     vocalStoragePath?: string;     // Firebase Storage path for deletion
+    vocalFileName?: string;        // Original uploaded filename
     instrumentalUrl?: string;
     instrumentalStoragePath?: string;
+    instrumentalFileName?: string; // Original uploaded filename
 
     // Pre-computed waveform peaks for fast canvas rendering
     vocalPeaks?: number[];

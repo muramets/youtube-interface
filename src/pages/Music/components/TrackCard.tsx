@@ -2,7 +2,7 @@
 // TRACK ROW: Horizontal row with cover, metadata, waveform, and actions
 // =============================================================================
 
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { Play, Pause, Mic, Piano, Sparkles, Copy, Check, Heart, Download, BookOpen, MoreHorizontal, Trash2, Settings, ListMusic } from 'lucide-react';
 import { WaveformCanvas } from './WaveformCanvas';
@@ -48,7 +48,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
     const seekTo = useMusicStore((s) => isCurrentTrack ? s.seekTo : null);
 
     // Stable action references — don't subscribe to state changes
-    const { setPlayingTrack, setIsPlaying, toggleLike, toggleVariant, setGenreFilter, toggleTagFilter } = useMusicStore.getState();
+    const { setPlayingTrack, setIsPlaying, toggleLike, toggleVariant, setGenreFilter, toggleTagFilter, setSearchQuery } = useMusicStore.getState();
     const isCurrentlyPlaying = isCurrentTrack && isPlaying;
 
     const genreInfo = useMemo(() =>
@@ -67,6 +67,19 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
     };
 
     const [copied, setCopied] = useState(false);
+
+    // Detect title truncation
+    const titleRef = useRef<HTMLParagraphElement>(null);
+    const [titleTruncated, setTitleTruncated] = useState(false);
+    useEffect(() => {
+        const el = titleRef.current;
+        if (!el) return;
+        const check = () => setTitleTruncated(el.scrollWidth > el.clientWidth);
+        check();
+        const ro = new ResizeObserver(check);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [track.title]);
     const handleCopyPrompt = async (e: React.MouseEvent) => {
         e.stopPropagation();
         if (!track.prompt) return;
@@ -198,36 +211,59 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             </div>
 
             {/* 2. Title + Artist */}
-            <div className="min-w-0 w-[160px] flex-shrink-0">
-                <p className="text-sm font-medium text-text-primary truncate">{track.title}</p>
-                <p className="text-xs text-text-secondary truncate">{track.artist || 'Unknown'}</p>
+            <div className="min-w-0 w-[260px] flex-shrink-0">
+                <PortalTooltip
+                    variant="default"
+                    sizeMode="auto"
+                    enterDelay={500}
+                    triggerClassName="!block !justify-start min-w-0"
+                    content={<span className="text-xs">{track.title}</span>}
+                    disabled={!titleTruncated}
+                >
+                    <p
+                        ref={titleRef}
+                        className="text-sm font-medium text-text-primary truncate cursor-default"
+                    >
+                        {track.title}
+                    </p>
+                </PortalTooltip>
+                <p
+                    onClick={(e) => { e.stopPropagation(); setSearchQuery(track.artist || ''); }}
+                    className="text-xs text-text-tertiary truncate transition-colors hover:text-text-secondary cursor-pointer"
+                >
+                    {track.artist || 'Unknown'}
+                </p>
             </div>
 
             {/* 2.5 Variant toggle */}
             {hasBothVariants && (
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        if (isCurrentTrack) {
-                            toggleVariant();
-                        } else {
-                            const variant = currentVariant === 'vocal' ? 'instrumental' : 'vocal';
-                            setPlayingTrack(track.id, variant);
-                        }
-                    }}
-                    className={`p-1.5 rounded-lg text-xs flex items-center gap-1 flex-shrink-0 transition-all duration-150
-                        ${isCurrentTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
-                        ${currentVariant === 'instrumental'
-                            ? 'bg-white/10 text-white'
-                            : 'text-text-secondary hover:text-text-primary hover:bg-white/10'
-                        }`}
-                    title={currentVariant === 'vocal' ? 'Switch to instrumental' : 'Switch to vocal'}
+                <PortalTooltip
+                    content={currentVariant === 'vocal' ? 'Switch to instrumental' : 'Switch to vocal'}
+                    triggerClassName="!block"
                 >
-                    {currentVariant === 'vocal' ? <Mic size={14} /> : <Piano size={14} />}
-                    <span className="text-[10px] uppercase tracking-wider">
-                        {currentVariant === 'vocal' ? 'VOC' : 'INST'}
-                    </span>
-                </button>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (isCurrentTrack) {
+                                toggleVariant();
+                            } else {
+                                const variant = currentVariant === 'vocal' ? 'instrumental' : 'vocal';
+                                setPlayingTrack(track.id, variant);
+                            }
+                        }}
+                        className={`p-1.5 rounded-lg text-xs flex items-center gap-1 flex-shrink-0 transition-all duration-150
+                            ${isCurrentTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
+                            ${currentVariant === 'instrumental'
+                                ? 'bg-white/10 text-white'
+                                : 'text-text-secondary hover:text-text-primary hover:bg-white/10'
+                            }`}
+                    >
+                        {currentVariant === 'vocal' ? <Mic size={14} /> : <Piano size={14} />}
+                        <span className="text-[10px] uppercase tracking-wider">
+                            {currentVariant === 'vocal' ? 'VOC' : 'INST'}
+                        </span>
+                    </button>
+                </PortalTooltip>
             )}
 
             {/* 3. Waveform */}
@@ -272,7 +308,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             </div>
 
             {/* 6. Tags */}
-            <div className="flex-1 min-w-0 line-clamp-2 text-[10px] text-text-tertiary leading-relaxed">
+            <div className="flex-1 min-w-0 max-w-[200px] line-clamp-2 text-[10px] text-text-tertiary leading-relaxed">
                 {track.tags.map((tag, i) => (
                     <span key={tag}>
                         <span
@@ -289,7 +325,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             </div>
 
             {/* 7+8+icons: Actions */}
-            <div className="flex items-center gap-0.5 flex-shrink-0">
+            <div className="flex items-center gap-0.5 flex-shrink-0 ml-auto">
                 {/* Prompt icon */}
                 {track.prompt && (
                     <PortalTooltip

@@ -265,7 +265,10 @@ export const uploadTrackAudio = async (
     });
 
     const downloadUrl = await getDownloadURL(storageRef);
-    return { storagePath, downloadUrl };
+    // Append cache-busting param — Firebase Storage returns the same URL on re-upload,
+    // so browsers/workbox serve stale cached files without this.
+    const cacheBustedUrl = `${downloadUrl}&v=${Date.now()}`;
+    return { storagePath, downloadUrl: cacheBustedUrl };
 };
 
 /**
@@ -305,7 +308,8 @@ export const uploadTrackCover = async (
     });
 
     const downloadUrl = await getDownloadURL(storageRef);
-    return { storagePath, downloadUrl };
+    const cacheBustedUrl = `${downloadUrl}&v=${Date.now()}`;
+    return { storagePath, downloadUrl: cacheBustedUrl };
 };
 
 /**

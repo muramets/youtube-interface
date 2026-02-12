@@ -4,6 +4,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { deleteField } from 'firebase/firestore';
 import { TrackService } from '../../../core/services/trackService';
 import { uploadTrackAudio, uploadTrackCover } from '../../../core/services/storageService';
 import { useMusicStore } from '../../../core/stores/musicStore';
@@ -159,10 +160,10 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
         setIsInstrumentalOnly(!editTrack.vocalUrl && !!editTrack.instrumentalUrl);
         setCoverPreview(editTrack.coverUrl || '');
         if (editTrack.vocalUrl) {
-            setVocalFile({ file: null, name: `${editTrack.title} (Vocal).mp3`, uploading: false, progress: 100 });
+            setVocalFile({ file: null, name: editTrack.vocalFileName || `${editTrack.title} (Vocal).mp3`, uploading: false, progress: 100 });
         }
         if (editTrack.instrumentalUrl) {
-            setInstrumentalFile({ file: null, name: `${editTrack.title} (Instrumental).mp3`, uploading: false, progress: 100 });
+            setInstrumentalFile({ file: null, name: editTrack.instrumentalFileName || `${editTrack.title} (Instrumental).mp3`, uploading: false, progress: 100 });
         }
     }, [isOpen, editTrack]);
 
@@ -316,6 +317,8 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
             let coverStoragePath: string | undefined = isEditMode ? editTrack!.coverStoragePath : undefined;
             let vocalPeaks: number[] | undefined = isEditMode ? editTrack!.vocalPeaks : undefined;
             let instrumentalPeaks: number[] | undefined = isEditMode ? editTrack!.instrumentalPeaks : undefined;
+            let vocalFileName: string | undefined = isEditMode ? editTrack!.vocalFileName : undefined;
+            let instrumentalFileName: string | undefined = isEditMode ? editTrack!.instrumentalFileName : undefined;
             let duration = isEditMode ? editTrack!.duration : 0;
 
             if (vocalFile.file) {
@@ -327,6 +330,7 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
                 vocalUrl = result.downloadUrl;
                 vocalStoragePath = result.storagePath;
                 vocalPeaks = peaks;
+                vocalFileName = vocalFile.file.name;
                 duration = await getAudioDuration(vocalFile.file);
                 setVocalFile((prev) => ({ ...prev, uploading: false, progress: 100 }));
             }
@@ -340,6 +344,7 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
                 instrumentalUrl = result.downloadUrl;
                 instrumentalStoragePath = result.storagePath;
                 instrumentalPeaks = peaks;
+                instrumentalFileName = instrumentalFile.file.name;
                 if (duration === 0) duration = await getAudioDuration(instrumentalFile.file);
                 setInstrumentalFile((prev) => ({ ...prev, uploading: false, progress: 100 }));
             }
@@ -351,14 +356,14 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
             }
 
             if (isEditMode) {
-                await TrackService.updateTrack(userId, channelId, trackId, {
+                const raw: Record<string, unknown> = {
                     title: title.trim(),
-                    artist: artist.trim() || undefined,
+                    artist: artist.trim() || deleteField(),
                     genre: selectedGenre || 'other',
                     tags: selectedTags,
-                    bpm: bpm ? parseInt(bpm, 10) : undefined,
-                    lyrics: lyrics.trim() || undefined,
-                    prompt: prompt.trim() || undefined,
+                    bpm: bpm ? parseInt(bpm, 10) : deleteField(),
+                    lyrics: lyrics.trim() || deleteField(),
+                    prompt: prompt.trim() || deleteField(),
                     duration,
                     vocalUrl,
                     vocalStoragePath,
@@ -366,9 +371,16 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
                     instrumentalUrl,
                     instrumentalStoragePath,
                     instrumentalPeaks,
+                    vocalFileName,
+                    instrumentalFileName,
                     coverUrl,
                     coverStoragePath,
-                });
+                };
+                // Firestore rejects `undefined` — strip those fields entirely
+                const updates = Object.fromEntries(
+                    Object.entries(raw).filter(([, v]) => v !== undefined)
+                );
+                await TrackService.updateTrack(userId, channelId, trackId, updates);
             } else {
                 const trackData: TrackCreateData = {
                     title: title.trim(),
@@ -385,6 +397,8 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
                     instrumentalUrl,
                     instrumentalStoragePath,
                     instrumentalPeaks,
+                    vocalFileName,
+                    instrumentalFileName,
                     coverUrl,
                     coverStoragePath,
                 };
