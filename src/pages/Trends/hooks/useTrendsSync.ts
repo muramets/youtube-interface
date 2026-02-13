@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTrendStore } from '../../../core/stores/trendStore';
 import { TrendService } from '../../../core/services/trendService';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { useApiKey } from '../../../core/hooks/useApiKey';
 import { useUIStore } from '../../../core/stores/uiStore';
-// Removed invalid imports
+import { useNotificationStore } from '../../../core/stores/notificationStore';
 
 interface UseTrendsSyncReturn {
     handleSync: () => Promise<void>;
@@ -26,8 +26,30 @@ export const useTrendsSync = (): UseTrendsSyncReturn => {
     const { currentChannel } = useChannelStore();
     const { hasApiKey } = useApiKey();
     const { showToast } = useUIStore();
+    const { notifications } = useNotificationStore();
 
     const [isSyncing, setIsSyncing] = useState(false);
+
+    // Snapshot of notification IDs that existed BEFORE sync was triggered.
+    // Only notifications arriving AFTER this snapshot are treated as sync results.
+    const preSyncNotificationIdsRef = useRef<Set<string>>(new Set());
+
+    // --- Sync Completion Listener ---
+    // Watch for "Manual Sync Complete" notifications from the Cloud Function
+    useEffect(() => {
+        if (!isSyncing) return;
+
+        const syncNotification = notifications.find(
+            n => n.title === 'Manual Sync Complete' && !preSyncNotificationIdsRef.current.has(n.id)
+        );
+
+        if (syncNotification) {
+            // Add to set to prevent duplicate toasts on re-renders
+            preSyncNotificationIdsRef.current.add(syncNotification.id);
+            showToast(syncNotification.message, 'success');
+            setIsSyncing(false);
+        }
+    }, [notifications, isSyncing, showToast]);
 
     // Determine targets
     const visibleChannels = channels.filter(c => c.isVisible);
@@ -50,56 +72,35 @@ export const useTrendsSync = (): UseTrendsSyncReturn => {
                     : "No visible channels to sync";
 
     const handleSync = async () => {
-        // Use combined canSync logic for the guard clause
         if (!user || !currentChannel || !localCanSync || isSyncing) return;
 
+        // Snapshot all current notification IDs so the listener ignores pre-existing ones
+        preSyncNotificationIdsRef.current = new Set(notifications.map(n => n.id));
+
         setIsSyncing(true);
-        // Stats are now handled by Cloud Function notification
 
+        // Immediate feedback
+        showToast('Sync started — we\'ll notify you when it\'s done', 'success');
 
-        try {
-            // Initial toast
-            showToast('Sync started...', 'success');
+        const targetIds = targetChannels.map(c => c.id);
+        const needsAvatarRefresh = targetChannels.some(c => brokenAvatarChannelIds.has(c.id));
 
-            // Call Server-Side Sync
-            // We pass the list of trend channel IDs if we are syncing specific ones (e.g. selection),
-            // OR if we are syncing ALL visible ones.
-            // The Cloud Function accepts `targetTrendChannelIds`.
-            // If we send nothing, it syncs ALL.
-            // But `targetChannels` here might be a subset (Visible Only).
-            // So we should strictly pass the IDs of `targetChannels`.
-
-            const targetIds = targetChannels.map(c => c.id);
-
-            // Check if ANY of the target channels have a broken avatar
-            const needsAvatarRefresh = targetChannels.some(c => brokenAvatarChannelIds.has(c.id));
-
-            await TrendService.syncChannelCloud(currentChannel.id, targetIds, needsAvatarRefresh);
-
-            // Clear broken flags locally if we refreshed
-            // (Ideally, we would wait for confirmation or only clear specific ones, 
-            // but for UX clearing them assumes success. If they are still broken, they will be flagged again on load).
-            if (needsAvatarRefresh) {
-                targetChannels.forEach(c => {
-                    if (brokenAvatarChannelIds.has(c.id)) clearBrokenAvatar(c.id);
-                });
-            }
-
-            // Final success toast
-            // Note: The Cloud Function sends the detailed notification.
-            // We just confirm the command was accepted/finished.
-            showToast(
-                "Sync started! We'll notify you as soon as it's finished.",
-                'success'
-            );
-
-        } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : String(error);
-            showToast(`Sync failed: ${message}`, 'error');
-            console.error('[useTrendsSync] Error:', error);
-        } finally {
-            setIsSyncing(false);
-        }
+        // Fire-and-forget: dispatch cloud function without awaiting
+        TrendService.syncChannelCloud(currentChannel.id, targetIds, needsAvatarRefresh)
+            .then(() => {
+                // Clear broken avatar flags on successful dispatch
+                if (needsAvatarRefresh) {
+                    targetChannels.forEach(c => {
+                        if (brokenAvatarChannelIds.has(c.id)) clearBrokenAvatar(c.id);
+                    });
+                }
+            })
+            .catch((error: unknown) => {
+                const message = error instanceof Error ? error.message : String(error);
+                showToast(`Sync failed: ${message}`, 'error');
+                console.error('[useTrendsSync] Error:', error);
+                setIsSyncing(false);
+            });
     };
 
     return {
