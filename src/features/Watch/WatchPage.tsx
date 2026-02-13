@@ -165,17 +165,23 @@ export const WatchPage: React.FC = () => {
                     return dateB - dateA;
                 });
             } else {
-                // Default: Use Home Page Order
-                if (videoOrder && videoOrder.length > 0) {
-                    const orderMap = new Map(videoOrder.map((id, index) => [id, index]));
+                // Default: Use playlist manual order when a single playlist is selected,
+                // otherwise fall back to Home Page order.
+                const singlePlaylist = selectedFilter === FilterType.PLAYLISTS && selectedPlaylistIds.length === 1
+                    ? playlists.find((p: Playlist) => p.id === selectedPlaylistIds[0])
+                    : null;
+                const fallbackOrder = singlePlaylist
+                    ? singlePlaylist.videoIds
+                    : (videoOrder && videoOrder.length > 0 ? videoOrder : null);
+
+                if (fallbackOrder) {
+                    const orderMap = new Map(fallbackOrder.map((id: string, index: number) => [id, index]));
                     recs = [...recs].sort((a, b) => {
                         const indexA = orderMap.get(a.id);
                         const indexB = orderMap.get(b.id);
 
                         if (indexA !== undefined && indexB !== undefined) return indexA - indexB;
-                        // Invert logic for undefined indices compared to Custom Order:
-                        // We want NEW items (undefined index) to appear at the TOP (before defined indices)
-                        // to match Home Page "prepend" behavior.
+                        // Items not in the order source go to the top
                         if (indexA === undefined && indexB !== undefined) return -1;
                         if (indexA !== undefined && indexB === undefined) return 1;
                         return 0;
