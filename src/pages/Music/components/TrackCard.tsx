@@ -25,6 +25,10 @@ interface TrackCardProps {
     trailingElement?: React.ReactNode;
     disableDropTarget?: boolean;
     disableDrag?: boolean;
+    /** Colored left stripe for sibling tracks without parent in playlist */
+    siblingColor?: string;
+    /** Position within sibling group for connected stripe rendering */
+    siblingPosition?: 'first' | 'middle' | 'last';
 }
 
 import { formatDuration } from '../utils/formatDuration';
@@ -40,6 +44,8 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
     trailingElement,
     disableDropTarget,
     disableDrag,
+    siblingColor,
+    siblingPosition,
 }) => {
     // Granular selectors — only subscribe to what this card needs
     const playingTrackId = useMusicStore((s) => s.playingTrackId);
@@ -227,7 +233,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             {...attributes}
             onClick={(e) => { e.stopPropagation(); if (e.metaKey || e.ctrlKey) { onSelect(isSelected ? null : track.id); } else { onSelect(null); } }}
 
-            className={`group flex items-center gap-4 px-4 py-4 rounded-lg transition-all duration-300 cursor-pointer
+            className={`group flex items-center gap-4 px-4 py-4 rounded-lg transition-all duration-300 cursor-pointer relative
                 ${isHidden ? 'opacity-0' : ''}
                 ${isOver && !isDragging ? 'ring-2 ring-indigo-400/50 bg-indigo-500/[0.06]' : ''}
                 ${isCurrentTrack
@@ -239,6 +245,21 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                             : 'hover:bg-white/[0.04]'
                 }`}
         >
+            {/* Sibling color stripe — connected line between siblings from same group */}
+            {siblingColor && (
+                <div
+                    className="absolute left-0 w-[3px]"
+                    style={{
+                        backgroundColor: siblingColor,
+                        top: siblingPosition === 'first' ? 8 : 0,
+                        bottom: siblingPosition === 'last' ? 8 : 0,
+                        borderRadius:
+                            siblingPosition === 'first' ? '3px 3px 0 0'
+                                : siblingPosition === 'last' ? '0 0 3px 3px'
+                                    : 0,
+                    }}
+                />
+            )}
             {/* 1. Cover + Play/Pause overlay */}
             <div
                 className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center relative group/cover cursor-pointer"

@@ -218,11 +218,22 @@ export const MusicPage: React.FC = () => {
     // -------------------------------------------------------------------------
     type DisplayItem =
         | { type: 'single'; track: Track }
-        | { type: 'group'; groupId: string; tracks: Track[] };
+        | { type: 'group'; groupId: string; tracks: Track[] }
+        | { type: 'sibling'; track: Track; siblingColor: string; siblingPosition: 'first' | 'middle' | 'last' };
 
     const displayItems: DisplayItem[] = useMemo(() => {
         const items: DisplayItem[] = [];
         const seenGroupIds = new Set<string>();
+
+        // Generate a unique hue from groupId for sibling stripe color
+        const groupIdToColor = (gid: string): string => {
+            let hash = 0;
+            for (let i = 0; i < gid.length; i++) {
+                hash = gid.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const hue = ((hash % 360) + 360) % 360;
+            return `hsl(${hue}, 65%, 55%)`;
+        };
 
         for (const track of filteredTracks) {
             if (track.groupId) {
@@ -231,7 +242,28 @@ export const MusicPage: React.FC = () => {
                 // Collect all tracks in this group from the filtered list
                 const groupTracks = filteredTracks.filter((t) => t.groupId === track.groupId);
                 if (groupTracks.length >= 2) {
-                    items.push({ type: 'group', groupId: track.groupId, tracks: groupTracks });
+                    // Determine if the "parent" (lowest groupOrder) is present
+                    const allGroupTracks = tracks.filter((t) => t.groupId === track.groupId);
+                    const parentTrack = [...allGroupTracks].sort((a, b) => {
+                        if (a.groupOrder !== undefined && b.groupOrder !== undefined) {
+                            return a.groupOrder - b.groupOrder;
+                        }
+                        return b.createdAt - a.createdAt;
+                    })[0];
+                    const parentInPlaylist = groupTracks.some((t) => t.id === parentTrack?.id);
+
+                    if (parentInPlaylist || !activePlaylistId) {
+                        // Parent present or in library view → standard accordion
+                        items.push({ type: 'group', groupId: track.groupId, tracks: groupTracks });
+                    } else {
+                        // Only children in playlist → render as siblings with connected stripe
+                        const color = groupIdToColor(track.groupId);
+                        for (let i = 0; i < groupTracks.length; i++) {
+                            const position: 'first' | 'middle' | 'last' =
+                                i === 0 ? 'first' : i === groupTracks.length - 1 ? 'last' : 'middle';
+                            items.push({ type: 'sibling', track: groupTracks[i], siblingColor: color, siblingPosition: position });
+                        }
+                    }
                 } else {
                     // Only 1 filtered — show as standalone
                     items.push({ type: 'single', track: groupTracks[0] });
@@ -241,7 +273,7 @@ export const MusicPage: React.FC = () => {
             }
         }
         return items;
-    }, [filteredTracks]);
+    }, [filteredTracks, tracks, activePlaylistId]);
 
     // -------------------------------------------------------------------------
     // Playback queue: flattened visual order with groups sorted by groupOrder
@@ -251,7 +283,7 @@ export const MusicPage: React.FC = () => {
     useEffect(() => {
         const queue: string[] = [];
         for (const item of displayItems) {
-            if (item.type === 'single') {
+            if (item.type === 'single' || item.type === 'sibling') {
                 queue.push(item.track.id);
             } else {
                 // Sort group tracks by groupOrder, then createdAt (same as TrackGroupCard)
@@ -500,6 +532,8 @@ export const MusicPage: React.FC = () => {
                                                 onSelect={setSelectedTrackId}
                                                 onDelete={handleDeleteTrack}
                                                 onEdit={handleEditTrack}
+                                                siblingColor={item.type === 'sibling' ? item.siblingColor : undefined}
+                                                siblingPosition={item.type === 'sibling' ? item.siblingPosition : undefined}
                                             />
                                         )}
                                     </div>

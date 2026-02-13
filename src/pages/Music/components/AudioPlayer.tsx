@@ -3,7 +3,8 @@
 // =============================================================================
 
 import React, { useRef, useEffect, useCallback } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Mic, Piano, X, Repeat, Repeat1 } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Mic, Piano, X, Repeat, Repeat1, ListMusic } from 'lucide-react';
+import { AddToMusicPlaylistModal } from '../modals/AddToMusicPlaylistModal';
 import { WaveformCanvas } from './WaveformCanvas';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import { useMusicStore } from '../../../core/stores/musicStore';
@@ -24,6 +25,7 @@ export const AudioPlayer: React.FC = () => {
     const audioRef = useRef<HTMLAudioElement>(null);
     const [volume, setVolume] = React.useState(0.8);
     const [isMuted, setIsMuted] = React.useState(false);
+    const [showPlaylistModal, setShowPlaylistModal] = React.useState(false);
 
     // Track previous URL and track ID to detect variant-only changes
     const prevAudioUrlRef = useRef<string | null>(null);
@@ -380,6 +382,20 @@ export const AudioPlayer: React.FC = () => {
                             </button>
                         </PortalTooltip>
 
+                        {/* Add to playlist */}
+                        <PortalTooltip
+                            content="Add to playlist"
+                            enterDelay={800}
+                            side="top"
+                        >
+                            <button
+                                onClick={() => setShowPlaylistModal(true)}
+                                className="p-1.5 rounded-lg text-text-secondary hover:text-text-primary transition-colors"
+                            >
+                                <ListMusic size={14} />
+                            </button>
+                        </PortalTooltip>
+
                         {/* Volume */}
                         <button
                             onClick={() => setIsMuted(!isMuted)}
@@ -410,6 +426,13 @@ export const AudioPlayer: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Add to Playlist Modal */}
+            <AddToMusicPlaylistModal
+                isOpen={showPlaylistModal}
+                onClose={() => setShowPlaylistModal(false)}
+                trackId={playingTrackId || ''}
+            />
         </>
     );
 };
