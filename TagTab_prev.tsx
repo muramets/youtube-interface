@@ -8,27 +8,22 @@
 // =============================================================================
 
 import React, { useState, useCallback, useMemo } from 'react';
-import { createPortal } from 'react-dom';
 import { X, Plus, Search, GripVertical, Pencil, Trash2, Star, ArrowDownUp } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import {
     DndContext,
-    DragOverlay,
     useDroppable,
     PointerSensor,
     useSensor,
     useSensors,
     type DragStartEvent,
     type DragOverEvent,
-    closestCorners,
-    pointerWithin,
-    type CollisionDetection,
 } from '@dnd-kit/core';
 import {
     SortableContext,
     useSortable,
     arrayMove,
-    type SortingStrategy,
+    verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { CollapsibleSection } from '../../../../components/ui/molecules/CollapsibleSection';
@@ -53,10 +48,6 @@ const catFromDragId = (id: string) => id.replace(CAT_PREFIX, '');
 const isZoneId = (id: string) => id.startsWith(ZONE_PREFIX);
 const catFromZoneId = (id: string) => id.replace(ZONE_PREFIX, '');
 
-// No-op sort strategy: arrayMove in handleDragOver already handles reordering,
-// so we don't want dnd-kit to ALSO apply visual displacement transforms.
-const noopSortStrategy: SortingStrategy = () => null;
-
 // --------------- Sortable Tag Chip ---------------
 const SortableTagChip: React.FC<{
     tag: MusicTag;
@@ -67,8 +58,7 @@ const SortableTagChip: React.FC<{
     onEditChange: (value: string) => void;
     onEditCommit: () => void;
     onEditCancel: () => void;
-    isCatDragging?: boolean;
-}> = ({ tag, onRemove, editingTagId, editingName, onStartEdit, onEditChange, onEditCommit, onEditCancel, isCatDragging }) => {
+}> = ({ tag, onRemove, editingTagId, editingName, onStartEdit, onEditChange, onEditCommit, onEditCancel }) => {
     const {
         attributes,
         listeners,
@@ -79,14 +69,11 @@ const SortableTagChip: React.FC<{
     } = useSortable({ id: tag.id });
 
     const style: React.CSSProperties = {
-        // When dragging, the original chip is hidden (DragOverlay handles visuals).
-        // Don't apply sort transform — it would shift the invisible chip and cause
-        // double-displacement of neighboring items.
-        // When a category is being dragged, disable transitions so tags move with
-        // the group as a single unit (no individual FLIP animations).
-        transform: isDragging ? undefined : CSS.Translate.toString(transform),
-        transition: (isDragging || isCatDragging) ? 'none' : transition,
-        opacity: isDragging ? 0 : 1,
+        transform: CSS.Translate.toString(transform),
+        transition: isDragging ? 'none' : transition,
+        opacity: isDragging ? 0.4 : 1,
+        zIndex: isDragging ? 9999 : 'auto',
+        position: isDragging ? 'relative' : undefined,
         touchAction: 'none',
     };
 
@@ -98,11 +85,7 @@ const SortableTagChip: React.FC<{
             style={style}
             {...listeners}
             {...attributes}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-text-primary cursor-grab outline-none
-                ${isDragging
-                    ? 'bg-white/[0.12] shadow-lg shadow-black/25 ring-1 ring-white/15 scale-105'
-                    : 'bg-white/[0.06] hover:bg-white/[0.1] transition-colors'
-                }`}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-text-primary bg-white/[0.06] hover:bg-white/[0.1] cursor-grab outline-none ${isDragging ? '' : 'transition-colors'}`}
         >
             {isEditing ? (
                 <span className="relative inline-flex items-center">
@@ -140,23 +123,14 @@ const SortableTagChip: React.FC<{
     );
 };
 
-// Memoized — prevents re-render of ALL tag chips when only categoryOrder changes
-const MemoizedSortableTagChip = React.memo(SortableTagChip);
-
 // --------------- Droppable Category Zone (for cross-category tag drops) ----
 const DroppableCategoryZone: React.FC<{
     category: string;
     isTagDragActive: boolean;
     isSourceCategory: boolean;
-    activeDragCategory: string | null;
     children: React.ReactNode;
-}> = ({ category, isTagDragActive, isSourceCategory, activeDragCategory, children }) => {
-    const { setNodeRef, isOver } = useDroppable({
-        id: `${ZONE_PREFIX}${category}`,
-        // Disable ALL zones during category drag so collision detection only
-        // finds sortable cat-order: items — prevents transform interference.
-        disabled: activeDragCategory !== null,
-    });
+}> = ({ category, isTagDragActive, isSourceCategory, children }) => {
+    const { setNodeRef, isOver } = useDroppable({ id: `${ZONE_PREFIX}${category}` });
 
     return (
         <div
@@ -171,9 +145,7 @@ const DroppableCategoryZone: React.FC<{
 const toTitleCase = (s: string) =>
     s.charAt(0).toUpperCase() + s.slice(1);
 
-// --------------- Sortable Category Wrapper (Live Pattern) ---------------
-// DOM reorder happens in handleDragOver for instant live preview.
-// noopSortStrategy prevents dnd-kit from adding its own displacement transforms.
+// --------------- Sortable Category Wrapper ---------------
 const SortableCategorySection: React.FC<{
     category: string;
     children: React.ReactNode;
@@ -198,18 +170,11 @@ const SortableCategorySection: React.FC<{
         transform,
         transition,
         isDragging,
-    } = useSortable({
-        id: `${CAT_PREFIX}${category}`,
-        animateLayoutChanges: ({ wasDragging }) => {
-            // Disable layout animation when drag ends to prevent "revert" flicker
-            if (wasDragging) return false;
-            return false; // Live Pattern: DOM already reflects the new order, no FLIP needed
-        },
-    });
+    } = useSortable({ id: `${CAT_PREFIX}${category}` });
 
     const style: React.CSSProperties = {
-        transform: CSS.Transform.toString(transform),
-        transition,
+        transform: CSS.Translate.toString(transform),
+        transition: isDragging ? 'none' : (isCatDragging ? transition : undefined),
         zIndex: isDragging ? 50 : 'auto',
         opacity: isCatDragging && !isDragging ? 0.4 : 1,
         position: 'relative',
@@ -289,9 +254,6 @@ const SortableCategorySection: React.FC<{
 
 // --------------- Main TagTab ---------------
 export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categoryOrder, setCategoryOrder, featuredCategories, setFeaturedCategories, sortableCategories, setSortableCategories }) => {
-    // Tracks the name of the actively-dragged category (used to disable DroppableCategoryZones)
-    const [activeDragCat, setActiveDragCat] = useState<string | null>(null);
-
     const [tagSearch, setTagSearch] = useState('');
     const [addingToCategory, setAddingToCategory] = useState<string | null>(null);
     const [inlineTagName, setInlineTagName] = useState('');
@@ -311,7 +273,7 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
     const [tagDragSourceCategory, setTagDragSourceCategory] = useState<string | null>(null);
 
     const sensors = useSensors(
-        useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+        useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
     );
 
     // --- Derive ordered categories ---
@@ -376,16 +338,16 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
         setInlineTagName('');
     };
 
-    const removeTag = useCallback((id: string) => {
+    const removeTag = (id: string) => {
         setLocalTags(prev => prev.filter(t => t.id !== id));
-    }, [setLocalTags]);
+    };
 
-    const startEdit = useCallback((tag: MusicTag) => {
+    const startEdit = (tag: MusicTag) => {
         setEditingTagId(tag.id);
         setEditingName(tag.name);
-    }, []);
+    };
 
-    const commitEdit = useCallback(() => {
+    const commitEdit = () => {
         if (editingTagId && editingName.trim()) {
             setLocalTags(prev => prev.map(t =>
                 t.id === editingTagId ? { ...t, name: editingName.trim() } : t
@@ -393,12 +355,12 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
         }
         setEditingTagId(null);
         setEditingName('');
-    }, [editingTagId, editingName, setLocalTags]);
+    };
 
-    const cancelEdit = useCallback(() => {
+    const cancelEdit = () => {
         setEditingTagId(null);
         setEditingName('');
-    }, []);
+    };
 
     // --- Category actions ---
     const startCategoryEdit = (category: string) => {
@@ -442,17 +404,12 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
     }, []);
 
     // --- Unified drag handlers ---
-    // Track the active tag for DragOverlay rendering
-    const [activeDragTagId, setActiveDragTagId] = useState<string | null>(null);
-
     const handleDragStart = (event: DragStartEvent) => {
         const activeId = event.active.id as string;
         if (isCatDragId(activeId)) {
             setDragType('category');
-            setActiveDragCat(catFromDragId(activeId));
         } else {
             setDragType('tag');
-            setActiveDragTagId(activeId);
             setTagDragSourceCategory(getTagCategory(activeId, localTags));
         }
     };
@@ -464,16 +421,16 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
         const activeId = active.id as string;
         const overId = over.id as string;
 
-        // Category drag: Live Pattern — reorder DOM immediately so layout
-        // is always correct regardless of variable section heights.
+        // --- Category drag: reorder categories ---
         if (isCatDragId(activeId) && isCatDragId(overId)) {
             const activeCat = catFromDragId(activeId);
             const overCat = catFromDragId(overId);
             setCategoryOrder(prev => {
-                const fromIdx = prev.indexOf(activeCat);
-                const toIdx = prev.indexOf(overCat);
-                if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return prev;
-                return arrayMove([...prev], fromIdx, toIdx);
+                const current = [...allCategories];
+                const oldIdx = current.indexOf(activeCat);
+                const newIdx = current.indexOf(overCat);
+                if (oldIdx === -1 || newIdx === -1) return prev;
+                return arrayMove(current, oldIdx, newIdx);
             });
             return;
         }
@@ -521,13 +478,8 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
     };
 
     const handleDragEnd = () => {
-        // Category reorder already happened in handleDragOver (Live Pattern).
-        // Just reset drag state.
-
         setDragType(null);
-        setActiveDragTagId(null);
         setTagDragSourceCategory(null);
-        setActiveDragCat(null);
     };
 
     // IDs for SortableContext
@@ -544,15 +496,6 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
 
     const isTagDragActive = dragType === 'tag';
     const isCatDragging = dragType === 'category';
-
-    // Custom collision detection: closestCorners for categories (variable height), pointerWithin for tags
-    const collisionDetection: CollisionDetection = useCallback((args) => {
-        const activeId = String(args.active.id);
-        if (isCatDragId(activeId)) {
-            return closestCorners(args);
-        }
-        return pointerWithin(args);
-    }, []);
 
     return (
         <div className={dragType ? 'pointer-events-none' : ''}>
@@ -579,13 +522,12 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
             {/* Single DndContext for both categories and tags */}
             <DndContext
                 sensors={sensors}
-                collisionDetection={collisionDetection}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDragEnd={handleDragEnd}
             >
-                <SortableContext items={categorySortableIds} strategy={noopSortStrategy}>
-                    <SortableContext items={allTagIds} strategy={noopSortStrategy}>
+                <SortableContext items={categorySortableIds} strategy={verticalListSortingStrategy}>
+                    <SortableContext items={allTagIds}>
                         <div className="space-y-4">
                             {allCategories
                                 .filter(category => {
@@ -608,7 +550,6 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
                                             category={category}
                                             isTagDragActive={isTagDragActive}
                                             isSourceCategory={tagDragSourceCategory === category}
-                                            activeDragCategory={activeDragCat}
                                         >
                                             <SortableCategorySection
                                                 category={category}
@@ -629,11 +570,10 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
                                                 onToggleSortable={(cat) => setSortableCategories(prev =>
                                                     prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
                                                 )}
-
                                             >
                                                 <div className="flex flex-wrap items-center gap-1.5">
                                                     {displayTags.map(tag => (
-                                                        <MemoizedSortableTagChip
+                                                        <SortableTagChip
                                                             key={tag.id}
                                                             tag={tag}
                                                             onRemove={removeTag}
@@ -643,7 +583,6 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
                                                             onEditChange={setEditingName}
                                                             onEditCommit={commitEdit}
                                                             onEditCancel={cancelEdit}
-                                                            isCatDragging={isCatDragging}
                                                         />
                                                     ))}
                                                     {/* Inline add */}
@@ -689,27 +628,8 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
                         </div>
                     </SortableContext>
                 </SortableContext>
-
-                {/* DragOverlay: portal to document.body to escape the modal's CSS transform
-                    (transform creates a new containing block that breaks position:fixed) */}
-                {createPortal(
-                    <DragOverlay dropAnimation={null} zIndex={99999}>
-                        {activeDragTagId ? (() => {
-                            const tag = localTags.find(t => t.id === activeDragTagId);
-                            if (!tag) return null;
-                            return (
-                                <div
-                                    className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-text-primary
-                                        bg-white/[0.12] shadow-lg shadow-black/25 ring-1 ring-white/15 scale-105 cursor-grabbing"
-                                >
-                                    {tag.name}
-                                </div>
-                            );
-                        })() : null}
-                    </DragOverlay>,
-                    document.body
-                )}
             </DndContext>
+
 
             {/* New Category */}
             <div className="border-t border-border pt-3 mt-4 h-[15px] box-content">
@@ -740,6 +660,6 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
                     </button>
                 )}
             </div>
-        </div >
+        </div>
     );
 };

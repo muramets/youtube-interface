@@ -88,6 +88,14 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
         }
     }, [isOpen, genres, tags, categoryOrder, featuredCategories, sortableCategories, initialTab]);
 
+    // Lock body scroll while modal is open
+    useEffect(() => {
+        if (!isOpen) return;
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => { document.body.style.overflow = prev; };
+    }, [isOpen]);
+
     const handleClose = () => {
         setIsClosing(true);
         setTimeout(() => {
@@ -124,7 +132,7 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
             onClick={handleClose}
         >
             <div
-                className={`relative w-full max-w-[520px] max-h-[85vh] bg-bg-secondary rounded-xl shadow-2xl flex flex-col overflow-hidden ${isClosing ? 'animate-scale-out' : 'animate-scale-in'} transition-colors duration-200`}
+                className={`relative w-full max-w-[811px] max-h-[98vh] bg-bg-secondary rounded-xl shadow-2xl flex flex-col overflow-hidden ${isClosing ? 'animate-scale-out' : 'animate-scale-in'} transition-colors duration-200`}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
@@ -161,7 +169,7 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
                 </div>
 
                 {/* Body */}
-                <div className="overflow-y-auto p-6 h-[40vh]">
+                <div className="overflow-y-auto p-6 h-[60vh]">
                     {activeTab === 'genres' && (
                         <GenreTab localGenres={localGenres} setLocalGenres={setLocalGenres} />
                     )}
