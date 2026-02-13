@@ -123,18 +123,23 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
     const hasInstrumental = !!track.instrumentalUrl;
     const hasBothVariants = hasVocal && hasInstrumental;
 
-    const handleDownload = useCallback((url?: string, label?: string) => {
+    const downloadBaseName = useMemo(() => {
+        const artist = track.artist?.trim();
+        return artist ? `${artist} - ${track.title}` : track.title;
+    }, [track.artist, track.title]);
+
+    const handleDownload = useCallback((url?: string, suffix?: string) => {
         if (!url) return;
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${track.title}${label ? ` (${label})` : ''}.mp3`;
+        a.download = `${downloadBaseName}${suffix ? ` ${suffix}` : ''}.mp3`;
         a.target = '_blank';
         a.click();
-    }, [track.title]);
+    }, [downloadBaseName]);
 
     const handleDownloadBoth = useCallback(() => {
-        handleDownload(track.vocalUrl, 'Vocal');
-        setTimeout(() => handleDownload(track.instrumentalUrl, 'Instrumental'), 300);
+        handleDownload(track.vocalUrl);
+        setTimeout(() => handleDownload(track.instrumentalUrl, '(instr)'), 300);
     }, [handleDownload, track.vocalUrl, track.instrumentalUrl]);
 
     const currentVariant = isCurrentTrack ? playingVariant : 'vocal';
@@ -482,12 +487,12 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" sideOffset={4}>
                                     {hasVocal && (
-                                        <DropdownMenuItem onClick={() => handleDownload(track.vocalUrl, 'Vocal')}>
+                                        <DropdownMenuItem onClick={() => handleDownload(track.vocalUrl)}>
                                             <Mic size={14} className="mr-2" /> Vocal
                                         </DropdownMenuItem>
                                     )}
                                     {hasInstrumental && (
-                                        <DropdownMenuItem onClick={() => handleDownload(track.instrumentalUrl, 'Instrumental')}>
+                                        <DropdownMenuItem onClick={() => handleDownload(track.instrumentalUrl, '(instr)')}>
                                             <Piano size={14} className="mr-2" /> Instrumental
                                         </DropdownMenuItem>
                                     )}
@@ -540,10 +545,10 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                                 </DropdownMenuItem>
                                 {hasBothVariants ? (
                                     <>
-                                        <DropdownMenuItem onClick={() => handleDownload(track.vocalUrl, 'Vocal')}>
+                                        <DropdownMenuItem onClick={() => handleDownload(track.vocalUrl)}>
                                             <Download size={14} className="mr-2" /> Download Vocal
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleDownload(track.instrumentalUrl, 'Instrumental')}>
+                                        <DropdownMenuItem onClick={() => handleDownload(track.instrumentalUrl, '(instr)')}>
                                             <Download size={14} className="mr-2" /> Download Instrumental
                                         </DropdownMenuItem>
                                         <DropdownMenuItem onClick={handleDownloadBoth}>
