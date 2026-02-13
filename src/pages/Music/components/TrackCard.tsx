@@ -128,13 +128,23 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
         return artist ? `${artist} - ${track.title}` : track.title;
     }, [track.artist, track.title]);
 
-    const handleDownload = useCallback((url?: string, suffix?: string) => {
+    const handleDownload = useCallback(async (url?: string, suffix?: string) => {
         if (!url) return;
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${downloadBaseName}${suffix ? ` ${suffix}` : ''}.mp3`;
-        a.target = '_blank';
-        a.click();
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = `${downloadBaseName}${suffix ? ` ${suffix}` : ''}.mp3`;
+            a.click();
+            // Clean up blob URL after a short delay
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+        } catch (err) {
+            console.error('[TrackCard] Download failed, falling back to direct link:', err);
+            // Fallback: open in new tab
+            window.open(url, '_blank');
+        }
     }, [downloadBaseName]);
 
     const handleDownloadBoth = useCallback(() => {
