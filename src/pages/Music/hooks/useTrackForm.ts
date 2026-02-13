@@ -226,11 +226,7 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
         }
     }, [title, artist, lyrics, bpm, coverFile]);
 
-    const handleDrop = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDragOver(false);
-
-        const files = Array.from(e.dataTransfer.files);
+    const processAudioFiles = useCallback((files: File[]) => {
         const audioFiles = files.filter((f) => {
             const ext = f.name.split('.').pop()?.toLowerCase() || '';
             return ['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma'].includes(ext);
@@ -249,45 +245,53 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
                     }
                     applyMetadata(firstFile);
                 }
+            } else if (audioFiles.length > 1) {
+                // 2+ files: smart detection — always assign both slots
+                const instrPattern = /instr/i;
+                const instrIndex = audioFiles.findIndex(f => instrPattern.test(f.name.replace(/\.[^/.]+$/, '')));
+
+                let vocalF: File, instrF: File;
+                if (instrIndex >= 0) {
+                    instrF = audioFiles[instrIndex];
+                    vocalF = audioFiles[instrIndex === 0 ? 1 : 0];
+                } else {
+                    vocalF = audioFiles[0];
+                    instrF = audioFiles[1];
+                }
+
+                setVocalFile({ file: vocalF, name: vocalF.name, uploading: false, progress: 0 });
+                setInstrumentalFile({ file: instrF, name: instrF.name, uploading: false, progress: 0 });
+
+                if (!title) {
+                    const name = vocalF.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+                    setTitle(name);
+                }
+                applyMetadata(vocalF);
             } else {
+                // Single file: fill first available empty slot
                 if (!vocalFile.file) {
-                    if (audioFiles.length > 1) {
-                        // Smart detection: check if one file is instrumental by name
-                        const instrPattern = /instr/i;
-                        const instrIndex = audioFiles.findIndex(f => instrPattern.test(f.name.replace(/\.[^/.]+$/, '')));
-
-                        let vocalF: File, instrF: File;
-                        if (instrIndex >= 0) {
-                            instrF = audioFiles[instrIndex];
-                            vocalF = audioFiles[instrIndex === 0 ? 1 : 0];
-                        } else {
-                            vocalF = audioFiles[0];
-                            instrF = audioFiles[1];
-                        }
-
-                        setVocalFile({ file: vocalF, name: vocalF.name, uploading: false, progress: 0 });
-                        setInstrumentalFile({ file: instrF, name: instrF.name, uploading: false, progress: 0 });
-
-                        if (!title) {
-                            // Use vocal file name for title (cleaner)
-                            const name = vocalF.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
-                            setTitle(name);
-                        }
-                        applyMetadata(vocalF);
-                    } else {
-                        setVocalFile(fileState);
-                        if (!title) {
-                            const name = firstFile.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
-                            setTitle(name);
-                        }
-                        applyMetadata(firstFile);
+                    setVocalFile(fileState);
+                    if (!title) {
+                        const name = firstFile.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
+                        setTitle(name);
                     }
+                    applyMetadata(firstFile);
                 } else if (!instrumentalFile.file) {
                     setInstrumentalFile(fileState);
                 }
             }
         }
     }, [vocalFile.file, instrumentalFile.file, title, applyMetadata, isInstrumentalOnly]);
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(false);
+        processAudioFiles(Array.from(e.dataTransfer.files));
+    }, [processAudioFiles]);
+
+    const handleAudioFileBrowse = useCallback((files: FileList) => {
+        processAudioFiles(Array.from(files));
+    }, [processAudioFiles]);
 
     const handleAudioSelect = useCallback((variant: 'vocal' | 'instrumental', file: File) => {
         const state: FileState = { file, name: file.name, uploading: false, progress: 0 };
@@ -329,16 +333,16 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
         instrumentalUrlRef.current = tmpUrl;
     }, [vocalFile, instrumentalFile, stopPreview]);
 
-    const handleSubmit = useCallback(async () => {
+    const handleSubmit = useCallback(async (opts?: { groupId?: string; groupOrder?: number }): Promise<string | undefined> => {
         if (!title.trim()) {
             setError('Track title is required');
-            return;
+            return undefined;
         }
         const hasVocal = vocalFile.file || (isEditMode && vocalFile.name);
         const hasInstrumental = instrumentalFile.file || (isEditMode && instrumentalFile.name);
         if (!hasVocal && !hasInstrumental) {
             setError('At least one audio file is required');
-            return;
+            return undefined;
         }
 
         setIsSubmitting(true);
@@ -438,15 +442,19 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
                     instrumentalFileName,
                     coverUrl,
                     coverStoragePath,
+                    groupId: opts?.groupId,
+                    groupOrder: opts?.groupOrder,
                 };
                 await TrackService.createTrack(userId, channelId, trackData, trackId);
             }
 
             handleClose();
+            return trackId;
         } catch (err) {
             console.error(isEditMode ? '[Edit] Failed:' : '[Upload] Failed:', err);
             setError(isEditMode ? 'Save failed. Please try again.' : 'Upload failed. Please try again.');
             setIsSubmitting(false);
+            return undefined;
         }
     }, [title, artist, selectedGenre, selectedTags, bpm, lyrics, prompt, vocalFile, instrumentalFile, coverFile, isEditMode, editTrack, userId, channelId, handleClose]);
 
@@ -497,6 +505,7 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
         // Handlers
         handleClose,
         handleDrop,
+        handleAudioFileBrowse,
         handleAudioSelect,
         handleCoverSelect,
         handleSubmit,

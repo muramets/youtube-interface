@@ -260,15 +260,32 @@ export const useMusicStore = create<MusicState>((set) => ({
             }
         }
 
+        // Build update map: set groupId and assign groupOrder to tracks that lack it
+        const allLinked = tracks.filter(t => idsToLink.has(t.id));
+        let nextOrder = allLinked.reduce((max, t) => Math.max(max, t.groupOrder ?? -1), -1) + 1;
+
+        const updateMap = new Map<string, { groupId: string; groupOrder?: number }>();
+        for (const t of allLinked) {
+            if (t.groupOrder !== undefined) {
+                updateMap.set(t.id, { groupId });
+            } else {
+                updateMap.set(t.id, { groupId, groupOrder: nextOrder++ });
+            }
+        }
+
         // Optimistic update
         set((state) => ({
-            tracks: state.tracks.map((t) =>
-                idsToLink.has(t.id) ? { ...t, groupId } : t
-            ),
+            tracks: state.tracks.map((t) => {
+                const upd = updateMap.get(t.id);
+                return upd ? { ...t, ...upd } : t;
+            }),
         }));
 
         try {
-            await TrackService.linkAsVersion(userId, channelId, [...idsToLink], groupId);
+            await TrackService.batchUpdateTracks(
+                userId, channelId,
+                [...updateMap.entries()].map(([trackId, data]) => ({ trackId, data }))
+            );
         } catch (err) {
             console.error('[MusicStore] Failed to link tracks:', err);
         }

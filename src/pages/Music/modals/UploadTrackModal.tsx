@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Upload, X, Check } from 'lucide-react';
+import { Upload, X, Check, Search, Music } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import type { Track } from '../../../core/types/track';
 import { Button } from '../../../components/ui/atoms/Button/Button';
 import { useTrackForm } from '../hooks/useTrackForm';
+import { useMusicStore } from '../../../core/stores/musicStore';
 import { AudioDropZone } from '../components/upload/AudioDropZone';
 import { AudioFileSlots } from '../components/upload/AudioFileSlots';
 import { TagSection } from '../components/upload/TagSection';
 import { PRESET_COLORS } from '../utils/constants';
+import { formatDuration } from '../utils/formatDuration';
 
 interface UploadTrackModalProps {
     isOpen: boolean;
@@ -16,7 +18,7 @@ interface UploadTrackModalProps {
     userId: string;
     channelId: string;
     editTrack?: Track | null;
-    initialTab?: 'track' | 'library';
+    initialTab?: 'track' | 'library' | 'versions';
 }
 
 export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
@@ -28,13 +30,60 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
     initialTab,
 }) => {
     const form = useTrackForm({ isOpen, onClose, userId, channelId, editTrack });
-    const [activeTab, setActiveTab] = useState<'track' | 'library'>(initialTab ?? 'track');
+    const [activeTab, setActiveTab] = useState<'track' | 'library' | 'versions'>(initialTab ?? 'track');
+    const [isVariation, setIsVariation] = useState(false);
+    const [versionSearch, setVersionSearch] = useState('');
+    const [selectedVersionTargetId, setSelectedVersionTargetId] = useState<string | null>(null);
 
     // Reset tab when modal opens
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- legitimate prop-sync on modal open
-        if (isOpen) setActiveTab(initialTab ?? 'track');
+        if (isOpen) {
+            setActiveTab(initialTab ?? 'track');
+            setIsVariation(false);
+            setVersionSearch('');
+            setSelectedVersionTargetId(null);
+        }
     }, [isOpen, initialTab]);
+
+    // --- Versions tab data (reuses LinkVersionModal logic) ---
+    const { tracks, linkAsVersion, genres: allGenres } = useMusicStore();
+    const showVersionsTab = !form.isEditMode && isVariation;
+
+    const versionCandidates = useMemo(() => {
+        // Show only ungrouped tracks + display track (parent) of each group
+        const groupDisplayIds = new Set<string>();
+        const groupMap = new Map<string, typeof tracks>();
+        for (const t of tracks) {
+            if (!t.groupId) continue;
+            if (!groupMap.has(t.groupId)) groupMap.set(t.groupId, []);
+            groupMap.get(t.groupId)!.push(t);
+        }
+        for (const [, groupTracks] of groupMap) {
+            const sorted = [...groupTracks].sort((a, b) => {
+                if (a.groupOrder !== undefined && b.groupOrder !== undefined) {
+                    return a.groupOrder - b.groupOrder;
+                }
+                return b.createdAt - a.createdAt;
+            });
+            if (sorted[0]) groupDisplayIds.add(sorted[0].id);
+        }
+
+        return tracks.filter((t) => {
+            if (t.groupId && !groupDisplayIds.has(t.id)) return false;
+            return true;
+        });
+    }, [tracks]);
+
+    const filteredVersionCandidates = useMemo(() => {
+        if (!versionSearch.trim()) return versionCandidates;
+        const q = versionSearch.toLowerCase();
+        return versionCandidates.filter(
+            (t) =>
+                t.title.toLowerCase().includes(q) ||
+                t.artist?.toLowerCase().includes(q)
+        );
+    }, [versionCandidates, versionSearch]);
 
     if (!isOpen && !form.isClosing) return null;
 
@@ -61,7 +110,7 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
                     </div>
                     {/* Tab Bar */}
                     <div className="flex gap-4">
-                        {(['track', 'library'] as const).map((tab) => (
+                        {(['track', 'library', ...(showVersionsTab ? ['versions' as const] : [])] as const).map((tab) => (
                             <button
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
@@ -70,7 +119,7 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
                                     : 'text-text-tertiary border-transparent hover:text-text-secondary'
                                     }`}
                             >
-                                {tab === 'track' ? 'Track' : 'Library'}
+                                {tab === 'track' ? 'Track' : tab === 'library' ? 'Library' : 'Versions'}
                             </button>
                         ))}
                     </div>
@@ -91,6 +140,7 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
                                 vocalFile={form.vocalFile}
                                 instrumentalFile={form.instrumentalFile}
                                 isInstrumentalOnly={form.isInstrumentalOnly}
+                                onAudioFileSelect={form.handleAudioFileBrowse}
                             />
 
                             {/* Audio File Slots */}
@@ -108,6 +158,28 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
                                 onAudioSelect={form.handleAudioSelect}
                                 onSwap={form.swapFiles}
                             />
+
+                            {/* Variation toggle (upload mode only) */}
+                            {!form.isEditMode && (
+                                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                                    <div
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            const next = !isVariation;
+                                            setIsVariation(next);
+                                            if (!next) setActiveTab('track');
+                                        }}
+                                        className={`relative w-8 h-[18px] rounded-full transition-colors duration-200 ${isVariation ? 'bg-[var(--primary-button-bg)]' : 'bg-white/10'
+                                            }`}
+                                    >
+                                        <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white transition-transform duration-200 ${isVariation ? 'translate-x-[16px]' : 'translate-x-[2px]'
+                                            }`} />
+                                    </div>
+                                    <span className="text-xs text-text-secondary">
+                                        Variation of other track
+                                    </span>
+                                </label>
+                            )}
 
                             {/* Title & Artist */}
                             <div className="grid grid-cols-2 gap-3">
@@ -261,6 +333,93 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
                         </>
                     )}
 
+                    {activeTab === 'versions' && showVersionsTab && (
+                        <div className="flex flex-col gap-3 flex-1 min-h-0">
+                            <p className="text-xs text-text-tertiary">
+                                Link existing tracks as versions of this one. They will be grouped together.
+                            </p>
+
+                            {/* Search */}
+                            <div className="flex items-center gap-2 bg-white/[0.06] rounded-lg px-3 py-2">
+                                <Search size={14} className="text-text-tertiary flex-shrink-0" />
+                                <input
+                                    type="text"
+                                    value={versionSearch}
+                                    onChange={(e) => setVersionSearch(e.target.value)}
+                                    placeholder="Search tracks..."
+                                    className="flex-1 bg-transparent border-none outline-none text-sm text-text-primary placeholder-text-tertiary"
+                                    autoFocus
+                                />
+                            </div>
+
+                            {/* Track list */}
+                            <div className="flex-1 overflow-y-auto -mx-6 min-h-0">
+                                {filteredVersionCandidates.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center py-12 text-text-tertiary">
+                                        <Music size={24} className="mb-2 opacity-50" />
+                                        <span className="text-sm">No matching tracks</span>
+                                    </div>
+                                ) : (
+                                    filteredVersionCandidates.map((track) => {
+                                        const genreInfo = allGenres.find((g) => g.id === track.genre);
+                                        const isInGroup = !!track.groupId;
+                                        const isSelected = selectedVersionTargetId === track.id;
+                                        return (
+                                            <button
+                                                key={track.id}
+                                                onClick={() => setSelectedVersionTargetId(isSelected ? null : track.id)}
+                                                className={`w-full flex items-center gap-3 px-6 py-2.5 transition-colors cursor-pointer bg-transparent border-none text-left ${isSelected ? 'bg-white/[0.08]' : 'hover:bg-white/[0.06]'}`}
+                                            >
+                                                {/* Mini cover */}
+                                                <div
+                                                    className="w-9 h-9 rounded-md overflow-hidden flex-shrink-0 flex items-center justify-center"
+                                                    style={{
+                                                        background: track.coverUrl
+                                                            ? undefined
+                                                            : `linear-gradient(135deg, ${genreInfo?.color || '#6366F1'}88, ${genreInfo?.color || '#6366F1'}44)`,
+                                                    }}
+                                                >
+                                                    {track.coverUrl ? (
+                                                        <img src={track.coverUrl} alt="" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <span className="text-white/60 text-[10px] font-bold">
+                                                            {track.title.charAt(0).toUpperCase()}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* Title + artist */}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm text-text-primary truncate m-0 flex items-center gap-1.5">
+                                                        {track.title}
+                                                        {isInGroup && (
+                                                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/10 text-text-tertiary">
+                                                                grouped
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                    <p className="text-[11px] text-text-tertiary truncate m-0">
+                                                        {track.artist || 'Unknown'}
+                                                    </p>
+                                                </div>
+
+                                                {/* Duration */}
+                                                <span className="text-[11px] text-text-tertiary tabular-nums flex-shrink-0">
+                                                    {track.duration > 0 ? formatDuration(track.duration) : '—'}
+                                                </span>
+
+                                                {/* Selection indicator */}
+                                                {isSelected && (
+                                                    <Check size={14} className="text-indigo-400 flex-shrink-0" />
+                                                )}
+                                            </button>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Error message */}
                     {form.error && (
                         <p className="text-xs text-red-400 bg-red-400/10 px-3 py-2 rounded-lg">
@@ -282,7 +441,31 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
                         variant="primary"
                         size="sm"
                         leftIcon={form.isEditMode ? <Check size={14} /> : <Upload size={14} />}
-                        onClick={form.handleSubmit}
+                        onClick={async () => {
+                            // Determine groupId & groupOrder BEFORE creating the track
+                            // so it appears in the correct position from the start (no UI jank)
+                            let groupId: string | undefined;
+                            let groupOrder: number | undefined;
+                            if (!form.isEditMode && selectedVersionTargetId) {
+                                const targetTrack = tracks.find(t => t.id === selectedVersionTargetId);
+                                groupId = targetTrack?.groupId || uuidv4();
+
+                                // Place new track at the end of the group
+                                const groupMembers = tracks.filter(t => t.groupId && t.groupId === targetTrack?.groupId);
+                                const maxOrder = groupMembers.reduce((max, t) => Math.max(max, t.groupOrder ?? 0), 0);
+                                groupOrder = groupMembers.length > 0 ? maxOrder + 1 : 1;
+                                // Target track is order 0 (will be set by linkAsVersion if needed)
+                            }
+
+                            const newTrackId = await form.handleSubmit(
+                                groupId ? { groupId, groupOrder } : undefined
+                            );
+
+                            // Ensure the target track also has the same groupId
+                            if (newTrackId && !form.isEditMode && selectedVersionTargetId && userId && channelId) {
+                                await linkAsVersion(userId, channelId, newTrackId, selectedVersionTargetId);
+                            }
+                        }}
                         disabled={form.isEditMode
                             ? !form.title.trim()
                             : (!form.vocalFile.file && !form.instrumentalFile.file)
@@ -296,7 +479,7 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
                     </Button>
                 </div>
             </div>
-        </div>,
+        </div >,
         document.body
     );
 };

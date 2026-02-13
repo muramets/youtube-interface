@@ -2,7 +2,7 @@
 // AUDIO DROP ZONE: Cover art + audio file drag-and-drop area
 // =============================================================================
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { Upload, Image as ImageIcon } from 'lucide-react';
 import type { FileState } from '../../hooks/useTrackForm';
 
@@ -19,6 +19,8 @@ interface AudioDropZoneProps {
     vocalFile: FileState;
     instrumentalFile: FileState;
     isInstrumentalOnly: boolean;
+    // Click-to-browse
+    onAudioFileSelect: (files: FileList) => void;
 }
 
 export const AudioDropZone: React.FC<AudioDropZoneProps> = ({
@@ -31,7 +33,9 @@ export const AudioDropZone: React.FC<AudioDropZoneProps> = ({
     vocalFile,
     instrumentalFile,
     isInstrumentalOnly,
+    onAudioFileSelect,
 }) => {
+    const audioInputRef = useRef<HTMLInputElement>(null);
     const vocalLoaded = !!(vocalFile.file || vocalFile.name);
     const instrumentalLoaded = !!(instrumentalFile.file || instrumentalFile.name);
     const allSlotsFilled = isInstrumentalOnly
@@ -90,11 +94,12 @@ export const AudioDropZone: React.FC<AudioDropZoneProps> = ({
                 onDragOver={(e) => { if (allSlotsFilled) return; e.preventDefault(); setIsDragOver(true); }}
                 onDragLeave={() => setIsDragOver(false)}
                 onDrop={allSlotsFilled ? undefined : onDrop}
+                onClick={() => { if (!allSlotsFilled) audioInputRef.current?.click(); }}
                 className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center text-center transition-all duration-200 ${allSlotsFilled
                     ? 'border-border opacity-40 cursor-default'
                     : isDragOver
-                        ? 'border-[var(--primary-button-bg)] bg-[var(--primary-button-bg)]/5'
-                        : 'border-border hover:border-text-secondary'
+                        ? 'border-[var(--primary-button-bg)] bg-[var(--primary-button-bg)]/5 cursor-pointer'
+                        : 'border-border hover:border-text-secondary cursor-pointer'
                     }`}
             >
                 <Upload size={28} className="mb-2 text-text-secondary" />
@@ -105,6 +110,17 @@ export const AudioDropZone: React.FC<AudioDropZoneProps> = ({
                     MP3, WAV, FLAC, AAC, OGG
                 </p>
             </div>
+            <input
+                ref={audioInputRef}
+                type="file"
+                accept=".mp3,.wav,.flac,.aac,.ogg,.m4a,.wma"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                    if (e.target.files?.length) onAudioFileSelect(e.target.files);
+                    e.target.value = '';
+                }}
+            />
         </div>
     );
 };
