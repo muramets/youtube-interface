@@ -156,6 +156,16 @@ export const MusicPage: React.FC = () => {
                     // Secondary sort: newest first
                     return b.createdAt - a.createdAt;
                 });
+            } else if (musicSortBy === 'liked') {
+                // Liked sorting: liked tracks first (asc) or last (desc)
+                result.sort((a, b) => {
+                    const aLiked = a.liked ? 1 : 0;
+                    const bLiked = b.liked ? 1 : 0;
+                    if (aLiked !== bLiked) {
+                        return musicSortAsc ? bLiked - aLiked : aLiked - bLiked;
+                    }
+                    return b.createdAt - a.createdAt;
+                });
             } else {
                 result.sort((a, b) => b.createdAt - a.createdAt);
             }
@@ -172,6 +182,7 @@ export const MusicPage: React.FC = () => {
     }, [tracks]);
 
     const hasActiveFilters = !!(searchQuery || genreFilter || tagFilters.length > 0 || bpmFilter);
+    const hasLikedTracks = useMemo(() => tracks.some(t => t.liked), [tracks]);
 
     const handleDeleteTrack = useCallback(async (trackId: string) => {
         if (!userId || !channelId) return;
@@ -325,11 +336,12 @@ export const MusicPage: React.FC = () => {
                                 </span>
                             ) : null;
                         })()}
-                        {sortableCategories.length > 0 && (
+                        {(sortableCategories.length > 0 || hasLikedTracks) && (
                             <div className={`flex items-center rounded-full overflow-hidden transition-colors ${musicSortBy !== 'default' ? 'bg-hover-bg' : ''}`}>
                                 <SortButton
                                     sortOptions={[
                                         { label: 'Default', value: 'default' },
+                                        ...(hasLikedTracks ? [{ label: 'Liked', value: 'liked' }] : []),
                                         ...sortableCategories.map(cat => ({ label: cat, value: `tag:${cat}` }))
                                     ]}
                                     activeSort={musicSortBy}
