@@ -47,6 +47,7 @@ export const useTrendsSync = (): UseTrendsSyncReturn => {
             // Add to set to prevent duplicate toasts on re-renders
             preSyncNotificationIdsRef.current.add(syncNotification.id);
             showToast(syncNotification.message, 'success');
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- reacting to external Firestore notification
             setIsSyncing(false);
         }
     }, [notifications, isSyncing, showToast]);

@@ -37,8 +37,8 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
 
     // Reset tab when modal opens
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- legitimate prop-sync on modal open
         if (isOpen) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- legitimate prop-sync on modal open
             setActiveTab(initialTab ?? 'track');
             setIsVariation(false);
             setVersionSearch('');
