@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Upload, X, Check, Search, Music } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
@@ -35,6 +35,8 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
     const [versionSearch, setVersionSearch] = useState('');
     const [selectedVersionTargetId, setSelectedVersionTargetId] = useState<string | null>(null);
 
+    const bodyRef = useRef<HTMLDivElement>(null);
+
     // Reset tab when modal opens
     useEffect(() => {
         if (isOpen) {
@@ -45,6 +47,11 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
             setSelectedVersionTargetId(null);
         }
     }, [isOpen, initialTab]);
+
+    // Reset scroll position when switching tabs
+    useEffect(() => {
+        if (bodyRef.current) bodyRef.current.scrollTop = 0;
+    }, [activeTab]);
 
     // --- Versions tab data (reuses LinkVersionModal logic) ---
     const { tracks, linkAsVersion, genres: allGenres } = useMusicStore();
@@ -85,16 +92,25 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
         );
     }, [versionCandidates, versionSearch]);
 
+    // Track whether the mousedown started on the overlay itself (not inside the modal content).
+    // This prevents accidental closes when text-selection drag ends outside the modal.
+    const mouseDownOnOverlayRef = useRef(false);
+
     if (!isOpen && !form.isClosing) return null;
 
     return createPortal(
         <div
             className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm ${form.isClosing ? 'animate-fade-out' : 'animate-fade-in'}`}
             style={{ backgroundColor: 'var(--modal-overlay)' }}
-            onClick={form.handleClose}
+            onMouseDown={() => { mouseDownOnOverlayRef.current = true; }}
+            onClick={() => {
+                if (mouseDownOnOverlayRef.current) form.handleClose();
+                mouseDownOnOverlayRef.current = false;
+            }}
         >
             <div
                 className={`relative w-full max-w-[640px] h-[85vh] bg-bg-secondary rounded-xl shadow-2xl flex flex-col overflow-hidden ${form.isClosing ? 'animate-scale-out' : 'animate-scale-in'} transition-colors duration-200`}
+                onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
@@ -126,7 +142,7 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
                 </div>
 
                 {/* Body */}
-                <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5 min-h-0">
+                <div ref={bodyRef} className="flex-1 overflow-y-auto p-6 flex flex-col gap-5 min-h-0">
                     {activeTab === 'track' && (
                         <>
                             {/* Hero Drop Zone */}
