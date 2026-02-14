@@ -8,6 +8,8 @@ import { VideoService } from '../../core/services/videoService';
 import { NotificationService } from '../../core/services/notificationService';
 import type { GeneralSettings, SyncSettings, CloneSettings as CloneSettingsType, PackagingSettings, UploadDefaults, PickerSettings } from '../../core/services/settingsService';
 import type { PackagingCheckin } from '../../core/types/versioning';
+import type { AiAssistantSettings as AiSettingsType } from '../../core/types/chat';
+import { useChatStore } from '../../core/stores/chatStore';
 
 import { SettingsSidebar } from './SettingsSidebar';
 import { ApiSyncSettings } from './ApiSyncSettings';
@@ -50,6 +52,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     const [localUploadDefaults, setLocalUploadDefaults] = useState<UploadDefaults>(uploadDefaults);
     const [localPicker, setLocalPicker] = useState<PickerSettings>(pickerSettings);
 
+    const aiSettings = useChatStore(s => s.aiSettings);
+    const saveAiSettings = useChatStore(s => s.saveAiSettings);
+    const [localAiSettings, setLocalAiSettings] = useState<AiSettingsType>(aiSettings);
+
     // Force remount of children when modal opens to reset their internal state
     const [mountKey, setMountKey] = useState(0);
 
@@ -62,6 +68,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             setLocalPackaging(packagingSettings);
             setLocalUploadDefaults(uploadDefaults);
             setLocalPicker(pickerSettings);
+            setLocalAiSettings(aiSettings);
             setMountKey(prev => prev + 1);
             document.body.style.overflow = 'hidden';
         }
@@ -251,7 +258,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 updateCloneSettings(user.uid, currentChannel.id, localClone),
                 updatePackagingSettings(user.uid, currentChannel.id, localPackaging),
                 updateUploadDefaults(user.uid, currentChannel.id, localUploadDefaults),
-                updatePickerSettings(user.uid, currentChannel.id, localPicker)
+                updatePickerSettings(user.uid, currentChannel.id, localPicker),
+                saveAiSettings(localAiSettings),
             ]);
 
             // Run cleanup AFTER saving settings to ensure no race conditions
@@ -282,7 +290,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         JSON.stringify(localClone) !== JSON.stringify(cloneSettings) ||
         JSON.stringify(localPackaging) !== JSON.stringify(packagingSettings) ||
         JSON.stringify(localUploadDefaults) !== JSON.stringify(uploadDefaults) ||
-        JSON.stringify(localPicker) !== JSON.stringify(pickerSettings);
+        JSON.stringify(localPicker) !== JSON.stringify(pickerSettings) ||
+        JSON.stringify(localAiSettings) !== JSON.stringify(aiSettings);
 
     // Theme styles - Correctly detect dark mode including 'device' setting
     const [isDark, setIsDark] = useState(false);
@@ -394,6 +403,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         {activeCategory === 'ai_assistant' && (
                             <AiAssistantSettings
                                 key={mountKey}
+                                settings={localAiSettings}
+                                onChange={setLocalAiSettings}
                                 theme={{ isDark, textSecondary, textPrimary, borderColor }}
                             />
                         )}

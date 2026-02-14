@@ -10,8 +10,11 @@ import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useChatStore } from '../../core/stores/chatStore';
 import { MODEL_REGISTRY, RESPONSE_LANGUAGES, RESPONSE_STYLES } from '../../core/types/chat';
+import type { AiAssistantSettings as AiSettings } from '../../core/types/chat';
 
 interface AiAssistantSettingsProps {
+    settings: AiSettings;
+    onChange: (settings: AiSettings) => void;
     theme: {
         isDark: boolean;
         textSecondary: string;
@@ -20,10 +23,10 @@ interface AiAssistantSettingsProps {
     };
 }
 
-export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ theme }) => {
+export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settings, onChange, theme }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { aiSettings, saveAiSettings, setContext, subscribeToAiSettings } = useChatStore();
+    const { setContext, subscribeToAiSettings } = useChatStore();
 
     const userId = user?.uid;
     const channelId = currentChannel?.id;
@@ -35,33 +38,10 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ theme 
         return subscribeToAiSettings();
     }, [userId, channelId, setContext, subscribeToAiSettings]);
 
-    const [defaultModel, setDefaultModel] = useState(aiSettings.defaultModel);
-    const [globalPrompt, setGlobalPrompt] = useState(aiSettings.globalSystemPrompt);
-    const [responseLanguage, setResponseLanguage] = useState(aiSettings.responseLanguage);
-    const [responseStyle, setResponseStyle] = useState(aiSettings.responseStyle);
-    const [saved, setSaved] = useState(false);
     const [modelAnchorEl, setModelAnchorEl] = useState<HTMLElement | null>(null);
     const [langAnchorEl, setLangAnchorEl] = useState<HTMLElement | null>(null);
 
-    // Sync from store when settings load
-    useEffect(() => {
-        setDefaultModel(aiSettings.defaultModel);
-        setGlobalPrompt(aiSettings.globalSystemPrompt);
-        setResponseLanguage(aiSettings.responseLanguage);
-        setResponseStyle(aiSettings.responseStyle);
-    }, [aiSettings]);
-
-    const handleSave = async () => {
-        if (!userId || !channelId) return;
-        await saveAiSettings({
-            defaultModel,
-            globalSystemPrompt: globalPrompt,
-            responseLanguage,
-            responseStyle,
-        });
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2000);
-    };
+    const update = (patch: Partial<AiSettings>) => onChange({ ...settings, ...patch });
 
     // Styles using CSS variables (matches other settings views)
     const inputBg = 'bg-[var(--settings-input-bg)]';
@@ -70,8 +50,8 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ theme 
     const dropdownHover = 'hover:bg-[var(--settings-dropdown-hover)]';
 
 
-    const selectedModel = MODEL_REGISTRY.find(m => m.id === defaultModel);
-    const selectedLang = RESPONSE_LANGUAGES.find(l => l.id === responseLanguage);
+    const selectedModel = MODEL_REGISTRY.find(m => m.id === settings.defaultModel);
+    const selectedLang = RESPONSE_LANGUAGES.find(l => l.id === settings.responseLanguage);
 
     return (
         <div className="space-y-8 animate-fade-in max-w-[600px]">
@@ -90,7 +70,7 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ theme 
                         onClick={(e) => setModelAnchorEl(prev => prev ? null : e.currentTarget)}
                         className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} ${modelAnchorEl ? 'rounded-t-md rounded-b-none border-b-transparent' : 'rounded-md'} px-3 py-2 hover:border-gray-400 transition-colors`}
                     >
-                        <span className="text-sm">{selectedModel?.label || defaultModel}</span>
+                        <span className="text-sm">{selectedModel?.label || settings.defaultModel}</span>
                         <ChevronDown
                             size={16}
                             className={`${theme.textSecondary} transition-transform ${modelAnchorEl ? 'rotate-180' : ''}`}
@@ -109,9 +89,9 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ theme 
                         {MODEL_REGISTRY.map((m) => (
                             <div
                                 key={m.id}
-                                className={`px-4 py-2.5 text-sm cursor-pointer ${dropdownHover} transition-colors ${m.id === defaultModel ? 'opacity-100 font-medium' : 'opacity-70'}`}
+                                className={`px-4 py-2.5 text-sm cursor-pointer ${dropdownHover} transition-colors ${m.id === settings.defaultModel ? 'opacity-100 font-medium' : 'opacity-70'}`}
                                 onClick={() => {
-                                    setDefaultModel(m.id);
+                                    update({ defaultModel: m.id });
                                     setModelAnchorEl(null);
                                 }}
                             >
@@ -133,7 +113,7 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ theme 
                         onClick={(e) => setLangAnchorEl(prev => prev ? null : e.currentTarget)}
                         className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} ${langAnchorEl ? 'rounded-t-md rounded-b-none border-b-transparent' : 'rounded-md'} px-3 py-2 hover:border-gray-400 transition-colors`}
                     >
-                        <span className="text-sm">{selectedLang?.label || responseLanguage}</span>
+                        <span className="text-sm">{selectedLang?.label || settings.responseLanguage}</span>
                         <ChevronDown
                             size={16}
                             className={`${theme.textSecondary} transition-transform ${langAnchorEl ? 'rotate-180' : ''}`}
@@ -152,9 +132,9 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ theme 
                         {RESPONSE_LANGUAGES.map((l) => (
                             <div
                                 key={l.id}
-                                className={`px-4 py-2.5 text-sm cursor-pointer ${dropdownHover} transition-colors ${l.id === responseLanguage ? 'opacity-100 font-medium' : 'opacity-70'}`}
+                                className={`px-4 py-2.5 text-sm cursor-pointer ${dropdownHover} transition-colors ${l.id === settings.responseLanguage ? 'opacity-100 font-medium' : 'opacity-70'}`}
                                 onClick={() => {
-                                    setResponseLanguage(l.id);
+                                    update({ responseLanguage: l.id });
                                     setLangAnchorEl(null);
                                 }}
                             >
@@ -173,12 +153,12 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ theme 
                 <label className={`block text-xs ${theme.textSecondary} mb-1`}>Response Style</label>
                 <SegmentedControl
                     options={RESPONSE_STYLES.map(s => ({ value: s.id, label: s.label }))}
-                    value={responseStyle}
-                    onChange={setResponseStyle}
+                    value={settings.responseStyle}
+                    onChange={(v) => update({ responseStyle: v })}
                     className="w-72"
                 />
                 <p className={`text-xs ${theme.textSecondary}`}>
-                    {RESPONSE_STYLES.find(s => s.id === responseStyle)?.description}
+                    {RESPONSE_STYLES.find(s => s.id === settings.responseStyle)?.description}
                 </p>
             </div>
 
@@ -192,8 +172,8 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ theme 
                         Base Instructions
                     </label>
                     <textarea
-                        value={globalPrompt}
-                        onChange={(e) => setGlobalPrompt(e.target.value)}
+                        value={settings.globalSystemPrompt}
+                        onChange={(e) => update({ globalSystemPrompt: e.target.value })}
                         placeholder="e.g. You are a helpful assistant for YouTube content creation."
                         className="flex-1 w-full bg-transparent text-sm text-text-primary outline-none resize-none placeholder-modal-placeholder"
                     />
@@ -203,22 +183,7 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ theme 
                 </p>
             </div>
 
-            {/* Save */}
-            <div className="flex items-center gap-3">
-                <button
-                    onClick={handleSave}
-                    className="px-5 py-2 rounded-lg text-sm font-medium transition-colors"
-                    style={{
-                        background: 'var(--text-primary)',
-                        color: 'var(--bg-primary)',
-                    }}
-                >
-                    Save
-                </button>
-                {saved && (
-                    <span className="text-sm text-green-400 animate-pulse">Saved ✓</span>
-                )}
-            </div>
+
         </div>
     );
 };
