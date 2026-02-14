@@ -139,6 +139,24 @@ export const batchUpdateDocuments = async (
 };
 
 /**
+ * Batch-delete multiple documents atomically.
+ * Auto-chunks into batches of 500 (Firestore limit).
+ */
+export const batchDeleteDocuments = async (
+    items: { path: string; id: string }[]
+) => {
+    const BATCH_LIMIT = 500;
+    for (let i = 0; i < items.length; i += BATCH_LIMIT) {
+        const chunk = items.slice(i, i + BATCH_LIMIT);
+        const batch = writeBatch(db);
+        for (const { path: p, id } of chunk) {
+            batch.delete(doc(db, p, id));
+        }
+        await batch.commit();
+    }
+};
+
+/**
  * Execute a transaction
  */
 export const runFirestoreTransaction = async <T>(

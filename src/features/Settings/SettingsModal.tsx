@@ -16,13 +16,14 @@ import { PackagingSettingsView } from './PackagingSettingsView';
 import { UploadDefaultsSettings } from './UploadDefaultsSettings';
 import { TrendSyncSettings } from './TrendSyncSettings';
 import { PickerSettingsView } from './PickerSettingsView';
+import { AiAssistantSettings } from './AiAssistantSettings';
 
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
 }
 
-type Category = 'api_sync' | 'clone' | 'packaging' | 'upload_defaults' | 'trend_sync' | 'picker';
+type Category = 'api_sync' | 'clone' | 'packaging' | 'upload_defaults' | 'trend_sync' | 'picker' | 'ai_assistant';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     const {
@@ -388,6 +389,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                                 settings={localPicker}
                                 onChange={setLocalPicker}
                                 theme={{ isDark, borderColor, textSecondary, bgMain, textPrimary }}
+                            />
+                        )}
+                        {activeCategory === 'ai_assistant' && (
+                            <AiAssistantSettings
+                                key={mountKey}
+                                theme={{ isDark, textSecondary, textPrimary, borderColor }}
                             />
                         )}
                     </div>

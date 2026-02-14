@@ -136,7 +136,7 @@ export const ApiSyncSettings: React.FC<ApiSyncSettingsProps> = ({ generalSetting
                         <div className="relative w-32">
                             <button
                                 onClick={(e) => setAnchorEl(e.currentTarget)}
-                                className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} rounded-md px-3 py-2 hover:border-gray-400 transition-colors`}
+                                className={`w-full flex items-center justify-between ${inputBg} border ${inputBorder} ${anchorEl ? 'rounded-t-md rounded-b-none border-b-transparent' : 'rounded-md'} px-3 py-2 hover:border-gray-400 transition-colors`}
                             >
                                 <span className="text-sm">{currentUnit}</span>
                                 <ChevronDown size={16} className={`${theme.textSecondary} transition-transform ${anchorEl ? 'rotate-180' : ''}`} />
@@ -147,7 +147,9 @@ export const ApiSyncSettings: React.FC<ApiSyncSettingsProps> = ({ generalSetting
                                 anchorEl={anchorEl}
                                 onClose={() => setAnchorEl(null)}
                                 width={128}
-                                className={`${dropdownBg} border-none z-[10000]`}
+                                className={`${dropdownBg}`}
+                                zIndexClass="z-[10000]"
+                                connected
                             >
                                 {['Minutes', 'Hours', 'Days', 'Weeks'].map((unit) => (
                                     <div

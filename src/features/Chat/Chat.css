@@ -1,0 +1,237 @@
+/* =============================================================================
+   AI CHAT: Minimal CSS — only what Tailwind can't express.
+   Everything else lives inline as Tailwind utility classes.
+   ============================================================================= */
+
+/* --- Chat Panel entry animation --- */
+
+.chat-panel {
+    animation: chatPanelIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    transform-origin: bottom right;
+}
+
+@keyframes chatPanelIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* --- Chat Bubble hover glow --- */
+
+.chat-bubble:hover {
+    transform: scale(1.06);
+    box-shadow: 0 0 18px rgba(99, 102, 241, 0.5), 0 0 6px rgba(99, 102, 241, 0.3);
+}
+
+.chat-bubble:active {
+    transform: scale(0.95);
+}
+
+/* --- Resize edge handles (negative offsets) --- */
+
+.chat-resize-edge {
+    position: absolute;
+    z-index: 10;
+}
+
+.chat-resize-left {
+    left: -3px;
+    top: 8px;
+    bottom: 8px;
+    width: 6px;
+    cursor: ew-resize;
+}
+
+.chat-resize-top {
+    top: -3px;
+    left: 8px;
+    right: 8px;
+    height: 6px;
+    cursor: ns-resize;
+}
+
+.chat-resize-corner {
+    top: -4px;
+    left: -4px;
+    width: 14px;
+    height: 14px;
+    cursor: nwse-resize;
+}
+
+/* --- Scrollbar styling (pseudo-elements) --- */
+
+.chat-messages::-webkit-scrollbar,
+.chat-list-container::-webkit-scrollbar {
+    width: 4px;
+}
+
+.chat-messages::-webkit-scrollbar-track,
+.chat-list-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.chat-messages::-webkit-scrollbar-thumb,
+.chat-list-container::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover,
+.chat-list-container::-webkit-scrollbar-thumb:hover {
+    background: var(--text-tertiary);
+}
+
+/* --- Markdown prose inside model messages --- */
+
+.chat-message-bubble p {
+    margin: 0 0 8px;
+}
+
+.chat-message-bubble p:last-child {
+    margin-bottom: 0;
+}
+
+.chat-message-bubble code {
+    background: var(--card-bg, var(--bg-secondary));
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.chat-message-bubble pre {
+    background: var(--card-bg, var(--bg-secondary));
+    padding: 10px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 8px 0;
+    border: 1px solid var(--border);
+}
+
+.chat-message-bubble pre code {
+    background: none;
+    padding: 0;
+}
+
+.chat-message-bubble ul,
+.chat-message-bubble ol {
+    margin: 4px 0;
+    padding-left: 20px;
+}
+
+.chat-message-bubble strong {
+    color: var(--text-primary);
+}
+
+.chat-message-bubble h1,
+.chat-message-bubble h2,
+.chat-message-bubble h3,
+.chat-message-bubble h4 {
+    margin: 12px 0 6px;
+    color: var(--text-primary);
+}
+
+.chat-message-bubble h1 {
+    font-size: 1.3em;
+}
+
+.chat-message-bubble h2 {
+    font-size: 1.15em;
+}
+
+.chat-message-bubble h3 {
+    font-size: 1.05em;
+}
+
+.chat-message-bubble a {
+    color: var(--accent, #7c8aff);
+    text-decoration: none;
+}
+
+.chat-message-bubble a:hover {
+    text-decoration: underline;
+}
+
+.chat-message-bubble blockquote {
+    border-left: 3px solid var(--border);
+    margin: 8px 0;
+    padding: 4px 12px;
+    opacity: 0.85;
+}
+
+.chat-message-bubble hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 12px 0;
+}
+
+.chat-message-bubble table {
+    border-collapse: collapse;
+    margin: 8px 0;
+    font-size: 12px;
+    width: 100%;
+}
+
+.chat-message-bubble th,
+.chat-message-bubble td {
+    border: 1px solid var(--border);
+    padding: 4px 8px;
+    text-align: left;
+}
+
+.chat-message-bubble th {
+    background: var(--card-bg, var(--bg-secondary));
+    font-weight: 600;
+}
+
+.chat-message-bubble li {
+    margin: 2px 0;
+}
+
+/* --- Code block: react-syntax-highlighter overrides --- */
+
+.chat-code-block pre {
+    margin: 0 !important;
+    border: none !important;
+    background: transparent !important;
+}
+
+.chat-code-block code {
+    background: none !important;
+    padding: 0 !important;
+}
+
+/* Code copy button visibility on hover */
+.chat-code-block:hover .chat-code-header button {
+    opacity: 1;
+}
+
+/* --- Streaming dot animation --- */
+
+.chat-streaming-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-tertiary);
+    animation: stream-pulse 1s ease-in-out infinite;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+/* --- Spinning animation (for loaders) --- */
+
+.chat-spin {
+    animation: chat-spin 0.8s linear infinite;
+}
+
+/* --- Copy button visibility on message hover --- */
+
+.group\/msg:hover button {
+    opacity: 1;
+}

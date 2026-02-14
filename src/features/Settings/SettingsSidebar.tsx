@@ -58,6 +58,12 @@ export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({ activeCategory
                 onClick={() => onCategoryChange('picker')}
                 theme={theme}
             />
+            <SidebarItem
+                label="AI Assistant"
+                isActive={activeCategory === 'ai_assistant'}
+                onClick={() => onCategoryChange('ai_assistant')}
+                theme={theme}
+            />
         </div>
     );
 };

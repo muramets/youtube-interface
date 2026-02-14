@@ -1,11 +1,26 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { onCall, onRequest, HttpsError } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
 import * as admin from "firebase-admin";
-import { SyncService } from "./services/sync";
-import { TrendChannel, UserSettings, SyncSettings, Notification } from "./types";
+import { SyncService } from "./services/sync.js";
+// gemini.ts is lazy-imported inside each handler to avoid deployment timeout
+import type {
+    TrendChannel,
+    UserSettings,
+    SyncSettings,
+    Notification,
+    AiChatRequest,
+    GeminiUploadRequest,
+    GenerateTitleRequest,
+    AiUsageLog,
+} from "./types.js";
+import { ALLOWED_MODEL_IDS, DEFAULT_MODEL_ID } from "./config/models.js";
 
 admin.initializeApp();
 const db = admin.firestore();
+
+// Gemini API key — stored in Firebase Secret Manager
+const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
 /**
  * Scheduled Function: Runs every day at midnight (UTC).
@@ -196,3 +211,375 @@ export const manualTrendSync = onCall({
 });
 
 
+// =============================================================================
+// AI CHAT: Gemini Proxy Cloud Functions
+// =============================================================================
+
+/**
+ * Verify Firebase Auth token from Authorization header.
+ */
+async function verifyAuthToken(authHeader?: string): Promise<string> {
+    if (!authHeader?.startsWith("Bearer ")) {
+        throw new HttpsError("unauthenticated", "Missing or invalid Authorization header.");
+    }
+    const token = authHeader.slice(7);
+    const decoded = await admin.auth().verifyIdToken(token);
+    return decoded.uid;
+}
+
+/**
+ * Verify the authenticated user has access to the given channel.
+ * Currently checks ownership (channel nested under user).
+ * Extensible for shared channels via members subcollection / ACL.
+ */
+async function verifyChannelAccess(userId: string, channelId: string): Promise<void> {
+    const channelDoc = await db.doc(`users/${userId}/channels/${channelId}`).get();
+    if (!channelDoc.exists) {
+        throw new HttpsError("permission-denied", "Access denied to the specified channel.");
+    }
+}
+
+/** Max input text length (chars). ~25K tokens — generous but prevents abuse. */
+const MAX_TEXT_LENGTH = 100_000;
+
+/**
+ * Log AI usage to Firestore.
+ */
+async function logAiUsage(
+    userId: string,
+    channelId: string,
+    conversationId: string,
+    model: string,
+    tokenUsage: { promptTokens: number; completionTokens: number; totalTokens: number },
+    type: "chat" | "title"
+): Promise<void> {
+    const log: AiUsageLog = {
+        userId,
+        channelId,
+        conversationId,
+        model,
+        ...tokenUsage,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        type,
+    };
+    await db.collection(`users/${userId}/channels/${channelId}/aiUsage`).add(log);
+}
+
+/**
+ * AI Chat — SSE streaming endpoint.
+ * Uses onRequest for Server-Sent Events streaming support.
+ * Auth is verified manually from the Authorization header.
+ */
+export const aiChat = onRequest(
+    {
+        secrets: [geminiApiKey],
+        maxInstances: 3,
+        timeoutSeconds: 300,
+        memory: "512MiB",
+        cors: true,
+    },
+    async (req, res) => {
+        // Only accept POST
+        if (req.method !== "POST") {
+            res.status(405).json({ error: "Method not allowed" });
+            return;
+        }
+
+        // Auth
+        let userId: string;
+        try {
+            userId = await verifyAuthToken(req.headers.authorization);
+        } catch {
+            res.status(401).json({ error: "Unauthenticated" });
+            return;
+        }
+
+        const body = req.body as AiChatRequest;
+        if (!body.channelId || !body.text || !body.conversationId) {
+            res.status(400).json({ error: "Missing required fields: channelId, conversationId, text" });
+            return;
+        }
+
+        // Validate input constraints
+        if (body.text.length > MAX_TEXT_LENGTH) {
+            res.status(400).json({ error: `Text exceeds maximum length (${MAX_TEXT_LENGTH} chars).` });
+            return;
+        }
+        const model = body.model || DEFAULT_MODEL_ID;
+        if (!ALLOWED_MODEL_IDS.has(model)) {
+            res.status(400).json({ error: `Unsupported model: ${model}` });
+            return;
+        }
+
+        // Verify channel ownership
+        try {
+            await verifyChannelAccess(userId, body.channelId);
+        } catch {
+            res.status(403).json({ error: "Access denied to the specified channel." });
+            return;
+        }
+
+        const apiKey = geminiApiKey.value();
+        if (!apiKey) {
+            res.status(500).json({ error: "Gemini API key is not configured on the server." });
+            return;
+        }
+
+        // SSE headers
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Connection", "keep-alive");
+        res.flushHeaders();
+
+        try {
+            // Read conversation history from Firestore
+            const convPath = `users/${userId}/channels/${body.channelId}/chatConversations/${body.conversationId}`;
+            const messagesPath = `${convPath}/messages`;
+            const [messagesSnap, convDoc] = await Promise.all([
+                db.collection(messagesPath).orderBy("createdAt", "asc").get(),
+                db.doc(convPath).get(),
+            ]);
+            const allMessages = messagesSnap.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    role: data.role as "user" | "model",
+                    text: data.text as string,
+                    attachments: data.attachments,
+                };
+            });
+            const convData = convDoc.data();
+
+            // Build optimal memory: full history or summary + recent window
+            const { buildMemory, streamChat } = await import("./services/gemini.js");
+            const memory = await buildMemory({
+                apiKey,
+                model,
+                allMessages,
+                existingSummary: convData?.summary,
+                existingSummarizedUpTo: convData?.summarizedUpTo,
+            });
+
+            const { text: responseText, tokenUsage } = await streamChat({
+                apiKey,
+                model,
+                systemPrompt: body.systemPrompt,
+                history: memory.history,
+                text: body.text,
+                attachments: body.attachments,
+                onChunk: (fullText) => {
+                    res.write(`data: ${JSON.stringify({ type: "chunk", text: fullText })}\n\n`);
+                },
+                onAttachmentUpdate: async (messageId, attachmentIndex, geminiFileUri, geminiFileExpiry) => {
+                    // Persist re-uploaded Gemini URI back to Firestore
+                    try {
+                        const msgRef = db.doc(`${messagesPath}/${messageId}`);
+                        const msgDoc = await msgRef.get();
+                        if (msgDoc.exists) {
+                            const data = msgDoc.data();
+                            if (data?.attachments) {
+                                const updated = [...data.attachments];
+                                updated[attachmentIndex] = {
+                                    ...updated[attachmentIndex],
+                                    geminiFileUri,
+                                    geminiFileExpiry,
+                                };
+                                await msgRef.update({ attachments: updated });
+                            }
+                        }
+                    } catch (err) {
+                        console.warn(`[aiChat] Failed to update attachment URI for message ${messageId}`, err);
+                    }
+                },
+            });
+
+            // Final event with complete response + token usage + summary status
+            res.write(
+                `data: ${JSON.stringify({
+                    type: "done",
+                    text: responseText,
+                    tokenUsage,
+                    usedSummary: memory.usedSummary,
+                    summary: memory.newSummary,
+                })}\n\n`
+            );
+
+            // Cache summary + log usage BEFORE ending response
+            // (CF runtime may be deallocated after res.end())
+            const afterTasks: Promise<unknown>[] = [];
+            if (memory.newSummary && memory.summarizedUpTo) {
+                afterTasks.push(
+                    db.doc(convPath).update({
+                        summary: memory.newSummary,
+                        summarizedUpTo: memory.summarizedUpTo,
+                    }).catch(err => console.warn(`[aiChat] Failed to save summary for ${convPath}`, err))
+                );
+            }
+            if (tokenUsage) {
+                afterTasks.push(
+                    logAiUsage(userId, body.channelId, body.conversationId, model, tokenUsage, "chat").catch(err => console.warn('[aiChat] Failed to log usage', err))
+                );
+            }
+            await Promise.allSettled(afterTasks);
+            res.end();
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "AI generation failed";
+            res.write(`data: ${JSON.stringify({ type: "error", error: message })}\n\n`);
+            res.end();
+        }
+    }
+);
+
+/**
+ * Upload a file from Firebase Storage to Gemini File API.
+ */
+export const geminiUpload = onCall(
+    {
+        secrets: [geminiApiKey],
+        maxInstances: 5,
+        timeoutSeconds: 120,
+        memory: "512MiB",
+    },
+    async (request) => {
+        if (!request.auth) {
+            throw new HttpsError("unauthenticated", "Authentication required.");
+        }
+        const userId = request.auth.uid;
+
+        const { storagePath, mimeType, displayName } = request.data as GeminiUploadRequest;
+        if (!storagePath || !mimeType) {
+            throw new HttpsError("invalid-argument", "storagePath and mimeType are required.");
+        }
+
+        // Validate storage path belongs to the authenticated user
+        if (!storagePath.startsWith(`users/${userId}/`)) {
+            throw new HttpsError("permission-denied", "Access denied to the specified storage path.");
+        }
+
+        const apiKey = geminiApiKey.value();
+        if (!apiKey) {
+            throw new HttpsError("internal", "Gemini API key is not configured on the server.");
+        }
+
+        const { uploadFromStoragePath } = await import("./services/gemini.js");
+        const result = await uploadFromStoragePath(apiKey, storagePath, mimeType, displayName || "attachment");
+        return { uri: result.uri, expiryMs: result.expiryMs };
+    }
+);
+
+/**
+ * Generate a short conversation title from the first message.
+ */
+export const generateChatTitle = onCall(
+    {
+        secrets: [geminiApiKey],
+        maxInstances: 3,
+    },
+    async (request) => {
+        if (!request.auth) {
+            throw new HttpsError("unauthenticated", "Authentication required.");
+        }
+
+        const { firstMessage, model } = request.data as GenerateTitleRequest;
+        if (!firstMessage) {
+            throw new HttpsError("invalid-argument", "firstMessage is required.");
+        }
+        const resolvedModel = model || DEFAULT_MODEL_ID;
+        if (!ALLOWED_MODEL_IDS.has(resolvedModel)) {
+            throw new HttpsError("invalid-argument", `Unsupported model: ${resolvedModel}`);
+        }
+
+        const apiKey = geminiApiKey.value();
+        if (!apiKey) {
+            throw new HttpsError("internal", "Gemini API key is not configured on the server.");
+        }
+
+        const { generateTitle } = await import("./services/gemini.js");
+        const title = await generateTitle(apiKey, firstMessage, resolvedModel);
+        return { title };
+    }
+);
+
+
+// =============================================================================
+// CHAT: Cascading Conversation Cleanup (Firestore Trigger)
+// =============================================================================
+
+import { onDocumentDeleted } from "firebase-functions/v2/firestore";
+
+/**
+ * When a conversation document is deleted, cascade-delete:
+ * 1. All messages in the subcollection
+ * 2. Storage attachments folder
+ *
+ * This runs server-side with Firebase's built-in retry logic,
+ * guaranteeing cleanup even if the client disconnects mid-delete.
+ */
+export const onConversationDeleted = onDocumentDeleted(
+    "users/{userId}/channels/{channelId}/chatConversations/{conversationId}",
+    async (event) => {
+        const { userId, channelId, conversationId } = event.params;
+
+        // 1. Batch-delete all messages in the subcollection
+        const messagesRef = db.collection(
+            `users/${userId}/channels/${channelId}/chatConversations/${conversationId}/messages`
+        );
+        const messageSnap = await messagesRef.get();
+        if (!messageSnap.empty) {
+            // Delete in batches of 500 (Firestore batch limit)
+            const docs = messageSnap.docs;
+            for (let i = 0; i < docs.length; i += 500) {
+                const batch = db.batch();
+                const chunk = docs.slice(i, i + 500);
+                for (const doc of chunk) {
+                    batch.delete(doc.ref);
+                }
+                await batch.commit();
+            }
+            console.log(`[onConversationDeleted] Deleted ${docs.length} messages for conversation ${conversationId}`);
+        }
+
+        // 2. Delete Storage attachments folder
+        const bucket = admin.storage().bucket();
+        const prefix = `users/${userId}/channels/${channelId}/chatAttachments/${conversationId}/`;
+        try {
+            await bucket.deleteFiles({ prefix });
+            console.log(`[onConversationDeleted] Deleted storage folder: ${prefix}`);
+        } catch (err) {
+            // Folder may not exist — that's fine
+            console.warn(`[onConversationDeleted] Storage cleanup skipped (may not exist): ${prefix}`, err);
+        }
+    }
+);
+
+/**
+ * When a project document is deleted, cascade-delete all conversations
+ * belonging to that project. Each conversation deletion will in turn
+ * trigger onConversationDeleted for messages + storage cleanup.
+ *
+ * Sequential deletion avoids burst CF invocations.
+ */
+export const onProjectDeleted = onDocumentDeleted(
+    "users/{userId}/channels/{channelId}/chatProjects/{projectId}",
+    async (event) => {
+        const { userId, channelId, projectId } = event.params;
+
+        const convsRef = db.collection(
+            `users/${userId}/channels/${channelId}/chatConversations`
+        );
+        const convsSnap = await convsRef.where("projectId", "==", projectId).get();
+
+        if (convsSnap.empty) {
+            console.log(`[onProjectDeleted] No conversations for project ${projectId}`);
+            return;
+        }
+
+        // Delete conversations sequentially to avoid burst triggers
+        for (const convDoc of convsSnap.docs) {
+            await convDoc.ref.delete();
+        }
+        console.log(
+            `[onProjectDeleted] Deleted ${convsSnap.size} conversations for project ${projectId}`
+        );
+    }
+);

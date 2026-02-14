@@ -159,7 +159,7 @@ const RuleItem: React.FC<{
                     <div className="relative w-24">
                         <button
                             onClick={(e) => setAnchorEl(e.currentTarget)}
-                            className="w-full flex items-center justify-between bg-[#2A2A2A] border border-transparent hover:border-white/20 rounded px-2 py-1.5 transition-colors"
+                            className={`w-full flex items-center justify-between bg-[#2A2A2A] border border-transparent hover:border-white/20 ${anchorEl ? 'rounded-t rounded-b-none' : 'rounded'} px-2 py-1.5 transition-colors`}
                         >
                             <span className="text-sm text-white capitalize">{currentUnit}</span>
                             <ChevronDown size={14} className="text-[#AAAAAA]" />
@@ -170,6 +170,7 @@ const RuleItem: React.FC<{
                             onClose={() => setAnchorEl(null)}
                             width={96}
                             className="bg-[#2A2A2A] border border-white/10"
+                            connected
                         >
                             {['days', 'weeks'].map((unit) => (
                                 <div

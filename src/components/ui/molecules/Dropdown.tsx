@@ -10,6 +10,7 @@ interface DropdownProps extends React.HTMLAttributes<HTMLDivElement> {
     width?: number;
     align?: 'left' | 'right';
     zIndexClass?: string;
+    connected?: boolean;
 }
 
 export const Dropdown: React.FC<DropdownProps> = ({
@@ -21,6 +22,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
     width = 300,
     align = 'right',
     zIndexClass = 'z-dropdown',
+    connected = false,
     ...props
 }) => {
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -30,44 +32,36 @@ export const Dropdown: React.FC<DropdownProps> = ({
         if (isOpen && anchorEl) {
             const updatePosition = () => {
                 const rect = anchorEl.getBoundingClientRect();
-                const menuHeight = dropdownRef.current?.offsetHeight || 400; // Estimate if not rendered yet
+                const menuHeight = dropdownRef.current?.offsetHeight || 400;
+                const gap = connected ? 0 : 8;
 
-                let top = rect.bottom + 8;
-                let left = align === 'right' ? rect.right - width : rect.left;
+                let top = rect.bottom + gap;
+                let left = connected
+                    ? rect.left
+                    : align === 'right' ? rect.right - width : rect.left;
 
-                // Adjust if going off screen
                 const windowWidth = window.innerWidth;
                 if (left < 16) left = 16;
                 if (left + width > windowWidth - 16) left = windowWidth - width - 16;
 
                 const windowHeight = window.innerHeight;
 
-                // If it goes below the viewport, flip it up or adjust
                 if (top + menuHeight > windowHeight) {
-                    // Try to fit it above if there's space, otherwise just pin to bottom with some padding
-                    if (rect.top - menuHeight - 8 > 0) {
-                        // top = rect.top - menuHeight - 8; // Optional: flip up behavior
-                        // For now, let's just ensure it doesn't go too far down, or maybe max-height scroll?
-                        // Youtube usually just scrolls the menu or keeps it within bounds.
-                        // Let's just clamp it for now or leave as is if the user didn't complain about flipping.
-                        // The original code had logic to flip up:
-                        // if (top + menuHeight > window.innerHeight) top = rect.top - menuHeight - 8;
+                    if (rect.top - menuHeight - gap > 0) {
                         top = Math.min(top, windowHeight - menuHeight - 16);
                     }
                 }
 
-                // Re-implementing the original logic's flip check more robustly
                 if (top + menuHeight > windowHeight) {
-                    top = rect.top - menuHeight - 8;
+                    top = rect.top - menuHeight - gap;
                 }
 
                 setPosition({ top, left });
             };
 
             updatePosition();
-            // We might need to update on resize too, but the effect below handles generic resize
         }
-    }, [isOpen, anchorEl, width, align]);
+    }, [isOpen, anchorEl, width, align, connected]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -88,7 +82,6 @@ export const Dropdown: React.FC<DropdownProps> = ({
         };
 
         const handleScroll = (event: Event) => {
-            // If scroll happens inside the dropdown, don't close
             if (
                 dropdownRef.current &&
                 dropdownRef.current.contains(event.target as Node)
@@ -100,21 +93,29 @@ export const Dropdown: React.FC<DropdownProps> = ({
 
         document.addEventListener('mousedown', handleClickOutside, { capture: true });
         window.addEventListener('resize', handleResize);
-        window.addEventListener('scroll', handleScroll, true); // Capture scroll events
+        if (!connected) {
+            window.addEventListener('scroll', handleScroll, true);
+        }
 
         return () => {
             document.removeEventListener('mousedown', handleClickOutside, { capture: true });
             window.removeEventListener('resize', handleResize);
-            window.removeEventListener('scroll', handleScroll, true);
+            if (!connected) {
+                window.removeEventListener('scroll', handleScroll, true);
+            }
         };
-    }, [isOpen, onClose, anchorEl]);
+    }, [isOpen, onClose, anchorEl, connected]);
 
     if (!isOpen) return null;
+
+    const connectedStyle = connected
+        ? 'rounded-t-none rounded-b-lg border-t-0'
+        : 'rounded-xl';
 
     return createPortal(
         <div
             ref={dropdownRef}
-            className={`fixed ${zIndexClass} bg-bg-secondary rounded-xl border border-border shadow-2xl animate-scale-in overflow-hidden ${className}`}
+            className={`fixed ${zIndexClass} bg-bg-secondary ${connectedStyle} border border-border shadow-2xl animate-scale-in overflow-hidden ${className}`}
             style={{
                 top: position.top,
                 left: position.left,

@@ -24,6 +24,7 @@ import { VideoPlayerProvider } from './core/contexts/VideoPlayerContext';
 import { GlobalMiniPlayer } from './features/Player/GlobalMiniPlayer';
 import { TrendsDndProvider } from './pages/Trends/TrendsDndProvider';
 import { AudioPlayer } from './pages/Music/components/AudioPlayer';
+import { ChatBubble } from './features/Chat/ChatBubble';
 
 // Route-based code splitting — each page loads as a separate chunk
 const WatchPage = lazy(() => import('./features/Watch/WatchPage').then(m => ({ default: m.WatchPage })));
@@ -93,6 +94,7 @@ function AppContent() {
       </Suspense>
       <GlobalMiniPlayer />
       <AudioPlayer />
+      <ChatBubble />
     </div >
   );
 }

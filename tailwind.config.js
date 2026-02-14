@@ -104,7 +104,22 @@ export default {
                 'slide-down': {
                     '0%': { opacity: '0', maxHeight: '0', transform: 'translateY(-4px)' },
                     '100%': { opacity: '1', maxHeight: '500px', transform: 'translateY(0)' },
-                }
+                },
+                'message-in': {
+                    'from': { opacity: '0', transform: 'translateY(6px)' },
+                    'to': { opacity: '1', transform: 'translateY(0)' },
+                },
+                'chip-pulse': {
+                    '0%, 100%': { opacity: '0.75' },
+                    '50%': { opacity: '0.5' },
+                },
+                'chat-spin': {
+                    'to': { transform: 'rotate(360deg)' },
+                },
+                'stream-pulse': {
+                    '0%, 100%': { opacity: '0.3' },
+                    '50%': { opacity: '1' },
+                },
             },
             animation: {
                 'slide-in-left': 'slide-in-left 0.2s ease-out forwards',
@@ -119,6 +134,10 @@ export default {
                 'shimmer': 'shimmer 2s linear infinite',
                 'slide-down': 'slide-down 0.3s ease-out forwards',
                 'bar-bounce': 'barBounce 0.6s ease-in-out infinite',
+                'message-in': 'message-in 0.2s ease forwards',
+                'chip-pulse': 'chip-pulse 1.5s ease-in-out infinite',
+                'chat-spin': 'chat-spin 0.8s linear infinite',
+                'stream-pulse': 'stream-pulse 1s ease-in-out infinite',
             }
         },
     },

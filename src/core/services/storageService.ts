@@ -79,6 +79,84 @@ export const dataURLtoBlob = (dataurl: string): Blob => {
 };
 
 // ============================================================================
+// CHAT ATTACHMENT STORAGE
+// ============================================================================
+
+/**
+ * Upload a chat attachment (image, audio, or video) to Firebase Storage.
+ *
+ * Storage path: users/{userId}/channels/{channelId}/chatAttachments/{conversationId}/{timestamp}_{filename}
+ */
+export const uploadChatAttachment = async (
+    userId: string,
+    channelId: string,
+    conversationId: string,
+    file: File
+): Promise<{ storagePath: string; downloadUrl: string }> => {
+    const timestamp = Date.now();
+    const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storagePath = `users/${userId}/channels/${channelId}/chatAttachments/${conversationId}/${timestamp}_${safeFilename}`;
+    const storageRef = ref(storage, storagePath);
+
+    await uploadBytes(storageRef, file, {
+        contentType: file.type,
+        cacheControl: 'public,max-age=31536000',
+        customMetadata: {
+            originalFilename: file.name,
+            uploadedAt: new Date().toISOString(),
+        },
+    });
+
+    const downloadUrl = await getDownloadURL(storageRef);
+    return { storagePath, downloadUrl };
+};
+
+/**
+ * Upload a chat attachment to a staging area (no conversationId required).
+ * Used for eager upload — files upload immediately when attached.
+ *
+ * Storage path: users/{userId}/channels/{channelId}/chatAttachments/staging/{uuid}_{filename}
+ */
+export const uploadStagingAttachment = async (
+    userId: string,
+    channelId: string,
+    fileId: string,
+    file: File
+): Promise<{ storagePath: string; downloadUrl: string }> => {
+    const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storagePath = `users/${userId}/channels/${channelId}/chatAttachments/staging/${fileId}_${safeFilename}`;
+    const storageRef = ref(storage, storagePath);
+
+    await uploadBytes(storageRef, file, {
+        contentType: file.type,
+        cacheControl: 'public,max-age=31536000',
+        customMetadata: {
+            originalFilename: file.name,
+            uploadedAt: new Date().toISOString(),
+        },
+    });
+
+    const downloadUrl = await getDownloadURL(storageRef);
+    return { storagePath, downloadUrl };
+};
+
+/**
+ * Delete a staging attachment from Firebase Storage.
+ * Used when user removes a file from the input area before sending.
+ */
+export const deleteStagingAttachment = async (storagePath: string): Promise<void> => {
+    try {
+        const storageRef = ref(storage, storagePath);
+        await deleteObject(storageRef);
+    } catch (error: unknown) {
+        if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === 'storage/object-not-found') {
+            return;
+        }
+        console.error('Error deleting staging attachment:', error);
+    }
+};
+
+// ============================================================================
 // CSV SNAPSHOT STORAGE (Hybrid Approach)
 // ============================================================================
 
@@ -269,6 +347,16 @@ export const uploadTrackAudio = async (
     // so browsers/workbox serve stale cached files without this.
     const cacheBustedUrl = `${downloadUrl}&v=${Date.now()}`;
     return { storagePath, downloadUrl: cacheBustedUrl };
+};
+
+/**
+ * Refresh a download URL from a storage path.
+ * Used when stored download URL has an expired/revoked token (403).
+ */
+export const refreshAudioUrl = async (storagePath: string): Promise<string> => {
+    const storageRef = ref(storage, storagePath);
+    const freshUrl = await getDownloadURL(storageRef);
+    return `${freshUrl}&v=${Date.now()}`;
 };
 
 /**

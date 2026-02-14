@@ -8,6 +8,8 @@ import { AddToMusicPlaylistModal } from '../modals/AddToMusicPlaylistModal';
 import { WaveformCanvas } from './WaveformCanvas';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import { useMusicStore } from '../../../core/stores/musicStore';
+import { refreshAudioUrl } from '../../../core/services/storageService';
+import { TrackService } from '../../../core/services/trackService';
 import { formatDuration } from '../utils/formatDuration';
 
 export const AudioPlayer: React.FC = () => {
@@ -31,13 +33,23 @@ export const AudioPlayer: React.FC = () => {
     const prevAudioUrlRef = useRef<string | null>(null);
     const prevTrackIdRef = useRef<string | null>(null);
     const seekAfterLoadRef = useRef<number | null>(null);
+    const hasRetriedRef = useRef(false);
+    const [freshUrl, setFreshUrl] = React.useState<string | null>(null);
 
     const track = tracks.find((t) => t.id === playingTrackId);
     const genreInfo = track ? genres.find((g) => g.id === track.genre) : null;
 
-    const audioUrl = track
+    const storedUrl = track
         ? (playingVariant === 'vocal' ? track.vocalUrl : track.instrumentalUrl) || track.vocalUrl || track.instrumentalUrl
         : null;
+    // Use fresh URL if we resolved one, otherwise fall back to stored URL
+    const audioUrl = freshUrl || storedUrl;
+
+    // Reset fresh URL and retry flag when track or variant changes
+    useEffect(() => {
+        setFreshUrl(null);
+        hasRetriedRef.current = false;
+    }, [playingTrackId, playingVariant]);
 
     // Sync audio element with URL changes
     useEffect(() => {
@@ -69,6 +81,56 @@ export const AudioPlayer: React.FC = () => {
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [audioUrl]);
+
+    // Auto-retry with fresh URL on load error (e.g. expired Firebase Storage token → 403)
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!audio || !track) return;
+
+        const handleError = async () => {
+            if (hasRetriedRef.current) return; // prevent infinite loop
+            hasRetriedRef.current = true;
+
+            const isVocal = playingVariant === 'vocal' && track.vocalStoragePath;
+            const storagePath = isVocal
+                ? track.vocalStoragePath!
+                : track.instrumentalStoragePath || track.vocalStoragePath;
+
+            if (!storagePath) {
+                console.error('[AudioPlayer] No storagePath available to refresh URL');
+                return;
+            }
+
+            try {
+                console.warn('[AudioPlayer] Audio load failed, refreshing URL from storagePath...');
+                const fresh = await refreshAudioUrl(storagePath);
+                setFreshUrl(fresh);
+                // Force isPlaying back to true — the failed load triggers a pause event
+                // that resets isPlaying to false, so the [audioUrl] effect won't auto-play
+                setIsPlaying(true);
+
+                // Persist fresh URL to local store + Firestore so 403 doesn't repeat
+                const urlField = isVocal ? 'vocalUrl' : 'instrumentalUrl';
+                useMusicStore.setState((state) => ({
+                    tracks: state.tracks.map((t) =>
+                        t.id === track.id ? { ...t, [urlField]: fresh } : t
+                    ),
+                }));
+                // Extract userId/channelId from storagePath: users/{uid}/channels/{cid}/tracks/...
+                const parts = storagePath.split('/');
+                const uid = parts[1];
+                const cid = parts[3];
+                if (uid && cid) {
+                    TrackService.updateTrack(uid, cid, track.id, { [urlField]: fresh }).catch(console.error);
+                }
+            } catch (err) {
+                console.error('[AudioPlayer] Failed to refresh audio URL:', err);
+            }
+        };
+
+        audio.addEventListener('error', handleError);
+        return () => audio.removeEventListener('error', handleError);
+    }, [track, playingVariant, setIsPlaying]);
 
     // Restore timecode after variant switch or cross-track waveform seek
     useEffect(() => {
