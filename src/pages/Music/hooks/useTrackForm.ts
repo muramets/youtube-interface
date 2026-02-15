@@ -47,7 +47,10 @@ function getAudioDuration(file: File): Promise<number> {
 }
 
 export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: UseTrackFormProps) {
-    const { genres, tags, categoryOrder, saveSettings } = useMusicStore();
+    const genres = useMusicStore(s => s.genres);
+    const tags = useMusicStore(s => s.tags);
+    const categoryOrder = useMusicStore(s => s.categoryOrder);
+    const saveSettings = useMusicStore(s => s.saveSettings);
     const isEditMode = !!editTrack;
 
     // Form state

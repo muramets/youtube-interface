@@ -8,7 +8,7 @@ import { ConfirmationModal } from '../../components/ui/organisms/ConfirmationMod
 import { useChatStore } from '../../core/stores/chatStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useFileAttachments } from './hooks/useFileAttachments';
-import { usePanelResize } from './hooks/usePanelResize';
+import { usePanelGeometry } from './hooks/usePanelGeometry';
 import { useChatDragDrop } from './hooks/useChatDragDrop';
 import { useChatDerivedState } from './hooks/useChatDerivedState';
 import { useChatNavigation } from './hooks/useChatNavigation';
@@ -27,7 +27,7 @@ import { ChatSummaryBanner } from './components/ChatSummaryBanner';
 import { ChatListErrorBoundary } from './components/ChatBoundaries';
 import type { ReadyAttachment } from '../../core/types/chatAttachment';
 
-export const ChatPanel: React.FC<{ onClose?: () => void; hasAudioPlayer?: boolean }> = ({ onClose, hasAudioPlayer }) => {
+export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number; anchorRightPx?: number }> = ({ onClose, anchorBottomPx = 32, anchorRightPx = 32 }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const userId = user?.uid ?? null;
@@ -56,7 +56,8 @@ export const ChatPanel: React.FC<{ onClose?: () => void; hasAudioPlayer?: boolea
     const createProject = useChatStore(s => s.createProject);
     const updateProject = useChatStore(s => s.updateProject);
     const deleteProject = useChatStore(s => s.deleteProject);
-    const createConversation = useChatStore(s => s.createConversation);
+    const startNewChat = useChatStore(s => s.startNewChat);
+    const pendingConversationId = useChatStore(s => s.pendingConversationId);
     const deleteConversation = useChatStore(s => s.deleteConversation);
     const renameConversation = useChatStore(s => s.renameConversation);
     const sendMessage = useChatStore(s => s.sendMessage);
@@ -71,8 +72,9 @@ export const ChatPanel: React.FC<{ onClose?: () => void; hasAudioPlayer?: boolea
     const stopGeneration = useChatStore(s => s.stopGeneration);
 
     // --- Custom hooks ---
-    const { stagedFiles, addFiles, removeFile, clearAll, clearAndCleanup, isAnyUploading } = useFileAttachments(userId ?? undefined, channelId ?? undefined);
-    const { panelWidth, panelHeight, isResizing, handleResizeStart } = usePanelResize();
+    const conversationIdForUpload = activeConversationId ?? pendingConversationId ?? undefined;
+    const { stagedFiles, addFiles, removeFile, clearAll, clearAndCleanup, isAnyUploading } = useFileAttachments(userId ?? undefined, channelId ?? undefined, conversationIdForUpload);
+    const { panelRect, isInteracting, dragTransform, handleDragStart, handleResizeStart } = usePanelGeometry(anchorBottomPx, anchorRightPx);
     const { isDragOver, handleDragEnter, handleDragLeave, handleDragOver, handleDrop } = useChatDragDrop(addFiles);
 
     const {
@@ -86,7 +88,7 @@ export const ChatPanel: React.FC<{ onClose?: () => void; hasAudioPlayer?: boolea
 
     const {
         filteredConversations, headerTitle,
-        totalTokens, contextUsed, contextPercent, isContextFull,
+        totalTokens, totalCostEur, modelPricing, contextUsed, contextPercent, isContextFull,
     } = useChatDerivedState({
         projects, conversations, messages,
         view, activeProjectId, activeConversationId, editingProject,
@@ -118,151 +120,169 @@ export const ChatPanel: React.FC<{ onClose?: () => void; hasAudioPlayer?: boolea
         if (!userId || !channelId || sendingRef.current) return;
         sendingRef.current = true;
         try {
-            let convId = activeConversationId;
-            if (!convId) {
-                const conv = await createConversation(activeProjectId);
-                convId = conv.id;
-            }
-            sendMessage(text, attachments, convId);
+            sendMessage(text, attachments);
             clearAll();
         } finally {
             sendingRef.current = false;
         }
-    }, [userId, channelId, activeConversationId, activeProjectId, createConversation, sendMessage, clearAll]);
+    }, [userId, channelId, sendMessage, clearAll]);
 
     return (
-        <div
-            className={`chat-panel fixed ${hasAudioPlayer ? 'bottom-[144px]' : 'bottom-[88px]'} right-6 z-[9999] flex flex-col bg-bg-primary border border-border rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.45)] overflow-hidden transition-[bottom] duration-200`}
-            style={{ width: panelWidth, height: panelHeight, transition: isResizing ? 'none' : undefined }}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-        >
-            {/* Resize handles */}
-            <div className="chat-resize-edge chat-resize-left" onMouseDown={handleResizeStart('left')} />
-            <div className="chat-resize-edge chat-resize-top" onMouseDown={handleResizeStart('top')} />
-            <div className="chat-resize-edge chat-resize-corner" onMouseDown={handleResizeStart('corner')} />
-
-            {isDragOver && <div className="absolute inset-0 bg-card-bg border-2 border-dashed border-text-tertiary rounded-xl flex items-center justify-center z-10 text-text-secondary text-sm font-medium pointer-events-none opacity-95">Drop files here</div>}
-
-            <ChatHeader
-                view={view}
-                headerTitle={headerTitle}
-                totalTokens={totalTokens}
-                contextPercent={contextPercent}
-                activeProjectId={activeProjectId}
-                editingProjectId={editingProjectId}
-                onBack={handleBack}
-                onSwitchToProjects={() => setView('projects')}
-                onCreateNew={async () => {
-                    if (!userId || !channelId) return;
-                    if (view === 'projects') setIsCreatingProject(true);
-                    else await createConversation(activeProjectId);
+        <>
+            {/* Invisible overlay during interaction — blocks hover on elements below */}
+            {
+                isInteracting && (
+                    <div className="fixed inset-0 z-[9998]" />
+                )
+            }
+            <div
+                className="chat-panel fixed z-[9999] flex flex-col bg-card-bg rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.45)] overflow-hidden"
+                style={{
+                    top: panelRect.top,
+                    left: panelRect.left,
+                    width: panelRect.width,
+                    height: panelRect.height,
+                    transform: dragTransform ? `translate(${dragTransform.x}px, ${dragTransform.y}px)` : undefined,
+                    transition: isInteracting ? 'none' : undefined,
+                    willChange: isInteracting ? 'transform' : undefined,
                 }}
-                onClose={onClose}
-            />
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+            >
+                {/* Resize handles — all 4 edges + 4 corners */}
+                {panelRect.canResizeLeft && <div className="chat-resize-edge chat-resize-left" onMouseDown={handleResizeStart('left')} />}
+                {panelRect.canResizeRight && <div className="chat-resize-edge chat-resize-right" onMouseDown={handleResizeStart('right')} />}
+                {panelRect.canResizeTop && <div className="chat-resize-edge chat-resize-top" onMouseDown={handleResizeStart('top')} />}
+                {panelRect.canResizeBottom && <div className="chat-resize-edge chat-resize-bottom" onMouseDown={handleResizeStart('bottom')} />}
+                {panelRect.canResizeTop && panelRect.canResizeLeft && <div className="chat-resize-edge chat-resize-corner-tl" onMouseDown={handleResizeStart('top-left')} />}
+                {panelRect.canResizeTop && panelRect.canResizeRight && <div className="chat-resize-edge chat-resize-corner-tr" onMouseDown={handleResizeStart('top-right')} />}
+                {panelRect.canResizeBottom && panelRect.canResizeLeft && <div className="chat-resize-edge chat-resize-corner-bl" onMouseDown={handleResizeStart('bottom-left')} />}
+                {panelRect.canResizeBottom && panelRect.canResizeRight && <div className="chat-resize-edge chat-resize-corner-br" onMouseDown={handleResizeStart('bottom-right')} />}
 
-            <ChatContextBar
-                visible={view === 'chat'}
-                contextPercent={contextPercent}
-                contextUsed={contextUsed}
-                isContextFull={isContextFull}
-            />
+                {isDragOver && <div className="absolute inset-0 bg-card-bg border-2 border-dashed border-text-tertiary rounded-xl flex items-center justify-center z-10 text-text-secondary text-sm font-medium pointer-events-none opacity-95">Drop files here</div>}
 
-            <ChatErrorBanner
-                error={error}
-                canRetry={!!(lastFailedRequest && userId && channelId)}
-                onRetry={() => retryLastMessage()}
-                onDismiss={clearError}
-            />
-
-            {/* Content views */}
-            {editingProject && (
-                <ProjectSettings
-                    project={editingProject}
-                    onClose={() => setEditingProjectId(null)}
-                    onUpdate={userId && channelId
-                        ? (id, updates) => updateProject(id, updates)
-                        : undefined}
-                />
-            )}
-
-            {!editingProjectId && view === 'projects' && (
-                <ProjectList
-                    projects={projects}
-                    conversations={conversations}
+                <ChatHeader
+                    view={view}
+                    headerTitle={headerTitle}
+                    totalTokens={totalTokens}
+                    totalCostEur={totalCostEur}
+                    contextPercent={contextPercent}
                     activeProjectId={activeProjectId}
-                    onSelect={(id) => setActiveProject(id)}
-                    onSelectAll={() => { setActiveProject(null); setView('conversations'); }}
-                    onDelete={userId && channelId ? (id) => {
-                        setPendingDelete({ type: 'project', id, name: projects.find(p => p.id === id)?.name || 'this project' });
-                    } : undefined}
-                    onEdit={(id) => setEditingProjectId(id)}
-                    isCreating={isCreatingProject}
-                    onCreateDone={async (name) => {
-                        setIsCreatingProject(false);
-                        if (name && userId && channelId) await createProject(name);
-                    }}
-                />
-            )}
-
-            {view === 'conversations' && (
-                <ConversationList
-                    conversations={filteredConversations}
-                    activeConversationId={activeConversationId}
-                    onSelect={(id) => { clearAndCleanup(); setActiveConversation(id); }}
-                    onRename={(id, title) => renameConversation(id, title)}
-                    onDelete={userId && channelId
-                        ? (id) => {
-                            setPendingDelete({ type: 'conversation', id, name: conversations.find(c => c.id === id)?.title || 'this conversation' });
-                        }
-                        : undefined}
-                    hasMore={hasMoreConversations}
-                    onLoadMore={loadOlderConversations}
-                />
-            )}
-
-            {view === 'chat' && (
-                <>
-                    {hasMoreMessages && userId && channelId && (
-                        <button className="flex items-center justify-center gap-1.5 p-2 bg-transparent border-none text-text-tertiary text-xs cursor-pointer transition-colors duration-100 shrink-0 hover:text-text-primary" onClick={() => loadOlderMessages()}>
-                            <ChevronUp size={14} /> Load earlier messages
-                        </button>
-                    )}
-                    <ChatSummaryBanner
-                        summary={conversations.find(c => c.id === activeConversationId)?.summary || ''}
-                    />
-                    <ChatListErrorBoundary>
-                        <ChatMessageList messages={messages} />
-                    </ChatListErrorBoundary>
-                    <ChatInput
-                        onSend={handleSend}
-                        onStop={stopGeneration}
-                        disabled={isContextFull}
-                        stagedFiles={stagedFiles}
-                        onAddFiles={addFiles}
-                        onRemoveFile={removeFile}
-                        isAnyUploading={isAnyUploading}
-                    />
-                </>
-            )}
-
-            {pendingDelete && (
-                <ConfirmationModal
-                    isOpen
-                    onClose={() => setPendingDelete(null)}
-                    onConfirm={() => {
+                    editingProjectId={editingProjectId}
+                    onBack={handleBack}
+                    onSwitchToProjects={() => setView('projects')}
+                    onCreateNew={async () => {
                         if (!userId || !channelId) return;
-                        if (pendingDelete.type === 'project') deleteProject(pendingDelete.id);
-                        else deleteConversation(pendingDelete.id);
+                        if (view === 'projects') setIsCreatingProject(true);
+                        else { clearAndCleanup(); startNewChat(); }
                     }}
-                    title={`Delete ${pendingDelete.type === 'project' ? 'Project' : 'Conversation'}`}
-                    message={<>Are you sure you want to delete <strong>{pendingDelete.name}</strong>? This cannot be undone.</>}
-                    confirmLabel="Delete"
-                    cancelLabel="Cancel"
+                    onClose={onClose ? () => { clearAndCleanup(); onClose(); } : undefined}
+                    onDragStart={handleDragStart}
                 />
-            )}
-        </div>
+
+                <ChatContextBar
+                    visible={view === 'chat'}
+                    contextPercent={contextPercent}
+                    contextUsed={contextUsed}
+                    isContextFull={isContextFull}
+                />
+
+                <ChatErrorBanner
+                    error={error}
+                    canRetry={!!(lastFailedRequest && userId && channelId)}
+                    onRetry={() => retryLastMessage()}
+                    onDismiss={clearError}
+                />
+
+                {/* Content views */}
+                {editingProject && (
+                    <ProjectSettings
+                        project={editingProject}
+                        onClose={() => setEditingProjectId(null)}
+                        onUpdate={userId && channelId
+                            ? (id, updates) => updateProject(id, updates)
+                            : undefined}
+                    />
+                )}
+
+                {!editingProjectId && view === 'projects' && (
+                    <ProjectList
+                        projects={projects}
+                        conversations={conversations}
+                        activeProjectId={activeProjectId}
+                        onSelect={(id) => setActiveProject(id)}
+                        onSelectAll={() => { setActiveProject(null); setView('conversations'); }}
+                        onDelete={userId && channelId ? (id) => {
+                            setPendingDelete({ type: 'project', id, name: projects.find(p => p.id === id)?.name || 'this project' });
+                        } : undefined}
+                        onEdit={(id) => setEditingProjectId(id)}
+                        isCreating={isCreatingProject}
+                        onCreateDone={async (name) => {
+                            setIsCreatingProject(false);
+                            if (name && userId && channelId) await createProject(name);
+                        }}
+                    />
+                )}
+
+                {view === 'conversations' && (
+                    <ConversationList
+                        conversations={filteredConversations}
+                        activeConversationId={activeConversationId}
+                        onSelect={(id) => { clearAndCleanup(); setActiveConversation(id); }}
+                        onRename={(id, title) => renameConversation(id, title)}
+                        onDelete={userId && channelId
+                            ? (id) => {
+                                setPendingDelete({ type: 'conversation', id, name: conversations.find(c => c.id === id)?.title || 'this conversation' });
+                            }
+                            : undefined}
+                        hasMore={hasMoreConversations}
+                        onLoadMore={loadOlderConversations}
+                    />
+                )}
+
+                {view === 'chat' && (
+                    <>
+                        {hasMoreMessages && userId && channelId && (
+                            <button className="flex items-center justify-center gap-1.5 p-2 bg-transparent border-none text-text-tertiary text-xs cursor-pointer transition-colors duration-100 shrink-0 hover:text-text-primary" onClick={() => loadOlderMessages()}>
+                                <ChevronUp size={14} /> Load earlier messages
+                            </button>
+                        )}
+                        <ChatSummaryBanner
+                            summary={conversations.find(c => c.id === activeConversationId)?.summary || ''}
+                        />
+                        <ChatListErrorBoundary>
+                            <ChatMessageList messages={messages} modelPricing={modelPricing} />
+                        </ChatListErrorBoundary>
+                        <ChatInput
+                            onSend={handleSend}
+                            onStop={stopGeneration}
+                            disabled={isContextFull}
+                            stagedFiles={stagedFiles}
+                            onAddFiles={addFiles}
+                            onRemoveFile={removeFile}
+                            isAnyUploading={isAnyUploading}
+                        />
+                    </>
+                )}
+
+                {pendingDelete && (
+                    <ConfirmationModal
+                        isOpen
+                        onClose={() => setPendingDelete(null)}
+                        onConfirm={() => {
+                            if (!userId || !channelId) return;
+                            if (pendingDelete.type === 'project') deleteProject(pendingDelete.id);
+                            else deleteConversation(pendingDelete.id);
+                        }}
+                        title={`Delete ${pendingDelete.type === 'project' ? 'Project' : 'Conversation'}`}
+                        message={<>Are you sure you want to delete <strong>{pendingDelete.name}</strong>? This cannot be undone.</>}
+                        confirmLabel="Delete"
+                        cancelLabel="Cancel"
+                    />
+                )}
+            </div>
+        </>
     );
 };

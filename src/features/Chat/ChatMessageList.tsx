@@ -44,7 +44,9 @@ SyntaxHighlighter.registerLanguage('html', markup);
 SyntaxHighlighter.registerLanguage('xml', markup);
 SyntaxHighlighter.registerLanguage('svg', markup);
 import type { ChatMessage } from '../../core/types/chat';
-import { FileAudio, FileVideo, Copy, Check, ArrowDown } from 'lucide-react';
+import type { ModelPricing } from '../../../shared/models';
+import { estimateCostEur } from '../../../shared/models';
+import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, Zap, MessageCircle } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 import { useChatStore } from '../../core/stores/chatStore';
 import { formatRelativeTime, STATIC_AGE } from './formatRelativeTime';
@@ -95,6 +97,7 @@ CodeBlock.displayName = 'CodeBlock';
 
 interface ChatMessageListProps {
     messages: ChatMessage[];
+    modelPricing?: ModelPricing;
 }
 
 const MarkdownMessage: React.FC<{ text: string }> = React.memo(({ text }) => (
@@ -148,7 +151,7 @@ const CopyButton: React.FC<{ text: string }> = ({ text }) => {
             onClick={handleCopy}
             title={copied ? 'Copied!' : 'Copy message'}
         >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
+            {copied ? <Check size={11} /> : <Copy size={11} />}
         </button>
     );
 };
@@ -165,10 +168,13 @@ function getTickInterval(createdAt: Timestamp): number | null {
 
 // --- Message Item (per-message timer + visibility tracking) ---
 
-const MessageItem: React.FC<{ msg: ChatMessage }> = React.memo(({ msg }) => {
+const MessageItem: React.FC<{ msg: ChatMessage; modelPricing?: ModelPricing }> = React.memo(({ msg, modelPricing }) => {
     const itemRef = useRef<HTMLDivElement>(null);
     const isVisibleRef = useRef(false);
     const [timestamp, setTimestamp] = useState(() => formatRelativeTime(msg.createdAt));
+    const failedMessageId = useChatStore(s => s.lastFailedRequest?.messageId);
+    const retryLastMessage = useChatStore(s => s.retryLastMessage);
+    const isFailed = msg.role === 'user' && failedMessageId === msg.id;
 
     // Track visibility via IntersectionObserver
     useEffect(() => {
@@ -214,7 +220,7 @@ const MessageItem: React.FC<{ msg: ChatMessage }> = React.memo(({ msg }) => {
                             ? <FileAudio size={14} />
                             : att.type === 'video'
                                 ? <FileVideo size={14} />
-                                : <span>📎</span>;
+                                : <File size={14} />;
                         return (
                             <div key={att.url || att.name} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-card-bg text-xs text-text-secondary border border-border">
                                 {icon}
@@ -225,18 +231,34 @@ const MessageItem: React.FC<{ msg: ChatMessage }> = React.memo(({ msg }) => {
                 </div>
             )}
 
-            <div className={`chat-message-bubble py-2 px-3.5 rounded-xl text-[13px] leading-normal break-words ${msg.role === 'user' ? 'bg-card-bg text-text-primary border border-border rounded-br-sm' : 'bg-transparent text-text-primary rounded-bl-sm'}`}>
+            <div className={`chat-message-bubble py-2 px-3.5 rounded-xl text-[13px] leading-normal break-words ${msg.role === 'user' ? 'bg-[#2a2a2a] text-text-primary rounded-br-sm' : 'bg-bg-secondary text-text-primary rounded-bl-sm'} ${isFailed ? 'border border-red-500/40' : ''}`}>
                 {msg.role === 'model' ? <MarkdownMessage text={msg.text} /> : msg.text}
             </div>
 
+            {/* Failed message indicator */}
+            {isFailed && (
+                <div className="flex items-center gap-1.5 mt-1">
+                    <span className="text-[11px] text-red-400">Failed to send</span>
+                    <button
+                        className="bg-transparent border-none text-red-400 cursor-pointer p-0.5 flex items-center gap-1 hover:text-red-300 transition-colors text-[11px]"
+                        onClick={() => retryLastMessage()}
+                        title="Retry"
+                    >
+                        <RotateCcw size={12} /> Retry
+                    </button>
+                </div>
+            )}
+
             {/* Message footer: timestamp + tokens + copy */}
             <div className="group/msg flex items-center gap-2 mt-0.5 min-h-[20px]">
-                <span className="text-[10px] text-text-tertiary opacity-70">
+                <span className="text-[10px] text-text-tertiary select-none cursor-default hover:text-text-secondary transition-colors">
                     {timestamp}
                 </span>
                 {msg.role === 'model' && msg.tokenUsage && (
-                    <span className="text-[10px] text-text-tertiary opacity-70">
-                        ⚡ {msg.tokenUsage.totalTokens.toLocaleString()}
+                    <span className="text-[10px] text-text-tertiary select-none cursor-default inline-flex items-center gap-0.5 hover:text-text-secondary transition-colors">
+                        <Zap size={10} /> {msg.tokenUsage.totalTokens.toLocaleString()}
+                        {modelPricing && (
+                            <> • €{estimateCostEur(modelPricing, msg.tokenUsage.promptTokens, msg.tokenUsage.completionTokens).toFixed(4)}</>)}
                     </span>
                 )}
                 {msg.role === 'model' && (
@@ -252,6 +274,7 @@ MessageItem.displayName = 'MessageItem';
 
 export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     messages,
+    modelPricing,
 }) => {
     const streamingText = useChatStore(s => s.streamingText);
     const isStreaming = useChatStore(s => s.isStreaming);
@@ -285,10 +308,8 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     if (messages.length === 0 && !isStreaming) {
         return (
             <div className="chat-messages flex-1 overflow-y-auto p-3.5 flex flex-col gap-3">
-                <div className="flex flex-col items-center justify-center h-full gap-2.5 text-text-tertiary text-[13px] text-center p-6">
-                    <svg className="opacity-35" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                    </svg>
+                <div className="flex flex-col items-center justify-center h-full gap-2.5 text-text-tertiary text-[13px] text-center p-6 select-none cursor-default">
+                    <MessageCircle size={48} strokeWidth={1.5} className="opacity-35" />
                     <span>Start a conversation.<br />You can send text, images, audio, or video.</span>
                 </div>
             </div>
@@ -299,16 +320,16 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
         <div className="chat-messages flex-1 overflow-y-auto p-3.5 flex flex-col gap-3" ref={containerRef} onScroll={handleScroll}>
             {messages.map((msg) => (
                 <MessageErrorBoundary key={msg.id} messageId={msg.id}>
-                    <MessageItem msg={msg} />
+                    <MessageItem msg={msg} modelPricing={modelPricing} />
                 </MessageErrorBoundary>
             ))}
 
             {/* Streaming message */}
             {isStreaming && (
                 <div className="chat-message flex flex-col max-w-[85%] self-start animate-message-in">
-                    <div className="chat-message-bubble py-2 px-3.5 rounded-xl text-[13px] leading-normal break-words bg-transparent text-text-primary rounded-bl-sm">
+                    <div className="chat-message-bubble py-2 px-3.5 rounded-xl text-[13px] leading-normal break-words bg-bg-secondary text-text-primary rounded-bl-sm">
                         {streamingText ? <MarkdownMessage text={streamingText} /> : null}
-                        <span className="chat-streaming-dot" />
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-text-tertiary animate-stream-pulse ml-1 align-middle" />
                     </div>
                 </div>
             )}

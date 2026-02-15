@@ -6,10 +6,10 @@
 import { useState, useCallback, useRef } from 'react';
 import type { StagedFile, ReadyAttachment } from '../../../core/types/chatAttachment';
 import { getAttachmentType, isAllowedMimeType, isFileWithinLimit, getFileSizeLabel, AiService } from '../../../core/services/aiService';
-import { uploadStagingAttachment, deleteStagingAttachment } from '../../../core/services/storageService';
+import { uploadChatAttachment, deleteStagingAttachment } from '../../../core/services/storageService';
 import { useUIStore } from '../../../core/stores/uiStore';
 
-export function useFileAttachments(userId?: string, channelId?: string) {
+export function useFileAttachments(userId?: string, channelId?: string, conversationId?: string) {
     const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
     const stagedFilesRef = useRef(stagedFiles);
     stagedFilesRef.current = stagedFiles;
@@ -20,7 +20,7 @@ export function useFileAttachments(userId?: string, channelId?: string) {
      * Validate, stage, and start uploading files immediately.
      */
     const addFiles = useCallback((files: File[]) => {
-        if (!userId || !channelId) return;
+        if (!userId || !channelId || !conversationId) return;
 
         const allowed: File[] = [];
         const rejected: string[] = [];
@@ -51,17 +51,17 @@ export function useFileAttachments(userId?: string, channelId?: string) {
 
         // Start uploads in parallel (fire-and-forget per file)
         for (const entry of newEntries) {
-            uploadFile(entry.id, entry.file, userId, channelId);
+            uploadFile(entry.id, entry.file, userId, channelId, conversationId);
         }
-    }, [userId, channelId, showToast]);
+    }, [userId, channelId, conversationId, showToast]);
 
     /**
      * Upload a single file: first to Firebase Storage, then to Gemini via CF.
      */
-    const uploadFile = async (id: string, file: File, uid: string, chId: string) => {
+    const uploadFile = async (id: string, file: File, uid: string, chId: string, convId: string) => {
         try {
-            // Step 1: Upload to Firebase Storage
-            const { storagePath, downloadUrl } = await uploadStagingAttachment(uid, chId, id, file);
+            // Step 1: Upload to Firebase Storage (conversation-scoped path)
+            const { storagePath, downloadUrl } = await uploadChatAttachment(uid, chId, convId, file);
 
             // Step 2: Upload to Gemini via Cloud Function (uses storagePath)
             const gemini = await AiService.uploadToGemini(storagePath, file.type, file.name);

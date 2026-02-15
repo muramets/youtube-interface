@@ -32,13 +32,14 @@ interface ChatState {
     view: ChatView;
     activeProjectId: string | null;
     activeConversationId: string | null;
+    pendingConversationId: string | null;
     isLoading: boolean;
     isStreaming: boolean;
     streamingText: string;
     error: string | null;
     hasMoreMessages: boolean;
     hasMoreConversations: boolean;
-    lastFailedRequest: { text: string; attachments?: ReadyAttachment[] } | null;
+    lastFailedRequest: { text: string; attachments?: ReadyAttachment[]; messageId?: string } | null;
 
     // Actions — Context
     setContext: (userId: string | null, channelId: string | null) => void;
@@ -63,6 +64,7 @@ interface ChatState {
     createProject: (name: string) => Promise<ChatProject>;
     updateProject: (projectId: string, updates: Partial<Pick<ChatProject, 'name' | 'systemPrompt' | 'model' | 'order'>>) => Promise<void>;
     deleteProject: (projectId: string) => Promise<void>;
+    startNewChat: () => void;
     createConversation: (projectId: string | null) => Promise<ChatConversation>;
     deleteConversation: (conversationId: string) => Promise<void>;
     renameConversation: (conversationId: string, title: string) => Promise<void>;
@@ -204,6 +206,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     view: 'conversations',
     activeProjectId: null,
     activeConversationId: null,
+    pendingConversationId: null,
     isLoading: false,
     isStreaming: false,
     streamingText: '',
@@ -226,6 +229,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     setActiveConversation: (id) => set({
         activeConversationId: id,
+        pendingConversationId: null,
         view: id ? 'chat' : 'conversations',
         messages: [],
         streamingText: '',
@@ -270,11 +274,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
             if (isFirstLoad) {
                 isFirstLoad = false;
-                set({
-                    messages: merged,
-                    isLoading: false,
-                    hasMoreMessages: firestoreMessages.length >= MESSAGE_PAGE_SIZE,
-                });
+
+                // Check for explicit server-side error signal on the conversation
+                const conv = get().conversations.find(c => c.id === conversationId);
+                if (conv?.lastError && !get().isStreaming) {
+                    set({
+                        messages: merged,
+                        isLoading: false,
+                        hasMoreMessages: firestoreMessages.length >= MESSAGE_PAGE_SIZE,
+                        error: conv.lastError.error,
+                        lastFailedRequest: { text: '', messageId: conv.lastError.messageId },
+                    });
+                } else {
+                    set({
+                        messages: merged,
+                        isLoading: false,
+                        hasMoreMessages: firestoreMessages.length >= MESSAGE_PAGE_SIZE,
+                    });
+                }
             } else {
                 set({ messages: merged, isLoading: false });
             }
@@ -354,6 +371,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
     },
 
+    startNewChat: () => {
+        set({
+            activeConversationId: null,
+            pendingConversationId: crypto.randomUUID(),
+            view: 'chat',
+            messages: [],
+            streamingText: '',
+        });
+    },
+
     createConversation: async (projectId) => {
         const { userId, channelId } = requireContext(get);
         const conversation = await ChatService.createConversation(userId, channelId, projectId);
@@ -389,18 +416,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     sendMessage: async (text, attachments, conversationId) => {
         const { userId, channelId } = requireContext(get);
-        const { activeConversationId, activeProjectId, messages, aiSettings, projects, isStreaming } = get();
-        const convId = conversationId || activeConversationId;
+        const { activeConversationId, pendingConversationId, activeProjectId, messages, aiSettings, projects, isStreaming } = get();
+        let convId = conversationId || activeConversationId;
 
-        if (isStreaming || !convId) return;
+        if (isStreaming) return;
 
         // Lock immediately — before any await — prevents double-send
         activeAbortController = new AbortController();
         set({ isStreaming: true, streamingText: '', error: null, lastFailedRequest: null });
 
         try {
+            // 0. Lazy-create conversation if needed (first message in a new chat)
+            if (!convId) {
+                const conversation = await ChatService.createConversation(
+                    userId, channelId, activeProjectId, 'New Chat', pendingConversationId ?? undefined,
+                );
+                convId = conversation.id;
+                set({ pendingConversationId: null });
+                // Set activeConversationId AFTER we're about to add the optimistic message,
+                // so the subscription won't race with us and reset messages to []
+            }
+
             // 1. Optimistic UI + persist user message
             await persistUserMessage(userId, channelId, convId, text, attachments, messages, set);
+
+            // Now safe to set activeConversationId — optimistic message is already in state
+            if (!activeConversationId) {
+                set({ activeConversationId: convId });
+            }
 
             // 2. Resolve config
             const model = resolveModel(aiSettings, projects, activeProjectId);
@@ -424,7 +467,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 // User stopped generation — save partial text if available
                 const partial = get().streamingText;
                 if (partial) {
-                    await ChatService.addMessage(userId, channelId, convId, {
+                    await ChatService.addMessage(userId, channelId, convId!, {
                         role: 'model',
                         text: partial + '\n\n*(generation stopped)*',
                     });
@@ -447,8 +490,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
     retryLastMessage: async () => {
         const { lastFailedRequest } = get();
         if (!lastFailedRequest) return;
-        const { text, attachments } = lastFailedRequest;
+        const { text, attachments, messageId } = lastFailedRequest;
         set({ lastFailedRequest: null, error: null });
+
+        // Clean up the failed state before resending
+        if (messageId) {
+            const { userId, channelId } = requireContext(get);
+            const convId = get().activeConversationId;
+            if (convId) {
+                // Delete the old failed message from Firestore
+                ChatService.deleteMessage(userId, channelId, convId, messageId).catch(() => { });
+                // Clear server-side lastError signal from conversation doc
+                ChatService.clearLastError(userId, channelId, convId).catch(() => { });
+            }
+        }
+
         await get().sendMessage(text, attachments);
     },
 

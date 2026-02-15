@@ -54,7 +54,9 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
     }, [activeTab]);
 
     // --- Versions tab data (reuses LinkVersionModal logic) ---
-    const { tracks, linkAsVersion, genres: allGenres } = useMusicStore();
+    const tracks = useMusicStore(s => s.tracks);
+    const linkAsVersion = useMusicStore(s => s.linkAsVersion);
+    const allGenres = useMusicStore(s => s.genres);
     const showVersionsTab = !form.isEditMode && isVariation;
 
     const versionCandidates = useMemo(() => {

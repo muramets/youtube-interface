@@ -2,7 +2,7 @@
 // AI CHAT: Firestore Service
 // =============================================================================
 
-import { Timestamp, orderBy, limitToLast, endBefore, writeBatch, doc as firestoreDoc } from 'firebase/firestore';
+import { Timestamp, orderBy, limitToLast, endBefore, writeBatch, doc as firestoreDoc, deleteField } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import {
     fetchCollection,
@@ -127,9 +127,11 @@ export const ChatService = {
         userId: string,
         channelId: string,
         projectId: string | null,
-        title: string = 'New Chat'
+        title: string = 'New Chat',
+        /** Optional pre-generated ID (for eager upload correlation) */
+        id?: string,
     ): Promise<ChatConversation> {
-        const id = uuidv4();
+        const finalId = id ?? uuidv4();
         const now = Timestamp.now();
         const conversation: Omit<ChatConversation, 'id'> = {
             projectId,
@@ -137,8 +139,8 @@ export const ChatService = {
             createdAt: now,
             updatedAt: now,
         };
-        await setDocument(conversationsPath(userId, channelId), id, conversation);
-        return { ...conversation, id };
+        await setDocument(conversationsPath(userId, channelId), finalId, conversation);
+        return { ...conversation, id: finalId };
     },
 
     async updateConversation(
@@ -150,6 +152,12 @@ export const ChatService = {
         await updateDocument(conversationsPath(userId, channelId), conversationId, {
             ...updates,
             updatedAt: Timestamp.now(),
+        });
+    },
+
+    async clearLastError(userId: string, channelId: string, conversationId: string) {
+        await updateDocument(conversationsPath(userId, channelId), conversationId, {
+            lastError: deleteField(),
         });
     },
 
@@ -201,12 +209,15 @@ export const ChatService = {
             createdAt: now,
         };
 
-        // Single atomic batch: message + conversation touch (+ optional title)
+        // Firestore rejects `undefined` values — strip them
+        const cleanMsg = Object.fromEntries(
+            Object.entries(msg).filter(([, v]) => v !== undefined)
+        );
         const batch = writeBatch(db);
         const msgRef = firestoreDoc(db, messagesPath(userId, channelId, conversationId), id);
         const convRef = firestoreDoc(db, conversationsPath(userId, channelId), conversationId);
 
-        batch.set(msgRef, msg);
+        batch.set(msgRef, cleanMsg);
         batch.update(convRef, { updatedAt: now, ...conversationUpdates });
         await batch.commit();
 
@@ -221,6 +232,15 @@ export const ChatService = {
         updates: Partial<Pick<ChatMessage, 'attachments'>>
     ) {
         await updateDocument(messagesPath(userId, channelId, conversationId), messageId, updates);
+    },
+
+    async deleteMessage(
+        userId: string,
+        channelId: string,
+        conversationId: string,
+        messageId: string,
+    ) {
+        await deleteDocument(messagesPath(userId, channelId, conversationId), messageId);
     },
 
     // AI Settings

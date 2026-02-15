@@ -5,6 +5,7 @@
 import { useMemo } from 'react';
 import type { ChatProject, ChatConversation, ChatMessage } from '../../../core/types/chat';
 import { MODEL_REGISTRY, DEFAULT_MODEL, DEFAULT_CONTEXT_LIMIT } from '../../../core/types/chat';
+import { estimateCostEur, type ModelPricing } from '../../../../shared/models';
 
 interface UseChatDerivedStateOpts {
     projects: ChatProject[];
@@ -23,6 +24,8 @@ interface UseChatDerivedStateReturn {
     activeConversation: ChatConversation | undefined;
     headerTitle: string;
     totalTokens: number;
+    totalCostEur: number;
+    modelPricing: ModelPricing;
     contextUsed: number;
     contextPercent: number;
     isContextFull: boolean;
@@ -46,15 +49,31 @@ export function useChatDerivedState(opts: UseChatDerivedStateOpts): UseChatDeriv
     else if (view === 'conversations') headerTitle = 'All Chats';
     else if (view === 'chat' && activeConversation) headerTitle = activeConversation.title;
 
+    // Model pricing
+    const activeModel = activeProject?.model || defaultModel || DEFAULT_MODEL;
+    const modelConfig = MODEL_REGISTRY.find(m => m.id === activeModel) ?? MODEL_REGISTRY[0];
+    const contextLimit = modelConfig.contextLimit ?? DEFAULT_CONTEXT_LIMIT;
+
     // Token usage
     const totalTokens = useMemo(() =>
         messages.reduce((sum, m) => sum + (m.tokenUsage?.totalTokens ?? 0), 0),
         [messages]
     );
 
+    // Total cost (EUR) across all AI messages
+    const totalCostEur = useMemo(() =>
+        messages.reduce((sum, m) => {
+            if (m.role !== 'model' || !m.tokenUsage) return sum;
+            return sum + estimateCostEur(
+                modelConfig.pricing,
+                m.tokenUsage.promptTokens,
+                m.tokenUsage.completionTokens,
+            );
+        }, 0),
+        [messages, modelConfig.pricing]
+    );
+
     // Context window tracking
-    const activeModel = activeProject?.model || defaultModel || DEFAULT_MODEL;
-    const contextLimit = MODEL_REGISTRY.find(m => m.id === activeModel)?.contextLimit ?? DEFAULT_CONTEXT_LIMIT;
     const contextUsed = useMemo(() => {
         for (let i = messages.length - 1; i >= 0; i--) {
             if (messages[i].role === 'model' && messages[i].tokenUsage) {
@@ -72,6 +91,8 @@ export function useChatDerivedState(opts: UseChatDerivedStateOpts): UseChatDeriv
         activeConversation,
         headerTitle,
         totalTokens,
+        totalCostEur,
+        modelPricing: modelConfig.pricing,
         contextUsed,
         contextPercent,
         isContextFull,

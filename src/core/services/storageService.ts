@@ -111,34 +111,7 @@ export const uploadChatAttachment = async (
     return { storagePath, downloadUrl };
 };
 
-/**
- * Upload a chat attachment to a staging area (no conversationId required).
- * Used for eager upload — files upload immediately when attached.
- *
- * Storage path: users/{userId}/channels/{channelId}/chatAttachments/staging/{uuid}_{filename}
- */
-export const uploadStagingAttachment = async (
-    userId: string,
-    channelId: string,
-    fileId: string,
-    file: File
-): Promise<{ storagePath: string; downloadUrl: string }> => {
-    const safeFilename = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const storagePath = `users/${userId}/channels/${channelId}/chatAttachments/staging/${fileId}_${safeFilename}`;
-    const storageRef = ref(storage, storagePath);
 
-    await uploadBytes(storageRef, file, {
-        contentType: file.type,
-        cacheControl: 'public,max-age=31536000',
-        customMetadata: {
-            originalFilename: file.name,
-            uploadedAt: new Date().toISOString(),
-        },
-    });
-
-    const downloadUrl = await getDownloadURL(storageRef);
-    return { storagePath, downloadUrl };
-};
 
 /**
  * Delete a staging attachment from Firebase Storage.

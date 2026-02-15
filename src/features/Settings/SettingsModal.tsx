@@ -11,6 +11,8 @@ import type { PackagingCheckin } from '../../core/types/versioning';
 import type { AiAssistantSettings as AiSettingsType } from '../../core/types/chat';
 import { useChatStore } from '../../core/stores/chatStore';
 
+import { Button } from '../../components/ui/atoms/Button/Button';
+
 import { SettingsSidebar } from './SettingsSidebar';
 import { ApiSyncSettings } from './ApiSyncSettings';
 import { CloneSettings } from './CloneSettings';
@@ -413,27 +415,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
                 {/* Footer */}
                 <div className={`px-4 h-[67px] border-t ${borderColor} flex items-center justify-end gap-2 ${bgMain}`}>
-                    <button
-                        onClick={handleClose}
-                        className={`px-4 py-2 rounded-2xl text-sm font-medium ${textPrimary} ${hoverBg} transition-colors cursor-pointer`}
-                    >
+                    <Button variant="secondary" onClick={handleClose}>
                         Close
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                        variant="primary"
                         onClick={handleSave}
                         disabled={!isDirty || isSaving || hasPackagingDuplicates}
-                        className={`px-6 py-2 rounded-2xl text-sm font-medium transition-all relative overflow-hidden
-                            ${(isDirty && !hasPackagingDuplicates)
-                                ? 'bg-[var(--primary-button-bg)] text-[var(--primary-button-text)] hover:bg-[var(--primary-button-hover)] cursor-pointer'
-                                : 'bg-bg-primary text-text-secondary cursor-default opacity-50'
-                            }
-                            ${isSaving ? 'cursor-wait' : ''}`}
+                        isLoading={isSaving && isDirty}
                     >
-                        {isSaving && isDirty && (
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-black/10 to-transparent animate-shimmer bg-[length:200%_100%]"></div>
-                        )}
-                        <span className="relative z-10">Save</span>
-                    </button>
+                        Save
+                    </Button>
                 </div>
             </div>
         </div>,

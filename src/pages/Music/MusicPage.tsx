@@ -26,31 +26,29 @@ import { useFilterStore } from '../../core/stores/filterStore';
 export const MusicPage: React.FC = () => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const {
-        tracks,
-        isLoading,
-        subscribe,
-        loadSettings,
-        selectedTrackId,
-        setSelectedTrackId,
-        playingTrackId,
-        searchQuery,
-        genreFilter,
-        setGenreFilter,
-        tagFilters,
-        toggleTagFilter,
-        bpmFilter,
-        setBpmFilter,
-        clearFilters,
-        genres,
-        tags,
-        categoryOrder,
-        featuredCategories,
-        sortableCategories,
-        musicPlaylists,
-        activePlaylistId,
-        setActivePlaylist,
-    } = useMusicStore();
+    const tracks = useMusicStore(s => s.tracks);
+    const isLoading = useMusicStore(s => s.isLoading);
+    const subscribe = useMusicStore(s => s.subscribe);
+    const loadSettings = useMusicStore(s => s.loadSettings);
+    const selectedTrackId = useMusicStore(s => s.selectedTrackId);
+    const setSelectedTrackId = useMusicStore(s => s.setSelectedTrackId);
+    const playingTrackId = useMusicStore(s => s.playingTrackId);
+    const searchQuery = useMusicStore(s => s.searchQuery);
+    const genreFilter = useMusicStore(s => s.genreFilter);
+    const setGenreFilter = useMusicStore(s => s.setGenreFilter);
+    const tagFilters = useMusicStore(s => s.tagFilters);
+    const toggleTagFilter = useMusicStore(s => s.toggleTagFilter);
+    const bpmFilter = useMusicStore(s => s.bpmFilter);
+    const setBpmFilter = useMusicStore(s => s.setBpmFilter);
+    const clearFilters = useMusicStore(s => s.clearFilters);
+    const genres = useMusicStore(s => s.genres);
+    const tags = useMusicStore(s => s.tags);
+    const categoryOrder = useMusicStore(s => s.categoryOrder);
+    const featuredCategories = useMusicStore(s => s.featuredCategories);
+    const sortableCategories = useMusicStore(s => s.sortableCategories);
+    const musicPlaylists = useMusicStore(s => s.musicPlaylists);
+    const activePlaylistId = useMusicStore(s => s.activePlaylistId);
+    const setActivePlaylist = useMusicStore(s => s.setActivePlaylist);
 
     const { musicSortBy, musicSortAsc, setMusicSortBy, setMusicSortAsc } = useFilterStore();
 

@@ -73,7 +73,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
                 <MessageSquare size={16} />
                 <span className="flex-1 whitespace-nowrap overflow-hidden text-ellipsis">All Chats</span>
                 <div className="flex gap-0.5 min-w-[48px] justify-end" />
-                <span className="text-[11px] text-text-tertiary whitespace-nowrap">{conversations.length}</span>
+                <span className="text-[11px] text-text-tertiary whitespace-nowrap select-none cursor-default group-hover:text-text-primary transition-colors">{conversations.length}</span>
             </button>
 
             {projects.map((project) => {
@@ -93,7 +93,7 @@ export const ProjectList: React.FC<ProjectListProps> = ({
                             </button>
                             {onDelete && (
                                 <button
-                                    className={`${actionBtnClass} hover:!text-[var(--danger-color,#cc0000)]`}
+                                    className={`${actionBtnClass} hover:!text-red-400`}
                                     onClick={(e) => { e.stopPropagation(); onDelete(project.id); }}
                                     title="Delete project"
                                 >
@@ -101,15 +101,15 @@ export const ProjectList: React.FC<ProjectListProps> = ({
                                 </button>
                             )}
                         </div>
-                        <span className="text-[11px] text-text-tertiary whitespace-nowrap">{count}</span>
+                        <span className="text-[11px] text-text-tertiary whitespace-nowrap select-none cursor-default group-hover:text-text-primary transition-colors">{count}</span>
                     </div>
                 );
             })}
 
             {projects.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-full gap-2.5 text-text-tertiary text-[13px] text-center p-6" style={{ paddingTop: 40 }}>
+                <div className="flex flex-col items-center justify-center h-full gap-2.5 text-text-tertiary text-[13px] text-center p-6 pt-10">
                     <FolderOpen size={32} className="opacity-35" />
-                    <span>No projects yet.<br />Click + to create one.</span>
+                    <span className="select-none">No projects yet.<br />Click + to create one.</span>
                 </div>
             )}
         </div>

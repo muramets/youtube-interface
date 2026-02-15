@@ -22,6 +22,10 @@ export interface ChatConversation {
     title: string;
     summary?: string;           // cached conversation summary
     summarizedUpTo?: string;    // ID of last message included in summary
+    lastError?: {               // server-set: explicit failure signal for recovery
+        messageId: string;
+        error: string;
+    } | null;
     createdAt: Timestamp;
     updatedAt: Timestamp;
 }

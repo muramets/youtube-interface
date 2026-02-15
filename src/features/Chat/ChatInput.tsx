@@ -3,10 +3,11 @@
 // =============================================================================
 
 import React, { useState, useRef, useCallback } from 'react';
-import { Paperclip, Send, X, FileAudio, FileVideo, Square, Loader2, Check, AlertCircle } from 'lucide-react';
+import { Paperclip, Send, X, FileAudio, FileVideo, File, Image, Square, Loader2, Check, AlertCircle } from 'lucide-react';
 import { getAttachmentType } from '../../core/services/aiService';
 import type { StagedFile, ReadyAttachment } from '../../core/types/chatAttachment';
 import { useChatStore } from '../../core/stores/chatStore';
+import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 
 interface ChatInputProps {
     onSend: (text: string, attachments?: ReadyAttachment[]) => void;
@@ -53,11 +54,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }
     }, [handleSend]);
 
+    const MAX_INPUT_HEIGHT = 120;
+
     const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
         setText(e.target.value);
         const el = e.target;
         el.style.height = 'auto';
-        el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+        el.style.height = Math.min(el.scrollHeight, MAX_INPUT_HEIGHT) + 'px';
+        el.style.overflowY = el.scrollHeight > MAX_INPUT_HEIGHT ? 'auto' : 'hidden';
     }, []);
 
     const handleFileSelect = useCallback((selectedFiles: FileList | null) => {
@@ -76,7 +80,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 if (file) files.push(file);
             }
         }
-        if (files.length > 0) onAddFiles(files);
+        if (files.length > 0) {
+            e.preventDefault();
+            onAddFiles(files);
+        }
     }, [onAddFiles]);
 
     const baseBtnClass = "shrink-0 w-9 h-9 rounded-lg border border-border flex items-center justify-center cursor-pointer transition-colors duration-100 text-text-secondary bg-button-secondary-bg hover:bg-button-secondary-hover hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed";
@@ -91,26 +98,30 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         return (
                             <div
                                 key={staged.id}
-                                className={`flex items-center gap-1 px-2 py-1 rounded-md bg-video-edit-bg border border-border text-xs text-text-secondary transition-all duration-200 ${staged.status === 'uploading' ? 'opacity-75 animate-chip-pulse' : ''} ${staged.status === 'ready' ? 'border-[var(--success-color,#22c55e)]' : ''} ${staged.status === 'error' ? 'border-[var(--danger-color,#cc0000)]' : ''}`}
+                                className={`flex items-center gap-1 px-2 py-1 rounded-md bg-video-edit-bg border border-border text-xs text-text-secondary transition-all duration-200 ${staged.status === 'uploading' ? 'opacity-75 animate-chip-pulse' : ''} ${staged.status === 'ready' ? 'border-emerald-500' : ''} ${staged.status === 'error' ? 'border-red-400' : ''}`}
                             >
                                 {/* Status indicator */}
                                 {staged.status === 'uploading' && (
-                                    <Loader2 size={14} className="chat-spin" />
+                                    <Loader2 size={14} className="animate-spin" />
                                 )}
                                 {staged.status === 'ready' && (
-                                    <Check size={14} className="text-[var(--success-color,#22c55e)]" />
+                                    <Check size={14} className="text-emerald-500" />
                                 )}
                                 {staged.status === 'error' && (
-                                    <AlertCircle size={14} className="text-[var(--danger-color,#cc0000)]" />
+                                    <PortalTooltip content={staged.error || 'Upload failed'} variant="glass" side="top">
+                                        <span className="flex">
+                                            <AlertCircle size={14} className="text-red-400" />
+                                        </span>
+                                    </PortalTooltip>
                                 )}
 
                                 {/* File type icon (only when not showing status) */}
                                 {staged.status === 'ready' && (
                                     <>
-                                        {type === 'image' && '🖼️'}
+                                        {type === 'image' && <Image size={14} />}
                                         {type === 'audio' && <FileAudio size={14} />}
                                         {type === 'video' && <FileVideo size={14} />}
-                                        {type === 'file' && '📎'}
+                                        {type === 'file' && <File size={14} />}
                                     </>
                                 )}
 
@@ -119,7 +130,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                         ? staged.file.name.slice(0, 17) + '...'
                                         : staged.file.name}
                                 </span>
-                                <button className="bg-transparent border-none p-0 text-text-tertiary cursor-pointer flex text-sm leading-none hover:text-[var(--danger-color,#cc0000)]" onClick={() => onRemoveFile(staged.id)} title="Remove">
+                                <button className="bg-transparent border-none p-1 rounded text-text-tertiary cursor-pointer flex text-sm leading-none hover:bg-hover-bg hover:text-[var(--danger-color,#cc0000)] transition-colors" onClick={() => onRemoveFile(staged.id)} title="Remove">
                                     <X size={12} />
                                 </button>
                             </div>
@@ -140,7 +151,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
                 <textarea
                     ref={textareaRef}
-                    className="flex-1 resize-none border border-border rounded-[10px] py-2 px-3 text-[13px] leading-snug max-h-[120px] bg-input-bg text-text-primary outline-none transition-colors duration-100 font-[inherit] focus:border-text-tertiary placeholder:text-text-tertiary"
+                    className="chat-input-textarea flex-1 resize-none border border-border rounded-[10px] py-2 px-3 text-[13px] leading-snug max-h-[120px] overflow-hidden bg-input-bg text-text-primary outline-none transition-colors duration-100 font-[inherit] focus:border-text-tertiary placeholder:text-text-tertiary caret-text-secondary"
                     value={text}
                     onChange={handleTextChange}
                     onKeyDown={handleKeyDown}
@@ -152,7 +163,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
                 {isStreaming ? (
                     <button
-                        className={`${baseBtnClass} !bg-[var(--danger-color,#cc0000)] !text-white !border-transparent hover:!opacity-85`}
+                        className={`${baseBtnClass} !bg-[var(--danger-color,#cc0000)] !text-white !border-transparent hover:!brightness-90 transition-all`}
                         onClick={onStop}
                         title="Stop generation"
                     >
@@ -160,13 +171,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     </button>
                 ) : (
                     <button
-                        className={`${baseBtnClass} !bg-text-primary !text-[var(--video-edit-bg,var(--bg-primary))] !border-transparent hover:!opacity-85`}
+                        className={`${baseBtnClass} !bg-text-primary !text-[var(--video-edit-bg,var(--bg-primary))] !border-transparent hover:!brightness-90 transition-all`}
                         onClick={handleSend}
                         disabled={disabled || !canSend}
                         title={isAnyUploading ? 'Waiting for uploads…' : 'Send'}
                     >
                         {isAnyUploading ? (
-                            <Loader2 size={18} className="chat-spin" />
+                            <Loader2 size={18} className="animate-spin" />
                         ) : (
                             <Send size={18} />
                         )}

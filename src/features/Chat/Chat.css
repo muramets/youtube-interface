@@ -42,23 +42,63 @@
 
 .chat-resize-left {
     left: -3px;
-    top: 8px;
-    bottom: 8px;
+    top: 14px;
+    bottom: 14px;
+    width: 6px;
+    cursor: ew-resize;
+}
+
+.chat-resize-right {
+    right: -3px;
+    top: 14px;
+    bottom: 14px;
     width: 6px;
     cursor: ew-resize;
 }
 
 .chat-resize-top {
     top: -3px;
-    left: 8px;
-    right: 8px;
+    left: 14px;
+    right: 14px;
     height: 6px;
     cursor: ns-resize;
 }
 
-.chat-resize-corner {
+.chat-resize-bottom {
+    bottom: -3px;
+    left: 14px;
+    right: 14px;
+    height: 6px;
+    cursor: ns-resize;
+}
+
+.chat-resize-corner-tl {
     top: -4px;
     left: -4px;
+    width: 14px;
+    height: 14px;
+    cursor: nwse-resize;
+}
+
+.chat-resize-corner-tr {
+    top: -4px;
+    right: -4px;
+    width: 14px;
+    height: 14px;
+    cursor: nesw-resize;
+}
+
+.chat-resize-corner-bl {
+    bottom: -4px;
+    left: -4px;
+    width: 14px;
+    height: 14px;
+    cursor: nesw-resize;
+}
+
+.chat-resize-corner-br {
+    bottom: -4px;
+    right: -4px;
     width: 14px;
     height: 14px;
     cursor: nwse-resize;
@@ -84,6 +124,31 @@
 
 .chat-messages::-webkit-scrollbar-thumb:hover,
 .chat-list-container::-webkit-scrollbar-thumb:hover {
+    background: var(--text-tertiary);
+}
+
+/* --- Chat input textarea scrollbar (thin, respects border-radius) --- */
+
+.chat-input-textarea {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.chat-input-textarea::-webkit-scrollbar {
+    width: 3px;
+}
+
+.chat-input-textarea::-webkit-scrollbar-track {
+    background: transparent;
+    margin: 8px 0;
+}
+
+.chat-input-textarea::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+.chat-input-textarea::-webkit-scrollbar-thumb:hover {
     background: var(--text-tertiary);
 }
 
@@ -211,24 +276,8 @@
     opacity: 1;
 }
 
-/* --- Streaming dot animation --- */
 
-.chat-streaming-dot {
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--text-tertiary);
-    animation: stream-pulse 1s ease-in-out infinite;
-    margin-left: 4px;
-    vertical-align: middle;
-}
 
-/* --- Spinning animation (for loaders) --- */
-
-.chat-spin {
-    animation: chat-spin 0.8s linear infinite;
-}
 
 /* --- Copy button visibility on message hover --- */
 

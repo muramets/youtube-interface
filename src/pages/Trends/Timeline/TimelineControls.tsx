@@ -3,6 +3,7 @@ import { RotateCcw } from 'lucide-react';
 import { VerticalSpreadControl } from './VerticalSpreadControl';
 import { TimeDistributionControl } from './TimeDistributionControl';
 import { ControlPill } from './components/ControlPill';
+import { useMusicStore } from '../../../core/stores/musicStore';
 
 interface TimelineControlsProps {
     scale: number;
@@ -34,6 +35,7 @@ export const TimelineControls: React.FC<TimelineControlsProps> = ({
     isLoading = false
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
+    const hasAudioPlayer = !!useMusicStore((s) => s.playingTrackId);
 
     // -- LOGIC --
 
@@ -46,7 +48,7 @@ export const TimelineControls: React.FC<TimelineControlsProps> = ({
     return (
         <div
             ref={containerRef}
-            className={`absolute bottom-4 right-6 pointer-events-auto z-sticky group select-none flex flex-col items-end gap-3 ${isLoading ? 'opacity-50 pointer-events-none grayscale' : ''}`}
+            className={`absolute ${hasAudioPlayer ? 'bottom-[88px]' : 'bottom-4'} right-6 pointer-events-auto z-sticky group select-none flex flex-col items-end gap-3 transition-[bottom] duration-200 ${isLoading ? 'opacity-50 pointer-events-none grayscale' : ''}`}
             onDragStart={(e) => e.preventDefault()}
         >
             {/* 1. Vertical Spread Control (Top) */}

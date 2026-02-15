@@ -50,7 +50,7 @@ export const VerticalSpreadControl: React.FC<VerticalSpreadControlProps> = ({
 
             {/* Tooltip (Left side) */}
             {showTooltip && !isDragging && !isLoading && (
-                <div className="absolute right-full top-1/2 -translate-y-1/2 mr-3 pointer-events-none z-50 whitespace-nowrap">
+                <div className="absolute bottom-full right-0 mb-3 pointer-events-none z-50 whitespace-nowrap">
                     <div className="bg-black/90 backdrop-blur text-white text-[10px] px-2 py-1 rounded shadow-xl border border-white/10">
                         vertical spread
                     </div>

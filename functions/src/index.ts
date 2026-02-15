@@ -331,9 +331,10 @@ export const aiChat = onRequest(
         res.setHeader("Connection", "keep-alive");
         res.flushHeaders();
 
+        const convPath = `users/${userId}/channels/${body.channelId}/chatConversations/${body.conversationId}`;
+
         try {
             // Read conversation history from Firestore
-            const convPath = `users/${userId}/channels/${body.channelId}/chatConversations/${body.conversationId}`;
             const messagesPath = `${convPath}/messages`;
             const [messagesSnap, convDoc] = await Promise.all([
                 db.collection(messagesPath).orderBy("createdAt", "asc").get(),
@@ -404,17 +405,21 @@ export const aiChat = onRequest(
                 })}\n\n`
             );
 
-            // Cache summary + log usage BEFORE ending response
+            // Cache summary + log usage + clear error BEFORE ending response
             // (CF runtime may be deallocated after res.end())
             const afterTasks: Promise<unknown>[] = [];
+
+            // Always clear lastError on success
+            const convUpdate: Record<string, unknown> = { lastError: admin.firestore.FieldValue.delete() };
             if (memory.newSummary && memory.summarizedUpTo) {
-                afterTasks.push(
-                    db.doc(convPath).update({
-                        summary: memory.newSummary,
-                        summarizedUpTo: memory.summarizedUpTo,
-                    }).catch(err => console.warn(`[aiChat] Failed to save summary for ${convPath}`, err))
-                );
+                convUpdate.summary = memory.newSummary;
+                convUpdate.summarizedUpTo = memory.summarizedUpTo;
             }
+            afterTasks.push(
+                db.doc(convPath).update(convUpdate)
+                    .catch(err => console.warn(`[aiChat] Failed to update conversation for ${convPath}`, err))
+            );
+
             if (tokenUsage) {
                 afterTasks.push(
                     logAiUsage(userId, body.channelId, body.conversationId, model, tokenUsage, "chat").catch(err => console.warn('[aiChat] Failed to log usage', err))
@@ -424,6 +429,18 @@ export const aiChat = onRequest(
             res.end();
         } catch (err) {
             const message = err instanceof Error ? err.message : "AI generation failed";
+
+            // Write lastError to conversation doc so the client can recover.
+            // Find the last user message ID to tag the error.
+            const messagesForError = await db.collection(`${convPath}/messages`)
+                .where('role', '==', 'user').orderBy('createdAt', 'desc').limit(1).get();
+            const lastUserMsgId = messagesForError.docs[0]?.id;
+            if (lastUserMsgId) {
+                db.doc(convPath).update({
+                    lastError: { messageId: lastUserMsgId, error: message },
+                }).catch(e => console.warn('[aiChat] Failed to write lastError', e));
+            }
+
             res.write(`data: ${JSON.stringify({ type: "error", error: message })}\n\n`);
             res.end();
         }
@@ -461,9 +478,23 @@ export const geminiUpload = onCall(
             throw new HttpsError("internal", "Gemini API key is not configured on the server.");
         }
 
-        const { uploadFromStoragePath } = await import("./services/gemini.js");
-        const result = await uploadFromStoragePath(apiKey, storagePath, mimeType, displayName || "attachment");
-        return { uri: result.uri, expiryMs: result.expiryMs };
+        try {
+            const { uploadFromStoragePath } = await import("./services/gemini.js");
+            const result = await uploadFromStoragePath(apiKey, storagePath, mimeType, displayName || "attachment");
+            return { uri: result.uri, expiryMs: result.expiryMs };
+        } catch (err) {
+            if (err instanceof HttpsError) throw err;
+            const msg = err instanceof Error ? err.message : "Unknown error";
+            console.error("geminiUpload failed", { userId, storagePath, mimeType, error: msg });
+
+            // Cleanup: delete orphaned file from Storage (fire-and-forget)
+            try {
+                const admin = await import("firebase-admin");
+                await admin.default.storage().bucket().file(storagePath).delete();
+            } catch { /* ignore cleanup errors */ }
+
+            throw new HttpsError("internal", `File upload to Gemini failed: ${msg}`);
+        }
     }
 );
 
@@ -526,7 +557,6 @@ export const onConversationDeleted = onDocumentDeleted(
         );
         const messageSnap = await messagesRef.get();
         if (!messageSnap.empty) {
-            // Delete in batches of 500 (Firestore batch limit)
             const docs = messageSnap.docs;
             for (let i = 0; i < docs.length; i += 500) {
                 const batch = db.batch();
@@ -539,7 +569,7 @@ export const onConversationDeleted = onDocumentDeleted(
             console.log(`[onConversationDeleted] Deleted ${docs.length} messages for conversation ${conversationId}`);
         }
 
-        // 2. Delete Storage attachments folder
+        // 2. Delete Storage attachments folder (conversation-scoped)
         const bucket = admin.storage().bucket();
         const prefix = `users/${userId}/channels/${channelId}/chatAttachments/${conversationId}/`;
         try {
