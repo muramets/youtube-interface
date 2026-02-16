@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import { flushSync } from 'react-dom';
 import {
     useSensor,
@@ -47,8 +47,13 @@ export const usePlaylistDnD = ({
     const [justDroppedId, setJustDroppedId] = useState<string | null>(null);
 
     // Local State for Optimistic UI
-    const [localPlaylists, setLocalPlaylists] = useState<Playlist[]>([]);
-    const [localGroupOrder, setLocalGroupOrder] = useState<string[]>([]);
+    const [localPlaylists, setLocalPlaylists] = useState<Playlist[]>(() => {
+        return groupedPlaylists.flatMap(([, ps]) => ps);
+    });
+    const localPlaylistsRef = useRef<Playlist[]>(localPlaylists);
+    const [localGroupOrder, setLocalGroupOrder] = useState<string[]>(() => {
+        return groupedPlaylists.map(([g]) => g);
+    });
     const isDraggingRef = useRef(false);
     // Version counter pattern: increment when we want to skip the next sync
     // Both are state to allow safe access during render (React Compiler compliant)
@@ -58,13 +63,25 @@ export const usePlaylistDnD = ({
     // Sync local state when props change (if not dragging)
     // Note: We use a ref to track if sync should be skipped to avoid setState cascade
     const shouldSkipSyncRef = useRef(false);
+    // Track initial state at drag start for diffing at drag end
+    const initialPlaylistsRef = useRef<Playlist[]>([]);
+    // Anti-bounce: track last within-group move to prevent dnd-kit remeasurement oscillation
+    const lastMoveRef = useRef<{ activeId: string; overId: string; oldIndex: number; newIndex: number } | null>(null);
 
     // Update the skip flag when versions mismatch
-    useEffect(() => {
+    // Update the skip flag BEFORE the sync layout effect checks it
+    // Must be useLayoutEffect (not useEffect) because the sync below is also useLayoutEffect.
+    // React runs layout effects top-to-bottom, so this runs first.
+    useLayoutEffect(() => {
         shouldSkipSyncRef.current = syncSkipVersion > lastProcessedVersion;
     }, [syncSkipVersion, lastProcessedVersion]);
 
+    // Keep ref in sync with committed state (for handleDragEnd to read latest)
     useEffect(() => {
+        localPlaylistsRef.current = localPlaylists;
+    }, [localPlaylists]);
+
+    useLayoutEffect(() => {
         if (!isDraggingRef.current) {
             // If we just performed a mode switch via drag, skip this sync cycle
             if (shouldSkipSyncRef.current) {
@@ -93,19 +110,18 @@ export const usePlaylistDnD = ({
     // Optimistic UI: only use local state when in default/manual sort mode
     // In other sort modes, return groupedPlaylists directly to preserve external sort
     const optimisticGroupedPlaylists = useMemo(() => {
-        // If not actively dragging AND not waiting for sync (pending persist), return original
-        // This prevents flickering on cancel, but allows local state to persist after drop
-        // Check if we're in a "skip sync" state by comparing versions (both are state, safe for render)
-        const hasPendingSkip = syncSkipVersion > lastProcessedVersion;
-
-        if (!active.id && !hasPendingSkip) {
-            return groupedPlaylists;
-        }
-
-        // If not in default mode, return groupedPlaylists directly
+        // In non-default sort modes, always return the externally-sorted data
         if (sortBy !== 'default') {
             return groupedPlaylists;
         }
+
+        // In default mode, ALWAYS rebuild from localPlaylists.
+        // localPlaylists is synced from groupedPlaylists via the sync effect
+        // when there are no pending changes, so they are equivalent.
+        // Previously we fell back to groupedPlaylists when !active.id && !hasPendingSkip,
+        // but this caused a 1-frame revert to old order after drag end because
+        // setLastProcessedVersion clears hasPendingSkip before the backend write
+        // propagates back to groupedPlaylists.
 
         // Rebuild groups from local state
         const groups: Record<string, Playlist[]> = {};
@@ -136,7 +152,7 @@ export const usePlaylistDnD = ({
         });
 
         return result;
-    }, [localPlaylists, localGroupOrder, sortBy, groupedPlaylists, active.id, syncSkipVersion, lastProcessedVersion]);
+    }, [localPlaylists, localGroupOrder, sortBy, groupedPlaylists]);
 
 
     const sensors = useSensors(
@@ -150,6 +166,9 @@ export const usePlaylistDnD = ({
 
         setJustDroppedId(null);
         isDraggingRef.current = true;
+        // Capture initial state
+        initialPlaylistsRef.current = [...localPlaylists];
+        lastMoveRef.current = null;
 
         let playlist: Playlist | null = null;
         let group: string | null = null;
@@ -219,23 +238,64 @@ export const usePlaylistDnD = ({
             // Update Local State
             const currentGroup = activePlaylist.group || 'Ungrouped';
             if (currentGroup !== targetGroup) {
-                // Moved to different group
+                // Moved to different group — remove from old position and insert next to 'over'
                 setLocalPlaylists(prev => {
-                    return prev.map(p => {
-                        if (String(p.id) === activeIdStr) {
-                            return { ...p, group: targetGroup === 'Ungrouped' ? undefined : targetGroup };
+                    // Use prev (latest state) to find the active playlist, not the stale closure
+                    const activeInPrev = prev.find(p => String(p.id) === activeIdStr);
+                    if (!activeInPrev) return prev;
+
+                    // Check if move is still needed (might have been done by previous setState)
+                    const currentGroupInPrev = activeInPrev.group || 'Ungrouped';
+                    if (currentGroupInPrev === targetGroup) return prev; // Already moved
+
+                    const updated = { ...activeInPrev, group: targetGroup === 'Ungrouped' ? undefined : targetGroup };
+                    const without = prev.filter(p => String(p.id) !== activeIdStr);
+
+                    // Find where to insert: next to the 'over' item, or at end of group
+                    const overIndex = without.findIndex(p => String(p.id) === overIdStr);
+                    if (overIndex !== -1) {
+                        // Insert BEFORE the 'over' item (standard sortable behavior)
+                        without.splice(overIndex, 0, updated);
+                    } else {
+                        // Dropped on group header or placeholder — append to end of group
+                        // Find the last item in the target group
+                        let insertIdx = without.length;
+                        for (let i = without.length - 1; i >= 0; i--) {
+                            if ((without[i].group || 'Ungrouped') === targetGroup) {
+                                insertIdx = i + 1;
+                                break;
+                            }
                         }
-                        return p;
-                    });
+                        without.splice(insertIdx, 0, updated);
+                    }
+
+                    const result: Playlist[] = [...without];
+                    localPlaylistsRef.current = result;
+                    return result;
                 });
             } else {
-                // Reordering within same group
+                // Reordering within same group (Live Pattern)
+                // Since we use MeasuringStrategy.Always, we can safely mutate the DOM
+                // without dnd-kit calculating stale transforms.
                 if (!overIdStr.startsWith('group-')) {
-                    const oldIndex = localPlaylists.findIndex(p => String(p.id) === activeIdStr);
-                    const newIndex = localPlaylists.findIndex(p => String(p.id) === overIdStr);
-                    if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-                        setLocalPlaylists(prev => arrayMove(prev, oldIndex, newIndex));
-                    }
+                    setLocalPlaylists(prev => {
+                        const oldIndex = prev.findIndex(p => String(p.id) === activeIdStr);
+                        const newIndex = prev.findIndex(p => String(p.id) === overIdStr);
+                        if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+                            // Anti-bounce: if this is the exact reverse of the last move
+                            // (same pair, indices swapped), skip it — it's a dnd-kit remeasurement bounce
+                            const last = lastMoveRef.current;
+                            if (last && last.activeId === activeIdStr && last.overId === overIdStr
+                                && last.oldIndex === newIndex && last.newIndex === oldIndex) {
+                                return prev; // Skip bounce
+                            }
+                            lastMoveRef.current = { activeId: activeIdStr, overId: overIdStr, oldIndex, newIndex };
+                            const result = arrayMove(prev, oldIndex, newIndex);
+                            localPlaylistsRef.current = result;
+                            return result;
+                        }
+                        return prev;
+                    });
                 }
             }
         }
@@ -245,12 +305,15 @@ export const usePlaylistDnD = ({
         const { active: dndActive, over } = event;
         const activeIdStr = String(dndActive.id);
 
-        isDraggingRef.current = false;
-        setActive({ id: null, playlist: null, group: null });
-        setJustDroppedId(activeIdStr);
-        setTimeout(() => setJustDroppedId(null), 50);
+        const cleanup = () => {
+            isDraggingRef.current = false;
+            setActive({ id: null, playlist: null, group: null });
+            setJustDroppedId(activeIdStr);
+            setTimeout(() => setJustDroppedId(null), 50);
+        };
 
         if (!over) {
+            cleanup();
             return;
         }
 
@@ -289,7 +352,12 @@ export const usePlaylistDnD = ({
                         // Update local state and block next sync
                         setLocalGroupOrder(newGroupOrder);
                         setSyncSkipVersion(v => v + 1);
+                        cleanup();
+                    } else {
+                        cleanup();
                     }
+                } else {
+                    cleanup();
                 }
 
                 // Switch to default mode with full visual baseline
@@ -334,26 +402,33 @@ export const usePlaylistDnD = ({
                     setLocalPlaylists(updatedPlaylists);
                     setSyncSkipVersion(v => v + 1);
 
+                    cleanup();
                     onSortModeSwitch?.(updatedPlaylists);
                     return;
                 } else if (!overIdStr.startsWith('group-')) {
-                    // Reorder within same group
-                    const currentGroupPlaylists = localPlaylists.filter(
-                        p => (p.group || 'Ungrouped') === currentGroup
-                    );
-                    const newOrderedIds = currentGroupPlaylists.map(p => String(p.id));
-
+                    // Reorder within same group — compute new order from active/over IDs
                     const originalGroupEntry = groupedPlaylists.find(([gName]) => gName === currentGroup);
                     const originalOrderedIds = originalGroupEntry
                         ? originalGroupEntry[1].map(p => String(p.id))
                         : [];
 
-                    if (JSON.stringify(newOrderedIds) !== JSON.stringify(originalOrderedIds)) {
+                    const oldIdx = originalOrderedIds.indexOf(activeIdStr);
+                    const newIdx = originalOrderedIds.indexOf(overIdStr);
+
+                    if (oldIdx !== -1 && newIdx !== -1 && oldIdx !== newIdx) {
+                        const newOrderedIds = arrayMove(originalOrderedIds, oldIdx, newIdx);
                         onReorderPlaylists(newOrderedIds);
                         setSyncSkipVersion(v => v + 1);
 
-                        // Rebuild with reorder applied, still per-group normalized
-                        const reorderedPlaylists = localPlaylists.map((p, i) => ({ ...p, order: i }));
+                        // Rebuild with reorder applied
+                        // We use the full localPlaylists list to ensure global indices are correct if needed,
+                        // but here we just need to assign the new 'order' property.
+                        // Actually, simpler to just map the new order to the items.
+                        const reorderedPlaylists = localPlaylists.map((p) => {
+                            const orderIdx = newOrderedIds.indexOf(String(p.id));
+                            return orderIdx !== -1 ? { ...p, order: orderIdx } : { ...p, order: 9999 };
+                        });
+                        cleanup();
                         onSortModeSwitch?.(reorderedPlaylists);
                         return;
                     }
@@ -402,69 +477,46 @@ export const usePlaylistDnD = ({
             return;
         }
 
-        // Playlist Persist
-        const movedPlaylist = localPlaylists.find(p => String(p.id) === activeIdStr);
-        const overIdStr = String(over.id);
+        // Playlist Persist (Simpler Diff Strategy)
+        // We compare the final state (localPlaylistsRef) with the initial state (initialPlaylistsRef)
+        // to determine if a move or reorder occurred.
+        // NOTE: We use the REF (not the closure) because handleDragOver's setLocalPlaylists
+        // may not have committed to a React render yet, but the ref is updated synchronously.
+        const latestPlaylists = localPlaylistsRef.current;
+        const movedPlaylist = latestPlaylists.find(p => String(p.id) === activeIdStr);
+        const originalPlaylist = initialPlaylistsRef.current.find(p => String(p.id) === activeIdStr);
 
+        if (movedPlaylist && originalPlaylist) {
+            const finalGroup = movedPlaylist.group || 'Ungrouped';
+            const initialGroup = originalPlaylist.group || 'Ungrouped';
 
-        if (movedPlaylist) {
-            // Determine target group
-            let targetGroup = movedPlaylist.group || 'Ungrouped';
-            if (overIdStr.startsWith('placeholder-')) {
-                targetGroup = overIdStr.replace('placeholder-', '');
-            } else if (overIdStr.startsWith('group-')) {
-                targetGroup = overIdStr.replace('group-', '');
-            } else {
-                const overPlaylist = localPlaylists.find(p => String(p.id) === overIdStr);
-                if (overPlaylist) {
-                    targetGroup = overPlaylist.group || 'Ungrouped';
-                }
-            }
+            if (finalGroup !== initialGroup) {
+                // Cross-Group Move
+                const groupItems = latestPlaylists.filter(p => (p.group || 'Ungrouped') === finalGroup);
+                const newOrderedIds = groupItems.map(p => String(p.id));
 
-            const currentGroup = movedPlaylist.group || 'Ungrouped';
-
-
-            // Find original playlist to check if group changed
-            const originalPlaylist = groupedPlaylists.flatMap(g => g[1]).find(p => String(p.id) === activeIdStr);
-
-            if (originalPlaylist && (originalPlaylist.group || 'Ungrouped') !== targetGroup) {
-
-                // Group Change - update localPlaylists with new group
-                const updatedPlaylists = localPlaylists.map(p =>
-                    String(p.id) === activeIdStr
-                        ? { ...p, group: targetGroup === 'Ungrouped' ? undefined : targetGroup }
-                        : p
-                );
-                setLocalPlaylists(updatedPlaylists);
-
-                const playlistsInTargetGroup = updatedPlaylists.filter(
-                    p => (p.group || 'Ungrouped') === targetGroup
-                );
-                const orderedIds = playlistsInTargetGroup.map(p => String(p.id));
-
-                onMovePlaylist(activeIdStr, targetGroup, orderedIds);
+                onMovePlaylist(activeIdStr, finalGroup, newOrderedIds);
                 setSyncSkipVersion(v => v + 1);
-            } else if (!overIdStr.startsWith('group-')) {
-                // Reorder within same group
+                cleanup();
+            } else {
+                // Within-Group Reorder?
+                // We need to check if the ORDER in this group changed.
+                const finalGroupItems = latestPlaylists.filter(p => (p.group || 'Ungrouped') === finalGroup);
+                const initialGroupItems = initialPlaylistsRef.current.filter(p => (p.group || 'Ungrouped') === finalGroup);
 
-                // Since we mutated localPlaylists in DragOver, we can't reliably use index comparison
-                // Compare current order in localPlaylists with original order in groupedPlaylists
-                const currentGroupPlaylists = localPlaylists.filter(
-                    p => (p.group || 'Ungrouped') === currentGroup
-                );
-                const newOrderedIds = currentGroupPlaylists.map(p => String(p.id));
+                const finalIds = finalGroupItems.map(p => String(p.id));
+                const initialIds = initialGroupItems.map(p => String(p.id));
 
-                // Find original order
-                const originalGroupEntry = groupedPlaylists.find(([gName]) => gName === currentGroup);
-                const originalOrderedIds = originalGroupEntry
-                    ? originalGroupEntry[1].map(p => String(p.id))
-                    : [];
-
-                if (JSON.stringify(newOrderedIds) !== JSON.stringify(originalOrderedIds)) {
-                    onReorderPlaylists(newOrderedIds);
+                if (JSON.stringify(finalIds) !== JSON.stringify(initialIds)) {
+                    onReorderPlaylists(finalIds);
                     setSyncSkipVersion(v => v + 1);
+                    cleanup();
+                } else {
+                    cleanup();
                 }
             }
+        } else {
+            cleanup();
         }
 
     }, [groupedPlaylists, localPlaylists, onReorderGroups, onReorderPlaylists, onMovePlaylist, onBatchNormalizeOrders, sortBy, onSortModeSwitch, setSyncSkipVersion, setLocalPlaylists, setLocalGroupOrder]);

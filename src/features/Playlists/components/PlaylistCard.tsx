@@ -140,9 +140,16 @@ export const SortablePlaylistCard: React.FC<PlaylistCardProps & { isDragEnabled?
         isDragging
     } = useSortable({ id: props.playlist.id, disabled: !isDragEnabled });
 
+    // During cross-container migration, dnd-kit produces large stale transforms
+    // because droppable rects are measured only before drag starts (MeasuringStrategy.BeforeDragging).
+    // Non-dragged items should never need transforms larger than ~2 card sizes (~600px).
+    // Suppress these to prevent cards from flying off-screen.
+    const isStaleTransform = !isDragging && transform &&
+        (Math.abs(transform.x) > 600 || Math.abs(transform.y) > 600);
+
     const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
+        transform: isStaleTransform ? undefined : CSS.Transform.toString(transform),
+        transition: isStaleTransform ? undefined : transition,
         zIndex: isDragging ? 1000 : 'auto',
         opacity: isDragging ? 0 : 1, // Completely hide when dragging - DragOverlay shows the ghost
         touchAction: 'none',

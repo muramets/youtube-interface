@@ -34,11 +34,11 @@ import { usePlaylistDnD } from '../../features/Playlists/hooks/usePlaylistDnD';
 import { PlaylistGroup } from '../../features/Playlists/components/PlaylistGroup';
 import { GroupSettingsModal } from '../../features/Playlists/modals/GroupSettingsModal';
 
-// Stable measuring config — prevents measureRect → setState infinite loop
-// when dragging items across groups by only measuring droppables before drag starts
+// using Always ensures that when we mutate the DOM (Live Pattern), dnd-kit
+// immediately remeasures the containers, preventing stale transforms/flying cards.
 const DND_MEASURING_CONFIG = {
     droppable: {
-        strategy: MeasuringStrategy.BeforeDragging,
+        strategy: MeasuringStrategy.Always,
     },
 };
 
