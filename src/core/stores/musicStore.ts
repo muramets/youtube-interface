@@ -266,7 +266,7 @@ export const useMusicStore = create<MusicState>((set) => ({
         const groupId = sourceTrack.groupId || targetTrack.groupId || uuidv4();
 
         // Collect all track IDs that need this groupId
-        const idsToLink = new Set<string>([sourceTrackId, targetTrackId]);
+        const idsToLink = new Set<string>([targetTrackId, sourceTrackId]);
         // If either track is already in a group, include all members
         for (const t of tracks) {
             if (t.groupId && (t.groupId === sourceTrack.groupId || t.groupId === targetTrack.groupId)) {

@@ -48,10 +48,13 @@ interface TagTabProps {
 // ID helpers
 const CAT_PREFIX = 'cat-order:';
 const ZONE_PREFIX = 'category:';
+const ADD_ZONE_PREFIX = 'add-zone:';
 const isCatDragId = (id: string) => id.startsWith(CAT_PREFIX);
 const catFromDragId = (id: string) => id.replace(CAT_PREFIX, '');
 const isZoneId = (id: string) => id.startsWith(ZONE_PREFIX);
 const catFromZoneId = (id: string) => id.replace(ZONE_PREFIX, '');
+const isAddZoneId = (id: string) => id.startsWith(ADD_ZONE_PREFIX);
+const catFromAddZoneId = (id: string) => id.replace(ADD_ZONE_PREFIX, '');
 
 // No-op sort strategy: arrayMove in handleDragOver already handles reordering,
 // so we don't want dnd-kit to ALSO apply visual displacement transforms.
@@ -165,6 +168,32 @@ const DroppableCategoryZone: React.FC<{
         >
             {children}
         </div>
+    );
+};
+
+// --------------- Droppable Add Button (drop target for empty categories) ----
+const DroppableAddButton: React.FC<{
+    category: string;
+    isTagDragActive: boolean;
+    onClick: () => void;
+}> = ({ category, isTagDragActive, onClick }) => {
+    const { setNodeRef, isOver } = useDroppable({
+        id: `${ADD_ZONE_PREFIX}${category}`,
+        disabled: !isTagDragActive,
+    });
+
+    return (
+        <button
+            ref={setNodeRef}
+            onClick={onClick}
+            className={`inline-flex items-center justify-center w-7 h-7 rounded-full transition-colors
+                ${isOver && isTagDragActive
+                    ? 'bg-white/[0.15] text-text-primary ring-1 ring-white/20 scale-110'
+                    : 'bg-white/[0.04] text-text-tertiary hover:bg-white/[0.1] hover:text-text-primary'
+                }`}
+        >
+            <Plus size={14} />
+        </button>
     );
 };
 
@@ -481,8 +510,8 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
         // --- Tag drag ---
         if (!isCatDragId(activeId)) {
             // Drop on category zone → move tag to that category
-            if (isZoneId(overId)) {
-                const targetCat = catFromZoneId(overId);
+            if (isZoneId(overId) || isAddZoneId(overId)) {
+                const targetCat = isZoneId(overId) ? catFromZoneId(overId) : catFromAddZoneId(overId);
                 setLocalTags(prev => {
                     const tag = prev.find(t => t.id === activeId);
                     if (!tag) return prev;
@@ -646,7 +675,7 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
                                                             isCatDragging={isCatDragging}
                                                         />
                                                     ))}
-                                                    {/* Inline add */}
+                                                    {/* Inline add / Droppable "+" button */}
                                                     {addingToCategory === category ? (
                                                         <div className="inline-flex items-center gap-1 bg-white/[0.06] rounded-full pl-3 pr-1 py-1.5">
                                                             <span className="relative inline-flex items-center">
@@ -674,12 +703,11 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
                                                             </button>
                                                         </div>
                                                     ) : (
-                                                        <button
+                                                        <DroppableAddButton
+                                                            category={category}
+                                                            isTagDragActive={isTagDragActive}
                                                             onClick={() => { setAddingToCategory(category); setInlineTagName(''); }}
-                                                            className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-white/[0.04] text-text-tertiary hover:bg-white/[0.1] hover:text-text-primary transition-colors"
-                                                        >
-                                                            <Plus size={14} />
-                                                        </button>
+                                                        />
                                                     )}
                                                 </div>
                                             </SortableCategorySection>
