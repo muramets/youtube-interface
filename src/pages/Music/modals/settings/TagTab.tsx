@@ -177,7 +177,7 @@ const DroppableAddButton: React.FC<{
     isTagDragActive: boolean;
     onClick: () => void;
 }> = ({ category, isTagDragActive, onClick }) => {
-    const { setNodeRef, isOver } = useDroppable({
+    const { setNodeRef } = useDroppable({
         id: `${ADD_ZONE_PREFIX}${category}`,
         disabled: !isTagDragActive,
     });
@@ -186,11 +186,7 @@ const DroppableAddButton: React.FC<{
         <button
             ref={setNodeRef}
             onClick={onClick}
-            className={`inline-flex items-center justify-center w-7 h-7 rounded-full transition-colors
-                ${isOver && isTagDragActive
-                    ? 'bg-white/[0.15] text-text-primary ring-1 ring-white/20 scale-110'
-                    : 'bg-white/[0.04] text-text-tertiary hover:bg-white/[0.1] hover:text-text-primary'
-                }`}
+            className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-white/[0.04] text-text-tertiary hover:bg-white/[0.1] hover:text-text-primary transition-colors"
         >
             <Plus size={14} />
         </button>
