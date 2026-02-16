@@ -6,6 +6,7 @@ import { DetailsSidebar } from './Sidebar/DetailsSidebar';
 import { PackagingTab } from './tabs/Packaging/PackagingTab';
 import { TrafficTab } from './tabs/Traffic/TrafficTab';
 import { GalleryTab } from './tabs/Gallery/GalleryTab';
+import { EditingTab } from './tabs/Editing';
 import { GalleryDndProvider } from './tabs/Gallery/GalleryDndProvider';
 import { usePackagingVersions } from './tabs/Packaging/hooks/usePackagingVersions';
 import { useTrafficFilters } from './tabs/Traffic/hooks/useTrafficFilters';
@@ -68,12 +69,12 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
 
     // URL as Single Source of Truth for Tab State
     // No useState, no useEffect sync - just derive from URL
-    const urlTab = searchParams.get('tab') as 'packaging' | 'traffic' | 'gallery' | null;
-    const activeTab: 'packaging' | 'traffic' | 'gallery' =
-        (urlTab && ['packaging', 'traffic', 'gallery'].includes(urlTab)) ? urlTab : 'packaging';
+    const urlTab = searchParams.get('tab') as 'packaging' | 'traffic' | 'gallery' | 'editing' | null;
+    const activeTab: 'packaging' | 'traffic' | 'gallery' | 'editing' =
+        (urlTab && ['packaging', 'traffic', 'gallery', 'editing'].includes(urlTab)) ? urlTab : 'packaging';
 
     // URL-based tab navigation (replacement for setActiveTab)
-    const navigateToTab = useCallback((tab: 'packaging' | 'traffic' | 'gallery') => {
+    const navigateToTab = useCallback((tab: 'packaging' | 'traffic' | 'gallery' | 'editing') => {
         setSearchParams(prev => {
             prev.set('tab', tab);
             return prev;
@@ -288,7 +289,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
 
     // Auto-switch to active version when switching tabs
     // Using direct closure values (simpler, React Compiler compatible)
-    const handleTabChange = useCallback((newTab: 'packaging' | 'traffic' | 'gallery') => {
+    const handleTabChange = useCallback((newTab: 'packaging' | 'traffic' | 'gallery' | 'editing') => {
         // Skip if same tab (activeTab is derived from URL)
         if (newTab === activeTab) return;
 
@@ -316,7 +317,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
             }
         }
 
-        // Gallery tab doesn't need version switching
+        // Gallery and Editing tabs don't need version switching
 
         // Update URL
         setSearchParams(prev => {
@@ -689,6 +690,9 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
                             onRegisterReorder={(handler) => { reorderItemsRef.current = handler; }}
                             onRegisterItems={setGalleryItems}
                         />
+                    )}
+                    {activeTab === 'editing' && (
+                        <EditingTab video={video} />
                     )}
                 </div>
             </GalleryDndWrapper>

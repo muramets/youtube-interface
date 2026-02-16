@@ -22,6 +22,9 @@ export const AudioPlayer: React.FC = () => {
     const currentTime = useMusicStore((s) => s.currentTime);
     const duration = useMusicStore((s) => s.duration);
     const repeatMode = useMusicStore((s) => s.repeatMode);
+    const playingTrimStart = useMusicStore((s) => s.playingTrimStart);
+    const playingTrimEnd = useMusicStore((s) => s.playingTrimEnd);
+    const playbackVolume = useMusicStore((s) => s.playbackVolume);
     const { setPlayingTrack, setIsPlaying, toggleVariant, cycleRepeatMode, setCurrentTime: setStoreTime, setDuration: setStoreDuration, registerSeek } = useMusicStore.getState();
 
     const audioRef = useRef<HTMLAudioElement>(null);
@@ -34,6 +37,8 @@ export const AudioPlayer: React.FC = () => {
     const prevTrackIdRef = useRef<string | null>(null);
     const seekAfterLoadRef = useRef<number | null>(null);
     const hasRetriedRef = useRef(false);
+    /** Guard: true while audio.src is being changed, prevents spurious onPause from cascading */
+    const srcTransitionRef = useRef(false);
     const [freshUrl, setFreshUrl] = React.useState<string | null>(null);
 
     const track = tracks.find((t) => t.id === playingTrackId);
@@ -69,11 +74,21 @@ export const AudioPlayer: React.FC = () => {
             seekAfterLoadRef.current = audio.currentTime;
         }
 
+        // Guard: signal that we're changing src so onPause won't cascade
+        srcTransitionRef.current = true;
         audio.src = audioUrl;
-        audio.volume = isMuted ? 0 : volume;
+        // Read fresh volume from store to avoid stale closure (this effect depends only on [audioUrl])
+        const freshVol = useMusicStore.getState().playbackVolume;
+        audio.volume = isMuted ? 0 : (freshVol ?? volume);
 
         if (isPlaying) {
-            audio.play().catch(console.error);
+            audio.play()
+                .then(() => { srcTransitionRef.current = false; })
+                .catch((err) => { srcTransitionRef.current = false; console.error(err); });
+        } else {
+            // If not playing, clear guard on loadeddata
+            const clearGuard = () => { srcTransitionRef.current = false; audio.removeEventListener('loadeddata', clearGuard); };
+            audio.addEventListener('loadeddata', clearGuard);
         }
 
         return () => {
@@ -139,10 +154,10 @@ export const AudioPlayer: React.FC = () => {
 
         const handleLoadedData = () => {
             // Check store for pending seek from cross-track waveform click
-            const { pendingSeekPosition } = useMusicStore.getState();
-            if (pendingSeekPosition !== null) {
-                audio.currentTime = pendingSeekPosition * audio.duration;
-                useMusicStore.setState({ pendingSeekPosition: null });
+            const { pendingSeekSeconds } = useMusicStore.getState();
+            if (pendingSeekSeconds !== null) {
+                audio.currentTime = pendingSeekSeconds;
+                useMusicStore.setState({ pendingSeekSeconds: null, currentTime: pendingSeekSeconds });
                 if (isPlaying) audio.play().catch(console.error);
                 return;
             }
@@ -151,6 +166,11 @@ export const AudioPlayer: React.FC = () => {
                 audio.currentTime = seekAfterLoadRef.current;
                 seekAfterLoadRef.current = null;
                 if (isPlaying) audio.play().catch(console.error);
+            }
+            // Re-apply volume after load (browser may reset during src load)
+            const vol = useMusicStore.getState().playbackVolume;
+            if (vol !== null) {
+                audio.volume = vol;
             }
         };
 
@@ -171,8 +191,10 @@ export const AudioPlayer: React.FC = () => {
 
     useEffect(() => {
         const audio = audioRef.current;
-        if (audio) audio.volume = isMuted ? 0 : volume;
-    }, [volume, isMuted]);
+        if (audio) {
+            audio.volume = isMuted ? 0 : (playbackVolume ?? volume);
+        }
+    }, [volume, isMuted, playbackVolume]);
 
     // Helper: find next/prev track by playback queue (visual order)
     const findTrackById = useCallback((id: string) => tracks.find((t) => t.id === id), [tracks]);
@@ -183,7 +205,14 @@ export const AudioPlayer: React.FC = () => {
         if (!audio) return;
 
         const onTimeUpdate = () => {
-            setStoreTime(audio.currentTime);
+            const time = audio.currentTime;
+            setStoreTime(time);
+            // Enforce trimEnd boundary: stop at (duration - trimEnd)
+            const { playingTrimEnd: trimEnd } = useMusicStore.getState();
+            if (trimEnd > 0 && audio.duration > 0 && time >= audio.duration - trimEnd) {
+                audio.pause();
+                audio.dispatchEvent(new Event('ended'));
+            }
         };
         const onDurationChange = () => {
             setStoreDuration(audio.duration || 0);
@@ -217,6 +246,8 @@ export const AudioPlayer: React.FC = () => {
 
         const onPause = () => {
             // Sync store when paused externally (media keys, MediaSession)
+            // Skip if we're in the middle of a src transition (browser fires pause during src change)
+            if (srcTransitionRef.current) return;
             if (useMusicStore.getState().isPlaying) setIsPlaying(false);
         };
         const onPlay = () => {
@@ -391,6 +422,8 @@ export const AudioPlayer: React.FC = () => {
                                 playedColor={accentColor}
                                 unplayedColor="rgba(255,255,255,0.12)"
                                 onSeek={handleSeek}
+                                trimStartFraction={duration > 0 ? playingTrimStart / duration : 0}
+                                trimEndFraction={duration > 0 ? playingTrimEnd / duration : 0}
                                 compact
                             />
                         </div>
@@ -460,23 +493,41 @@ export const AudioPlayer: React.FC = () => {
 
                         {/* Volume */}
                         <button
-                            onClick={() => setIsMuted(!isMuted)}
-                            className="p-1 text-text-secondary hover:text-text-primary transition-colors"
+                            onClick={() => { if (playbackVolume === null) setIsMuted(!isMuted); }}
+                            className={`p-1 transition-colors ${playbackVolume !== null ? 'text-text-tertiary cursor-default' : 'text-text-secondary hover:text-text-primary'}`}
                         >
-                            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                            {isMuted && playbackVolume === null ? <VolumeX size={16} /> : <Volume2 size={16} />}
                         </button>
-                        <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.01"
-                            value={isMuted ? 0 : volume}
-                            onChange={(e) => {
-                                setVolume(parseFloat(e.target.value));
-                                setIsMuted(false);
-                            }}
-                            className="w-16 accent-white h-1"
-                        />
+                        {playbackVolume !== null ? (
+                            <PortalTooltip
+                                content={<span style={{ whiteSpace: 'nowrap' }}>Volume controlled by Editing Timeline</span>}
+                                enterDelay={500}
+                                side="top"
+                            >
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.01"
+                                    value={playbackVolume}
+                                    readOnly
+                                    className="w-16 accent-white h-1 opacity-50 cursor-default"
+                                />
+                            </PortalTooltip>
+                        ) : (
+                            <input
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.01"
+                                value={isMuted ? 0 : volume}
+                                onChange={(e) => {
+                                    setVolume(parseFloat(e.target.value));
+                                    setIsMuted(false);
+                                }}
+                                className="w-16 accent-white h-1"
+                            />
+                        )}
 
                         {/* Close player */}
                         <button

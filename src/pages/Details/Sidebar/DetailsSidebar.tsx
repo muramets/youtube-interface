@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Clapperboard } from 'lucide-react';
 import { type VideoDetails, type PackagingVersion } from '../../../core/utils/youtubeApi';
 import { type TrafficSnapshot, type TrafficGroup, type TrafficSource } from '../../../core/types/traffic';
 import type { GallerySource } from '../../../core/types/gallery';
@@ -37,8 +37,8 @@ interface DetailsSidebarProps {
     // Filter Control
     onAddFilter?: (filter: Omit<import('../../../core/types/traffic').TrafficFilter, 'id'>) => void;
     // Tab Navigation
-    activeTab: 'packaging' | 'traffic' | 'gallery';
-    onTabChange: (tab: 'packaging' | 'traffic' | 'gallery') => void;
+    activeTab: 'packaging' | 'traffic' | 'gallery' | 'editing';
+    onTabChange: (tab: 'packaging' | 'traffic' | 'gallery' | 'editing') => void;
     activeNicheId?: string | null;
     playlistId?: string;
     // Gallery Sources props
@@ -99,7 +99,7 @@ export const DetailsSidebar = React.memo<DetailsSidebarProps>(({
     // ============================================================================
     // Only one section (Packaging, Traffic, or Gallery) can be expanded at a time.
     // By default, the active tab's section is expanded.
-    const [expandedSection, setExpandedSection] = React.useState<'packaging' | 'traffic' | 'gallery' | null>(activeTab);
+    const [expandedSection, setExpandedSection] = React.useState<'packaging' | 'traffic' | 'gallery' | 'editing' | null>(activeTab);
 
     // Render-phase state update to prevent flickering (double render)
     const [prevActiveTab, setPrevActiveTab] = React.useState(activeTab);
@@ -108,7 +108,7 @@ export const DetailsSidebar = React.memo<DetailsSidebarProps>(({
         setExpandedSection(activeTab);
     }
 
-    const handleToggleSection = (section: 'packaging' | 'traffic' | 'gallery') => {
+    const handleToggleSection = (section: 'packaging' | 'traffic' | 'gallery' | 'editing') => {
         setExpandedSection(prev => prev === section ? null : section);
     };
 
@@ -218,6 +218,13 @@ export const DetailsSidebar = React.memo<DetailsSidebarProps>(({
                     onAddSource={onAddSource}
                     onDeleteSource={onDeleteSource}
                     onUpdateSource={onUpdateSource}
+                />
+
+                <SidebarNavItem
+                    icon={<Clapperboard size={24} />}
+                    label="Editing"
+                    isActive={activeTab === 'editing'}
+                    onClick={() => onTabChange('editing')}
                 />
             </nav>
         </aside>

@@ -1,7 +1,7 @@
 import React from 'react';
 import type { TrafficFilter } from '../hooks/useTrafficFilters';
 import { FilterChips } from '../../../../../components/ui/molecules';
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../../../../../components/ui/molecules/Tooltip';
+import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
 import { RotateCcw } from 'lucide-react';
 
 interface TrafficFilterChipsProps {
@@ -24,22 +24,15 @@ export const TrafficFilterChips: React.FC<TrafficFilterChipsProps> = ({
 
     // Custom Clear All button with tooltip
     const clearAllButton = (
-        <TooltipProvider>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <button
-                        onClick={onClearAll}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors"
-                        type="button"
-                    >
-                        <RotateCcw size={14} />
-                    </button>
-                </TooltipTrigger>
-                <TooltipContent className="border-0 bg-[#1a1a1a]/85 backdrop-blur-xl">
-                    <p>Clear all filters</p>
-                </TooltipContent>
-            </Tooltip>
-        </TooltipProvider>
+        <PortalTooltip content="Clear all filters" side="bottom" align="center">
+            <button
+                onClick={onClearAll}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors"
+                type="button"
+            >
+                <RotateCcw size={14} />
+            </button>
+        </PortalTooltip>
     );
 
     return (

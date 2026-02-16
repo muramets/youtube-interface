@@ -23,8 +23,14 @@ interface MusicState {
     repeatMode: 'off' | 'all' | 'one';
     currentTime: number;
     duration: number;
-    /** Pending seek ratio (0–1) for cross-track waveform clicks */
-    pendingSeekPosition: number | null;
+    /** Pending seek position in absolute seconds (set by setPlayingTrack, consumed by AudioPlayer on load) */
+    pendingSeekSeconds: number | null;
+    /** Trim boundaries (in seconds) for editing-timeline playback; 0 = no trim */
+    playingTrimStart: number;
+    playingTrimEnd: number;
+    /** External volume override (0–1). When non-null, AudioPlayer uses this instead of its own slider.
+     *  Set by the editing timeline to apply track.volume × masterVolume during preview. */
+    playbackVolume: number | null;
     /** AudioPlayer registers this callback so TrackCard can request seeks */
     seekTo: ((position: number) => void) | null;
 
@@ -67,7 +73,7 @@ interface MusicState {
 
     // Actions: Selection & Playback
     setSelectedTrackId: (id: string | null) => void;
-    setPlayingTrack: (id: string | null, variant?: 'vocal' | 'instrumental', seekPosition?: number) => void;
+    setPlayingTrack: (id: string | null, variant?: 'vocal' | 'instrumental', seekPosition?: number, trimStart?: number, trimEnd?: number) => void;
     setIsPlaying: (isPlaying: boolean) => void;
     toggleVariant: () => void;
     cycleRepeatMode: () => void;
@@ -75,6 +81,7 @@ interface MusicState {
     setDuration: (duration: number) => void;
     registerSeek: (fn: ((position: number) => void) | null) => void;
     setPlaybackQueue: (queue: string[]) => void;
+    setPlaybackVolume: (vol: number | null) => void;
 
     // Actions: Filters
     setSearchQuery: (query: string) => void;
@@ -109,7 +116,10 @@ export const useMusicStore = create<MusicState>((set) => ({
     repeatMode: 'off',
     currentTime: 0,
     duration: 0,
-    pendingSeekPosition: null,
+    pendingSeekSeconds: null,
+    playingTrimStart: 0,
+    playingTrimEnd: 0,
+    playbackVolume: null,
     seekTo: null,
     playbackQueue: [],
     searchQuery: '',
@@ -173,12 +183,15 @@ export const useMusicStore = create<MusicState>((set) => ({
     // Selection & Playback
     setSelectedTrackId: (id) => set({ selectedTrackId: id }),
 
-    setPlayingTrack: (id, variant, seekPosition) => set({
+    setPlayingTrack: (id, variant, seekPosition, trimStart, trimEnd) => set({
         playingTrackId: id,
         playingVariant: variant || 'vocal',
         isPlaying: id !== null,
         selectedTrackId: null,
-        pendingSeekPosition: seekPosition ?? null,
+        pendingSeekSeconds: seekPosition ?? null,
+        playingTrimStart: trimStart ?? 0,
+        playingTrimEnd: trimEnd ?? 0,
+        playbackVolume: id === null ? null : useMusicStore.getState().playbackVolume,
         currentTime: 0,
         duration: 0,
     }),
@@ -197,6 +210,7 @@ export const useMusicStore = create<MusicState>((set) => ({
     setDuration: (duration) => set({ duration }),
     registerSeek: (fn) => set({ seekTo: fn }),
     setPlaybackQueue: (queue) => set({ playbackQueue: queue }),
+    setPlaybackVolume: (vol) => set({ playbackVolume: vol }),
 
     // Filters
     setSearchQuery: (query) => set({ searchQuery: query }),

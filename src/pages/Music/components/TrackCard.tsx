@@ -173,10 +173,12 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             if (!isPlaying) setIsPlaying(true);
         } else {
             // Start playing this track and seek to position once audio loads
+            // position is ratio 0–1, convert to seconds for pendingSeekPosition
             const variant = track.vocalUrl ? 'vocal' : 'instrumental';
-            setPlayingTrack(track.id, variant, position);
+            const seekSeconds = position * track.duration;
+            setPlayingTrack(track.id, variant, seekSeconds);
         }
-    }, [isCurrentTrack, seekTo, isPlaying, setIsPlaying, setPlayingTrack, track.id, track.vocalUrl]);
+    }, [isCurrentTrack, seekTo, isPlaying, setIsPlaying, setPlayingTrack, track.id, track.vocalUrl, track.duration]);
 
     // DnD: Make track draggable
     const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({

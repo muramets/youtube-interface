@@ -1,7 +1,7 @@
 import React from 'react';
 import { RefreshCw, LayoutGrid, Table2, ChevronRight } from 'lucide-react';
 import { useTrendsSync } from '../hooks/useTrendsSync';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/molecules/Tooltip';
+import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import type { TimelineConfig } from '../../../core/types/trends';
 import { TrendsStats } from './TrendsStats';
 import { TrendsSettings } from './TrendsSettings';
@@ -79,25 +79,18 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
                 {/* Icons aligned with main header (gap-2) */}
                 <div className="flex items-center gap-2 mr-2">
                     {/* Sync Button */}
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <button
-                                    onClick={handleSync}
-                                    disabled={currentViewMode === 'table' || !canSync || isSyncing}
-                                    className={`w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-colors border-none cursor-pointer relative flex-shrink-0 ${currentViewMode === 'table' || isSyncing || !canSync
-                                        ? 'bg-transparent text-text-tertiary cursor-not-allowed'
-                                        : 'bg-transparent text-text-primary hover:bg-hover-bg'
-                                        }`}
-                                >
-                                    <RefreshCw size={18} className={isSyncing ? 'animate-spin' : ''} />
-                                </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>{currentViewMode === 'table' ? "Switch to Timeline View to sync" : syncTooltip}</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
+                    <PortalTooltip content={currentViewMode === 'table' ? "Switch to Timeline View to sync" : syncTooltip} side="bottom" align="center">
+                        <button
+                            onClick={handleSync}
+                            disabled={currentViewMode === 'table' || !canSync || isSyncing}
+                            className={`w-[34px] h-[34px] rounded-lg flex items-center justify-center transition-colors border-none cursor-pointer relative flex-shrink-0 ${currentViewMode === 'table' || isSyncing || !canSync
+                                ? 'bg-transparent text-text-tertiary cursor-not-allowed'
+                                : 'bg-transparent text-text-primary hover:bg-hover-bg'
+                                }`}
+                        >
+                            <RefreshCw size={18} className={isSyncing ? 'animate-spin' : ''} />
+                        </button>
+                    </PortalTooltip>
 
                     {/* Export Controls for All Filtered Videos */}
                     <TrendsExportControls
@@ -108,45 +101,35 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
 
                     {/* View Mode Toggle */}
                     <div className="flex items-center gap-1 border border-border rounded-lg bg-bg-secondary/50 p-0.5 ml-2 mr-2">
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        onClick={(e) => {
-                                            e.currentTarget.blur();
-                                            onViewModeChange('timeline');
-                                        }}
-                                        className={`p-1.5 rounded-md transition-all ${currentViewMode === 'timeline'
-                                            ? 'bg-bg-primary shadow-sm text-text-primary'
-                                            : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
-                                            }`}
-                                    >
-                                        <LayoutGrid size={16} />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent><p>Timeline View</p></TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                        <PortalTooltip content="Timeline View" side="bottom" align="center">
+                            <button
+                                onClick={(e) => {
+                                    e.currentTarget.blur();
+                                    onViewModeChange('timeline');
+                                }}
+                                className={`p-1.5 rounded-md transition-all ${currentViewMode === 'timeline'
+                                    ? 'bg-bg-primary shadow-sm text-text-primary'
+                                    : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
+                                    }`}
+                            >
+                                <LayoutGrid size={16} />
+                            </button>
+                        </PortalTooltip>
 
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button
-                                        onClick={(e) => {
-                                            e.currentTarget.blur();
-                                            onViewModeChange('table');
-                                        }}
-                                        className={`p-1.5 rounded-md transition-all ${currentViewMode === 'table'
-                                            ? 'bg-bg-primary shadow-sm text-text-primary'
-                                            : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
-                                            }`}
-                                    >
-                                        <Table2 size={16} />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent><p>Table View</p></TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                        <PortalTooltip content="Table View" side="bottom" align="center">
+                            <button
+                                onClick={(e) => {
+                                    e.currentTarget.blur();
+                                    onViewModeChange('table');
+                                }}
+                                className={`p-1.5 rounded-md transition-all ${currentViewMode === 'table'
+                                    ? 'bg-bg-primary shadow-sm text-text-primary'
+                                    : 'text-text-secondary hover:text-text-primary hover:bg-white/5'
+                                    }`}
+                            >
+                                <Table2 size={16} />
+                            </button>
+                        </PortalTooltip>
                     </div>
 
                     <TrendsFilterButton

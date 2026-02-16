@@ -3,10 +3,9 @@
 // =============================================================================
 
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
 import { MessageCircle } from 'lucide-react';
 import { useChatStore } from '../../core/stores/chatStore';
-import { useMusicStore } from '../../core/stores/musicStore';
+import { useFloatingBottomOffset } from '../../core/hooks/useFloatingBottomOffset';
 import { useAuth } from '../../core/hooks/useAuth';
 import { ChatPanel } from './ChatPanel';
 import './Chat.css';
@@ -14,8 +13,7 @@ import './Chat.css';
 export const ChatBubble: React.FC = () => {
     const { isOpen, toggleOpen } = useChatStore();
     const { user, isLoading } = useAuth();
-    const { pathname } = useLocation();
-    const hasAudioPlayer = !!useMusicStore((s) => s.playingTrackId);
+    const { bottomClass, bottomPx, rightClass, rightPx } = useFloatingBottomOffset();
 
     // Delayed fade-in so bubble appears after page content settles
     const [ready, setReady] = useState(false);
@@ -26,30 +24,6 @@ export const ChatBubble: React.FC = () => {
 
     // Don't show bubble until auth resolves and user is logged in
     if (isLoading || !user) return null;
-
-    // Pages with zoom controls in bottom-right: Home ("/") and Playlist detail ("/playlists/:id")
-    const hasZoomControls = pathname === '/' || /^\/playlists\/[^/]+$/.test(pathname);
-
-    // Trends page has timeline controls (zoom pill + vertical spread pill) in bottom-right
-    const hasTimelineControls = pathname === '/trends';
-
-    // Bottom offset: static Tailwind classes (dynamic template literals break JIT purge)
-    const bottomClass = hasTimelineControls
-        ? hasAudioPlayer ? 'bottom-[134px]' : 'bottom-[62px]'
-        : hasZoomControls
-            ? hasAudioPlayer ? 'bottom-[144px]' : 'bottom-[88px]'
-            : hasAudioPlayer ? 'bottom-[88px]' : 'bottom-8';
-    // Numeric value for max-height constraint in resize hook
-    const bottomPx = hasTimelineControls
-        ? hasAudioPlayer ? 134 : 62
-        : hasZoomControls
-            ? hasAudioPlayer ? 144 : 88
-            : hasAudioPlayer ? 88 : 32;
-
-    // Horizontal offset: on Trends, shift left to sit in the corner pocket
-    // VerticalSpread left edge at 58px + 12px gap (same as gap-3 bottom gap) → right-[70px]
-    const rightClass = hasTimelineControls ? 'right-[70px]' : 'right-8';
-    const rightPx = hasTimelineControls ? 70 : 32;
 
     return (
         <>

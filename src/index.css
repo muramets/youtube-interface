@@ -210,6 +210,28 @@ body {
    scrollbar-width: none;
 }
 
+.scrollbar-compact {
+   scrollbar-width: thin;
+   scrollbar-color: var(--border) transparent;
+}
+
+.scrollbar-compact::-webkit-scrollbar {
+   height: 3px;
+}
+
+.scrollbar-compact::-webkit-scrollbar-track {
+   background: transparent;
+}
+
+.scrollbar-compact::-webkit-scrollbar-thumb {
+   background: var(--border);
+   border-radius: 3px;
+}
+
+.scrollbar-compact::-webkit-scrollbar-thumb:hover {
+   background: var(--text-tertiary);
+}
+
 /* =============================================================================
    FORM UTILITIES
    ============================================================================= */

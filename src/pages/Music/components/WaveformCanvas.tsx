@@ -23,6 +23,10 @@ interface WaveformCanvasProps {
     onPeaksComputed?: (peaks: number[]) => void;
     /** Compact mode for small cards */
     compact?: boolean;
+    /** Fraction (0–1) of waveform trimmed from start — rendered as dim grey */
+    trimStartFraction?: number;
+    /** Fraction (0–1) of waveform trimmed from end — rendered as dim grey */
+    trimEndFraction?: number;
 }
 
 const COMPACT_PEAK_COUNT = 60;
@@ -112,9 +116,6 @@ function usePeaks(
 // Drawing
 // =============================================================================
 
-/**
- * Draw waveform bars on a canvas.
- */
 function drawWaveform(
     ctx: CanvasRenderingContext2D,
     peaks: number[],
@@ -122,7 +123,9 @@ function drawWaveform(
     height: number,
     progress: number,
     playedColor: string,
-    unplayedColor: string
+    unplayedColor: string,
+    trimStartFraction = 0,
+    trimEndFraction = 0,
 ) {
     ctx.clearRect(0, 0, width, height);
 
@@ -134,20 +137,46 @@ function drawWaveform(
     const minBarHeight = 2;
 
     const progressX = progress * width;
+    const trimmedColor = 'rgba(255, 255, 255, 0.06)';
 
     for (let i = 0; i < barCount; i++) {
         const x = i * (barWidth + gap) + gap / 2;
         const barHeight = Math.max(minBarHeight, peaks[i] * maxBarHeight);
         const y = centerY - barHeight / 2;
 
-        const isPlayed = x + barWidth / 2 <= progressX;
-        ctx.fillStyle = isPlayed ? playedColor : unplayedColor;
+        const barFraction = (i + 0.5) / barCount;
+        const isTrimmed = barFraction < trimStartFraction || barFraction > (1 - trimEndFraction);
+
+        if (isTrimmed) {
+            ctx.fillStyle = trimmedColor;
+        } else {
+            const isPlayed = x + barWidth / 2 <= progressX;
+            ctx.fillStyle = isPlayed ? playedColor : unplayedColor;
+        }
 
         // Rounded bar caps
         const radius = Math.min(barWidth / 2, 1.5);
         ctx.beginPath();
         ctx.roundRect(x, y, barWidth, barHeight, radius);
         ctx.fill();
+    }
+
+    // Draw vertical separator lines at trim boundaries
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.lineWidth = 1;
+    if (trimStartFraction > 0) {
+        const x = Math.round(trimStartFraction * width) + 0.5;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+    }
+    if (trimEndFraction > 0) {
+        const x = Math.round((1 - trimEndFraction) * width) - 0.5;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
     }
 }
 
@@ -165,6 +194,8 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
     onSeek,
     onPeaksComputed,
     compact = false,
+    trimStartFraction = 0,
+    trimEndFraction = 0,
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const hoverCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -192,8 +223,8 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
         if (!ctx) return;
 
         ctx.scale(dpr, dpr);
-        drawWaveform(ctx, peaks, rect.width, height, progress, playedColor, unplayedColor);
-    }, [peaks, progress, height, playedColor, unplayedColor]);
+        drawWaveform(ctx, peaks, rect.width, height, progress, playedColor, unplayedColor, trimStartFraction, trimEndFraction);
+    }, [peaks, progress, height, playedColor, unplayedColor, trimStartFraction, trimEndFraction]);
 
     useEffect(() => {
         render();

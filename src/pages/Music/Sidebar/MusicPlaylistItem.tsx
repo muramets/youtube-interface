@@ -126,7 +126,7 @@ export const MusicPlaylistItem: React.FC<MusicPlaylistItemProps> = ({
     }, [icon]);
 
     // Default color for playlists without one
-    const displayColor = color || '#6366f1';
+    const displayColor = color || '#888';
 
     return (
         <>
