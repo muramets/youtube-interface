@@ -3,10 +3,11 @@
 // =============================================================================
 // Expandable sidebar section for Music, analogous to TrendsSidebarSection.
 // Shows: Music header → ♥ Liked → Playlist Groups → Ungrouped Playlists → + New
+// Shared libraries: shows owner's playlists under "SHARED WITH ME"
 // =============================================================================
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Music, Plus, ChevronDown, ChevronRight, Heart } from 'lucide-react';
+import { Music, Plus, ChevronDown, ChevronRight, Heart, Share2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useMusicStore } from '../../../core/stores/musicStore';
 import { useAuth } from '../../../core/hooks/useAuth';
@@ -14,6 +15,8 @@ import { useChannelStore } from '../../../core/stores/channelStore';
 import { MusicPlaylistItem } from './MusicPlaylistItem';
 import { SidebarDivider } from '../../../components/Layout/Sidebar';
 import { CreateMusicPlaylistModal } from '../modals/CreateMusicPlaylistModal';
+import { MusicPlaylistService } from '../../../core/services/musicPlaylistService';
+import type { MusicPlaylist } from '../../../core/types/musicPlaylist';
 
 export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded }) => {
     const navigate = useNavigate();
@@ -29,6 +32,10 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
         subscribePlaylists,
         loadPlaylistSettings,
         setActivePlaylist,
+        sharedLibraries,
+        activeLibrarySource,
+        setActiveLibrarySource,
+        loadSharedLibraries,
     } = useMusicStore();
 
     const userId = user?.uid || '';
@@ -41,6 +48,26 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
         loadPlaylistSettings(userId, channelId);
         return unsub;
     }, [userId, channelId, subscribePlaylists, loadPlaylistSettings]);
+
+    // Load shared libraries
+    useEffect(() => {
+        if (!userId || !channelId) return;
+        loadSharedLibraries(userId, channelId);
+    }, [userId, channelId, loadSharedLibraries]);
+
+    // Subscribe to shared library's playlists when activeLibrarySource is set
+    const [sharedPlaylists, setSharedPlaylists] = useState<MusicPlaylist[]>([]);
+    useEffect(() => {
+        if (!activeLibrarySource) return;
+        const { ownerUserId, ownerChannelId } = activeLibrarySource;
+        const unsub = MusicPlaylistService.subscribeToPlaylists(ownerUserId, ownerChannelId, (playlists) => {
+            setSharedPlaylists(playlists);
+        });
+        return () => {
+            unsub();
+            setSharedPlaylists([]);
+        };
+    }, [activeLibrarySource]);
 
     // Persist collapse state
     const [isContentExpanded, setIsContentExpanded] = useState(() => {
@@ -106,6 +133,7 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
 
     const handleMusicClick = () => {
         setActivePlaylist(null);
+        setActiveLibrarySource(null);
         navigate('/music');
     };
 
@@ -145,7 +173,7 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
             <div>
                 {/* Music Header */}
                 <div
-                    className={`w-full flex items-center justify-between py-2.5 px-3 mb-1 rounded-lg transition-all duration-200 group ${isOnMusicPage && activePlaylistId === null
+                    className={`w-full flex items-center justify-between py-2.5 px-3 mb-1 rounded-lg transition-all duration-200 group ${isOnMusicPage && activePlaylistId === null && !activeLibrarySource
                         ? 'bg-sidebar-active text-text-primary'
                         : 'text-text-secondary hover:bg-sidebar-hover hover:text-text-primary'
                         }`}
@@ -157,11 +185,11 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
                     >
                         <Music
                             size={24}
-                            strokeWidth={isOnMusicPage && activePlaylistId === null ? 2.5 : 1.5}
-                            fill={isOnMusicPage && activePlaylistId === null ? 'currentColor' : 'none'}
+                            strokeWidth={isOnMusicPage && activePlaylistId === null && !activeLibrarySource ? 2.5 : 1.5}
+                            fill={isOnMusicPage && activePlaylistId === null && !activeLibrarySource ? 'currentColor' : 'none'}
                             className="transition-all"
                         />
-                        <span className={`text-sm ${isOnMusicPage && activePlaylistId === null ? 'font-medium' : 'font-normal'}`}>
+                        <span className={`text-sm ${isOnMusicPage && activePlaylistId === null && !activeLibrarySource ? 'font-medium' : 'font-normal'}`}>
                             Music
                         </span>
                     </div>
@@ -292,6 +320,95 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
                                                         indent
                                                         playlist={playlist}
                                                         existingGroups={existingGroups}
+                                                    />
+                                                ))}
+                                            </ul>
+                                        )}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    </div>
+                )}
+
+                {/* Shared Libraries — owner's playlists under "SHARED WITH ME" */}
+                {isContentExpanded && sharedLibraries.length > 0 && (
+                    <div className="pl-3 pb-2">
+                        <div className="flex items-center gap-1.5 px-2 pt-3 pb-1">
+                            <span className="text-[10px] font-medium text-text-tertiary uppercase tracking-wider">Shared with me</span>
+                        </div>
+                        <ul className="space-y-0.5">
+                            {/* Shared library entries — one per shared channel, collapsible */}
+                            {sharedLibraries.map(lib => {
+                                const isActive = activeLibrarySource?.ownerChannelId === lib.ownerChannelId;
+                                const isSharedCollapsed = collapsedGroups.has(`shared:${lib.ownerChannelId}`);
+                                return (
+                                    <li key={lib.ownerChannelId}>
+                                        {/* Channel Header — collapsible like playlist groups */}
+                                        <div
+                                            onClick={() => {
+                                                // If not active yet, activate it (expand + navigate)
+                                                if (!isActive) {
+                                                    setActiveLibrarySource(lib);
+                                                    setActivePlaylist(null);
+                                                    navigate('/music');
+                                                    // Ensure expanded when first activated
+                                                    if (isSharedCollapsed) toggleGroup(`shared:${lib.ownerChannelId}`);
+                                                } else {
+                                                    // Already active — toggle collapse
+                                                    toggleGroup(`shared:${lib.ownerChannelId}`);
+                                                }
+                                            }}
+                                            className={`flex items-center cursor-pointer p-2 rounded-lg transition-all duration-200 select-none ${isActive && !activePlaylistId
+                                                ? 'bg-white/10'
+                                                : 'hover:bg-white/5'
+                                                }`}
+                                        >
+                                            <div className={`w-6 h-6 rounded-full mr-3 flex items-center justify-center ${isActive && !activePlaylistId
+                                                ? 'bg-blue-500/20 ring-2 ring-blue-400/30'
+                                                : 'bg-white/5'
+                                                }`}>
+                                                <Share2 size={12} className={`${isActive && !activePlaylistId
+                                                    ? 'text-blue-400'
+                                                    : 'text-text-tertiary'
+                                                    }`} />
+                                            </div>
+                                            <span className={`text-sm flex-1 overflow-hidden whitespace-nowrap truncate transition-colors ${isActive && !activePlaylistId
+                                                ? 'text-text-primary font-medium'
+                                                : 'text-text-secondary'
+                                                }`}>
+                                                {lib.ownerChannelName}
+                                            </span>
+                                            {/* Collapse chevron + count */}
+                                            {isActive && sharedPlaylists.length > 0 && (
+                                                <div className="ml-2 flex items-center gap-1 shrink-0">
+                                                    <span className="text-[10px] text-text-tertiary leading-none">
+                                                        {sharedPlaylists.length}
+                                                    </span>
+                                                    <ChevronDown
+                                                        size={12}
+                                                        className={`transition-transform duration-200 text-text-tertiary ${isSharedCollapsed ? '-rotate-90' : ''
+                                                            }`}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Owner's playlists — collapsible */}
+                                        {isActive && !isSharedCollapsed && sharedPlaylists.length > 0 && (
+                                            <ul className="space-y-0.5">
+                                                {sharedPlaylists.map(playlist => (
+                                                    <MusicPlaylistItem
+                                                        key={`shared-${playlist.id}`}
+                                                        id={playlist.id}
+                                                        name={playlist.name}
+                                                        trackCount={playlist.trackIds.length}
+                                                        isActive={isOnMusicPage && activePlaylistId === playlist.id}
+                                                        onClick={() => handlePlaylistClick(playlist.id)}
+                                                        color={playlist.color}
+                                                        indent
+                                                        playlist={playlist}
+                                                        existingGroups={[]}
                                                     />
                                                 ))}
                                             </ul>

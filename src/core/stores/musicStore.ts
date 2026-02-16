@@ -6,8 +6,10 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import type { Track, MusicSettings, MusicGenre, MusicTag } from '../types/track';
 import type { MusicPlaylist } from '../types/musicPlaylist';
+import type { MusicShareGrant, SharedLibraryEntry } from '../types/musicSharing';
 import { TrackService } from '../services/trackService';
 import { MusicPlaylistService } from '../services/musicPlaylistService';
+import { MusicSharingService } from '../services/musicSharingService';
 import { DEFAULT_GENRES, DEFAULT_TAGS } from '../types/track';
 
 interface MusicState {
@@ -53,6 +55,11 @@ interface MusicState {
 
     // Music playlists
     musicPlaylists: MusicPlaylist[];
+
+    // Sharing
+    sharedLibraries: SharedLibraryEntry[];     // libraries shared TO current channel
+    activeLibrarySource: SharedLibraryEntry | null; // null = own library
+    sharingGrants: MusicShareGrant[];          // grants FROM current channel (admin)
     activePlaylistId: string | null; // null = all tracks, 'liked' = liked filter
     playlistGroupOrder: string[];
 
@@ -70,6 +77,11 @@ interface MusicState {
     deletePlaylist: (userId: string, channelId: string, playlistId: string) => Promise<void>;
     addTracksToPlaylist: (userId: string, channelId: string, playlistId: string, trackIds: string[]) => Promise<void>;
     removeTracksFromPlaylist: (userId: string, channelId: string, playlistId: string, trackIds: string[]) => Promise<void>;
+
+    // Actions: Sharing
+    loadSharedLibraries: (userId: string, channelId: string) => Promise<void>;
+    setActiveLibrarySource: (source: SharedLibraryEntry | null) => void;
+    loadSharingGrants: (userId: string, channelId: string) => Promise<void>;
 
     // Actions: Selection & Playback
     setSelectedTrackId: (id: string | null) => void;
@@ -135,6 +147,9 @@ export const useMusicStore = create<MusicState>((set) => ({
     musicPlaylists: [],
     activePlaylistId: null,
     playlistGroupOrder: [],
+    sharedLibraries: [],
+    activeLibrarySource: null,
+    sharingGrants: [],
     draggingTrackId: null,
     setDraggingTrackId: (id) => set({ draggingTrackId: id }),
 
@@ -350,6 +365,27 @@ export const useMusicStore = create<MusicState>((set) => ({
             );
         } catch (err) {
             console.error('[MusicStore] Failed to reorder group tracks:', err);
+        }
+    },
+
+    // Sharing
+    loadSharedLibraries: async (userId, channelId) => {
+        try {
+            const libraries = await MusicSharingService.getSharedLibraries(userId, channelId);
+            set({ sharedLibraries: libraries });
+        } catch (error) {
+            console.error('[MusicStore] Failed to load shared libraries:', error);
+        }
+    },
+
+    setActiveLibrarySource: (source) => set({ activeLibrarySource: source }),
+
+    loadSharingGrants: async (userId, channelId) => {
+        try {
+            const grants = await MusicSharingService.getShareGrants(userId, channelId);
+            set({ sharingGrants: grants });
+        } catch (error) {
+            console.error('[MusicStore] Failed to load sharing grants:', error);
         }
     },
 

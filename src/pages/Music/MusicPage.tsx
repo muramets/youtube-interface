@@ -22,6 +22,8 @@ import { MusicFilterBar } from './components/MusicFilterBar';
 import { MusicErrorBoundary } from './components/MusicErrorBoundary';
 import { SortButton } from '../../features/Filter/SortButton';
 import { useFilterStore } from '../../core/stores/filterStore';
+import type { SharedLibraryEntry } from '../../core/types/musicSharing';
+import { Share2 } from 'lucide-react';
 
 export const MusicPage: React.FC = () => {
     const { user } = useAuth();
@@ -49,12 +51,16 @@ export const MusicPage: React.FC = () => {
     const musicPlaylists = useMusicStore(s => s.musicPlaylists);
     const activePlaylistId = useMusicStore(s => s.activePlaylistId);
     const setActivePlaylist = useMusicStore(s => s.setActivePlaylist);
+    const sharedLibraries = useMusicStore(s => s.sharedLibraries);
+    const activeLibrarySource = useMusicStore(s => s.activeLibrarySource);
+    const setActiveLibrarySource = useMusicStore(s => s.setActiveLibrarySource);
+    const loadSharedLibraries = useMusicStore(s => s.loadSharedLibraries);
 
     const { musicSortBy, musicSortAsc, setMusicSortBy, setMusicSortAsc } = useFilterStore();
 
     const [showUpload, setShowUpload] = useState(false);
     const [editingTrack, setEditingTrack] = useState<Track | null>(null);
-    const [showSettings, setShowSettings] = useState<'genres' | 'tags' | null>(null);
+    const [showSettings, setShowSettings] = useState<'genres' | 'tags' | 'share' | null>(null);
 
     // Scroll container ref for virtualizer
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -85,6 +91,36 @@ export const MusicPage: React.FC = () => {
         loadSettings(userId, channelId);
         return unsubscribe;
     }, [userId, channelId, subscribe, loadSettings]);
+
+    // Load shared libraries for the current channel
+    useEffect(() => {
+        if (!userId || !channelId) return;
+        loadSharedLibraries(userId, channelId);
+    }, [userId, channelId, loadSharedLibraries]);
+
+    // Subscribe to shared library when active, or re-subscribe to own when switching back.
+    // Skip on initial mount (handled by the main subscription effect above).
+    const activeLibRef = React.useRef(activeLibrarySource);
+    useEffect(() => {
+        // Skip the initial render (already subscribed above)
+        if (activeLibRef.current === activeLibrarySource) return;
+        activeLibRef.current = activeLibrarySource;
+
+        if (activeLibrarySource) {
+            const { ownerUserId, ownerChannelId } = activeLibrarySource;
+            const unsubTracks = subscribe(ownerUserId, ownerChannelId);
+            loadSettings(ownerUserId, ownerChannelId);
+            return unsubTracks;
+        } else if (userId && channelId) {
+            const unsubTracks = subscribe(userId, channelId);
+            loadSettings(userId, channelId);
+            return unsubTracks;
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeLibrarySource]);
+
+    // Determine if in read-only mode (viewing shared library)
+    const isReadOnly = activeLibrarySource !== null;
 
     // Filtered & sorted tracks
     const filteredTracks = useMemo(() => {
@@ -304,7 +340,6 @@ export const MusicPage: React.FC = () => {
     // -------------------------------------------------------------------------
     const TRACK_ROW_HEIGHT = 72; // px — matches py-4 + h-14 cover + gaps
 
-    // eslint-disable-next-line react-hooks/incompatible-library
     const virtualizer = useVirtualizer({
         count: displayItems.length,
         getScrollElement: () => scrollContainerRef.current,
@@ -316,6 +351,33 @@ export const MusicPage: React.FC = () => {
         <div className="flex flex-col h-full">
             {/* Header */}
             <div className="flex-shrink-0 px-6 pt-6 pb-4">
+                {/* Library Switcher (shown when shared libraries exist) */}
+                {sharedLibraries.length > 0 && !activePlaylistId && (
+                    <div className="flex items-center gap-1.5 mb-4 p-1 bg-white/[0.04] rounded-xl w-fit">
+                        <button
+                            onClick={() => setActiveLibrarySource(null)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${!activeLibrarySource
+                                ? 'bg-white/[0.1] text-text-primary shadow-sm'
+                                : 'text-text-secondary hover:text-text-primary'
+                                }`}
+                        >
+                            My Library
+                        </button>
+                        {sharedLibraries.map((lib: SharedLibraryEntry) => (
+                            <button
+                                key={lib.ownerChannelId}
+                                onClick={() => setActiveLibrarySource(lib)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${activeLibrarySource?.ownerChannelId === lib.ownerChannelId
+                                    ? 'bg-white/[0.1] text-text-primary shadow-sm'
+                                    : 'text-text-secondary hover:text-text-primary'
+                                    }`}
+                            >
+                                <Share2 size={11} />
+                                {lib.ownerChannelName}
+                            </button>
+                        ))}
+                    </div>
+                )}
                 <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-3">
                         {activePlaylistId ? (
@@ -393,22 +455,32 @@ export const MusicPage: React.FC = () => {
                                 )}
                             </div>
                         )}
-                        <PortalTooltip content={<span className="whitespace-nowrap">Manage genres & tags</span>} enterDelay={500} disabled={!!showSettings} noAnimation>
-                            <button
-                                onClick={() => setShowSettings('tags')}
-                                className="p-2 rounded-full text-text-secondary hover:text-text-primary hover:bg-hover-bg transition-colors"
-                            >
-                                <Settings size={18} />
-                            </button>
-                        </PortalTooltip>
-                        <Button
-                            variant="secondary"
-                            size="sm"
-                            leftIcon={<Upload size={16} />}
-                            onClick={() => setShowUpload(true)}
-                        >
-                            Upload
-                        </Button>
+                        {!isReadOnly && (
+                            <>
+                                <PortalTooltip content={<span className="whitespace-nowrap">Manage genres & tags</span>} enterDelay={500} disabled={!!showSettings} noAnimation>
+                                    <button
+                                        onClick={() => setShowSettings('tags')}
+                                        className="p-2 rounded-full text-text-secondary hover:text-text-primary hover:bg-hover-bg transition-colors"
+                                    >
+                                        <Settings size={18} />
+                                    </button>
+                                </PortalTooltip>
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    leftIcon={<Upload size={16} />}
+                                    onClick={() => setShowUpload(true)}
+                                >
+                                    Upload
+                                </Button>
+                            </>
+                        )}
+                        {isReadOnly && activeLibrarySource && (
+                            <span className="text-xs text-text-tertiary flex items-center gap-1.5">
+                                <Share2 size={12} />
+                                Shared from {activeLibrarySource.ownerChannelName} · Read-only
+                            </span>
+                        )}
                     </div>
                 </div>
 
@@ -518,8 +590,8 @@ export const MusicPage: React.FC = () => {
                                                 userId={userId}
                                                 channelId={channelId}
                                                 onSelect={setSelectedTrackId}
-                                                onDelete={handleDeleteTrack}
-                                                onEdit={handleEditTrack}
+                                                onDelete={isReadOnly ? undefined : handleDeleteTrack}
+                                                onEdit={isReadOnly ? undefined : handleEditTrack}
                                             />
                                         ) : (
                                             <TrackCard
@@ -528,8 +600,8 @@ export const MusicPage: React.FC = () => {
                                                 userId={userId}
                                                 channelId={channelId}
                                                 onSelect={setSelectedTrackId}
-                                                onDelete={handleDeleteTrack}
-                                                onEdit={handleEditTrack}
+                                                onDelete={isReadOnly ? undefined : handleDeleteTrack}
+                                                onEdit={isReadOnly ? undefined : handleEditTrack}
                                                 siblingColor={item.type === 'sibling' ? item.siblingColor : undefined}
                                                 siblingPosition={item.type === 'sibling' ? item.siblingPosition : undefined}
                                             />

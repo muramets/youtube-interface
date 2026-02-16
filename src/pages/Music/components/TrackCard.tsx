@@ -546,74 +546,80 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                 )}
 
 
-                {/* More menu */}
-                <DropdownMenu onOpenChange={setDropdownOpen}>
-                    <DropdownMenuTrigger asChild>
-                        <button
-                            onClick={(e) => e.stopPropagation()}
-                            className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary transition-colors"
-                        >
-                            <MoreHorizontal size={14} />
-                        </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" sideOffset={4}>
-                        <DropdownMenuItem onClick={() => setShowAddToPlaylist(true)}>
-                            <ListMusic size={14} className="mr-2" /> Add to Playlist
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => setShowLinkVersion(true)}>
-                            <Link size={14} className="mr-2" /> Link as Version
-                        </DropdownMenuItem>
-                        {track.groupId && (
-                            <DropdownMenuItem onClick={() => unlinkFromGroup(userId, channelId, track.id)}>
-                                <Unlink size={14} className="mr-2" /> Unlink from Group
-                            </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator />
-                        {!downloadVisible && (
-                            <>
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); toggleLike(userId, channelId, track.id); }}>
-                                    <Heart size={14} className="mr-2" fill={track.liked ? 'currentColor' : 'none'} />
-                                    {track.liked ? 'Unlike' : 'Like'}
-                                </DropdownMenuItem>
-                                {hasBothVariants ? (
-                                    <>
-                                        <DropdownMenuItem onClick={() => handleDownload(track.vocalUrl)}>
-                                            <Download size={14} className="mr-2" /> Download Vocal
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleDownload(track.instrumentalUrl, '(instr)')}>
-                                            <Download size={14} className="mr-2" /> Download Instrumental
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={handleDownloadBoth}>
-                                            <Download size={14} className="mr-2" /> Download Both
-                                        </DropdownMenuItem>
-                                    </>
-                                ) : (
-                                    <DropdownMenuItem onClick={() => handleDownload(track.vocalUrl || track.instrumentalUrl)}>
-                                        <Download size={14} className="mr-2" /> Download
-                                    </DropdownMenuItem>
-                                )}
-                            </>
-                        )}
-                        {onEdit && (
-                            <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => onEdit(track)}>
-                                    <Settings size={14} className="mr-2" /> Track Settings
-                                </DropdownMenuItem>
-                            </>
-                        )}
-                        {onDelete && <DropdownMenuSeparator />}
-                        {onDelete && (
-                            <DropdownMenuItem
-                                onClick={() => setShowDeleteConfirm(true)}
-                                className="text-red-400 focus:text-red-400"
+                {/* More menu (hidden when no items to show) */}
+                {(onEdit || onDelete || !downloadVisible) && (
+                    <DropdownMenu onOpenChange={setDropdownOpen}>
+                        <DropdownMenuTrigger asChild>
+                            <button
+                                onClick={(e) => e.stopPropagation()}
+                                className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary transition-colors"
                             >
-                                <Trash2 size={14} className="mr-2" /> Delete Track
-                            </DropdownMenuItem>
-                        )}
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                                <MoreHorizontal size={14} />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" sideOffset={4}>
+                            {onEdit && (
+                                <>
+                                    <DropdownMenuItem onClick={() => setShowAddToPlaylist(true)}>
+                                        <ListMusic size={14} className="mr-2" /> Add to Playlist
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => setShowLinkVersion(true)}>
+                                        <Link size={14} className="mr-2" /> Link as Version
+                                    </DropdownMenuItem>
+                                    {track.groupId && (
+                                        <DropdownMenuItem onClick={() => unlinkFromGroup(userId, channelId, track.id)}>
+                                            <Unlink size={14} className="mr-2" /> Unlink from Group
+                                        </DropdownMenuItem>
+                                    )}
+                                </>
+                            )}
+                            {!downloadVisible && (
+                                <>
+                                    {onEdit && <DropdownMenuSeparator />}
+                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); toggleLike(userId, channelId, track.id); }}>
+                                        <Heart size={14} className="mr-2" fill={track.liked ? 'currentColor' : 'none'} />
+                                        {track.liked ? 'Unlike' : 'Like'}
+                                    </DropdownMenuItem>
+                                    {hasBothVariants ? (
+                                        <>
+                                            <DropdownMenuItem onClick={() => handleDownload(track.vocalUrl)}>
+                                                <Download size={14} className="mr-2" /> Download Vocal
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => handleDownload(track.instrumentalUrl, '(instr)')}>
+                                                <Download size={14} className="mr-2" /> Download Instrumental
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={handleDownloadBoth}>
+                                                <Download size={14} className="mr-2" /> Download Both
+                                            </DropdownMenuItem>
+                                        </>
+                                    ) : (
+                                        <DropdownMenuItem onClick={() => handleDownload(track.vocalUrl || track.instrumentalUrl)}>
+                                            <Download size={14} className="mr-2" /> Download
+                                        </DropdownMenuItem>
+                                    )}
+                                </>
+                            )}
+                            {onEdit && (
+                                <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => onEdit(track)}>
+                                        <Settings size={14} className="mr-2" /> Track Settings
+                                    </DropdownMenuItem>
+                                </>
+                            )}
+                            {onDelete && <DropdownMenuSeparator />}
+                            {onDelete && (
+                                <DropdownMenuItem
+                                    onClick={() => setShowDeleteConfirm(true)}
+                                    className="text-red-400 focus:text-red-400"
+                                >
+                                    <Trash2 size={14} className="mr-2" /> Delete Track
+                                </DropdownMenuItem>
+                            )}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                )}
             </div>
 
             {/* Delete confirmation */}

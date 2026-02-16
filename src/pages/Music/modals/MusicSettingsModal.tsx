@@ -5,12 +5,13 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Disc, Tag } from 'lucide-react';
+import { X, Disc, Tag, Share2 } from 'lucide-react';
 import { useMusicStore } from '../../../core/stores/musicStore';
 import { Button } from '../../../components/ui/atoms';
 import type { MusicGenre, MusicTag, MusicSettings } from '../../../core/types/track';
 import { GenreTab } from './settings/GenreTab';
 import { TagTab } from './settings/TagTab';
+import { ShareTab } from './settings/ShareTab';
 
 interface MusicSettingsModalProps {
     isOpen: boolean;
@@ -20,7 +21,7 @@ interface MusicSettingsModalProps {
     initialTab?: Tab;
 }
 
-type Tab = 'genres' | 'tags';
+type Tab = 'genres' | 'tags' | 'share';
 
 export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
     isOpen,
@@ -148,7 +149,7 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
 
                 {/* Tabs */}
                 <div className="flex border-b border-border px-6">
-                    {(['genres', 'tags'] as Tab[]).map((tab) => (
+                    {(['genres', 'tags', 'share'] as Tab[]).map((tab) => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
@@ -158,8 +159,8 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
                                 }`}
                         >
                             <span className="flex items-center gap-1.5">
-                                {tab === 'genres' ? <Disc size={14} /> : <Tag size={14} />}
-                                {tab === 'genres' ? 'Genres' : 'Tags'}
+                                {tab === 'genres' ? <Disc size={14} /> : tab === 'tags' ? <Tag size={14} /> : <Share2 size={14} />}
+                                {tab === 'genres' ? 'Genres' : tab === 'tags' ? 'Tags' : 'Share Access'}
                             </span>
                             {activeTab === tab && (
                                 <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-text-primary rounded-t" />
@@ -175,6 +176,9 @@ export const MusicSettingsModal: React.FC<MusicSettingsModalProps> = ({
                     )}
                     {activeTab === 'tags' && (
                         <TagTab localTags={localTags} setLocalTags={setLocalTags} categoryOrder={localCategoryOrder} setCategoryOrder={setLocalCategoryOrder} featuredCategories={localFeaturedCategories} setFeaturedCategories={setLocalFeaturedCategories} sortableCategories={localSortableCategories} setSortableCategories={setLocalSortableCategories} />
+                    )}
+                    {activeTab === 'share' && (
+                        <ShareTab userId={userId} channelId={channelId} />
                     )}
                 </div>
 
