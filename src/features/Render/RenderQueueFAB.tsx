@@ -10,39 +10,72 @@ import { useFloatingBottomOffset } from '../../core/hooks/useFloatingBottomOffse
 import { RenderStatusBar } from '../../components/ui/atoms/RenderStatusBar';
 import './RenderQueueFAB.css';
 
-// ─── Progress ring SVG helper ──────────────────────────────────────────
+// ─── Pill-contour progress overlay ─────────────────────────────────────
 
-const RING_SIZE = 40;
-const RING_STROKE = 3;
-const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+const PILL_STROKE = 2.5;
 
-const ProgressRing: React.FC<{ progress: number }> = ({ progress }) => {
-    const offset = RING_CIRCUMFERENCE - (progress / 100) * RING_CIRCUMFERENCE;
+/** Draws progress along the outer contour of the pill-shaped button using fixed positioning. */
+const PillProgress: React.FC<{ progress: number; containerRef: React.RefObject<HTMLElement | null> }> = ({ progress, containerRef }) => {
+    const [size, setSize] = useState({ w: 0, h: 0 });
+
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const measure = () => {
+            const { width, height } = el.getBoundingClientRect();
+            setSize((prev) =>
+                prev.w === width && prev.h === height
+                    ? prev
+                    : { w: width, h: height }
+            );
+        };
+        measure();
+
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        window.addEventListener('resize', measure);
+
+        return () => {
+            ro.disconnect();
+            window.removeEventListener('resize', measure);
+        };
+    }, [containerRef]);
+
+    if (size.w === 0 || size.h === 0) return null;
+
+    const { w, h } = size;
+    const r = h / 2;
+    const perimeter = 2 * (w - 2 * r) + 2 * Math.PI * r;
+    const offset = perimeter - (progress / 100) * perimeter;
+    const inset = PILL_STROKE / 2;
+    const rr = r - inset;
+
+    const d = [
+        `M ${w / 2} ${inset}`,
+        `L ${w - inset - rr} ${inset}`,
+        `A ${rr} ${rr} 0 0 1 ${w - inset} ${h / 2}`,
+        `A ${rr} ${rr} 0 0 1 ${w - inset - rr} ${h - inset}`,
+        `L ${inset + rr} ${h - inset}`,
+        `A ${rr} ${rr} 0 0 1 ${inset} ${h / 2}`,
+        `A ${rr} ${rr} 0 0 1 ${inset + rr} ${inset}`,
+        `Z`,
+    ].join(' ');
+
     return (
-        <svg width={RING_SIZE} height={RING_SIZE} className="absolute inset-0 -rotate-90">
-            {/* Background ring */}
-            <circle
-                cx={RING_SIZE / 2}
-                cy={RING_SIZE / 2}
-                r={RING_RADIUS}
+        <svg
+            className="absolute inset-0 pointer-events-none"
+            width={w}
+            height={h}
+        >
+            <path
+                d={d}
                 fill="none"
-                stroke="currentColor"
-                strokeWidth={RING_STROKE}
-                className="text-border"
-            />
-            {/* Progress ring */}
-            <circle
-                cx={RING_SIZE / 2}
-                cy={RING_SIZE / 2}
-                r={RING_RADIUS}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={RING_STROKE}
-                strokeDasharray={RING_CIRCUMFERENCE}
+                stroke="var(--accent)"
+                strokeWidth={PILL_STROKE}
+                strokeDasharray={perimeter}
                 strokeDashoffset={offset}
                 strokeLinecap="round"
-                className="text-accent render-progress-ring"
+                className="render-progress-ring"
             />
         </svg>
     );
@@ -54,10 +87,11 @@ export const RenderQueueFAB: React.FC = () => {
     const allJobs = useRenderQueueStore((s) => s.jobs);
     const cancelJob = useRenderQueueStore((s) => s.cancelJob);
     const clearJob = useRenderQueueStore((s) => s.clearJob);
-    const { bottomClass, rightClass } = useFloatingBottomOffset();
+    const { bottomClass, rightPx } = useFloatingBottomOffset();
 
     const [isExpanded, setIsExpanded] = useState(false);
     const panelRef = useRef<HTMLDivElement>(null);
+    const fabRef = useRef<HTMLButtonElement>(null);
     const autoClearTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
     // Delayed fade-in (matching ChatBubble)
@@ -137,20 +171,16 @@ export const RenderQueueFAB: React.FC = () => {
     const activeJob = visibleJobs.find((j) => j.status === 'rendering');
     const queuedCount = visibleJobs.filter((j) => j.status === 'queued').length;
 
-    // Position: left of ChatBubble (chat is right-8 = 2rem, width 3rem, gap 0.75rem)
-    // → render FAB at right-8 + 3rem + 0.75rem = right-[5.75rem]
-    // On trends page: ChatBubble is at right-[70px], so FAB at right-[70px + 3rem + 0.75rem]
-    // We use a simpler approach: offset by 60px from ChatBubble's right edge
-    const fabRightClass = rightClass === 'right-8'
-        ? 'right-[5.75rem]'
-        : 'right-[130px]'; // 70px + 60px
+    // Position FAB to the left of ChatBubble: chatBubble right + chatBubble width (48px) + gap (12px)
+    const fabRightPx = rightPx + 60;
 
     return (
         <div ref={panelRef} className="fixed z-sticky" style={{ opacity: ready ? 1 : 0, pointerEvents: ready ? undefined : 'none' }}>
             {/* ── Expanded panel ─────────────────────────────────────── */}
             {isExpanded && (
                 <div
-                    className={`render-queue-panel fixed ${fabRightClass} ${bottomClass} mb-14 w-72 rounded-xl border border-border bg-bg-secondary/95 backdrop-blur-md shadow-xl overflow-hidden transition-[bottom] duration-500`}
+                    className={`render-queue-panel fixed ${bottomClass} mb-16 w-72 rounded-xl border border-border bg-bg-secondary/70 backdrop-blur-xl shadow-xl overflow-hidden transition-[bottom] duration-500`}
+                    style={{ right: fabRightPx }}
                 >
                     {/* Header */}
                     <div className="flex items-center justify-between px-3 py-2.5 border-b border-border">
@@ -179,33 +209,27 @@ export const RenderQueueFAB: React.FC = () => {
 
             {/* ── Collapsed FAB ──────────────────────────────────────── */}
             <button
-                className={`render-fab fixed ${fabRightClass} ${bottomClass} h-10 rounded-full border border-border cursor-pointer flex items-center gap-2 bg-bg-secondary/90 backdrop-blur-md shadow-lg text-text-secondary transition-[bottom,transform,filter,opacity] duration-500 hover:brightness-125 ${activeJob ? 'pl-0 pr-3' : 'px-3'
-                    }`}
+                ref={fabRef}
+                className={`render-fab fixed ${bottomClass} h-12 rounded-full border border-border cursor-pointer flex items-center gap-2.5 px-4 bg-bg-secondary/70 backdrop-blur-xl shadow-lg text-text-secondary transition-[bottom,transform,filter,opacity] duration-500 hover:brightness-125`}
+                style={{ right: fabRightPx }}
                 onClick={() => setIsExpanded(!isExpanded)}
                 title="Render Queue"
             >
+                {activeJob && <PillProgress progress={activeJob.progress} containerRef={fabRef} />}
                 {activeJob ? (
-                    <>
-                        <span className="text-xs font-medium whitespace-nowrap tabular-nums">
-                            {Math.round(activeJob.progress)}%
-                            {queuedCount > 0 && (
-                                <span className="text-text-tertiary ml-1">+{queuedCount}</span>
-                            )}
-                        </span>
-                        {/* Progress ring with icon inside */}
-                        <div className="relative w-10 h-10 flex items-center justify-center flex-shrink-0">
-                            <ProgressRing progress={activeJob.progress} />
-                            <Film className="w-4 h-4" />
-                        </div>
-                    </>
+                    <span className="text-xs font-semibold tabular-nums w-10 text-left">
+                        {Math.round(activeJob.progress)}%
+                        {queuedCount > 0 && (
+                            <span className="text-text-tertiary ml-0.5">+{queuedCount}</span>
+                        )}
+                    </span>
                 ) : (
-                    <>
-                        <Film className="w-4 h-4" />
-                        <span className="text-xs font-medium">
-                            {visibleJobs.length} {visibleJobs.length === 1 ? 'render' : 'renders'}
-                        </span>
-                    </>
+                    <span className="text-xs font-medium">
+                        {visibleJobs.length} {visibleJobs.length === 1 ? 'render' : 'renders'}
+                    </span>
                 )}
+
+                <Film className="w-5 h-5 flex-shrink-0" />
             </button>
         </div>
     );
@@ -221,14 +245,16 @@ interface RenderJobRowProps {
 
 const RenderJobRow: React.FC<RenderJobRowProps> = ({ job, onCancel, onClear }) => {
     const { videoId, status, progress, error, blobUrl, fileName } = job;
-    const truncatedId = videoId.length > 12 ? `${videoId.slice(0, 12)}…` : videoId;
+    const displayName = fileName
+        ? fileName.replace(/\.\w+$/, '')
+        : (videoId.length > 12 ? `${videoId.slice(0, 12)}…` : videoId);
 
     return (
         <div className="px-3 py-2.5 border-b border-border/50 last:border-b-0">
             {/* Row header */}
             <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs text-text-secondary truncate max-w-[140px]" title={videoId}>
-                    {truncatedId}
+                <span className="text-xs text-text-secondary truncate max-w-[140px]" title={fileName || videoId}>
+                    {displayName}
                 </span>
                 <div className="flex items-center gap-1.5">
                     {(status === 'rendering' || status === 'queued') && (

@@ -26,6 +26,8 @@ export interface EditingSession {
     resolution: RenderResolution;
     loopCount: number;
     volume: number;
+    // Lock
+    isLocked?: boolean;
     // Meta
     updatedAt: unknown; // FieldValue on write, Timestamp on read
 }

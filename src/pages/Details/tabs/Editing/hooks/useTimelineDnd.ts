@@ -10,7 +10,7 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { useEditingStore } from '../../../../../core/stores/editingStore';
-import { useMusicStore } from '../../../../../core/stores/musicStore';
+import { useMusicStore, selectAllTracks } from '../../../../../core/stores/musicStore';
 import { createTimelineTrack, type TimelineTrack } from '../../../../../core/types/editing';
 
 export interface UseTimelineDndReturn {
@@ -21,10 +21,17 @@ export interface UseTimelineDndReturn {
     handleDragStart: (event: DragStartEvent) => void;
     handleDragOver: (event: DragOverEvent) => void;
     handleDragEnd: () => void;
+    handleDragCancel: () => void;
     handleNativeDragOver: (e: React.DragEvent) => void;
     handleNativeDragLeave: (e: React.DragEvent) => void;
     handleNativeDrop: (e: React.DragEvent) => void;
 }
+
+/**
+ * Module-level flag indicating an active timeline drag.
+ * Checked by useTimelinePlayback to skip Space/Arrow shortcuts during drag.
+ */
+export let isDraggingTimeline = false;
 
 /**
  * Drag-and-drop: DndKit reorder (Live Pattern) + native drop from TrackBrowser.
@@ -36,6 +43,8 @@ export function useTimelineDnd(
 ): UseTimelineDndReturn {
     const reorderTracks = useEditingStore((s) => s.reorderTracks);
     const insertTrackAt = useEditingStore((s) => s.insertTrackAt);
+    const isLocked = useEditingStore((s) => s.isLocked);
+    const musicTracks = useMusicStore(selectAllTracks);
 
     // dnd-kit sensors
     const sensors = useSensors(
@@ -47,8 +56,10 @@ export function useTimelineDnd(
     const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
     const handleDragStart = useCallback((event: DragStartEvent) => {
+        if (isLocked) return;
         setActiveDragId(event.active.id as string);
-    }, []);
+        isDraggingTimeline = true;
+    }, [isLocked]);
 
     const handleDragOver = useCallback((event: DragOverEvent) => {
         const { active, over } = event;
@@ -62,7 +73,14 @@ export function useTimelineDnd(
 
     const handleDragEnd = useCallback(() => {
         setActiveDragId(null);
+        isDraggingTimeline = false;
+        // Release focus from the draggable element so Space triggers play/pause
+        // instead of a native click on the focused role="button" element
+        (document.activeElement as HTMLElement)?.blur();
     }, []);
+
+    // onDragCancel shares the same cleanup as onDragEnd
+    const handleDragCancel = handleDragEnd;
 
     // ── Native drop for tracks from TrackBrowser ────────────────────────
     const [dropInsertIndex, setDropInsertIndex] = useState<number | null>(null);
@@ -82,6 +100,7 @@ export function useTimelineDnd(
     }, [tracks, pxPerSecond]);
 
     const handleNativeDragOver = useCallback((e: React.DragEvent) => {
+        if (isLocked) return;
         const hasTrack = e.dataTransfer.types.includes('application/x-editing-track');
         const hasPlaylist = e.dataTransfer.types.includes('application/x-editing-playlist');
         if (!hasTrack && !hasPlaylist) return;
@@ -108,7 +127,7 @@ export function useTimelineDnd(
         }
         setDropInsertIndex(nearest.index);
         setDropGapPx(nearest.px);
-    }, [tracks, getGapPositions, scrollRef]);
+    }, [tracks, getGapPositions, scrollRef, isLocked]);
 
     const handleNativeDragLeave = useCallback((e: React.DragEvent) => {
         if (e.currentTarget.contains(e.relatedTarget as Node)) return;
@@ -116,6 +135,7 @@ export function useTimelineDnd(
     }, []);
 
     const handleNativeDrop = useCallback((e: React.DragEvent) => {
+        if (isLocked) { setDropInsertIndex(null); return; }
         e.preventDefault();
         const idx = dropInsertIndex ?? tracks.length;
 
@@ -124,7 +144,7 @@ export function useTimelineDnd(
         if (trackData) {
             try {
                 const { trackId, variant } = JSON.parse(trackData) as { trackId: string; variant: 'vocal' | 'instrumental' };
-                const track = useMusicStore.getState().tracks.find((t) => t.id === trackId);
+                const track = musicTracks.find((t) => t.id === trackId);
                 if (track) {
                     insertTrackAt(createTimelineTrack(track, variant), idx);
                 }
@@ -133,18 +153,20 @@ export function useTimelineDnd(
             return;
         }
 
-        // Playlist drop — insert all tracks
+        // Playlist drop — insert all tracks from store
         const playlistData = e.dataTransfer.getData('application/x-editing-playlist');
         if (playlistData) {
             try {
-                const { trackIds } = JSON.parse(playlistData) as { playlistId: string; trackIds: string[] };
-                const allTracks = useMusicStore.getState().tracks;
+                const parsed = JSON.parse(playlistData) as {
+                    playlistId: string;
+                    trackIds: string[];
+                };
                 const existingIds = new Set(tracks.map((t) => t.trackId));
                 let insertAt = idx;
 
-                for (const tId of trackIds) {
+                for (const tId of parsed.trackIds) {
                     if (existingIds.has(tId)) continue;
-                    const track = allTracks.find((t) => t.id === tId);
+                    const track = musicTracks.find((t) => t.id === tId);
                     if (!track) continue;
                     const variant: 'vocal' | 'instrumental' = track.vocalUrl ? 'vocal' : 'instrumental';
                     insertTrackAt(createTimelineTrack(track, variant), insertAt);
@@ -155,7 +177,7 @@ export function useTimelineDnd(
         }
 
         setDropInsertIndex(null);
-    }, [insertTrackAt, dropInsertIndex, tracks]);
+    }, [insertTrackAt, dropInsertIndex, tracks, isLocked, musicTracks]);
 
     return {
         sensors,
@@ -165,6 +187,7 @@ export function useTimelineDnd(
         handleDragStart,
         handleDragOver,
         handleDragEnd,
+        handleDragCancel,
         handleNativeDragOver,
         handleNativeDragLeave,
         handleNativeDrop,

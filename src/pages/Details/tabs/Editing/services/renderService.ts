@@ -25,7 +25,7 @@ export const BITRATE_MAP: Record<RenderResolution, number> = {
 
 const FPS = 30;
 const AUDIO_BITRATE = 192_000;
-const KEY_FRAME_INTERVAL = 0.5; // seconds → every 15 frames at 30fps
+const KEY_FRAME_INTERVAL = 0.5; // seconds — every 15 frames at 30fps
 
 // ─── Render config ─────────────────────────────────────────────────────
 export interface RenderConfig {
@@ -71,7 +71,7 @@ export async function renderVideo(config: RenderConfig): Promise<RenderResult> {
     checkAbort(abortSignal);
     onProgress(1);
 
-    const imageBitmap = await loadImageBitmap(imageUrl);
+    const imageBitmap = await loadImageBitmap(imageUrl, abortSignal);
 
     // ── 2. Mix audio → transferable Float32Array channels ──────────
     checkAbort(abortSignal);
@@ -182,8 +182,8 @@ export async function renderVideo(config: RenderConfig): Promise<RenderResult> {
 
 // ─── Helpers ───────────────────────────────────────────────────────────
 
-async function loadImageBitmap(url: string): Promise<ImageBitmap> {
-    const response = await fetch(url, { mode: 'cors' });
+async function loadImageBitmap(url: string, signal?: AbortSignal): Promise<ImageBitmap> {
+    const response = await fetch(url, { mode: 'cors', signal });
     if (!response.ok) throw new Error(`Failed to load image: ${response.statusText}`);
     const blob = await response.blob();
     return createImageBitmap(blob);

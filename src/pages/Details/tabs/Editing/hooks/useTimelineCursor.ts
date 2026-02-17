@@ -1,13 +1,15 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditingStore } from '../../../../../core/stores/editingStore';
 import { useMusicStore } from '../../../../../core/stores/musicStore';
 import type { TimelineTrack } from '../../../../../core/types/editing';
 import { getEffectiveDuration } from '../../../../../core/types/editing';
 import { lastTrimDragEndMs } from '../components/TimelineTrackItem';
+import { setBrowserPreviewActive } from './useTimelinePlayback';
 import { formatDuration } from '../utils/formatDuration';
 
 export interface UseTimelineCursorReturn {
     handleSeek: (e: React.MouseEvent<HTMLDivElement>) => void;
+    handleRulerMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void;
     hoverPx: number | null;
     hoverTimeLabel: string | null;
     cursorPx: number;
@@ -66,6 +68,13 @@ export function useTimelineCursor(
         const seconds = pxToSeconds(clickX);
         setPlaybackPosition(seconds);
 
+        // Stop browser track preview — timeline takes over
+        const ms = useMusicStore.getState();
+        if (ms.playingTrackId && !useEditingStore.getState().isPlaying && ms.playbackVolume === null) {
+            ms.setPlayingTrack(null);
+        }
+        setBrowserPreviewActive(false);
+
         if (isPlaying) {
             const hit = findTrackAtPosition(seconds);
             if (hit) {
@@ -79,6 +88,45 @@ export function useTimelineCursor(
             }
         }
     }, [pxPerSecond, pxToSeconds, setPlaybackPosition, isPlaying, findTrackAtPosition, scrollRef, activeTrackIndexRef]);
+
+    // ── Live ruler scrubbing ────────────────────────────────────────────
+    const isScrubbing = useRef(false);
+
+    const scrubFromEvent = useCallback((clientX: number) => {
+        const scrollEl = scrollRef.current;
+        if (!scrollEl || pxPerSecond <= 0) return;
+        const rect = scrollEl.getBoundingClientRect();
+        const px = Math.max(0, clientX - rect.left + scrollEl.scrollLeft);
+        const seconds = pxToSeconds(px);
+        setPlaybackPosition(seconds);
+    }, [scrollRef, pxPerSecond, pxToSeconds, setPlaybackPosition]);
+
+    const handleRulerMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        if (e.button !== 0) return; // left-click only
+        e.preventDefault();
+        isScrubbing.current = true;
+
+        // Stop playback during scrub (keep AudioPlayer in timeline mode)
+        if (useEditingStore.getState().isPlaying) {
+            useEditingStore.getState().setPlaying(false);
+            useMusicStore.getState().setIsPlaying(false);
+        }
+
+        // Initial seek
+        scrubFromEvent(e.clientX);
+
+        const onMouseMove = (ev: MouseEvent) => {
+            if (!isScrubbing.current) return;
+            scrubFromEvent(ev.clientX);
+        };
+        const onMouseUp = () => {
+            isScrubbing.current = false;
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    }, [scrubFromEvent]);
 
     // ── Hover cursor ────────────────────────────────────────────────────
     const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -133,6 +181,7 @@ export function useTimelineCursor(
             return;
         }
         const onKeyDown = (e: KeyboardEvent) => {
+            if (useEditingStore.getState().isLocked) return;
             if (e.key === 'Backspace' || e.key === 'Delete') {
                 e.preventDefault();
                 removeTrack(selectedTrackId);
@@ -145,6 +194,7 @@ export function useTimelineCursor(
 
     return {
         handleSeek,
+        handleRulerMouseDown,
         hoverPx,
         hoverTimeLabel,
         cursorPx,

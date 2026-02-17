@@ -41,6 +41,10 @@ interface EditingActions {
     toggleBrowser: () => void;
     setBrowserOpen: (open: boolean) => void;
 
+    // Lock
+    setLocked: (locked: boolean) => void;
+    toggleLocked: () => void;
+
     // Computed
     getTotalDuration: () => number;
 
@@ -61,6 +65,7 @@ const initialState: EditingState = {
     playbackPosition: 0,
     isPlaying: false,
     isBrowserOpen: true,
+    isLocked: false,
 };
 
 export const useEditingStore = create<EditingState & EditingActions>((set, get) => ({
@@ -145,6 +150,10 @@ export const useEditingStore = create<EditingState & EditingActions>((set, get) 
 
     setBrowserOpen: (open) => set({ isBrowserOpen: open }),
 
+    // ── Lock ───────────────────────────────────────────────────────────
+    setLocked: (locked) => set({ isLocked: locked }),
+    toggleLocked: () => set((s) => ({ isLocked: !s.isLocked })),
+
     // ── Computed ────────────────────────────────────────────────────────
     getTotalDuration: () => {
         const { tracks, loopCount } = get();
@@ -168,6 +177,7 @@ export const useEditingStore = create<EditingState & EditingActions>((set, get) 
             resolution: session.resolution,
             loopCount: session.loopCount,
             volume: session.volume,
+            isLocked: session.isLocked ?? false,
             playbackPosition: 0,
             isPlaying: false,
         });

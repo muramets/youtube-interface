@@ -1,6 +1,8 @@
 import React, { useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useSmartPosition } from '@/pages/Trends/Timeline/hooks/useSmartPosition';
+import { useMusicStore } from '@/core/stores/musicStore';
 
 interface FloatingBarProps {
     title: string;
@@ -22,6 +24,8 @@ export const FloatingBar: React.FC<FloatingBarProps> = ({
     className = ''
 }) => {
     const barRef = useRef<HTMLDivElement>(null);
+    // Match ZoomControls offset: shift up when audio player is visible
+    const hasAudioPlayer = !!useMusicStore((s) => s.playingTrackId);
 
     // Smart Positioning
     const { coords } = useSmartPosition({
@@ -38,10 +42,11 @@ export const FloatingBar: React.FC<FloatingBarProps> = ({
         ? {
             left: 0,
             right: 0,
-            bottom: '24px',
+            bottom: hasAudioPlayer ? '88px' : '32px',
             margin: '0 auto',
             width: 'fit-content',
-            position: dockingStrategy
+            position: dockingStrategy,
+            transition: 'bottom 300ms ease',
         }
         : {
             left: coords.x,
@@ -49,15 +54,11 @@ export const FloatingBar: React.FC<FloatingBarProps> = ({
             position: 'fixed'
         };
 
-    return (
+    const content = (
         <div
             ref={barRef}
-            className={`flex items-center gap-2 backdrop-blur-xl backdrop-saturate-150 shadow-[0_8px_32px_rgba(0,0,0,0.4)] rounded-full px-4 py-2 z-[1000] ${className}`}
-            style={{
-                ...style,
-                background: 'var(--floating-bar-bg)',
-                border: '1px solid var(--floating-bar-border)',
-            }}
+            className={`flex items-center gap-2 bg-bg-secondary/70 backdrop-blur-xl shadow-lg border border-border rounded-full px-4 py-2 z-[1000] ${className}`}
+            style={style}
             onMouseDown={(e) => e.stopPropagation()}
             onMouseMove={(e) => e.stopPropagation()}
             onMouseUp={(e) => e.stopPropagation()}
@@ -88,4 +89,11 @@ export const FloatingBar: React.FC<FloatingBarProps> = ({
             </div>
         </div>
     );
+
+    // Portal to body when docked+fixed so backdrop-blur escapes scroll container
+    if (shouldDock && dockingStrategy === 'fixed') {
+        return createPortal(content, document.body);
+    }
+
+    return content;
 };

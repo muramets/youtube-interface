@@ -103,6 +103,7 @@ async function runRender(config: RenderStartMessage, gen: number): Promise<void>
         const ctx = canvas.getContext('2d');
         if (!ctx) throw new Error('Cannot create 2D context on OffscreenCanvas');
 
+        ctx.imageSmoothingEnabled = false; // preserve grain/noise — no bilinear interpolation
         drawCover(ctx, bitmap, width, height);
         bitmap.close(); // release memory
         bitmap = null;
@@ -118,7 +119,7 @@ async function runRender(config: RenderStartMessage, gen: number): Promise<void>
         const videoSource = new CanvasSource(canvas, {
             codec: 'avc',
             bitrate: videoBitrate,
-            bitrateMode: 'variable',
+            bitrateMode: 'constant',
             latencyMode: 'quality',
             keyFrameInterval,
             fullCodecString: 'avc1.640028', // H.264 High Profile Level 4.0

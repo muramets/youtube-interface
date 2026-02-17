@@ -10,6 +10,7 @@ interface TimelineRulerProps {
     showCursor: boolean;
     cursorRulerRef: React.RefObject<HTMLDivElement | null>;
     onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
+    onMouseDown?: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 
@@ -21,13 +22,15 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({
     showCursor,
     cursorRulerRef,
     onClick,
+    onMouseDown,
 }) => {
     const rulerTicks = useRulerTicks(pxPerSecond, timelineDuration);
 
     return (
         <div
-            className="relative h-5 border-b border-white/[0.06] cursor-crosshair"
+            className="relative h-5 border-b border-white/[0.06] cursor-crosshair select-none"
             onClick={onClick}
+            onMouseDown={onMouseDown}
         >
             {rulerTicks.map((tick, i) => (
                 <div
@@ -42,7 +45,7 @@ export const TimelineRuler: React.FC<TimelineRulerProps> = ({
                             }`}
                     />
                     {tick.label !== null && (
-                        <span className="absolute top-[5px] left-1 text-[8px] text-text-tertiary/50 leading-none tabular-nums whitespace-nowrap">
+                        <span className="absolute top-[5px] left-1 text-[8px] text-text-tertiary/50 leading-none tabular-nums whitespace-nowrap pointer-events-none">
                             {tick.label}
                         </span>
                     )}

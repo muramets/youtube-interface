@@ -1,10 +1,11 @@
 import React, { useCallback } from 'react';
-import { Plus, Play, Music2, Check } from 'lucide-react';
+import { Plus, Play, Pause, Music2, Check } from 'lucide-react';
 import type { Track } from '../../../../../core/types/track';
 import { useEditingStore } from '../../../../../core/stores/editingStore';
 import { useMusicStore } from '../../../../../core/stores/musicStore';
 import { createTimelineTrack } from '../../../../../core/types/editing';
 import { formatDuration } from '../utils/formatDuration';
+import { setBrowserPreviewActive } from '../hooks/useTimelinePlayback';
 
 interface TrackBrowserItemProps {
     track: Track;
@@ -13,6 +14,10 @@ interface TrackBrowserItemProps {
 
 export const TrackBrowserItem: React.FC<TrackBrowserItemProps> = ({ track, isOnTimeline }) => {
     const addTrack = useEditingStore((s) => s.addTrack);
+    const playingTrackId = useMusicStore((s) => s.playingTrackId);
+    const isPlaying = useMusicStore((s) => s.isPlaying);
+
+    const isCurrentlyPlaying = playingTrackId === track.id && isPlaying;
 
     const defaultVariant: 'vocal' | 'instrumental' =
         track.vocalUrl ? 'vocal' : 'instrumental';
@@ -23,8 +28,13 @@ export const TrackBrowserItem: React.FC<TrackBrowserItemProps> = ({ track, isOnT
 
     const handlePlay = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
-        useMusicStore.getState().setPlayingTrack(track.id, defaultVariant);
-    }, [track.id, defaultVariant]);
+        if (isCurrentlyPlaying) {
+            useMusicStore.getState().setIsPlaying(false);
+        } else {
+            setBrowserPreviewActive(true);
+            useMusicStore.getState().setPlayingTrack(track.id, defaultVariant);
+        }
+    }, [track.id, defaultVariant, isCurrentlyPlaying]);
 
     // Native drag
     const handleDragStart = useCallback((e: React.DragEvent) => {
@@ -54,18 +64,38 @@ export const TrackBrowserItem: React.FC<TrackBrowserItemProps> = ({ track, isOnT
                         <Music2 size={12} className="text-text-tertiary" />
                     </div>
                 )}
-                {/* Play overlay */}
+                {/* Play/Pause overlay */}
                 <button
                     onClick={handlePlay}
-                    className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity
+                        ${isCurrentlyPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
                 >
-                    <Play size={12} fill="white" className="text-white" />
+                    {isCurrentlyPlaying ? (
+                        <Pause size={12} fill="white" className="text-white" />
+                    ) : (
+                        <Play size={12} fill="white" className="text-white" />
+                    )}
                 </button>
+                {/* Playing indicator bars */}
+                {isCurrentlyPlaying && (
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 flex gap-[1px]">
+                        {[0, 1, 2].map((i) => (
+                            <div
+                                key={i}
+                                className="w-[2px] rounded-full"
+                                style={{
+                                    backgroundColor: '#fff',
+                                    animation: `barBounce 0.6s ease-in-out ${i * 0.15}s infinite`,
+                                }}
+                            />
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Info */}
             <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-text-primary truncate">{track.title}</p>
+                <p className={`text-xs font-medium truncate ${isCurrentlyPlaying ? 'text-indigo-400' : 'text-text-primary'}`}>{track.title}</p>
                 <p className="text-[10px] text-text-tertiary group-hover:text-text-secondary transition-colors truncate">
                     {track.artist && `${track.artist} · `}{formatDuration(track.duration)}
                 </p>

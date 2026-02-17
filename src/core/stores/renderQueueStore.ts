@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { renderVideo } from '../../pages/Details/tabs/Editing/services/renderService';
+import { renderVideo, BITRATE_MAP } from '../../pages/Details/tabs/Editing/services/renderService';
 import type { RenderResolution, TimelineTrack } from '../types/editing';
+import { getEffectiveDuration } from '../types/editing';
 
 // ─── Render job types ──────────────────────────────────────────────────
 
@@ -160,6 +161,10 @@ function executeJob(videoId: string): void {
     })
         .then((result) => {
             const blobUrl = URL.createObjectURL(result.blob);
+
+            // Adaptive size calibration: store actual/estimated ratio
+            calibrateSizeEstimate(result.blob.size, job.snapshot);
+
             useRenderQueueStore.setState((s) => ({
                 jobs: {
                     ...s.jobs,
@@ -241,4 +246,55 @@ function dequeueNext(): void {
         executeJob(nextVideoId);
         return;
     }
+}
+
+// ─── Size estimation calibration ───────────────────────────────────────
+
+const SIZE_RATIO_KEY = 'render-size-ratio';
+const DEFAULT_RATIO = 1;
+const EMA_ALPHA = 0.4; // Weight of new measurement vs history
+
+/** Compute naive byte estimate (same formula as RenderControls) */
+function naiveEstimateBytes(durationSec: number, resolution: RenderResolution): number {
+    const videoBitrate = BITRATE_MAP[resolution];
+    const audioBitrate = 384_000;
+    const effectiveVideoBitrate = videoBitrate * 0.85;
+    const containerOverhead = 1.05;
+    return ((effectiveVideoBitrate + audioBitrate) * durationSec) / 8 * containerOverhead;
+}
+
+/** After render, record actual vs estimated ratio to calibrate future estimates */
+function calibrateSizeEstimate(actualBytes: number, snapshot: RenderSnapshot): void {
+    const totalTrackDuration = snapshot.tracks.reduce(
+        (sum, t) => sum + getEffectiveDuration(t), 0,
+    );
+    const totalDuration = totalTrackDuration * snapshot.loopCount;
+    if (totalDuration <= 0) return;
+
+    const estimated = naiveEstimateBytes(totalDuration, snapshot.resolution);
+    if (estimated <= 0) return;
+
+    const newRatio = actualBytes / estimated;
+    const prevRatio = getSizeCalibrationRatio();
+
+    // Exponential moving average for smooth adaptation
+    const blended = prevRatio === DEFAULT_RATIO
+        ? newRatio // First measurement → use directly
+        : EMA_ALPHA * newRatio + (1 - EMA_ALPHA) * prevRatio;
+
+    try {
+        localStorage.setItem(SIZE_RATIO_KEY, blended.toFixed(4));
+    } catch { /* quota exceeded — ignore */ }
+}
+
+/** Read the stored calibration ratio (1.0 = no correction) */
+export function getSizeCalibrationRatio(): number {
+    try {
+        const stored = localStorage.getItem(SIZE_RATIO_KEY);
+        if (stored) {
+            const val = parseFloat(stored);
+            if (Number.isFinite(val) && val > 0) return val;
+        }
+    } catch { /* ignore */ }
+    return DEFAULT_RATIO;
 }

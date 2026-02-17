@@ -7,6 +7,7 @@ import { useUIStore } from '../../../../../core/stores/uiStore';
 import { RESOLUTION_PRESETS, type RenderResolution } from '../../../../../core/types/editing';
 import { getEffectiveDuration } from '../../../../../core/types/editing';
 import { BITRATE_MAP } from '../services/renderService';
+import { getSizeCalibrationRatio } from '../../../../../core/stores/renderQueueStore';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
 import { formatDuration } from '../utils/formatDuration';
 
@@ -16,9 +17,12 @@ const RESOLUTIONS: RenderResolution[] = ['720p', '1080p', '1440p', '4k'];
 const estimateFileSize = (durationSec: number, resolution: RenderResolution): string => {
     const videoBitrate = BITRATE_MAP[resolution];
     const audioBitrate = 384_000;
-    // Static image → encoder uses ~30% of ceiling bitrate on average
-    const effectiveVideoBitrate = videoBitrate * 0.3;
-    const totalBytes = ((effectiveVideoBitrate + audioBitrate) * durationSec) / 8;
+    // Animated grain overlay means most frames differ → encoder uses ~85% of ceiling
+    const effectiveVideoBitrate = videoBitrate * 0.85;
+    const containerOverhead = 1.05; // MP4/WebM muxing overhead
+    const naiveBytes = ((effectiveVideoBitrate + audioBitrate) * durationSec) / 8 * containerOverhead;
+    // Apply adaptive correction from past renders (1.0 = no correction)
+    const totalBytes = naiveBytes * getSizeCalibrationRatio();
     if (totalBytes < 1_000_000) return `${(totalBytes / 1_000).toFixed(0)} KB`;
     if (totalBytes < 1_000_000_000) return `${(totalBytes / 1_000_000).toFixed(0)} MB`;
     return `${(totalBytes / 1_000_000_000).toFixed(1)} GB`;

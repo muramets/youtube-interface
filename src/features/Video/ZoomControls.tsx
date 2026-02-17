@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, Minus } from 'lucide-react';
 import { useSettings } from '../../core/hooks/useSettings';
 import { useAuth } from '../../core/hooks/useAuth';
@@ -17,10 +18,10 @@ export const ZoomControls: React.FC = () => {
         }
     };
 
-    const btnClass = "w-12 h-12 rounded-full bg-bg-secondary/90 backdrop-blur-md hover:brightness-125 text-text-primary shadow-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed";
+    const btnClass = "w-12 h-12 rounded-full bg-bg-secondary/70 backdrop-blur-xl hover:brightness-125 text-text-primary shadow-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95 border border-border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed";
 
-    return (
-        <div className={`absolute ${hasAudioPlayer ? 'bottom-[88px]' : 'bottom-8'} right-8 flex flex-row gap-2 z-50 transition-[bottom] duration-200`}>
+    return createPortal(
+        <div className={`fixed ${hasAudioPlayer ? 'bottom-[88px]' : 'bottom-8'} right-8 flex flex-row gap-2 z-50 transition-[bottom] duration-200`}>
             <button
                 className={btnClass}
                 onClick={() => updateCardsPerRow(cardsPerRow + 1)}
@@ -37,6 +38,7 @@ export const ZoomControls: React.FC = () => {
             >
                 <Plus size={24} />
             </button>
-        </div>
+        </div>,
+        document.body
     );
 };

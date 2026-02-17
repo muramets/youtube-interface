@@ -1,5 +1,6 @@
-import React from 'react';
-import { Music, Play, Pause, Volume2, ZoomIn } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { Music, Play, Pause, Volume2, ZoomIn, Copy, Check, Lock, Unlock } from 'lucide-react';
+import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
 import {
     DndContext,
     DragOverlay,
@@ -29,8 +30,27 @@ export const AudioTimeline: React.FC = () => {
     const volume = useEditingStore((s) => s.volume);
     const setVolume = useEditingStore((s) => s.setVolume);
     const isPlaying = useEditingStore((s) => s.isPlaying);
+    const isLocked = useEditingStore((s) => s.isLocked);
+    const toggleLocked = useEditingStore((s) => s.toggleLocked);
 
     const totalDuration = tracks.reduce((sum, t) => sum + getEffectiveDuration(t), 0);
+
+    // ── Copy Timecodes ──────────────────────────────────────────────────
+    const [copied, setCopied] = useState(false);
+    const handleCopyTimecodes = useCallback(() => {
+        if (tracks.length === 0) return;
+        let elapsed = 0;
+        const lines = tracks.map((t) => {
+            const mins = Math.floor(elapsed / 60);
+            const secs = Math.floor(elapsed % 60);
+            const ts = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            elapsed += getEffectiveDuration(t);
+            return `${ts} - ${t.title}`;
+        });
+        navigator.clipboard.writeText(lines.join('\n'));
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    }, [tracks]);
 
     // ── Hooks ────────────────────────────────────────────────────────────
     const {
@@ -49,7 +69,7 @@ export const AudioTimeline: React.FC = () => {
         cursorLaneRef,
         activeTrackIndexRef,
         findTrackAtPosition,
-    } = useTimelinePlayback(tracks, pxPerSecond);
+    } = useTimelinePlayback(tracks, pxPerSecond, scrollRef);
 
     const {
         sensors,
@@ -59,6 +79,7 @@ export const AudioTimeline: React.FC = () => {
         handleDragStart,
         handleDragOver,
         handleDragEnd,
+        handleDragCancel,
         handleNativeDragOver,
         handleNativeDragLeave,
         handleNativeDrop,
@@ -68,6 +89,7 @@ export const AudioTimeline: React.FC = () => {
 
     const {
         handleSeek,
+        handleRulerMouseDown,
         hoverPx,
         hoverTimeLabel,
         cursorPx,
@@ -103,8 +125,43 @@ export const AudioTimeline: React.FC = () => {
                     )}
                 </div>
 
-                {/* RIGHT — Volume */}
+                {/* RIGHT — Lock + Copy Timecodes + Volume */}
                 <div className="flex items-center gap-3 flex-shrink-0">
+                    {tracks.length > 0 && (
+                        <div className="flex items-center gap-1">
+                            <PortalTooltip
+                                content={isLocked ? 'Unlock timeline' : 'Lock timeline'}
+                                enterDelay={800}
+                                side="top"
+                            >
+                                <button
+                                    onClick={toggleLocked}
+                                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors ${isLocked
+                                        ? 'text-amber-400 hover:text-amber-300'
+                                        : 'text-text-tertiary hover:text-text-secondary'
+                                        }`}
+                                >
+                                    {isLocked
+                                        ? <Lock size={12} />
+                                        : <Unlock size={12} />}
+                                </button>
+                            </PortalTooltip>
+                            <PortalTooltip
+                                content={copied ? 'Copied!' : 'Copy YouTube chapter timecodes'}
+                                enterDelay={800}
+                                side="top"
+                            >
+                                <button
+                                    onClick={handleCopyTimecodes}
+                                    className="flex items-center gap-1 px-1.5 py-0.5 rounded text-text-tertiary hover:text-text-secondary transition-colors"
+                                >
+                                    {copied
+                                        ? <Check size={12} className="text-green-400" />
+                                        : <Copy size={12} />}
+                                </button>
+                            </PortalTooltip>
+                        </div>
+                    )}
                     <div className="flex items-center gap-1.5">
                         <Volume2 size={12} className="text-text-tertiary flex-shrink-0" />
                         <input
@@ -113,11 +170,13 @@ export const AudioTimeline: React.FC = () => {
                             max={1}
                             step={0.01}
                             value={volume}
+                            disabled={isLocked}
                             onChange={(e) => setVolume(parseFloat(e.target.value))}
-                            className="w-16 h-1 accent-accent bg-white/[0.08] rounded-full appearance-none cursor-pointer
+                            className={`w-16 h-1 accent-accent bg-white/[0.08] rounded-full appearance-none
                                        [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5
                                        [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-text-primary [&::-webkit-slider-thumb]:shadow-sm
-                                       [&::-webkit-slider-thumb]:hover:bg-white"
+                                       [&::-webkit-slider-thumb]:hover:bg-white
+                                       ${isLocked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
                         />
                     </div>
                 </div>
@@ -155,6 +214,7 @@ export const AudioTimeline: React.FC = () => {
                                 showCursor={showCursor}
                                 cursorRulerRef={cursorRulerRef}
                                 onClick={handleSeek}
+                                onMouseDown={handleRulerMouseDown}
                             />
 
                             {/* ── Waveform Lane ── */}
@@ -164,6 +224,7 @@ export const AudioTimeline: React.FC = () => {
                                 onDragStart={handleDragStart}
                                 onDragOver={handleDragOver}
                                 onDragEnd={handleDragEnd}
+                                onDragCancel={handleDragCancel}
                                 modifiers={[restrictToHorizontalAxis]}
                             >
                                 <SortableContext

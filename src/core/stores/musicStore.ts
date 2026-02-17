@@ -59,6 +59,8 @@ interface MusicState {
     // Sharing
     sharedLibraries: SharedLibraryEntry[];     // libraries shared TO current channel
     activeLibrarySource: SharedLibraryEntry | null; // null = own library
+    sharedTracks: Track[];                          // tracks from shared libraries
+    sharedPlaylists: MusicPlaylist[];                // playlists from shared libraries
     sharingGrants: MusicShareGrant[];          // grants FROM current channel (admin)
     activePlaylistId: string | null; // null = all tracks, 'liked' = liked filter
     playlistGroupOrder: string[];
@@ -80,6 +82,7 @@ interface MusicState {
 
     // Actions: Sharing
     loadSharedLibraries: (userId: string, channelId: string) => Promise<void>;
+    subscribeSharedLibraryTracks: () => () => void;
     setActiveLibrarySource: (source: SharedLibraryEntry | null) => void;
     loadSharingGrants: (userId: string, channelId: string) => Promise<void>;
 
@@ -149,6 +152,8 @@ export const useMusicStore = create<MusicState>((set) => ({
     playlistGroupOrder: [],
     sharedLibraries: [],
     activeLibrarySource: null,
+    sharedTracks: [],
+    sharedPlaylists: [],
     sharingGrants: [],
     draggingTrackId: null,
     setDraggingTrackId: (id) => set({ draggingTrackId: id }),
@@ -380,6 +385,38 @@ export const useMusicStore = create<MusicState>((set) => ({
 
     setActiveLibrarySource: (source) => set({ activeLibrarySource: source }),
 
+    subscribeSharedLibraryTracks: () => {
+        const { sharedLibraries } = useMusicStore.getState();
+        if (sharedLibraries.length === 0) {
+            set({ sharedTracks: [], sharedPlaylists: [] });
+            return () => { };
+        }
+
+        const unsubs: (() => void)[] = [];
+        const trackBuckets: Record<number, Track[]> = {};
+        const playlistBuckets: Record<number, MusicPlaylist[]> = {};
+
+        sharedLibraries.forEach((lib, i) => {
+            trackBuckets[i] = [];
+            playlistBuckets[i] = [];
+
+            unsubs.push(
+                TrackService.subscribeToTracks(lib.ownerUserId, lib.ownerChannelId, (t) => {
+                    trackBuckets[i] = t;
+                    set({ sharedTracks: Object.values(trackBuckets).flat() });
+                }),
+            );
+            unsubs.push(
+                MusicPlaylistService.subscribeToPlaylists(lib.ownerUserId, lib.ownerChannelId, (p) => {
+                    playlistBuckets[i] = p;
+                    set({ sharedPlaylists: Object.values(playlistBuckets).flat() });
+                }),
+            );
+        });
+
+        return () => unsubs.forEach((u) => u());
+    },
+
     loadSharingGrants: async (userId, channelId) => {
         try {
             const grants = await MusicSharingService.getShareGrants(userId, channelId);
@@ -470,3 +507,49 @@ export const useMusicStore = create<MusicState>((set) => ({
         await MusicPlaylistService.removeTracksFromPlaylist(userId, channelId, playlistId, trackIds);
     },
 }));
+
+// ── Memoized selectors: own + shared (deduped by id) ───────────────
+// Cache last inputs to avoid creating new arrays on every store access.
+// Same pattern as reselect: recompute only when input references change.
+
+let _cachedAllTracks: Track[] = [];
+let _lastOwnTracks: Track[] = [];
+let _lastSharedTracks: Track[] = [];
+
+/** Merged own + shared tracks — use as `useMusicStore(selectAllTracks)` */
+export const selectAllTracks = (s: MusicState): Track[] => {
+    if (s.tracks === _lastOwnTracks && s.sharedTracks === _lastSharedTracks) {
+        return _cachedAllTracks;
+    }
+    _lastOwnTracks = s.tracks;
+    _lastSharedTracks = s.sharedTracks;
+
+    if (s.sharedTracks.length === 0) {
+        _cachedAllTracks = s.tracks;
+    } else {
+        const ownIds = new Set(s.tracks.map((t) => t.id));
+        _cachedAllTracks = [...s.tracks, ...s.sharedTracks.filter((t) => !ownIds.has(t.id))];
+    }
+    return _cachedAllTracks;
+};
+
+let _cachedAllPlaylists: MusicPlaylist[] = [];
+let _lastOwnPlaylists: MusicPlaylist[] = [];
+let _lastSharedPlaylists: MusicPlaylist[] = [];
+
+/** Merged own + shared playlists — use as `useMusicStore(selectAllPlaylists)` */
+export const selectAllPlaylists = (s: MusicState): MusicPlaylist[] => {
+    if (s.musicPlaylists === _lastOwnPlaylists && s.sharedPlaylists === _lastSharedPlaylists) {
+        return _cachedAllPlaylists;
+    }
+    _lastOwnPlaylists = s.musicPlaylists;
+    _lastSharedPlaylists = s.sharedPlaylists;
+
+    if (s.sharedPlaylists.length === 0) {
+        _cachedAllPlaylists = s.musicPlaylists;
+    } else {
+        const ownIds = new Set(s.musicPlaylists.map((p) => p.id));
+        _cachedAllPlaylists = [...s.musicPlaylists, ...s.sharedPlaylists.filter((p) => !ownIds.has(p.id))];
+    }
+    return _cachedAllPlaylists;
+};

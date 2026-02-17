@@ -3,6 +3,11 @@ import { useEditingStore } from '../../../../../core/stores/editingStore';
 import { useMusicStore } from '../../../../../core/stores/musicStore';
 import type { TimelineTrack } from '../../../../../core/types/editing';
 import { getEffectiveDuration } from '../../../../../core/types/editing';
+import { isDraggingTimeline } from './useTimelineDnd';
+
+/** True when the user started a browser track preview (not timeline-driven). */
+export let browserPreviewActive = false;
+export function setBrowserPreviewActive(v: boolean) { browserPreviewActive = v; }
 
 export interface UseTimelinePlaybackReturn {
     handlePlayPause: () => void;
@@ -20,6 +25,7 @@ export interface UseTimelinePlaybackReturn {
 export function useTimelinePlayback(
     tracks: TimelineTrack[],
     pxPerSecond: number,
+    scrollRef: React.RefObject<HTMLDivElement | null>,
 ): UseTimelinePlaybackReturn {
     const setPlaybackPosition = useEditingStore((s) => s.setPlaybackPosition);
     const isPlaying = useEditingStore((s) => s.isPlaying);
@@ -29,8 +35,9 @@ export function useTimelinePlayback(
     const cursorRulerRef = useRef<HTMLDivElement>(null);
     const cursorLaneRef = useRef<HTMLDivElement>(null);
 
-    // Track the index of the currently playing timeline track
+    // Track the index and unique ID of the currently playing timeline track
     const activeTrackIndexRef = useRef(-1);
+    const activeTrackIdRef = useRef<string | null>(null);
 
     const totalDuration = tracks.reduce((sum, t) => sum + getEffectiveDuration(t), 0);
 
@@ -43,6 +50,32 @@ export function useTimelinePlayback(
         }
         return result;
     }, [tracks]);
+
+    // Helper: ensure a given timeline position (seconds) is scrolled into view
+    const scrollToPosition = useCallback((positionS: number) => {
+        const el = scrollRef.current;
+        if (!el) return;
+        // Compute px offset for the position
+        let elapsed = 0;
+        let px = 0;
+        for (const t of tracks) {
+            const td = getEffectiveDuration(t);
+            const displayW = Math.max(60, Math.round(td * pxPerSecond));
+            if (positionS <= elapsed + td) {
+                const fraction = td > 0 ? (positionS - elapsed) / td : 0;
+                px += fraction * displayW;
+                break;
+            }
+            elapsed += td;
+            px += displayW;
+        }
+        const MARGIN = 60;
+        const viewLeft = el.scrollLeft;
+        const viewRight = viewLeft + el.clientWidth;
+        if (px < viewLeft + MARGIN || px > viewRight - MARGIN) {
+            el.scrollTo({ left: px - el.clientWidth / 2, behavior: 'smooth' });
+        }
+    }, [tracks, pxPerSecond, scrollRef]);
 
     // Helper: find which track + offset for a given timeline position
     const findTrackAtPosition = useCallback((positionS: number) => {
@@ -64,6 +97,7 @@ export function useTimelinePlayback(
             const hit = findTrackAtPosition(position);
             if (hit) {
                 activeTrackIndexRef.current = hit.index;
+                activeTrackIdRef.current = hit.track.id;
                 // Apply track volume × master volume to audio playback
                 const masterVol = useEditingStore.getState().volume;
                 useMusicStore.getState().setPlaybackVolume(hit.track.volume * masterVol);
@@ -83,18 +117,72 @@ export function useTimelinePlayback(
         }
     }, [totalDuration, setPlaying, findTrackAtPosition]);
 
-    // ── Spacebar shortcut for play/pause ─────────────────────────────────
+    // ── Keyboard shortcuts: Space (play/pause) + ArrowUp/Down (track nav) ──
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
-            if (e.code !== 'Space') return;
+            // Skip all keyboard shortcuts during active timeline drag
+            if (isDraggingTimeline) return;
+
             const tag = (e.target as HTMLElement)?.tagName;
             if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-            e.preventDefault();
-            handlePlayPause();
+
+            if (e.code === 'Space') {
+                e.preventDefault();
+                // If a browser track preview is active (not timeline-driven),
+                // toggle that preview instead of starting timeline playback
+                const musicPlaying = useMusicStore.getState().isPlaying;
+                const timelinePlaying = useEditingStore.getState().isPlaying;
+                if (!timelinePlaying && browserPreviewActive) {
+                    useMusicStore.getState().setIsPlaying(!musicPlaying);
+                    return;
+                }
+                // Clear browser preview flag — timeline takes over
+                browserPreviewActive = false;
+                handlePlayPause();
+                return;
+            }
+
+            if ((e.code === 'ArrowUp' || e.code === 'ArrowDown') && tracks.length > 1) {
+                e.preventDefault();
+                // Arrow navigation activates the timeline — clear browser preview
+                browserPreviewActive = false;
+                // Stop playback — arrows are for cursor navigation only
+                // (keep playbackVolume so AudioPlayer stays in timeline mode)
+                if (useEditingStore.getState().isPlaying) {
+                    setPlaying(false);
+                    useMusicStore.getState().setIsPlaying(false);
+                }
+
+                const pos = useEditingStore.getState().playbackPosition;
+                // Find current track index
+                let currentIdx = 0;
+                for (let i = 0; i < tracks.length; i++) {
+                    if (pos < cumulativeElapsed[i + 1]) { currentIdx = i; break; }
+                    if (i === tracks.length - 1) currentIdx = i;
+                }
+
+                if (e.code === 'ArrowDown') {
+                    // Jump to next track seam
+                    const nextIdx = currentIdx + 1;
+                    if (nextIdx < tracks.length) {
+                        const newPos = cumulativeElapsed[nextIdx];
+                        setPlaybackPosition(newPos);
+                        scrollToPosition(newPos);
+                    }
+                } else {
+                    // ArrowUp: if >2s into current track → restart; otherwise → prev track
+                    const withinTrack = pos - cumulativeElapsed[currentIdx];
+                    const newPos = (withinTrack > 2 || currentIdx === 0)
+                        ? cumulativeElapsed[currentIdx]
+                        : cumulativeElapsed[currentIdx - 1];
+                    setPlaybackPosition(newPos);
+                    scrollToPosition(newPos);
+                }
+            }
         };
         document.addEventListener('keydown', onKeyDown);
         return () => document.removeEventListener('keydown', onKeyDown);
-    }, [handlePlayPause]);
+    }, [handlePlayPause, tracks, cumulativeElapsed, setPlaybackPosition, setPlaying, scrollToPosition]);
 
     // ── Cursor sync: musicStore.currentTime → editing playbackPosition ──
     useEffect(() => {
@@ -122,13 +210,35 @@ export function useTimelinePlayback(
         const tick = () => {
             const store = useMusicStore.getState();
             const { currentTime, isPlaying: musicPlaying, duration: audioDuration, pendingSeekSeconds } = store;
-            const idx = activeTrackIndexRef.current;
+            let idx = activeTrackIndexRef.current;
+
+            // Re-derive index if external code (e.g. AudioPlayer skip) moved playbackPosition
+            if (idx >= 0 && idx < tracks.length) {
+                const storePos = useEditingStore.getState().playbackPosition;
+                if (storePos < cumulativeElapsed[idx] || storePos >= cumulativeElapsed[idx + 1]) {
+                    for (let i = 0; i < tracks.length; i++) {
+                        if (storePos < cumulativeElapsed[i + 1]) { idx = i; break; }
+                    }
+                    activeTrackIndexRef.current = idx;
+                }
+            }
 
             if (!musicPlaying && idx >= 0) {
+                // Distinguish user-pause from track-end:
+                // Only advance if the track actually reached its trim-end boundary.
+                const currentTrack = tracks[idx];
+                const trimEndBoundary = currentTrack.duration - currentTrack.trimEnd;
+                if (currentTime < trimEndBoundary - 0.15) {
+                    // User paused (track hasn't ended) — stop the loop
+                    rafId = requestAnimationFrame(tick);
+                    return;
+                }
+
                 const nextIdx = idx + 1;
                 if (nextIdx < tracks.length) {
-                    activeTrackIndexRef.current = nextIdx;
                     const next = tracks[nextIdx];
+                    activeTrackIndexRef.current = nextIdx;
+                    activeTrackIdRef.current = next.id;
                     // Apply volume for the new track
                     const masterVol = useEditingStore.getState().volume;
                     useMusicStore.getState().setPlaybackVolume(next.volume * masterVol);
@@ -204,6 +314,32 @@ export function useTimelinePlayback(
             }
         }
     }, [isPlaying, tracks, setPlaying, setPlaybackPosition, cumulativeElapsed]);
+
+    // ── Sync playback position when tracks are reordered ────────────────
+    useEffect(() => {
+        if (!isPlaying) return;
+        const activeId = activeTrackIdRef.current;
+        if (!activeId) return;
+
+        const newIdx = tracks.findIndex((t) => t.id === activeId);
+        if (newIdx < 0) {
+            // Active track was removed — stop playback
+            setPlaying(false);
+            useMusicStore.getState().setIsPlaying(false);
+            useMusicStore.getState().setPlaybackVolume(null);
+            activeTrackIndexRef.current = -1;
+            activeTrackIdRef.current = null;
+            return;
+        }
+
+        if (newIdx !== activeTrackIndexRef.current) {
+            activeTrackIndexRef.current = newIdx;
+            // Recompute playback position: cumulative elapsed + offset within track
+            const store = useMusicStore.getState();
+            const trackOffset = store.currentTime - tracks[newIdx].trimStart;
+            setPlaybackPosition(cumulativeElapsed[newIdx] + Math.max(0, trackOffset));
+        }
+    }, [isPlaying, tracks, cumulativeElapsed, setPlaying, setPlaybackPosition]);
 
     // ── Sync editing volume changes to AudioPlayer during playback ──────
     useEffect(() => {

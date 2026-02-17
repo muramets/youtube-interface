@@ -3,17 +3,22 @@
 // =============================================================================
 
 import React, { useRef, useEffect, useCallback } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Mic, Piano, X, Repeat, Repeat1, ListMusic } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Mic, Piano, X, Repeat, Repeat1, ListMusic, Settings } from 'lucide-react';
 import { AddToMusicPlaylistModal } from '../modals/AddToMusicPlaylistModal';
+import { UploadTrackModal } from '../modals/UploadTrackModal';
 import { WaveformCanvas } from './WaveformCanvas';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
-import { useMusicStore } from '../../../core/stores/musicStore';
+import { useMusicStore, selectAllTracks } from '../../../core/stores/musicStore';
+import { useEditingStore } from '../../../core/stores/editingStore';
+import { getEffectiveDuration } from '../../../core/types/editing';
+import { useAuth } from '../../../core/hooks/useAuth';
+import { useChannelStore } from '../../../core/stores/channelStore';
 import { refreshAudioUrl } from '../../../core/services/storageService';
 import { TrackService } from '../../../core/services/trackService';
 import { formatDuration } from '../utils/formatDuration';
 
 export const AudioPlayer: React.FC = () => {
-    const tracks = useMusicStore((s) => s.tracks);
+    const tracks = useMusicStore(selectAllTracks);
     const playbackQueue = useMusicStore((s) => s.playbackQueue);
     const playingTrackId = useMusicStore((s) => s.playingTrackId);
     const playingVariant = useMusicStore((s) => s.playingVariant);
@@ -27,10 +32,16 @@ export const AudioPlayer: React.FC = () => {
     const playbackVolume = useMusicStore((s) => s.playbackVolume);
     const { setPlayingTrack, setIsPlaying, toggleVariant, cycleRepeatMode, setCurrentTime: setStoreTime, setDuration: setStoreDuration, registerSeek } = useMusicStore.getState();
 
+    const { user } = useAuth();
+    const { currentChannel } = useChannelStore();
+    const userId = user?.uid || '';
+    const channelId = currentChannel?.id || '';
+
     const audioRef = useRef<HTMLAudioElement>(null);
     const [volume, setVolume] = React.useState(0.8);
     const [isMuted, setIsMuted] = React.useState(false);
     const [showPlaylistModal, setShowPlaylistModal] = React.useState(false);
+    const [showTrackSettings, setShowTrackSettings] = React.useState(false);
 
     // Track previous URL and track ID to detect variant-only changes
     const prevAudioUrlRef = useRef<string | null>(null);
@@ -284,7 +295,48 @@ export const AudioPlayer: React.FC = () => {
         return () => registerSeek(null);
     }, [handleSeek, registerSeek]);
 
+    // ── Timeline mode detection ──────────────────────────────────────
+    const isTimelineMode = playbackVolume !== null;
+    const editingTracks = useEditingStore((s) => s.tracks);
+    const editingPosition = useEditingStore((s) => s.playbackPosition);
+
+    // Compute current timeline track index from playback position
+    const getTimelineTrackIndex = useCallback(() => {
+        let elapsed = 0;
+        for (let i = 0; i < editingTracks.length; i++) {
+            const dur = getEffectiveDuration(editingTracks[i]);
+            if (editingPosition < elapsed + dur) return i;
+            elapsed += dur;
+        }
+        return editingTracks.length - 1;
+    }, [editingTracks, editingPosition]);
+
+    const jumpToTimelineTrack = useCallback((index: number) => {
+        if (index < 0 || index >= editingTracks.length) return;
+        let elapsed = 0;
+        for (let i = 0; i < index; i++) elapsed += getEffectiveDuration(editingTracks[i]);
+        const target = editingTracks[index];
+        const masterVol = useEditingStore.getState().volume;
+        useMusicStore.getState().setPlaybackVolume(target.volume * masterVol);
+        prevAudioUrlRef.current = null;
+        setPlayingTrack(target.trackId, target.variant, target.trimStart, target.trimStart, target.trimEnd);
+        useEditingStore.getState().setPlaybackPosition(elapsed);
+    }, [editingTracks, setPlayingTrack]);
+
     const handlePrevious = () => {
+        if (isTimelineMode && editingTracks.length > 1) {
+            const idx = getTimelineTrackIndex();
+            // If >2s into current track, restart it; otherwise go to previous
+            let elapsed = 0;
+            for (let i = 0; i < idx; i++) elapsed += getEffectiveDuration(editingTracks[i]);
+            const withinTrack = editingPosition - elapsed;
+            if (withinTrack > 2 || idx === 0) {
+                jumpToTimelineTrack(idx);
+            } else {
+                jumpToTimelineTrack(idx - 1);
+            }
+            return;
+        }
         const currentIndex = playbackQueue.indexOf(playingTrackId!);
         if (playbackQueue.length <= 1 || currentIndex <= 0) {
             // Single track or first track — restart from beginning
@@ -305,6 +357,13 @@ export const AudioPlayer: React.FC = () => {
     };
 
     const handleNext = () => {
+        if (isTimelineMode && editingTracks.length > 1) {
+            const idx = getTimelineTrackIndex();
+            if (idx < editingTracks.length - 1) {
+                jumpToTimelineTrack(idx + 1);
+            }
+            return;
+        }
         const currentIndex = playbackQueue.indexOf(playingTrackId!);
         if (playbackQueue.length <= 1) return; // Single track — do nothing
         if (currentIndex >= 0 && currentIndex < playbackQueue.length - 1) {
@@ -399,8 +458,8 @@ export const AudioPlayer: React.FC = () => {
                         </button>
                         <button
                             onClick={handleNext}
-                            disabled={playbackQueue.length <= 1}
-                            className={`p-1.5 transition-colors ${playbackQueue.length <= 1
+                            disabled={isTimelineMode ? editingTracks.length <= 1 : playbackQueue.length <= 1}
+                            className={`p-1.5 transition-colors ${(isTimelineMode ? editingTracks.length <= 1 : playbackQueue.length <= 1)
                                 ? 'text-text-tertiary opacity-30 cursor-not-allowed'
                                 : 'text-text-secondary hover:text-text-primary'}`}
                         >
@@ -491,6 +550,20 @@ export const AudioPlayer: React.FC = () => {
                             </button>
                         </PortalTooltip>
 
+                        {/* Track settings */}
+                        <PortalTooltip
+                            content="Track settings"
+                            enterDelay={800}
+                            side="top"
+                        >
+                            <button
+                                onClick={() => setShowTrackSettings(true)}
+                                className="p-1.5 rounded-lg text-text-secondary hover:text-text-primary transition-colors"
+                            >
+                                <Settings size={14} />
+                            </button>
+                        </PortalTooltip>
+
                         {/* Volume */}
                         <button
                             onClick={() => { if (playbackVolume === null) setIsMuted(!isMuted); }}
@@ -545,6 +618,16 @@ export const AudioPlayer: React.FC = () => {
                 isOpen={showPlaylistModal}
                 onClose={() => setShowPlaylistModal(false)}
                 trackId={playingTrackId || ''}
+            />
+
+            {/* Track Settings Modal */}
+            <UploadTrackModal
+                isOpen={showTrackSettings}
+                onClose={() => setShowTrackSettings(false)}
+                userId={userId}
+                channelId={channelId}
+                editTrack={track}
+                initialTab="library"
             />
         </>
     );

@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Check, ChevronRight, ListMusic, Plus } from 'lucide-react';
 import type { MusicPlaylist } from '../../../../../core/types/musicPlaylist';
-import { useMusicStore } from '../../../../../core/stores/musicStore';
+import type { Track } from '../../../../../core/types/track';
 import { useEditingStore } from '../../../../../core/stores/editingStore';
 import { createTimelineTrack } from '../../../../../core/types/editing';
 import { TrackBrowserItem } from './TrackBrowserItem';
@@ -9,19 +9,19 @@ import { TrackBrowserItem } from './TrackBrowserItem';
 interface PlaylistBrowserItemProps {
     playlist: MusicPlaylist;
     timelineTrackIds: Set<string>;
+    browseTracks: Track[];
 }
 
-export const PlaylistBrowserItem: React.FC<PlaylistBrowserItemProps> = ({ playlist, timelineTrackIds }) => {
+export const PlaylistBrowserItem: React.FC<PlaylistBrowserItemProps> = ({ playlist, timelineTrackIds, browseTracks }) => {
     const addTrack = useEditingStore((s) => s.addTrack);
-    const allTracks = useMusicStore((s) => s.tracks);
     const [expanded, setExpanded] = useState(false);
 
     // Resolve playlist trackIds → Track objects
     const playlistTracks = useMemo(() => {
         return playlist.trackIds
-            .map((id) => allTracks.find((t) => t.id === id))
-            .filter(Boolean) as typeof allTracks;
-    }, [playlist.trackIds, allTracks]);
+            .map((id) => browseTracks.find((t) => t.id === id))
+            .filter(Boolean) as typeof browseTracks;
+    }, [playlist.trackIds, browseTracks]);
 
     const resolveAndAdd = useCallback(() => {
         const existing = useEditingStore.getState().tracks.map((t) => t.trackId);
@@ -39,7 +39,10 @@ export const PlaylistBrowserItem: React.FC<PlaylistBrowserItemProps> = ({ playli
     const handleDragStart = useCallback((e: React.DragEvent) => {
         e.dataTransfer.setData(
             'application/x-editing-playlist',
-            JSON.stringify({ playlistId: playlist.id, trackIds: playlist.trackIds })
+            JSON.stringify({
+                playlistId: playlist.id,
+                trackIds: playlist.trackIds,
+            })
         );
         e.dataTransfer.effectAllowed = 'copy';
     }, [playlist.id, playlist.trackIds]);

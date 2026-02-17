@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Search, PanelRightClose } from 'lucide-react';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
-import { useMusicStore } from '../../../../../core/stores/musicStore';
+import { useMusicStore, selectAllTracks, selectAllPlaylists } from '../../../../../core/stores/musicStore';
 import { useEditingStore } from '../../../../../core/stores/editingStore';
 import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';
@@ -15,18 +15,21 @@ type BrowserTab = 'tracks' | 'playlists';
 export const TrackBrowser: React.FC = () => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const tracks = useMusicStore((s) => s.tracks);
-    const musicPlaylists = useMusicStore((s) => s.musicPlaylists);
+    const allTracks = useMusicStore(selectAllTracks);
+    const allPlaylists = useMusicStore(selectAllPlaylists);
     const subscribe = useMusicStore((s) => s.subscribe);
     const subscribePlaylists = useMusicStore((s) => s.subscribePlaylists);
     const loadSettings = useMusicStore((s) => s.loadSettings);
+    const loadSharedLibraries = useMusicStore((s) => s.loadSharedLibraries);
+    const subscribeSharedLibraryTracks = useMusicStore((s) => s.subscribeSharedLibraryTracks);
+    const sharedLibraries = useMusicStore((s) => s.sharedLibraries);
     const timelineTracks = useEditingStore((s) => s.tracks);
     const toggleBrowser = useEditingStore((s) => s.toggleBrowser);
 
     const userId = user?.uid || '';
     const channelId = currentChannel?.id || '';
 
-    // Ensure tracks + playlists are loaded
+    // Ensure own tracks + playlists are loaded
     useEffect(() => {
         if (!userId || !channelId) return;
         const unsubTracks = subscribe(userId, channelId);
@@ -35,11 +38,23 @@ export const TrackBrowser: React.FC = () => {
         return () => { unsubTracks(); unsubPlaylists(); };
     }, [userId, channelId, subscribe, subscribePlaylists, loadSettings]);
 
+    // Load shared library metadata
+    useEffect(() => {
+        if (!userId || !channelId) return;
+        loadSharedLibraries(userId, channelId);
+    }, [userId, channelId, loadSharedLibraries]);
+
+    // Subscribe to shared library tracks/playlists at store level
+    useEffect(() => {
+        const unsub = subscribeSharedLibraryTracks();
+        return unsub;
+    }, [sharedLibraries, subscribeSharedLibraryTracks]);
+
     const [activeTab, setActiveTab] = useState<BrowserTab>('tracks');
     const [searchQuery, setSearchQuery] = useState('');
 
     // Independent filter state via shared hook
-    const filters = useTrackFilters(tracks, searchQuery);
+    const filters = useTrackFilters(allTracks, searchQuery);
 
     // Track IDs already on timeline (for highlighting)
     const timelineTrackIds = useMemo(
@@ -49,10 +64,10 @@ export const TrackBrowser: React.FC = () => {
 
     // Filtered playlists by search query
     const filteredPlaylists = useMemo(() => {
-        if (!searchQuery.trim()) return musicPlaylists;
+        if (!searchQuery.trim()) return allPlaylists;
         const q = searchQuery.toLowerCase();
-        return musicPlaylists.filter((p) => p.name.toLowerCase().includes(q));
-    }, [musicPlaylists, searchQuery]);
+        return allPlaylists.filter((p) => p.name.toLowerCase().includes(q));
+    }, [allPlaylists, searchQuery]);
 
     return (
         <div className="flex flex-col h-full">
@@ -113,7 +128,7 @@ export const TrackBrowser: React.FC = () => {
                 {activeTab === 'tracks' ? (
                     filters.filteredTracks.length === 0 ? (
                         <div className="flex items-center justify-center h-20 text-xs text-text-tertiary">
-                            {tracks.length === 0 ? 'No tracks in library' : 'No matches'}
+                            {allTracks.length === 0 ? 'No tracks in library' : 'No matches'}
                         </div>
                     ) : (
                         filters.filteredTracks.map((track) => (
@@ -127,7 +142,7 @@ export const TrackBrowser: React.FC = () => {
                 ) : (
                     filteredPlaylists.length === 0 ? (
                         <div className="flex items-center justify-center h-20 text-xs text-text-tertiary">
-                            {musicPlaylists.length === 0 ? 'No playlists' : 'No matches'}
+                            {allPlaylists.length === 0 ? 'No playlists' : 'No matches'}
                         </div>
                     ) : (
                         filteredPlaylists.map((playlist) => (
@@ -135,6 +150,7 @@ export const TrackBrowser: React.FC = () => {
                                 key={playlist.id}
                                 playlist={playlist}
                                 timelineTrackIds={timelineTrackIds}
+                                browseTracks={allTracks}
                             />
                         ))
                     )
@@ -144,8 +160,8 @@ export const TrackBrowser: React.FC = () => {
             {/* Footer count */}
             <div className="px-3 py-2 border-t border-border text-[10px] text-text-tertiary text-center">
                 {activeTab === 'tracks'
-                    ? `${filters.filteredTracks.length} of ${tracks.length} tracks`
-                    : `${filteredPlaylists.length} of ${musicPlaylists.length} playlists`
+                    ? `${filters.filteredTracks.length} of ${allTracks.length} tracks`
+                    : `${filteredPlaylists.length} of ${allPlaylists.length} playlists`
                 }
             </div>
         </div>

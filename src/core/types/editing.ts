@@ -71,6 +71,8 @@ export interface EditingState {
     isPlaying: boolean;
     // Track Browser panel
     isBrowserOpen: boolean;
+    // Lock
+    isLocked: boolean;
 }
 
 // ─── Helper to create a TimelineTrack from a musicStore Track ──────────

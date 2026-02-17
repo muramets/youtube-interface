@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useEditingStore } from '../../../../../core/stores/editingStore';
-import { useMusicStore } from '../../../../../core/stores/musicStore';
+import { useMusicStore, selectAllTracks } from '../../../../../core/stores/musicStore';
 import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';
 import { EditingService } from '../../../../../core/services/editingService';
@@ -54,8 +54,8 @@ export function useEditingPersistence(videoId: string) {
                 if (useEditingStore.getState().videoId !== videoId) return; // stale
 
                 if (session) {
-                    // Wait for music tracks to be available
-                    const musicTracks = useMusicStore.getState().tracks;
+                    // Wait for music tracks (own + shared) to be available
+                    const musicTracks = selectAllTracks(useMusicStore.getState());
                     if (musicTracks.length > 0) {
                         useEditingStore.getState().loadFromSession(session, musicTracks);
                     } else {
@@ -70,12 +70,13 @@ export function useEditingPersistence(videoId: string) {
                         }, 10_000);
 
                         musicSubRef.current = useMusicStore.subscribe((state) => {
-                            if (state.tracks.length > 0) {
+                            const mergedTracks = selectAllTracks(state);
+                            if (mergedTracks.length > 0) {
                                 clearTimeout(musicTimeout);
                                 musicSubRef.current?.();
                                 musicSubRef.current = undefined;
                                 if (!signal.aborted && useEditingStore.getState().videoId === videoId) {
-                                    useEditingStore.getState().loadFromSession(session, state.tracks);
+                                    useEditingStore.getState().loadFromSession(session, mergedTracks);
                                 }
                                 isLoadingRef.current = false;
                             }
@@ -125,7 +126,8 @@ export function useEditingPersistence(videoId: string) {
                 state.imageHeight === prevState.imageHeight &&
                 state.resolution === prevState.resolution &&
                 state.loopCount === prevState.loopCount &&
-                state.volume === prevState.volume
+                state.volume === prevState.volume &&
+                state.isLocked === prevState.isLocked
             ) {
                 return;
             }
@@ -146,6 +148,7 @@ export function useEditingPersistence(videoId: string) {
                     resolution: s.resolution,
                     loopCount: s.loopCount,
                     volume: s.volume,
+                    isLocked: s.isLocked,
                 };
 
                 const json = JSON.stringify(payload);
@@ -184,6 +187,7 @@ function flushSave(userId: string, channelId: string, videoId: string) {
         resolution: s.resolution,
         loopCount: s.loopCount,
         volume: s.volume,
+        isLocked: s.isLocked,
     };
 
     EditingService.saveSession(userId, channelId, videoId, payload).catch((err) => {

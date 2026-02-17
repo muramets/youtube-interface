@@ -5,7 +5,7 @@ import { CSS } from '@dnd-kit/utilities';
 import type { TimelineTrack } from '../../../../../core/types/editing';
 import { getEffectiveDuration } from '../../../../../core/types/editing';
 import { useEditingStore } from '../../../../../core/stores/editingStore';
-import { useMusicStore } from '../../../../../core/stores/musicStore';
+import { useMusicStore, selectAllTracks } from '../../../../../core/stores/musicStore';
 import { formatDuration } from '../utils/formatDuration';
 import { drawWaveform, hexToHSL } from '../utils/waveformUtils';
 
@@ -37,9 +37,10 @@ interface TimelineTrackItemProps {
 export const TimelineTrackItem: React.FC<TimelineTrackItemProps> = ({ track, widthPx, masterVolume, pxPerSecond = 1, isBeingDragged, isOverlay, isSelected, onSelect }) => {
     const removeTrack = useEditingStore((s) => s.removeTrack);
     const toggleVariant = useEditingStore((s) => s.toggleTrackVariant);
-    const musicTracks = useMusicStore((s) => s.tracks);
+    const musicTracks = useMusicStore(selectAllTracks);
     const setTrackVolume = useEditingStore((s) => s.setTrackVolume);
     const setTrackTrim = useEditingStore((s) => s.setTrackTrim);
+    const isLocked = useEditingStore((s) => s.isLocked);
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     const { h: hue, s: sat, l: lig } = hexToHSL(track.genreColor);
@@ -54,7 +55,7 @@ export const TimelineTrackItem: React.FC<TimelineTrackItemProps> = ({ track, wid
         setNodeRef,
         transform,
         transition,
-    } = useSortable({ id: track.id, disabled: !!isOverlay });
+    } = useSortable({ id: track.id, disabled: !!isOverlay || isLocked });
 
     const style: React.CSSProperties = {
         transform: isBeingDragged ? undefined : CSS.Translate.toString(transform),
@@ -94,6 +95,7 @@ export const TimelineTrackItem: React.FC<TimelineTrackItemProps> = ({ track, wid
     }, [track.volume]);
 
     const handleGainPointerDown = useCallback((e: React.PointerEvent) => {
+        if (isLocked) return;
         e.stopPropagation();
         e.preventDefault();
         draggingRef.current = true;
@@ -119,7 +121,7 @@ export const TimelineTrackItem: React.FC<TimelineTrackItemProps> = ({ track, wid
 
         document.addEventListener('pointermove', onMove);
         document.addEventListener('pointerup', onUp);
-    }, [computeVolume, track.id, setTrackVolume]);
+    }, [computeVolume, track.id, setTrackVolume, isLocked]);
 
     // CSS filter: brightness + saturate dims the track naturally (like a real mixer)
     const effectiveVolume = masterVolume * localVolume;
@@ -162,6 +164,7 @@ export const TimelineTrackItem: React.FC<TimelineTrackItemProps> = ({ track, wid
     }, []);
 
     const handleTrimPointerDown = useCallback((e: React.PointerEvent, edge: 'start' | 'end') => {
+        if (isLocked) return;
         e.stopPropagation();
         e.preventDefault();
         trimDraggingRef.current = edge;
@@ -214,7 +217,7 @@ export const TimelineTrackItem: React.FC<TimelineTrackItemProps> = ({ track, wid
 
         document.addEventListener('pointermove', onMove);
         document.addEventListener('pointerup', onUp);
-    }, [track.id, track.trimStart, track.trimEnd, track.duration, pxPerSecond, setTrackTrim]);
+    }, [track.id, track.trimStart, track.trimEnd, track.duration, pxPerSecond, setTrackTrim, isLocked]);
 
     const trimmedDuration = getEffectiveDuration(track);
 
@@ -234,7 +237,7 @@ export const TimelineTrackItem: React.FC<TimelineTrackItemProps> = ({ track, wid
                     ? 'shadow-[inset_0_0_0_1.5px_rgba(129,140,248,0.7)] ring-1 ring-indigo-400/40'
                     : 'shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)] hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)]'}
                        transition-shadow
-                       ${hoverEdge ? 'cursor-col-resize' : 'cursor-grab active:cursor-grabbing'}`}
+                       ${hoverEdge && !isLocked ? 'cursor-col-resize' : isLocked ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'}`}
             onMouseMove={handleTrimMouseMove}
             onMouseLeave={handleTrimMouseLeave}
             onClick={(e) => { e.stopPropagation(); onSelect?.(track.id); }}
@@ -247,20 +250,6 @@ export const TimelineTrackItem: React.FC<TimelineTrackItemProps> = ({ track, wid
                 <div className="relative flex-1 min-h-0 overflow-hidden">
                     {/* Background gradient */}
                     <div className="absolute inset-0" style={{ background: bgGradient }} />
-
-                    {/* Left accent edge / trim highlight */}
-                    <div
-                        className={`absolute top-0 left-0 h-full pointer-events-none z-10 transition-all duration-150
-                                   ${hoverEdge === 'start' ? 'w-1 shadow-[0_0_8px_rgba(255,255,255,0.3)]' : 'w-[2px]'}`}
-                        style={{ backgroundColor: hoverEdge === 'start' ? 'rgba(255,255,255,0.7)' : `hsla(${accentHSL}, 0.50)` }}
-                    />
-
-                    {/* Right accent edge / trim highlight */}
-                    <div
-                        className={`absolute top-0 right-0 h-full pointer-events-none z-10 transition-all duration-150
-                                   ${hoverEdge === 'end' ? 'w-1 shadow-[0_0_8px_rgba(255,255,255,0.3)]' : 'w-px'}`}
-                        style={{ backgroundColor: hoverEdge === 'end' ? 'rgba(255,255,255,0.7)' : `hsla(${accentHSL}, 0.20)` }}
-                    />
 
                     {/* Waveform canvas — fills waveform area exactly */}
                     <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
@@ -316,6 +305,21 @@ export const TimelineTrackItem: React.FC<TimelineTrackItemProps> = ({ track, wid
                     }
                 </span>
             </div>
+
+            {/* Left accent edge / trim highlight — at root level to escape filter stacking context */}
+            <div
+                className={`absolute top-0 left-0 h-full pointer-events-none z-20 transition-all duration-150
+                           ${hoverEdge === 'start' ? 'w-1 shadow-[0_0_8px_rgba(255,255,255,0.3)]' : 'w-[2px]'}`}
+                style={{ backgroundColor: hoverEdge === 'start' ? 'rgba(255,255,255,0.7)' : `hsla(${accentHSL}, 0.50)` }}
+            />
+
+            {/* Right accent edge / trim highlight */}
+            <div
+                className={`absolute top-0 right-0 h-full pointer-events-none z-20 transition-all duration-150
+                           ${hoverEdge === 'end' ? 'w-1 shadow-[0_0_8px_rgba(255,255,255,0.3)]' : 'w-px'}`}
+                style={{ backgroundColor: hoverEdge === 'end' ? 'rgba(255,255,255,0.7)' : `hsla(${accentHSL}, 0.20)` }}
+            />
+
             <div
                 className="absolute top-1 left-1.5 flex rounded-full overflow-hidden
                            bg-black/30 backdrop-blur-sm border border-white/[0.08]
@@ -345,17 +349,19 @@ export const TimelineTrackItem: React.FC<TimelineTrackItemProps> = ({ track, wid
                 </button>
             </div>
 
-            {/* Delete button (top-right, hover only) */}
-            <button
-                onClick={(e) => { e.stopPropagation(); removeTrack(track.id); }}
-                onPointerDown={(e) => e.stopPropagation()}
-                className="absolute top-1 right-1 p-0.5 rounded-full
-                           bg-black/30 backdrop-blur-sm border border-white/[0.08]
-                           text-white/30 hover:text-white hover:bg-red-500/40
-                           opacity-0 group-hover:opacity-100 transition-all"
-            >
-                <X size={9} />
-            </button>
+            {/* Delete button (top-right, hover only) — hidden when locked */}
+            {!isLocked && (
+                <button
+                    onClick={(e) => { e.stopPropagation(); removeTrack(track.id); }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="absolute top-1 right-1 p-0.5 rounded-full
+                               bg-black/30 backdrop-blur-sm border border-white/[0.08]
+                               text-white/30 hover:text-white hover:bg-red-500/40
+                               opacity-0 group-hover:opacity-100 transition-all"
+                >
+                    <X size={9} />
+                </button>
+            )}
 
             {/* ── Trim edge hit zones (invisible, on top of everything) ── */}
             <div
