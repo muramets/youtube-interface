@@ -360,7 +360,7 @@ export const PlaylistDetailPage: React.FC = () => {
         clearSelection,
         count: selectedCount,
         isSelectionMode
-    } = useVideoSelection();
+    } = useVideoSelection(id);
 
     const handleToggleSelection = (id: string) => {
         // In Pick the Winner mode, intercept clicks
@@ -380,6 +380,7 @@ export const PlaylistDetailPage: React.FC = () => {
     // Bridge: sync selected videos → appContextStore for AI chat
     const setContextItems = useAppContextStore(s => s.setItems);
     const clearContextItems = useAppContextStore(s => s.clearItems);
+    const contextVersion = useAppContextStore(s => s.version);
 
     React.useEffect(() => {
         if (selectedVideos.length === 0) {
@@ -398,7 +399,7 @@ export const PlaylistDetailPage: React.FC = () => {
             duration: v.mergedVideoData?.duration || v.duration,
         }));
         setContextItems(contextItems);
-    }, [selectedVideos, setContextItems, clearContextItems]);
+    }, [selectedVideos, setContextItems, clearContextItems, contextVersion]);
 
     // Cleanup on unmount — clear context when leaving the page
     React.useEffect(() => {

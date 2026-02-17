@@ -565,7 +565,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
             // 1. Optimistic UI + persist user message
             // Clear consumed context from input (snapshot already captured above)
-            if (appContext) useAppContextStore.getState().clearItems();
+            if (appContext) useAppContextStore.getState().consumeItems();
             await persistUserMessage(userId, channelId, convId, text, attachments, appContext, messages, set);
 
             // Now safe to set activeConversationId — optimistic message is already in state

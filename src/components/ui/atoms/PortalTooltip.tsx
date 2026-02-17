@@ -262,6 +262,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
 
                 actualWidth = undefined;
                 actualHeight = undefined;
+                let autoMaxHeight: number | undefined;
 
                 const anchorLeft = rect.left;
                 const anchorRight = rect.right ?? rect.left + rect.width;
@@ -323,20 +324,33 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                     }
 
                     // Vertical positioning
-                    if (preferredSide === 'bottom') {
+                    const autoSpaceBelow = viewportHeight - anchorBottom - ANCHOR_GAP - VIEWPORT_EDGE_PADDING;
+                    const autoSpaceAbove = anchorTop - ANCHOR_GAP - VIEWPORT_EDGE_PADDING;
+
+                    let effectiveSide = preferredSide;
+                    if (preferredSide === 'bottom' && autoSpaceBelow < 120 && autoSpaceAbove > autoSpaceBelow) {
+                        effectiveSide = 'top';
+                    } else if (preferredSide === 'top' && autoSpaceAbove < 120 && autoSpaceBelow > autoSpaceAbove) {
+                        effectiveSide = 'bottom';
+                    }
+
+                    if (effectiveSide === 'bottom') {
                         top = anchorBottom + ANCHOR_GAP;
                         finalTransformY = '0';
+                        autoMaxHeight = autoSpaceBelow;
                     } else {
                         top = anchorTop - ANCHOR_GAP;
                         finalTransformY = '-100%';
+                        autoMaxHeight = autoSpaceAbove;
                     }
 
                     // Determine Transform Origin for animation
-                    const originY = preferredSide === 'bottom' ? 'top' : 'bottom';
+                    const originY = effectiveSide === 'bottom' ? 'top' : 'bottom';
                     setTransformOrigin(`${originY} ${effectiveAlign}`);
                 }
 
                 finalTransform = `translate(${finalTransformX}, ${finalTransformY})`;
+                actualHeight = autoMaxHeight;
             }
 
             // --- Debug Logging ---
@@ -591,8 +605,14 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                                 {content}
                             </div>
                         ) : (
-                            /* Auto mode: Simple padding, content determines size */
-                            <div className="px-3 py-2 whitespace-pre-wrap break-words">
+                            /* Auto mode: Simple padding, content determines size, scroll if needed */
+                            <div
+                                className="px-3 py-2 whitespace-pre-wrap break-words"
+                                style={{
+                                    maxHeight: position.maxHeight ? position.maxHeight - 16 : undefined,
+                                    overflowY: position.maxHeight ? 'auto' : undefined,
+                                }}
+                            >
                                 {content}
                             </div>
                         )}

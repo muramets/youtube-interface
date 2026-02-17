@@ -4,8 +4,23 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Plus, Search, Settings, Upload, Music, Heart, ArrowLeft, ListMusic, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Search, Settings, Upload, Music, Heart, ArrowLeft, ListMusic, ArrowUp, ArrowDown, GripVertical } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import {
+    DndContext,
+    closestCenter,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+    SortableContext,
+    verticalListSortingStrategy,
+    useSortable,
+    arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useMusicStore } from '../../core/stores/musicStore';
@@ -24,6 +39,65 @@ import { SortButton } from '../../features/Filter/SortButton';
 import { useFilterStore } from '../../core/stores/filterStore';
 import type { SharedLibraryEntry } from '../../core/types/musicSharing';
 import { Share2 } from 'lucide-react';
+
+// -----------------------------------------------------------------------------
+// Sortable wrapper for playlist drag reorder — mirrors TrackGroupCard pattern
+// -----------------------------------------------------------------------------
+const SortablePlaylistTrackItem: React.FC<{
+    track: Track;
+    selectedTrackId: string | null;
+    userId: string;
+    channelId: string;
+    onSelect: (trackId: string | null) => void;
+    onDelete?: (trackId: string) => void;
+    onEdit?: (track: Track) => void;
+    siblingColor?: string;
+    siblingPosition?: 'first' | 'middle' | 'last';
+}> = React.memo(({ track, selectedTrackId, userId, channelId, onSelect, onDelete, onEdit, siblingColor, siblingPosition }) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: track.id });
+
+    const style: React.CSSProperties = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.4 : 1,
+        position: 'relative' as const,
+        zIndex: isDragging ? 50 : 'auto',
+    };
+
+    return (
+        <div ref={setNodeRef} style={style} className="flex items-center">
+            {/* Drag handle */}
+            <div
+                {...attributes}
+                {...listeners}
+                className="flex-shrink-0 w-6 flex items-center justify-center cursor-grab active:cursor-grabbing text-text-tertiary hover:text-text-secondary transition-colors"
+            >
+                <GripVertical size={14} />
+            </div>
+            <div className="flex-1 min-w-0">
+                <TrackCard
+                    track={track}
+                    isSelected={selectedTrackId === track.id}
+                    userId={userId}
+                    channelId={channelId}
+                    onSelect={onSelect}
+                    onDelete={onDelete}
+                    onEdit={onEdit}
+                    disableDrag
+                    siblingColor={siblingColor}
+                    siblingPosition={siblingPosition}
+                />
+            </div>
+        </div>
+    );
+});
 
 export const MusicPage: React.FC = () => {
     const { user } = useAuth();
@@ -50,6 +124,7 @@ export const MusicPage: React.FC = () => {
     const sortableCategories = useMusicStore(s => s.sortableCategories);
     const musicPlaylists = useMusicStore(s => s.musicPlaylists);
     const activePlaylistId = useMusicStore(s => s.activePlaylistId);
+    const reorderPlaylistTracks = useMusicStore(s => s.reorderPlaylistTracks);
     const setActivePlaylist = useMusicStore(s => s.setActivePlaylist);
     const sharedLibraries = useMusicStore(s => s.sharedLibraries);
     const activeLibrarySource = useMusicStore(s => s.activeLibrarySource);
@@ -134,8 +209,7 @@ export const MusicPage: React.FC = () => {
             if (playlist) {
                 const trackIdSet = new Set(playlist.trackIds);
                 result = result.filter(t => trackIdSet.has(t.id));
-                // Preserve playlist order
-                result.sort((a, b) => playlist.trackIds.indexOf(a.id) - playlist.trackIds.indexOf(b.id));
+                // Sorting is handled below — playlist order is applied as default sort
             }
         }
 
@@ -170,39 +244,58 @@ export const MusicPage: React.FC = () => {
             });
         }
 
-        // Sort by newest first (only when not in a playlist, which preserves playlist order)
-        if (!activePlaylistId || activePlaylistId === 'liked') {
+        // Sort
+        if (musicSortBy.startsWith('tag:')) {
             // Tag-based sorting: group by tag position within a category
-            if (musicSortBy.startsWith('tag:')) {
-                const categoryName = musicSortBy.slice(4);
-                const categoryTags = tags.filter(t => (t.category || 'Uncategorized') === categoryName);
-                result.sort((a, b) => {
-                    // Find the best (lowest index) matching tag for each track
-                    let idxA = Infinity;
-                    let idxB = Infinity;
-                    for (let i = 0; i < categoryTags.length; i++) {
-                        if (a.tags.includes(categoryTags[i].id) && i < idxA) idxA = i;
-                        if (b.tags.includes(categoryTags[i].id) && i < idxB) idxB = i;
-                    }
-                    // Apply asc/desc
-                    const dir = musicSortAsc ? 1 : -1;
-                    if (idxA !== idxB) return (idxA - idxB) * dir;
-                    // Secondary sort: newest first
-                    return b.createdAt - a.createdAt;
-                });
-            } else if (musicSortBy === 'liked') {
-                // Liked sorting: liked tracks first (asc) or last (desc)
-                result.sort((a, b) => {
-                    const aLiked = a.liked ? 1 : 0;
-                    const bLiked = b.liked ? 1 : 0;
-                    if (aLiked !== bLiked) {
-                        return musicSortAsc ? bLiked - aLiked : aLiked - bLiked;
-                    }
-                    return b.createdAt - a.createdAt;
-                });
-            } else {
-                result.sort((a, b) => b.createdAt - a.createdAt);
+            const categoryName = musicSortBy.slice(4);
+            const categoryTags = tags.filter(t => (t.category || 'Uncategorized') === categoryName);
+            result.sort((a, b) => {
+                // Find the best (lowest index) matching tag for each track
+                let idxA = Infinity;
+                let idxB = Infinity;
+                for (let i = 0; i < categoryTags.length; i++) {
+                    if (a.tags.includes(categoryTags[i].id) && i < idxA) idxA = i;
+                    if (b.tags.includes(categoryTags[i].id) && i < idxB) idxB = i;
+                }
+                // Apply asc/desc
+                const dir = musicSortAsc ? 1 : -1;
+                if (idxA !== idxB) return (idxA - idxB) * dir;
+                // Secondary sort: newest first
+                return b.createdAt - a.createdAt;
+            });
+        } else if (musicSortBy === 'liked') {
+            // Liked sorting: liked tracks first (asc) or last (desc)
+            result.sort((a, b) => {
+                const aLiked = a.liked ? 1 : 0;
+                const bLiked = b.liked ? 1 : 0;
+                if (aLiked !== bLiked) {
+                    return musicSortAsc ? bLiked - aLiked : aLiked - bLiked;
+                }
+                return b.createdAt - a.createdAt;
+            });
+        } else if (musicSortBy === 'playlistOrder' && activePlaylistId && activePlaylistId !== 'liked') {
+            // Playlist Order: custom drag-reorderable order (trackIds array)
+            const playlist = musicPlaylists.find(p => p.id === activePlaylistId);
+            if (playlist) {
+                result.sort((a, b) => playlist.trackIds.indexOf(a.id) - playlist.trackIds.indexOf(b.id));
             }
+        } else if (activePlaylistId && activePlaylistId !== 'liked') {
+            // Playlist view default: sort by date added
+            const playlist = musicPlaylists.find(p => p.id === activePlaylistId);
+            if (playlist) {
+                const addedAt = playlist.trackAddedAt || {};
+                const dir = musicSortAsc ? 1 : -1;
+                result.sort((a, b) => {
+                    // Fallback to trackIds index for legacy playlists without trackAddedAt
+                    const timeA = addedAt[a.id] ?? playlist.trackIds.indexOf(a.id);
+                    const timeB = addedAt[b.id] ?? playlist.trackIds.indexOf(b.id);
+                    return (timeA - timeB) * dir;
+                });
+            }
+        } else {
+            // Library/Liked default: sort by creation date
+            const dir = musicSortAsc ? 1 : -1;
+            result.sort((a, b) => (a.createdAt - b.createdAt) * dir);
         }
 
         return result;
@@ -250,11 +343,6 @@ export const MusicPage: React.FC = () => {
     // -------------------------------------------------------------------------
     // Group filtered tracks by groupId for version stacking
     // -------------------------------------------------------------------------
-    type DisplayItem =
-        | { type: 'single'; track: Track }
-        | { type: 'group'; groupId: string; tracks: Track[] }
-        | { type: 'sibling'; track: Track; siblingColor: string; siblingPosition: 'first' | 'middle' | 'last' };
-
     const displayItems: DisplayItem[] = useMemo(() => {
         const items: DisplayItem[] = [];
         const seenGroupIds = new Set<string>();
@@ -347,6 +435,14 @@ export const MusicPage: React.FC = () => {
         overscan: 8,
     });
 
+    // Is the playlist in drag-reorder mode?
+    const isPlaylistDragMode = !!(
+        activePlaylistId &&
+        activePlaylistId !== 'liked' &&
+        musicSortBy === 'playlistOrder' &&
+        !isReadOnly
+    );
+
     return (
         <div className="flex flex-col h-full">
             {/* Header */}
@@ -429,10 +525,11 @@ export const MusicPage: React.FC = () => {
                             ) : null;
                         })()}
                         {(sortableCategories.length > 0 || hasLikedTracks) && (
-                            <div className={`flex items-center rounded-full overflow-hidden transition-colors ${musicSortBy !== 'default' ? 'bg-hover-bg' : ''}`}>
+                            <div className={`flex items-center rounded-full overflow-hidden transition-colors ${musicSortBy !== 'default' && musicSortBy !== 'playlistOrder' ? 'bg-hover-bg' : ''}`}>
                                 <SortButton
                                     sortOptions={[
-                                        { label: 'Default', value: 'default' },
+                                        { label: activePlaylistId && activePlaylistId !== 'liked' ? 'Date Added' : 'Added to Library', value: 'default' },
+                                        ...(activePlaylistId && activePlaylistId !== 'liked' ? [{ label: 'Playlist Order', value: 'playlistOrder' }] : []),
                                         ...(hasLikedTracks ? [{ label: 'Liked', value: 'liked' }] : []),
                                         ...sortableCategories.map(cat => ({ label: cat, value: `tag:${cat}` }))
                                     ]}
@@ -440,10 +537,14 @@ export const MusicPage: React.FC = () => {
                                     onSortChange={setMusicSortBy}
                                     buttonClassName="w-[34px] h-[34px] flex items-center justify-center transition-colors border-none cursor-pointer relative flex-shrink-0 bg-transparent text-text-primary hover:text-white"
                                 />
-                                {musicSortBy !== 'default' && (
+                                {musicSortBy !== 'playlistOrder' && (
                                     <>
                                         <div className="w-[1px] h-[16px] bg-white/15" />
-                                        <PortalTooltip content={musicSortAsc ? 'Ascending' : 'Descending'}>
+                                        <PortalTooltip content={
+                                            musicSortBy === 'default'
+                                                ? (musicSortAsc ? 'Oldest First' : 'Newest First')
+                                                : (musicSortAsc ? 'Ascending' : 'Descending')
+                                        }>
                                             <button
                                                 onClick={() => setMusicSortAsc(!musicSortAsc)}
                                                 className="w-[30px] h-[34px] flex items-center justify-center border-none cursor-pointer bg-transparent text-text-primary hover:text-white transition-colors"
@@ -564,52 +665,21 @@ export const MusicPage: React.FC = () => {
                             )}
                         </div>
                     ) : (
-                        <div
-                            className="pt-3 relative w-full"
-                            style={{ height: virtualizer.getTotalSize() + 12 }}
-                        >
-                            {virtualizer.getVirtualItems().map((virtualRow) => {
-                                const item = displayItems[virtualRow.index];
-                                return (
-                                    <div
-                                        key={item.type === 'group' ? item.groupId : item.track.id}
-                                        data-index={virtualRow.index}
-                                        ref={virtualizer.measureElement}
-                                        style={{
-                                            position: 'absolute',
-                                            top: 0,
-                                            left: 0,
-                                            width: '100%',
-                                            transform: `translateY(${virtualRow.start}px)`,
-                                        }}
-                                    >
-                                        {item.type === 'group' ? (
-                                            <TrackGroupCard
-                                                tracks={item.tracks}
-                                                selectedTrackId={selectedTrackId}
-                                                userId={userId}
-                                                channelId={channelId}
-                                                onSelect={setSelectedTrackId}
-                                                onDelete={isReadOnly ? undefined : handleDeleteTrack}
-                                                onEdit={isReadOnly ? undefined : handleEditTrack}
-                                            />
-                                        ) : (
-                                            <TrackCard
-                                                track={item.track}
-                                                isSelected={selectedTrackId === item.track.id}
-                                                userId={userId}
-                                                channelId={channelId}
-                                                onSelect={setSelectedTrackId}
-                                                onDelete={isReadOnly ? undefined : handleDeleteTrack}
-                                                onEdit={isReadOnly ? undefined : handleEditTrack}
-                                                siblingColor={item.type === 'sibling' ? item.siblingColor : undefined}
-                                                siblingPosition={item.type === 'sibling' ? item.siblingPosition : undefined}
-                                            />
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
+                        <PlaylistSortableList
+                            isPlaylistDragMode={isPlaylistDragMode}
+                            displayItems={displayItems}
+                            filteredTracks={filteredTracks}
+                            virtualizer={virtualizer}
+                            selectedTrackId={selectedTrackId}
+                            userId={userId}
+                            channelId={channelId}
+                            isReadOnly={isReadOnly}
+                            activePlaylistId={activePlaylistId}
+                            setSelectedTrackId={setSelectedTrackId}
+                            handleDeleteTrack={handleDeleteTrack}
+                            handleEditTrack={handleEditTrack}
+                            reorderPlaylistTracks={reorderPlaylistTracks}
+                        />
                     )}
                 </MusicErrorBoundary>
             </div>
@@ -632,6 +702,148 @@ export const MusicPage: React.FC = () => {
                 channelId={channelId}
                 initialTab={showSettings || undefined}
             />
+        </div>
+    );
+};
+
+// -----------------------------------------------------------------------------
+// PlaylistSortableList: switches between virtualizer and DnD sortable modes
+// -----------------------------------------------------------------------------
+type DisplayItem =
+    | { type: 'single'; track: Track }
+    | { type: 'group'; groupId: string; tracks: Track[] }
+    | { type: 'sibling'; track: Track; siblingColor: string; siblingPosition: 'first' | 'middle' | 'last' };
+
+interface PlaylistSortableListProps {
+    isPlaylistDragMode: boolean;
+    displayItems: DisplayItem[];
+    filteredTracks: Track[];
+    virtualizer: ReturnType<typeof useVirtualizer<HTMLDivElement, Element>>;
+    selectedTrackId: string | null;
+    userId: string;
+    channelId: string;
+    isReadOnly: boolean;
+    activePlaylistId: string | null;
+    setSelectedTrackId: (id: string | null) => void;
+    handleDeleteTrack: (id: string) => void;
+    handleEditTrack: (track: Track) => void;
+    reorderPlaylistTracks: (userId: string, channelId: string, playlistId: string, orderedTrackIds: string[]) => Promise<void>;
+}
+
+const PlaylistSortableList: React.FC<PlaylistSortableListProps> = ({
+    isPlaylistDragMode,
+    displayItems,
+    filteredTracks,
+    virtualizer,
+    selectedTrackId,
+    userId,
+    channelId,
+    isReadOnly,
+    activePlaylistId,
+    setSelectedTrackId,
+    handleDeleteTrack,
+    handleEditTrack,
+    reorderPlaylistTracks,
+}) => {
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+    );
+
+    const sortableIds = useMemo(
+        () => filteredTracks.map(t => t.id),
+        [filteredTracks],
+    );
+
+    const handleSortEnd = useCallback((event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id || !activePlaylistId) return;
+
+        const oldIdx = filteredTracks.findIndex(t => t.id === active.id);
+        const newIdx = filteredTracks.findIndex(t => t.id === over.id);
+        if (oldIdx < 0 || newIdx < 0) return;
+
+        const reordered = arrayMove(filteredTracks, oldIdx, newIdx);
+        reorderPlaylistTracks(userId, channelId, activePlaylistId, reordered.map(t => t.id));
+    }, [filteredTracks, activePlaylistId, userId, channelId, reorderPlaylistTracks]);
+
+    // ---- Playlist drag-reorder mode: flat list with SortableContext, no virtualizer ----
+    if (isPlaylistDragMode) {
+        return (
+            <div className="pt-3">
+                <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleSortEnd}
+                >
+                    <SortableContext
+                        items={sortableIds}
+                        strategy={verticalListSortingStrategy}
+                    >
+                        {filteredTracks.map(track => (
+                            <SortablePlaylistTrackItem
+                                key={track.id}
+                                track={track}
+                                selectedTrackId={selectedTrackId}
+                                userId={userId}
+                                channelId={channelId}
+                                onSelect={setSelectedTrackId}
+                                onDelete={isReadOnly ? undefined : handleDeleteTrack}
+                                onEdit={isReadOnly ? undefined : handleEditTrack}
+                            />
+                        ))}
+                    </SortableContext>
+                </DndContext>
+            </div>
+        );
+    }
+
+    // ---- Normal mode: virtualized list (groups, siblings, singles) ----
+    return (
+        <div
+            className="pt-3 relative w-full"
+            style={{ height: virtualizer.getTotalSize() + 12 }}
+        >
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+                const item = displayItems[virtualRow.index];
+                return (
+                    <div
+                        key={item.type === 'group' ? item.groupId : item.track.id}
+                        data-index={virtualRow.index}
+                        ref={virtualizer.measureElement}
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            transform: `translateY(${virtualRow.start}px)`,
+                        }}
+                    >
+                        {item.type === 'group' ? (
+                            <TrackGroupCard
+                                tracks={item.tracks}
+                                selectedTrackId={selectedTrackId}
+                                userId={userId}
+                                channelId={channelId}
+                                onSelect={setSelectedTrackId}
+                                onDelete={isReadOnly ? undefined : handleDeleteTrack}
+                                onEdit={isReadOnly ? undefined : handleEditTrack}
+                            />
+                        ) : (
+                            <TrackCard
+                                track={item.track}
+                                isSelected={selectedTrackId === item.track.id}
+                                userId={userId}
+                                channelId={channelId}
+                                onSelect={setSelectedTrackId}
+                                onDelete={isReadOnly ? undefined : handleDeleteTrack}
+                                onEdit={isReadOnly ? undefined : handleEditTrack}
+                                siblingColor={item.type === 'sibling' ? item.siblingColor : undefined}
+                                siblingPosition={item.type === 'sibling' ? item.siblingPosition : undefined}
+                            />
+                        )}
+                    </div>
+                );
+            })}
         </div>
     );
 };

@@ -32,12 +32,22 @@ export const useTrendsSidebar = () => {
     const isOnTrendsPage = location.pathname === '/trends';
 
     const handleTrendsClick = () => {
+        // Save current filters before switching
+        const store = useTrendStore.getState();
+        const saveKey = store.selectedChannelId || '__global__';
+        store.setChannelRootFilters(saveKey, store.trendsFilters);
+
         // Clear any active niche filters when going to main trends
         const nicheFilter = trendsFilters.find(f => f.type === 'niche');
         if (nicheFilter) {
             removeTrendsFilter(nicheFilter.id);
         }
         setSelectedChannelId(null);
+
+        // Restore global (All Channels) filters
+        const globalFilters = useTrendStore.getState().channelRootFilters['__global__'];
+        setTrendsFilters(globalFilters?.length > 0 ? globalFilters : []);
+
         navigate('/trends');
     };
 
@@ -61,9 +71,10 @@ export const useTrendsSidebar = () => {
             if (activeIds.length === 1) {
                 setNicheFilters(activeIds[0], trendsFilters);
             }
-        } else if (selectedChannelId) {
-            // In ROOT or UNASSIGNED → save to channelRootFilters
-            setChannelRootFilters(selectedChannelId, trendsFilters);
+        } else {
+            // In ROOT/UNASSIGNED or All Channels → save to channelRootFilters
+            const saveKey = selectedChannelId || '__global__';
+            setChannelRootFilters(saveKey, trendsFilters);
         }
 
         // Step 2: Switch channel

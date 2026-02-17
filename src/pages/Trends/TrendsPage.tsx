@@ -141,16 +141,29 @@ export const TrendsPage: React.FC = () => {
 
     // Handle channel click in table view → navigate to that channel's videos
     const handleChannelClick = useCallback((channelId: string) => {
+        // Save current filters before switching (global or channel)
+        const store = useTrendStore.getState();
+        const saveKey = store.selectedChannelId || '__global__';
+        store.setChannelRootFilters(saveKey, store.trendsFilters);
+
         setSelectedChannelId(channelId);
-        // Restore root filters for the target channel (simplified: always go to root)
+        // Restore root filters for the target channel
         const rootFilters = useTrendStore.getState().channelRootFilters[channelId];
         setTrendsFilters(rootFilters?.length > 0 ? rootFilters : []);
     }, [setSelectedChannelId, setTrendsFilters]);
 
     // Handle back to all channels from breadcrumb
     const handleBackToChannels = useCallback(() => {
+        // Save current channel filters before leaving
+        const store = useTrendStore.getState();
+        if (store.selectedChannelId) {
+            store.setChannelRootFilters(store.selectedChannelId, store.trendsFilters);
+        }
         setSelectedChannelId(null);
-    }, [setSelectedChannelId]);
+        // Restore global (All Channels) filters
+        const globalFilters = useTrendStore.getState().channelRootFilters['__global__'];
+        setTrendsFilters(globalFilters?.length > 0 ? globalFilters : []);
+    }, [setSelectedChannelId, setTrendsFilters]);
 
     const handleToggleAll = (videosToSelect: TrendVideo[]) => {
         if (videosToSelect.length === 0) return;

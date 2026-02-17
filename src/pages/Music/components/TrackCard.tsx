@@ -58,6 +58,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
     const genres = useMusicStore((s) => s.genres);
     const allTags = useMusicStore((s) => s.tags);
     const featuredCategories = useMusicStore((s) => s.featuredCategories);
+    const activePlaylistId = useMusicStore((s) => s.activePlaylistId);
 
     // Only subscribe to time-sensitive data for the active track
     const currentTime = useMusicStore((s) => isCurrentTrack ? s.currentTime : 0);
@@ -158,7 +159,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
         setTimeout(() => handleDownload(track.instrumentalUrl, '(instr)'), 300);
     }, [handleDownload, track.vocalUrl, track.instrumentalUrl]);
 
-    const currentVariant = isCurrentTrack ? playingVariant : 'vocal';
+    const currentVariant = isCurrentTrack ? playingVariant : (track.vocalUrl ? 'vocal' : 'instrumental');
     const currentPeaks = currentVariant === 'vocal' ? track.vocalPeaks : track.instrumentalPeaks;
     const currentUrl = currentVariant === 'vocal' ? track.vocalUrl : track.instrumentalUrl;
     const accentColor = genreInfo?.color || '#6366F1';
@@ -561,7 +562,8 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                             {onEdit && (
                                 <>
                                     <DropdownMenuItem onClick={() => setShowAddToPlaylist(true)}>
-                                        <ListMusic size={14} className="mr-2" /> Add to Playlist
+                                        <ListMusic size={14} className="mr-2" />
+                                        {activePlaylistId && activePlaylistId !== 'liked' ? 'Manage Playlists' : 'Add to Playlist'}
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem onClick={() => setShowLinkVersion(true)}>

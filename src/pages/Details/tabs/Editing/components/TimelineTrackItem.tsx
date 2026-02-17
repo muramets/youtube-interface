@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -8,6 +8,7 @@ import { useEditingStore } from '../../../../../core/stores/editingStore';
 import { useMusicStore, selectAllTracks } from '../../../../../core/stores/musicStore';
 import { formatDuration } from '../utils/formatDuration';
 import { drawWaveform, hexToHSL } from '../utils/waveformUtils';
+import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
 
 // Fixed dimensions — waveform height is independent of zoom
 const TITLE_BAR_H = 18;
@@ -38,6 +39,8 @@ export const TimelineTrackItem: React.FC<TimelineTrackItemProps> = ({ track, wid
     const removeTrack = useEditingStore((s) => s.removeTrack);
     const toggleVariant = useEditingStore((s) => s.toggleTrackVariant);
     const musicTracks = useMusicStore(selectAllTracks);
+    const allTags = useMusicStore((s) => s.tags);
+    const categoryOrder = useMusicStore((s) => s.categoryOrder);
     const setTrackVolume = useEditingStore((s) => s.setTrackVolume);
     const setTrackTrim = useEditingStore((s) => s.setTrackTrim);
     const isLocked = useEditingStore((s) => s.isLocked);
@@ -224,6 +227,49 @@ export const TimelineTrackItem: React.FC<TimelineTrackItemProps> = ({ track, wid
     const accentHSL = `${hue}, ${sat}%, ${lig}%`;
     const bgGradient = `linear-gradient(180deg, hsla(${accentHSL}, 0.12) 0%, hsla(${accentHSL}, 0.03) 100%)`;
 
+    // ── Tags tooltip content (grouped by category) ──
+    const tagsTooltipContent = useMemo(() => {
+        const sourceTrack = musicTracks.find(t => t.id === track.trackId);
+        if (!sourceTrack || sourceTrack.tags.length === 0) return null;
+
+        // Group tag IDs by category using allTags definitions
+        const grouped = new Map<string, string[]>();
+        for (const tagId of sourceTrack.tags) {
+            const tagDef = allTags.find(t => t.id === tagId);
+            const category = tagDef?.category || 'Other';
+            const name = tagDef?.name || tagId;
+            if (!grouped.has(category)) grouped.set(category, []);
+            grouped.get(category)!.push(name);
+        }
+
+        // Sort categories by library settings order
+        const sortedEntries = Array.from(grouped.entries()).sort(([a], [b]) => {
+            const idxA = categoryOrder.indexOf(a);
+            const idxB = categoryOrder.indexOf(b);
+            // Unknown categories go to the end
+            return (idxA === -1 ? Infinity : idxA) - (idxB === -1 ? Infinity : idxB);
+        });
+
+        return (
+            <div className="flex flex-col gap-2 max-w-[240px]">
+                {sortedEntries.map(([category, names]) => (
+                    <div key={category}>
+                        <div className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider mb-1">
+                            {category}
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                            {names.map(name => (
+                                <span key={name} className="text-[9px] bg-white/10 px-2 py-0.5 rounded-full text-text-secondary">
+                                    {name}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+    }, [musicTracks, allTags, categoryOrder, track.trackId]);
+
     // Gain line Y position: 0% = top (vol=1), 100% = bottom (vol=0)
     const gainLineY = `${(1 - localVolume) * 100}%`;
 
@@ -256,22 +302,30 @@ export const TimelineTrackItem: React.FC<TimelineTrackItemProps> = ({ track, wid
                 </div>
 
                 {/* Title bar — fixed height, opaque, separate from waveform */}
-                <div
-                    className="flex-shrink-0 px-1.5 flex items-center"
-                    style={{
-                        height: TITLE_BAR_H,
-                        background: `hsl(${hue}, ${sat}%, ${Math.min(lig * 0.55, 35)}%)`,
-                    }}
+                <PortalTooltip
+                    content={tagsTooltipContent}
+                    enterDelay={1000}
+                    disabled={!tagsTooltipContent}
+                    side="top"
+                    triggerClassName="w-full !justify-start"
                 >
-                    <div className="flex items-center justify-between gap-1 w-full">
-                        <span className="text-[9px] font-medium text-white/60 group-hover:text-white truncate leading-tight transition-colors duration-300">
-                            {track.title}
-                        </span>
-                        <span className="text-[8px] text-white/30 group-hover:text-white/70 flex-shrink-0 tabular-nums transition-colors duration-300">
-                            {formatDuration(trimmedDuration)}
-                        </span>
+                    <div
+                        className="flex-shrink-0 w-full px-1.5 flex items-center"
+                        style={{
+                            height: TITLE_BAR_H,
+                            background: `hsl(${hue}, ${sat}%, ${Math.min(lig * 0.55, 35)}%)`,
+                        }}
+                    >
+                        <div className="flex items-center justify-between gap-1 w-full">
+                            <span className="text-[9px] font-medium text-white/60 group-hover:text-white truncate leading-tight transition-colors duration-300">
+                                {track.title}
+                            </span>
+                            <span className="text-[8px] text-white/30 group-hover:text-white/70 flex-shrink-0 tabular-nums transition-colors duration-300">
+                                {formatDuration(trimmedDuration)}
+                            </span>
+                        </div>
                     </div>
-                </div>
+                </PortalTooltip>
             </div>
 
             {/* ── Gain line (draggable) ── */}

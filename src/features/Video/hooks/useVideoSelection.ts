@@ -1,7 +1,27 @@
 import { useState, useCallback, useEffect } from 'react';
 
-export const useVideoSelection = () => {
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+/** Module-level cache: survives unmount, cleared on full page refresh. */
+const selectionCache = new Map<string, Set<string>>();
+
+/**
+ * @param persistKey  Optional key (e.g. playlist ID) to persist selection
+ *                    across mount/unmount cycles. Without it, selection resets
+ *                    on unmount (original behavior).
+ */
+export const useVideoSelection = (persistKey?: string) => {
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(
+        () => (persistKey ? selectionCache.get(persistKey) ?? new Set() : new Set()),
+    );
+
+    // Sync changes back to cache
+    useEffect(() => {
+        if (!persistKey) return;
+        if (selectedIds.size > 0) {
+            selectionCache.set(persistKey, selectedIds);
+        } else {
+            selectionCache.delete(persistKey);
+        }
+    }, [persistKey, selectedIds]);
 
     const toggleSelection = useCallback((id: string) => {
         setSelectedIds(prev => {

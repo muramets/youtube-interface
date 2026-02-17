@@ -107,9 +107,15 @@ export const MusicPlaylistService = {
             const newTrackIds = trackIds.filter(id => !currentTrackIds.includes(id));
 
             if (newTrackIds.length > 0) {
+                const now = Date.now();
+                const addedAt: Record<string, number> = { ...(playlist.trackAddedAt || {}) };
+                for (const id of newTrackIds) {
+                    addedAt[id] = now;
+                }
                 await updateDoc(playlistRef, {
-                    trackIds: [...newTrackIds, ...currentTrackIds],
-                    updatedAt: Date.now(),
+                    trackIds: [...currentTrackIds, ...newTrackIds],
+                    trackAddedAt: addedAt,
+                    updatedAt: now,
                 });
             }
         }
@@ -122,8 +128,35 @@ export const MusicPlaylistService = {
         trackIds: string[],
     ) {
         const playlistRef = doc(db, getPlaylistsPath(userId, channelId), playlistId);
+        const snapshot = await getDoc(playlistRef);
+        if (!snapshot.exists()) return;
+
+        const playlist = snapshot.data() as MusicPlaylist;
+        const removeSet = new Set(trackIds);
+
+        // Clean up trackAddedAt to avoid orphan keys
+        const cleanedAddedAt = playlist.trackAddedAt
+            ? Object.fromEntries(
+                Object.entries(playlist.trackAddedAt).filter(([id]) => !removeSet.has(id))
+            )
+            : {};
+
         await updateDoc(playlistRef, {
             trackIds: arrayRemove(...trackIds),
+            trackAddedAt: cleanedAddedAt,
+            updatedAt: Date.now(),
+        });
+    },
+
+    async reorderPlaylistTracks(
+        userId: string,
+        channelId: string,
+        playlistId: string,
+        orderedTrackIds: string[],
+    ) {
+        const playlistRef = doc(db, getPlaylistsPath(userId, channelId), playlistId);
+        await updateDoc(playlistRef, {
+            trackIds: orderedTrackIds,
             updatedAt: Date.now(),
         });
     },

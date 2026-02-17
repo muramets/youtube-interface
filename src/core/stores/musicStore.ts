@@ -79,6 +79,7 @@ interface MusicState {
     deletePlaylist: (userId: string, channelId: string, playlistId: string) => Promise<void>;
     addTracksToPlaylist: (userId: string, channelId: string, playlistId: string, trackIds: string[]) => Promise<void>;
     removeTracksFromPlaylist: (userId: string, channelId: string, playlistId: string, trackIds: string[]) => Promise<void>;
+    reorderPlaylistTracks: (userId: string, channelId: string, playlistId: string, orderedTrackIds: string[]) => Promise<void>;
 
     // Actions: Sharing
     loadSharedLibraries: (userId: string, channelId: string) => Promise<void>;
@@ -484,27 +485,52 @@ export const useMusicStore = create<MusicState>((set) => ({
     },
 
     addTracksToPlaylist: async (userId, channelId, playlistId, trackIds) => {
+        const now = Date.now();
         // Optimistic update
         set((state) => ({
-            musicPlaylists: state.musicPlaylists.map((p) =>
-                p.id === playlistId
-                    ? { ...p, trackIds: [...trackIds.filter(id => !p.trackIds.includes(id)), ...p.trackIds] }
-                    : p
-            ),
+            musicPlaylists: state.musicPlaylists.map((p) => {
+                if (p.id !== playlistId) return p;
+                const newIds = trackIds.filter(id => !p.trackIds.includes(id));
+                const addedAt = { ...(p.trackAddedAt || {}) };
+                for (const id of newIds) addedAt[id] = now;
+                return { ...p, trackIds: [...p.trackIds, ...newIds], trackAddedAt: addedAt };
+            }),
         }));
         await MusicPlaylistService.addTracksToPlaylist(userId, channelId, playlistId, trackIds);
     },
 
     removeTracksFromPlaylist: async (userId, channelId, playlistId, trackIds) => {
+        const removeSet = new Set(trackIds);
+        // Optimistic update
+        set((state) => ({
+            musicPlaylists: state.musicPlaylists.map((p) => {
+                if (p.id !== playlistId) return p;
+                // Clean up trackAddedAt to avoid orphan keys
+                const addedAt = p.trackAddedAt
+                    ? Object.fromEntries(
+                        Object.entries(p.trackAddedAt).filter(([id]) => !removeSet.has(id))
+                    )
+                    : undefined;
+                return {
+                    ...p,
+                    trackIds: p.trackIds.filter(id => !removeSet.has(id)),
+                    ...(addedAt !== undefined && { trackAddedAt: addedAt }),
+                };
+            }),
+        }));
+        await MusicPlaylistService.removeTracksFromPlaylist(userId, channelId, playlistId, trackIds);
+    },
+
+    reorderPlaylistTracks: async (userId, channelId, playlistId, orderedTrackIds) => {
         // Optimistic update
         set((state) => ({
             musicPlaylists: state.musicPlaylists.map((p) =>
                 p.id === playlistId
-                    ? { ...p, trackIds: p.trackIds.filter(id => !trackIds.includes(id)) }
+                    ? { ...p, trackIds: orderedTrackIds }
                     : p
             ),
         }));
-        await MusicPlaylistService.removeTracksFromPlaylist(userId, channelId, playlistId, trackIds);
+        await MusicPlaylistService.reorderPlaylistTracks(userId, channelId, playlistId, orderedTrackIds);
     },
 }));
 
