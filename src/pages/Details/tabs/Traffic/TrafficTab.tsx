@@ -545,7 +545,6 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     // -------------------------------------------------------------------------
     const setContextItems = useAppContextStore(s => s.setItems);
     const clearContextItems = useAppContextStore(s => s.clearItems);
-    const contextVersion = useAppContextStore(s => s.version);
 
     useEffect(() => {
         if (selectedIds.size === 0) {
@@ -604,7 +603,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         };
 
         setContextItems([context]);
-    }, [selectedIds, filteredSources, allVideos, allAssignments, allNiches, trafficEdges, viewerEdges, _video, setContextItems, clearContextItems, contextVersion]);
+    }, [selectedIds, filteredSources, allVideos, allAssignments, allNiches, trafficEdges, viewerEdges, _video, setContextItems, clearContextItems]);
 
     // Cleanup on unmount — clear context when leaving the Traffic tab
     useEffect(() => {

@@ -380,26 +380,44 @@ export const PlaylistDetailPage: React.FC = () => {
     // Bridge: sync selected videos → appContextStore for AI chat
     const setContextItems = useAppContextStore(s => s.setItems);
     const clearContextItems = useAppContextStore(s => s.clearItems);
-    const contextVersion = useAppContextStore(s => s.version);
 
     React.useEffect(() => {
         if (selectedVideos.length === 0) {
             clearContextItems();
             return;
         }
-        const contextItems: VideoCardContext[] = selectedVideos.map(v => ({
-            type: 'video-card' as const,
-            videoId: v.id,
-            title: v.title,
-            description: v.description || '',
-            tags: v.tags || [],
-            thumbnailUrl: v.customImage || v.thumbnail,
-            viewCount: v.mergedVideoData?.viewCount || v.viewCount,
-            publishedAt: v.mergedVideoData?.publishedAt || v.publishedAt,
-            duration: v.mergedVideoData?.duration || v.duration,
-        }));
+        const contextItems: VideoCardContext[] = selectedVideos.map(v => {
+            // Determine ownership category
+            let ownership: VideoCardContext['ownership'];
+            if (v.isCustom && !v.publishedVideoId) {
+                ownership = 'own-draft';
+            } else if (v.isCustom) {
+                // Custom video with publishedVideoId → user's published video
+                ownership = 'own-published';
+            } else if (v.channelTitle === currentChannel?.name) {
+                // YouTube video from user's own channel
+                ownership = 'own-published';
+            } else {
+                ownership = 'competitor';
+            }
+
+            return {
+                type: 'video-card' as const,
+                ownership,
+                videoId: v.id,
+                title: v.title,
+                description: v.description || '',
+                tags: v.tags || [],
+                thumbnailUrl: v.customImage || v.thumbnail,
+                ...(ownership === 'competitor' && v.channelTitle ? { channelTitle: v.channelTitle } : {}),
+                // Don't include stats for drafts — they are placeholder values
+                ...(ownership !== 'own-draft' && (v.mergedVideoData?.viewCount || v.viewCount) ? { viewCount: v.mergedVideoData?.viewCount || v.viewCount } : {}),
+                ...(ownership !== 'own-draft' && (v.mergedVideoData?.publishedAt || v.publishedAt) ? { publishedAt: v.mergedVideoData?.publishedAt || v.publishedAt } : {}),
+                ...(ownership !== 'own-draft' && (v.mergedVideoData?.duration || v.duration) ? { duration: v.mergedVideoData?.duration || v.duration } : {}),
+            };
+        });
         setContextItems(contextItems);
-    }, [selectedVideos, setContextItems, clearContextItems, contextVersion]);
+    }, [selectedVideos, setContextItems, clearContextItems, currentChannel?.name]);
 
     // Cleanup on unmount — clear context when leaving the page
     React.useEffect(() => {

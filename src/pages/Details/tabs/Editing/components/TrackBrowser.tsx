@@ -124,7 +124,7 @@ export const TrackBrowser: React.FC = () => {
             {activeTab === 'tracks' && <CompactFilterBar {...filters} />}
 
             {/* Content List */}
-            <div className="flex-1 overflow-y-auto py-1.5">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden py-1.5">
                 {activeTab === 'tracks' ? (
                     filters.filteredTracks.length === 0 ? (
                         <div className="flex items-center justify-center h-20 text-xs text-text-tertiary">
@@ -136,6 +136,7 @@ export const TrackBrowser: React.FC = () => {
                                 key={track.id}
                                 track={track}
                                 isOnTimeline={timelineTrackIds.has(track.id)}
+                                browseTracks={filters.filteredTracks}
                             />
                         ))
                     )

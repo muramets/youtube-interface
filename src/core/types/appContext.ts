@@ -12,11 +12,14 @@
  */
 export interface VideoCardContext {
     type: 'video-card';
+    /** Video ownership relative to the user's channel */
+    ownership: 'own-draft' | 'own-published' | 'competitor';
     videoId: string;
     title: string;
     description: string;
     tags: string[];
     thumbnailUrl: string; // YouTube CDN URL (public, fetchable server-side)
+    channelTitle?: string; // Channel name (for competitor videos)
     viewCount?: string;
     publishedAt?: string;
     duration?: string;

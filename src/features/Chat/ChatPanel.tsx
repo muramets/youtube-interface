@@ -73,6 +73,9 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
     const setConversationModel = useChatStore(s => s.setConversationModel);
     const setPendingModel = useChatStore(s => s.setPendingModel);
     const pendingModel = useChatStore(s => s.pendingModel);
+    const editingMessage = useChatStore(s => s.editingMessage);
+    const setEditingMessage = useChatStore(s => s.setEditingMessage);
+    const editMessage = useChatStore(s => s.editMessage);
 
     // --- Custom hooks ---
     const conversationIdForUpload = activeConversationId ?? pendingConversationId ?? undefined;
@@ -273,6 +276,9 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
                                 if (activeConversationId) setConversationModel(activeConversationId, modelId);
                                 else setPendingModel(modelId);
                             }}
+                            editingMessage={editingMessage}
+                            onCancelEdit={() => setEditingMessage(null)}
+                            onEditSend={(newText, attachments) => editMessage(newText, attachments)}
                         />
                     </>
                 )}

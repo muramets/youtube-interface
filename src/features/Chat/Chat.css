@@ -104,6 +104,12 @@
     cursor: nwse-resize;
 }
 
+/* --- Scroll anchoring (prevents content jumps during streaming) --- */
+
+.chat-messages {
+    overflow-anchor: auto;
+}
+
 /* --- Scrollbar styling (pseudo-elements) --- */
 
 .chat-messages::-webkit-scrollbar,

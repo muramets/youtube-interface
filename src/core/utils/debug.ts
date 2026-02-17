@@ -19,6 +19,8 @@ const DEBUG_ENABLED = {
     timeline: false,     // TimelineVideoLayer hover events
     timelineHook: false, // useTimelineTooltip state changes
     dots: false,         // TimelineDotsLayer hover detection
+    chat: false,         // AI chat: system prompt, app context, token usage
+    scroll: false,       // ChatMessageList scroll state machine
 } as const;
 
 type DebugCategory = keyof typeof DEBUG_ENABLED;
@@ -79,9 +81,12 @@ export const debug = {
     video: createLogger('video'),
     timeline: createLogger('timeline'),
     timelineHook: createLogger('timelineHook'),
+    chat: createLogger('chat'),
+    scroll: createLogger('scroll'),
 
     // Grouped logging for complex debugging sessions
     tooltipGroup: createGroupLogger('tooltip'),
+    chatGroup: createGroupLogger('chat'),
 };
 
 // Export type for extending categories

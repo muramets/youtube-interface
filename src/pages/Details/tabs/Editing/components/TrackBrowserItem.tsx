@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { Plus, Play, Pause, Music2, Check } from 'lucide-react';
+import { Plus, Play, Pause, Music2, Check, Heart } from 'lucide-react';
 import type { Track } from '../../../../../core/types/track';
 import { useEditingStore } from '../../../../../core/stores/editingStore';
 import { useMusicStore } from '../../../../../core/stores/musicStore';
@@ -7,16 +7,24 @@ import { createTimelineTrack } from '../../../../../core/types/editing';
 import { formatDuration } from '../utils/formatDuration';
 import { setBrowserPreviewActive } from '../hooks/useTimelinePlayback';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
+import { useAuth } from '../../../../../core/hooks/useAuth';
+import { useChannelStore } from '../../../../../core/stores/channelStore';
 
 interface TrackBrowserItemProps {
     track: Track;
     isOnTimeline: boolean;
+    browseTracks: Track[];
 }
 
-export const TrackBrowserItem: React.FC<TrackBrowserItemProps> = ({ track, isOnTimeline }) => {
+export const TrackBrowserItem: React.FC<TrackBrowserItemProps> = ({ track, isOnTimeline, browseTracks }) => {
     const addTrack = useEditingStore((s) => s.addTrack);
     const playingTrackId = useMusicStore((s) => s.playingTrackId);
     const isPlaying = useMusicStore((s) => s.isPlaying);
+
+    const { user } = useAuth();
+    const { currentChannel } = useChannelStore();
+    const userId = user?.uid || '';
+    const channelId = currentChannel?.id || '';
 
     const isCurrentlyPlaying = playingTrackId === track.id && isPlaying;
 
@@ -33,9 +41,16 @@ export const TrackBrowserItem: React.FC<TrackBrowserItemProps> = ({ track, isOnT
             useMusicStore.getState().setIsPlaying(false);
         } else {
             setBrowserPreviewActive(true);
+            // Set playback queue to all visible browser tracks
+            useMusicStore.getState().setPlaybackQueue(browseTracks.map(t => t.id));
             useMusicStore.getState().setPlayingTrack(track.id, defaultVariant);
         }
-    }, [track.id, defaultVariant, isCurrentlyPlaying]);
+    }, [track.id, defaultVariant, isCurrentlyPlaying, browseTracks]);
+
+    const handleToggleLike = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        useMusicStore.getState().toggleLike(userId, channelId, track.id);
+    }, [userId, channelId, track.id]);
 
     // Native drag
     const handleDragStart = useCallback((e: React.DragEvent) => {
@@ -94,12 +109,12 @@ export const TrackBrowserItem: React.FC<TrackBrowserItemProps> = ({ track, isOnT
             enterDelay={1000}
             disabled={!tagsTooltipContent}
             side="left"
-            triggerClassName="w-full !justify-start"
+            triggerClassName="w-full min-w-0 !justify-start"
         >
             <div
                 draggable={!isOnTimeline}
                 onDragStart={isOnTimeline ? undefined : handleDragStart}
-                className={`flex items-center gap-2 px-3 py-1.5 transition-colors group ${isOnTimeline
+                className={`w-full flex items-center gap-2 px-3 py-1.5 transition-colors group ${isOnTimeline
                     ? 'opacity-40 cursor-default'
                     : 'hover:bg-hover cursor-pointer'
                     }`}
@@ -150,6 +165,17 @@ export const TrackBrowserItem: React.FC<TrackBrowserItemProps> = ({ track, isOnT
                         {track.artist && `${track.artist} · `}{formatDuration(track.duration)}
                     </p>
                 </div>
+
+                {/* Like heart — same styling as TrackCard */}
+                <button
+                    onClick={handleToggleLike}
+                    className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${track.liked
+                        ? 'text-red-400 hover:text-red-300'
+                        : 'text-text-tertiary hover:text-text-primary opacity-0 group-hover:opacity-100'
+                        }`}
+                >
+                    <Heart size={14} fill={track.liked ? 'currentColor' : 'none'} />
+                </button>
 
                 {/* Add indicator */}
                 <div className="flex-shrink-0">

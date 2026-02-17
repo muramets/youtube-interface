@@ -34,7 +34,7 @@ export interface PanelGeometryResult {
 const STORAGE_KEY = 'chat-panel-geometry';
 const MIN_W = 320;
 const MAX_W = 800;
-const MIN_H = 360;
+const MIN_H = 360; // header(56) + context-bar(~28) + visible messages(~160) + input(~116)
 const HEADER_H = 56;
 const MIN_MARGIN = 24; // minimum gap from viewport edges
 const EDGE_MIN_GAP = 24; // minimum gap from viewport edge to enable resize on that side
@@ -269,7 +269,8 @@ export function usePanelGeometry(anchorBottomPx: number, anchorRightPx: number):
         width: geo.w,
         height: geo.h,
         // Availability flags for resize edges
-        canResizeTop: geo.top > HEADER_H + EDGE_MIN_GAP,
+        // Top: allow resize if panel can shrink (h > MIN_H) OR can grow upward (gap from top)
+        canResizeTop: geo.h > MIN_H || geo.top > HEADER_H + EDGE_MIN_GAP,
         canResizeBottom: geo.top + geo.h < window.innerHeight - EDGE_MIN_GAP,
         canResizeLeft: geo.left > EDGE_MIN_GAP,
         canResizeRight: geo.left + geo.w < window.innerWidth - EDGE_MIN_GAP,

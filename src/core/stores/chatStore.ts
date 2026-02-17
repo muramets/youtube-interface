@@ -17,6 +17,18 @@ import type { ReadyAttachment } from '../types/chatAttachment';
 import type { AppContextItem, VideoCardContext, SuggestedTrafficContext } from '../types/appContext';
 import { useAppContextStore } from './appContextStore';
 import { Timestamp } from 'firebase/firestore';
+import { debug } from '../utils/debug';
+import {
+    STYLE_CONCISE,
+    STYLE_DETAILED,
+    VIDEO_CONTEXT_PREAMBLE,
+    VIDEO_SECTION_DRAFT,
+    VIDEO_SECTION_PUBLISHED,
+    VIDEO_SECTION_COMPETITOR,
+    TRAFFIC_CONTEXT_HEADER,
+    TRAFFIC_SOURCE_HEADER,
+    TRAFFIC_SUGGESTED_HEADER,
+} from '../config/prompts';
 
 interface ChatState {
     // Context (set once via setContext)
@@ -43,6 +55,7 @@ interface ChatState {
     hasMoreConversations: boolean;
     lastFailedRequest: { text: string; attachments?: ReadyAttachment[]; messageId?: string } | null;
     pendingModel: string | null; // model override for not-yet-created conversations
+    editingMessage: ChatMessage | null; // message being edited (user clicks pencil)
 
     // Actions — Context
     setContext: (userId: string | null, channelId: string | null) => void;
@@ -80,6 +93,10 @@ interface ChatState {
     retryLastMessage: () => Promise<void>;
     stopGeneration: () => void;
     saveAiSettings: (settings: Partial<AiAssistantSettings>) => Promise<void>;
+
+    // Actions — Edit
+    setEditingMessage: (msg: ChatMessage | null) => void;
+    editMessage: (newText: string, attachments?: ReadyAttachment[]) => Promise<void>;
 }
 
 // AbortController lives outside Zustand (non-serializable)
@@ -115,41 +132,73 @@ function resolveModel(
     return project?.model || aiSettings.defaultModel;
 }
 
-/** Format video card context items as Markdown for the system prompt. */
+/** Format video card context items as Markdown for the system prompt, grouped by ownership. */
 function formatVideoContext(items: VideoCardContext[]): string {
-    const lines = ['## Selected Videos Context', ''];
-    items.forEach((v, i) => {
-        lines.push(`### Video ${i + 1}`);
-        lines.push(`- **Title:** ${v.title}`);
-        if (v.viewCount) lines.push(`- **Views:** ${v.viewCount}`);
-        if (v.publishedAt) lines.push(`- **Published:** ${v.publishedAt}`);
-        if (v.duration) lines.push(`- **Duration:** ${v.duration}`);
-        lines.push(`- **Description:** ${v.description || '(no description)'}`);
-        lines.push(`- **Tags:** ${v.tags.length > 0 ? v.tags.join(', ') : '(no tags)'}`);
-        lines.push(`- **Thumbnail:** [attached as image below]`);
+    const lines: string[] = [];
+
+    // Preamble — explain field semantics
+    lines.push(VIDEO_CONTEXT_PREAMBLE);
+    lines.push('');
+
+    // Group by ownership
+    const drafts = items.filter(v => v.ownership === 'own-draft');
+    const published = items.filter(v => v.ownership === 'own-published');
+    const competitors = items.filter(v => v.ownership === 'competitor');
+
+    if (drafts.length > 0) {
+        lines.push(VIDEO_SECTION_DRAFT);
         lines.push('');
-    });
+        drafts.forEach((v, i) => formatSingleVideo(lines, v, i + 1));
+    }
+
+    if (published.length > 0) {
+        lines.push(VIDEO_SECTION_PUBLISHED);
+        lines.push('');
+        published.forEach((v, i) => formatSingleVideo(lines, v, i + 1));
+    }
+
+    if (competitors.length > 0) {
+        lines.push(VIDEO_SECTION_COMPETITOR);
+        lines.push('');
+        competitors.forEach((v, i) => formatSingleVideo(lines, v, i + 1));
+    }
+
     return lines.join('\n');
+}
+
+/** Format a single video's metadata into prompt lines. */
+function formatSingleVideo(lines: string[], v: VideoCardContext, index: number): void {
+    const header = v.channelTitle
+        ? `Video ${index} (Channel: ${v.channelTitle})`
+        : `Video ${index}`;
+    lines.push(`#### ${header}`);
+    lines.push(`- **Title:** ${v.title}`);
+    if (v.viewCount) lines.push(`- **Views:** ${v.viewCount}`);
+    if (v.publishedAt) lines.push(`- **Published:** ${v.publishedAt}`);
+    if (v.duration) lines.push(`- **Duration:** ${v.duration}`);
+    lines.push(`- **Description:** ${v.description || '(no description)'}`);
+    lines.push(`- **Tags:** ${v.tags.length > 0 ? v.tags.join(', ') : '(no tags)'}`);
+    lines.push('');
 }
 
 /** Format suggested traffic context — source video + selected suggested videos. */
 function formatSuggestedTrafficContext(ctx: SuggestedTrafficContext): string {
-    const lines = ['## Suggested Traffic Analysis Context', ''];
+    const lines = [TRAFFIC_CONTEXT_HEADER, ''];
 
     // Source video (user's video)
     const sv = ctx.sourceVideo;
-    lines.push('### Your Video (Source)');
+    lines.push(TRAFFIC_SOURCE_HEADER);
     lines.push(`- **Title:** ${sv.title}`);
     if (sv.viewCount) lines.push(`- **Views:** ${sv.viewCount}`);
     if (sv.publishedAt) lines.push(`- **Published:** ${sv.publishedAt}`);
     if (sv.duration) lines.push(`- **Duration:** ${sv.duration}`);
     lines.push(`- **Description:** ${sv.description || '(no description)'}`);
     lines.push(`- **Tags:** ${sv.tags.length > 0 ? sv.tags.join(', ') : '(no tags)'}`);
-    lines.push(`- **Thumbnail:** [attached as image below]`);
+
     lines.push('');
 
     // Selected suggested videos
-    lines.push('### Selected Suggested Videos (YouTube shows your video alongside these)');
+    lines.push(TRAFFIC_SUGGESTED_HEADER);
     lines.push('');
     ctx.suggestedVideos.forEach((v, i) => {
         lines.push(`#### Suggested Video ${i + 1}: "${v.title}"`);
@@ -168,7 +217,7 @@ function formatSuggestedTrafficContext(ctx: SuggestedTrafficContext): string {
         if (v.niche) lines.push(`- **Niche:** ${v.niche}${v.nicheProperty ? ` (${v.nicheProperty})` : ''}`);
         lines.push(`- **Description:** ${v.description || '(not enriched)'}`);
         lines.push(`- **Tags:** ${v.tags && v.tags.length > 0 ? v.tags.join(', ') : '(not enriched)'}`);
-        if (v.thumbnailUrl) lines.push(`- **Thumbnail:** [attached as image below]`);
+
         lines.push('');
     });
 
@@ -184,6 +233,9 @@ function buildSystemPrompt(
 ): string | undefined {
     const prompts: string[] = [];
 
+    // Current date/time context (LLMs have no built-in clock)
+    prompts.push(`Current date and time: ${new Date().toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })}.`);
+
     // Language instruction
     if (aiSettings.responseLanguage && aiSettings.responseLanguage !== 'auto') {
         const name = LANGUAGE_NAMES[aiSettings.responseLanguage] || aiSettings.responseLanguage;
@@ -192,9 +244,9 @@ function buildSystemPrompt(
 
     // Style instruction
     if (aiSettings.responseStyle === 'concise') {
-        prompts.push('Be concise and to the point. Prefer short answers.');
+        prompts.push(STYLE_CONCISE);
     } else if (aiSettings.responseStyle === 'detailed') {
-        prompts.push('Provide thorough, detailed responses with explanations and examples.');
+        prompts.push(STYLE_DETAILED);
     }
 
     // Global + project prompts
@@ -301,6 +353,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     hasMoreConversations: false,
     lastFailedRequest: null,
     pendingModel: null,
+    editingMessage: null,
 
     // --- Context ---
     setContext: (userId, channelId) => set({ userId, channelId }),
@@ -511,6 +564,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     setPendingModel: (model) => set({ pendingModel: model }),
 
+    // --- Edit ---
+
+    setEditingMessage: (msg) => set({ editingMessage: msg }),
+
+    editMessage: async (newText, attachments) => {
+        const { editingMessage, activeConversationId, messages } = get();
+        if (!editingMessage || !activeConversationId) return;
+        const { userId, channelId } = requireContext(get);
+
+        // 1. Optimistic: remove the edited message + everything after it from local state
+        const editIdx = messages.findIndex(m => m.id === editingMessage.id);
+        if (editIdx !== -1) {
+            set({ messages: messages.slice(0, editIdx) });
+        }
+
+        // 2. Clear editing state
+        set({ editingMessage: null });
+
+        // 3. Delete from Firestore: the edited message + all subsequent messages
+        await ChatService.deleteMessagesFrom(userId, channelId, activeConversationId, editingMessage.createdAt);
+
+        // 4. Send the new version (reuses full sendMessage flow: persist + stream AI)
+        await get().sendMessage(newText, attachments);
+    },
+
     // --- AI ---
 
     sendMessage: async (text, attachments, conversationId) => {
@@ -577,6 +655,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const activeConv = get().conversations.find(c => c.id === convId);
             const model = resolveModel(aiSettings, projects, activeProjectId, activeConv?.model, get().pendingModel);
             const systemPrompt = buildSystemPrompt(aiSettings, projects, activeProjectId, appContext);
+
+            // Debug: log what's being sent to Gemini
+            debug.chatGroup.start('🤖 Sending to Gemini');
+            debug.chat('Model:', model);
+            debug.chat('System Prompt:', systemPrompt);
+            debug.chat('App Context:', appContext);
+            debug.chat('Thumbnails:', thumbnailUrls);
+            debug.chatGroup.end();
 
             // 3. Stream AI response
             const { text: responseText, tokenUsage } = await streamAiResponse(

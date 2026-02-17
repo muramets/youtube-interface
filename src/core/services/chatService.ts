@@ -2,7 +2,7 @@
 // AI CHAT: Firestore Service
 // =============================================================================
 
-import { Timestamp, orderBy, limitToLast, endBefore, writeBatch, doc as firestoreDoc, deleteField } from 'firebase/firestore';
+import { Timestamp, orderBy, limitToLast, endBefore, writeBatch, doc as firestoreDoc, deleteField, where } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 import {
     fetchCollection,
@@ -12,6 +12,7 @@ import {
     subscribeToCollection,
     fetchDoc,
     subscribeToDoc,
+    batchDeleteDocuments,
 } from './firestore';
 import { db } from '../../config/firebase';
 
@@ -241,6 +242,22 @@ export const ChatService = {
         messageId: string,
     ) {
         await deleteDocument(messagesPath(userId, channelId, conversationId), messageId);
+    },
+
+    /** Delete all messages with createdAt >= fromTimestamp (the edited message + everything after). */
+    async deleteMessagesFrom(
+        userId: string,
+        channelId: string,
+        conversationId: string,
+        fromTimestamp: Timestamp,
+    ) {
+        const path = messagesPath(userId, channelId, conversationId);
+        const doomed = await fetchCollection<ChatMessage>(path, [
+            orderBy('createdAt', 'asc'),
+            where('createdAt', '>=', fromTimestamp),
+        ]);
+        if (doomed.length === 0) return;
+        await batchDeleteDocuments(doomed.map(m => ({ path, id: m.id })));
     },
 
     // AI Settings

@@ -2,8 +2,8 @@
 // AI CHAT: Chat Input Component
 // =============================================================================
 
-import React, { useState, useRef, useCallback, useMemo } from 'react';
-import { Plus, Send, X, FileAudio, FileVideo, File, Image, Square, Loader2, Check, AlertCircle, ChevronUp } from 'lucide-react';
+import React, { useState, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
+import { Plus, Send, X, FileAudio, FileVideo, File, Image, Square, Loader2, Check, AlertCircle, ChevronUp, Pencil } from 'lucide-react';
 import { MODEL_REGISTRY } from '../../core/types/chat';
 import { getAttachmentType } from '../../core/services/aiService';
 import type { StagedFile, ReadyAttachment } from '../../core/types/chatAttachment';
@@ -27,12 +27,19 @@ interface ChatInputProps {
     modelLabel?: string;
     activeModel?: string;
     onModelChange?: (modelId: string) => void;
+    // Editing
+    editingMessage?: import('../../core/types/chat').ChatMessage | null;
+    onCancelEdit?: () => void;
+    onEditSend?: (newText: string, attachments?: ReadyAttachment[]) => void;
 }
+
+const MAX_INPUT_HEIGHT = 120;
 
 export const ChatInput: React.FC<ChatInputProps> = ({
     onSend, onStop, disabled,
     stagedFiles, onAddFiles, onRemoveFile, isAnyUploading,
     modelLabel, activeModel, onModelChange,
+    editingMessage, onCancelEdit, onEditSend,
 }) => {
     const isStreaming = useChatStore(s => s.isStreaming);
     const contextItems = useAppContextStore(s => s.items);
@@ -44,8 +51,34 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const modelMenuRef = useRef<HTMLDivElement>(null);
+    const prevEditingRef = useRef(editingMessage);
+
+    // Sync text with editingMessage changes synchronously during render
+    // (standard "store previous props" pattern — ref access during render is intentional)
+    // eslint-disable-next-line react-hooks/refs -- reading/writing prevEditingRef.current during render is the documented "previous props" pattern
+    if (editingMessage !== prevEditingRef.current) {
+        prevEditingRef.current = editingMessage; // eslint-disable-line react-hooks/refs
+        if (editingMessage) {
+            setText(editingMessage.text);
+        }
+    }
 
     const canSend = (text.trim() || stagedFiles.length > 0) && !isAnyUploading;
+
+    // Auto-resize and focus textarea when editing starts
+    useLayoutEffect(() => {
+        if (editingMessage) {
+            requestAnimationFrame(() => {
+                const el = textareaRef.current;
+                if (el) {
+                    el.style.height = 'auto';
+                    el.style.height = Math.min(el.scrollHeight, MAX_INPUT_HEIGHT) + 'px';
+                    el.style.overflowY = el.scrollHeight > MAX_INPUT_HEIGHT ? 'auto' : 'hidden';
+                    el.focus();
+                }
+            });
+        }
+    }, [editingMessage]);
 
     const handleRemoveVideoContext = useCallback((videoId: string) => {
         setContextItems(contextItems.filter(c => c.type !== 'video-card' || (c as VideoCardContext).videoId !== videoId));
@@ -60,12 +93,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             .filter((f): f is StagedFile & { result: ReadyAttachment } => f.status === 'ready' && !!f.result)
             .map((f) => f.result);
 
-        onSend(trimmed, readyAttachments.length > 0 ? readyAttachments : undefined);
+        const attachments = readyAttachments.length > 0 ? readyAttachments : undefined;
+
+        if (editingMessage && onEditSend) {
+            onEditSend(trimmed, attachments);
+        } else {
+            onSend(trimmed, attachments);
+        }
         setText('');
         if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
         }
-    }, [text, stagedFiles, isAnyUploading, onSend]);
+    }, [text, stagedFiles, isAnyUploading, onSend, editingMessage, onEditSend]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -74,7 +113,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }
     }, [handleSend]);
 
-    const MAX_INPUT_HEIGHT = 120;
+    const handleCancel = useCallback(() => {
+        if (onCancelEdit) onCancelEdit();
+        setText('');
+        if (textareaRef.current) textareaRef.current.style.height = 'auto';
+    }, [onCancelEdit]);
 
     const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
         setText(e.target.value);
@@ -110,6 +153,20 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     return (
         <div className="px-2.5 pb-2.5 bg-card-bg shrink-0">
+            {/* Editing banner */}
+            {editingMessage && (
+                <div className="flex items-center gap-2 px-3 py-1.5 mb-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs text-blue-400">
+                    <Pencil size={12} />
+                    <span className="flex-1 truncate">Editing message</span>
+                    <button
+                        className="bg-transparent border-none text-blue-400 cursor-pointer p-0.5 flex hover:text-blue-300 transition-colors"
+                        onClick={handleCancel}
+                        title="Cancel editing"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+            )}
             {/* Video card context chips */}
             {videoContextItems.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-2">
