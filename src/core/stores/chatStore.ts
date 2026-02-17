@@ -14,6 +14,8 @@ import { DEFAULT_AI_SETTINGS } from '../types/chat';
 import { ChatService, MESSAGE_PAGE_SIZE, CONVERSATION_PAGE_SIZE } from '../services/chatService';
 import { AiService } from '../services/aiService';
 import type { ReadyAttachment } from '../types/chatAttachment';
+import type { AppContextItem, VideoCardContext, SuggestedTrafficContext } from '../types/appContext';
+import { useAppContextStore } from './appContextStore';
 import { Timestamp } from 'firebase/firestore';
 
 interface ChatState {
@@ -40,6 +42,7 @@ interface ChatState {
     hasMoreMessages: boolean;
     hasMoreConversations: boolean;
     lastFailedRequest: { text: string; attachments?: ReadyAttachment[]; messageId?: string } | null;
+    pendingModel: string | null; // model override for not-yet-created conversations
 
     // Actions — Context
     setContext: (userId: string | null, channelId: string | null) => void;
@@ -69,6 +72,8 @@ interface ChatState {
     deleteConversation: (conversationId: string) => Promise<void>;
     renameConversation: (conversationId: string, title: string) => Promise<void>;
     moveConversation: (conversationId: string, projectId: string | null) => Promise<void>;
+    setConversationModel: (conversationId: string, model: string) => Promise<void>;
+    setPendingModel: (model: string | null) => void;
 
     // Actions — AI
     sendMessage: (text: string, attachments?: ReadyAttachment[], conversationId?: string) => Promise<void>;
@@ -96,21 +101,86 @@ const LANGUAGE_NAMES: Record<string, string> = {
     es: 'Spanish', de: 'German', fr: 'French',
 };
 
-/** Resolve model from project → global → fallback. */
+/** Resolve model from pendingModel → conversation → project → global → fallback. */
 function resolveModel(
     aiSettings: AiAssistantSettings,
     projects: ChatProject[],
     activeProjectId: string | null,
+    conversationModel?: string,
+    pendingModel?: string | null,
 ): string {
+    if (pendingModel) return pendingModel;
+    if (conversationModel) return conversationModel;
     const project = projects.find(p => p.id === activeProjectId);
     return project?.model || aiSettings.defaultModel;
 }
 
-/** Build system prompt: language + style + global + project-level. */
+/** Format video card context items as Markdown for the system prompt. */
+function formatVideoContext(items: VideoCardContext[]): string {
+    const lines = ['## Selected Videos Context', ''];
+    items.forEach((v, i) => {
+        lines.push(`### Video ${i + 1}`);
+        lines.push(`- **Title:** ${v.title}`);
+        if (v.viewCount) lines.push(`- **Views:** ${v.viewCount}`);
+        if (v.publishedAt) lines.push(`- **Published:** ${v.publishedAt}`);
+        if (v.duration) lines.push(`- **Duration:** ${v.duration}`);
+        lines.push(`- **Description:** ${v.description || '(no description)'}`);
+        lines.push(`- **Tags:** ${v.tags.length > 0 ? v.tags.join(', ') : '(no tags)'}`);
+        lines.push(`- **Thumbnail:** [attached as image below]`);
+        lines.push('');
+    });
+    return lines.join('\n');
+}
+
+/** Format suggested traffic context — source video + selected suggested videos. */
+function formatSuggestedTrafficContext(ctx: SuggestedTrafficContext): string {
+    const lines = ['## Suggested Traffic Analysis Context', ''];
+
+    // Source video (user's video)
+    const sv = ctx.sourceVideo;
+    lines.push('### Your Video (Source)');
+    lines.push(`- **Title:** ${sv.title}`);
+    if (sv.viewCount) lines.push(`- **Views:** ${sv.viewCount}`);
+    if (sv.publishedAt) lines.push(`- **Published:** ${sv.publishedAt}`);
+    if (sv.duration) lines.push(`- **Duration:** ${sv.duration}`);
+    lines.push(`- **Description:** ${sv.description || '(no description)'}`);
+    lines.push(`- **Tags:** ${sv.tags.length > 0 ? sv.tags.join(', ') : '(no tags)'}`);
+    lines.push(`- **Thumbnail:** [attached as image below]`);
+    lines.push('');
+
+    // Selected suggested videos
+    lines.push('### Selected Suggested Videos (YouTube shows your video alongside these)');
+    lines.push('');
+    ctx.suggestedVideos.forEach((v, i) => {
+        lines.push(`#### Suggested Video ${i + 1}: "${v.title}"`);
+        // Traffic metrics (always available from CSV)
+        lines.push(`- **Impressions:** ${v.impressions.toLocaleString()} | **CTR:** ${(v.ctr * 100).toFixed(1)}% | **Views:** ${v.views.toLocaleString()}`);
+        lines.push(`- **Avg View Duration:** ${v.avgViewDuration} | **Watch Time:** ${v.watchTimeHours.toFixed(1)}h`);
+        // Enriched metadata (may be unavailable)
+        if (v.channelTitle) lines.push(`- **Channel:** ${v.channelTitle}`);
+        if (v.publishedAt) lines.push(`- **Published:** ${v.publishedAt}`);
+        if (v.duration) lines.push(`- **Duration:** ${v.duration}`);
+        if (v.viewCount) lines.push(`- **Total Views:** ${v.viewCount}`);
+        if (v.likeCount) lines.push(`- **Likes:** ${v.likeCount}`);
+        if (v.subscriberCount) lines.push(`- **Channel Subscribers:** ${v.subscriberCount}`);
+        if (v.trafficType) lines.push(`- **Traffic Type:** ${v.trafficType}`);
+        if (v.viewerType) lines.push(`- **Viewer Type:** ${v.viewerType}`);
+        if (v.niche) lines.push(`- **Niche:** ${v.niche}${v.nicheProperty ? ` (${v.nicheProperty})` : ''}`);
+        lines.push(`- **Description:** ${v.description || '(not enriched)'}`);
+        lines.push(`- **Tags:** ${v.tags && v.tags.length > 0 ? v.tags.join(', ') : '(not enriched)'}`);
+        if (v.thumbnailUrl) lines.push(`- **Thumbnail:** [attached as image below]`);
+        lines.push('');
+    });
+
+    return lines.join('\n');
+}
+
+/** Build system prompt: language + style + global + project-level + app context. */
 function buildSystemPrompt(
     aiSettings: AiAssistantSettings,
     projects: ChatProject[],
     activeProjectId: string | null,
+    appContext?: AppContextItem[],
 ): string | undefined {
     const prompts: string[] = [];
 
@@ -132,6 +202,18 @@ function buildSystemPrompt(
     const project = projects.find(p => p.id === activeProjectId);
     if (project?.systemPrompt) prompts.push(project.systemPrompt);
 
+    // App context (video cards, etc.)
+    if (appContext && appContext.length > 0) {
+        const videoCards = appContext.filter((c): c is VideoCardContext => c.type === 'video-card');
+        if (videoCards.length > 0) {
+            prompts.push(formatVideoContext(videoCards));
+        }
+        const trafficContexts = appContext.filter((c): c is SuggestedTrafficContext => c.type === 'suggested-traffic');
+        if (trafficContexts.length > 0) {
+            trafficContexts.forEach(tc => prompts.push(formatSuggestedTrafficContext(tc)));
+        }
+    }
+
     return prompts.length > 0 ? prompts.join('\n\n') : undefined;
 }
 
@@ -139,6 +221,7 @@ function buildSystemPrompt(
 async function persistUserMessage(
     userId: string, channelId: string, convId: string,
     text: string, attachments: ReadyAttachment[] | undefined,
+    appContext: AppContextItem[] | undefined,
     currentMessages: ChatMessage[],
     set: (partial: Partial<ChatState>) => void,
 ): Promise<void> {
@@ -147,10 +230,11 @@ async function persistUserMessage(
         role: 'user',
         text,
         attachments,
+        appContext,
         createdAt: Timestamp.now(),
     };
     set({ messages: [...currentMessages, optimisticMsg] });
-    await ChatService.addMessage(userId, channelId, convId, { role: 'user', text, attachments });
+    await ChatService.addMessage(userId, channelId, convId, { role: 'user', text, attachments, appContext });
 }
 
 /** Stream AI response from CF. Returns response text + token usage. */
@@ -158,6 +242,7 @@ async function streamAiResponse(
     channelId: string, convId: string,
     model: string, systemPrompt: string | undefined,
     text: string, attachments: ReadyAttachment[] | undefined,
+    thumbnailUrls: string[] | undefined,
     set: (partial: Partial<ChatState>) => void,
     signal?: AbortSignal,
 ): Promise<{ text: string; tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
@@ -168,6 +253,7 @@ async function streamAiResponse(
         systemPrompt,
         text,
         attachments: attachments?.map(a => ({ geminiFileUri: a.geminiFileUri!, mimeType: a.mimeType })),
+        thumbnailUrls,
         onStream: (chunk) => set({ streamingText: chunk }),
         signal,
     });
@@ -214,6 +300,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     hasMoreMessages: false,
     hasMoreConversations: false,
     lastFailedRequest: null,
+    pendingModel: null,
 
     // --- Context ---
     setContext: (userId, channelId) => set({ userId, channelId }),
@@ -230,6 +317,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     setActiveConversation: (id) => set({
         activeConversationId: id,
         pendingConversationId: null,
+        pendingModel: null,
         view: id ? 'chat' : 'conversations',
         messages: [],
         streamingText: '',
@@ -265,10 +353,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({ messages: [], isLoading: true, hasMoreMessages: false });
         let isFirstLoad = true;
         return ChatService.subscribeToMessages(userId, channelId, conversationId, (firestoreMessages) => {
-            // Reconcile: keep optimistic messages that Firestore hasn't confirmed yet
-            const realIds = new Set(firestoreMessages.map(m => m.id));
+            // Reconcile: keep optimistic messages only if Firestore hasn't confirmed them yet.
+            // Firestore assigns new IDs, so we match by role+text to detect confirmed optimistic messages.
+            const firestoreUserTexts = new Set(
+                firestoreMessages.filter(m => m.role === 'user').map(m => m.text)
+            );
             const pendingOptimistic = get().messages.filter(
-                m => m.id.startsWith('optimistic-') && !realIds.has(m.id)
+                m => m.id.startsWith('optimistic-') && !firestoreUserTexts.has(m.text)
             );
             const merged = [...firestoreMessages, ...pendingOptimistic];
 
@@ -375,6 +466,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({
             activeConversationId: null,
             pendingConversationId: crypto.randomUUID(),
+            pendingModel: null,
             view: 'chat',
             messages: [],
             streamingText: '',
@@ -412,6 +504,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         await ChatService.updateConversation(userId, channelId, conversationId, { projectId });
     },
 
+    setConversationModel: async (conversationId, model) => {
+        const { userId, channelId } = requireContext(get);
+        await ChatService.updateConversation(userId, channelId, conversationId, { model });
+    },
+
+    setPendingModel: (model) => set({ pendingModel: model }),
+
     // --- AI ---
 
     sendMessage: async (text, attachments, conversationId) => {
@@ -428,17 +527,46 @@ export const useChatStore = create<ChatState>((set, get) => ({
         try {
             // 0. Lazy-create conversation if needed (first message in a new chat)
             if (!convId) {
+                const { pendingModel } = get();
                 const conversation = await ChatService.createConversation(
                     userId, channelId, activeProjectId, 'New Chat', pendingConversationId ?? undefined,
                 );
                 convId = conversation.id;
-                set({ pendingConversationId: null });
+                set({ pendingConversationId: null, pendingModel: null });
+                // Apply pending model to newly created conversation
+                if (pendingModel) {
+                    ChatService.updateConversation(userId, channelId, convId, { model: pendingModel });
+                }
                 // Set activeConversationId AFTER we're about to add the optimistic message,
                 // so the subscription won't race with us and reset messages to []
             }
 
+            // Snapshot app context at send time
+            const contextItems = useAppContextStore.getState().items;
+            const appContext = contextItems.length > 0 ? contextItems : undefined;
+
+            // Extract thumbnail URLs for server-side fetch
+            const thumbnailUrls: string[] = [];
+            if (appContext) {
+                // Video cards
+                appContext
+                    .filter((c): c is VideoCardContext => c.type === 'video-card')
+                    .forEach(c => { if (c.thumbnailUrl) thumbnailUrls.push(c.thumbnailUrl); });
+                // Suggested traffic: source video + suggested videos
+                appContext
+                    .filter((c): c is SuggestedTrafficContext => c.type === 'suggested-traffic')
+                    .forEach(tc => {
+                        if (tc.sourceVideo.thumbnailUrl) thumbnailUrls.push(tc.sourceVideo.thumbnailUrl);
+                        tc.suggestedVideos.forEach(sv => {
+                            if (sv.thumbnailUrl) thumbnailUrls.push(sv.thumbnailUrl);
+                        });
+                    });
+            }
+
             // 1. Optimistic UI + persist user message
-            await persistUserMessage(userId, channelId, convId, text, attachments, messages, set);
+            // Clear consumed context from input (snapshot already captured above)
+            if (appContext) useAppContextStore.getState().clearItems();
+            await persistUserMessage(userId, channelId, convId, text, attachments, appContext, messages, set);
 
             // Now safe to set activeConversationId — optimistic message is already in state
             if (!activeConversationId) {
@@ -446,13 +574,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
 
             // 2. Resolve config
-            const model = resolveModel(aiSettings, projects, activeProjectId);
-            const systemPrompt = buildSystemPrompt(aiSettings, projects, activeProjectId);
+            const activeConv = get().conversations.find(c => c.id === convId);
+            const model = resolveModel(aiSettings, projects, activeProjectId, activeConv?.model, get().pendingModel);
+            const systemPrompt = buildSystemPrompt(aiSettings, projects, activeProjectId, appContext);
 
             // 3. Stream AI response
             const { text: responseText, tokenUsage } = await streamAiResponse(
                 channelId, convId, model, systemPrompt,
-                text, attachments, set, activeAbortController?.signal,
+                text, attachments, thumbnailUrls, set, activeAbortController?.signal,
             );
 
             // 4. Persist AI response

@@ -93,6 +93,7 @@ export const AiService = {
         systemPrompt?: string;
         text: string;
         attachments?: Array<{ geminiFileUri: string; mimeType: string }>;
+        thumbnailUrls?: string[];
         onStream?: (chunk: string) => void;
         signal?: AbortSignal;
     }): Promise<AiSendResult> {
@@ -103,6 +104,7 @@ export const AiService = {
             systemPrompt: opts.systemPrompt,
             text: opts.text,
             attachments: opts.attachments,
+            thumbnailUrls: opts.thumbnailUrls,
             onStream: opts.onStream || (() => { }),
             signal: opts.signal,
         });

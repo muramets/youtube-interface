@@ -23,6 +23,8 @@ import { ConfirmationModal } from '../../components/ui/organisms/ConfirmationMod
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { useVideoSelection } from '../../features/Video/hooks/useVideoSelection';
 import { VideoSelectionFloatingBar } from '../../features/Video/components/VideoSelectionFloatingBar';
+import { useAppContextStore } from '../../core/stores/appContextStore';
+import type { VideoCardContext } from '../../core/types/appContext';
 
 // Format number with K/M suffix
 const formatDelta = (value: number | null): string | null => {
@@ -374,6 +376,34 @@ export const PlaylistDetailPage: React.FC = () => {
         if (selectedCount === 0) return [];
         return playlistVideos.filter(v => selectedIds.has(v.id));
     }, [playlistVideos, selectedIds, selectedCount]);
+
+    // Bridge: sync selected videos → appContextStore for AI chat
+    const setContextItems = useAppContextStore(s => s.setItems);
+    const clearContextItems = useAppContextStore(s => s.clearItems);
+
+    React.useEffect(() => {
+        if (selectedVideos.length === 0) {
+            clearContextItems();
+            return;
+        }
+        const contextItems: VideoCardContext[] = selectedVideos.map(v => ({
+            type: 'video-card' as const,
+            videoId: v.id,
+            title: v.title,
+            description: v.description || '',
+            tags: v.tags || [],
+            thumbnailUrl: v.customImage || v.thumbnail,
+            viewCount: v.mergedVideoData?.viewCount || v.viewCount,
+            publishedAt: v.mergedVideoData?.publishedAt || v.publishedAt,
+            duration: v.mergedVideoData?.duration || v.duration,
+        }));
+        setContextItems(contextItems);
+    }, [selectedVideos, setContextItems, clearContextItems]);
+
+    // Cleanup on unmount — clear context when leaving the page
+    React.useEffect(() => {
+        return () => clearContextItems();
+    }, [clearContextItems]);
 
     const videosToExport = selectedCount > 0 ? selectedVideos : playlistVideos;
 

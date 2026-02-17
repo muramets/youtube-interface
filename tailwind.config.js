@@ -120,6 +120,10 @@ export default {
                     '0%, 100%': { opacity: '0.3' },
                     '50%': { opacity: '1' },
                 },
+                'typing-dot': {
+                    '0%, 80%, 100%': { opacity: '0.3', transform: 'scale(1)' },
+                    '40%': { opacity: '1', transform: 'scale(1.3)' },
+                },
             },
             animation: {
                 'slide-in-left': 'slide-in-left 0.2s ease-out forwards',
@@ -138,6 +142,7 @@ export default {
                 'chip-pulse': 'chip-pulse 1.5s ease-in-out infinite',
                 'chat-spin': 'chat-spin 0.8s linear infinite',
                 'stream-pulse': 'stream-pulse 1s ease-in-out infinite',
+                'typing-dot': 'typing-dot 1.4s ease-in-out infinite',
             }
         },
     },

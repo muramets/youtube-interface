@@ -70,6 +70,9 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
     const loadOlderConversations = useChatStore(s => s.loadOlderConversations);
     const retryLastMessage = useChatStore(s => s.retryLastMessage);
     const stopGeneration = useChatStore(s => s.stopGeneration);
+    const setConversationModel = useChatStore(s => s.setConversationModel);
+    const setPendingModel = useChatStore(s => s.setPendingModel);
+    const pendingModel = useChatStore(s => s.pendingModel);
 
     // --- Custom hooks ---
     const conversationIdForUpload = activeConversationId ?? pendingConversationId ?? undefined;
@@ -88,11 +91,12 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
 
     const {
         filteredConversations, headerTitle,
-        totalTokens, totalCostEur, modelPricing, contextUsed, contextPercent, isContextFull,
+        totalTokens, totalCostEur, modelPricing, activeModel, modelLabel, contextUsed, contextPercent, isContextFull,
     } = useChatDerivedState({
         projects, conversations, messages,
         view, activeProjectId, activeConversationId, editingProject,
         defaultModel: aiSettings.defaultModel,
+        pendingModel,
     });
 
     // --- Set context once (userId + channelId) ---
@@ -263,6 +267,12 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
                             onAddFiles={addFiles}
                             onRemoveFile={removeFile}
                             isAnyUploading={isAnyUploading}
+                            modelLabel={modelLabel}
+                            activeModel={activeModel}
+                            onModelChange={(modelId) => {
+                                if (activeConversationId) setConversationModel(activeConversationId, modelId);
+                                else setPendingModel(modelId);
+                            }}
                         />
                     </>
                 )}

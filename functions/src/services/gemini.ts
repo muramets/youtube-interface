@@ -45,6 +45,7 @@ export interface StreamChatOpts {
     history: HistoryMessage[];
     text: string;
     attachments?: Array<{ geminiFileUri: string; mimeType: string }>;
+    thumbnailUrls?: string[];
     onChunk: (fullText: string) => void;
     signal?: AbortSignal;
     /** Callback to persist re-uploaded Gemini URIs back to Firestore */
@@ -161,9 +162,44 @@ async function buildHistory(
     );
 }
 
+/**
+ * Fetch thumbnail URLs and convert to inlineData Parts for Gemini.
+ * Uses parallel fetch with graceful error handling (skips failed downloads).
+ */
+async function fetchThumbnailParts(urls: string[]): Promise<Part[]> {
+    console.log(`[thumbnails] Fetching ${urls.length} thumbnail(s):`, urls);
+    const results = await Promise.allSettled(
+        urls.map(async (url) => {
+            const response = await fetch(url);
+            if (!response.ok) {
+                console.error(`[thumbnails] FAIL ${url} → HTTP ${response.status}`);
+                throw new Error(`HTTP ${response.status}`);
+            }
+            const buffer = await response.arrayBuffer();
+            const mimeType = response.headers.get('content-type') || 'image/jpeg';
+            const base64 = Buffer.from(buffer).toString('base64');
+            console.log(`[thumbnails] OK ${url} → ${mimeType}, ${Math.round(buffer.byteLength / 1024)}KB`);
+            return {
+                inlineData: { data: base64, mimeType },
+            } as Part;
+        })
+    );
+    const parts = results
+        .filter((r): r is PromiseFulfilledResult<Part> => r.status === 'fulfilled')
+        .map(r => r.value);
+    const failed = results.filter(r => r.status === 'rejected');
+    if (failed.length > 0) {
+        console.warn(`[thumbnails] ${failed.length}/${urls.length} failed:`,
+            failed.map(r => (r as PromiseRejectedResult).reason?.message));
+    }
+    console.log(`[thumbnails] Sending ${parts.length} image part(s) to Gemini`);
+    return parts;
+}
+
 function buildUserParts(
     text: string,
-    attachments?: Array<{ geminiFileUri: string; mimeType: string }>
+    attachments?: Array<{ geminiFileUri: string; mimeType: string }>,
+    thumbnailParts?: Part[],
 ): Part[] {
     const parts: Part[] = [];
     if (attachments && attachments.length > 0) {
@@ -172,6 +208,9 @@ function buildUserParts(
                 fileData: { fileUri: att.geminiFileUri, mimeType: att.mimeType },
             });
         }
+    }
+    if (thumbnailParts && thumbnailParts.length > 0) {
+        parts.push(...thumbnailParts);
     }
     if (text.trim()) {
         parts.push({ text });
@@ -191,6 +230,7 @@ export async function streamChat(
         history,
         text,
         attachments,
+        thumbnailUrls,
         onChunk,
         signal,
         onAttachmentUpdate,
@@ -198,7 +238,13 @@ export async function streamChat(
 
     const ai = await getClient(apiKey);
     const historyContents = await buildHistory(history, apiKey, onAttachmentUpdate);
-    const userParts = buildUserParts(text, attachments);
+
+    // Fetch thumbnail images in parallel (non-blocking, graceful degradation)
+    const thumbnailParts = thumbnailUrls && thumbnailUrls.length > 0
+        ? await fetchThumbnailParts(thumbnailUrls)
+        : undefined;
+
+    const userParts = buildUserParts(text, attachments, thumbnailParts);
     const contents: Content[] = [
         ...historyContents,
         { role: "user", parts: userParts },

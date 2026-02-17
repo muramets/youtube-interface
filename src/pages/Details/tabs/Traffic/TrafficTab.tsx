@@ -11,6 +11,8 @@ import { generateTrafficCsv } from './utils/csvGenerator';
 import { exportTrafficCsv, downloadCsv, generateExportFilename, generateDiscrepancyReport } from './utils/exportTrafficCsv';
 import { useApiKey } from '../../../../core/hooks/useApiKey';
 import { useSuggestedVideoLookup } from './hooks/useSuggestedVideoLookup';
+import { useAppContextStore } from '../../../../core/stores/appContextStore';
+import type { SuggestedTrafficContext, SuggestedVideoItem } from '../../../../core/types/appContext';
 
 
 // ... imports
@@ -536,6 +538,77 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         await downloadImagesAsZip(images, filename);
 
     }, [filteredSources, _video.title, viewMode, selectedIds, allVideos]);
+
+    // -------------------------------------------------------------------------
+    // BRIDGE: Sync selected traffic videos → appContextStore for AI chat
+    // Same pattern as PlaylistDetailPage — reactive useEffect
+    // -------------------------------------------------------------------------
+    const setContextItems = useAppContextStore(s => s.setItems);
+    const clearContextItems = useAppContextStore(s => s.clearItems);
+
+    useEffect(() => {
+        if (selectedIds.size === 0) {
+            clearContextItems();
+            return;
+        }
+
+        // Build enriched suggested video items from selected rows
+        const selectedSources = filteredSources.filter(s => s.videoId && selectedIds.has(s.videoId));
+        const suggestedVideos: SuggestedVideoItem[] = selectedSources.map(s => {
+            const vid = s.videoId!;
+            const cachedVideo = allVideos.find(v => v.id === vid);
+            const nicheAssignment = allAssignments.find(a => a.videoId === vid);
+            const niche = nicheAssignment ? allNiches.find(n => n.id === nicheAssignment.nicheId) : undefined;
+
+            return {
+                videoId: vid,
+                title: s.sourceTitle,
+                // CSV metrics
+                impressions: s.impressions,
+                ctr: s.ctr,
+                views: s.views,
+                avgViewDuration: s.avgViewDuration,
+                watchTimeHours: s.watchTimeHours,
+                // YouTube API data (from cache)
+                thumbnailUrl: s.thumbnail || cachedVideo?.thumbnail,
+                channelTitle: s.channelTitle || cachedVideo?.channelTitle,
+                publishedAt: s.publishedAt || cachedVideo?.publishedAt,
+                duration: cachedVideo?.duration,
+                description: cachedVideo?.description,
+                tags: cachedVideo?.tags,
+                viewCount: cachedVideo?.viewCount,
+                likeCount: cachedVideo?.likeCount,
+                subscriberCount: cachedVideo?.subscriberCount,
+                // Smart Assistant labels
+                trafficType: trafficEdges[vid]?.type,
+                viewerType: viewerEdges[vid]?.type,
+                niche: niche?.name,
+                nicheProperty: niche?.property,
+            };
+        });
+
+        const context: SuggestedTrafficContext = {
+            type: 'suggested-traffic',
+            sourceVideo: {
+                videoId: _video.id,
+                title: _video.title,
+                description: _video.description || '',
+                tags: _video.tags || [],
+                thumbnailUrl: _video.customImage || _video.thumbnail,
+                viewCount: _video.mergedVideoData?.viewCount || _video.viewCount,
+                publishedAt: _video.mergedVideoData?.publishedAt || _video.publishedAt,
+                duration: _video.mergedVideoData?.duration || _video.duration,
+            },
+            suggestedVideos,
+        };
+
+        setContextItems([context]);
+    }, [selectedIds, filteredSources, allVideos, allAssignments, allNiches, trafficEdges, viewerEdges, _video, setContextItems, clearContextItems]);
+
+    // Cleanup on unmount — clear context when leaving the Traffic tab
+    useEffect(() => {
+        return () => clearContextItems();
+    }, [clearContextItems]);
 
     // OPTIMIZATION: Memoize array props to prevent TrafficTable re-renders.
     // Without memoization, `|| []` creates a new array reference each render.

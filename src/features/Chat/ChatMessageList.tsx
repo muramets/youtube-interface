@@ -44,6 +44,7 @@ SyntaxHighlighter.registerLanguage('html', markup);
 SyntaxHighlighter.registerLanguage('xml', markup);
 SyntaxHighlighter.registerLanguage('svg', markup);
 import type { ChatMessage } from '../../core/types/chat';
+import type { VideoCardContext, SuggestedTrafficContext } from '../../core/types/appContext';
 import type { ModelPricing } from '../../../shared/models';
 import { estimateCostEur } from '../../../shared/models';
 import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, Zap, MessageCircle } from 'lucide-react';
@@ -51,6 +52,8 @@ import { Timestamp } from 'firebase/firestore';
 import { useChatStore } from '../../core/stores/chatStore';
 import { formatRelativeTime, STATIC_AGE } from './formatRelativeTime';
 import { MessageErrorBoundary } from './components/ChatBoundaries';
+import { VideoCardChip } from './VideoCardChip';
+import { SuggestedTrafficChip } from './SuggestedTrafficChip';
 
 
 // --- Code Block with Copy + Language Label ---
@@ -202,7 +205,23 @@ const MessageItem: React.FC<{ msg: ChatMessage; modelPricing?: ModelPricing }> =
 
     return (
         <div ref={itemRef} className={`chat-message flex flex-col max-w-[85%] animate-message-in ${msg.role === 'user' ? 'self-end' : 'self-start'}`}>
-            {/* Attachments */}
+            {/* Video card context */}
+            {msg.appContext && msg.appContext.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-1.5">
+                    {msg.appContext
+                        .filter((c): c is VideoCardContext => c.type === 'video-card')
+                        .map(v => (
+                            <VideoCardChip key={v.videoId} video={v} compact />
+                        ))}
+                    {msg.appContext
+                        .filter((c): c is SuggestedTrafficContext => c.type === 'suggested-traffic')
+                        .map((tc, i) => (
+                            <SuggestedTrafficChip key={`traffic-${i}`} context={tc} compact />
+                        ))}
+                </div>
+            )}
+
+            {/* File Attachments */}
             {msg.attachments && msg.attachments.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-1.5">
                     {msg.attachments.map((att) => {
@@ -250,7 +269,7 @@ const MessageItem: React.FC<{ msg: ChatMessage; modelPricing?: ModelPricing }> =
             )}
 
             {/* Message footer: timestamp + tokens + copy */}
-            <div className="group/msg flex items-center gap-2 mt-0.5 min-h-[20px]">
+            <div className="group/msg flex items-center gap-2 mt-0.5">
                 <span className="text-[10px] text-text-tertiary select-none cursor-default hover:text-text-secondary transition-colors">
                     {timestamp}
                 </span>
@@ -288,9 +307,9 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     // Auto-scroll only if user is already near the bottom
     useEffect(() => {
         if (isNearBottomRef.current) {
-            bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+            bottomRef.current?.scrollIntoView({ behavior: isStreaming ? 'instant' : 'smooth' });
         }
-    }, [messages.length, streamingText]);
+    }, [messages.length, streamingText, isStreaming]);
 
     // Track scroll position for FAB and near-bottom detection
     const handleScroll = useCallback(() => {
@@ -298,7 +317,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
         if (!el) return;
         const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
         setShowScrollFab(distanceFromBottom > 200);
-        isNearBottomRef.current = distanceFromBottom <= 150;
+        isNearBottomRef.current = distanceFromBottom <= 80;
     }, []);
 
     const scrollToBottom = useCallback(() => {
@@ -307,7 +326,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 
     if (messages.length === 0 && !isStreaming) {
         return (
-            <div className="chat-messages flex-1 overflow-y-auto p-3.5 flex flex-col gap-3">
+            <div className="chat-messages flex-1 overflow-y-auto px-3.5 pt-3.5 pb-1 flex flex-col gap-3">
                 <div className="flex flex-col items-center justify-center h-full gap-2.5 text-text-tertiary text-[13px] text-center p-6 select-none cursor-default">
                     <MessageCircle size={48} strokeWidth={1.5} className="opacity-35" />
                     <span>Start a conversation.<br />You can send text, images, audio, or video.</span>
@@ -317,7 +336,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     }
 
     return (
-        <div className="chat-messages flex-1 overflow-y-auto p-3.5 flex flex-col gap-3" ref={containerRef} onScroll={handleScroll}>
+        <div className="chat-messages flex-1 overflow-y-auto px-3.5 pt-3.5 pb-1 flex flex-col gap-3" ref={containerRef} onScroll={handleScroll}>
             {messages.map((msg) => (
                 <MessageErrorBoundary key={msg.id} messageId={msg.id}>
                     <MessageItem msg={msg} modelPricing={modelPricing} />
@@ -326,15 +345,22 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 
             {/* Streaming message */}
             {isStreaming && (
-                <div className="chat-message flex flex-col max-w-[85%] self-start animate-message-in">
+                <div className="chat-message flex flex-col max-w-[85%] self-start animate-message-in mb-2">
                     <div className="chat-message-bubble py-2 px-3.5 rounded-xl text-[13px] leading-normal break-words bg-bg-secondary text-text-primary rounded-bl-sm">
-                        {streamingText ? <MarkdownMessage text={streamingText} /> : null}
-                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-text-tertiary animate-stream-pulse ml-1 align-middle" />
+                        {streamingText ? (
+                            <MarkdownMessage text={streamingText} />
+                        ) : (
+                            <span className="inline-flex items-center gap-[3px] align-middle">
+                                <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-typing-dot" style={{ animationDelay: '0ms' }} />
+                                <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-typing-dot" style={{ animationDelay: '150ms' }} />
+                                <span className="w-1.5 h-1.5 rounded-full bg-text-tertiary animate-typing-dot" style={{ animationDelay: '300ms' }} />
+                            </span>
+                        )}
                     </div>
                 </div>
             )}
 
-            <div ref={bottomRef} />
+            <div ref={bottomRef} className="-mt-3" />
 
             {/* Scroll-to-bottom FAB */}
             {showScrollFab && (

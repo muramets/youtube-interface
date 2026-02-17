@@ -3,6 +3,7 @@
 // =============================================================================
 
 import { Timestamp } from 'firebase/firestore';
+import type { AppContextItem } from './appContext';
 
 // --- Firestore Models ---
 
@@ -20,6 +21,7 @@ export interface ChatConversation {
     id: string;
     projectId: string | null; // null = unassigned
     title: string;
+    model?: string;              // per-conversation model override
     summary?: string;           // cached conversation summary
     summarizedUpTo?: string;    // ID of last message included in summary
     lastError?: {               // server-set: explicit failure signal for recovery
@@ -44,6 +46,7 @@ export interface ChatMessage {
     role: 'user' | 'model';
     text: string;
     attachments?: ChatAttachment[];
+    appContext?: AppContextItem[]; // Video card / page context snapshot at send time
     tokenUsage?: {
         promptTokens: number;
         completionTokens: number;

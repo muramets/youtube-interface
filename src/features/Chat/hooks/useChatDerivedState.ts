@@ -16,6 +16,7 @@ interface UseChatDerivedStateOpts {
     activeConversationId: string | null;
     editingProject: ChatProject | null;
     defaultModel: string;
+    pendingModel: string | null;
 }
 
 interface UseChatDerivedStateReturn {
@@ -26,13 +27,15 @@ interface UseChatDerivedStateReturn {
     totalTokens: number;
     totalCostEur: number;
     modelPricing: ModelPricing;
+    activeModel: string;
+    modelLabel: string;
     contextUsed: number;
     contextPercent: number;
     isContextFull: boolean;
 }
 
 export function useChatDerivedState(opts: UseChatDerivedStateOpts): UseChatDerivedStateReturn {
-    const { projects, conversations, messages, view, activeProjectId, activeConversationId, editingProject, defaultModel } = opts;
+    const { projects, conversations, messages, view, activeProjectId, activeConversationId, editingProject, defaultModel, pendingModel } = opts;
 
     const filteredConversations = activeProjectId
         ? conversations.filter(c => c.projectId === activeProjectId)
@@ -50,7 +53,7 @@ export function useChatDerivedState(opts: UseChatDerivedStateOpts): UseChatDeriv
     else if (view === 'chat' && activeConversation) headerTitle = activeConversation.title;
 
     // Model pricing
-    const activeModel = activeProject?.model || defaultModel || DEFAULT_MODEL;
+    const activeModel = pendingModel || activeConversation?.model || activeProject?.model || defaultModel || DEFAULT_MODEL;
     const modelConfig = MODEL_REGISTRY.find(m => m.id === activeModel) ?? MODEL_REGISTRY[0];
     const contextLimit = modelConfig.contextLimit ?? DEFAULT_CONTEXT_LIMIT;
 
@@ -93,6 +96,8 @@ export function useChatDerivedState(opts: UseChatDerivedStateOpts): UseChatDeriv
         totalTokens,
         totalCostEur,
         modelPricing: modelConfig.pricing,
+        activeModel,
+        modelLabel: modelConfig.label,
         contextUsed,
         contextPercent,
         isContextFull,

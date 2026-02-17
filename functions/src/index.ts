@@ -368,6 +368,7 @@ export const aiChat = onRequest(
                 history: memory.history,
                 text: body.text,
                 attachments: body.attachments,
+                thumbnailUrls: body.thumbnailUrls,
                 onChunk: (fullText) => {
                     res.write(`data: ${JSON.stringify({ type: "chunk", text: fullText })}\n\n`);
                 },

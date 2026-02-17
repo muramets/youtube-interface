@@ -2,11 +2,16 @@
 // AI CHAT: Chat Input Component
 // =============================================================================
 
-import React, { useState, useRef, useCallback } from 'react';
-import { Paperclip, Send, X, FileAudio, FileVideo, File, Image, Square, Loader2, Check, AlertCircle } from 'lucide-react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
+import { Plus, Send, X, FileAudio, FileVideo, File, Image, Square, Loader2, Check, AlertCircle, ChevronUp } from 'lucide-react';
+import { MODEL_REGISTRY } from '../../core/types/chat';
 import { getAttachmentType } from '../../core/services/aiService';
 import type { StagedFile, ReadyAttachment } from '../../core/types/chatAttachment';
 import { useChatStore } from '../../core/stores/chatStore';
+import { useAppContextStore } from '../../core/stores/appContextStore';
+import type { VideoCardContext, SuggestedTrafficContext } from '../../core/types/appContext';
+import { VideoCardChip } from './VideoCardChip';
+import { SuggestedTrafficChip } from './SuggestedTrafficChip';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 
 interface ChatInputProps {
@@ -18,18 +23,33 @@ interface ChatInputProps {
     onAddFiles: (files: File[]) => void;
     onRemoveFile: (id: string) => void;
     isAnyUploading: boolean;
+    // Model selector
+    modelLabel?: string;
+    activeModel?: string;
+    onModelChange?: (modelId: string) => void;
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
     onSend, onStop, disabled,
     stagedFiles, onAddFiles, onRemoveFile, isAnyUploading,
+    modelLabel, activeModel, onModelChange,
 }) => {
     const isStreaming = useChatStore(s => s.isStreaming);
+    const contextItems = useAppContextStore(s => s.items);
+    const setContextItems = useAppContextStore(s => s.setItems);
+    const videoContextItems = useMemo(() => contextItems.filter((c): c is VideoCardContext => c.type === 'video-card'), [contextItems]);
+    const trafficContextItems = useMemo(() => contextItems.filter((c): c is SuggestedTrafficContext => c.type === 'suggested-traffic'), [contextItems]);
     const [text, setText] = useState('');
+    const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const modelMenuRef = useRef<HTMLDivElement>(null);
 
     const canSend = (text.trim() || stagedFiles.length > 0) && !isAnyUploading;
+
+    const handleRemoveVideoContext = useCallback((videoId: string) => {
+        setContextItems(contextItems.filter(c => c.type !== 'video-card' || (c as VideoCardContext).videoId !== videoId));
+    }, [contextItems, setContextItems]);
 
     const handleSend = useCallback(() => {
         const trimmed = text.trim();
@@ -86,11 +106,34 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }
     }, [onAddFiles]);
 
-    const baseBtnClass = "shrink-0 w-9 h-9 rounded-lg border border-border flex items-center justify-center cursor-pointer transition-colors duration-100 text-text-secondary bg-button-secondary-bg hover:bg-button-secondary-hover hover:text-text-primary disabled:opacity-30 disabled:cursor-not-allowed";
+    const actionBtnClass = "shrink-0 w-7 h-7 rounded-md flex items-center justify-center cursor-pointer transition-colors duration-100 text-text-tertiary bg-transparent border-none hover:bg-white/[0.06] hover:text-text-secondary disabled:opacity-30 disabled:cursor-not-allowed";
 
     return (
-        <div className="p-2.5 border-t border-border bg-card-bg shrink-0">
-            {/* Staged attachment previews */}
+        <div className="px-2.5 pb-2.5 bg-card-bg shrink-0">
+            {/* Video card context chips */}
+            {videoContextItems.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                    {videoContextItems.map(v => (
+                        <VideoCardChip
+                            key={v.videoId}
+                            video={v}
+                            onRemove={() => handleRemoveVideoContext(v.videoId)}
+                        />
+                    ))}
+                </div>
+            )}
+            {/* Suggested traffic context chips */}
+            {trafficContextItems.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                    {trafficContextItems.map((tc, i) => (
+                        <SuggestedTrafficChip
+                            key={`traffic-${i}`}
+                            context={tc}
+                            onRemove={() => setContextItems(contextItems.filter(c => c !== tc))}
+                        />
+                    ))}
+                </div>
+            )}
             {stagedFiles.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-2">
                     {stagedFiles.map((staged) => {
@@ -139,19 +182,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 </div>
             )}
 
-            <div className="flex items-end gap-1.5">
-                <button
-                    className={baseBtnClass}
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={disabled}
-                    title="Attach file"
-                >
-                    <Paperclip size={18} />
-                </button>
-
+            {/* Unified input container */}
+            <div className="border border-border rounded-xl bg-input-bg transition-colors duration-100 focus-within:border-text-tertiary">
+                {/* Textarea — top part */}
                 <textarea
                     ref={textareaRef}
-                    className="chat-input-textarea flex-1 resize-none border border-border rounded-[10px] py-2 px-3 text-[13px] leading-snug max-h-[120px] overflow-hidden bg-input-bg text-text-primary outline-none transition-colors duration-100 font-[inherit] focus:border-text-tertiary placeholder:text-text-tertiary caret-text-secondary"
+                    className="chat-input-textarea w-full resize-none border-none rounded-t-xl pt-1.5 pb-2 px-3.5 text-[13px] leading-snug max-h-[120px] overflow-hidden bg-transparent text-text-primary outline-none font-[inherit] placeholder:text-text-tertiary caret-text-secondary"
                     value={text}
                     onChange={handleTextChange}
                     onKeyDown={handleKeyDown}
@@ -161,28 +197,81 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     disabled={disabled}
                 />
 
-                {isStreaming ? (
+                {/* Action bar — bottom part */}
+                <div className="flex items-center gap-1 px-1.5 pb-1.5">
+                    {/* Attach button */}
                     <button
-                        className={`${baseBtnClass} !bg-[var(--danger-color,#cc0000)] !text-white !border-transparent hover:!brightness-90 transition-all`}
-                        onClick={onStop}
-                        title="Stop generation"
+                        className={actionBtnClass}
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={disabled}
+                        title="Attach file"
                     >
-                        <Square size={16} />
+                        <Plus size={16} />
                     </button>
-                ) : (
-                    <button
-                        className={`${baseBtnClass} !bg-text-primary !text-[var(--video-edit-bg,var(--bg-primary))] !border-transparent hover:!brightness-90 transition-all`}
-                        onClick={handleSend}
-                        disabled={disabled || !canSend}
-                        title={isAnyUploading ? 'Waiting for uploads…' : 'Send'}
-                    >
-                        {isAnyUploading ? (
-                            <Loader2 size={18} className="animate-spin" />
-                        ) : (
-                            <Send size={18} />
-                        )}
-                    </button>
-                )}
+
+                    {/* Model selector */}
+                    {onModelChange && modelLabel && (
+                        <div className="relative" ref={modelMenuRef}>
+                            <button
+                                className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer transition-colors hover:text-text-secondary hover:bg-white/[0.05]"
+                                onClick={() => setIsModelMenuOpen(v => !v)}
+                                type="button"
+                                title={modelLabel}
+                            >
+                                <ChevronUp size={12} className={`transition-transform duration-150 ${isModelMenuOpen ? 'rotate-180' : ''}`} />
+                                <span>{modelLabel.replace(/^Gemini\s*/i, '')}</span>
+                            </button>
+
+                            {isModelMenuOpen && (
+                                <>
+                                    <div className="fixed inset-0 z-[100]" onClick={() => setIsModelMenuOpen(false)} />
+                                    <div className="absolute bottom-full left-0 mb-1 z-[101] min-w-[180px] bg-[#1F1F1F] border border-white/10 rounded-lg shadow-xl py-1 animate-in fade-in slide-in-from-bottom-1 duration-150">
+                                        {MODEL_REGISTRY.map(m => (
+                                            <button
+                                                key={m.id}
+                                                className={`w-full text-left px-3 py-1.5 text-[12px] bg-transparent border-none cursor-pointer flex items-center gap-2 transition-colors ${m.id === activeModel
+                                                    ? 'text-text-primary bg-white/[0.08]'
+                                                    : 'text-text-secondary hover:text-text-primary hover:bg-white/[0.05]'
+                                                    }`}
+                                                onClick={() => { onModelChange(m.id); setIsModelMenuOpen(false); }}
+                                            >
+                                                <span className="flex-1">{m.label}</span>
+                                                {m.id === activeModel && <Check size={13} className="text-green-400" />}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Spacer */}
+                    <div className="flex-1" />
+
+                    {/* Send / Stop button */}
+                    {isStreaming ? (
+                        <button
+                            className={`${actionBtnClass} !text-[var(--danger-color,#cc0000)] hover:!bg-red-500/10`}
+                            onClick={onStop}
+                            title="Stop generation"
+                        >
+                            <Square size={12} fill="currentColor" strokeWidth={0} className="rounded-[2px]" />
+                        </button>
+                    ) : (
+                        <button
+                            className={`${actionBtnClass} ${canSend && !disabled ? '!text-text-primary' : ''}`}
+                            onClick={handleSend}
+                            disabled={disabled || !canSend}
+                            title={isAnyUploading ? 'Waiting for uploads…' : 'Send'}
+                        >
+                            {isAnyUploading ? (
+                                <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                                <Send size={16} />
+                            )}
+                        </button>
+                    )}
+                </div>
             </div>
 
             <input

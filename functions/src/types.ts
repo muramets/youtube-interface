@@ -102,6 +102,7 @@ export interface AiChatRequest {
     model?: string;
     systemPrompt?: string;
     attachments?: Array<{ geminiFileUri: string; mimeType: string }>;
+    thumbnailUrls?: string[];
 }
 
 export interface GeminiUploadRequest {
