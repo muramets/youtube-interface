@@ -99,7 +99,7 @@ export const TrackBrowserItem: React.FC<TrackBrowserItemProps> = ({ track, isOnT
             <div
                 draggable={!isOnTimeline}
                 onDragStart={isOnTimeline ? undefined : handleDragStart}
-                className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-colors group ${isOnTimeline
+                className={`flex items-center gap-2 px-3 py-1.5 transition-colors group ${isOnTimeline
                     ? 'opacity-40 cursor-default'
                     : 'hover:bg-hover cursor-pointer'
                     }`}

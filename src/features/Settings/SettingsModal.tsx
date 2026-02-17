@@ -330,7 +330,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
     return createPortal(
         <div
-            className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm ${isClosing ? 'animate-fade-out' : 'animate-fade-in'}`}
+            className={`fixed inset-0 z-[2000] flex items-center justify-center p-4 backdrop-blur-sm ${isClosing ? 'animate-fade-out' : 'animate-fade-in'}`}
             style={{ backgroundColor: 'var(--modal-overlay)' }}
             onClick={handleClose}
         >

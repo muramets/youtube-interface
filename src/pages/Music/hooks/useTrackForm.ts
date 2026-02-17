@@ -52,6 +52,7 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
     const categoryOrder = useMusicStore(s => s.categoryOrder);
     const saveSettings = useMusicStore(s => s.saveSettings);
     const isEditMode = !!editTrack;
+    const editTrackId = editTrack?.id;
 
     // Form state
     const [title, setTitle] = useState('');
@@ -105,10 +106,30 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
 
         if (previewPlaying === variant) {
             stopPreview();
+            // If we routed through global player, stop it too
+            if (editTrack?.id && useMusicStore.getState().playingTrackId === editTrack.id) {
+                useMusicStore.getState().setPlayingTrack(null);
+            }
             return;
         }
 
-        // Pause background audio player if it's playing
+        // For saved tracks with remote URLs, use the global AudioPlayer
+        // so the user gets full playback controls (seek, volume, etc.)
+        if (editTrack?.id && remoteUrl) {
+            // Stop local preview if it was playing a different variant
+            stopPreview();
+            const { playingTrackId, isPlaying: wasPlaying } = useMusicStore.getState();
+            if (playingTrackId === editTrack.id && wasPlaying) {
+                // Same track playing — toggle off
+                useMusicStore.getState().setPlayingTrack(null);
+                return;
+            }
+            useMusicStore.getState().setPlayingTrack(editTrack.id, variant);
+            setPreviewPlaying(variant);
+            return;
+        }
+
+        // Fallback: local Audio element for unsaved tracks (blob URLs)
         useMusicStore.getState().setIsPlaying(false);
 
         const urlRef = variant === 'vocal' ? vocalUrlRef : instrumentalUrlRef;
@@ -162,6 +183,18 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
         };
     }, []);
 
+    // Sync previewPlaying when global player changes externally (e.g. user clicks X on AudioPlayer)
+    useEffect(() => {
+        if (!editTrack?.id) return;
+        const unsub = useMusicStore.subscribe((state) => {
+            // If the global player is no longer playing this track, clear preview state
+            if (state.playingTrackId !== editTrack.id && previewPlaying) {
+                setPreviewPlaying(null);
+            }
+        });
+        return unsub;
+    }, [editTrack?.id, previewPlaying]);
+
     // Pre-populate form when opening in edit mode
     useEffect(() => {
         if (!isOpen || !editTrack) return;
@@ -187,6 +220,10 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
     const handleClose = useCallback(() => {
         setIsClosing(true);
         stopPreview();
+        // Stop global player if it was started from this modal
+        if (editTrackId && useMusicStore.getState().playingTrackId === editTrackId) {
+            useMusicStore.getState().setPlayingTrack(null);
+        }
         if (vocalUrlRef.current) { URL.revokeObjectURL(vocalUrlRef.current); vocalUrlRef.current = null; }
         if (instrumentalUrlRef.current) { URL.revokeObjectURL(instrumentalUrlRef.current); instrumentalUrlRef.current = null; }
         setTimeout(() => {
@@ -207,7 +244,7 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
             setCoverPreview('');
             setError('');
         }, 200);
-    }, [onClose, stopPreview]);
+    }, [onClose, stopPreview, editTrackId]);
 
     // Auto-fill form fields from audio file metadata (ID3 tags)
     const applyMetadata = useCallback(async (file: File) => {

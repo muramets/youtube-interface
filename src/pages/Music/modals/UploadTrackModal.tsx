@@ -102,7 +102,7 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
 
     return createPortal(
         <div
-            className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm ${form.isClosing ? 'animate-fade-out' : 'animate-fade-in'}`}
+            className={`fixed inset-0 z-[2000] flex items-center justify-center p-4 backdrop-blur-sm ${form.isClosing ? 'animate-fade-out' : 'animate-fade-in'}`}
             style={{ backgroundColor: 'var(--modal-overlay)' }}
             onMouseDown={() => { mouseDownOnOverlayRef.current = true; }}
             onClick={() => {
@@ -144,7 +144,7 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
                 </div>
 
                 {/* Body */}
-                <div ref={bodyRef} className="flex-1 overflow-y-auto p-6 flex flex-col gap-5 min-h-0">
+                <div ref={bodyRef} className="flex-1 overflow-y-auto overscroll-contain p-6 flex flex-col gap-5 min-h-0">
                     {activeTab === 'track' && (
                         <>
                             {/* Hero Drop Zone */}
