@@ -23,7 +23,7 @@ export const BITRATE_MAP: Record<RenderResolution, number> = {
     '4k': 35_000_000,
 };
 
-const FPS = 30;
+const FPS = 24;
 const AUDIO_BITRATE = 192_000;
 const KEY_FRAME_INTERVAL = 0.5; // seconds — every 15 frames at 30fps
 

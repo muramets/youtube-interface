@@ -14,6 +14,7 @@ import {
     AudioSampleSource,
     AudioSample,
 } from 'mediabunny';
+import { patchMp4Metadata } from '../utils/mp4MetadataPatch';
 
 // ─── Message Types ─────────────────────────────────────────────────────
 
@@ -185,10 +186,13 @@ async function runRender(config: RenderStartMessage, gen: number): Promise<void>
         const buffer = target.buffer;
         if (!buffer) throw new Error('Muxer produced no output');
 
+        // Patch MP4 metadata to remove Mediabunny fingerprints
+        const patchedBuffer = patchMp4Metadata(buffer);
+
         self.postMessage({ type: 'progress', pct: 100 });
         self.postMessage(
-            { type: 'complete', buffer },
-            { transfer: [buffer] }, // zero-copy transfer
+            { type: 'complete', buffer: patchedBuffer },
+            { transfer: [patchedBuffer] }, // zero-copy transfer
         );
     } catch (err) {
         bitmap?.close();

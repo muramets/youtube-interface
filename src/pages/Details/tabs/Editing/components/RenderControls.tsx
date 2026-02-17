@@ -72,7 +72,13 @@ export const RenderControls: React.FC<RenderControlsProps> = ({ videoId, videoTi
     const totalTrackDuration = tracks.reduce((sum, t) => sum + getEffectiveDuration(t), 0);
     const totalDuration = totalTrackDuration * loopCount;
     const effectiveImageUrl = imageUrl || defaultImageUrl;
-    const canRender = tracks.length > 0 && effectiveImageUrl !== '' && renderStatus !== 'rendering' && renderStatus !== 'queued';
+
+    // Check if image meets minimum resolution (720p)
+    const minPreset = RESOLUTION_PRESETS['720p'];
+    const imageTooSmall = imageWidth != null && imageHeight != null &&
+        (minPreset.width > imageWidth || minPreset.height > imageHeight);
+
+    const canRender = tracks.length > 0 && effectiveImageUrl !== '' && !imageTooSmall && renderStatus !== 'rendering' && renderStatus !== 'queued';
 
     const handleRender = () => {
         if (!canRender) return;
@@ -180,16 +186,23 @@ export const RenderControls: React.FC<RenderControlsProps> = ({ videoId, videoTi
             <div className="flex-1" />
 
             {/* Render Button */}
-            <Button
-                variant="primary"
-                size="sm"
-                onClick={handleRender}
-                disabled={!canRender}
-                isLoading={renderStatus === 'rendering'}
-                leftIcon={renderStatus !== 'rendering' ? <Play size={16} fill="currentColor" /> : undefined}
+            <PortalTooltip
+                content={imageTooSmall ? `Image too small for 720p (${imageWidth}×${imageHeight}, need ${minPreset.width}×${minPreset.height})` : null}
+                disabled={!imageTooSmall}
+                side="top"
+                enterDelay={150}
             >
-                Render
-            </Button>
+                <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={handleRender}
+                    disabled={!canRender}
+                    isLoading={renderStatus === 'rendering'}
+                    leftIcon={renderStatus !== 'rendering' ? <Play size={16} fill="currentColor" /> : undefined}
+                >
+                    Render
+                </Button>
+            </PortalTooltip>
         </div>
     );
 };
