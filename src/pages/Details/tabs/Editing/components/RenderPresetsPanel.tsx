@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { History, ChevronDown, Check, AlertTriangle } from 'lucide-react';
+import { History, ChevronDown, Check, AlertTriangle, Trash2 } from 'lucide-react';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
 import { useRenderPresetsStore } from '../../../../../core/stores/renderPresetsStore';
 import { useMusicStore, selectAllTracks } from '../../../../../core/stores/musicStore';
@@ -50,6 +50,7 @@ export const RenderPresetsPanel: React.FC<RenderPresetsPanelProps> = ({ videoId 
     const error = useRenderPresetsStore((s) => s.error);
     const fetchPresets = useRenderPresetsStore((s) => s.fetchPresets);
     const applyPreset = useRenderPresetsStore((s) => s.applyPreset);
+    const deletePreset = useRenderPresetsStore((s) => s.deletePreset);
 
     const [isOpen, setIsOpen] = useState(false);
     const [appliedId, setAppliedId] = useState<string | null>(null);
@@ -124,6 +125,12 @@ export const RenderPresetsPanel: React.FC<RenderPresetsPanelProps> = ({ videoId 
         clearTimeout(appliedTimerRef.current);
         appliedTimerRef.current = setTimeout(() => setAppliedId(null), 2000);
     }, [applyPreset, musicTracks, appliedId]);
+
+    const handleDelete = useCallback((e: React.MouseEvent, presetId: string) => {
+        e.stopPropagation();
+        if (!user?.uid || !currentChannel?.id) return;
+        deletePreset(user.uid, currentChannel.id, presetId);
+    }, [user?.uid, currentChannel?.id, deletePreset]);
 
     const handleToggle = useCallback(() => {
         setIsOpen((prev) => !prev);
@@ -220,6 +227,16 @@ export const RenderPresetsPanel: React.FC<RenderPresetsPanelProps> = ({ videoId 
                                                     </span>
                                                 )}
                                             </div>
+
+                                            <button
+                                                onClick={(e) => handleDelete(e, preset.renderId)}
+                                                className="opacity-0 group-hover:opacity-100 p-0.5 rounded
+                                                           text-text-tertiary hover:text-red-400
+                                                           transition-all duration-150 flex-shrink-0"
+                                                title="Delete preset"
+                                            >
+                                                <Trash2 size={11} />
+                                            </button>
 
                                             <button
                                                 onClick={() => handleApply(preset)}

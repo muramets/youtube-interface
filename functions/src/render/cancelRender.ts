@@ -42,6 +42,15 @@ export const cancelRender = onCall(
             cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
+        // Clean up render preset if one was already created (race condition:
+        // render may have completed and written the preset just before cancel arrived)
+        const presetRef = db.doc(
+            `users/${userId}/channels/${channelId}/renderPresets/${renderId}`,
+        );
+        await presetRef.delete().catch(() => {
+            // Preset may not exist — that's fine
+        });
+
         console.log(`[cancelRender] Cancelled render ${renderId} for video ${videoId}`);
         return { success: true };
     }

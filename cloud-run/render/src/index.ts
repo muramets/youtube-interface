@@ -299,6 +299,7 @@ async function main() {
         log('complete', { sizeBytes: fileStat.size });
 
         // ── 8b. Create render preset (decoupled from render lifecycle) ──
+        checkAbort(); // Guard against late cancellation between upload and preset creation
         const MAX_PRESETS = 20;
         const presetsCol = db.collection(
             `users/${userId}/channels/${channelId}/renderPresets`,

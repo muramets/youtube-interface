@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import type { RenderPreset, TimelineTrack } from '../types/editing';
 import type { Track } from '../types/track';
@@ -22,6 +22,8 @@ interface RenderPresetsActions {
     fetchPresets: (userId: string, channelId: string) => Promise<void>;
     /** Apply a preset's audio timeline to the current editing session */
     applyPreset: (preset: RenderPreset, musicTracks: Track[]) => void;
+    /** Delete a preset (optimistic) */
+    deletePreset: (userId: string, channelId: string, presetId: string) => void;
     /** Reset store (e.g. on channel switch) */
     reset: () => void;
 }
@@ -165,6 +167,21 @@ export const useRenderPresetsStore = create<RenderPresetsState & RenderPresetsAc
                     'success',
                 );
             }
+        },
+
+        deletePreset: (userId, channelId, presetId) => {
+            // Optimistic: remove from local state immediately
+            const prev = get().presets;
+            set({ presets: prev.filter((p) => p.renderId !== presetId) });
+
+            // Delete from Firestore
+            const ref = doc(db, `users/${userId}/channels/${channelId}/renderPresets/${presetId}`);
+            deleteDoc(ref).catch((err) => {
+                console.error('[renderPresets] deletePreset failed:', err);
+                // Rollback
+                set({ presets: prev });
+                useUIStore.getState().showToast('Failed to delete preset', 'error');
+            });
         },
 
         reset: () => set(initialState),
