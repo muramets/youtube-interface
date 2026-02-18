@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { User, LogOut, Plus, Check, Settings, Target } from 'lucide-react';
 import { useChannelStore } from '../../core/stores/channelStore';
+import { useMusicStore } from '../../core/stores/musicStore';
 import { useTrendStore } from '../../core/stores/trendStore';
 import { useChannels } from '../../core/hooks/useChannels';
 import { useSettings } from '../../core/hooks/useSettings';
@@ -107,6 +108,9 @@ export const ChannelDropdown: React.FC<ChannelDropdownProps> = ({ onClose, ancho
             setNiches([]);
             setVideoNicheAssignments({});
             setHiddenVideos([]);
+
+            // Stop audio player — music tracks are channel-scoped
+            useMusicStore.getState().setPlayingTrack(null);
 
             setCurrentChannel(channel);
             navigate('/');

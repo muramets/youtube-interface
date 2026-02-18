@@ -3,6 +3,7 @@ import { User, Plus } from 'lucide-react';
 // ...
 // const [loadingYT, setLoadingYT] = useState(false);
 import { useChannelStore } from '../../core/stores/channelStore';
+import { useMusicStore } from '../../core/stores/musicStore';
 import { useTrendStore } from '../../core/stores/trendStore';
 import { useChannels } from '../../core/hooks/useChannels';
 import { useAuth } from '../../core/hooks/useAuth';
@@ -93,6 +94,9 @@ export const ChannelSelectorModal: React.FC<ChannelSelectorModalProps> = ({ isOp
             setNiches([]);
             setVideoNicheAssignments({});
             setHiddenVideos([]);
+
+            // Stop audio player — music tracks are channel-scoped
+            useMusicStore.getState().setPlayingTrack(null);
 
             setCurrentChannel(channel);
         }
