@@ -385,7 +385,7 @@ export const useRenderQueueStore = create<RenderQueueState & RenderQueueActions>
                                 status: 'complete',
                                 progress: 100,
                                 downloadUrl: data.downloadUrl,
-                                fileName: sanitizeFilename(videoTitle || 'render') + '.mp4',
+                                fileName: `${sanitizeFilename(videoTitle || 'render')}_${resolution}.mp4`,
                                 renderDocPath,
                                 renderId,
                                 expiresAt,

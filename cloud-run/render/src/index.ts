@@ -268,7 +268,7 @@ async function main() {
             filePath: outputPath,
             fileSize: fileStat.size,
             contentType: 'video/mp4',
-            contentDisposition: `attachment; filename="${encodeURIComponent(params.videoTitle)}.mp4"`,
+            contentDisposition: `attachment; filename="${encodeURIComponent(params.videoTitle)}_${params.resolution}.mp4"`,
             log,
         });
 

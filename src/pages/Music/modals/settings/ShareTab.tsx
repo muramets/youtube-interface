@@ -176,9 +176,6 @@ export const ShareTab: React.FC<ShareTabProps> = ({ userId, channelId }) => {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm text-text-primary truncate">{ch.name}</p>
-                                        {ch.handle && (
-                                            <p className="text-[11px] text-text-tertiary truncate">{ch.handle}</p>
-                                        )}
                                     </div>
                                 </button>
                             ))}

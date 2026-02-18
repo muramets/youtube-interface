@@ -7,7 +7,7 @@
 // =============================================================================
 
 import { useState, useMemo, useCallback } from 'react';
-import { useMusicStore } from '../stores/musicStore';
+import { useMusicStore, selectAllTags, selectAllCategoryOrder, selectAllFeaturedCategories } from '../stores/musicStore';
 import type { Track, MusicGenre, MusicTag } from '../types/track';
 
 // -----------------------------------------------------------------------------
@@ -59,11 +59,11 @@ export function useTrackFilters(
     const [tagFilters, setTagFilters] = useState<string[]>([]);
     const [bpmFilter, setBpmFilter] = useState<[number, number] | null>(null);
 
-    // ── Shared metadata (read-only from musicStore) ──────────────────────
+    // ── Shared metadata (read-only, merged own + shared) ─────────────────
     const genres = useMusicStore((s) => s.genres);
-    const tags = useMusicStore((s) => s.tags);
-    const categoryOrder = useMusicStore((s) => s.categoryOrder);
-    const featuredCategories = useMusicStore((s) => s.featuredCategories);
+    const tags = useMusicStore(selectAllTags);
+    const categoryOrder = useMusicStore(selectAllCategoryOrder);
+    const featuredCategories = useMusicStore(selectAllFeaturedCategories);
 
     // ── Actions ──────────────────────────────────────────────────────────
     const toggleTagFilter = useCallback((tagId: string) => {

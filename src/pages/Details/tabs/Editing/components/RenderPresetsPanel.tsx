@@ -180,13 +180,34 @@ export const RenderPresetsPanel: React.FC<RenderPresetsPanelProps> = ({ videoId 
                                     (sum, t) => sum + (t.duration - t.trimStart - t.trimEnd),
                                     0,
                                 );
-                                const unavailable = preset.tracks.filter(
+                                const unavailableTracks = preset.tracks.filter(
                                     (t) => !availablePaths.has(t.audioStoragePath),
-                                ).length;
+                                );
+                                const unavailable = unavailableTracks.length;
+                                const allUnavailable = unavailable === preset.tracks.length;
                                 const isApplied = appliedId === preset.renderId;
 
+                                // Distinguish shared vs own unavailable tracks
+                                const ownPrefix = uid ? `users/${uid}/` : '';
+                                const unavailableShared = ownPrefix
+                                    ? unavailableTracks.filter((t) => !t.audioStoragePath.startsWith(ownPrefix)).length
+                                    : 0;
+
+                                // Build tooltip text for warning chip
+                                let warningTooltip = '';
+                                if (unavailable > 0) {
+                                    if (unavailableShared === unavailable) {
+                                        warningTooltip = `${unavailable} track${unavailable > 1 ? 's' : ''} from a shared library — access may have been revoked`;
+                                    } else if (unavailableShared > 0) {
+                                        const ownUnavail = unavailable - unavailableShared;
+                                        warningTooltip = `${unavailableShared} shared library track${unavailableShared > 1 ? 's' : ''} (access may have been revoked), ${ownUnavail} other track${ownUnavail > 1 ? 's' : ''} unavailable`;
+                                    } else {
+                                        warningTooltip = `${unavailable} track${unavailable > 1 ? 's' : ''} no longer in your library`;
+                                    }
+                                }
+
                                 return (
-                                    <div key={preset.renderId} className="render-preset-card group">
+                                    <div key={preset.renderId} className={`render-preset-card group${allUnavailable ? ' opacity-50' : ''}`}>
                                         {/* Header: image + title + time */}
                                         <div className="flex items-start gap-2 mb-2">
                                             {preset.imageUrl && (
@@ -220,46 +241,61 @@ export const RenderPresetsPanel: React.FC<RenderPresetsPanelProps> = ({ videoId 
                                                 <span className="text-[10px] text-text-tertiary group-hover:text-text-secondary transition-colors whitespace-nowrap">
                                                     {preset.tracks.length} track{preset.tracks.length !== 1 ? 's' : ''} · {formatDuration(totalDuration)}
                                                 </span>
-                                                <span className="text-[9px] text-text-tertiary font-mono">
-                                                    {preset.resolution}
-                                                </span>
                                                 {unavailable > 0 && (
-                                                    <span className="preset-warning-chip">
-                                                        <AlertTriangle size={8} />
-                                                        {unavailable}
-                                                    </span>
+                                                    <PortalTooltip
+                                                        content={warningTooltip}
+                                                        side="top"
+                                                        enterDelay={200}
+                                                    >
+                                                        <span className="preset-warning-chip">
+                                                            <AlertTriangle size={8} />
+                                                            {unavailable}
+                                                        </span>
+                                                    </PortalTooltip>
                                                 )}
+
                                             </div>
 
-                                            <button
-                                                onClick={(e) => handleDelete(e, preset.renderId)}
-                                                className="opacity-0 group-hover:opacity-100 p-0.5 rounded
-                                                           text-text-tertiary hover:text-red-400
-                                                           transition-all duration-150 flex-shrink-0"
-                                                title="Delete preset"
-                                            >
-                                                <Trash2 size={11} />
-                                            </button>
+                                            <div className="flex items-center gap-1 flex-shrink-0">
+                                                <button
+                                                    onClick={(e) => handleDelete(e, preset.renderId)}
+                                                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded
+                                                               text-text-tertiary hover:text-red-400
+                                                               transition-all duration-150"
+                                                    title="Delete preset"
+                                                >
+                                                    <Trash2 size={11} />
+                                                </button>
 
-                                            <button
-                                                onClick={() => handleApply(preset)}
-                                                disabled={isApplied}
-                                                className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium
-                                                           transition-all duration-200 flex-shrink-0
-                                                           ${isApplied
-                                                        ? 'bg-green-500/15 text-green-400'
-                                                        : 'bg-white/[0.06] text-text-secondary hover:bg-white/[0.12] hover:text-text-primary'
-                                                    }`}
-                                            >
-                                                {isApplied ? (
-                                                    <>
-                                                        <Check size={10} />
-                                                        Applied
-                                                    </>
-                                                ) : (
-                                                    'Apply'
-                                                )}
-                                            </button>
+                                                <PortalTooltip
+                                                    content={allUnavailable ? 'All tracks unavailable' : null}
+                                                    side="top"
+                                                    enterDelay={200}
+                                                    disabled={!allUnavailable}
+                                                >
+                                                    <button
+                                                        onClick={() => !allUnavailable && handleApply(preset)}
+                                                        disabled={isApplied || allUnavailable}
+                                                        className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium
+                                                                   transition-all duration-200
+                                                                   ${isApplied
+                                                                ? 'bg-green-500/15 text-green-400'
+                                                                : allUnavailable
+                                                                    ? 'bg-white/[0.03] text-text-tertiary cursor-not-allowed'
+                                                                    : 'bg-white/[0.06] text-text-secondary hover:bg-white/[0.12] hover:text-text-primary'
+                                                            }`}
+                                                    >
+                                                        {isApplied ? (
+                                                            <>
+                                                                <Check size={10} />
+                                                                Applied
+                                                            </>
+                                                        ) : (
+                                                            'Apply'
+                                                        )}
+                                                    </button>
+                                                </PortalTooltip>
+                                            </div>
                                         </div>
                                     </div>
                                 );

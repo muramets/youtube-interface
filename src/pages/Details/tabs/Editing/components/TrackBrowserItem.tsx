@@ -2,7 +2,7 @@ import React, { useCallback, useMemo } from 'react';
 import { Plus, Play, Pause, Music2, Check, Heart } from 'lucide-react';
 import type { Track } from '../../../../../core/types/track';
 import { useEditingStore } from '../../../../../core/stores/editingStore';
-import { useMusicStore } from '../../../../../core/stores/musicStore';
+import { useMusicStore, selectAllTags } from '../../../../../core/stores/musicStore';
 import { createTimelineTrack } from '../../../../../core/types/editing';
 import { formatDuration } from '../utils/formatDuration';
 import { setBrowserPreviewActive } from '../hooks/useTimelinePlayback';
@@ -62,7 +62,7 @@ export const TrackBrowserItem: React.FC<TrackBrowserItemProps> = ({ track, isOnT
     }, [track.id, defaultVariant]);
 
     // ── Tags tooltip (grouped by category) ──
-    const allTags = useMusicStore((s) => s.tags);
+    const allTags = useMusicStore(selectAllTags);
     const categoryOrder = useMusicStore((s) => s.categoryOrder);
 
     const tagsTooltipContent = useMemo(() => {

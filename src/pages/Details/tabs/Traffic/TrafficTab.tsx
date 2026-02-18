@@ -589,21 +589,28 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
         const context: SuggestedTrafficContext = {
             type: 'suggested-traffic',
+            // Snapshot metadata for AI context
+            snapshotDate: (() => {
+                const snap = trafficData?.snapshots?.find(s => s.id === effectiveSnapshotId);
+                return snap ? new Date(snap.timestamp).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : undefined;
+            })(),
+            snapshotLabel: trafficData?.snapshots?.find(s => s.id === effectiveSnapshotId)?.label,
             sourceVideo: {
                 videoId: _video.id,
                 title: _video.title,
                 description: _video.description || '',
                 tags: _video.tags || [],
                 thumbnailUrl: _video.customImage || _video.thumbnail,
-                viewCount: _video.mergedVideoData?.viewCount || _video.viewCount,
-                publishedAt: _video.mergedVideoData?.publishedAt || _video.publishedAt,
-                duration: _video.mergedVideoData?.duration || _video.duration,
+                // Only include YouTube metrics for published videos (drafts have placeholder values)
+                viewCount: _video.publishedVideoId ? (_video.mergedVideoData?.viewCount || _video.viewCount) : undefined,
+                publishedAt: _video.publishedVideoId ? (_video.mergedVideoData?.publishedAt || _video.publishedAt) : undefined,
+                duration: _video.publishedVideoId ? (_video.mergedVideoData?.duration || _video.duration) : undefined,
             },
             suggestedVideos,
         };
 
         setContextItems([context]);
-    }, [selectedIds, filteredSources, allVideos, allAssignments, allNiches, trafficEdges, viewerEdges, _video, setContextItems, clearContextItems]);
+    }, [selectedIds, filteredSources, allVideos, allAssignments, allNiches, trafficEdges, viewerEdges, _video, setContextItems, clearContextItems, trafficData?.snapshots, effectiveSnapshotId]);
 
     // Cleanup on unmount — clear context when leaving the Traffic tab
     useEffect(() => {

@@ -28,6 +28,7 @@ import {
     TRAFFIC_CONTEXT_HEADER,
     TRAFFIC_SOURCE_HEADER,
     TRAFFIC_SUGGESTED_HEADER,
+    TRAFFIC_SNAPSHOT_CONTEXT,
 } from '../config/prompts';
 
 interface ChatState {
@@ -184,6 +185,16 @@ function formatSingleVideo(lines: string[], v: VideoCardContext, index: number):
 /** Format suggested traffic context — source video + selected suggested videos. */
 function formatSuggestedTrafficContext(ctx: SuggestedTrafficContext): string {
     const lines = [TRAFFIC_CONTEXT_HEADER, ''];
+
+    // Snapshot context — explain what this data is
+    lines.push(TRAFFIC_SNAPSHOT_CONTEXT);
+    if (ctx.snapshotDate) {
+        lines.push(`**Data exported:** ${ctx.snapshotDate}`);
+    }
+    if (ctx.snapshotLabel) {
+        lines.push(`**User's label for this export:** "${ctx.snapshotLabel}" (subjective name given by the user to this CSV export)`);
+    }
+    lines.push('');
 
     // Source video (user's video)
     const sv = ctx.sourceVideo;
@@ -660,8 +671,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
             debug.chatGroup.start('🤖 Sending to Gemini');
             debug.chat('Model:', model);
             debug.chat('System Prompt:', systemPrompt);
-            debug.chat('App Context:', appContext);
-            debug.chat('Thumbnails:', thumbnailUrls);
+            if (appContext) {
+                debug.chatGroup.start('📎 App Context Details');
+                appContext.forEach(item => {
+                    if (item.type === 'suggested-traffic') {
+                        debug.chat('Type:', 'suggested-traffic');
+                        debug.chat('Snapshot Date:', item.snapshotDate ?? '(none)');
+                        debug.chat('Snapshot Label:', item.snapshotLabel ?? '(none)');
+                        debug.chat('Source Video:', item.sourceVideo.title);
+                        debug.chat('Source Video Draft?', !item.sourceVideo.viewCount ? 'Yes (metrics omitted)' : 'No');
+                        debug.chat('Selected Videos:', item.suggestedVideos.length);
+                        item.suggestedVideos.forEach((sv, i) => {
+                            debug.chat(`  [${i + 1}] ${sv.title} — ${sv.views} views, ${sv.impressions} imp`);
+                        });
+                    } else if (item.type === 'video-card') {
+                        debug.chat(`Video Card [${item.ownership}]:`, item.title);
+                    }
+                });
+                debug.chatGroup.end();
+            }
+            debug.chat('Thumbnails:', thumbnailUrls.length, 'URLs');
             debug.chatGroup.end();
 
             // 3. Stream AI response

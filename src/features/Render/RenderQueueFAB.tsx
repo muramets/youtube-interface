@@ -257,7 +257,7 @@ const RenderJobRow: React.FC<RenderJobRowProps> = ({ job, onCancel, onRetry, onD
                     side="top"
                     enterDelay={300}
                     disabled={!isTruncated}
-                    triggerClassName="min-w-0 overflow-hidden flex-1"
+                    triggerClassName="min-w-0 overflow-hidden flex-1 !justify-start"
                 >
                     <span ref={nameRef} className="text-xs text-text-secondary truncate block">
                         {displayName}

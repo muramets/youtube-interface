@@ -61,6 +61,9 @@ interface MusicState {
     activeLibrarySource: SharedLibraryEntry | null; // null = own library
     sharedTracks: Track[];                          // tracks from shared libraries
     sharedPlaylists: MusicPlaylist[];                // playlists from shared libraries
+    sharedTags: MusicTag[];                          // tags from shared library owners
+    sharedCategoryOrder: string[];                    // category order from shared library owners
+    sharedFeaturedCategories: string[];               // featured categories from shared library owners
     sharingGrants: MusicShareGrant[];          // grants FROM current channel (admin)
     activePlaylistId: string | null; // null = all tracks, 'liked' = liked filter
     playlistGroupOrder: string[];
@@ -155,6 +158,9 @@ export const useMusicStore = create<MusicState>((set) => ({
     activeLibrarySource: null,
     sharedTracks: [],
     sharedPlaylists: [],
+    sharedTags: [],
+    sharedCategoryOrder: [],
+    sharedFeaturedCategories: [],
     sharingGrants: [],
     draggingTrackId: null,
     setDraggingTrackId: (id) => set({ draggingTrackId: id }),
@@ -389,17 +395,34 @@ export const useMusicStore = create<MusicState>((set) => ({
     subscribeSharedLibraryTracks: () => {
         const { sharedLibraries } = useMusicStore.getState();
         if (sharedLibraries.length === 0) {
-            set({ sharedTracks: [], sharedPlaylists: [] });
+            set({ sharedTracks: [], sharedPlaylists: [], sharedTags: [], sharedCategoryOrder: [], sharedFeaturedCategories: [] });
             return () => { };
         }
 
         const unsubs: (() => void)[] = [];
         const trackBuckets: Record<number, Track[]> = {};
         const playlistBuckets: Record<number, MusicPlaylist[]> = {};
+        const tagBuckets: Record<number, MusicTag[]> = {};
 
         sharedLibraries.forEach((lib, i) => {
             trackBuckets[i] = [];
             playlistBuckets[i] = [];
+            tagBuckets[i] = [];
+
+            // Load owner's settings for tag/category resolution
+            TrackService.getMusicSettings(lib.ownerUserId, lib.ownerChannelId)
+                .then((settings) => {
+                    tagBuckets[i] = settings.tags || [];
+                    const allSharedTags = Object.values(tagBuckets).flat();
+                    // Merge category orders from all shared libraries (deduped, preserving order)
+                    const ownCats = new Set(useMusicStore.getState().categoryOrder);
+                    const mergedCatOrder = Object.values(tagBuckets)
+                        .flatMap((tags) => [...new Set(tags.map((t) => t.category).filter((c): c is string => !!c))]);
+                    const sharedCatOrder = [...new Set(mergedCatOrder)].filter((c) => !ownCats.has(c));
+                    const sharedFeatured = (settings.featuredCategories || []).filter((c: string) => !ownCats.has(c));
+                    set({ sharedTags: allSharedTags, sharedCategoryOrder: sharedCatOrder, sharedFeaturedCategories: sharedFeatured });
+                })
+                .catch((err) => console.error('[MusicStore] Failed to load shared settings:', err));
 
             unsubs.push(
                 TrackService.subscribeToTracks(lib.ownerUserId, lib.ownerChannelId, (t) => {
@@ -578,4 +601,67 @@ export const selectAllPlaylists = (s: MusicState): MusicPlaylist[] => {
         _cachedAllPlaylists = [...s.musicPlaylists, ...s.sharedPlaylists.filter((p) => !ownIds.has(p.id))];
     }
     return _cachedAllPlaylists;
+};
+
+let _cachedAllTags: MusicTag[] = [];
+let _lastOwnTags: MusicTag[] = [];
+let _lastSharedTags: MusicTag[] = [];
+
+/** Merged own + shared tags (deduped by id) — use as `useMusicStore(selectAllTags)` */
+export const selectAllTags = (s: MusicState): MusicTag[] => {
+    if (s.tags === _lastOwnTags && s.sharedTags === _lastSharedTags) {
+        return _cachedAllTags;
+    }
+    _lastOwnTags = s.tags;
+    _lastSharedTags = s.sharedTags;
+
+    if (s.sharedTags.length === 0) {
+        _cachedAllTags = s.tags;
+    } else {
+        const ownIds = new Set(s.tags.map((t) => t.id));
+        _cachedAllTags = [...s.tags, ...s.sharedTags.filter((t) => !ownIds.has(t.id))];
+    }
+    return _cachedAllTags;
+};
+
+let _cachedAllCategoryOrder: string[] = [];
+let _lastOwnCatOrder: string[] = [];
+let _lastSharedCatOrder: string[] = [];
+
+/** Merged own + shared category order (deduped) — use as `useMusicStore(selectAllCategoryOrder)` */
+export const selectAllCategoryOrder = (s: MusicState): string[] => {
+    if (s.categoryOrder === _lastOwnCatOrder && s.sharedCategoryOrder === _lastSharedCatOrder) {
+        return _cachedAllCategoryOrder;
+    }
+    _lastOwnCatOrder = s.categoryOrder;
+    _lastSharedCatOrder = s.sharedCategoryOrder;
+
+    if (s.sharedCategoryOrder.length === 0) {
+        _cachedAllCategoryOrder = s.categoryOrder;
+    } else {
+        const ownSet = new Set(s.categoryOrder);
+        _cachedAllCategoryOrder = [...s.categoryOrder, ...s.sharedCategoryOrder.filter((c) => !ownSet.has(c))];
+    }
+    return _cachedAllCategoryOrder;
+};
+
+let _cachedAllFeaturedCategories: string[] = [];
+let _lastOwnFeatured: string[] = [];
+let _lastSharedFeatured: string[] = [];
+
+/** Merged own + shared featured categories (deduped) — use as `useMusicStore(selectAllFeaturedCategories)` */
+export const selectAllFeaturedCategories = (s: MusicState): string[] => {
+    if (s.featuredCategories === _lastOwnFeatured && s.sharedFeaturedCategories === _lastSharedFeatured) {
+        return _cachedAllFeaturedCategories;
+    }
+    _lastOwnFeatured = s.featuredCategories;
+    _lastSharedFeatured = s.sharedFeaturedCategories;
+
+    if (s.sharedFeaturedCategories.length === 0) {
+        _cachedAllFeaturedCategories = s.featuredCategories;
+    } else {
+        const ownSet = new Set(s.featuredCategories);
+        _cachedAllFeaturedCategories = [...s.featuredCategories, ...s.sharedFeaturedCategories.filter((c) => !ownSet.has(c))];
+    }
+    return _cachedAllFeaturedCategories;
 };

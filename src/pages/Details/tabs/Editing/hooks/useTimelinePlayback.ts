@@ -92,8 +92,19 @@ export function useTimelinePlayback(
     const handlePlayPause = useCallback(() => {
         if (totalDuration <= 0) return;
         const { isPlaying: playing, playbackPosition: position } = useEditingStore.getState();
+        const musicState = useMusicStore.getState();
 
-        if (!playing) {
+        // Detect if timeline playback is already active via AudioPlayer
+        // (e.g. user left Editing tab but audio kept playing)
+        const timelineAlreadyPlaying = musicState.playbackVolume !== null && musicState.isPlaying;
+
+        if (playing || timelineAlreadyPlaying) {
+            // ── Pause ──
+            setPlaying(false);
+            useMusicStore.getState().setIsPlaying(false);
+            useMusicStore.getState().setPlaybackVolume(null);
+        } else {
+            // ── Start ──
             const hit = findTrackAtPosition(position);
             if (hit) {
                 activeTrackIndexRef.current = hit.index;
@@ -110,10 +121,6 @@ export function useTimelinePlayback(
                 }
                 setPlaying(true);
             }
-        } else {
-            setPlaying(false);
-            useMusicStore.getState().setIsPlaying(false);
-            useMusicStore.getState().setPlaybackVolume(null);
         }
     }, [totalDuration, setPlaying, findTrackAtPosition]);
 
@@ -212,46 +219,26 @@ export function useTimelinePlayback(
             const { currentTime, isPlaying: musicPlaying, duration: audioDuration, pendingSeekSeconds } = store;
             let idx = activeTrackIndexRef.current;
 
-            // Re-derive index if external code (e.g. AudioPlayer skip) moved playbackPosition
-            if (idx >= 0 && idx < tracks.length) {
-                const storePos = useEditingStore.getState().playbackPosition;
-                if (storePos < cumulativeElapsed[idx] || storePos >= cumulativeElapsed[idx + 1]) {
-                    for (let i = 0; i < tracks.length; i++) {
-                        if (storePos < cumulativeElapsed[i + 1]) { idx = i; break; }
-                    }
-                    activeTrackIndexRef.current = idx;
+            // Re-derive index if needed: on initial mount (idx === -1) or when
+            // external code (e.g. AudioPlayer auto-advance) moved playbackPosition
+            const storePos = useEditingStore.getState().playbackPosition;
+            let needsReDerive = idx < 0;
+            if (!needsReDerive && idx >= 0 && idx < tracks.length) {
+                needsReDerive = storePos < cumulativeElapsed[idx] || storePos >= cumulativeElapsed[idx + 1];
+            }
+            if (needsReDerive && tracks.length > 0) {
+                for (let i = 0; i < tracks.length; i++) {
+                    if (storePos < cumulativeElapsed[i + 1]) { idx = i; break; }
                 }
+                if (idx < 0) idx = tracks.length - 1;
+                activeTrackIndexRef.current = idx;
+                activeTrackIdRef.current = tracks[idx]?.id ?? null;
             }
 
-            if (!musicPlaying && idx >= 0) {
-                // Distinguish user-pause from track-end:
-                // Only advance if the track actually reached its trim-end boundary.
-                const currentTrack = tracks[idx];
-                const trimEndBoundary = currentTrack.duration - currentTrack.trimEnd;
-                if (currentTime < trimEndBoundary - 0.15) {
-                    // User paused (track hasn't ended) — stop the loop
-                    rafId = requestAnimationFrame(tick);
-                    return;
-                }
-
-                const nextIdx = idx + 1;
-                if (nextIdx < tracks.length) {
-                    const next = tracks[nextIdx];
-                    activeTrackIndexRef.current = nextIdx;
-                    activeTrackIdRef.current = next.id;
-                    // Apply volume for the new track
-                    const masterVol = useEditingStore.getState().volume;
-                    useMusicStore.getState().setPlaybackVolume(next.volume * masterVol);
-                    useMusicStore.getState().setPlayingTrack(next.trackId, next.variant, next.trimStart, next.trimStart, next.trimEnd);
-                    const elapsed = cumulativeElapsed[nextIdx];
-                    setPlaybackPosition(elapsed);
-                } else {
-                    setPlaying(false);
-                    setPlaybackPosition(totalDuration);
-                    useMusicStore.getState().setPlaybackVolume(null);
-                    return;
-                }
-            } else if (idx >= 0 && idx < tracks.length) {
+            // Cursor sync — only update while music is actively playing.
+            // Auto-advance between tracks is handled by AudioPlayer.onEnded,
+            // which works even when this component is unmounted.
+            if (musicPlaying && idx >= 0 && idx < tracks.length) {
                 if (audioDuration <= 0 || pendingSeekSeconds !== null) {
                     rafId = requestAnimationFrame(tick);
                     return;

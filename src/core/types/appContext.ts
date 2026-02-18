@@ -32,6 +32,10 @@ export interface VideoCardContext {
  */
 export interface SuggestedTrafficContext {
     type: 'suggested-traffic';
+    /** When this CSV snapshot was uploaded (formatted date string) */
+    snapshotDate?: string;
+    /** User-defined label for this snapshot, e.g. "Before title change" */
+    snapshotLabel?: string;
     /** The user's video that YouTube suggests alongside the selected videos */
     sourceVideo: {
         videoId: string;

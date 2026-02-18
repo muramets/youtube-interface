@@ -229,13 +229,63 @@ export const AudioPlayer: React.FC = () => {
             setStoreDuration(audio.duration || 0);
         };
         const onEnded = () => {
-            const { repeatMode: rm, playbackQueue: queue } = useMusicStore.getState();
+            const { repeatMode: rm, playbackQueue: queue, playbackVolume: pv } = useMusicStore.getState();
+
             if (rm === 'one') {
-                // Repeat current track
                 audio.currentTime = 0;
                 audio.play();
                 return;
             }
+
+            // ── Timeline mode: auto-advance using editingStore ──────────
+            if (pv !== null) {
+                const editState = useEditingStore.getState();
+                const tlTracks = editState.tracks;
+                const pos = editState.playbackPosition;
+
+                // Find current track index from playback position
+                let currentIdx = -1;
+                let elapsed = 0;
+                for (let i = 0; i < tlTracks.length; i++) {
+                    const dur = getEffectiveDuration(tlTracks[i]);
+                    if (pos < elapsed + dur + 0.01) {
+                        currentIdx = i;
+                        break;
+                    }
+                    elapsed += dur;
+                }
+                if (currentIdx < 0) currentIdx = tlTracks.length - 1;
+
+                const nextIdx = currentIdx + 1;
+                if (nextIdx < tlTracks.length) {
+                    const next = tlTracks[nextIdx];
+                    const masterVol = editState.volume;
+                    useMusicStore.getState().setPlaybackVolume(next.volume * masterVol);
+                    prevAudioUrlRef.current = null;
+                    setPlayingTrack(next.trackId, next.variant, next.trimStart, next.trimStart, next.trimEnd);
+                    // Update editing playback position to start of next track
+                    let nextElapsed = 0;
+                    for (let i = 0; i < nextIdx; i++) {
+                        nextElapsed += getEffectiveDuration(tlTracks[i]);
+                    }
+                    editState.setPlaybackPosition(nextElapsed);
+                } else if (rm === 'all' && tlTracks.length > 0) {
+                    const first = tlTracks[0];
+                    const masterVol = editState.volume;
+                    useMusicStore.getState().setPlaybackVolume(first.volume * masterVol);
+                    prevAudioUrlRef.current = null;
+                    setPlayingTrack(first.trackId, first.variant, first.trimStart, first.trimStart, first.trimEnd);
+                    editState.setPlaybackPosition(0);
+                } else {
+                    // End of timeline
+                    setIsPlaying(false);
+                    editState.setPlaying(false);
+                    useMusicStore.getState().setPlaybackVolume(null);
+                }
+                return;
+            }
+
+            // ── Library mode: auto-advance using playbackQueue ──────────
             const currentIndex = queue.indexOf(playingTrackId!);
             if (currentIndex >= 0 && currentIndex < queue.length - 1) {
                 const nextId = queue[currentIndex + 1];
@@ -244,7 +294,6 @@ export const AudioPlayer: React.FC = () => {
                     setPlayingTrack(next.id, next.vocalUrl ? 'vocal' : 'instrumental');
                 }
             } else if (rm === 'all' && queue.length > 0) {
-                // Wrap to first track in queue
                 const firstId = queue[0];
                 const first = findTrackById(firstId);
                 if (first) {
@@ -286,6 +335,26 @@ export const AudioPlayer: React.FC = () => {
         if (audio && audio.duration && isFinite(audio.duration)) {
             audio.currentTime = position * audio.duration;
             setStoreTime(audio.currentTime);
+
+            // Sync editing timeline cursor immediately for timeline mode
+            const pv = useMusicStore.getState().playbackVolume;
+            if (pv !== null) {
+                const editState = useEditingStore.getState();
+                const tlTracks = editState.tracks;
+                const pos = editState.playbackPosition;
+                // Find current timeline track from playbackPosition
+                let elapsed = 0;
+                for (let i = 0; i < tlTracks.length; i++) {
+                    const dur = getEffectiveDuration(tlTracks[i]);
+                    if (pos < elapsed + dur + 0.01) {
+                        // Compute new timeline position from seek
+                        const newPos = elapsed + (audio.currentTime - tlTracks[i].trimStart);
+                        editState.setPlaybackPosition(Math.max(elapsed, Math.min(elapsed + dur, newPos)));
+                        break;
+                    }
+                    elapsed += dur;
+                }
+            }
         }
     }, [setStoreTime]);
 

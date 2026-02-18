@@ -63,6 +63,9 @@ export const TRAFFIC_SOURCE_HEADER = '### Your Video (Source)';
 /** Section header for suggested videos that YouTube shows alongside the user's video. */
 export const TRAFFIC_SUGGESTED_HEADER = '### Selected Suggested Videos (YouTube shows your video alongside these)';
 
+/** Explanation of what the snapshot data represents — gives Gemini domain awareness. */
+export const TRAFFIC_SNAPSHOT_CONTEXT = 'This data is from a CSV export of "Suggested Traffic" from YouTube Studio — it shows which other videos YouTube recommends your video alongside.';
+
 // -----------------------------------------------------------------------------
 // Conversation Memory — Summary generation (gemini.ts → generateSummary)
 // Used when conversation exceeds context window and older messages get summarized.

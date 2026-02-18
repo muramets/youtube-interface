@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useMusicStore } from './musicStore';
 import type {
     EditingState,
     TimelineTrack,
@@ -168,6 +169,23 @@ export const useEditingStore = create<EditingState & EditingActions>((set, get) 
         const hydrated = session.tracks
             .map((s) => hydrateTrack(s, musicTracks))
             .filter((t): t is TimelineTrack => t !== null);
+
+        // Restore playback state if audio is still playing a track from this timeline
+        const music = useMusicStore.getState();
+        let playbackPosition = 0;
+        let isPlaying = false;
+
+        if (music.isPlaying && music.playingTrackId) {
+            const idx = hydrated.findIndex((t) => t.id === music.playingTrackId);
+            if (idx >= 0) {
+                const elapsed = hydrated.slice(0, idx).reduce(
+                    (sum, t) => sum + getEffectiveDuration(t), 0,
+                );
+                playbackPosition = elapsed + Math.max(0, music.currentTime - hydrated[idx].trimStart);
+                isPlaying = true;
+            }
+        }
+
         set({
             tracks: hydrated,
             imageUrl: session.imageUrl,
@@ -178,8 +196,8 @@ export const useEditingStore = create<EditingState & EditingActions>((set, get) 
             loopCount: session.loopCount,
             volume: session.volume,
             isLocked: session.isLocked ?? false,
-            playbackPosition: 0,
-            isPlaying: false,
+            playbackPosition,
+            isPlaying,
         });
     },
 

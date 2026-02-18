@@ -22,8 +22,7 @@ export const useChannelStore = create<ChannelState>()(
             },
 
             addChannel: async (userId, name, avatarUrl) => {
-                const handle = `@${name.replace(/\s+/g, '').toLowerCase()}${Math.floor(Math.random() * 1000)}`;
-                return await ChannelService.createChannel(userId, { name, handle, avatarUrl });
+                return await ChannelService.createChannel(userId, { name, avatarUrl });
             },
 
             updateChannel: async (userId, channelId, updates) => {
