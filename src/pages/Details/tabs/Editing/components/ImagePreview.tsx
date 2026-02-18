@@ -5,6 +5,12 @@ import { useEditingStore } from '../../../../../core/stores/editingStore';
 import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';
 import { EditingService } from '../../../../../core/services/editingService';
+import { resizeImageToBlob } from '../../../../../core/utils/imageUtils';
+
+/** Max image dimension (px) — matches 4K UHD (3840×2160). */
+const MAX_IMAGE_DIMENSION = 3840;
+/** JPEG quality for resized images — maximum quality to preserve detail. PNG is always lossless. */
+const IMAGE_QUALITY = 1.0;
 
 interface ImagePreviewProps {
     defaultImageUrl: string;
@@ -47,21 +53,60 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ defaultImageUrl, vid
         // Show optimistic preview immediately via blob URL
         const blobUrl = URL.createObjectURL(file);
         const img = new Image();
-        img.onload = () => {
+        img.onload = async () => {
             setImage(blobUrl, img.naturalWidth, img.naturalHeight);
 
-            // Upload to Firebase Storage in background
-            EditingService.uploadImage(userId, channelId, videoId, file)
-                .then(({ storagePath, downloadUrl }) => {
-                    // Replace blob URL with persistent download URL
-                    setImage(downloadUrl, img.naturalWidth, img.naturalHeight);
-                    setImageStoragePath(storagePath);
-                    URL.revokeObjectURL(blobUrl);
-                })
-                .catch((err) => {
-                    console.error('[ImagePreview] Upload failed:', err);
-                    // Keep blob URL as fallback — will be lost on refresh
-                });
+            const needsResize = Math.max(img.naturalWidth, img.naturalHeight) > MAX_IMAGE_DIMENSION;
+
+            if (!needsResize) {
+                // Image fits within bounds — upload original (zero quality loss)
+                EditingService.uploadImage(userId, channelId, videoId, file)
+                    .then(({ storagePath, downloadUrl }) => {
+                        setImage(downloadUrl, img.naturalWidth, img.naturalHeight);
+                        setImageStoragePath(storagePath);
+                        URL.revokeObjectURL(blobUrl);
+                    })
+                    .catch((err) => {
+                        console.error('[ImagePreview] Upload failed:', err);
+                    });
+                return;
+            }
+
+            // Oversized image — resize to max render resolution (4K)
+            try {
+                const resized = await resizeImageToBlob(file, MAX_IMAGE_DIMENSION, IMAGE_QUALITY, file.type);
+                const resizedFile = new File([resized], file.name, { type: file.type });
+
+                // Re-read resized dimensions for accurate store state
+                const resizedImg = new Image();
+                const resizedUrl = URL.createObjectURL(resized);
+                resizedImg.onload = () => {
+                    const { naturalWidth: rw, naturalHeight: rh } = resizedImg;
+                    URL.revokeObjectURL(resizedUrl);
+
+                    EditingService.uploadImage(userId, channelId, videoId, resizedFile)
+                        .then(({ storagePath, downloadUrl }) => {
+                            setImage(downloadUrl, rw, rh);
+                            setImageStoragePath(storagePath);
+                            URL.revokeObjectURL(blobUrl);
+                        })
+                        .catch((err) => {
+                            console.error('[ImagePreview] Upload failed:', err);
+                        });
+                };
+                resizedImg.src = resizedUrl;
+            } catch (err) {
+                console.error('[ImagePreview] Resize failed, uploading original:', err);
+                EditingService.uploadImage(userId, channelId, videoId, file)
+                    .then(({ storagePath, downloadUrl }) => {
+                        setImage(downloadUrl, img.naturalWidth, img.naturalHeight);
+                        setImageStoragePath(storagePath);
+                        URL.revokeObjectURL(blobUrl);
+                    })
+                    .catch((uploadErr) => {
+                        console.error('[ImagePreview] Upload failed:', uploadErr);
+                    });
+            }
         };
         img.src = blobUrl;
     }, [user?.uid, currentChannel?.id, videoId, setImage, setImageStoragePath]);

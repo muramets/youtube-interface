@@ -80,7 +80,7 @@ export const RESOLUTION_MAP: Record<string, { width: number; height: number }> =
 
 export async function renderWithFfmpeg(params: RenderParams): Promise<void> {
     const {
-        imagePath, tracks, height, videoBitrate,
+        imagePath, tracks, width, height, videoBitrate,
         loopCount, masterVolume, outputPath, onProgress,
     } = params;
 
@@ -127,6 +127,11 @@ export async function renderWithFfmpeg(params: RenderParams): Promise<void> {
         `${concatInputs.join('')}concat=n=${totalSegments}:v=0:a=1[mixed]`
     );
 
+    // Add video scale filter to the filter_complex (cannot use -vf with -filter_complex)
+    filterParts.push(
+        `[0:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2[vout]`
+    );
+
     const filterComplex = filterParts.join(';');
 
     // ── 2. Calculate expected total duration ───────────────────────────
@@ -155,7 +160,7 @@ export async function renderWithFfmpeg(params: RenderParams): Promise<void> {
         '-filter_complex', filterComplex,
 
         // Video encoding (static image → H.264)
-        '-map', '0:v',
+        '-map', '[vout]',
         '-c:v', 'libx264',
         '-tune', 'stillimage',        // optimize for static content
         '-preset', 'veryfast',         // fast encode — no quality loss for static images

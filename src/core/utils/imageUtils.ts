@@ -1,4 +1,4 @@
-export const resizeImage = (file: File, maxWidth: number = 640, quality: number = 0.6): Promise<string> => {
+export const resizeImage = (file: File, maxDimension: number = 640, quality: number = 0.6, mimeType: string = 'image/jpeg'): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -10,9 +10,11 @@ export const resizeImage = (file: File, maxWidth: number = 640, quality: number 
                 let width = img.width;
                 let height = img.height;
 
-                if (width > maxWidth) {
-                    height = (maxWidth / width) * height;
-                    width = maxWidth;
+                // Scale down to fit within maxDimension × maxDimension bounding box
+                const scale = Math.min(1, maxDimension / Math.max(width, height));
+                if (scale < 1) {
+                    width = Math.round(width * scale);
+                    height = Math.round(height * scale);
                 }
 
                 canvas.width = width;
@@ -21,7 +23,7 @@ export const resizeImage = (file: File, maxWidth: number = 640, quality: number 
                 const ctx = canvas.getContext('2d');
                 if (ctx) {
                     ctx.drawImage(img, 0, 0, width, height);
-                    resolve(canvas.toDataURL('image/jpeg', quality));
+                    resolve(canvas.toDataURL(mimeType, quality));
                 } else {
                     reject(new Error('Failed to get canvas context'));
                 }
@@ -32,7 +34,7 @@ export const resizeImage = (file: File, maxWidth: number = 640, quality: number 
     });
 };
 
-export const resizeImageToBlob = (file: File, maxWidth: number = 640, quality: number = 0.6): Promise<Blob> => {
+export const resizeImageToBlob = (file: File, maxDimension: number = 640, quality: number = 0.6, mimeType: string = 'image/jpeg'): Promise<Blob> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -44,9 +46,11 @@ export const resizeImageToBlob = (file: File, maxWidth: number = 640, quality: n
                 let width = img.width;
                 let height = img.height;
 
-                if (width > maxWidth) {
-                    height = (maxWidth / width) * height;
-                    width = maxWidth;
+                // Scale down to fit within maxDimension × maxDimension bounding box
+                const scale = Math.min(1, maxDimension / Math.max(width, height));
+                if (scale < 1) {
+                    width = Math.round(width * scale);
+                    height = Math.round(height * scale);
                 }
 
                 canvas.width = width;
@@ -63,7 +67,7 @@ export const resizeImageToBlob = (file: File, maxWidth: number = 640, quality: n
                                 reject(new Error('Failed to create blob'));
                             }
                         },
-                        'image/jpeg',
+                        mimeType,
                         quality
                     );
                 } else {

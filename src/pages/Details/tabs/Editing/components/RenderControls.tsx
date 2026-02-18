@@ -61,15 +61,11 @@ export const RenderControls: React.FC<RenderControlsProps> = ({ videoId, videoTi
     const startJob = useRenderQueueStore((s) => s.startJob);
     const currentChannel = useChannelStore((s) => s.currentChannel);
 
-    // Auto-select max available resolution when image dimensions change
+    // Auto-select best available resolution when image dimensions change
     useEffect(() => {
         if (imageWidth == null || imageHeight == null) return;
         const best = maxAvailableResolution(imageWidth, imageHeight);
-        const currentPreset = RESOLUTION_PRESETS[useEditingStore.getState().resolution];
-        // Only auto-clamp if current selection exceeds image
-        if (currentPreset.width > imageWidth || currentPreset.height > imageHeight) {
-            setResolution(best);
-        }
+        setResolution(best);
     }, [imageWidth, imageHeight, setResolution]);
 
     const totalTrackDuration = tracks.reduce((sum, t) => sum + getEffectiveDuration(t), 0);
