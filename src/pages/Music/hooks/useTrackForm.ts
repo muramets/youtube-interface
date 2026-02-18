@@ -89,6 +89,8 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
     const [previewPlaying, setPreviewPlaying] = useState<'vocal' | 'instrumental' | null>(null);
     const vocalUrlRef = useRef<string | null>(null);
     const instrumentalUrlRef = useRef<string | null>(null);
+    // Was the track already playing in the global AudioPlayer when the modal opened?
+    const wasPlayingOnOpenRef = useRef(false);
 
     const stopPreview = useCallback(() => {
         if (audioPreviewRef.current) {
@@ -198,6 +200,9 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
     // Pre-populate form when opening in edit mode
     useEffect(() => {
         if (!isOpen || !editTrack) return;
+        // Snapshot: was this track already playing in the global AudioPlayer?
+        const { playingTrackId, isPlaying } = useMusicStore.getState();
+        wasPlayingOnOpenRef.current = playingTrackId === editTrack.id && isPlaying;
         /* eslint-disable react-hooks/set-state-in-effect -- legitimate prop-sync on modal open */
         setTitle(editTrack.title || '');
         setArtist(editTrack.artist || '');
@@ -220,8 +225,9 @@ export function useTrackForm({ isOpen, onClose, userId, channelId, editTrack }: 
     const handleClose = useCallback(() => {
         setIsClosing(true);
         stopPreview();
-        // Stop global player if it was started from this modal
-        if (editTrackId && useMusicStore.getState().playingTrackId === editTrackId) {
+        // Only stop the global player if playback was started from this modal's preview.
+        // If the track was already playing before the modal opened, leave it alone.
+        if (!wasPlayingOnOpenRef.current && editTrackId && useMusicStore.getState().playingTrackId === editTrackId) {
             useMusicStore.getState().setPlayingTrack(null);
         }
         if (vocalUrlRef.current) { URL.revokeObjectURL(vocalUrlRef.current); vocalUrlRef.current = null; }

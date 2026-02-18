@@ -12,13 +12,19 @@ export const LoginPage: React.FC = () => {
         }
     }, [user, isLoading, navigate]);
 
-    if (isLoading) {
-        return (
-            <div className="min-h-screen bg-bg-primary flex items-center justify-center text-text-primary">
-                <div className="w-8 h-8 border-4 border-border border-t-accent rounded-full animate-spin"></div>
-            </div>
-        );
-    }
+    // Dismiss the HTML app-loader overlay when login form is visible
+    useEffect(() => {
+        if (!isLoading) {
+            const el = document.getElementById('app-loader');
+            if (el) {
+                el.style.opacity = '0';
+                setTimeout(() => el.remove(), 150);
+            }
+        }
+    }, [isLoading]);
+
+    // While auth is resolving, render nothing — HTML app-loader is visible
+    if (isLoading) return null;
 
     return (
         <div className="min-h-screen bg-bg-primary flex flex-col items-center justify-center p-4 font-sans">

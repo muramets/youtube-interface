@@ -448,32 +448,41 @@ export const MusicPage: React.FC = () => {
             {/* Header */}
             <div className="flex-shrink-0 px-6 pt-6 pb-4">
                 {/* Library Switcher (shown when shared libraries exist) */}
-                {sharedLibraries.length > 0 && !activePlaylistId && (
-                    <div className="flex items-center gap-1.5 mb-4 p-1 bg-white/[0.04] rounded-xl w-fit">
-                        <button
-                            onClick={() => setActiveLibrarySource(null)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${!activeLibrarySource
-                                ? 'bg-white/[0.1] text-text-primary shadow-sm'
-                                : 'text-text-secondary hover:text-text-primary'
-                                }`}
-                        >
-                            My Library
-                        </button>
-                        {sharedLibraries.map((lib: SharedLibraryEntry) => (
+                {/* Library Switcher — animated slide-down via CSS Grid 0fr→1fr */}
+                <div
+                    style={{
+                        display: 'grid',
+                        gridTemplateRows: sharedLibraries.length > 0 && !activePlaylistId ? '1fr' : '0fr',
+                        transition: 'grid-template-rows 0.25s ease-out',
+                    }}
+                >
+                    <div style={{ overflow: 'hidden' }}>
+                        <div className="flex items-center gap-1.5 mb-4 p-1 bg-white/[0.04] rounded-xl w-fit">
                             <button
-                                key={lib.ownerChannelId}
-                                onClick={() => setActiveLibrarySource(lib)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${activeLibrarySource?.ownerChannelId === lib.ownerChannelId
+                                onClick={() => setActiveLibrarySource(null)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${!activeLibrarySource
                                     ? 'bg-white/[0.1] text-text-primary shadow-sm'
                                     : 'text-text-secondary hover:text-text-primary'
                                     }`}
                             >
-                                <Share2 size={11} />
-                                {lib.ownerChannelName}
+                                My Library
                             </button>
-                        ))}
+                            {sharedLibraries.map((lib: SharedLibraryEntry) => (
+                                <button
+                                    key={lib.ownerChannelId}
+                                    onClick={() => setActiveLibrarySource(lib)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${activeLibrarySource?.ownerChannelId === lib.ownerChannelId
+                                        ? 'bg-white/[0.1] text-text-primary shadow-sm'
+                                        : 'text-text-secondary hover:text-text-primary'
+                                        }`}
+                                >
+                                    <Share2 size={11} />
+                                    {lib.ownerChannelName}
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                )}
+                </div>
                 <div className="flex items-center justify-between mb-5">
                     <div className="flex items-center gap-3">
                         {activePlaylistId ? (
@@ -524,38 +533,36 @@ export const MusicPage: React.FC = () => {
                                 </span>
                             ) : null;
                         })()}
-                        {(sortableCategories.length > 0 || hasLikedTracks) && (
-                            <div className={`flex items-center rounded-full overflow-hidden transition-colors ${musicSortBy !== 'default' && musicSortBy !== 'playlistOrder' ? 'bg-hover-bg' : ''}`}>
-                                <SortButton
-                                    sortOptions={[
-                                        { label: activePlaylistId && activePlaylistId !== 'liked' ? 'Date Added' : 'Added to Library', value: 'default' },
-                                        ...(activePlaylistId && activePlaylistId !== 'liked' ? [{ label: 'Playlist Order', value: 'playlistOrder' }] : []),
-                                        ...(hasLikedTracks ? [{ label: 'Liked', value: 'liked' }] : []),
-                                        ...sortableCategories.map(cat => ({ label: cat, value: `tag:${cat}` }))
-                                    ]}
-                                    activeSort={musicSortBy}
-                                    onSortChange={setMusicSortBy}
-                                    buttonClassName="w-[34px] h-[34px] flex items-center justify-center transition-colors border-none cursor-pointer relative flex-shrink-0 bg-transparent text-text-primary hover:text-white"
-                                />
-                                {musicSortBy !== 'playlistOrder' && (
-                                    <>
-                                        <div className="w-[1px] h-[16px] bg-white/15" />
-                                        <PortalTooltip content={
-                                            musicSortBy === 'default'
-                                                ? (musicSortAsc ? 'Oldest First' : 'Newest First')
-                                                : (musicSortAsc ? 'Ascending' : 'Descending')
-                                        }>
-                                            <button
-                                                onClick={() => setMusicSortAsc(!musicSortAsc)}
-                                                className="w-[30px] h-[34px] flex items-center justify-center border-none cursor-pointer bg-transparent text-text-primary hover:text-white transition-colors"
-                                            >
-                                                {musicSortAsc ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
-                                            </button>
-                                        </PortalTooltip>
-                                    </>
-                                )}
-                            </div>
-                        )}
+                        <div className={`flex items-center rounded-full overflow-hidden transition-colors ${musicSortBy !== 'default' && musicSortBy !== 'playlistOrder' ? 'bg-hover-bg' : ''}`}>
+                            <SortButton
+                                sortOptions={[
+                                    { label: activePlaylistId && activePlaylistId !== 'liked' ? 'Date Added' : 'Added to Library', value: 'default' },
+                                    ...(activePlaylistId && activePlaylistId !== 'liked' ? [{ label: 'Playlist Order', value: 'playlistOrder' }] : []),
+                                    ...(hasLikedTracks ? [{ label: 'Liked', value: 'liked' }] : []),
+                                    ...sortableCategories.map(cat => ({ label: cat, value: `tag:${cat}` }))
+                                ]}
+                                activeSort={musicSortBy}
+                                onSortChange={setMusicSortBy}
+                                buttonClassName="w-[34px] h-[34px] flex items-center justify-center transition-colors border-none cursor-pointer relative flex-shrink-0 bg-transparent text-text-primary hover:text-white"
+                            />
+                            {musicSortBy !== 'playlistOrder' && (
+                                <>
+                                    <div className="w-[1px] h-[16px] bg-white/15" />
+                                    <PortalTooltip content={
+                                        musicSortBy === 'default'
+                                            ? (musicSortAsc ? 'Oldest First' : 'Newest First')
+                                            : (musicSortAsc ? 'Ascending' : 'Descending')
+                                    }>
+                                        <button
+                                            onClick={() => setMusicSortAsc(!musicSortAsc)}
+                                            className="w-[30px] h-[34px] flex items-center justify-center border-none cursor-pointer bg-transparent text-text-primary hover:text-white transition-colors"
+                                        >
+                                            {musicSortAsc ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                                        </button>
+                                    </PortalTooltip>
+                                </>
+                            )}
+                        </div>
                         {!isReadOnly && (
                             <>
                                 <PortalTooltip content={<span className="whitespace-nowrap">Manage genres & tags</span>} enterDelay={500} disabled={!!showSettings} noAnimation>

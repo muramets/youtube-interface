@@ -56,7 +56,7 @@ function AppContent() {
 
   return (
     <div className="h-screen flex flex-col bg-bg-primary text-text-primary overflow-hidden">
-      <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="w-2 h-2 rounded-full bg-text-tertiary animate-pulse" /></div>}>
+      <Suspense fallback={null}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           {/* VideoEditPage: Full-page layout without main sidebar */}
