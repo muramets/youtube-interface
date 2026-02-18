@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Search, PanelRightClose } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Search, PanelRightClose, Share2 } from 'lucide-react';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
-import { useMusicStore, selectAllTracks, selectAllPlaylists } from '../../../../../core/stores/musicStore';
+import { useMusicStore } from '../../../../../core/stores/musicStore';
 import { useEditingStore } from '../../../../../core/stores/editingStore';
 import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';
@@ -9,14 +9,54 @@ import { useTrackFilters } from '../../../../../core/hooks/useTrackFilters';
 import { CompactFilterBar } from './CompactFilterBar';
 import { TrackBrowserItem } from './TrackBrowserItem';
 import { PlaylistBrowserItem } from './PlaylistBrowserItem';
+import type { SharedLibraryEntry } from '../../../../../core/types/musicSharing';
+
+/** Shared library tab button with truncation-aware tooltip */
+const SharedLibraryTab: React.FC<{
+    lib: SharedLibraryEntry;
+    isActive: boolean;
+    onClick: () => void;
+}> = ({ lib, isActive, onClick }) => {
+    const textRef = useRef<HTMLSpanElement>(null);
+    const [isTruncated, setIsTruncated] = useState(false);
+
+    const checkTruncation = useCallback(() => {
+        const el = textRef.current;
+        if (el) setIsTruncated(el.scrollWidth > el.clientWidth);
+    }, []);
+
+    useEffect(() => {
+        checkTruncation();
+        const observer = new ResizeObserver(checkTruncation);
+        if (textRef.current) observer.observe(textRef.current);
+        return () => observer.disconnect();
+    }, [checkTruncation]);
+
+    return (
+        <PortalTooltip content={lib.ownerChannelName} enterDelay={300} triggerClassName="flex-1 min-w-0" disabled={!isTruncated}>
+            <button
+                onClick={onClick}
+                className={`w-full px-2 py-1 rounded-md text-[10px] font-medium transition-all flex items-center justify-center gap-1 ${isActive
+                    ? 'bg-white/[0.1] text-text-primary shadow-sm'
+                    : 'text-text-secondary hover:text-text-primary'
+                    }`}
+            >
+                <Share2 size={9} className="flex-shrink-0" />
+                <span ref={textRef} className="truncate">{lib.ownerChannelName}</span>
+            </button>
+        </PortalTooltip>
+    );
+};
 
 type BrowserTab = 'tracks' | 'playlists';
 
 export const TrackBrowser: React.FC = () => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const allTracks = useMusicStore(selectAllTracks);
-    const allPlaylists = useMusicStore(selectAllPlaylists);
+    const ownTracks = useMusicStore((s) => s.tracks);
+    const ownPlaylists = useMusicStore((s) => s.musicPlaylists);
+    const sharedTracks = useMusicStore((s) => s.sharedTracks);
+    const sharedPlaylists = useMusicStore((s) => s.sharedPlaylists);
     const subscribe = useMusicStore((s) => s.subscribe);
     const subscribePlaylists = useMusicStore((s) => s.subscribePlaylists);
     const loadSettings = useMusicStore((s) => s.loadSettings);
@@ -28,6 +68,9 @@ export const TrackBrowser: React.FC = () => {
 
     const userId = user?.uid || '';
     const channelId = currentChannel?.id || '';
+
+    // Library source: null = own, SharedLibraryEntry = specific shared library
+    const [librarySource, setLibrarySource] = useState<SharedLibraryEntry | null>(null);
 
     // Ensure own tracks + playlists are loaded
     useEffect(() => {
@@ -53,8 +96,20 @@ export const TrackBrowser: React.FC = () => {
     const [activeTab, setActiveTab] = useState<BrowserTab>('tracks');
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Independent filter state via shared hook
-    const filters = useTrackFilters(allTracks, searchQuery);
+    // Pick tracks based on library source
+    const sourceTracks = useMemo(() => {
+        if (!librarySource) return ownTracks;
+        return sharedTracks;
+    }, [librarySource, ownTracks, sharedTracks]);
+
+    // Pick playlists based on library source
+    const sourcePlaylists = useMemo(() => {
+        if (!librarySource) return ownPlaylists;
+        return sharedPlaylists;
+    }, [librarySource, ownPlaylists, sharedPlaylists]);
+
+    // Independent filter state via shared hook (operates on source-specific tracks)
+    const filters = useTrackFilters(sourceTracks, searchQuery);
 
     // Track IDs already on timeline (for highlighting)
     const timelineTrackIds = useMemo(
@@ -64,10 +119,17 @@ export const TrackBrowser: React.FC = () => {
 
     // Filtered playlists by search query
     const filteredPlaylists = useMemo(() => {
-        if (!searchQuery.trim()) return allPlaylists;
+        if (!searchQuery.trim()) return sourcePlaylists;
         const q = searchQuery.toLowerCase();
-        return allPlaylists.filter((p) => p.name.toLowerCase().includes(q));
-    }, [allPlaylists, searchQuery]);
+        return sourcePlaylists.filter((p) => p.name.toLowerCase().includes(q));
+    }, [sourcePlaylists, searchQuery]);
+
+    // Reset library source if shared libraries become empty
+    useEffect(() => {
+        if (sharedLibraries.length === 0 && librarySource) {
+            setLibrarySource(null);
+        }
+    }, [sharedLibraries.length, librarySource]);
 
     return (
         <div className="flex flex-col h-full">
@@ -82,6 +144,39 @@ export const TrackBrowser: React.FC = () => {
                         <PanelRightClose size={16} />
                     </button>
                 </PortalTooltip>
+            </div>
+
+            {/* Library Switcher — animated slide-down via CSS Grid 0fr→1fr */}
+            <div
+                style={{
+                    display: 'grid',
+                    gridTemplateRows: sharedLibraries.length > 0 ? '1fr' : '0fr',
+                    transition: 'grid-template-rows 0.25s ease-out',
+                }}
+            >
+                <div style={{ overflow: 'hidden' }}>
+                    <div className="flex items-center gap-1 px-3 pt-2.5 pb-1">
+                        <div className="flex items-center gap-0.5 p-0.5 bg-white/[0.04] rounded-lg w-full">
+                            <button
+                                onClick={() => setLibrarySource(null)}
+                                className={`flex-1 min-w-0 px-2 py-1 rounded-md text-[10px] font-medium transition-all truncate ${!librarySource
+                                    ? 'bg-white/[0.1] text-text-primary shadow-sm'
+                                    : 'text-text-secondary hover:text-text-primary'
+                                    }`}
+                            >
+                                My Library
+                            </button>
+                            {sharedLibraries.map((lib: SharedLibraryEntry) => (
+                                <SharedLibraryTab
+                                    key={lib.ownerChannelId}
+                                    lib={lib}
+                                    isActive={librarySource?.ownerChannelId === lib.ownerChannelId}
+                                    onClick={() => setLibrarySource(lib)}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Tab Switcher */}
@@ -128,7 +223,7 @@ export const TrackBrowser: React.FC = () => {
                 {activeTab === 'tracks' ? (
                     filters.filteredTracks.length === 0 ? (
                         <div className="flex items-center justify-center h-20 text-xs text-text-tertiary">
-                            {allTracks.length === 0 ? 'No tracks in library' : 'No matches'}
+                            {sourceTracks.length === 0 ? 'No tracks in library' : 'No matches'}
                         </div>
                     ) : (
                         filters.filteredTracks.map((track) => (
@@ -143,7 +238,7 @@ export const TrackBrowser: React.FC = () => {
                 ) : (
                     filteredPlaylists.length === 0 ? (
                         <div className="flex items-center justify-center h-20 text-xs text-text-tertiary">
-                            {allPlaylists.length === 0 ? 'No playlists' : 'No matches'}
+                            {sourcePlaylists.length === 0 ? 'No playlists' : 'No matches'}
                         </div>
                     ) : (
                         filteredPlaylists.map((playlist) => (
@@ -151,7 +246,7 @@ export const TrackBrowser: React.FC = () => {
                                 key={playlist.id}
                                 playlist={playlist}
                                 timelineTrackIds={timelineTrackIds}
-                                browseTracks={allTracks}
+                                browseTracks={sourceTracks}
                             />
                         ))
                     )
@@ -161,8 +256,8 @@ export const TrackBrowser: React.FC = () => {
             {/* Footer count */}
             <div className="px-3 py-2 border-t border-border text-[10px] text-text-tertiary text-center">
                 {activeTab === 'tracks'
-                    ? `${filters.filteredTracks.length} of ${allTracks.length} tracks`
-                    : `${filteredPlaylists.length} of ${allPlaylists.length} playlists`
+                    ? `${filters.filteredTracks.length} of ${sourceTracks.length} tracks`
+                    : `${filteredPlaylists.length} of ${sourcePlaylists.length} playlists`
                 }
             </div>
         </div>
