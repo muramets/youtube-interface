@@ -22,6 +22,8 @@ export interface TimelineTrack {
     coverUrl?: string;
     /** Audio URL for the selected variant */
     audioUrl: string;
+    /** Firebase Storage path for the selected variant (for server-side rendering) */
+    audioStoragePath?: string;
     /** Pre-computed waveform peaks for the selected variant */
     peaks?: number[];
     /** Seconds trimmed from the beginning (audio starts at trimStart) */
@@ -91,6 +93,7 @@ export function createTimelineTrack(track: Track, variant: 'vocal' | 'instrument
         artist: track.artist,
         coverUrl: track.coverUrl,
         audioUrl: (isVocal ? track.vocalUrl : track.instrumentalUrl) || '',
+        audioStoragePath: isVocal ? track.vocalStoragePath : track.instrumentalStoragePath,
         peaks: isVocal ? track.vocalPeaks : track.instrumentalPeaks,
         trimStart: 0,
         trimEnd: 0,

@@ -1,21 +1,19 @@
 /**
- * renderService.ts — Main-thread orchestrator for video rendering
+ * renderService.ts — Client-side orchestrator for server-side video rendering
  *
- * Responsibilities:
- * 1. Load image → createImageBitmap (transferable)
- * 2. Mix audio → raw Float32Array channels (transferable)
- * 3. Spawn render.worker.ts, transfer data zero-copy
- * 4. Forward progress/complete/error messages to caller
- * 5. Handle abort via worker.postMessage({ type: 'abort' })
+ * V2: Instead of rendering locally via WebCodecs/Mediabunny Worker,
+ * this now calls the `startRender` Cloud Function which enqueues a
+ * Cloud Run Job with ffmpeg. Progress is tracked via Firestore onSnapshot.
  */
-import {
-    RESOLUTION_PRESETS,
-    type RenderResolution,
-    type TimelineTrack,
-} from '../../../../../core/types/editing';
-import { mixTracks } from './audioMixer';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../../../../../config/firebase';
+import type { RenderResolution } from '../../../../../core/types/editing';
 
 // ─── YouTube-compliant bitrates (SDR, 30fps) ──────────────────────────
+// NOTE: Duplicated from cloud-run/render/src/ffmpeg.ts on purpose.
+// Used only for pre-render file-size estimation in RenderControls UI.
+// Extracting to shared/ is possible but over-engineered for 4 constants.
+// If you change these values, update ffmpeg.ts as well.
 export const BITRATE_MAP: Record<RenderResolution, number> = {
     '720p': 5_000_000,
     '1080p': 8_000_000,
@@ -23,174 +21,90 @@ export const BITRATE_MAP: Record<RenderResolution, number> = {
     '4k': 35_000_000,
 };
 
-const FPS = 24;
-const AUDIO_BITRATE = 192_000;
-const KEY_FRAME_INTERVAL = 0.5; // seconds — every 15 frames at 30fps
+// ─── Types ─────────────────────────────────────────────────────────────
 
-// ─── Render config ─────────────────────────────────────────────────────
-export interface RenderConfig {
+export interface ServerRenderConfig {
+    channelId: string;
+    videoId: string;
     videoTitle: string;
     imageUrl: string;
-    tracks: TimelineTrack[];
+    tracks: {
+        audioStoragePath: string;
+        volume: number;
+        trimStart: number;
+        trimEnd: number;
+        duration: number;
+        title: string;
+    }[];
     resolution: RenderResolution;
     loopCount: number;
-    volume: number;
-    onProgress: (pct: number) => void;
-    abortSignal: AbortSignal;
+    masterVolume: number;
 }
 
-export interface RenderResult {
-    blob: Blob;
-    fileName: string;
+export interface StartRenderResult {
+    success: boolean;
+    renderId: string;
+    renderDocPath: string;
 }
 
-// ─── Deferred helper (ES2022 polyfill for Promise.withResolvers) ────────
-function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (reason: unknown) => void } {
-    let resolve!: (value: T) => void;
-    let reject!: (reason: unknown) => void;
-    const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
-    return { promise, resolve, reject };
+// ─── Cloud Function call ───────────────────────────────────────────────
+
+const startRenderFn = httpsCallable<ServerRenderConfig, StartRenderResult>(
+    functions,
+    'startRender',
+);
+
+/**
+ * Start a server-side render job.
+ * Returns the renderId and Firestore path for progress tracking.
+ */
+export async function startServerRender(config: ServerRenderConfig): Promise<StartRenderResult> {
+    const result = await startRenderFn(config);
+    return result.data;
+}
+
+// ─── Cancellation ──────────────────────────────────────────────────────
+
+interface CancelRenderConfig {
+    channelId: string;
+    videoId: string;
+    renderId: string;
+}
+
+const cancelRenderFn = httpsCallable<CancelRenderConfig, { success: boolean }>(
+    functions,
+    'cancelRender',
+);
+
+/**
+ * Cancel a running server-side render job.
+ * Signals the Cloud Run Job to abort ffmpeg and clean up.
+ */
+export async function cancelServerRender(config: CancelRenderConfig): Promise<void> {
+    await cancelRenderFn(config);
+}
+
+// ─── Deletion ──────────────────────────────────────────────────────────
+
+interface DeleteRenderConfig {
+    channelId: string;
+    videoId: string;
+    renderId: string;
+}
+
+const deleteRenderFn = httpsCallable<DeleteRenderConfig, { success: boolean }>(
+    functions,
+    'deleteRender',
+);
+
+/**
+ * Permanently delete a render — removes R2 file and Firestore doc.
+ */
+export async function deleteServerRender(config: DeleteRenderConfig): Promise<void> {
+    await deleteRenderFn(config);
 }
 
 /** Sanitise a string for use as a filename (remove filesystem-unsafe chars) */
-function sanitizeFilename(name: string): string {
+export function sanitizeFilename(name: string): string {
     return name.replace(/[<>:"/\\|?*]+/g, '').replace(/\s+/g, ' ').trim() || 'render';
-}
-
-// ─── Main render function ──────────────────────────────────────────────
-export async function renderVideo(config: RenderConfig): Promise<RenderResult> {
-    const {
-        videoTitle, imageUrl, tracks, resolution, loopCount,
-        volume, onProgress, abortSignal,
-    } = config;
-
-    const preset = RESOLUTION_PRESETS[resolution];
-    const bitrate = BITRATE_MAP[resolution];
-
-    // ── 1. Prepare image as transferable ImageBitmap ────────────────
-    checkAbort(abortSignal);
-    onProgress(1);
-
-    const imageBitmap = await loadImageBitmap(imageUrl, abortSignal);
-
-    // ── 2. Mix audio → transferable Float32Array channels ──────────
-    checkAbort(abortSignal);
-    onProgress(2);
-
-    const mixedAudio = await mixTracks(tracks, volume, loopCount, abortSignal);
-    const totalFrames = Math.ceil(mixedAudio.duration * FPS);
-
-    checkAbort(abortSignal);
-    onProgress(5);
-
-    // ── 3. Spawn worker and transfer data ──────────────────────────
-    const { promise, resolve, reject } = createDeferred<RenderResult>();
-
-    const worker = new Worker(
-        new URL('./render.worker.ts', import.meta.url),
-        { type: 'module' },
-    );
-
-    // Safety-net: reject if worker goes silent for 10 minutes
-    const safetyTimeout = setTimeout(() => {
-        cleanup();
-        reject(new Error('Render timed out after 10 minutes'));
-    }, 10 * 60 * 1000);
-
-    // Handle abort: forward to worker then terminate
-    const onAbort = () => {
-        worker.postMessage({ type: 'abort' });
-        // Give worker a moment to cancel gracefully, then force-terminate
-        setTimeout(() => worker.terminate(), 500);
-    };
-
-    if (abortSignal.aborted) {
-        clearTimeout(safetyTimeout);
-        worker.terminate();
-        return Promise.reject(new DOMException('Render cancelled', 'AbortError'));
-    }
-
-    abortSignal.addEventListener('abort', onAbort, { once: true });
-
-    function cleanup() {
-        clearTimeout(safetyTimeout);
-        abortSignal.removeEventListener('abort', onAbort);
-        worker.terminate();
-    }
-
-    // Listen for worker messages
-    worker.onmessage = (e: MessageEvent) => {
-        const msg = e.data;
-
-        switch (msg.type) {
-            case 'progress':
-                onProgress(msg.pct);
-                break;
-
-            case 'complete': {
-                cleanup();
-                const blob = new Blob([msg.buffer], { type: 'video/mp4' });
-                const fileName = `${sanitizeFilename(videoTitle)}_${resolution}.mp4`;
-                resolve({ blob, fileName });
-                break;
-            }
-
-            case 'cancelled':
-                cleanup();
-                reject(new DOMException('Render cancelled', 'AbortError'));
-                break;
-
-            case 'error':
-                cleanup();
-                reject(new Error(msg.message || 'Worker render error'));
-                break;
-        }
-    };
-
-    worker.onerror = (err) => {
-        cleanup();
-        reject(new Error(`Worker error: ${err.message}`));
-    };
-
-    // Build transferable arrays list
-    const transferables: Transferable[] = [
-        imageBitmap,
-        ...mixedAudio.channels.map((ch) => ch.buffer),
-    ];
-
-    // Send start message with zero-copy transfer
-    worker.postMessage(
-        {
-            type: 'start',
-            imageBitmap,
-            audioChannels: mixedAudio.channels,
-            audioSampleRate: mixedAudio.sampleRate,
-            audioFrameCount: mixedAudio.frameCount,
-            width: preset.width,
-            height: preset.height,
-            fps: FPS,
-            videoBitrate: bitrate,
-            audioBitrate: AUDIO_BITRATE,
-            keyFrameInterval: KEY_FRAME_INTERVAL,
-            totalFrames,
-        },
-        { transfer: transferables },
-    );
-
-    return promise;
-}
-
-// ─── Helpers ───────────────────────────────────────────────────────────
-
-async function loadImageBitmap(url: string, signal?: AbortSignal): Promise<ImageBitmap> {
-    const response = await fetch(url, { mode: 'cors', signal });
-    if (!response.ok) throw new Error(`Failed to load image: ${response.statusText}`);
-    const blob = await response.blob();
-    return createImageBitmap(blob);
-}
-
-function checkAbort(signal: AbortSignal) {
-    if (signal.aborted) {
-        throw new DOMException('Render cancelled', 'AbortError');
-    }
 }

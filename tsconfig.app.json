@@ -38,5 +38,9 @@
   "include": [
     "src",
     "shared"
+  ],
+  "exclude": [
+    "shared/auth.ts",
+    "shared/db.ts"
   ]
 }

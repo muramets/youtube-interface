@@ -5,7 +5,8 @@ import type { RenderJobStatus } from '../../../core/stores/renderQueueStore';
 
 function getStatusColorClass(status: RenderJobStatus, shimmer = false): string {
     switch (status) {
-        case 'error': return 'bg-red-500';
+        case 'failed_to_start':
+        case 'render_failed': return 'bg-red-500';
         case 'cancelled': return 'bg-yellow-500';
         case 'complete': return 'bg-green-500';
         case 'queued': return 'bg-text-tertiary animate-pulse';
@@ -15,7 +16,7 @@ function getStatusColorClass(status: RenderJobStatus, shimmer = false): string {
 }
 
 function getStatusWidth(status: RenderJobStatus, progress: number): number {
-    if (status === 'cancelled' || status === 'queued') return 100;
+    if (status === 'cancelled' || status === 'queued' || status === 'render_failed' || status === 'failed_to_start') return 100;
     return progress;
 }
 
@@ -41,7 +42,7 @@ export const RenderStatusBar: React.FC<RenderStatusBarProps> = ({
 }) => (
     <div className={`${heightClass} rounded-full ${bgClass} overflow-hidden`}>
         <div
-            className={`h-full rounded-full transition-all duration-300 ${getStatusColorClass(status, shimmer)}`}
+            className={`h-full rounded-full transition-all duration-500 ease-out ${getStatusColorClass(status, shimmer)}`}
             style={{ width: `${getStatusWidth(status, progress)}%` }}
         />
     </div>

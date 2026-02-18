@@ -1,6 +1,8 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useEditingStore } from '../../../../core/stores/editingStore';
 import { useRenderQueueStore } from '../../../../core/stores/renderQueueStore';
+import { useAuth } from '../../../../core/hooks/useAuth';
+import { useChannelStore } from '../../../../core/stores/channelStore';
 import { ImagePreview } from './components/ImagePreview';
 import { AudioTimeline } from './components/AudioTimeline';
 import { RenderControls } from './components/RenderControls';
@@ -21,12 +23,21 @@ export const EditingTab: React.FC<EditingTabProps> = ({ video }) => {
     const isBrowserOpen = useEditingStore((s) => s.isBrowserOpen);
     const toggleBrowser = useEditingStore((s) => s.toggleBrowser);
     const hasRenderJob = useRenderQueueStore((s) => !!s.jobs[video.id]);
+    const hydrateFromFirestore = useRenderQueueStore((s) => s.hydrateFromFirestore);
+    const { user } = useAuth();
+    const { currentChannel } = useChannelStore();
     const [browserWidth, setBrowserWidth] = useState(DEFAULT_BROWSER_WIDTH);
     const isResizing = useRef(false);
 
     // Auto-save & auto-load editing session per video
     useEditingPersistence(video.id);
 
+    // Hydrate render state from Firestore (survives page refresh)
+    useEffect(() => {
+        if (user?.uid && currentChannel?.id) {
+            hydrateFromFirestore(user.uid, currentChannel.id, video.id);
+        }
+    }, [user?.uid, currentChannel?.id, video.id, hydrateFromFirestore]);
 
     // ── Resizable browser panel ────────────────────────────────────────
     const handleResizeStart = useCallback((e: React.MouseEvent) => {

@@ -374,24 +374,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
                 className="flex-1 overflow-y-auto min-h-0 relative custom-scrollbar"
             >
                 {isLoading ? (
-                    <div className="px-4 py-3 text-xs font-medium text-center bg-clip-text text-transparent flex justify-center items-center"
-                        style={{
-                            backgroundImage: 'linear-gradient(120deg, var(--text-secondary) 42%, var(--text-primary) 50%, var(--text-secondary) 58%)',
-                            backgroundSize: '200% 100%',
-                            display: 'inline-block',
-                            width: '100%',
-                            animation: 'shimmer-premium 2.5s infinite linear',
-                        }}
-                    >
-                        <style>
-                            {`
-                                @keyframes shimmer-premium {
-                                    0% { background-position: 100% 0; }
-                                    100% { background-position: -100% 0; }
-                                }
-                            `}
-                        </style>
-                        Loading traffic data...
+                    <div className="px-4 py-3 text-xs font-medium text-center flex justify-center items-center">
+                        <span className="text-shimmer">Loading traffic data...</span>
                     </div>
                 ) : isFilteredEmpty ? (
                     <TrafficEmptyState

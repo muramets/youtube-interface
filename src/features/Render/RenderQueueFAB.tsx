@@ -3,11 +3,13 @@
 // =============================================================================
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Film, X, Download, ChevronUp, Loader2 } from 'lucide-react';
+import { Film, X, Download, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
 import { Button } from '../../components/ui/atoms/Button/Button';
+import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { useRenderQueueStore, type RenderJob } from '../../core/stores/renderQueueStore';
 import { useFloatingBottomOffset } from '../../core/hooks/useFloatingBottomOffset';
 import { RenderStatusBar } from '../../components/ui/atoms/RenderStatusBar';
+import { getRenderStatusDisplay } from './getRenderStageDisplay';
 import './RenderQueueFAB.css';
 
 // ─── Pill-contour progress overlay ─────────────────────────────────────
@@ -33,11 +35,9 @@ const PillProgress: React.FC<{ progress: number; containerRef: React.RefObject<H
 
         const ro = new ResizeObserver(measure);
         ro.observe(el);
-        window.addEventListener('resize', measure);
 
         return () => {
             ro.disconnect();
-            window.removeEventListener('resize', measure);
         };
     }, [containerRef]);
 
@@ -86,7 +86,10 @@ const PillProgress: React.FC<{ progress: number; containerRef: React.RefObject<H
 export const RenderQueueFAB: React.FC = () => {
     const allJobs = useRenderQueueStore((s) => s.jobs);
     const cancelJob = useRenderQueueStore((s) => s.cancelJob);
+    const retryJob = useRenderQueueStore((s) => s.retryJob);
     const clearJob = useRenderQueueStore((s) => s.clearJob);
+    const dismissFromFab = useRenderQueueStore((s) => s.dismissFromFab);
+    const cleanExpired = useRenderQueueStore((s) => s.cleanExpired);
     const { bottomClass, rightPx } = useFloatingBottomOffset();
 
     const [isExpanded, setIsExpanded] = useState(false);
@@ -113,16 +116,20 @@ export const RenderQueueFAB: React.FC = () => {
         return () => document.removeEventListener('mousedown', handler);
     }, [isExpanded]);
 
-    // Compute visible jobs (public shape — strip internal fields)
+    // Compute visible jobs for FAB (exclude dismissed-from-FAB jobs)
     const visibleJobs: RenderJob[] = useMemo(() =>
-        Object.values(allJobs).map((j) => ({
-            videoId: j.videoId,
-            status: j.status,
-            progress: j.progress,
-            error: j.error,
-            blobUrl: j.blobUrl,
-            fileName: j.fileName,
-        })),
+        Object.values(allJobs)
+            .filter((j) => !j.dismissedFromFab)
+            .map((j) => ({
+                videoId: j.videoId,
+                status: j.status,
+                progress: j.progress,
+                stage: j.stage,
+                error: j.error,
+                downloadUrl: j.downloadUrl,
+                fileName: j.fileName,
+                expiresAt: j.expiresAt,
+            })),
         [allJobs]);
 
     // Stable dependency key for auto-clear effect
@@ -156,6 +163,13 @@ export const RenderQueueFAB: React.FC = () => {
         }
     }, [jobKey, clearJob]);
 
+    // Clean expired R2 links on mount + every 15 min
+    useEffect(() => {
+        cleanExpired();
+        const iv = setInterval(cleanExpired, 15 * 60_000);
+        return () => clearInterval(iv);
+    }, [cleanExpired]);
+
     // Clean up all timers on unmount
     useEffect(() => {
         const timers = autoClearTimers.current;
@@ -171,8 +185,10 @@ export const RenderQueueFAB: React.FC = () => {
     const activeJob = visibleJobs.find((j) => j.status === 'rendering');
     const queuedCount = visibleJobs.filter((j) => j.status === 'queued').length;
 
-    // Position FAB to the left of ChatBubble: chatBubble right + chatBubble width (48px) + gap (12px)
-    const fabRightPx = rightPx + 60;
+    // Position FAB to the left of ChatBubble
+    const CHAT_BUBBLE_WIDTH = 48;
+    const FAB_GAP = 12;
+    const fabRightPx = rightPx + CHAT_BUBBLE_WIDTH + FAB_GAP;
 
     return (
         <div ref={panelRef} className="fixed z-sticky" style={{ opacity: ready ? 1 : 0, pointerEvents: ready ? undefined : 'none' }}>
@@ -189,7 +205,7 @@ export const RenderQueueFAB: React.FC = () => {
                             onClick={() => setIsExpanded(false)}
                             className="p-0.5 rounded hover:bg-hover text-text-tertiary hover:text-text-primary transition-colors"
                         >
-                            <ChevronUp size={14} />
+                            {isExpanded ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
                         </button>
                     </div>
 
@@ -200,7 +216,8 @@ export const RenderQueueFAB: React.FC = () => {
                                 key={job.videoId}
                                 job={job}
                                 onCancel={() => cancelJob(job.videoId)}
-                                onClear={() => clearJob(job.videoId)}
+                                onRetry={() => retryJob(job.videoId)}
+                                onDismiss={() => dismissFromFab(job.videoId)}
                             />
                         ))}
                     </div>
@@ -240,14 +257,35 @@ export const RenderQueueFAB: React.FC = () => {
 interface RenderJobRowProps {
     job: RenderJob;
     onCancel: () => void;
-    onClear: () => void;
+    onRetry: () => void;
+    onDismiss: () => void;
 }
 
-const RenderJobRow: React.FC<RenderJobRowProps> = ({ job, onCancel, onClear }) => {
-    const { videoId, status, progress, error, blobUrl, fileName } = job;
+const RenderJobRow: React.FC<RenderJobRowProps> = ({ job, onCancel, onRetry, onDismiss }) => {
+    const { videoId, status, progress, stage, error, downloadUrl, fileName, startedAt } = job;
     const displayName = fileName
         ? fileName.replace(/\.\w+$/, '')
         : (videoId.length > 12 ? `${videoId.slice(0, 12)}…` : videoId);
+
+    // Elapsed timer
+    const [elapsed, setElapsed] = useState(() =>
+        startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0,
+    );
+    useEffect(() => {
+        if (!startedAt) return;
+        if (status === 'complete' || status === 'render_failed' || status === 'failed_to_start' || status === 'cancelled') {
+            setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+            return;
+        }
+        const id = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+        return () => clearInterval(id);
+    }, [startedAt, status]);
+
+    const formatElapsed = (secs: number) => {
+        const m = Math.floor(secs / 60);
+        const s = secs % 60;
+        return `${m}:${s.toString().padStart(2, '0')}`;
+    };
 
     return (
         <div className="px-3 py-2.5 border-b border-border/50 last:border-b-0">
@@ -267,9 +305,11 @@ const RenderJobRow: React.FC<RenderJobRowProps> = ({ job, onCancel, onClear }) =
                             Cancel
                         </Button>
                     )}
-                    {status === 'complete' && blobUrl && (
+                    {status === 'complete' && downloadUrl && (
                         <a
-                            href={blobUrl}
+                            href={downloadUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             download={fileName || 'render.mp4'}
                             className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium text-[#3ea6ff] hover:bg-[#3ea6ff]/10 transition-colors"
                         >
@@ -278,14 +318,29 @@ const RenderJobRow: React.FC<RenderJobRowProps> = ({ job, onCancel, onClear }) =
                         </a>
                     )}
                     {status !== 'rendering' && status !== 'queued' && (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={onClear}
-                            className="!h-auto !p-0.5"
-                        >
-                            <X size={12} />
-                        </Button>
+                        <div className="flex items-center gap-0.5">
+                            {(status === 'failed_to_start' || status === 'render_failed') && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={onRetry}
+                                    className="!h-auto !px-1.5 !py-0.5 !text-[10px] text-accent"
+                                >
+                                    <RotateCcw size={10} className="mr-0.5" />
+                                    Retry
+                                </Button>
+                            )}
+                            <PortalTooltip content={<span className="whitespace-nowrap">Clear</span>} side="top" enterDelay={300}>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={onDismiss}
+                                    className="!h-auto !p-0.5"
+                                >
+                                    <X size={12} />
+                                </Button>
+                            </PortalTooltip>
+                        </div>
                     )}
                 </div>
             </div>
@@ -294,20 +349,18 @@ const RenderJobRow: React.FC<RenderJobRowProps> = ({ job, onCancel, onClear }) =
             <RenderStatusBar status={status} progress={progress} heightClass="h-1" bgClass="bg-bg-primary" />
 
             {/* Status line */}
-            <div className="mt-1 flex items-center gap-1">
-                {status === 'rendering' && <Loader2 size={10} className="animate-spin text-accent" />}
-                <span className={`text-[10px] ${status === 'error' ? 'text-red-400'
-                    : status === 'complete' ? 'text-green-400'
-                        : status === 'cancelled' ? 'text-yellow-400'
-                            : 'text-text-tertiary'
-                    }`}>
-                    {status === 'queued' && 'Queued'}
-                    {status === 'rendering' && `Rendering ${Math.round(progress)}%`}
-                    {status === 'complete' && 'Complete'}
-                    {status === 'error' && (error || 'Failed')}
-                    {status === 'cancelled' && 'Cancelled'}
-                </span>
-            </div>
+            {(() => {
+                const sd = getRenderStatusDisplay(status, 10, stage, progress, error);
+                return (
+                    <div className="mt-1 flex items-center gap-1">
+                        {sd.icon}
+                        <span className={`text-[10px] ${(status === 'rendering' || status === 'queued') ? 'text-shimmer' : sd.colorClass}`}>{sd.label}</span>
+                        {startedAt && (
+                            <span className="text-[9px] text-text-tertiary tabular-nums">{formatElapsed(elapsed)}</span>
+                        )}
+                    </div>
+                );
+            })()}
         </div>
     );
 };

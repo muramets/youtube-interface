@@ -71,6 +71,7 @@ export function hydrateTrack(
         artist: source.artist,
         coverUrl: source.coverUrl,
         audioUrl: (isVocal ? source.vocalUrl : source.instrumentalUrl) || '',
+        audioStoragePath: isVocal ? source.vocalStoragePath : source.instrumentalStoragePath,
         peaks: isVocal ? source.vocalPeaks : source.instrumentalPeaks,
         trimStart: s.trimStart,
         trimEnd: s.trimEnd,

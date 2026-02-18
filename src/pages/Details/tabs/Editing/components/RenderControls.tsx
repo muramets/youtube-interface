@@ -10,8 +10,10 @@ import { BITRATE_MAP } from '../services/renderService';
 import { getSizeCalibrationRatio } from '../../../../../core/stores/renderQueueStore';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
 import { formatDuration } from '../utils/formatDuration';
+import { useChannelStore } from '../../../../../core/stores/channelStore';
 
 const RESOLUTIONS: RenderResolution[] = ['720p', '1080p', '1440p', '4k'];
+const MAX_LOOP_COUNT = 30;
 
 /** MP4 size estimate using YouTube-compliant bitrates */
 const estimateFileSize = (durationSec: number, resolution: RenderResolution): string => {
@@ -57,6 +59,7 @@ export const RenderControls: React.FC<RenderControlsProps> = ({ videoId, videoTi
 
     const renderStatus = useRenderQueueStore((s) => s.jobs[videoId]?.status);
     const startJob = useRenderQueueStore((s) => s.startJob);
+    const currentChannel = useChannelStore((s) => s.currentChannel);
 
     // Auto-select max available resolution when image dimensions change
     useEffect(() => {
@@ -78,7 +81,7 @@ export const RenderControls: React.FC<RenderControlsProps> = ({ videoId, videoTi
     const imageTooSmall = imageWidth != null && imageHeight != null &&
         (minPreset.width > imageWidth || minPreset.height > imageHeight);
 
-    const canRender = tracks.length > 0 && effectiveImageUrl !== '' && !imageTooSmall && renderStatus !== 'rendering' && renderStatus !== 'queued';
+    const canRender = tracks.length > 0 && effectiveImageUrl !== '' && !imageTooSmall && !!currentChannel?.id && renderStatus !== 'rendering' && renderStatus !== 'queued';
 
     const handleRender = () => {
         if (!canRender) return;
@@ -97,6 +100,7 @@ export const RenderControls: React.FC<RenderControlsProps> = ({ videoId, videoTi
         startJob(videoId, {
             videoTitle,
             imageUrl: effectiveImageUrl,
+            channelId: currentChannel!.id,
             tracks: tracks.map((t) => ({ ...t })),
             resolution,
             loopCount,
@@ -122,7 +126,8 @@ export const RenderControls: React.FC<RenderControlsProps> = ({ videoId, videoTi
                     </span>
                     <button
                         onClick={() => setLoopCount(loopCount + 1)}
-                        className="p-1 rounded hover:bg-hover transition-colors"
+                        disabled={loopCount >= MAX_LOOP_COUNT}
+                        className="p-1 rounded hover:bg-hover disabled:opacity-30 transition-colors"
                     >
                         <Plus size={14} />
                     </button>
@@ -176,7 +181,7 @@ export const RenderControls: React.FC<RenderControlsProps> = ({ videoId, videoTi
 
             {/* Duration & Size */}
             <div className="flex flex-col text-xs text-text-tertiary select-none cursor-default">
-                <span>{formatDuration(totalDuration)}</span>
+                <span>~{formatDuration(totalDuration)}</span>
                 {totalDuration > 0 && (
                     <span>~{estimateFileSize(totalDuration, resolution)}</span>
                 )}

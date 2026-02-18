@@ -1,8 +1,9 @@
-import React from 'react';
-import { X, Download } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Trash2, AlertCircle, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '../../../../../components/ui/atoms/Button/Button';
 import { useRenderQueueStore } from '../../../../../core/stores/renderQueueStore';
 import { RenderStatusBar } from '../../../../../components/ui/atoms/RenderStatusBar';
+import { getRenderStatusDisplay, getUserFriendlyError } from '../../../../../features/Render/getRenderStageDisplay';
 import { useShallow } from 'zustand/react/shallow';
 
 interface RenderProgressBarProps {
@@ -18,33 +19,92 @@ export const RenderProgressBar: React.FC<RenderProgressBarProps> = ({ videoId })
                 videoId: j.videoId,
                 status: j.status,
                 progress: j.progress,
+                stage: j.stage,
                 error: j.error,
-                blobUrl: j.blobUrl,
+                downloadUrl: j.downloadUrl,
                 fileName: j.fileName,
+                expiresAt: j.expiresAt,
+                startedAt: j.startedAt,
+                renderDurationSecs: j.renderDurationSecs,
             };
         }),
     );
     const cancelJob = useRenderQueueStore((s) => s.cancelJob);
-    const clearJob = useRenderQueueStore((s) => s.clearJob);
+    const deleteJob = useRenderQueueStore((s) => s.deleteJob);
 
     if (!job) return null;
 
-    const { status, progress, error, blobUrl, fileName } = job;
+    const { status, progress, stage, error, downloadUrl, fileName, expiresAt, startedAt, renderDurationSecs } = job;
+
+    // Tick state — forces re-render every 60s so expiry countdown stays fresh
+    const [, setTick] = useState(0);
+    const [showDetail, setShowDetail] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
+
+    // Elapsed timer — ticks every second during active render
+    const [elapsed, setElapsed] = useState(() => {
+        if (renderDurationSecs != null) return renderDurationSecs;
+        return startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0;
+    });
+    useEffect(() => {
+        // Use persisted duration for hydrated completed renders
+        if (renderDurationSecs != null) {
+            setElapsed(renderDurationSecs);
+            return;
+        }
+        if (!startedAt) return;
+        // If render is done, freeze the timer
+        if (status === 'complete' || status === 'render_failed' || status === 'failed_to_start' || status === 'cancelled') {
+            setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+            return;
+        }
+        const id = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+        return () => clearInterval(id);
+    }, [startedAt, status, renderDurationSecs]);
+
+    const formatElapsed = useCallback((secs: number) => {
+        const m = Math.floor(secs / 60);
+        const s = secs % 60;
+        return `${m}:${s.toString().padStart(2, '0')}`;
+    }, []);
+
+    useEffect(() => {
+        if (!expiresAt || status !== 'complete') return;
+        const id = setInterval(() => setTick((t) => t + 1), 60_000);
+        return () => clearInterval(id);
+    }, [expiresAt, status]);
+
+    // Expiry countdown for completed renders
+    const expiryLabel = (() => {
+        if (!expiresAt || status !== 'complete') return null;
+        const remaining = expiresAt - Date.now();
+        if (remaining <= 0) return 'Expired';
+        const hours = Math.floor(remaining / (1000 * 60 * 60));
+        if (hours > 0) return `${hours}h left`;
+        const mins = Math.floor(remaining / (1000 * 60));
+        return `${mins}m left`;
+    })();
+
+    const statusDisplay = getRenderStatusDisplay(status, 12, stage, progress, error);
 
     return (
-        <div className="rounded-xl border border-border bg-card-bg p-3 animate-fade-in">
+        <div className="rounded-xl border border-border bg-card-bg p-3 animate-fade-in select-none">
             <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-text-primary">
-                    {status === 'queued' && '⏳ Queued...'}
-                    {status === 'rendering' && 'Rendering...'}
-                    {status === 'complete' && '✓ Render complete'}
-                    {status === 'error' && '✗ Render failed'}
-                    {status === 'cancelled' && '⊘ Render cancelled'}
+                <span className="text-xs font-medium text-text-primary inline-flex items-center gap-1.5">
+                    {statusDisplay.icon}
+                    {(status === 'rendering' || status === 'queued') ? (
+                        <span className="text-shimmer">{statusDisplay.label}</span>
+                    ) : statusDisplay.label}
+                    {(startedAt || renderDurationSecs != null) && (
+                        <span className="text-[10px] text-text-tertiary font-normal tabular-nums">
+                            {formatElapsed(elapsed)}
+                        </span>
+                    )}
                 </span>
                 <div className="flex items-center gap-2">
-                    {(status === 'rendering' || status === 'queued') && (
+                    {status === 'rendering' && stage === 'encoding' && (
                         <span className="text-xs text-text-tertiary">
-                            {status === 'queued' ? 'waiting' : `${Math.round(progress)}%`}
+                            {`${Math.round(progress)}%`}
                         </span>
                     )}
                     {(status === 'rendering' || status === 'queued') && (
@@ -57,25 +117,42 @@ export const RenderProgressBar: React.FC<RenderProgressBarProps> = ({ videoId })
                             Cancel
                         </Button>
                     )}
-                    {status === 'complete' && blobUrl && (
-                        <a
-                            href={blobUrl}
-                            download={fileName || 'render.mp4'}
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium text-[#3ea6ff] hover:bg-[#3ea6ff]/10 transition-colors"
-                        >
-                            <Download size={12} />
-                            Download
-                        </a>
+                    {status === 'complete' && downloadUrl && (
+                        <div className="inline-flex items-center gap-2">
+                            <a
+                                href={downloadUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                download={fileName || 'render.mp4'}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium text-[#3ea6ff] hover:bg-[#3ea6ff]/10 transition-colors"
+                            >
+                                <Download size={12} />
+                                Download
+                            </a>
+                            {expiryLabel && (
+                                <span className="text-[10px] text-text-tertiary">{expiryLabel}</span>
+                            )}
+                        </div>
                     )}
                     {status !== 'rendering' && status !== 'queued' && (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => clearJob(videoId)}
-                            className="!h-auto !p-1"
+                        <button
+                            onClick={() => {
+                                if (!confirmDelete) {
+                                    setConfirmDelete(true);
+                                    setTimeout(() => setConfirmDelete(false), 3000);
+                                    return;
+                                }
+                                deleteJob(videoId);
+                                setConfirmDelete(false);
+                            }}
+                            className={`p-1 rounded flex items-center justify-center transition-all border-none cursor-pointer
+                                ${confirmDelete
+                                    ? 'bg-red-600 scale-110 shadow-lg shadow-red-500/20 text-white'
+                                    : 'text-text-tertiary hover:bg-red-500/10 hover:text-red-400'}`}
+                            title={confirmDelete ? 'Click again to confirm delete' : 'Delete render'}
                         >
-                            <X size={14} />
-                        </Button>
+                            {confirmDelete ? <AlertCircle size={14} /> : <Trash2 size={14} />}
+                        </button>
                     )}
                 </div>
             </div>
@@ -83,10 +160,27 @@ export const RenderProgressBar: React.FC<RenderProgressBarProps> = ({ videoId })
             {/* Progress Bar */}
             <RenderStatusBar status={status} progress={progress} shimmer />
 
-            {/* Error message */}
-            {error && (
-                <p className="text-xs text-red-400 mt-1.5">{error}</p>
-            )}
+            {/* Error message (two-tier) */}
+            {error && (() => {
+                const [userMsg, detail] = getUserFriendlyError(error);
+                return (
+                    <div className="mt-1.5">
+                        <p className="text-xs text-red-400">{userMsg}</p>
+                        {detail && (
+                            <button
+                                onClick={() => setShowDetail((v) => !v)}
+                                className="text-[10px] text-text-tertiary hover:text-text-secondary inline-flex items-center gap-0.5 mt-0.5 transition-colors"
+                            >
+                                {showDetail ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                                {showDetail ? 'Hide details' : 'Show details'}
+                            </button>
+                        )}
+                        {showDetail && detail && (
+                            <p className="text-[10px] text-text-tertiary mt-0.5 font-mono break-all">{detail}</p>
+                        )}
+                    </div>
+                );
+            })()}
         </div>
     );
 };

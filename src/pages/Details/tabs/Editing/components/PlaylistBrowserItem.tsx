@@ -114,6 +114,7 @@ export const PlaylistBrowserItem: React.FC<PlaylistBrowserItemProps> = ({ playli
                                 key={track.id}
                                 track={track}
                                 isOnTimeline={timelineTrackIds.has(track.id)}
+                                browseTracks={browseTracks}
                             />
                         ))
                     )}
