@@ -176,7 +176,7 @@ export const useEditingStore = create<EditingState & EditingActions>((set, get) 
         let isPlaying = false;
 
         if (music.isPlaying && music.playingTrackId) {
-            const idx = hydrated.findIndex((t) => t.id === music.playingTrackId);
+            const idx = hydrated.findIndex((t) => t.trackId === music.playingTrackId);
             if (idx >= 0) {
                 const elapsed = hydrated.slice(0, idx).reduce(
                     (sum, t) => sum + getEffectiveDuration(t), 0,

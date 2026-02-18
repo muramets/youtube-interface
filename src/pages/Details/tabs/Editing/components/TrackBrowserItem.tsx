@@ -5,7 +5,6 @@ import { useEditingStore } from '../../../../../core/stores/editingStore';
 import { useMusicStore, selectAllTags } from '../../../../../core/stores/musicStore';
 import { createTimelineTrack } from '../../../../../core/types/editing';
 import { formatDuration } from '../utils/formatDuration';
-import { setBrowserPreviewActive } from '../hooks/useTimelinePlayback';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
 import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';
@@ -40,7 +39,7 @@ export const TrackBrowserItem: React.FC<TrackBrowserItemProps> = ({ track, isOnT
         if (isCurrentlyPlaying) {
             useMusicStore.getState().setIsPlaying(false);
         } else {
-            setBrowserPreviewActive(true);
+            useMusicStore.getState().setPlaybackSource('browser-preview');
             // Set playback queue to all visible browser tracks
             useMusicStore.getState().setPlaybackQueue(browseTracks.map(t => t.id));
             useMusicStore.getState().setPlayingTrack(track.id, defaultVariant);

@@ -14,6 +14,9 @@ import { getEffectiveDuration } from '../../../core/types/editing';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { refreshAudioUrl } from '../../../core/services/storageService';
+// Side-effect: sets up global zustand subscription for timeline auto-advance.
+// Must be imported from an always-mounted component.
+import '../../Details/tabs/Editing/hooks/useTimelineAutoAdvance';
 import { TrackService } from '../../../core/services/trackService';
 import { formatDuration } from '../utils/formatDuration';
 
@@ -30,6 +33,7 @@ export const AudioPlayer: React.FC = () => {
     const playingTrimStart = useMusicStore((s) => s.playingTrimStart);
     const playingTrimEnd = useMusicStore((s) => s.playingTrimEnd);
     const playbackVolume = useMusicStore((s) => s.playbackVolume);
+    const playbackSource = useMusicStore((s) => s.playbackSource);
     const { setPlayingTrack, setIsPlaying, toggleVariant, cycleRepeatMode, setCurrentTime: setStoreTime, setDuration: setStoreDuration, registerSeek } = useMusicStore.getState();
 
     const { user } = useAuth();
@@ -229,7 +233,7 @@ export const AudioPlayer: React.FC = () => {
             setStoreDuration(audio.duration || 0);
         };
         const onEnded = () => {
-            const { repeatMode: rm, playbackQueue: queue, playbackVolume: pv } = useMusicStore.getState();
+            const { repeatMode: rm, playbackQueue: queue, playbackSource: ps } = useMusicStore.getState();
 
             if (rm === 'one') {
                 audio.currentTime = 0;
@@ -237,51 +241,9 @@ export const AudioPlayer: React.FC = () => {
                 return;
             }
 
-            // ── Timeline mode: auto-advance using editingStore ──────────
-            if (pv !== null) {
-                const editState = useEditingStore.getState();
-                const tlTracks = editState.tracks;
-                const pos = editState.playbackPosition;
-
-                // Find current track index from playback position
-                let currentIdx = -1;
-                let elapsed = 0;
-                for (let i = 0; i < tlTracks.length; i++) {
-                    const dur = getEffectiveDuration(tlTracks[i]);
-                    if (pos < elapsed + dur + 0.01) {
-                        currentIdx = i;
-                        break;
-                    }
-                    elapsed += dur;
-                }
-                if (currentIdx < 0) currentIdx = tlTracks.length - 1;
-
-                const nextIdx = currentIdx + 1;
-                if (nextIdx < tlTracks.length) {
-                    const next = tlTracks[nextIdx];
-                    const masterVol = editState.volume;
-                    useMusicStore.getState().setPlaybackVolume(next.volume * masterVol);
-                    prevAudioUrlRef.current = null;
-                    setPlayingTrack(next.trackId, next.variant, next.trimStart, next.trimStart, next.trimEnd);
-                    // Update editing playback position to start of next track
-                    let nextElapsed = 0;
-                    for (let i = 0; i < nextIdx; i++) {
-                        nextElapsed += getEffectiveDuration(tlTracks[i]);
-                    }
-                    editState.setPlaybackPosition(nextElapsed);
-                } else if (rm === 'all' && tlTracks.length > 0) {
-                    const first = tlTracks[0];
-                    const masterVol = editState.volume;
-                    useMusicStore.getState().setPlaybackVolume(first.volume * masterVol);
-                    prevAudioUrlRef.current = null;
-                    setPlayingTrack(first.trackId, first.variant, first.trimStart, first.trimStart, first.trimEnd);
-                    editState.setPlaybackPosition(0);
-                } else {
-                    // End of timeline
-                    setIsPlaying(false);
-                    editState.setPlaying(false);
-                    useMusicStore.getState().setPlaybackVolume(null);
-                }
+            // ── Timeline mode: signal the hook to handle auto-advance ────
+            if (ps === 'timeline') {
+                useMusicStore.getState().signalTrackEnded();
                 return;
             }
 
@@ -337,8 +299,8 @@ export const AudioPlayer: React.FC = () => {
             setStoreTime(audio.currentTime);
 
             // Sync editing timeline cursor immediately for timeline mode
-            const pv = useMusicStore.getState().playbackVolume;
-            if (pv !== null) {
+            const ps = useMusicStore.getState().playbackSource;
+            if (ps === 'timeline') {
                 const editState = useEditingStore.getState();
                 const tlTracks = editState.tracks;
                 const pos = editState.playbackPosition;
@@ -365,7 +327,7 @@ export const AudioPlayer: React.FC = () => {
     }, [handleSeek, registerSeek]);
 
     // ── Timeline mode detection ──────────────────────────────────────
-    const isTimelineMode = playbackVolume !== null;
+    const isTimelineMode = playbackSource === 'timeline';
     const editingTracks = useEditingStore((s) => s.tracks);
     const editingPosition = useEditingStore((s) => s.playbackPosition);
 
@@ -585,7 +547,7 @@ export const AudioPlayer: React.FC = () => {
 
                         {/* Repeat toggle */}
                         <PortalTooltip
-                            content={repeatMode === 'off' ? 'Enable repeat' : repeatMode === 'all' ? 'Repeat current track' : 'Disable repeat'}
+                            content={repeatMode === 'off' ? 'Repeat: off' : repeatMode === 'all' ? 'Repeat: all' : 'Repeat: one'}
                             enterDelay={800}
                             side="top"
                         >
@@ -635,12 +597,12 @@ export const AudioPlayer: React.FC = () => {
 
                         {/* Volume */}
                         <button
-                            onClick={() => { if (playbackVolume === null) setIsMuted(!isMuted); }}
-                            className={`p-1 transition-colors ${playbackVolume !== null ? 'text-text-tertiary cursor-default' : 'text-text-secondary hover:text-text-primary'}`}
+                            onClick={() => { if (playbackSource !== 'timeline') setIsMuted(!isMuted); }}
+                            className={`p-1 transition-colors ${playbackSource === 'timeline' ? 'text-text-tertiary cursor-default' : 'text-text-secondary hover:text-text-primary'}`}
                         >
-                            {isMuted && playbackVolume === null ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                            {isMuted && playbackSource !== 'timeline' ? <VolumeX size={16} /> : <Volume2 size={16} />}
                         </button>
-                        {playbackVolume !== null ? (
+                        {playbackSource === 'timeline' ? (
                             <PortalTooltip
                                 content={<span style={{ whiteSpace: 'nowrap' }}>Volume controlled by Editing Timeline</span>}
                                 enterDelay={500}
@@ -651,7 +613,7 @@ export const AudioPlayer: React.FC = () => {
                                     min="0"
                                     max="1"
                                     step="0.01"
-                                    value={playbackVolume}
+                                    value={playbackVolume ?? 0}
                                     readOnly
                                     className="w-16 accent-white h-1 opacity-50 cursor-default"
                                 />

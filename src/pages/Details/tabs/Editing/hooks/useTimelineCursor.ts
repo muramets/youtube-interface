@@ -2,9 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useEditingStore } from '../../../../../core/stores/editingStore';
 import { useMusicStore } from '../../../../../core/stores/musicStore';
 import type { TimelineTrack } from '../../../../../core/types/editing';
-import { getEffectiveDuration } from '../../../../../core/types/editing';
+import { positionToPixel, pixelToPosition } from '../utils/timelineUtils';
 import { lastTrimDragEndMs } from '../components/TimelineTrackItem';
-import { setBrowserPreviewActive } from './useTimelinePlayback';
 import { formatDuration } from '../utils/formatDuration';
 
 export interface UseTimelineCursorReturn {
@@ -42,21 +41,10 @@ export function useTimelineCursor(
     const [hoverPx, setHoverPx] = useState<number | null>(null);
 
     // ── Convert pixel position to seconds ───────────────────────────────
-    const pxToSeconds = useCallback((px: number): number => {
-        let elapsed = 0;
-        let pxAccum = 0;
-        for (const t of tracks) {
-            const td = getEffectiveDuration(t);
-            const displayW = Math.max(60, Math.round(td * pxPerSecond));
-            if (px <= pxAccum + displayW) {
-                const fraction = displayW > 0 ? (px - pxAccum) / displayW : 0;
-                return Math.max(0, Math.min(totalDuration, elapsed + fraction * td));
-            }
-            elapsed += td;
-            pxAccum += displayW;
-        }
-        return totalDuration;
-    }, [tracks, pxPerSecond, totalDuration]);
+    const pxToSeconds = useCallback(
+        (px: number) => pixelToPosition(tracks, px, pxPerSecond, totalDuration),
+        [tracks, pxPerSecond, totalDuration],
+    );
 
     // ── Click-to-seek ───────────────────────────────────────────────────
     const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -70,10 +58,10 @@ export function useTimelineCursor(
 
         // Stop browser track preview — timeline takes over
         const ms = useMusicStore.getState();
-        if (ms.playingTrackId && !useEditingStore.getState().isPlaying && ms.playbackVolume === null) {
+        if (ms.playingTrackId && !useEditingStore.getState().isPlaying && ms.playbackSource !== 'timeline') {
             ms.setPlayingTrack(null);
         }
-        setBrowserPreviewActive(false);
+        useMusicStore.getState().setPlaybackSource(null);
 
         if (isPlaying) {
             const hit = findTrackAtPosition(seconds);
@@ -155,19 +143,7 @@ export function useTimelineCursor(
     // ── Playback cursor position in px ──────────────────────────────────
     const cursorPx = useMemo(() => {
         if (totalDuration === 0) return 0;
-        let elapsed = 0;
-        let px = 0;
-        for (const t of tracks) {
-            const td = getEffectiveDuration(t);
-            const displayW = Math.max(60, Math.round(td * pxPerSecond));
-            if (playbackPosition <= elapsed + td) {
-                const fraction = td > 0 ? (playbackPosition - elapsed) / td : 0;
-                return px + fraction * displayW;
-            }
-            elapsed += td;
-            px += displayW;
-        }
-        return px;
+        return positionToPixel(tracks, playbackPosition, pxPerSecond);
     }, [tracks, playbackPosition, pxPerSecond, totalDuration]);
 
     const showCursor = totalDuration > 0;

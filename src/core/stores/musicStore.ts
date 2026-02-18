@@ -33,6 +33,11 @@ interface MusicState {
     /** External volume override (0–1). When non-null, AudioPlayer uses this instead of its own slider.
      *  Set by the editing timeline to apply track.volume × masterVolume during preview. */
     playbackVolume: number | null;
+    /** Who initiated the current playback — explicit mode flag */
+    playbackSource: 'library' | 'timeline' | 'browser-preview' | null;
+    /** Monotonic counter — incremented by AudioPlayer when a track finishes.
+     *  Subscribers (e.g. useTimelineAutoAdvance) react to changes. */
+    trackEndedSignal: number;
     /** AudioPlayer registers this callback so TrackCard can request seeks */
     seekTo: ((position: number) => void) | null;
 
@@ -101,6 +106,8 @@ interface MusicState {
     registerSeek: (fn: ((position: number) => void) | null) => void;
     setPlaybackQueue: (queue: string[]) => void;
     setPlaybackVolume: (vol: number | null) => void;
+    setPlaybackSource: (source: 'library' | 'timeline' | 'browser-preview' | null) => void;
+    signalTrackEnded: () => void;
 
     // Actions: Filters
     setSearchQuery: (query: string) => void;
@@ -139,6 +146,8 @@ export const useMusicStore = create<MusicState>((set) => ({
     playingTrimStart: 0,
     playingTrimEnd: 0,
     playbackVolume: null,
+    playbackSource: null,
+    trackEndedSignal: 0,
     seekTo: null,
     playbackQueue: [],
     searchQuery: '',
@@ -219,6 +228,7 @@ export const useMusicStore = create<MusicState>((set) => ({
         playingTrimStart: trimStart ?? 0,
         playingTrimEnd: trimEnd ?? 0,
         playbackVolume: id === null ? null : useMusicStore.getState().playbackVolume,
+        playbackSource: id === null ? null : useMusicStore.getState().playbackSource,
         currentTime: 0,
         duration: 0,
     }),
@@ -238,6 +248,8 @@ export const useMusicStore = create<MusicState>((set) => ({
     registerSeek: (fn) => set({ seekTo: fn }),
     setPlaybackQueue: (queue) => set({ playbackQueue: queue }),
     setPlaybackVolume: (vol) => set({ playbackVolume: vol }),
+    setPlaybackSource: (source) => set({ playbackSource: source }),
+    signalTrackEnded: () => set((s) => ({ trackEndedSignal: s.trackEndedSignal + 1 })),
 
     // Filters
     setSearchQuery: (query) => set({ searchQuery: query }),
