@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { startServerRender, cancelServerRender, deleteServerRender, sanitizeFilename, BITRATE_MAP } from '../../pages/Details/tabs/Editing/services/renderService';
 import type { RenderResolution, TimelineTrack } from '../types/editing';
-import { collection, doc, getDocs, onSnapshot, orderBy, query, limit } from 'firebase/firestore';
+import { collection, doc, getDocs, onSnapshot, orderBy, query, limit, where } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { parseFirestoreTimestamp } from '../utils/firestoreUtils';
 
@@ -303,9 +303,21 @@ export const useRenderQueueStore = create<RenderQueueState & RenderQueueActions>
                 // Load calibration ratio on first access
                 await loadSizeCalibration(userId);
 
-                // Get the most recent render (completed, rendering, or queued)
-                const q = query(rendersRef, orderBy('completedAt', 'desc'), limit(1));
-                const snap = await getDocs(q);
+                // Two-pass hydration:
+                // 1. Active/cancelled renders (no completedAt → invisible to orderBy)
+                // 2. Fall back to latest completed render
+                const activeQ = query(
+                    rendersRef,
+                    where('status', 'in', ['rendering', 'queued', 'cancelled']),
+                    limit(1),
+                );
+                let snap = await getDocs(activeQ);
+
+                if (snap.empty) {
+                    // No active render — check for most recent completed
+                    const completedQ = query(rendersRef, orderBy('completedAt', 'desc'), limit(1));
+                    snap = await getDocs(completedQ);
+                }
 
                 if (snap.empty) return;
 
@@ -313,9 +325,8 @@ export const useRenderQueueStore = create<RenderQueueState & RenderQueueActions>
                 const data = renderDoc.data();
                 const status = data.status as string;
 
-                // Skip cancelled or expired renders
+                // Skip expired completed renders
                 const expiresAt = parseFirestoreTimestamp(data.expiresAt);
-                if (status === 'cancelled') return;
                 if (status === 'complete' && expiresAt && expiresAt < Date.now()) return;
 
                 // Build snapshot from Firestore data (videoTitle for correct filename)
@@ -378,6 +389,21 @@ export const useRenderQueueStore = create<RenderQueueState & RenderQueueActions>
                     }));
                     // Re-subscribe to live progress
                     subscribeToRenderProgress(videoId, renderDocPath);
+                } else if (status === 'cancelled') {
+                    // Persist cancelled renders so user can see them + delete via trash
+                    set((s) => ({
+                        jobs: {
+                            ...s.jobs,
+                            [videoId]: {
+                                videoId,
+                                status: 'cancelled' as RenderJobStatus,
+                                progress: 0,
+                                renderDocPath,
+                                renderId,
+                                snapshot: placeholderSnapshot,
+                            },
+                        },
+                    }));
                 } else if (status === 'render_failed' || status === 'failed_to_start') {
                     // Show the error so user can see what happened
                     set((s) => ({

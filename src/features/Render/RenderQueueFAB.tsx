@@ -88,7 +88,6 @@ export const RenderQueueFAB: React.FC = () => {
     const allJobs = useRenderQueueStore((s) => s.jobs);
     const cancelJob = useRenderQueueStore((s) => s.cancelJob);
     const retryJob = useRenderQueueStore((s) => s.retryJob);
-    const clearJob = useRenderQueueStore((s) => s.clearJob);
     const dismissFromFab = useRenderQueueStore((s) => s.dismissFromFab);
     const cleanExpired = useRenderQueueStore((s) => s.cleanExpired);
     const { bottomClass, rightPx } = useFloatingBottomOffset();
@@ -96,7 +95,6 @@ export const RenderQueueFAB: React.FC = () => {
     const [isExpanded, setIsExpanded] = useState(false);
     const panelRef = useRef<HTMLDivElement>(null);
     const fabRef = useRef<HTMLButtonElement>(null);
-    const autoClearTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
     // Delayed fade-in (matching ChatBubble)
     const [ready, setReady] = useState(false);
@@ -133,52 +131,12 @@ export const RenderQueueFAB: React.FC = () => {
             })),
         [allJobs]);
 
-    // Stable dependency key for auto-clear effect
-    const jobKey = useMemo(() =>
-        visibleJobs.map((j) => `${j.videoId}:${j.status}`).join(','),
-        [visibleJobs]);
-
-    // Auto-clear cancelled jobs after 30s (complete/error jobs persist until dismissed)
-    useEffect(() => {
-        const jobs = Object.values(useRenderQueueStore.getState().jobs);
-        const currentJobIds = new Set(jobs.map((j) => j.videoId));
-
-        for (const job of jobs) {
-            if (job.status === 'cancelled' && !autoClearTimers.current.has(job.videoId)) {
-                autoClearTimers.current.set(
-                    job.videoId,
-                    setTimeout(() => {
-                        autoClearTimers.current.delete(job.videoId);
-                        clearJob(job.videoId);
-                    }, 30_000),
-                );
-            }
-        }
-
-        // Clean up timers for jobs that were manually cleared by the user
-        for (const [videoId, timer] of autoClearTimers.current) {
-            if (!currentJobIds.has(videoId)) {
-                clearTimeout(timer);
-                autoClearTimers.current.delete(videoId);
-            }
-        }
-    }, [jobKey, clearJob]);
-
     // Clean expired R2 links on mount + every 15 min
     useEffect(() => {
         cleanExpired();
         const iv = setInterval(cleanExpired, 15 * 60_000);
         return () => clearInterval(iv);
     }, [cleanExpired]);
-
-    // Clean up all timers on unmount
-    useEffect(() => {
-        const timers = autoClearTimers.current;
-        return () => {
-            timers.forEach(clearTimeout);
-            timers.clear();
-        };
-    }, []);
 
     // Don't render if no jobs
     if (visibleJobs.length === 0) return null;
