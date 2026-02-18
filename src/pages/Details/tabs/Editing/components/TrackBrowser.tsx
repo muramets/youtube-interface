@@ -96,17 +96,23 @@ export const TrackBrowser: React.FC = () => {
     const [activeTab, setActiveTab] = useState<BrowserTab>('tracks');
     const [searchQuery, setSearchQuery] = useState('');
 
+    // Derive effective library source — auto-reset when shared libraries disappear
+    const effectiveSource = useMemo(() => {
+        if (sharedLibraries.length === 0) return null;
+        return librarySource;
+    }, [sharedLibraries.length, librarySource]);
+
     // Pick tracks based on library source
     const sourceTracks = useMemo(() => {
-        if (!librarySource) return ownTracks;
+        if (!effectiveSource) return ownTracks;
         return sharedTracks;
-    }, [librarySource, ownTracks, sharedTracks]);
+    }, [effectiveSource, ownTracks, sharedTracks]);
 
     // Pick playlists based on library source
     const sourcePlaylists = useMemo(() => {
-        if (!librarySource) return ownPlaylists;
+        if (!effectiveSource) return ownPlaylists;
         return sharedPlaylists;
-    }, [librarySource, ownPlaylists, sharedPlaylists]);
+    }, [effectiveSource, ownPlaylists, sharedPlaylists]);
 
     // Independent filter state via shared hook (operates on source-specific tracks)
     const filters = useTrackFilters(sourceTracks, searchQuery);
@@ -123,13 +129,6 @@ export const TrackBrowser: React.FC = () => {
         const q = searchQuery.toLowerCase();
         return sourcePlaylists.filter((p) => p.name.toLowerCase().includes(q));
     }, [sourcePlaylists, searchQuery]);
-
-    // Reset library source if shared libraries become empty
-    useEffect(() => {
-        if (sharedLibraries.length === 0 && librarySource) {
-            setLibrarySource(null);
-        }
-    }, [sharedLibraries.length, librarySource]);
 
     return (
         <div className="flex flex-col h-full">
@@ -159,7 +158,7 @@ export const TrackBrowser: React.FC = () => {
                         <div className="flex items-center gap-0.5 p-0.5 bg-white/[0.04] rounded-lg w-full">
                             <button
                                 onClick={() => setLibrarySource(null)}
-                                className={`flex-1 min-w-0 px-2 py-1 rounded-md text-[10px] font-medium transition-all truncate ${!librarySource
+                                className={`flex-1 min-w-0 px-2 py-1 rounded-md text-[10px] font-medium transition-all truncate ${!effectiveSource
                                     ? 'bg-white/[0.1] text-text-primary shadow-sm'
                                     : 'text-text-secondary hover:text-text-primary'
                                     }`}
@@ -170,7 +169,7 @@ export const TrackBrowser: React.FC = () => {
                                 <SharedLibraryTab
                                     key={lib.ownerChannelId}
                                     lib={lib}
-                                    isActive={librarySource?.ownerChannelId === lib.ownerChannelId}
+                                    isActive={effectiveSource?.ownerChannelId === lib.ownerChannelId}
                                     onClick={() => setLibrarySource(lib)}
                                 />
                             ))}
