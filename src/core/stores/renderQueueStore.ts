@@ -245,6 +245,13 @@ export const useRenderQueueStore = create<RenderQueueState & RenderQueueActions>
                     pendingQueue: s.pendingQueue.filter((id) => id !== videoId),
                 };
             });
+            // Clean from localStorage dismissed set
+            try {
+                const key = 'renderQueue_dismissedFromFab';
+                const dismissed: string[] = JSON.parse(localStorage.getItem(key) || '[]');
+                const filtered = dismissed.filter((id) => id !== videoId);
+                localStorage.setItem(key, JSON.stringify(filtered));
+            } catch { /* localStorage unavailable */ }
 
             // Await Cloud Function — rollback on failure
             if (channelId && renderId) {
@@ -272,6 +279,15 @@ export const useRenderQueueStore = create<RenderQueueState & RenderQueueActions>
                     },
                 };
             });
+            // Persist dismissed IDs to localStorage so it survives page refresh
+            try {
+                const key = 'renderQueue_dismissedFromFab';
+                const dismissed: string[] = JSON.parse(localStorage.getItem(key) || '[]');
+                if (!dismissed.includes(videoId)) {
+                    dismissed.push(videoId);
+                    localStorage.setItem(key, JSON.stringify(dismissed));
+                }
+            } catch { /* localStorage unavailable */ }
         },
 
         cleanExpired: () => {
@@ -299,6 +315,12 @@ export const useRenderQueueStore = create<RenderQueueState & RenderQueueActions>
                     db,
                     `users/${userId}/channels/${channelId}/videos/${videoId}/renders`,
                 );
+
+                // Read dismissed-from-FAB set from localStorage
+                let dismissedSet: Set<string>;
+                try {
+                    dismissedSet = new Set(JSON.parse(localStorage.getItem('renderQueue_dismissedFromFab') || '[]'));
+                } catch { dismissedSet = new Set(); }
 
                 // Load calibration ratio on first access
                 await loadSizeCalibration(userId);
@@ -329,14 +351,16 @@ export const useRenderQueueStore = create<RenderQueueState & RenderQueueActions>
                 const expiresAt = parseFirestoreTimestamp(data.expiresAt);
                 if (status === 'complete' && expiresAt && expiresAt < Date.now()) return;
 
-                // Build snapshot from Firestore data (videoTitle for correct filename)
-                const videoTitle = (data.videoTitle as string) || '';
+                // Build snapshot from Firestore data (videoTitle/resolution stored inside params by startRender)
+                const params = (data.params as Record<string, unknown>) || {};
+                const videoTitle = (params.videoTitle as string) || (data.videoTitle as string) || '';
+                const resolution = (params.resolution as string) || '1080p';
                 const placeholderSnapshot: RenderSnapshot = {
                     videoTitle,
                     imageUrl: '',
                     channelId,
                     tracks: [],
-                    resolution: '1080p' as RenderResolution,
+                    resolution: resolution as RenderResolution,
                     loopCount: 1,
                     volume: 1,
                 };
@@ -367,6 +391,7 @@ export const useRenderQueueStore = create<RenderQueueState & RenderQueueActions>
                                 expiresAt,
                                 renderDurationSecs,
                                 snapshot: placeholderSnapshot,
+                                dismissedFromFab: dismissedSet.has(videoId),
                             },
                         },
                     }));
@@ -383,6 +408,7 @@ export const useRenderQueueStore = create<RenderQueueState & RenderQueueActions>
                                 renderDocPath,
                                 renderId,
                                 snapshot: placeholderSnapshot,
+                                dismissedFromFab: dismissedSet.has(videoId),
                             },
                         },
                         activeJobId: status === 'rendering' ? videoId : s.activeJobId,

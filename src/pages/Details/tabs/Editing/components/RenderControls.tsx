@@ -105,7 +105,7 @@ export const RenderControls: React.FC<RenderControlsProps> = ({ videoId, videoTi
     };
 
     return (
-        <div className="flex items-center gap-4 p-3 rounded-xl bg-card-bg">
+        <div className="flex items-center gap-4 p-3 rounded-xl bg-card-bg flex-wrap overflow-hidden">
             {/* Loop Counter */}
             <div className="flex items-center gap-2">
                 <span className="text-xs text-text-secondary">Loop</span>
@@ -200,6 +200,7 @@ export const RenderControls: React.FC<RenderControlsProps> = ({ videoId, videoTi
                     disabled={!canRender}
                     isLoading={renderStatus === 'rendering'}
                     leftIcon={renderStatus !== 'rendering' ? <Play size={16} fill="currentColor" /> : undefined}
+                    className="flex-shrink-0"
                 >
                     Render
                 </Button>

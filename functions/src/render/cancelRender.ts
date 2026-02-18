@@ -12,7 +12,7 @@ import { admin, db } from "../shared/db.js";
  * abort the ffmpeg process immediately.
  */
 export const cancelRender = onCall(
-    { timeoutSeconds: 10, memory: "128MiB" },
+    { timeoutSeconds: 10, memory: "256MiB" },
     async (request) => {
         if (!request.auth) {
             throw new HttpsError("unauthenticated", "Authentication required.");

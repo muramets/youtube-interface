@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Film, X, Download, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
 import { Button } from '../../components/ui/atoms/Button/Button';
+import { Badge } from '../../components/ui/atoms/Badge/Badge';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { useRenderQueueStore, type RenderJob } from '../../core/stores/renderQueueStore';
 import { useFloatingBottomOffset } from '../../core/hooks/useFloatingBottomOffset';
@@ -116,7 +117,7 @@ export const RenderQueueFAB: React.FC = () => {
     }, [isExpanded]);
 
     // Compute visible jobs for FAB (exclude dismissed-from-FAB jobs)
-    const visibleJobs: RenderJob[] = useMemo(() =>
+    const visibleJobs = useMemo(() =>
         Object.values(allJobs)
             .filter((j) => !j.dismissedFromFab)
             .map((j) => ({
@@ -128,6 +129,9 @@ export const RenderQueueFAB: React.FC = () => {
                 downloadUrl: j.downloadUrl,
                 fileName: j.fileName,
                 expiresAt: j.expiresAt,
+                startedAt: j.startedAt,
+                videoTitle: j.snapshot?.videoTitle,
+                resolution: j.snapshot?.resolution,
             })),
         [allJobs]);
 
@@ -213,40 +217,53 @@ export const RenderQueueFAB: React.FC = () => {
 
 // ─── Individual job row in expanded panel ──────────────────────────────
 
+interface FabJob {
+    videoId: string; status: RenderJob['status']; progress: number; stage?: string;
+    error?: string; downloadUrl?: string; fileName?: string; expiresAt?: number;
+    startedAt?: number; videoTitle?: string; resolution?: string;
+}
+
 interface RenderJobRowProps {
-    job: RenderJob;
+    job: FabJob;
     onCancel: () => void;
     onRetry: () => void;
     onDismiss: () => void;
 }
 
 const RenderJobRow: React.FC<RenderJobRowProps> = ({ job, onCancel, onRetry, onDismiss }) => {
-    const { videoId, status, progress, stage, error, downloadUrl, fileName, startedAt } = job;
-    const displayName = fileName
-        ? fileName.replace(/\.\w+$/, '')
-        : (videoId.length > 12 ? `${videoId.slice(0, 12)}…` : videoId);
+    const { videoId, status, progress, stage, error, downloadUrl, fileName, startedAt, videoTitle, resolution } = job;
+
+    // Display name: prefer videoTitle from snapshot, fall back to fileName, then videoId
+    const displayName = videoTitle
+        || (fileName ? fileName.replace(/\.\w+$/, '') : null)
+        || (videoId.length > 12 ? `${videoId.slice(0, 12)}…` : videoId);
 
     // Elapsed timer (shared hook)
     const elapsed = useElapsedTimer(startedAt, status);
+    const nameRef = useRef<HTMLSpanElement>(null);
+    const [isTruncated, setIsTruncated] = useState(false);
+
+    useEffect(() => {
+        const el = nameRef.current;
+        if (el) setIsTruncated(el.scrollWidth > el.clientWidth);
+    }, [displayName]);
 
     return (
         <div className="px-3 py-2.5 border-b border-border/50 last:border-b-0">
             {/* Row header */}
-            <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs text-text-secondary truncate max-w-[140px]" title={fileName || videoId}>
-                    {displayName}
-                </span>
-                <div className="flex items-center gap-1.5">
-                    {(status === 'rendering' || status === 'queued') && (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={onCancel}
-                            className="!h-auto !px-1.5 !py-0.5 !text-[10px]"
-                        >
-                            Cancel
-                        </Button>
-                    )}
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+                <PortalTooltip
+                    content={<span className="whitespace-nowrap">{displayName}</span>}
+                    side="top"
+                    enterDelay={300}
+                    disabled={!isTruncated}
+                    triggerClassName="min-w-0 overflow-hidden flex-1"
+                >
+                    <span ref={nameRef} className="text-xs text-text-secondary truncate block">
+                        {displayName}
+                    </span>
+                </PortalTooltip>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
                     {status === 'complete' && downloadUrl && (
                         <a
                             href={downloadUrl}
@@ -297,8 +314,21 @@ const RenderJobRow: React.FC<RenderJobRowProps> = ({ job, onCancel, onRetry, onD
                     <div className="mt-1 flex items-center gap-1">
                         {sd.icon}
                         <span className={`text-[10px] ${(status === 'rendering' || status === 'queued') ? 'text-shimmer' : sd.colorClass}`}>{sd.label}</span>
+                        {resolution && (
+                            <Badge variant="info" disableTooltip>{resolution}</Badge>
+                        )}
                         {startedAt && (
                             <span className="text-[9px] text-text-tertiary tabular-nums">{formatElapsed(elapsed)}</span>
+                        )}
+                        {(status === 'rendering' || status === 'queued') && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={onCancel}
+                                className="!h-auto !px-1.5 !py-0.5 !text-[10px] ml-auto hover:!text-yellow-400 hover:!bg-yellow-400/10"
+                            >
+                                Cancel
+                            </Button>
                         )}
                     </div>
                 );
