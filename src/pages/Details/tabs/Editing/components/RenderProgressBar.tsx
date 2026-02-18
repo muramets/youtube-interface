@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Trash2, AlertCircle, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '../../../../../components/ui/atoms/Button/Button';
 import { useRenderQueueStore } from '../../../../../core/stores/renderQueueStore';
 import { RenderStatusBar } from '../../../../../components/ui/atoms/RenderStatusBar';
 import { getRenderStatusDisplay, getUserFriendlyError } from '../../../../../features/Render/getRenderStageDisplay';
+import { useElapsedTimer, formatElapsed } from '../../../../../features/Render/useElapsedTimer';
 import { useShallow } from 'zustand/react/shallow';
 
 interface RenderProgressBarProps {
@@ -41,32 +42,8 @@ export const RenderProgressBar: React.FC<RenderProgressBarProps> = ({ videoId })
     const [showDetail, setShowDetail] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
 
-    // Elapsed timer — ticks every second during active render
-    const [elapsed, setElapsed] = useState(() => {
-        if (renderDurationSecs != null) return renderDurationSecs;
-        return startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0;
-    });
-    useEffect(() => {
-        // Use persisted duration for hydrated completed renders
-        if (renderDurationSecs != null) {
-            setElapsed(renderDurationSecs);
-            return;
-        }
-        if (!startedAt) return;
-        // If render is done, freeze the timer
-        if (status === 'complete' || status === 'render_failed' || status === 'failed_to_start' || status === 'cancelled') {
-            setElapsed(Math.floor((Date.now() - startedAt) / 1000));
-            return;
-        }
-        const id = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
-        return () => clearInterval(id);
-    }, [startedAt, status, renderDurationSecs]);
-
-    const formatElapsed = useCallback((secs: number) => {
-        const m = Math.floor(secs / 60);
-        const s = secs % 60;
-        return `${m}:${s.toString().padStart(2, '0')}`;
-    }, []);
+    // Elapsed timer (shared hook)
+    const elapsed = useElapsedTimer(startedAt, status, renderDurationSecs);
 
     useEffect(() => {
         if (!expiresAt || status !== 'complete') return;

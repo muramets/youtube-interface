@@ -10,6 +10,7 @@ import { useRenderQueueStore, type RenderJob } from '../../core/stores/renderQue
 import { useFloatingBottomOffset } from '../../core/hooks/useFloatingBottomOffset';
 import { RenderStatusBar } from '../../components/ui/atoms/RenderStatusBar';
 import { getRenderStatusDisplay } from './getRenderStageDisplay';
+import { useElapsedTimer, formatElapsed } from './useElapsedTimer';
 import './RenderQueueFAB.css';
 
 // ─── Pill-contour progress overlay ─────────────────────────────────────
@@ -267,25 +268,8 @@ const RenderJobRow: React.FC<RenderJobRowProps> = ({ job, onCancel, onRetry, onD
         ? fileName.replace(/\.\w+$/, '')
         : (videoId.length > 12 ? `${videoId.slice(0, 12)}…` : videoId);
 
-    // Elapsed timer
-    const [elapsed, setElapsed] = useState(() =>
-        startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0,
-    );
-    useEffect(() => {
-        if (!startedAt) return;
-        if (status === 'complete' || status === 'render_failed' || status === 'failed_to_start' || status === 'cancelled') {
-            setElapsed(Math.floor((Date.now() - startedAt) / 1000));
-            return;
-        }
-        const id = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
-        return () => clearInterval(id);
-    }, [startedAt, status]);
-
-    const formatElapsed = (secs: number) => {
-        const m = Math.floor(secs / 60);
-        const s = secs % 60;
-        return `${m}:${s.toString().padStart(2, '0')}`;
-    };
+    // Elapsed timer (shared hook)
+    const elapsed = useElapsedTimer(startedAt, status);
 
     return (
         <div className="px-3 py-2.5 border-b border-border/50 last:border-b-0">

@@ -93,11 +93,14 @@ export const startRender = onCall(
 
         // 5. Enqueue Cloud Tasks job
         const projectId = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
+        if (!projectId) {
+            throw new HttpsError("internal", "Missing GCLOUD_PROJECT / GOOGLE_CLOUD_PROJECT env var.");
+        }
         const location = "us-central1";
         const queueName = "render-queue";
 
         const tasksClient = new CloudTasksClient();
-        const queuePath = tasksClient.queuePath(projectId!, location, queueName);
+        const queuePath = tasksClient.queuePath(projectId, location, queueName);
 
         // Cloud Run Job URL (HTTP endpoint that Cloud Tasks will call)
         const cloudRunUrl = `https://${location}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${projectId}/jobs/render-worker:run`;

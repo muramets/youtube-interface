@@ -4,6 +4,16 @@ import type { RenderResolution, TimelineTrack } from '../types/editing';
 import { collection, doc, getDocs, onSnapshot, orderBy, query, limit } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 
+/** Parse a Firestore Timestamp, Date, or undefined into epoch millis. */
+function parseFirestoreTimestamp(raw: unknown): number | undefined {
+    if (raw == null) return undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const asAny = raw as any;
+    if (typeof asAny.toMillis === 'function') return asAny.toMillis();
+    if (raw instanceof Date) return raw.getTime();
+    return undefined;
+}
+
 // ─── Render job types ──────────────────────────────────────────────────
 
 export type RenderJobStatus =
@@ -65,6 +75,10 @@ interface RenderQueueState {
     pendingQueue: string[];
     /** Currently rendering videoId (null if idle) */
     activeJobId: string | null;
+    /** Adaptive size calibration ratio (EMA of actual/predicted file size) */
+    sizeCalibrationRatio: number;
+    /** User ID for which calibration ratio was loaded (prevents re-fetching) */
+    sizeCalibrationUserId: string | null;
 }
 
 interface RenderQueueActions {
@@ -93,6 +107,8 @@ export const useRenderQueueStore = create<RenderQueueState & RenderQueueActions>
         jobs: {},
         pendingQueue: [],
         activeJobId: null,
+        sizeCalibrationRatio: 1,
+        sizeCalibrationUserId: null,
 
         startJob: (videoId, snapshot) => {
             const existing = get().jobs[videoId];
@@ -245,10 +261,11 @@ export const useRenderQueueStore = create<RenderQueueState & RenderQueueActions>
                     await deleteServerRender({ channelId, videoId, renderId });
                 } catch (err) {
                     console.error('[renderQueue] deleteServerRender failed, rolling back:', err);
-                    // Rollback: re-add job to store so user sees it again
-                    set((s) => ({
-                        jobs: { ...s.jobs, [videoId]: savedJob },
-                    }));
+                    // Rollback: re-add job only if no new job was created for this videoId
+                    set((s) => {
+                        if (s.jobs[videoId]) return s; // new job exists — don't overwrite
+                        return { jobs: { ...s.jobs, [videoId]: savedJob } };
+                    });
                 }
             }
         },
@@ -306,8 +323,7 @@ export const useRenderQueueStore = create<RenderQueueState & RenderQueueActions>
                 const status = data.status as string;
 
                 // Skip cancelled or expired renders
-                const expiresAtRaw = data.expiresAt;
-                const expiresAt = expiresAtRaw?.toMillis?.() ?? (expiresAtRaw instanceof Date ? expiresAtRaw.getTime() : undefined);
+                const expiresAt = parseFirestoreTimestamp(data.expiresAt);
                 if (status === 'cancelled') return;
                 if (status === 'complete' && expiresAt && expiresAt < Date.now()) return;
 
@@ -583,8 +599,7 @@ function subscribeToRenderProgress(videoId: string, renderDocPath: string): void
                 const fileName = `${sanitizeFilename(snapshot.videoTitle)}_${snapshot.resolution}.mp4`;
 
                 // Parse expiresAt from server
-                const expiresAtRaw = data.expiresAt;
-                const expiresAt = expiresAtRaw?.toMillis?.() ?? (expiresAtRaw instanceof Date ? expiresAtRaw.getTime() : undefined);
+                const expiresAt = parseFirestoreTimestamp(data.expiresAt);
 
                 useRenderQueueStore.setState((s) => {
                     // Re-check: if locally cancelled between getState and setState, skip
@@ -739,28 +754,24 @@ function dequeueNext(): void {
 
 // ─── Size estimation calibration ───────────────────────────────────────
 
-const DEFAULT_RATIO = 1;
-let cachedRatio = DEFAULT_RATIO;
-let ratioUserId: string | null = null;
-
 /** Read the cached calibration ratio (sync — loaded from Firestore on hydration) */
 export function getSizeCalibrationRatio(): number {
-    return cachedRatio;
+    return useRenderQueueStore.getState().sizeCalibrationRatio;
 }
 
-/** Load calibration ratio from Firestore into memory cache */
+/** Load calibration ratio from Firestore into store */
 export async function loadSizeCalibration(userId: string): Promise<void> {
-    if (ratioUserId === userId) return; // already loaded for this user
+    if (useRenderQueueStore.getState().sizeCalibrationUserId === userId) return;
     try {
         const { getDoc } = await import('firebase/firestore');
         const snap = await getDoc(doc(db, `users/${userId}/settings`, 'render'));
         if (snap.exists()) {
             const val = snap.data().sizeCalibrationRatio;
             if (typeof val === 'number' && Number.isFinite(val) && val > 0) {
-                cachedRatio = val;
+                useRenderQueueStore.setState({ sizeCalibrationRatio: val });
             }
         }
-        ratioUserId = userId;
+        useRenderQueueStore.setState({ sizeCalibrationUserId: userId });
     } catch { /* ignore — calibration is best-effort */ }
 }
 
@@ -786,8 +797,9 @@ function updateSizeCalibration(snapshot: RenderSnapshot, actualBytes: number, us
 
         const newRatio = actualBytes / predictedBytes;
         // Exponential moving average (α = 0.3): recent renders matter more
-        const blended = cachedRatio * 0.7 + newRatio * 0.3;
-        cachedRatio = blended;
+        const currentRatio = useRenderQueueStore.getState().sizeCalibrationRatio;
+        const blended = currentRatio * 0.7 + newRatio * 0.3;
+        useRenderQueueStore.setState({ sizeCalibrationRatio: blended });
 
         // Persist to Firestore (fire-and-forget)
         import('firebase/firestore').then(({ setDoc }) => {
