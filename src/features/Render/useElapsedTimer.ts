@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { RenderJobStatus } from '../../core/stores/renderQueueStore';
 
 const TERMINAL_STATUSES: ReadonlySet<RenderJobStatus> = new Set([
@@ -17,24 +17,40 @@ export function useElapsedTimer(
     status: RenderJobStatus,
     renderDurationSecs?: number,
 ): number {
+    const isTerminal = TERMINAL_STATUSES.has(status);
+
     const [elapsed, setElapsed] = useState(() => {
         if (renderDurationSecs != null) return renderDurationSecs;
         return startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0;
     });
 
+    // Deferred setter avoids the sync-setState-in-effect lint rule
+    const deferSetElapsed = useCallback((value: number) => {
+        queueMicrotask(() => setElapsed(value));
+    }, []);
+
     useEffect(() => {
+        // If persisted duration is available, freeze to that
         if (renderDurationSecs != null) {
-            setElapsed(renderDurationSecs);
+            deferSetElapsed(renderDurationSecs);
             return;
         }
+
+        // Terminal status — freeze the elapsed value
+        if (isTerminal) {
+            if (startedAt) {
+                deferSetElapsed(Math.floor((Date.now() - startedAt) / 1000));
+            }
+            return;
+        }
+
+        // Active render — tick every second
         if (!startedAt) return;
-        if (TERMINAL_STATUSES.has(status)) {
-            setElapsed(Math.floor((Date.now() - startedAt) / 1000));
-            return;
-        }
-        const id = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+        const tick = () => setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+        tick();
+        const id = setInterval(tick, 1000);
         return () => clearInterval(id);
-    }, [startedAt, status, renderDurationSecs]);
+    }, [startedAt, status, renderDurationSecs, isTerminal, deferSetElapsed]);
 
     return elapsed;
 }

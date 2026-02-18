@@ -222,6 +222,7 @@ async function main() {
         let lastProgressUpdate = 0;
         const PROGRESS_THROTTLE_MS = 500;
 
+        const encodeT0 = Date.now();
         log('ffmpeg_start', { width: res.width, height: res.height, bitrate });
 
         await renderWithFfmpeg({
@@ -243,9 +244,13 @@ async function main() {
                     });
                 }
             },
+            onDiagnostic: (diag) => {
+                log('ffmpeg_diag', { ...diag });
+            },
         });
 
-        log('ffmpeg_complete');
+        const encodeDurationSec = Math.round((Date.now() - encodeT0) / 1000);
+        log('ffmpeg_complete', { encodeDurationSec });
 
         // Check cancellation after encoding phase
         checkAbort();
@@ -292,6 +297,50 @@ async function main() {
         });
 
         log('complete', { sizeBytes: fileStat.size });
+
+        // ── 8b. Create render preset (decoupled from render lifecycle) ──
+        const MAX_PRESETS = 20;
+        const presetsCol = db.collection(
+            `users/${userId}/channels/${channelId}/renderPresets`,
+        );
+
+        try {
+            await presetsCol.doc(renderId).set({
+                renderId,
+                videoId,
+                videoTitle: params.videoTitle || 'Untitled',
+                imageUrl: params.imageUrl || '',
+                completedAt: FieldValue.serverTimestamp(),
+                tracks: params.tracks.map((t) => ({
+                    title: t.title || '',
+                    volume: t.volume,
+                    trimStart: t.trimStart,
+                    trimEnd: t.trimEnd,
+                    duration: t.duration,
+                    audioStoragePath: t.audioStoragePath,
+                })),
+                resolution: params.resolution,
+                loopCount: params.loopCount,
+                masterVolume: params.masterVolume,
+            });
+
+            // Sliding window: prune oldest beyond MAX_PRESETS
+            const allPresets = await presetsCol
+                .orderBy('completedAt', 'desc')
+                .get();
+
+            if (allPresets.size > MAX_PRESETS) {
+                const batch = db.batch();
+                allPresets.docs.slice(MAX_PRESETS).forEach((d) => batch.delete(d.ref));
+                await batch.commit();
+                log('presets_pruned', { deleted: allPresets.size - MAX_PRESETS });
+            }
+
+            log('preset_created', { presetId: renderId });
+        } catch (presetErr) {
+            // Non-critical — don't fail the render if preset creation fails
+            logError('preset_creation_failed', presetErr);
+        }
 
         // ── 9. Cleanup ─────────────────────────────────────────────────
         cancelListenerUnsub?.();

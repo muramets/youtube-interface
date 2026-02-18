@@ -1,0 +1,162 @@
+/* =============================================================================
+   RenderPresetsPanel — Horizontal scrollable preset cards
+   ============================================================================= */
+
+.render-presets-panel {
+    overflow: hidden;
+}
+
+/* ── Expand/Collapse animation ────────────────────────────────────────── */
+
+.render-presets-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.render-presets-body.is-open {
+    grid-template-rows: 1fr;
+}
+
+.render-presets-body>.render-presets-inner {
+    overflow: hidden;
+}
+
+/* ── Horizontal scroll container ──────────────────────────────────────── */
+
+.render-presets-scroll {
+    display: flex;
+    gap: 10px;
+    padding: 10px 0 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+
+.render-presets-scroll::-webkit-scrollbar {
+    height: 3px;
+}
+
+.render-presets-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.render-presets-scroll::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+.render-presets-scroll::-webkit-scrollbar-thumb:hover {
+    background: var(--text-tertiary);
+}
+
+/* ── Preset Card ──────────────────────────────────────────────────────── */
+
+.render-preset-card {
+    flex-shrink: 0;
+    width: 220px;
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: var(--card-bg);
+    cursor: default;
+    transition:
+        box-shadow 0.2s ease,
+        transform 0.15s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.render-preset-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(135deg,
+            rgba(255, 255, 255, 0.03) 0%,
+            rgba(255, 255, 255, 0) 50%);
+    pointer-events: none;
+}
+
+.render-preset-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    transform: translateY(-1px);
+}
+
+.render-preset-card:active {
+    transform: translateY(0);
+}
+
+/* ── Mini timeline preview ────────────────────────────────────────────── */
+
+.preset-mini-timeline {
+    display: flex;
+    gap: 1px;
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.preset-mini-timeline-block {
+    flex-shrink: 0;
+    height: 100%;
+    border-radius: 2px;
+    min-width: 4px;
+    opacity: 0.8;
+    transition: opacity 0.15s ease;
+}
+
+.render-preset-card:hover .preset-mini-timeline-block {
+    opacity: 1;
+}
+
+/* ── Warning chip ─────────────────────────────────────────────────────── */
+
+.preset-warning-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 6px;
+    border-radius: 6px;
+    font-size: 9px;
+    font-weight: 500;
+    background: rgba(251, 191, 36, 0.12);
+    color: rgb(251, 191, 36);
+    white-space: nowrap;
+}
+
+/* ── Loading skeleton ─────────────────────────────────────────────────── */
+
+.preset-skeleton {
+    flex-shrink: 0;
+    width: 220px;
+    height: 88px;
+    border-radius: 10px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    animation: preset-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes preset-shimmer {
+
+    0%,
+    100% {
+        opacity: 0.5;
+    }
+
+    50% {
+        opacity: 0.8;
+    }
+}
+
+/* ── Empty state ──────────────────────────────────────────────────────── */
+
+.render-presets-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 0 8px;
+    color: var(--text-tertiary);
+    font-size: 12px;
+}

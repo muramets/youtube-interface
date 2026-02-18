@@ -85,6 +85,8 @@ export const startRender = onCall(
         await db.doc(renderDocPath).set({
             renderId,
             videoId,
+            userId,
+            channelId,
             status: "queued",
             progress: 0,
             params: renderParams,

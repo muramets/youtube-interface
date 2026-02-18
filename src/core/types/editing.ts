@@ -53,6 +53,29 @@ export const RESOLUTION_PRESETS: Record<RenderResolution, ResolutionConfig> = {
     '4k': { label: '4K UHD', width: 3840, height: 2160 },
 };
 
+// ─── Render Preset (reusable audio timeline from a previous render) ────
+
+export interface RenderPresetTrack {
+    title: string;
+    volume: number;
+    trimStart: number;
+    trimEnd: number;
+    duration: number;
+    audioStoragePath: string;
+}
+
+export interface RenderPreset {
+    renderId: string;
+    videoId: string;
+    videoTitle: string;
+    completedAt: number;          // epoch ms
+    tracks: RenderPresetTrack[];
+    resolution: RenderResolution;
+    loopCount: number;
+    masterVolume: number;
+    imageUrl?: string;            // cover image used in the render
+}
+
 // ─── Editing Store State ───────────────────────────────────────────────
 export interface EditingState {
     // Persistence

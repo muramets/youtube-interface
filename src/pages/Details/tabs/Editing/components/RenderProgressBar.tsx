@@ -33,28 +33,32 @@ export const RenderProgressBar: React.FC<RenderProgressBarProps> = ({ videoId })
     const cancelJob = useRenderQueueStore((s) => s.cancelJob);
     const deleteJob = useRenderQueueStore((s) => s.deleteJob);
 
+    // Tick state — forces re-render every 60s so expiry countdown stays fresh
+    const [now, setNow] = useState(() => Date.now());
+    const [showDetail, setShowDetail] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
+
+    // Elapsed timer (shared hook) — safe to call unconditionally
+    const elapsed = useElapsedTimer(
+        job?.startedAt,
+        job?.status ?? 'queued',
+        job?.renderDurationSecs,
+    );
+
+    useEffect(() => {
+        if (!job?.expiresAt || job?.status !== 'complete') return;
+        const id = setInterval(() => setNow(Date.now()), 60_000);
+        return () => clearInterval(id);
+    }, [job?.expiresAt, job?.status]);
+
     if (!job) return null;
 
     const { status, progress, stage, error, downloadUrl, fileName, expiresAt, startedAt, renderDurationSecs } = job;
 
-    // Tick state — forces re-render every 60s so expiry countdown stays fresh
-    const [, setTick] = useState(0);
-    const [showDetail, setShowDetail] = useState(false);
-    const [confirmDelete, setConfirmDelete] = useState(false);
-
-    // Elapsed timer (shared hook)
-    const elapsed = useElapsedTimer(startedAt, status, renderDurationSecs);
-
-    useEffect(() => {
-        if (!expiresAt || status !== 'complete') return;
-        const id = setInterval(() => setTick((t) => t + 1), 60_000);
-        return () => clearInterval(id);
-    }, [expiresAt, status]);
-
     // Expiry countdown for completed renders
     const expiryLabel = (() => {
         if (!expiresAt || status !== 'complete') return null;
-        const remaining = expiresAt - Date.now();
+        const remaining = expiresAt - now;
         if (remaining <= 0) return 'Expired';
         const hours = Math.floor(remaining / (1000 * 60 * 60));
         if (hours > 0) return `${hours}h left`;

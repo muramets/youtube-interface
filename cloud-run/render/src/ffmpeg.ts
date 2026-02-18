@@ -9,8 +9,6 @@
  */
 
 import { spawn } from 'node:child_process';
-import { createWriteStream } from 'node:fs';
-import path from 'node:path';
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -25,6 +23,14 @@ export interface TrackInput {
     trimEnd: number;
     /** Total track duration in seconds (pre-trim) */
     duration: number;
+}
+
+export interface FfmpegDiagnostics {
+    speed: string;
+    fps: string;
+    bitrate: string;
+    outTimeSec: number;
+    elapsedSec: number;
 }
 
 export interface RenderParams {
@@ -46,6 +52,8 @@ export interface RenderParams {
     outputPath: string;
     /** Progress callback (0–100) */
     onProgress?: (pct: number) => void;
+    /** Diagnostic callback — emitted every ~30s with speed/fps/bitrate */
+    onDiagnostic?: (diag: FfmpegDiagnostics) => void;
     /** AbortSignal for cancellation — when aborted, ffmpeg process is killed */
     abortSignal?: AbortSignal;
 }
@@ -72,7 +80,7 @@ export const RESOLUTION_MAP: Record<string, { width: number; height: number }> =
 
 export async function renderWithFfmpeg(params: RenderParams): Promise<void> {
     const {
-        imagePath, tracks, width, height, videoBitrate,
+        imagePath, tracks, height, videoBitrate,
         loopCount, masterVolume, outputPath, onProgress,
     } = params;
 
@@ -88,7 +96,7 @@ export async function renderWithFfmpeg(params: RenderParams): Promise<void> {
     const concatInputs: string[] = [];
 
     // Input 0: image (loop for video duration — we'll set -shortest)
-    inputArgs.push('-loop', '1', '-i', imagePath);
+    inputArgs.push('-loop', '1', '-framerate', '6', '-i', imagePath);
 
     // Inputs 1..N: audio tracks (per loop iteration)
     for (let loop = 0; loop < loopCount; loop++) {
@@ -97,7 +105,6 @@ export async function renderWithFfmpeg(params: RenderParams): Promise<void> {
             const inputIdx = inputArgs.filter(a => a === '-i').length; // current input index
             inputArgs.push('-i', track.filePath);
 
-            const effectiveDuration = track.duration - track.trimStart - track.trimEnd;
             const vol = track.volume * masterVolume;
             const label = `a${loop}_${i}`;
 
@@ -151,15 +158,17 @@ export async function renderWithFfmpeg(params: RenderParams): Promise<void> {
         '-map', '0:v',
         '-c:v', 'libx264',
         '-tune', 'stillimage',        // optimize for static content
+        '-preset', 'veryfast',         // fast encode — no quality loss for static images
         '-profile:v', 'high',         // High Profile for B-frames
         '-level:v', h264Level,
         '-pix_fmt', 'yuv420p',
-        '-b:v', `${videoBitrate}`,
-        '-maxrate', `${Math.round(videoBitrate * 1.5)}`,
+        '-crf', '23',                               // default x264 quality (plenty for static image)
+        '-maxrate', `${videoBitrate}`,               // safety cap (YouTube recommended max)
         '-bufsize', `${Math.round(videoBitrate * 2)}`,
-        '-g', '48',                   // GOP size (keyframe every 2 sec at 24fps)
+        '-threads', '0',               // use all available CPU cores
+        '-g', '12',                   // GOP size (keyframe every 2 sec at 6fps)
         '-bf', '2',                   // 2 B-frames between P-frames
-        '-r', '24',                   // 24 fps
+        '-r', '6',                    // output fps matches input (static image)
 
         // BT.709 color metadata (matches DaVinci Resolve, ensures correct YouTube interpretation)
         '-color_primaries', 'bt709',
@@ -212,6 +221,9 @@ export async function renderWithFfmpeg(params: RenderParams): Promise<void> {
         // totalDuration already computed above
         let stderr = '';
         const MAX_STDERR = 2048;
+        const DIAG_INTERVAL_MS = 30_000; // emit diagnostics every 30s
+        let lastDiagTime = 0;
+        const encodeStartTime = Date.now();
 
         proc.stderr?.on('data', (chunk: Buffer) => {
             const text = chunk.toString();
@@ -219,10 +231,26 @@ export async function renderWithFfmpeg(params: RenderParams): Promise<void> {
 
             // Parse progress: "out_time_ms=123456" (microseconds)
             const match = text.match(/out_time_ms=(\d+)/);
-            if (match && totalDuration > 0 && onProgress) {
+            if (match && totalDuration > 0) {
                 const currentSec = parseInt(match[1], 10) / 1_000_000;
                 const pct = Math.min(99, Math.round((currentSec / totalDuration) * 100));
-                onProgress(pct);
+                onProgress?.(pct);
+
+                // Emit diagnostics every DIAG_INTERVAL_MS
+                const now = Date.now();
+                if (params.onDiagnostic && now - lastDiagTime > DIAG_INTERVAL_MS) {
+                    lastDiagTime = now;
+                    const speedMatch = text.match(/speed=\s*([\d.]+x|N\/A)/);
+                    const fpsMatch = text.match(/fps=\s*([\d.]+)/);
+                    const bitrateMatch = text.match(/bitrate=\s*([\d.]+\w+\/s|N\/A)/);
+                    params.onDiagnostic({
+                        speed: speedMatch?.[1] || 'N/A',
+                        fps: fpsMatch?.[1] || 'N/A',
+                        bitrate: bitrateMatch?.[1] || 'N/A',
+                        outTimeSec: Math.round(currentSec),
+                        elapsedSec: Math.round((now - encodeStartTime) / 1000),
+                    });
+                }
             }
         });
 

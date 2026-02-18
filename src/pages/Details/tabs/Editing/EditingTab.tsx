@@ -8,6 +8,7 @@ import { AudioTimeline } from './components/AudioTimeline';
 import { RenderControls } from './components/RenderControls';
 import { TrackBrowser } from './components/TrackBrowser';
 import { RenderProgressBar } from './components/RenderProgressBar';
+import { RenderPresetsPanel } from './components/RenderPresetsPanel';
 import { useEditingPersistence } from './hooks/useEditingPersistence';
 import type { VideoDetails } from '../../../../core/utils/youtubeApi';
 
@@ -84,6 +85,9 @@ export const EditingTab: React.FC<EditingTabProps> = ({ video }) => {
 
                 {/* Audio Timeline */}
                 <AudioTimeline />
+
+                {/* Render Presets — reuse audio timeline from previous renders */}
+                <RenderPresetsPanel videoId={video.id} />
 
                 {/* Render Controls */}
                 <RenderControls

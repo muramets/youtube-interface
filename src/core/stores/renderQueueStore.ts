@@ -3,16 +3,7 @@ import { startServerRender, cancelServerRender, deleteServerRender, sanitizeFile
 import type { RenderResolution, TimelineTrack } from '../types/editing';
 import { collection, doc, getDocs, onSnapshot, orderBy, query, limit } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-
-/** Parse a Firestore Timestamp, Date, or undefined into epoch millis. */
-function parseFirestoreTimestamp(raw: unknown): number | undefined {
-    if (raw == null) return undefined;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const asAny = raw as any;
-    if (typeof asAny.toMillis === 'function') return asAny.toMillis();
-    if (raw instanceof Date) return raw.getTime();
-    return undefined;
-}
+import { parseFirestoreTimestamp } from '../utils/firestoreUtils';
 
 // ─── Render job types ──────────────────────────────────────────────────
 
