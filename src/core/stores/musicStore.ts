@@ -313,18 +313,22 @@ export const useMusicStore = create<MusicState>((set) => ({
             }
         }
 
-        // Build update map: set groupId and assign groupOrder to tracks that lack it
+        // Build update map: source (dragged) track always becomes last child
         const allLinked = tracks.filter(t => idsToLink.has(t.id));
-        let nextOrder = allLinked.reduce((max, t) => Math.max(max, t.groupOrder ?? -1), -1) + 1;
+        const existingMembers = allLinked.filter(t => t.id !== sourceTrackId);
+        let nextOrder = existingMembers.reduce((max, t) => Math.max(max, t.groupOrder ?? -1), -1) + 1;
 
         const updateMap = new Map<string, { groupId: string; groupOrder?: number }>();
-        for (const t of allLinked) {
+        // First: assign orders to all non-source members that lack groupOrder
+        for (const t of existingMembers) {
             if (t.groupOrder !== undefined) {
                 updateMap.set(t.id, { groupId });
             } else {
                 updateMap.set(t.id, { groupId, groupOrder: nextOrder++ });
             }
         }
+        // Last: source track always gets the highest groupOrder (last child)
+        updateMap.set(sourceTrackId, { groupId, groupOrder: nextOrder });
 
         // Optimistic update
         set((state) => ({

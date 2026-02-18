@@ -27,13 +27,34 @@ import { AudioPlayer } from './pages/Music/components/AudioPlayer';
 import { ChatBubble } from './features/Chat/ChatBubble';
 import { RenderQueueFAB } from './features/Render/RenderQueueFAB';
 
+// ---------------------------------------------------------------------------
+// Lazy-with-retry: auto-reload once on stale chunk errors after deploy
+// ---------------------------------------------------------------------------
+function lazyWithRetry<T extends React.ComponentType<unknown>>(
+  factory: () => Promise<{ default: T }>,
+) {
+  return lazy(() =>
+    factory().catch((err: unknown) => {
+      const key = 'chunk_reload';
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1');
+        window.location.reload();
+        // Return a never-resolving promise so React doesn't render stale state
+        return new Promise<{ default: T }>(() => { });
+      }
+      sessionStorage.removeItem(key);
+      throw err;
+    }),
+  );
+}
+
 // Route-based code splitting — each page loads as a separate chunk
-const WatchPage = lazy(() => import('./features/Watch/WatchPage').then(m => ({ default: m.WatchPage })));
-const PlaylistsPage = lazy(() => import('./pages/Playlists/PlaylistsPage').then(m => ({ default: m.PlaylistsPage })));
-const PlaylistDetailPage = lazy(() => import('./pages/Playlists/PlaylistDetailPage').then(m => ({ default: m.PlaylistDetailPage })));
-const TrendsPage = lazy(() => import('./pages/Trends/TrendsPage').then(m => ({ default: m.TrendsPage })));
-const MusicPage = lazy(() => import('./pages/Music/MusicPage').then(m => ({ default: m.MusicPage })));
-const DetailsPage = lazy(() => import('./pages/Details').then(m => ({ default: m.DetailsPage })));
+const WatchPage = lazyWithRetry(() => import('./features/Watch/WatchPage').then(m => ({ default: m.WatchPage as React.ComponentType<unknown> })));
+const PlaylistsPage = lazyWithRetry(() => import('./pages/Playlists/PlaylistsPage').then(m => ({ default: m.PlaylistsPage as React.ComponentType<unknown> })));
+const PlaylistDetailPage = lazyWithRetry(() => import('./pages/Playlists/PlaylistDetailPage').then(m => ({ default: m.PlaylistDetailPage as React.ComponentType<unknown> })));
+const TrendsPage = lazyWithRetry(() => import('./pages/Trends/TrendsPage').then(m => ({ default: m.TrendsPage as React.ComponentType<unknown> })));
+const MusicPage = lazyWithRetry(() => import('./pages/Music/MusicPage').then(m => ({ default: m.MusicPage as React.ComponentType<unknown> })));
+const DetailsPage = lazyWithRetry(() => import('./pages/Details').then(m => ({ default: m.DetailsPage as React.ComponentType<unknown> })));
 
 function AppContent() {
   useCheckinScheduler();

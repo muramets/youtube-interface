@@ -45,6 +45,7 @@ export function useTimelineDnd(
     const insertTrackAt = useEditingStore((s) => s.insertTrackAt);
     const isLocked = useEditingStore((s) => s.isLocked);
     const musicTracks = useMusicStore(selectAllTracks);
+    const genres = useMusicStore((s) => s.genres);
 
     // dnd-kit sensors
     const sensors = useSensors(
@@ -146,7 +147,7 @@ export function useTimelineDnd(
                 const { trackId, variant } = JSON.parse(trackData) as { trackId: string; variant: 'vocal' | 'instrumental' };
                 const track = musicTracks.find((t) => t.id === trackId);
                 if (track) {
-                    insertTrackAt(createTimelineTrack(track, variant), idx);
+                    insertTrackAt(createTimelineTrack(track, variant, genres), idx);
                 }
             } catch { /* ignore */ }
             setDropInsertIndex(null);
@@ -169,7 +170,7 @@ export function useTimelineDnd(
                     const track = musicTracks.find((t) => t.id === tId);
                     if (!track) continue;
                     const variant: 'vocal' | 'instrumental' = track.vocalUrl ? 'vocal' : 'instrumental';
-                    insertTrackAt(createTimelineTrack(track, variant), insertAt);
+                    insertTrackAt(createTimelineTrack(track, variant, genres), insertAt);
                     existingIds.add(tId);
                     insertAt++;
                 }
@@ -177,7 +178,7 @@ export function useTimelineDnd(
         }
 
         setDropInsertIndex(null);
-    }, [insertTrackAt, dropInsertIndex, tracks, isLocked, musicTracks]);
+    }, [insertTrackAt, dropInsertIndex, tracks, isLocked, musicTracks, genres]);
 
     return {
         sensors,

@@ -381,26 +381,41 @@ export const TimelineTrackItem: React.FC<TimelineTrackItemProps> = ({ track, wid
                 onClick={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
             >
-                <button
-                    onClick={() => { if (track.variant !== 'vocal') toggleVariant(track.id, musicTracks); }}
-                    className={`text-[8px] font-semibold uppercase tracking-wider px-1.5 py-px transition-all
-                        ${track.variant === 'vocal'
-                            ? 'bg-white/[0.18] text-white'
-                            : 'text-white/35 hover:text-white/60'
-                        }`}
-                >
-                    voc
-                </button>
-                <button
-                    onClick={() => { if (track.variant !== 'instrumental') toggleVariant(track.id, musicTracks); }}
-                    className={`text-[8px] font-semibold uppercase tracking-wider px-1.5 py-px transition-all
-                        ${track.variant === 'instrumental'
-                            ? 'bg-white/[0.18] text-white'
-                            : 'text-white/35 hover:text-white/60'
-                        }`}
-                >
-                    inst
-                </button>
+                {(() => {
+                    const src = musicTracks.find(t => t.id === track.trackId);
+                    const hasVocal = !!src?.vocalUrl;
+                    const hasInst = !!src?.instrumentalUrl;
+                    return (
+                        <>
+                            <button
+                                onClick={() => { if (hasVocal && track.variant !== 'vocal') toggleVariant(track.id, musicTracks); }}
+                                disabled={!hasVocal}
+                                className={`text-[8px] font-semibold uppercase tracking-wider px-1.5 py-px transition-all
+                                    ${!hasVocal
+                                        ? 'text-white/15 cursor-not-allowed'
+                                        : track.variant === 'vocal'
+                                            ? 'bg-white/[0.18] text-white'
+                                            : 'text-white/35 hover:text-white/60'
+                                    }`}
+                            >
+                                voc
+                            </button>
+                            <button
+                                onClick={() => { if (hasInst && track.variant !== 'instrumental') toggleVariant(track.id, musicTracks); }}
+                                disabled={!hasInst}
+                                className={`text-[8px] font-semibold uppercase tracking-wider px-1.5 py-px transition-all
+                                    ${!hasInst
+                                        ? 'text-white/15 cursor-not-allowed'
+                                        : track.variant === 'instrumental'
+                                            ? 'bg-white/[0.18] text-white'
+                                            : 'text-white/35 hover:text-white/60'
+                                    }`}
+                            >
+                                inst
+                            </button>
+                        </>
+                    );
+                })()}
             </div>
 
             {/* Delete button (top-right, hover only) — hidden when locked */}

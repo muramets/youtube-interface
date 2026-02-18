@@ -435,6 +435,30 @@ export const MusicPage: React.FC = () => {
         overscan: 8,
     });
 
+    // BUG FIX: After dropping a track onto another track (grouping), the
+    // virtualizer keeps stale height measurements for rows that shifted or
+    // disappeared. This causes empty spaces and track overlap.
+    //
+    // Root cause: virtualizer caches row heights by index. When a standalone
+    // track joins a group, displayItems shrinks — indices shift, but cached
+    // measurements stay tied to old indices.
+    //
+    // Fix: invalidate the cache when item count changes. We skip the initial
+    // render (via ref comparison) to avoid resetting heights on mount.
+    //
+    // Tradeoff: measure() resets ALL cached heights to estimateSize (72px).
+    // ResizeObserver on measureElement re-measures visible rows quickly, but
+    // there may be a brief layout shift. If this becomes noticeable, consider
+    // a more targeted approach (e.g. ResizeObserver callback from
+    // TrackGroupCard to notify the virtualizer of height changes).
+    const prevCountRef = useRef(displayItems.length);
+    useEffect(() => {
+        if (prevCountRef.current !== displayItems.length) {
+            prevCountRef.current = displayItems.length;
+            virtualizer.measure();
+        }
+    }, [displayItems.length, virtualizer]);
+
     // Is the playlist in drag-reorder mode?
     const isPlaylistDragMode = !!(
         activePlaylistId &&

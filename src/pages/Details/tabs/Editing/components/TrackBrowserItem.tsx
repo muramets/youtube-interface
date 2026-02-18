@@ -19,6 +19,7 @@ export const TrackBrowserItem: React.FC<TrackBrowserItemProps> = ({ track, isOnT
     const addTrack = useEditingStore((s) => s.addTrack);
     const playingTrackId = useMusicStore((s) => s.playingTrackId);
     const isPlaying = useMusicStore((s) => s.isPlaying);
+    const genres = useMusicStore((s) => s.genres);
 
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
@@ -31,8 +32,8 @@ export const TrackBrowserItem: React.FC<TrackBrowserItemProps> = ({ track, isOnT
         track.vocalUrl ? 'vocal' : 'instrumental';
 
     const handleAdd = useCallback(() => {
-        addTrack(createTimelineTrack(track, defaultVariant));
-    }, [track, defaultVariant, addTrack]);
+        addTrack(createTimelineTrack(track, defaultVariant, genres));
+    }, [track, defaultVariant, addTrack, genres]);
 
     const handlePlay = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
@@ -113,7 +114,7 @@ export const TrackBrowserItem: React.FC<TrackBrowserItemProps> = ({ track, isOnT
             <div
                 draggable={!isOnTimeline}
                 onDragStart={isOnTimeline ? undefined : handleDragStart}
-                className={`w-full flex items-center gap-2 px-3 py-1.5 transition-colors group ${isOnTimeline
+                className={`w-full flex items-center gap-2 px-3 py-3 transition-colors group ${isOnTimeline
                     ? 'opacity-40 cursor-default'
                     : 'hover:bg-hover cursor-pointer'
                     }`}

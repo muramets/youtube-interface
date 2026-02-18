@@ -3,7 +3,7 @@
 // =============================================================================
 
 import React, { useRef, useEffect, useCallback } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Mic, Piano, X, Repeat, Repeat1, ListMusic, Settings } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Mic, Piano, X, Repeat, Repeat1, ListMusic, Settings, Heart } from 'lucide-react';
 import { AddToMusicPlaylistModal } from '../modals/AddToMusicPlaylistModal';
 import { UploadTrackModal } from '../modals/UploadTrackModal';
 import { WaveformCanvas } from './WaveformCanvas';
@@ -46,6 +46,20 @@ export const AudioPlayer: React.FC = () => {
     const [isMuted, setIsMuted] = React.useState(false);
     const [showPlaylistModal, setShowPlaylistModal] = React.useState(false);
     const [showTrackSettings, setShowTrackSettings] = React.useState(false);
+
+    // Close player on Esc — only if no modals are open
+    useEffect(() => {
+        const handleEsc = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape') return;
+            // Skip if our own sub-modals are open
+            if (showPlaylistModal || showTrackSettings) return;
+            // Skip if any other modal/dialog is open in the DOM
+            if (document.querySelector('[role="dialog"]')) return;
+            setPlayingTrack(null);
+        };
+        document.addEventListener('keydown', handleEsc);
+        return () => document.removeEventListener('keydown', handleEsc);
+    }, [showPlaylistModal, showTrackSettings, setPlayingTrack]);
 
     // Track previous URL and track ID to detect variant-only changes
     const prevAudioUrlRef = useRef<string | null>(null);
@@ -468,6 +482,17 @@ export const AudioPlayer: React.FC = () => {
                             <p className="text-xs text-text-secondary truncate">{track.artist || 'Unknown artist'}</p>
                         </div>
                     </div>
+
+                    {/* Like button */}
+                    <button
+                        onClick={() => useMusicStore.getState().toggleLike(userId, channelId, track.id)}
+                        className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${track.liked
+                            ? 'text-red-400 hover:text-red-300'
+                            : 'text-text-tertiary hover:text-text-primary'
+                            }`}
+                    >
+                        <Heart size={16} fill={track.liked ? 'currentColor' : 'none'} />
+                    </button>
 
                     {/* Playback controls */}
                     <div className="flex items-center gap-1.5 flex-shrink-0">

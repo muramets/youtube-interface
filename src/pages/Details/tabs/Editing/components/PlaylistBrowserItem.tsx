@@ -3,6 +3,7 @@ import { Check, ChevronRight, ListMusic, Plus } from 'lucide-react';
 import type { MusicPlaylist } from '../../../../../core/types/musicPlaylist';
 import type { Track } from '../../../../../core/types/track';
 import { useEditingStore } from '../../../../../core/stores/editingStore';
+import { useMusicStore } from '../../../../../core/stores/musicStore';
 import { createTimelineTrack } from '../../../../../core/types/editing';
 import { TrackBrowserItem } from './TrackBrowserItem';
 
@@ -14,6 +15,7 @@ interface PlaylistBrowserItemProps {
 
 export const PlaylistBrowserItem: React.FC<PlaylistBrowserItemProps> = ({ playlist, timelineTrackIds, browseTracks }) => {
     const addTrack = useEditingStore((s) => s.addTrack);
+    const genres = useMusicStore((s) => s.genres);
     const [expanded, setExpanded] = useState(false);
 
     // Resolve playlist trackIds → Track objects
@@ -30,10 +32,10 @@ export const PlaylistBrowserItem: React.FC<PlaylistBrowserItemProps> = ({ playli
         for (const track of playlistTracks) {
             if (existingSet.has(track.id)) continue;
             const variant: 'vocal' | 'instrumental' = track.vocalUrl ? 'vocal' : 'instrumental';
-            addTrack(createTimelineTrack(track, variant));
+            addTrack(createTimelineTrack(track, variant, genres));
             existingSet.add(track.id);
         }
-    }, [playlistTracks, addTrack]);
+    }, [playlistTracks, addTrack, genres]);
 
     // Native drag
     const handleDragStart = useCallback((e: React.DragEvent) => {

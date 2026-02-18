@@ -8,7 +8,9 @@ import { useChannelStore } from '../../../../../core/stores/channelStore';
 import { useTrackFilters } from '../../../../../core/hooks/useTrackFilters';
 import { CompactFilterBar } from './CompactFilterBar';
 import { TrackBrowserItem } from './TrackBrowserItem';
+import { TrackBrowserGroup } from './TrackBrowserGroup';
 import { PlaylistBrowserItem } from './PlaylistBrowserItem';
+import { useGroupedBrowserItems } from '../hooks/useGroupedBrowserItems';
 import type { SharedLibraryEntry } from '../../../../../core/types/musicSharing';
 
 /** Shared library tab button with truncation-aware tooltip */
@@ -117,6 +119,17 @@ export const TrackBrowser: React.FC = () => {
     // Independent filter state via shared hook (operates on source-specific tracks)
     const filters = useTrackFilters(sourceTracks, searchQuery);
 
+    // Group filtered tracks by groupId for collapsible accordion display
+    const displayItems = useGroupedBrowserItems(filters.filteredTracks);
+
+    // Flat track list in visual order (groups expanded inline) — used as playback queue
+    const visualOrderTracks = useMemo(() =>
+        displayItems.flatMap(item =>
+            item.type === 'group' ? item.tracks : [item.track]
+        ),
+        [displayItems]
+    );
+
     // Track IDs already on timeline (for highlighting)
     const timelineTrackIds = useMemo(
         () => new Set(timelineTracks.map((t) => t.trackId)),
@@ -220,19 +233,28 @@ export const TrackBrowser: React.FC = () => {
             {/* Content List */}
             <div className="flex-1 overflow-y-auto overflow-x-hidden py-1.5">
                 {activeTab === 'tracks' ? (
-                    filters.filteredTracks.length === 0 ? (
+                    displayItems.length === 0 ? (
                         <div className="flex items-center justify-center h-20 text-xs text-text-tertiary">
                             {sourceTracks.length === 0 ? 'No tracks in library' : 'No matches'}
                         </div>
                     ) : (
-                        filters.filteredTracks.map((track) => (
-                            <TrackBrowserItem
-                                key={track.id}
-                                track={track}
-                                isOnTimeline={timelineTrackIds.has(track.id)}
-                                browseTracks={filters.filteredTracks}
-                            />
-                        ))
+                        displayItems.map((item) =>
+                            item.type === 'group' ? (
+                                <TrackBrowserGroup
+                                    key={item.groupId}
+                                    tracks={item.tracks}
+                                    timelineTrackIds={timelineTrackIds}
+                                    browseTracks={visualOrderTracks}
+                                />
+                            ) : (
+                                <TrackBrowserItem
+                                    key={item.track.id}
+                                    track={item.track}
+                                    isOnTimeline={timelineTrackIds.has(item.track.id)}
+                                    browseTracks={visualOrderTracks}
+                                />
+                            )
+                        )
                     )
                 ) : (
                     filteredPlaylists.length === 0 ? (
