@@ -126,11 +126,14 @@ export const RenderPresetsPanel: React.FC<RenderPresetsPanelProps> = ({ videoId 
         appliedTimerRef.current = setTimeout(() => setAppliedId(null), 2000);
     }, [applyPreset, musicTracks, appliedId]);
 
+    const uid = user?.uid;
+    const channelId = currentChannel?.id;
+
     const handleDelete = useCallback((e: React.MouseEvent, presetId: string) => {
         e.stopPropagation();
-        if (!user?.uid || !currentChannel?.id) return;
-        deletePreset(user.uid, currentChannel.id, presetId);
-    }, [user?.uid, currentChannel?.id, deletePreset]);
+        if (!uid || !channelId) return;
+        deletePreset(uid, channelId, presetId);
+    }, [uid, channelId, deletePreset]);
 
     const handleToggle = useCallback(() => {
         setIsOpen((prev) => !prev);
