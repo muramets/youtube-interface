@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { TrendService } from '../../../core/services/trendService';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
+import { debug } from '../../../core/utils/debug';
 import type { TrendVideo, TrendSnapshot, TrendVideoRow, TrendVideoTotals, TrendSortKey, TrendSortConfig } from '../../../core/types/trends';
 
 export const useTrendTableData = (channelId: string, videos: TrendVideo[]) => {
@@ -89,6 +90,17 @@ export const useTrendTableData = (channelId: string, videos: TrendVideo[]) => {
                     60
                 );
 
+                debug.trendsGroup.start(`📊 Trend Table Delta — channel=${channelId}, ${videos.length} videos`);
+                debug.trends(`Snapshots fetched: ${snapshots.length}`);
+                if (snapshots.length > 0) {
+                    const newest = snapshots[0];
+                    const oldest = snapshots[snapshots.length - 1];
+                    debug.trends(`Newest snapshot: ts=${newest.timestamp} (${new Date(newest.timestamp).toISOString()}), videoViews keys=${Object.keys(newest.videoViews || {}).length}`);
+                    debug.trends(`Oldest snapshot: ts=${oldest.timestamp} (${new Date(oldest.timestamp).toISOString()}), videoViews keys=${Object.keys(oldest.videoViews || {}).length}`);
+                } else {
+                    debug.trends('⚠️ NO SNAPSHOTS FOUND — all deltas will be null');
+                }
+
                 // Helper to find snapshot closest to target timestamp (searching backwards)
                 const findSnapshot = (targetTs: number): TrendSnapshot | undefined => {
                     // Snapshots are sorted DESC (newest first). 
@@ -107,7 +119,10 @@ export const useTrendTableData = (channelId: string, videos: TrendVideo[]) => {
                 const snap7d = findSnapshot(now - (7 * oneDayMs));
                 const snap30d = findSnapshot(now - (30 * oneDayMs));
 
-                const processedRows: TrendVideoRow[] = videos.map(video => {
+                debug.trends(`findSnapshot targets: 24h=${new Date(now - oneDayMs).toISOString()}, 7d=${new Date(now - 7 * oneDayMs).toISOString()}, 30d=${new Date(now - 30 * oneDayMs).toISOString()}`);
+                debug.trends(`findSnapshot results: 24h=${snap24h ? new Date(snap24h.timestamp).toISOString() : 'NONE'}, 7d=${snap7d ? new Date(snap7d.timestamp).toISOString() : 'NONE'}, 30d=${snap30d ? new Date(snap30d.timestamp).toISOString() : 'NONE'}`);
+
+                const processedRows: TrendVideoRow[] = videos.map((video, idx) => {
                     // Function to calculate delta safely
                     const getDelta = (snap: TrendSnapshot | undefined) => {
                         if (!snap) return null;
@@ -116,12 +131,22 @@ export const useTrendTableData = (channelId: string, videos: TrendVideo[]) => {
                         return video.viewCount - pastViews;
                     };
 
+                    const d24h = getDelta(snap24h);
+                    const d7d = getDelta(snap7d);
+                    const d30d = getDelta(snap30d);
+
+                    // Log first 3 videos for debugging
+                    if (idx < 3) {
+                        const pastViews24h = snap24h?.videoViews[video.id];
+                        debug.trends(`  Video[${idx}] id=${video.id} title="${video.title?.slice(0, 40)}" current=${video.viewCount} past24h=${pastViews24h ?? 'N/A'} → delta24h=${d24h}`);
+                    }
+
                     return {
                         type: 'video',
                         video,
-                        delta24h: getDelta(snap24h),
-                        delta7d: getDelta(snap7d),
-                        delta30d: getDelta(snap30d)
+                        delta24h: d24h,
+                        delta7d: d7d,
+                        delta30d: d30d
                     };
                 });
 
@@ -139,6 +164,11 @@ export const useTrendTableData = (channelId: string, videos: TrendVideo[]) => {
                 }), { type: 'video' as const, viewCount: 0, delta24h: 0, delta7d: 0, delta30d: 0 });
 
                 setTotals(newTotals);
+
+                debug.trends(`Totals: delta24h=${newTotals.delta24h}, delta7d=${newTotals.delta7d}, delta30d=${newTotals.delta30d}`);
+                const nonNullCount = processedRows.filter(r => r.delta24h !== null).length;
+                debug.trends(`Videos with 24h data: ${nonNullCount}/${processedRows.length}`);
+                debug.trendsGroup.end();
 
                 // Smart Default Sort:
                 // If we are on the initial load (or reset), check if we have ANY 24h data.
