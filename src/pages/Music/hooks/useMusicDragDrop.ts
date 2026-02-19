@@ -3,7 +3,7 @@
 // =============================================================================
 // Handles drag start/end events for music tracks being dragged onto
 // playlist items in the sidebar OR onto other tracks for version grouping.
-// Works alongside useTrendsDragDrop inside the shared DndContext (TrendsDndProvider).
+// Works alongside useTrendsDragDrop inside the shared DndContext (AppDndProvider).
 // =============================================================================
 
 import { useState, useCallback, useMemo } from 'react';

@@ -22,7 +22,7 @@ import { useTrendSubscription } from './pages/Trends/hooks/useTrendSubscription'
 import { useUserPersistence } from './core/hooks/useUserPersistence';
 import { VideoPlayerProvider } from './core/contexts/VideoPlayerContext';
 import { GlobalMiniPlayer } from './features/Player/GlobalMiniPlayer';
-import { TrendsDndProvider } from './pages/Trends/TrendsDndProvider';
+import { AppDndProvider } from './components/providers/AppDndProvider';
 import { AudioPlayer } from './pages/Music/components/AudioPlayer';
 import { ChatBubble } from './features/Chat/ChatBubble';
 import { RenderQueueFAB } from './features/Render/RenderQueueFAB';
@@ -93,8 +93,8 @@ function AppContent() {
             <ProtectedRoute>
               <>
                 <Header />
-                {/* DnD Context for Trends: Video → Niche drag and drop */}
-                <TrendsDndProvider>
+                {/* Global DnD Context: Trends video drag + Music track drag */}
+                <AppDndProvider>
                   <div className="flex flex-1 overflow-hidden relative">
                     <Sidebar />
                     <main className="flex-1 flex flex-col overflow-y-auto relative">
@@ -108,7 +108,7 @@ function AppContent() {
                       </Routes>
                     </main>
                   </div>
-                </TrendsDndProvider>
+                </AppDndProvider>
               </>
             </ProtectedRoute>
           } />

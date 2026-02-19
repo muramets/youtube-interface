@@ -2,7 +2,7 @@
 // MUSIC FILTER BAR: Genre, tag, and BPM filter categories with chip rows
 // =============================================================================
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Settings2, ChevronRight } from 'lucide-react';
 import type { MusicGenre, MusicTag } from '../../../core/types/track';
 
@@ -40,6 +40,39 @@ export const MusicFilterBar: React.FC<MusicFilterBarProps> = ({
     const [manualExpanded, setManualExpanded] = useState<Set<string>>(new Set());
     const [filterIconHovered, setFilterIconHovered] = useState(false);
     const [showAll, setShowAll] = useState(false);
+
+    // ── Scroll fade indicators ───────────────────────────────────────────
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const [showLeftFade, setShowLeftFade] = useState(false);
+    const [showRightFade, setShowRightFade] = useState(false);
+    const rafRef = useRef<number | null>(null);
+
+    const checkScroll = useCallback(() => {
+        if (rafRef.current) return;
+        rafRef.current = requestAnimationFrame(() => {
+            if (scrollRef.current) {
+                const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+                setShowLeftFade(scrollLeft > 2);
+                setShowRightFade(Math.abs(scrollWidth - clientWidth - scrollLeft) > 2);
+            }
+            rafRef.current = null;
+        });
+    }, []);
+
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        el.addEventListener('scroll', checkScroll);
+        window.addEventListener('resize', checkScroll);
+        checkScroll();
+        const t = setTimeout(checkScroll, 100);
+        return () => {
+            el.removeEventListener('scroll', checkScroll);
+            window.removeEventListener('resize', checkScroll);
+            clearTimeout(t);
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        };
+    }, [checkScroll, showAll]);
 
     // Derive auto-expanded categories from active filters (no setState needed)
     const autoExpanded = useMemo(() => {
@@ -111,65 +144,73 @@ export const MusicFilterBar: React.FC<MusicFilterBarProps> = ({
 
     return (
         <div className="flex flex-col gap-2.5">
-            {/* Row 1: Category labels as plain text */}
-            <div className="flex items-center gap-5">
-                <button
-                    onMouseEnter={() => setFilterIconHovered(true)}
-                    onMouseLeave={() => setFilterIconHovered(false)}
-                    onClick={() => {
-                        const targetKeys = (showAll || !hasFeatured) ? allCategories : visibleCategories;
-                        const allKeys = targetKeys.map(c => c.key);
-                        const allExpanded = allKeys.every(k => expandedCategories.has(k));
-                        setManualExpanded(allExpanded ? new Set() : new Set(allKeys));
-                    }}
-                    className="bg-transparent border-none cursor-pointer p-0 flex-shrink-0 text-text-secondary hover:text-text-primary transition-colors"
-                >
-                    <Settings2 size={16} />
-                </button>
-                {visibleCategories.map(({ key, label, type }) => {
-                    const isExpanded = expandedCategories.has(key);
-                    const isActive = type === 'genre'
-                        ? !!genreFilter
-                        : type === 'bpm'
-                            ? !!bpmFilter
-                            : tagsByCategory[key]?.some(t => tagFilters.includes(t.id));
-                    return (
-                        <button
-                            key={key}
-                            onClick={() => toggleCategory(key)}
-                            className={`text-sm font-medium transition-colors bg-transparent border-none cursor-pointer whitespace-nowrap ${filterIconHovered || isExpanded
-                                ? 'text-text-primary'
-                                : isActive
+            {/* Row 1: Category labels with scroll fades */}
+            <div className="relative">
+                {showLeftFade && (
+                    <div className="absolute left-0 top-0 bottom-0 w-8 z-10 pointer-events-none bg-gradient-to-r from-bg-primary to-transparent" />
+                )}
+                {showRightFade && (
+                    <div className="absolute right-0 top-0 bottom-0 w-8 z-10 pointer-events-none bg-gradient-to-l from-bg-primary to-transparent" />
+                )}
+                <div ref={scrollRef} className="flex items-center gap-5 overflow-x-auto scrollbar-hide min-w-0">
+                    <button
+                        onMouseEnter={() => setFilterIconHovered(true)}
+                        onMouseLeave={() => setFilterIconHovered(false)}
+                        onClick={() => {
+                            const targetKeys = (showAll || !hasFeatured) ? allCategories : visibleCategories;
+                            const allKeys = targetKeys.map(c => c.key);
+                            const allExpanded = allKeys.every(k => expandedCategories.has(k));
+                            setManualExpanded(allExpanded ? new Set() : new Set(allKeys));
+                        }}
+                        className="bg-transparent border-none cursor-pointer p-0 flex-shrink-0 text-text-secondary hover:text-text-primary transition-colors"
+                    >
+                        <Settings2 size={16} />
+                    </button>
+                    {visibleCategories.map(({ key, label, type }) => {
+                        const isExpanded = expandedCategories.has(key);
+                        const isActive = type === 'genre'
+                            ? !!genreFilter
+                            : type === 'bpm'
+                                ? !!bpmFilter
+                                : tagsByCategory[key]?.some(t => tagFilters.includes(t.id));
+                        return (
+                            <button
+                                key={key}
+                                onClick={() => toggleCategory(key)}
+                                className={`text-sm font-medium transition-colors bg-transparent border-none cursor-pointer whitespace-nowrap ${filterIconHovered || isExpanded
                                     ? 'text-text-primary'
-                                    : 'text-text-secondary hover:text-text-primary'
-                                }`}
+                                    : isActive
+                                        ? 'text-text-primary'
+                                        : 'text-text-secondary hover:text-text-primary'
+                                    }`}
+                            >
+                                {label}
+                            </button>
+                        );
+                    })}
+
+                    {/* Expand arrow to show non-featured categories */}
+                    {hasNonFeatured && (
+                        <button
+                            onClick={() => setShowAll(prev => !prev)}
+                            className="bg-transparent border-none cursor-pointer p-0 flex-shrink-0 text-text-tertiary hover:text-text-primary transition-all"
                         >
-                            {label}
+                            <ChevronRight
+                                size={16}
+                                className={`transition-transform duration-200 ${showAll ? 'rotate-180' : ''}`}
+                            />
                         </button>
-                    );
-                })}
+                    )}
 
-                {/* Expand arrow to show non-featured categories */}
-                {hasNonFeatured && (
-                    <button
-                        onClick={() => setShowAll(prev => !prev)}
-                        className="bg-transparent border-none cursor-pointer p-0 flex-shrink-0 text-text-tertiary hover:text-text-primary transition-all"
-                    >
-                        <ChevronRight
-                            size={16}
-                            className={`transition-transform duration-200 ${showAll ? 'rotate-180' : ''}`}
-                        />
-                    </button>
-                )}
-
-                {hasActiveFilters && (
-                    <button
-                        onClick={clearFilters}
-                        className="text-xs text-text-tertiary hover:text-text-primary transition-colors ml-auto"
-                    >
-                        Clear
-                    </button>
-                )}
+                    {hasActiveFilters && (
+                        <button
+                            onClick={clearFilters}
+                            className="text-xs text-text-tertiary hover:text-text-primary transition-colors ml-auto"
+                        >
+                            Clear
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Chip rows for each expanded category */}

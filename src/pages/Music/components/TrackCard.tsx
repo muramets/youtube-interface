@@ -4,16 +4,13 @@
 
 import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { Play, Pause, Mic, Piano, Sparkles, Copy, Check, Heart, Download, BookOpen, MoreHorizontal, Trash2, Settings, ListMusic, Link, Unlink } from 'lucide-react';
+import { Play, Pause, Mic, Piano, Sparkles, Copy, Check, BookOpen } from 'lucide-react';
 import { WaveformCanvas } from './WaveformCanvas';
+import { TrackContextMenu } from './TrackContextMenu';
 import { useMusicStore } from '../../../core/stores/musicStore';
 import type { Track } from '../../../core/types/track';
 import { DEFAULT_ACCENT_COLOR, getDefaultVariant } from '../../../core/utils/trackUtils';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '../../../components/ui/molecules/DropdownMenu';
-import { ConfirmationModal } from '../../../components/ui/organisms/ConfirmationModal';
-import { AddToMusicPlaylistModal } from '../modals/AddToMusicPlaylistModal';
-import { LinkVersionModal } from '../modals/LinkVersionModal';
 
 interface TrackCardProps {
     track: Track;
@@ -26,10 +23,6 @@ interface TrackCardProps {
     trailingElement?: React.ReactNode;
     disableDropTarget?: boolean;
     disableDrag?: boolean;
-    /** Colored left stripe for sibling tracks without parent in playlist */
-    siblingColor?: string;
-    /** Position within sibling group for connected stripe rendering */
-    siblingPosition?: 'first' | 'middle' | 'last';
 }
 
 import { formatDuration } from '../utils/formatDuration';
@@ -45,8 +38,6 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
     trailingElement,
     disableDropTarget,
     disableDrag,
-    siblingColor,
-    siblingPosition,
 }) => {
     // Granular selectors — only subscribe to what this card needs
     const playingTrackId = useMusicStore((s) => s.playingTrackId);
@@ -59,7 +50,6 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
     const genres = useMusicStore((s) => s.genres);
     const allTags = useMusicStore((s) => s.tags);
     const featuredCategories = useMusicStore((s) => s.featuredCategories);
-    const activePlaylistId = useMusicStore((s) => s.activePlaylistId);
 
     // Only subscribe to time-sensitive data for the active track
     const currentTime = useMusicStore((s) => isCurrentTrack ? s.currentTime : 0);
@@ -67,7 +57,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
     const seekTo = useMusicStore((s) => isCurrentTrack ? s.seekTo : null);
 
     // Stable action references — don't subscribe to state changes
-    const { setPlayingTrack, setIsPlaying, toggleLike, toggleVariant, setGenreFilter, toggleTagFilter, setSearchQuery, unlinkFromGroup } = useMusicStore.getState();
+    const { setPlayingTrack, setIsPlaying, toggleVariant, setGenreFilter, toggleTagFilter, setSearchQuery } = useMusicStore.getState();
     const isCurrentlyPlaying = isCurrentTrack && isPlaying;
 
     const genreInfo = useMemo(() =>
@@ -116,49 +106,12 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
         setTimeout(() => setLyricsCopied(false), 1500);
     };
 
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    const [showAddToPlaylist, setShowAddToPlaylist] = useState(false);
-    const [showLinkVersion, setShowLinkVersion] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [tooltipOpen, setTooltipOpen] = useState(false);
-    const [downloadVisible, setDownloadVisible] = useState(true);
 
-    const cardRef = useRef<HTMLDivElement>(null);
-    const overflowRef = useRef<HTMLDivElement>(null);
-    const neededWidthRef = useRef<number>(0);
+    const cardRef = useRef<HTMLDivElement | null>(null);
 
-    const hasVocal = !!track.vocalUrl;
-    const hasInstrumental = !!track.instrumentalUrl;
-    const hasBothVariants = hasVocal && hasInstrumental;
-
-    const downloadBaseName = useMemo(() => {
-        const artist = track.artist?.trim();
-        return artist ? `${artist} - ${track.title}` : track.title;
-    }, [track.artist, track.title]);
-
-    const handleDownload = useCallback(async (url?: string, suffix?: string) => {
-        if (!url) return;
-        try {
-            const response = await fetch(url);
-            const blob = await response.blob();
-            const blobUrl = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = blobUrl;
-            a.download = `${downloadBaseName}${suffix ? ` ${suffix}` : ''}.mp3`;
-            a.click();
-            // Clean up blob URL after a short delay
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-        } catch (err) {
-            console.error('[TrackCard] Download failed, falling back to direct link:', err);
-            // Fallback: open in new tab
-            window.open(url, '_blank');
-        }
-    }, [downloadBaseName]);
-
-    const handleDownloadBoth = useCallback(() => {
-        handleDownload(track.vocalUrl);
-        setTimeout(() => handleDownload(track.instrumentalUrl, '(instr)'), 300);
-    }, [handleDownload, track.vocalUrl, track.instrumentalUrl]);
+    const hasBothVariants = !!track.vocalUrl && !!track.instrumentalUrl;
 
     const currentVariant = isCurrentTrack ? playingVariant : getDefaultVariant(track);
     const currentPeaks = currentVariant === 'vocal' ? track.vocalPeaks : track.instrumentalPeaks;
@@ -180,7 +133,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             const seekSeconds = position * track.duration;
             setPlayingTrack(track.id, variant, seekSeconds);
         }
-    }, [isCurrentTrack, seekTo, isPlaying, setIsPlaying, setPlayingTrack, track.id, track.vocalUrl, track.duration]);
+    }, [isCurrentTrack, seekTo, isPlaying, setIsPlaying, setPlayingTrack, track]);
 
     // DnD: Make track draggable
     const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
@@ -196,32 +149,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
         disabled: disableDropTarget,
     });
 
-    // Detect whether like+download buttons overflow the card
-    useEffect(() => {
-        const card = cardRef.current;
-        if (!card) return;
 
-        const check = () => {
-            const overflows = card.scrollWidth > card.clientWidth + 1;
-            if (overflows) {
-                // Store the full width needed (including buttons) so we know
-                // when the card is wide enough to show them again
-                neededWidthRef.current = card.scrollWidth;
-                setDownloadVisible(false);
-            } else if (neededWidthRef.current > 0) {
-                // Buttons are hidden — show them if card is now wide enough
-                if (card.clientWidth >= neededWidthRef.current) {
-                    neededWidthRef.current = 0;
-                    setDownloadVisible(true);
-                }
-            }
-        };
-
-        const observer = new ResizeObserver(check);
-        observer.observe(card);
-        check();
-        return () => observer.disconnect();
-    }, []);
 
     // Merge drag ref + drop ref + card ref
     const mergedRef = useCallback((node: HTMLDivElement | null) => {
@@ -229,6 +157,19 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
         setDropRef(node);
         (cardRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
     }, [setDragRef, setDropRef]);
+
+    // When this card is being dragged, render a lightweight placeholder
+    // to prevent ResizeObserver from remeasuring the virtualizer row
+    if (isHidden) {
+        return (
+            <div
+                ref={mergedRef}
+                className="px-4 py-4"
+            >
+                <div className="h-14" />
+            </div>
+        );
+    }
 
     return (
         <div
@@ -238,7 +179,6 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             onClick={(e) => { e.stopPropagation(); if (e.metaKey || e.ctrlKey) { onSelect(isSelected ? null : track.id); } else { onSelect(null); } }}
 
             className={`group flex items-center gap-4 px-4 py-4 rounded-lg transition-all duration-300 cursor-pointer relative
-                ${isHidden ? 'opacity-0' : ''}
                 ${isOver && !isDragging ? 'ring-2 ring-indigo-400/50 bg-indigo-500/[0.06]' : ''}
                 ${isCurrentTrack
                     ? 'bg-white/[0.06] hover:bg-white/[0.09]'
@@ -249,21 +189,6 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                             : 'hover:bg-white/[0.04]'
                 }`}
         >
-            {/* Sibling color stripe — connected line between siblings from same group */}
-            {siblingColor && (
-                <div
-                    className="absolute left-0 w-[3px]"
-                    style={{
-                        backgroundColor: siblingColor,
-                        top: siblingPosition === 'first' ? 8 : 0,
-                        bottom: siblingPosition === 'last' ? 8 : 0,
-                        borderRadius:
-                            siblingPosition === 'first' ? '3px 3px 0 0'
-                                : siblingPosition === 'last' ? '0 0 3px 3px'
-                                    : 0,
-                    }}
-                />
-            )}
             {/* 1. Cover + Play/Pause overlay */}
             <div
                 className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center relative group/cover cursor-pointer"
@@ -307,7 +232,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             </div>
 
             {/* 2. Title + Artist */}
-            <div className="min-w-0 w-[260px] flex-shrink-0">
+            <div className="min-w-0 w-[220px] flex-shrink-0">
                 <PortalTooltip
                     variant="default"
                     sizeMode="auto"
@@ -334,37 +259,39 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             {/* Version badge (if passed from TrackGroupCard) */}
             {trailingElement}
 
-            {/* 2.5 Variant toggle */}
-            {hasBothVariants && (
-                <PortalTooltip
-                    content={currentVariant === 'vocal' ? 'Switch to instrumental' : 'Switch to vocal'}
-                    triggerClassName="!block"
-                    enterDelay={300}
-                >
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            if (isCurrentTrack) {
-                                toggleVariant();
-                            } else {
-                                const variant = currentVariant === 'vocal' ? 'instrumental' : 'vocal';
-                                setPlayingTrack(track.id, variant);
-                            }
-                        }}
-                        className={`p-1.5 rounded-lg text-xs flex items-center gap-1 flex-shrink-0 transition-all duration-300
-                            ${isCurrentTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
-                            ${currentVariant === 'instrumental'
-                                ? 'bg-white/10 text-white'
-                                : 'text-text-secondary hover:text-text-primary hover:bg-white/10'
-                            }`}
+            {/* 2.5 Variant toggle — fixed-width slot so waveform position is consistent */}
+            <div className="w-[58px] flex-shrink-0 flex items-center justify-center">
+                {hasBothVariants && (
+                    <PortalTooltip
+                        content={currentVariant === 'vocal' ? 'Switch to instrumental' : 'Switch to vocal'}
+                        triggerClassName="!block"
+                        enterDelay={300}
                     >
-                        {currentVariant === 'vocal' ? <Mic size={14} /> : <Piano size={14} />}
-                        <span className="text-[10px] uppercase tracking-wider">
-                            {currentVariant === 'vocal' ? 'VOC' : 'INST'}
-                        </span>
-                    </button>
-                </PortalTooltip>
-            )}
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (isCurrentTrack) {
+                                    toggleVariant();
+                                } else {
+                                    const variant = currentVariant === 'vocal' ? 'instrumental' : 'vocal';
+                                    setPlayingTrack(track.id, variant);
+                                }
+                            }}
+                            className={`p-1.5 rounded-lg text-xs flex items-center gap-1 flex-shrink-0 transition-all duration-300
+                                ${isCurrentTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
+                                ${currentVariant === 'instrumental'
+                                    ? 'bg-white/10 text-white'
+                                    : 'text-text-secondary hover:text-text-primary hover:bg-white/10'
+                                }`}
+                        >
+                            {currentVariant === 'vocal' ? <Mic size={14} /> : <Piano size={14} />}
+                            <span className="text-[10px] uppercase tracking-wider">
+                                {currentVariant === 'vocal' ? 'VOC' : 'INST'}
+                            </span>
+                        </button>
+                    </PortalTooltip>
+                )}
+            </div>
 
             {/* 3. Waveform */}
             <div className="flex-1 min-w-0 max-w-[280px] group/waveform">
@@ -395,7 +322,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             </div>
 
             {/* 5. Genre */}
-            <div className="w-[72px] flex-shrink-0 flex items-center justify-center">
+            <div className="w-[72px] flex-shrink-0 flex items-center justify-center ml-3">
                 {genreInfo && (
                     <button
                         onClick={(e) => { e.stopPropagation(); setGenreFilter(genreInfo.id); }}
@@ -410,7 +337,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             </div>
 
             {/* 6. Tags */}
-            <div className="flex-1 min-w-0 max-w-[200px] line-clamp-2 text-[10px] text-text-tertiary leading-relaxed">
+            <div className="flex-1 min-w-0 max-w-[200px] line-clamp-2 text-[10px] text-text-tertiary leading-relaxed ml-3">
                 {track.tags
                     .map(tagId => allTags.find(t => t.id === tagId))
                     .filter((tagDef): tagDef is NonNullable<typeof tagDef> => {
@@ -495,158 +422,16 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                     </PortalTooltip>
                 )}
 
-                {/* Like + Download (visible when they fit) */}
-                {downloadVisible && (
-                    <div ref={overflowRef} className="flex items-center gap-0.5">
-                        {/* Like heart */}
-                        <button
-                            onClick={(e) => { e.stopPropagation(); toggleLike(userId, channelId, track.id); }}
-                            className={`p-1.5 rounded-lg transition-colors ${track.liked
-                                ? 'text-red-400 hover:text-red-300'
-                                : 'text-text-tertiary hover:text-text-primary'
-                                }`}
-                        >
-                            <Heart size={14} fill={track.liked ? 'currentColor' : 'none'} />
-                        </button>
-
-                        {/* Download */}
-                        {hasBothVariants ? (
-                            <DropdownMenu onOpenChange={setDropdownOpen}>
-                                <DropdownMenuTrigger asChild>
-                                    <button
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary transition-colors flex items-center"
-                                    >
-                                        <Download size={14} />
-                                    </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" sideOffset={4}>
-                                    {hasVocal && (
-                                        <DropdownMenuItem onClick={() => handleDownload(track.vocalUrl)}>
-                                            <Mic size={14} className="mr-2" /> Vocal
-                                        </DropdownMenuItem>
-                                    )}
-                                    {hasInstrumental && (
-                                        <DropdownMenuItem onClick={() => handleDownload(track.instrumentalUrl, '(instr)')}>
-                                            <Piano size={14} className="mr-2" /> Instrumental
-                                        </DropdownMenuItem>
-                                    )}
-                                    <DropdownMenuItem onClick={handleDownloadBoth}>
-                                        <Download size={14} className="mr-2" /> Both
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        ) : (
-                            <button
-                                onClick={(e) => { e.stopPropagation(); handleDownload(track.vocalUrl || track.instrumentalUrl); }}
-                                className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary transition-colors"
-                            >
-                                <Download size={14} />
-                            </button>
-                        )}
-                    </div>
-                )}
-
-
-                {/* More menu (hidden when no items to show) */}
-                {(onEdit || onDelete || !downloadVisible) && (
-                    <DropdownMenu onOpenChange={setDropdownOpen}>
-                        <DropdownMenuTrigger asChild>
-                            <button
-                                onClick={(e) => e.stopPropagation()}
-                                className="p-1.5 rounded-lg text-text-tertiary hover:text-text-primary transition-colors"
-                            >
-                                <MoreHorizontal size={14} />
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" sideOffset={4}>
-                            {onEdit && (
-                                <>
-                                    <DropdownMenuItem onClick={() => setShowAddToPlaylist(true)}>
-                                        <ListMusic size={14} className="mr-2" />
-                                        {activePlaylistId && activePlaylistId !== 'liked' ? 'Manage Playlists' : 'Add to Playlist'}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => setShowLinkVersion(true)}>
-                                        <Link size={14} className="mr-2" /> Link as Version
-                                    </DropdownMenuItem>
-                                    {track.groupId && (
-                                        <DropdownMenuItem onClick={() => unlinkFromGroup(userId, channelId, track.id)}>
-                                            <Unlink size={14} className="mr-2" /> Unlink from Group
-                                        </DropdownMenuItem>
-                                    )}
-                                </>
-                            )}
-                            {!downloadVisible && (
-                                <>
-                                    {onEdit && <DropdownMenuSeparator />}
-                                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); toggleLike(userId, channelId, track.id); }}>
-                                        <Heart size={14} className="mr-2" fill={track.liked ? 'currentColor' : 'none'} />
-                                        {track.liked ? 'Unlike' : 'Like'}
-                                    </DropdownMenuItem>
-                                    {hasBothVariants ? (
-                                        <>
-                                            <DropdownMenuItem onClick={() => handleDownload(track.vocalUrl)}>
-                                                <Download size={14} className="mr-2" /> Download Vocal
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => handleDownload(track.instrumentalUrl, '(instr)')}>
-                                                <Download size={14} className="mr-2" /> Download Instrumental
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={handleDownloadBoth}>
-                                                <Download size={14} className="mr-2" /> Download Both
-                                            </DropdownMenuItem>
-                                        </>
-                                    ) : (
-                                        <DropdownMenuItem onClick={() => handleDownload(track.vocalUrl || track.instrumentalUrl)}>
-                                            <Download size={14} className="mr-2" /> Download
-                                        </DropdownMenuItem>
-                                    )}
-                                </>
-                            )}
-                            {onEdit && (
-                                <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => onEdit(track)}>
-                                        <Settings size={14} className="mr-2" /> Track Settings
-                                    </DropdownMenuItem>
-                                </>
-                            )}
-                            {onDelete && <DropdownMenuSeparator />}
-                            {onDelete && (
-                                <DropdownMenuItem
-                                    onClick={() => setShowDeleteConfirm(true)}
-                                    className="text-red-400 focus:text-red-400"
-                                >
-                                    <Trash2 size={14} className="mr-2" /> Delete Track
-                                </DropdownMenuItem>
-                            )}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                )}
+                <TrackContextMenu
+                    track={track}
+                    userId={userId}
+                    channelId={channelId}
+                    onDelete={onDelete}
+                    onEdit={onEdit}
+                    cardRef={cardRef}
+                    onDropdownChange={setDropdownOpen}
+                />
             </div>
-
-            {/* Delete confirmation */}
-            <ConfirmationModal
-                isOpen={showDeleteConfirm}
-                onClose={() => setShowDeleteConfirm(false)}
-                onConfirm={() => onDelete?.(track.id)}
-                title="Delete Track"
-                message={<>Are you sure you want to delete <strong>{track.title}</strong>? Audio files will be permanently removed.</>}
-                confirmLabel="Delete"
-                cancelLabel="Cancel"
-            />
-            {/* Add to Playlist */}
-            <AddToMusicPlaylistModal
-                isOpen={showAddToPlaylist}
-                onClose={() => setShowAddToPlaylist(false)}
-                trackId={track.id}
-            />
-            {/* Link Version */}
-            <LinkVersionModal
-                isOpen={showLinkVersion}
-                onClose={() => setShowLinkVersion(false)}
-                sourceTrackId={track.id}
-            />
         </div>
     );
 };

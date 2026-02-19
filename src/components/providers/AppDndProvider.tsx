@@ -1,21 +1,21 @@
+// =============================================================================
+// AppDndProvider: Global DnD context for all drag-and-drop interactions
+// =============================================================================
+// Single DndContext for the entire app. Polymorphic event routing by data.type:
+//   - 'music-track' → Music track → Playlist/Track drop
+//   - (default)     → Trend video → Niche drop
+// =============================================================================
+
 import React from 'react';
 import { DndContext, DragOverlay, useSensor, useSensors, PointerSensor, pointerWithin } from '@dnd-kit/core';
+import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import type { DragStartEvent, DragOverEvent, DragEndEvent } from '@dnd-kit/core';
-import { useTrendsDragDrop } from './hooks/useTrendsDragDrop';
-import { useMusicDragDrop } from '../Music/hooks/useMusicDragDrop';
-import { VideoNodeGhost } from './Timeline/nodes/DraggableVideoNode';
+import { useTrendsDragDrop } from '../../pages/Trends/hooks/useTrendsDragDrop';
+import { useMusicDragDrop } from '../../pages/Music/hooks/useMusicDragDrop';
+import { VideoNodeGhost } from '../../pages/Trends/Timeline/nodes/DraggableVideoNode';
+import { TrackCardGhost } from '../../pages/Music/components/TrackCardGhost';
 
-import { TrackCard } from '../Music/components/TrackCard';
-
-/**
- * Provider for all DnD functionality (Trends + Music).
- * Wraps children in a single DndContext and renders appropriate DragOverlay.
- *
- * Polymorphic event handling: discriminates by `data.current.type`:
- *   - 'music-track' → Music track → Playlist/Track drop
- *   - (default)     → Trend video → Niche drop
- */
-export const TrendsDndProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AppDndProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const {
         draggedVideo,
         handleDragStart: trendsDragStart,
@@ -26,7 +26,6 @@ export const TrendsDndProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     const {
         draggedTrack,
-        draggedWidth,
         handleMusicDragStart,
         handleMusicDragEnd,
         handleMusicDragCancel,
@@ -74,7 +73,7 @@ export const TrendsDndProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return (
         <DndContext
             sensors={sensors}
-            collisionDetection={pointerWithin} // Use pointer precision: ghost geometry won't trigger unwanted targets
+            collisionDetection={pointerWithin}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
@@ -83,24 +82,12 @@ export const TrendsDndProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             {children}
 
             {/* Ghost preview during drag */}
-            <DragOverlay dropAnimation={null}>
+            <DragOverlay dropAnimation={null} modifiers={draggedTrack ? [snapCenterToCursor] : undefined}>
                 {draggedVideo && <VideoNodeGhost video={draggedVideo} />}
                 {draggedTrack && (
-                    <div
-                        className="pointer-events-none bg-[#141416] border border-white/[0.08] rounded-xl shadow-2xl"
-                        style={{ width: draggedWidth || 'auto' }}
-                    >
-                        <TrackCard
-                            track={draggedTrack}
-                            isSelected={false}
-                            userId=""
-                            channelId=""
-                            onSelect={() => { }}
-                        />
-                    </div>
+                    <TrackCardGhost track={draggedTrack} />
                 )}
             </DragOverlay>
         </DndContext>
     );
 };
-

@@ -359,7 +359,7 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
                         <button
                             onClick={(e) => { e.stopPropagation(); toggleExpand(); }}
                             className={`absolute bottom-0 left-0 right-0 flex items-center justify-center gap-1
-                                border-none cursor-pointer transition-all duration-300 ease-out z-10
+                                border-none cursor-pointer transition-[border-radius,color] duration-300 ease-out z-10
                                 ${isExpanded ? '' : 'rounded-b-lg'}`}
                             style={{
                                 height: 16,
@@ -395,10 +395,9 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
                     {/* Expandable children */}
                     <div
                         ref={contentRef}
-                        className={`transition-all duration-300 ease-out ${isExpanded ? '' : 'overflow-hidden'}`}
+                        className="overflow-hidden transition-[max-height] duration-300 ease-out"
                         style={{
                             maxHeight: isExpanded ? contentHeight || 'none' : 0,
-                            opacity: isExpanded ? 1 : 0,
                         }}
                     >
                         <div
