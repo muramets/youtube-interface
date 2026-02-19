@@ -35,6 +35,12 @@ interface MusicState {
     playbackVolume: number | null;
     /** Who initiated the current playback — explicit mode flag */
     playbackSource: 'library' | 'timeline' | 'browser-preview' | null;
+    /** Frozen copies of all tracks in the playback queue. Survives library
+     *  switches so AudioPlayer can resolve any track in the queue. */
+    playbackQueueTracks: Track[];
+    /** Genre definitions at the time the queue was built. Used by AudioPlayer
+     *  to resolve accent color when the active library's genres differ. */
+    playbackGenres: MusicGenre[];
     /** Monotonic counter — incremented by AudioPlayer when a track finishes.
      *  Subscribers (e.g. useTimelineAutoAdvance) react to changes. */
     trackEndedSignal: number;
@@ -147,6 +153,8 @@ export const useMusicStore = create<MusicState>((set) => ({
     playingTrimEnd: 0,
     playbackVolume: null,
     playbackSource: null,
+    playbackQueueTracks: [],
+    playbackGenres: [],
     trackEndedSignal: 0,
     seekTo: null,
     playbackQueue: [],
@@ -219,19 +227,24 @@ export const useMusicStore = create<MusicState>((set) => ({
     // Selection & Playback
     setSelectedTrackId: (id) => set({ selectedTrackId: id }),
 
-    setPlayingTrack: (id, variant, seekPosition, trimStart, trimEnd) => set({
-        playingTrackId: id,
-        playingVariant: variant || 'vocal',
-        isPlaying: id !== null,
-        selectedTrackId: null,
-        pendingSeekSeconds: seekPosition ?? null,
-        playingTrimStart: trimStart ?? 0,
-        playingTrimEnd: trimEnd ?? 0,
-        playbackVolume: id === null ? null : useMusicStore.getState().playbackVolume,
-        playbackSource: id === null ? null : useMusicStore.getState().playbackSource,
-        currentTime: 0,
-        duration: 0,
-    }),
+    setPlayingTrack: (id, variant, seekPosition, trimStart, trimEnd) => {
+        const state = useMusicStore.getState();
+        set({
+            playingTrackId: id,
+            playingVariant: variant || 'vocal',
+            isPlaying: id !== null,
+            selectedTrackId: null,
+            pendingSeekSeconds: seekPosition ?? null,
+            playingTrimStart: trimStart ?? 0,
+            playingTrimEnd: trimEnd ?? 0,
+            playbackVolume: id === null ? null : state.playbackVolume,
+            playbackSource: id === null ? null : state.playbackSource,
+            // Clear queue snapshots when playback stops
+            ...(id === null && { playbackQueueTracks: [], playbackGenres: [] }),
+            currentTime: 0,
+            duration: 0,
+        });
+    },
 
     setIsPlaying: (isPlaying) => set({ isPlaying }),
 
@@ -246,7 +259,15 @@ export const useMusicStore = create<MusicState>((set) => ({
     setCurrentTime: (time) => set({ currentTime: time }),
     setDuration: (duration) => set({ duration }),
     registerSeek: (fn) => set({ seekTo: fn }),
-    setPlaybackQueue: (queue) => set({ playbackQueue: queue }),
+    setPlaybackQueue: (queue) => {
+        const { tracks, genres } = useMusicStore.getState();
+        // Snapshot the Track objects and genre definitions so AudioPlayer can
+        // resolve any track in the queue even after a library switch.
+        const queueTracks = queue
+            .map(id => tracks.find(t => t.id === id))
+            .filter((t): t is Track => t !== undefined);
+        set({ playbackQueue: queue, playbackQueueTracks: queueTracks, playbackGenres: genres });
+    },
     setPlaybackVolume: (vol) => set({ playbackVolume: vol }),
     setPlaybackSource: (source) => set({ playbackSource: source }),
     signalTrackEnded: () => set((s) => ({ trackEndedSignal: s.trackEndedSignal + 1 })),
@@ -580,21 +601,40 @@ export const useMusicStore = create<MusicState>((set) => ({
 let _cachedAllTracks: Track[] = [];
 let _lastOwnTracks: Track[] = [];
 let _lastSharedTracks: Track[] = [];
+let _lastQueueTracks: Track[] = [];
 
 /** Merged own + shared tracks — use as `useMusicStore(selectAllTracks)` */
 export const selectAllTracks = (s: MusicState): Track[] => {
-    if (s.tracks === _lastOwnTracks && s.sharedTracks === _lastSharedTracks) {
+    if (
+        s.tracks === _lastOwnTracks &&
+        s.sharedTracks === _lastSharedTracks &&
+        s.playbackQueueTracks === _lastQueueTracks
+    ) {
         return _cachedAllTracks;
     }
     _lastOwnTracks = s.tracks;
     _lastSharedTracks = s.sharedTracks;
+    _lastQueueTracks = s.playbackQueueTracks;
 
+    let merged: Track[];
     if (s.sharedTracks.length === 0) {
-        _cachedAllTracks = s.tracks;
+        merged = s.tracks;
     } else {
         const ownIds = new Set(s.tracks.map((t) => t.id));
-        _cachedAllTracks = [...s.tracks, ...s.sharedTracks.filter((t) => !ownIds.has(t.id))];
+        merged = [...s.tracks, ...s.sharedTracks.filter((t) => !ownIds.has(t.id))];
     }
+
+    // Append any queue-snapshot tracks absent from the merged list (e.g. library
+    // switched away). This lets AudioPlayer resolve next/prev tracks in the queue.
+    if (s.playbackQueueTracks.length > 0) {
+        const mergedIds = new Set(merged.map(t => t.id));
+        const missing = s.playbackQueueTracks.filter(t => !mergedIds.has(t.id));
+        if (missing.length > 0) {
+            merged = [...merged, ...missing];
+        }
+    }
+
+    _cachedAllTracks = merged;
     return _cachedAllTracks;
 };
 

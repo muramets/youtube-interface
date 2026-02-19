@@ -401,6 +401,7 @@ export const MusicPage: React.FC = () => {
     // Playback queue: flattened visual order with groups sorted by groupOrder
     // -------------------------------------------------------------------------
     const setPlaybackQueue = useMusicStore((s) => s.setPlaybackQueue);
+    const playingTrackIdForQueue = useMusicStore((s) => s.playingTrackId);
 
     useEffect(() => {
         const queue: string[] = [];
@@ -420,8 +421,15 @@ export const MusicPage: React.FC = () => {
                 }
             }
         }
+
+        // If a track is playing and it's no longer in the new queue (library
+        // switched away), preserve the existing queue so next/prev still work.
+        if (playingTrackIdForQueue && !queue.includes(playingTrackIdForQueue)) {
+            return;
+        }
+
         setPlaybackQueue(queue);
-    }, [displayItems, setPlaybackQueue]);
+    }, [displayItems, setPlaybackQueue, playingTrackIdForQueue]);
 
     // -------------------------------------------------------------------------
     // Virtualizer — only mount visible rows in the DOM

@@ -27,6 +27,7 @@ export const AudioPlayer: React.FC = () => {
     const playingVariant = useMusicStore((s) => s.playingVariant);
     const isPlaying = useMusicStore((s) => s.isPlaying);
     const genres = useMusicStore((s) => s.genres);
+    const playbackGenres = useMusicStore((s) => s.playbackGenres);
     const currentTime = useMusicStore((s) => s.currentTime);
     const duration = useMusicStore((s) => s.duration);
     const repeatMode = useMusicStore((s) => s.repeatMode);
@@ -71,7 +72,8 @@ export const AudioPlayer: React.FC = () => {
     const [freshUrl, setFreshUrl] = React.useState<string | null>(null);
 
     const track = tracks.find((t) => t.id === playingTrackId);
-    const genreInfo = track ? genres.find((g) => g.id === track.genre) : null;
+    // Resolve genre: try current genres first, fall back to queue-snapshot genres
+    const genreInfo = track ? (genres.find((g) => g.id === track.genre) ?? playbackGenres.find((g) => g.id === track.genre)) : null;
 
     const storedUrl = track
         ? (playingVariant === 'vocal' ? track.vocalUrl : track.instrumentalUrl) || track.vocalUrl || track.instrumentalUrl
