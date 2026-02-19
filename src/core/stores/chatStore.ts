@@ -103,6 +103,11 @@ interface ChatState {
 // AbortController lives outside Zustand (non-serializable)
 let activeAbortController: AbortController | null = null;
 
+// Generation nonce — scopes streaming UI updates to a specific sendMessage call.
+// When the user switches conversations mid-stream, we increment this so that
+// the old stream's callbacks become no-ops (UI-only; the stream itself finishes).
+let streamingNonce = 0;
+
 /** Helper: get context or throw */
 function requireContext(get: () => ChatState): { userId: string; channelId: string } {
     const { userId, channelId } = get();
@@ -378,16 +383,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     setActiveProject: (id) => set({ activeProjectId: id, view: 'conversations' }),
 
-    setActiveConversation: (id) => set({
-        activeConversationId: id,
-        pendingConversationId: null,
-        pendingModel: null,
-        view: id ? 'chat' : 'conversations',
-        messages: [],
-        streamingText: '',
-        error: null,
-        hasMoreMessages: false,
-    }),
+    setActiveConversation: (id) => {
+        // Invalidate any running stream's UI callbacks (stream itself keeps running)
+        streamingNonce++;
+        set({
+            activeConversationId: id,
+            pendingConversationId: null,
+            pendingModel: null,
+            view: id ? 'chat' : 'conversations',
+            messages: [],
+            isStreaming: false,
+            streamingText: '',
+            error: null,
+            hasMoreMessages: false,
+        });
+    },
 
     clearError: () => set({ error: null }),
 
@@ -527,12 +537,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     startNewChat: () => {
+        // Invalidate any running stream's UI callbacks (stream itself keeps running)
+        streamingNonce++;
         set({
             activeConversationId: null,
             pendingConversationId: crypto.randomUUID(),
             pendingModel: null,
             view: 'chat',
             messages: [],
+            isStreaming: false,
             streamingText: '',
         });
     },
@@ -610,7 +623,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (isStreaming) return;
 
         // Lock immediately — before any await — prevents double-send
-        activeAbortController = new AbortController();
+        const myAbortController = new AbortController();
+        activeAbortController = myAbortController;
+        const myNonce = ++streamingNonce;
         set({ isStreaming: true, streamingText: '', error: null, lastFailedRequest: null });
 
         try {
@@ -693,19 +708,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
             debug.chat('Thumbnails:', thumbnailUrls.length, 'URLs');
             debug.chatGroup.end();
 
-            // 3. Stream AI response
+            // 3. Stream AI response (nonce-guarded: only update UI if this stream is still current)
+            const scopedSet = (partial: Partial<ChatState>) => {
+                if (streamingNonce === myNonce) set(partial);
+            };
             const { text: responseText, tokenUsage } = await streamAiResponse(
                 channelId, convId, model, systemPrompt,
-                text, attachments, thumbnailUrls, set, activeAbortController?.signal,
+                text, attachments, thumbnailUrls, scopedSet, myAbortController.signal,
             );
 
-            // 4. Persist AI response
+            // 4. Clear streaming UI BEFORE persisting — Firestore's latency compensation
+            // delivers the snapshot immediately, so the model message would appear in the
+            // messages array while the streaming bubble is still visible (duplication glitch).
+            if (streamingNonce === myNonce) set({ isStreaming: false, streamingText: '' });
+
+            // 5. Persist AI response (subscription fires immediately via latency compensation)
             await persistAiResponse(userId, channelId, convId, responseText, tokenUsage);
 
-            // 5. Auto-title (fire-and-forget)
+            // 6. Auto-title (fire-and-forget)
             maybeAutoTitle(userId, channelId, convId, text, model, messages.length === 0);
-
-            set({ streamingText: '' });
         } catch (err) {
             if (err instanceof DOMException && err.name === 'AbortError') {
                 // User stopped generation — save partial text if available
@@ -722,7 +743,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 const displayMessage = isContextOverflow
                     ? 'Context window exceeded. Start a new conversation or delete old messages.'
                     : errorMessage;
-                set({ error: displayMessage, lastFailedRequest: { text, attachments } });
+
+                // Only update UI if this stream is still the current one
+                if (streamingNonce === myNonce) {
+                    set({ error: displayMessage, lastFailedRequest: { text, attachments } });
+                }
 
                 // Ensure the user stays on the conversation (especially for first-message failures)
                 if (convId && !get().activeConversationId) {
@@ -736,9 +761,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 }
             }
         } finally {
-            // Guaranteed reset — no deadlock possible
-            activeAbortController = null;
-            set({ isStreaming: false, streamingText: '' });
+            // Only reset UI state if this stream is still the current one
+            if (activeAbortController === myAbortController) {
+                activeAbortController = null;
+            }
+            if (streamingNonce === myNonce) {
+                set({ isStreaming: false, streamingText: '' });
+            }
         }
     },
 

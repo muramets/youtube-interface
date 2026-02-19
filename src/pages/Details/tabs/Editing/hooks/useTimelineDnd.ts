@@ -12,6 +12,7 @@ import { arrayMove } from '@dnd-kit/sortable';
 import { useEditingStore } from '../../../../../core/stores/editingStore';
 import { useMusicStore, selectAllTracks } from '../../../../../core/stores/musicStore';
 import { createTimelineTrack, type TimelineTrack } from '../../../../../core/types/editing';
+import { getDefaultVariant } from '../../../../../core/utils/trackUtils';
 
 export interface UseTimelineDndReturn {
     sensors: ReturnType<typeof useSensors>;
@@ -169,7 +170,7 @@ export function useTimelineDnd(
                     if (existingIds.has(tId)) continue;
                     const track = musicTracks.find((t) => t.id === tId);
                     if (!track) continue;
-                    const variant: 'vocal' | 'instrumental' = track.vocalUrl ? 'vocal' : 'instrumental';
+                    const variant = getDefaultVariant(track);
                     insertTrackAt(createTimelineTrack(track, variant, genres), insertAt);
                     existingIds.add(tId);
                     insertAt++;

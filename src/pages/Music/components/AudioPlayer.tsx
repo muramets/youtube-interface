@@ -14,6 +14,7 @@ import { getEffectiveDuration } from '../../../core/types/editing';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { refreshAudioUrl } from '../../../core/services/storageService';
+import { DEFAULT_ACCENT_COLOR, getDefaultVariant } from '../../../core/utils/trackUtils';
 // Side-effect: sets up global zustand subscription for timeline auto-advance.
 // Must be imported from an always-mounted component.
 import '../../Details/tabs/Editing/hooks/useTimelineAutoAdvance';
@@ -269,13 +270,13 @@ export const AudioPlayer: React.FC = () => {
                 const nextId = queue[currentIndex + 1];
                 const next = findTrackById(nextId);
                 if (next) {
-                    setPlayingTrack(next.id, next.vocalUrl ? 'vocal' : 'instrumental');
+                    setPlayingTrack(next.id, getDefaultVariant(next));
                 }
             } else if (rm === 'all' && queue.length > 0) {
                 const firstId = queue[0];
                 const first = findTrackById(firstId);
                 if (first) {
-                    setPlayingTrack(first.id, first.vocalUrl ? 'vocal' : 'instrumental');
+                    setPlayingTrack(first.id, getDefaultVariant(first));
                 }
             } else {
                 setIsPlaying(false);
@@ -370,7 +371,7 @@ export const AudioPlayer: React.FC = () => {
         useEditingStore.getState().setPlaybackPosition(elapsed);
     }, [editingTracks, setPlayingTrack]);
 
-    const handlePrevious = () => {
+    const handlePrevious = useCallback(() => {
         if (isTimelineMode && editingTracks.length > 1) {
             const idx = getTimelineTrackIndex();
             // If >2s into current track, restart it; otherwise go to previous
@@ -399,11 +400,11 @@ export const AudioPlayer: React.FC = () => {
         const prev = tracks.find((t) => t.id === prevId);
         if (prev) {
             prevAudioUrlRef.current = null;
-            setPlayingTrack(prev.id, prev.vocalUrl ? 'vocal' : 'instrumental');
+            setPlayingTrack(prev.id, getDefaultVariant(prev));
         }
-    };
+    }, [isTimelineMode, editingTracks, getTimelineTrackIndex, editingPosition, jumpToTimelineTrack, playbackQueue, playingTrackId, isPlaying, tracks, setStoreTime, setIsPlaying, setPlayingTrack]);
 
-    const handleNext = () => {
+    const handleNext = useCallback(() => {
         if (isTimelineMode && editingTracks.length > 1) {
             const idx = getTimelineTrackIndex();
             if (idx < editingTracks.length - 1) {
@@ -418,7 +419,7 @@ export const AudioPlayer: React.FC = () => {
             const next = tracks.find((t) => t.id === nextId);
             if (next) {
                 prevAudioUrlRef.current = null;
-                setPlayingTrack(next.id, next.vocalUrl ? 'vocal' : 'instrumental');
+                setPlayingTrack(next.id, getDefaultVariant(next));
             }
         } else if (repeatMode === 'all' && playbackQueue.length > 0) {
             // Wrap to first track
@@ -426,10 +427,10 @@ export const AudioPlayer: React.FC = () => {
             const first = tracks.find((t) => t.id === firstId);
             if (first) {
                 prevAudioUrlRef.current = null;
-                setPlayingTrack(first.id, first.vocalUrl ? 'vocal' : 'instrumental');
+                setPlayingTrack(first.id, getDefaultVariant(first));
             }
         }
-    };
+    }, [isTimelineMode, editingTracks, getTimelineTrackIndex, jumpToTimelineTrack, playbackQueue, playingTrackId, tracks, repeatMode, setPlayingTrack]);
 
     const progress = duration > 0 ? currentTime / duration : 0;
 
@@ -438,7 +439,7 @@ export const AudioPlayer: React.FC = () => {
     const hasVocal = !!track.vocalUrl;
     const hasInstrumental = !!track.instrumentalUrl;
     const hasBothVariants = hasVocal && hasInstrumental;
-    const accentColor = genreInfo?.color || '#6366F1';
+    const accentColor = genreInfo?.color || DEFAULT_ACCENT_COLOR;
 
     return (
         <>
@@ -585,7 +586,7 @@ export const AudioPlayer: React.FC = () => {
                                     : 'text-text-secondary hover:text-text-primary'
                                     }`}
                                 style={repeatMode === 'one'
-                                    ? { color: genreInfo?.color || '#6366F1' }
+                                    ? { color: genreInfo?.color || DEFAULT_ACCENT_COLOR }
                                     : repeatMode === 'all'
                                         ? { color: '#22c55e' }
                                         : undefined}

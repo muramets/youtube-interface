@@ -6,6 +6,7 @@ import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Search, Link, Music } from 'lucide-react';
 import { useMusicStore } from '../../../core/stores/musicStore';
+import { DEFAULT_ACCENT_COLOR } from '../../../core/utils/trackUtils';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { formatDuration } from '../utils/formatDuration';
@@ -141,7 +142,7 @@ export const LinkVersionModal: React.FC<LinkVersionModalProps> = ({
                                         style={{
                                             background: track.coverUrl
                                                 ? undefined
-                                                : `linear-gradient(135deg, ${genreInfo?.color || '#6366F1'}88, ${genreInfo?.color || '#6366F1'}44)`,
+                                                : `linear-gradient(135deg, ${genreInfo?.color || DEFAULT_ACCENT_COLOR}88, ${genreInfo?.color || DEFAULT_ACCENT_COLOR}44)`,
                                         }}
                                     >
                                         {track.coverUrl ? (

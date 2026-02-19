@@ -346,7 +346,9 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     const intentRef = useRef<ScrollIntent>('idle');
     const prevMsgCountRef = useRef(messages.length);
     const prevStreamingRef = useRef(isStreaming);
-    const wasStreamingRef = useRef(false); // tracks previous render's isStreaming, for skip-animation logic
+    // Sticky flag: stays true for ~1s after streaming ends so the
+    // persisted model message can appear without re-triggering entrance animation.
+    const recentlyStreamedRef = useRef(false);
     const failedMessageId = useChatStore(s => s.lastFailedRequest?.messageId);
     const retryLastMessage = useChatStore(s => s.retryLastMessage);
     const setEditingMessage = useChatStore(s => s.setEditingMessage);
@@ -404,19 +406,25 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
         prevStreamingRef.current = isStreaming;
 
         // --- Priority 1: Pin-to-top when user sends a new message ---
-        if (newCount > prevCount && intentRef.current !== 'away') {
+        // Skip pin-to-top for the very first message (prevCount === 0): it's
+        // already at the top by default, and expanding the spacer would only
+        // create unwanted scroll room into empty space.
+        if (newCount > prevCount && prevCount > 0 && intentRef.current !== 'away') {
             const lastMsg = messages[newCount - 1];
             debug.scroll(`P1 check: newMsg role=${lastMsg?.role}`);
             if (lastMsg?.role === 'user') {
-                // 1. Expand spacer SYNCHRONOUSLY so scrollTop won't be clamped
-                const spacerHeight = container.clientHeight;
+                // 1. Expand spacer SYNCHRONOUSLY so scrollTop won't be clamped.
+                // Use remaining space after the user message (not full clientHeight)
+                // to avoid creating excess scroll room when there are few messages.
+                const anchor = pinAnchorRef.current;
+                const lastMsgEl = anchor?.previousElementSibling as HTMLElement | null;
+                const msgHeight = lastMsgEl?.offsetHeight ?? 0;
+                const spacerHeight = Math.max(0, container.clientHeight - msgHeight - 24);
                 setSpacer(spacerHeight);
                 debug.scroll(`P1: spacer expanded to ${spacerHeight}px, scrollHeight now=${container.scrollHeight}`);
 
                 // 2. Smooth scroll to pin user message at top
-                const anchor = pinAnchorRef.current;
                 if (anchor) {
-                    const lastMsgEl = anchor.previousElementSibling as HTMLElement | null;
                     if (lastMsgEl) {
                         const cRect = container.getBoundingClientRect();
                         const mRect = lastMsgEl.getBoundingClientRect();
@@ -536,6 +544,15 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
         });
     }, [setSpacer, programmaticScroll]);
 
+    // Clear the recently-streamed flag after 1s (enough time for Firestore to deliver the message)
+    // Must be before early returns to satisfy Rules of Hooks.
+    useEffect(() => {
+        if (!isStreaming && recentlyStreamedRef.current) {
+            const timer = setTimeout(() => { recentlyStreamedRef.current = false; }, 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [isStreaming]);
+
     if (messages.length === 0 && !isStreaming) {
         return (
             <div className="chat-messages flex-1 min-h-0 overflow-y-auto px-3.5 pt-3.5 pb-1 flex flex-col gap-3">
@@ -547,12 +564,20 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
         );
     }
 
-    // Determine if the last message just came from streaming (to skip its entrance animation)
-    // wasStreamingRef tracks the PREVIOUS render's isStreaming — set synchronously during render,
-    // so it's available before the useEffect (which runs post-render).
+    // --- Skip entrance animation in two cases: ---
+    // 1. Model message that just appeared after streaming ended (recentlyStreamedRef stays
+    //    true for ~1s after streaming ends so the Firestore message arrives without blink).
+    // 2. User message that was reconciled (optimistic → Firestore): detected when count
+    //    didn't grow (same length = ID swap, not a new message).
     const lastMsgIndex = messages.length - 1;
-    const skipAnimateLastMsg = (wasStreamingRef.current || isStreaming) && messages[lastMsgIndex]?.role === 'model';
-    wasStreamingRef.current = isStreaming; // update AFTER reading, so next render sees this render's value
+    const skipAnimateLastModel = (recentlyStreamedRef.current || isStreaming) && messages[lastMsgIndex]?.role === 'model';
+    const skipAnimateReconciled = messages.length === prevMsgCountRef.current && messages.length > 0;
+
+    // Arm the recently-streamed timer on transition isStreaming → false
+    // (runs during render, synchronously — ref write is intentional)
+    if (!isStreaming && recentlyStreamedRef.current === false && prevStreamingRef.current) {
+        recentlyStreamedRef.current = true;
+    }
 
     return (
         <div className="chat-messages flex-1 min-h-0 overflow-y-auto px-3.5 pt-3.5 pb-1 flex flex-col gap-3" ref={containerRef} onScroll={handleScroll}>
@@ -561,7 +586,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                     <MessageItem
                         msg={msg}
                         modelPricing={modelPricing}
-                        skipAnimation={idx === lastMsgIndex && skipAnimateLastMsg}
+                        skipAnimation={skipAnimateReconciled || (idx === lastMsgIndex && skipAnimateLastModel)}
                         isFailed={msg.role === 'user' && failedMessageId === msg.id}
                         isStreaming={isStreaming}
                         onRetry={retryLastMessage}

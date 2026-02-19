@@ -6,6 +6,7 @@ import type { Track } from '../../../core/types/track';
 import { Button } from '../../../components/ui/atoms/Button/Button';
 import { useTrackForm } from '../hooks/useTrackForm';
 import { useMusicStore } from '../../../core/stores/musicStore';
+import { DEFAULT_ACCENT_COLOR } from '../../../core/utils/trackUtils';
 import { AudioDropZone } from '../components/upload/AudioDropZone';
 import { AudioFileSlots } from '../components/upload/AudioFileSlots';
 import { TagSection } from '../components/upload/TagSection';
@@ -394,7 +395,7 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
                                                     style={{
                                                         background: track.coverUrl
                                                             ? undefined
-                                                            : `linear-gradient(135deg, ${genreInfo?.color || '#6366F1'}88, ${genreInfo?.color || '#6366F1'}44)`,
+                                                            : `linear-gradient(135deg, ${genreInfo?.color || DEFAULT_ACCENT_COLOR}88, ${genreInfo?.color || DEFAULT_ACCENT_COLOR}44)`,
                                                     }}
                                                 >
                                                     {track.coverUrl ? (

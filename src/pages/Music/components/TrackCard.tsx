@@ -8,6 +8,7 @@ import { Play, Pause, Mic, Piano, Sparkles, Copy, Check, Heart, Download, BookOp
 import { WaveformCanvas } from './WaveformCanvas';
 import { useMusicStore } from '../../../core/stores/musicStore';
 import type { Track } from '../../../core/types/track';
+import { DEFAULT_ACCENT_COLOR, getDefaultVariant } from '../../../core/utils/trackUtils';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '../../../components/ui/molecules/DropdownMenu';
 import { ConfirmationModal } from '../../../components/ui/organisms/ConfirmationModal';
@@ -79,7 +80,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
         if (isCurrentTrack) {
             setIsPlaying(!isPlaying);
         } else {
-            const variant = track.vocalUrl ? 'vocal' : 'instrumental';
+            const variant = getDefaultVariant(track);
             setPlayingTrack(track.id, variant);
         }
     };
@@ -159,10 +160,10 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
         setTimeout(() => handleDownload(track.instrumentalUrl, '(instr)'), 300);
     }, [handleDownload, track.vocalUrl, track.instrumentalUrl]);
 
-    const currentVariant = isCurrentTrack ? playingVariant : (track.vocalUrl ? 'vocal' : 'instrumental');
+    const currentVariant = isCurrentTrack ? playingVariant : getDefaultVariant(track);
     const currentPeaks = currentVariant === 'vocal' ? track.vocalPeaks : track.instrumentalPeaks;
     const currentUrl = currentVariant === 'vocal' ? track.vocalUrl : track.instrumentalUrl;
-    const accentColor = genreInfo?.color || '#6366F1';
+    const accentColor = genreInfo?.color || DEFAULT_ACCENT_COLOR;
 
     // Waveform playback progress (0–1)
     const waveformProgress = isCurrentTrack && duration > 0 ? currentTime / duration : 0;
@@ -175,7 +176,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
         } else {
             // Start playing this track and seek to position once audio loads
             // position is ratio 0–1, convert to seconds for pendingSeekPosition
-            const variant = track.vocalUrl ? 'vocal' : 'instrumental';
+            const variant = getDefaultVariant(track);
             const seekSeconds = position * track.duration;
             setPlayingTrack(track.id, variant, seekSeconds);
         }

@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Check, ChevronRight, ListMusic, Plus } from 'lucide-react';
 import type { MusicPlaylist } from '../../../../../core/types/musicPlaylist';
 import type { Track } from '../../../../../core/types/track';
+import { getDefaultVariant } from '../../../../../core/utils/trackUtils';
 import { useEditingStore } from '../../../../../core/stores/editingStore';
 import { useMusicStore } from '../../../../../core/stores/musicStore';
 import { createTimelineTrack } from '../../../../../core/types/editing';
@@ -31,7 +32,7 @@ export const PlaylistBrowserItem: React.FC<PlaylistBrowserItemProps> = ({ playli
 
         for (const track of playlistTracks) {
             if (existingSet.has(track.id)) continue;
-            const variant: 'vocal' | 'instrumental' = track.vocalUrl ? 'vocal' : 'instrumental';
+            const variant = getDefaultVariant(track);
             addTrack(createTimelineTrack(track, variant, genres));
             existingSet.add(track.id);
         }

@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
 import { Plus, Play, Pause, Music2, Check, Heart } from 'lucide-react';
 import type { Track } from '../../../../../core/types/track';
+import { getDefaultVariant } from '../../../../../core/utils/trackUtils';
 import { useEditingStore } from '../../../../../core/stores/editingStore';
 import { useMusicStore, selectAllTags } from '../../../../../core/stores/musicStore';
 import { createTimelineTrack } from '../../../../../core/types/editing';
@@ -28,8 +29,7 @@ export const TrackBrowserItem: React.FC<TrackBrowserItemProps> = ({ track, isOnT
 
     const isCurrentlyPlaying = playingTrackId === track.id && isPlaying;
 
-    const defaultVariant: 'vocal' | 'instrumental' =
-        track.vocalUrl ? 'vocal' : 'instrumental';
+    const defaultVariant = getDefaultVariant(track);
 
     const handleAdd = useCallback(() => {
         addTrack(createTimelineTrack(track, defaultVariant, genres));
