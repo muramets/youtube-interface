@@ -102,7 +102,8 @@ const SortablePlaylistTrackItem: React.FC<{
 export const MusicPage: React.FC = () => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const tracks = useMusicStore(s => s.tracks);
+    const ownTracks = useMusicStore(s => s.tracks);
+    const sharedTracks = useMusicStore(s => s.sharedTracks);
     const isLoading = useMusicStore(s => s.isLoading);
     const subscribe = useMusicStore(s => s.subscribe);
     const loadSettings = useMusicStore(s => s.loadSettings);
@@ -117,12 +118,15 @@ export const MusicPage: React.FC = () => {
     const bpmFilter = useMusicStore(s => s.bpmFilter);
     const setBpmFilter = useMusicStore(s => s.setBpmFilter);
     const clearFilters = useMusicStore(s => s.clearFilters);
-    const genres = useMusicStore(s => s.genres);
-    const tags = useMusicStore(s => s.tags);
+    const ownGenres = useMusicStore(s => s.genres);
+    const sharedGenres = useMusicStore(s => s.sharedGenres);
+    const ownTags = useMusicStore(s => s.tags);
+    const sharedTags = useMusicStore(s => s.sharedTags);
     const categoryOrder = useMusicStore(s => s.categoryOrder);
     const featuredCategories = useMusicStore(s => s.featuredCategories);
     const sortableCategories = useMusicStore(s => s.sortableCategories);
-    const musicPlaylists = useMusicStore(s => s.musicPlaylists);
+    const ownPlaylists = useMusicStore(s => s.musicPlaylists);
+    const sharedPlaylists = useMusicStore(s => s.sharedPlaylists);
     const activePlaylistId = useMusicStore(s => s.activePlaylistId);
     const reorderPlaylistTracks = useMusicStore(s => s.reorderPlaylistTracks);
     const setActivePlaylist = useMusicStore(s => s.setActivePlaylist);
@@ -173,29 +177,36 @@ export const MusicPage: React.FC = () => {
         loadSharedLibraries(userId, channelId);
     }, [userId, channelId, loadSharedLibraries]);
 
-    // Subscribe to shared library when active, or re-subscribe to own when switching back.
-    // Skip on initial mount (handled by the main subscription effect above).
-    const activeLibRef = React.useRef(activeLibrarySource);
+    // Subscribe to shared library tracks once shared libraries metadata is loaded
+    const subscribeSharedLibraryTracks = useMusicStore(s => s.subscribeSharedLibraryTracks);
     useEffect(() => {
-        // Skip the initial render (already subscribed above)
-        if (activeLibRef.current === activeLibrarySource) return;
-        activeLibRef.current = activeLibrarySource;
-
-        if (activeLibrarySource) {
-            const { ownerUserId, ownerChannelId } = activeLibrarySource;
-            const unsubTracks = subscribe(ownerUserId, ownerChannelId);
-            loadSettings(ownerUserId, ownerChannelId);
-            return unsubTracks;
-        } else if (userId && channelId) {
-            const unsubTracks = subscribe(userId, channelId);
-            loadSettings(userId, channelId);
-            return unsubTracks;
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeLibrarySource]);
+        const unsub = subscribeSharedLibraryTracks();
+        return unsub;
+    }, [sharedLibraries, subscribeSharedLibraryTracks]);
 
     // Determine if in read-only mode (viewing shared library)
     const isReadOnly = activeLibrarySource !== null;
+
+    // ── View-layer source switching ──────────────────────────────────────
+    // Own tracks are always subscribed. Shared tracks are populated by
+    // subscribeSharedLibraryTracks() in the store. MusicPage picks which
+    // source to display based on activeLibrarySource.
+    const tracks = useMemo(
+        () => activeLibrarySource ? sharedTracks : ownTracks,
+        [activeLibrarySource, sharedTracks, ownTracks]
+    );
+    const genres = useMemo(
+        () => activeLibrarySource ? sharedGenres : ownGenres,
+        [activeLibrarySource, sharedGenres, ownGenres]
+    );
+    const tags = useMemo(
+        () => activeLibrarySource ? sharedTags : ownTags,
+        [activeLibrarySource, sharedTags, ownTags]
+    );
+    const musicPlaylists = useMemo(
+        () => activeLibrarySource ? sharedPlaylists : ownPlaylists,
+        [activeLibrarySource, sharedPlaylists, ownPlaylists]
+    );
 
     // Filtered & sorted tracks
     const filteredTracks = useMemo(() => {
@@ -422,8 +433,9 @@ export const MusicPage: React.FC = () => {
             }
         }
 
-        // If a track is playing and it's no longer in the new queue (library
-        // switched away), preserve the existing queue so next/prev still work.
+        // If a track is playing and it's not in the new queue (user switched
+        // to a different library view), keep the existing queue so next/prev
+        // still work within the original playback context.
         if (playingTrackIdForQueue && !queue.includes(playingTrackIdForQueue)) {
             return;
         }

@@ -8,7 +8,7 @@ import { AddToMusicPlaylistModal } from '../modals/AddToMusicPlaylistModal';
 import { UploadTrackModal } from '../modals/UploadTrackModal';
 import { WaveformCanvas } from './WaveformCanvas';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
-import { useMusicStore, selectAllTracks } from '../../../core/stores/musicStore';
+import { useMusicStore, selectAllTracks, selectAllGenres } from '../../../core/stores/musicStore';
 import { useEditingStore } from '../../../core/stores/editingStore';
 import { getEffectiveDuration } from '../../../core/types/editing';
 import { useAuth } from '../../../core/hooks/useAuth';
@@ -27,8 +27,7 @@ export const AudioPlayer: React.FC = () => {
     const playingTrackId = useMusicStore((s) => s.playingTrackId);
     const playingVariant = useMusicStore((s) => s.playingVariant);
     const isPlaying = useMusicStore((s) => s.isPlaying);
-    const genres = useMusicStore((s) => s.genres);
-    const playbackGenres = useMusicStore((s) => s.playbackGenres);
+    const genres = useMusicStore(selectAllGenres);
     const currentTime = useMusicStore((s) => s.currentTime);
     const duration = useMusicStore((s) => s.duration);
     const repeatMode = useMusicStore((s) => s.repeatMode);
@@ -73,8 +72,7 @@ export const AudioPlayer: React.FC = () => {
     const [freshUrl, setFreshUrl] = React.useState<string | null>(null);
 
     const track = tracks.find((t) => t.id === playingTrackId);
-    // Resolve genre: try current genres first, fall back to queue-snapshot genres
-    const genreInfo = track ? (genres.find((g) => g.id === track.genre) ?? playbackGenres.find((g) => g.id === track.genre)) : null;
+    const genreInfo = track ? genres.find((g) => g.id === track.genre) : null;
 
     const storedUrl = track
         ? (playingVariant === 'vocal' ? track.vocalUrl : track.instrumentalUrl) || track.vocalUrl || track.instrumentalUrl

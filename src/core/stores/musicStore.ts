@@ -35,12 +35,6 @@ interface MusicState {
     playbackVolume: number | null;
     /** Who initiated the current playback — explicit mode flag */
     playbackSource: 'library' | 'timeline' | 'browser-preview' | null;
-    /** Frozen copies of all tracks in the playback queue. Survives library
-     *  switches so AudioPlayer can resolve any track in the queue. */
-    playbackQueueTracks: Track[];
-    /** Genre definitions at the time the queue was built. Used by AudioPlayer
-     *  to resolve accent color when the active library's genres differ. */
-    playbackGenres: MusicGenre[];
     /** Monotonic counter — incremented by AudioPlayer when a track finishes.
      *  Subscribers (e.g. useTimelineAutoAdvance) react to changes. */
     trackEndedSignal: number;
@@ -72,6 +66,7 @@ interface MusicState {
     activeLibrarySource: SharedLibraryEntry | null; // null = own library
     sharedTracks: Track[];                          // tracks from shared libraries
     sharedPlaylists: MusicPlaylist[];                // playlists from shared libraries
+    sharedGenres: MusicGenre[];                      // genres from shared library owners
     sharedTags: MusicTag[];                          // tags from shared library owners
     sharedCategoryOrder: string[];                    // category order from shared library owners
     sharedFeaturedCategories: string[];               // featured categories from shared library owners
@@ -153,8 +148,6 @@ export const useMusicStore = create<MusicState>((set) => ({
     playingTrimEnd: 0,
     playbackVolume: null,
     playbackSource: null,
-    playbackQueueTracks: [],
-    playbackGenres: [],
     trackEndedSignal: 0,
     seekTo: null,
     playbackQueue: [],
@@ -174,6 +167,7 @@ export const useMusicStore = create<MusicState>((set) => ({
     sharedLibraries: [],
     activeLibrarySource: null,
     sharedTracks: [],
+    sharedGenres: [],
     sharedPlaylists: [],
     sharedTags: [],
     sharedCategoryOrder: [],
@@ -239,8 +233,6 @@ export const useMusicStore = create<MusicState>((set) => ({
             playingTrimEnd: trimEnd ?? 0,
             playbackVolume: id === null ? null : state.playbackVolume,
             playbackSource: id === null ? null : state.playbackSource,
-            // Clear queue snapshots when playback stops
-            ...(id === null && { playbackQueueTracks: [], playbackGenres: [] }),
             currentTime: 0,
             duration: 0,
         });
@@ -259,15 +251,7 @@ export const useMusicStore = create<MusicState>((set) => ({
     setCurrentTime: (time) => set({ currentTime: time }),
     setDuration: (duration) => set({ duration }),
     registerSeek: (fn) => set({ seekTo: fn }),
-    setPlaybackQueue: (queue) => {
-        const { tracks, genres } = useMusicStore.getState();
-        // Snapshot the Track objects and genre definitions so AudioPlayer can
-        // resolve any track in the queue even after a library switch.
-        const queueTracks = queue
-            .map(id => tracks.find(t => t.id === id))
-            .filter((t): t is Track => t !== undefined);
-        set({ playbackQueue: queue, playbackQueueTracks: queueTracks, playbackGenres: genres });
-    },
+    setPlaybackQueue: (queue) => set({ playbackQueue: queue }),
     setPlaybackVolume: (vol) => set({ playbackVolume: vol }),
     setPlaybackSource: (source) => set({ playbackSource: source }),
     signalTrackEnded: () => set((s) => ({ trackEndedSignal: s.trackEndedSignal + 1 })),
@@ -432,7 +416,7 @@ export const useMusicStore = create<MusicState>((set) => ({
     subscribeSharedLibraryTracks: () => {
         const { sharedLibraries } = useMusicStore.getState();
         if (sharedLibraries.length === 0) {
-            set({ sharedTracks: [], sharedPlaylists: [], sharedTags: [], sharedCategoryOrder: [], sharedFeaturedCategories: [] });
+            set({ sharedTracks: [], sharedPlaylists: [], sharedGenres: [], sharedTags: [], sharedCategoryOrder: [], sharedFeaturedCategories: [] });
             return () => { };
         }
 
@@ -440,24 +424,28 @@ export const useMusicStore = create<MusicState>((set) => ({
         const trackBuckets: Record<number, Track[]> = {};
         const playlistBuckets: Record<number, MusicPlaylist[]> = {};
         const tagBuckets: Record<number, MusicTag[]> = {};
+        const genreBuckets: Record<number, MusicGenre[]> = {};
 
         sharedLibraries.forEach((lib, i) => {
             trackBuckets[i] = [];
             playlistBuckets[i] = [];
             tagBuckets[i] = [];
+            genreBuckets[i] = [];
 
-            // Load owner's settings for tag/category resolution
+            // Load owner's settings for genre/tag/category resolution
             TrackService.getMusicSettings(lib.ownerUserId, lib.ownerChannelId)
                 .then((settings) => {
                     tagBuckets[i] = settings.tags || [];
+                    genreBuckets[i] = settings.genres || [];
                     const allSharedTags = Object.values(tagBuckets).flat();
+                    const allSharedGenres = Object.values(genreBuckets).flat();
                     // Merge category orders from all shared libraries (deduped, preserving order)
                     const ownCats = new Set(useMusicStore.getState().categoryOrder);
                     const mergedCatOrder = Object.values(tagBuckets)
                         .flatMap((tags) => [...new Set(tags.map((t) => t.category).filter((c): c is string => !!c))]);
                     const sharedCatOrder = [...new Set(mergedCatOrder)].filter((c) => !ownCats.has(c));
                     const sharedFeatured = (settings.featuredCategories || []).filter((c: string) => !ownCats.has(c));
-                    set({ sharedTags: allSharedTags, sharedCategoryOrder: sharedCatOrder, sharedFeaturedCategories: sharedFeatured });
+                    set({ sharedGenres: allSharedGenres, sharedTags: allSharedTags, sharedCategoryOrder: sharedCatOrder, sharedFeaturedCategories: sharedFeatured });
                 })
                 .catch((err) => console.error('[MusicStore] Failed to load shared settings:', err));
 
@@ -601,40 +589,24 @@ export const useMusicStore = create<MusicState>((set) => ({
 let _cachedAllTracks: Track[] = [];
 let _lastOwnTracks: Track[] = [];
 let _lastSharedTracks: Track[] = [];
-let _lastQueueTracks: Track[] = [];
 
-/** Merged own + shared tracks — use as `useMusicStore(selectAllTracks)` */
+/** Merged own + shared tracks (deduped by id) — use as `useMusicStore(selectAllTracks)` */
 export const selectAllTracks = (s: MusicState): Track[] => {
     if (
         s.tracks === _lastOwnTracks &&
-        s.sharedTracks === _lastSharedTracks &&
-        s.playbackQueueTracks === _lastQueueTracks
+        s.sharedTracks === _lastSharedTracks
     ) {
         return _cachedAllTracks;
     }
     _lastOwnTracks = s.tracks;
     _lastSharedTracks = s.sharedTracks;
-    _lastQueueTracks = s.playbackQueueTracks;
 
-    let merged: Track[];
     if (s.sharedTracks.length === 0) {
-        merged = s.tracks;
+        _cachedAllTracks = s.tracks;
     } else {
         const ownIds = new Set(s.tracks.map((t) => t.id));
-        merged = [...s.tracks, ...s.sharedTracks.filter((t) => !ownIds.has(t.id))];
+        _cachedAllTracks = [...s.tracks, ...s.sharedTracks.filter((t) => !ownIds.has(t.id))];
     }
-
-    // Append any queue-snapshot tracks absent from the merged list (e.g. library
-    // switched away). This lets AudioPlayer resolve next/prev tracks in the queue.
-    if (s.playbackQueueTracks.length > 0) {
-        const mergedIds = new Set(merged.map(t => t.id));
-        const missing = s.playbackQueueTracks.filter(t => !mergedIds.has(t.id));
-        if (missing.length > 0) {
-            merged = [...merged, ...missing];
-        }
-    }
-
-    _cachedAllTracks = merged;
     return _cachedAllTracks;
 };
 
@@ -720,4 +692,24 @@ export const selectAllFeaturedCategories = (s: MusicState): string[] => {
         _cachedAllFeaturedCategories = [...s.featuredCategories, ...s.sharedFeaturedCategories.filter((c) => !ownSet.has(c))];
     }
     return _cachedAllFeaturedCategories;
+};
+let _cachedAllGenres: MusicGenre[] = [];
+let _lastOwnGenres: MusicGenre[] = [];
+let _lastSharedGenres: MusicGenre[] = [];
+
+/** Merged own + shared genres (deduped by id) — use as `useMusicStore(selectAllGenres)` */
+export const selectAllGenres = (s: MusicState): MusicGenre[] => {
+    if (s.genres === _lastOwnGenres && s.sharedGenres === _lastSharedGenres) {
+        return _cachedAllGenres;
+    }
+    _lastOwnGenres = s.genres;
+    _lastSharedGenres = s.sharedGenres;
+
+    if (s.sharedGenres.length === 0) {
+        _cachedAllGenres = s.genres;
+    } else {
+        const ownIds = new Set(s.genres.map((g) => g.id));
+        _cachedAllGenres = [...s.genres, ...s.sharedGenres.filter((g) => !ownIds.has(g.id))];
+    }
+    return _cachedAllGenres;
 };
