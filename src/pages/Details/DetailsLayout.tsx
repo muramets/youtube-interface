@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { type VideoDetails } from '../../core/utils/youtubeApi';
 import type { GalleryItem } from '../../core/types/gallery';
@@ -82,6 +82,11 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
     }, [setSearchParams]);
 
     const [isFormDirty, setIsFormDirty] = useState(false);
+
+    // Ref to save/discard actions registered by PackagingTab
+    type PackagingActions = { save: () => Promise<void>; discard: () => void };
+    const packagingActionsRef = useRef<PackagingActions | null>(null);
+
     // Persist selected snapshot across navigation (per video)
     const snapshotStorageKey = `traffic-snapshot:${video.id}`;
     const [selectedSnapshot, setSelectedSnapshotRaw] = useState<string | null>(() => {
@@ -250,6 +255,38 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
         onOpenSnapshotRequest: (params) => openSnapshotRequest(params)
     });
 
+    // ── Unsaved-changes guard ─────────────────────────────────────────────────
+    // All dirty-check logic flows through SWITCH_CONFIRM (useModalState).
+    // targetTab is set when the trigger is a tab click; absent for version switches.
+    // Browser Back is not blocked: useBlocker requires createBrowserRouter.
+    //
+    // "Save": persist form, then navigate to targetTab
+    const handleSaveThenNavigate = useCallback(async () => {
+        if (modalState.type !== 'SWITCH_CONFIRM' || !modalState.targetTab) return;
+        const targetTab = modalState.targetTab;
+        closeModal();
+        try {
+            await packagingActionsRef.current?.save();
+            navigateToTab(targetTab as 'packaging' | 'traffic' | 'gallery' | 'editing');
+        } catch {
+            /* Save failed — stay on tab */
+        }
+    }, [modalState, closeModal, navigateToTab]);
+
+    // "Discard" / confirm switch — context-aware
+    const handleConfirmSwitch = useCallback((targetVersion: number | 'draft') => {
+        if (modalState.type !== 'SWITCH_CONFIRM') return;
+        if (modalState.targetTab) {
+            // Tab-navigation context: discard form, navigate
+            const targetTab = modalState.targetTab as 'packaging' | 'traffic' | 'gallery' | 'editing';
+            packagingActionsRef.current?.discard();
+            navigateToTab(targetTab);
+        } else {
+            // Version-switch context: existing behaviour
+            versionMgmt.confirmSwitch(targetVersion);
+        }
+    }, [modalState, navigateToTab, versionMgmt]);
+    // ─────────────────────────────────────────────────
     // Snapshot management handlers
     const snapshotMgmt = useSnapshotManagement({
         video,
@@ -293,6 +330,12 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
         // Skip if same tab (activeTab is derived from URL)
         if (newTab === activeTab) return;
 
+        // Guard: if leaving Packaging with unsaved changes → open unified SWITCH_CONFIRM
+        if (isFormDirty && activeTab === 'packaging' && newTab !== 'packaging') {
+            openSwitchConfirm(versions.activeVersion, newTab);
+            return;
+        }
+
         // When entering Traffic tab → switch to active version if needed
         if (newTab === 'traffic') {
             const isNotViewingActive = versions.viewingVersion !== versions.activeVersion;
@@ -324,7 +367,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
             prev.set('tab', newTab);
             return prev;
         }, { replace: true });
-    }, [activeTab, versions, setSearchParams, getLatestSnapshotId, setSelectedSnapshot, snapshotStorageKey]);
+    }, [activeTab, isFormDirty, versions, setSearchParams, getLatestSnapshotId, setSelectedSnapshot, snapshotStorageKey, openSwitchConfirm]);
 
     // Handle draft deletion
     // Latest Ref Pattern: refs for stable handleDeleteDraft callback
@@ -635,6 +678,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
                             onRequestSnapshot={snapshotMgmt.handleRequestSnapshot}
                             trafficData={trafficState.trafficData}
                             playlistId={playlistId}
+                            onRegisterActions={(a) => { packagingActionsRef.current = a; }}
                         />
                     )}
                     {activeTab === 'traffic' && (
@@ -702,7 +746,8 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
                 modalState={modalState}
                 activeVersion={versions.activeVersion}
                 videoTitle={getDisplayTitle()}
-                onConfirmSwitch={versionMgmt.confirmSwitch}
+                onConfirmSwitch={handleConfirmSwitch}
+                onSaveThenNavigate={handleSaveThenNavigate}
                 onConfirmDelete={(versionNumber) => {
                     versionMgmt.confirmDelete(versionNumber);
                     closeModal();

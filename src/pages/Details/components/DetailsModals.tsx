@@ -12,6 +12,8 @@ interface DetailsModalsProps {
     onSnapshotUpload: (file: File) => Promise<void>;
     onSkipSnapshot: () => Promise<void>;
     onClose: () => void;
+    /** Called when user clicks "Save" in the tab-navigation dirty guard context */
+    onSaveThenNavigate?: () => Promise<void>;
 }
 
 /**
@@ -26,17 +28,35 @@ export const DetailsModals: React.FC<DetailsModalsProps> = ({
     onConfirmDelete,
     onSnapshotUpload,
     onSkipSnapshot,
-    onClose
+    onClose,
+    onSaveThenNavigate
 }) => {
+    // Tab-navigation context: show Save / Discard / Stay
+    const isTabContext = modalState.type === 'SWITCH_CONFIRM' && !!modalState.targetTab;
+
     return (
         <>
-            {/* Switch Confirmation Modal */}
+            {/* Switch Confirmation Modal — two contexts:
+                1. Tab-navigation (targetTab set): Save / Discard / Stay
+                2. Version switch (no targetTab): Discard Changes / Cancel  */}
             <ConfirmationModal
                 isOpen={modalState.type === 'SWITCH_CONFIRM'}
                 title="Unsaved Changes"
-                message="You have unsaved changes. Are you sure you want to switch versions? Your changes will be lost."
-                confirmLabel="Discard Changes"
-                cancelLabel="Cancel"
+                message={
+                    isTabContext
+                        ? 'You have unsaved changes on the Packaging tab. What would you like to do?'
+                        : 'You have unsaved changes. Are you sure you want to switch versions? Your changes will be lost.'
+                }
+                confirmLabel={isTabContext ? 'Discard' : 'Discard Changes'}
+                cancelLabel={isTabContext ? 'Stay' : 'Cancel'}
+                confirmVariant="danger"
+                {...(isTabContext && onSaveThenNavigate ? {
+                    alternateLabel: 'Save',
+                    onAlternate: () => {
+                        onSaveThenNavigate();
+                        // onClose not called here — onSaveThenNavigate handles closeModal
+                    }
+                } : {})}
                 onConfirm={() => {
                     if (modalState.type === 'SWITCH_CONFIRM') {
                         onConfirmSwitch(modalState.targetVersion);
@@ -45,6 +65,7 @@ export const DetailsModals: React.FC<DetailsModalsProps> = ({
                 }}
                 onClose={onClose}
             />
+
 
             {/* Delete Confirmation Modal */}
             <ConfirmationModal

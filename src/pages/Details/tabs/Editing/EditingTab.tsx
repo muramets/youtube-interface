@@ -86,18 +86,25 @@ export const EditingTab: React.FC<EditingTabProps> = ({ video }) => {
                 {/* Audio Timeline */}
                 <AudioTimeline />
 
-                {/* Render Presets — reuse audio timeline from previous renders */}
-                <RenderPresetsPanel videoId={video.id} />
+                {/* Render section — grouped so gap-5 applies only once between timeline and this block */}
+                <div className="flex flex-col gap-2">
+                    {/* Render Presets — reuse audio timeline from previous renders */}
+                    <RenderPresetsPanel videoId={video.id} />
 
-                {/* Render Controls */}
-                <RenderControls
-                    videoId={video.id}
-                    videoTitle={(video.abTestTitles?.length ? video.abTestTitles[0] : video.title) || 'Untitled'}
-                    defaultImageUrl={defaultImageUrl}
-                />
+                    {/* Render Controls */}
+                    <RenderControls
+                        videoId={video.id}
+                        videoTitle={(video.abTestTitles?.length ? video.abTestTitles[0] : video.title) || 'Untitled'}
+                        defaultImageUrl={defaultImageUrl}
+                    />
 
-                {/* Render Progress (shown when a job exists) */}
-                {hasRenderJob && <RenderProgressBar videoId={video.id} />}
+                    {/* Render Progress (shown when a job exists) */}
+                    {hasRenderJob && <RenderProgressBar videoId={video.id} />}
+                </div>
+
+                {/* Spacer: preserves bottom padding in overflow-y:auto flex containers (Chrome/Safari flex padding bug) */}
+                <div className="flex-shrink-0 h-px" aria-hidden="true" />
+
             </div>
 
             {/* ── Resize Handle ─────────────────────────────────────────── */}

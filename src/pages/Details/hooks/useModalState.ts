@@ -5,7 +5,7 @@ import type { ModalState } from '../types/versionManagement';
  * Actions для modal reducer
  */
 type ModalAction =
-    | { type: 'OPEN_SWITCH_CONFIRM'; targetVersion: number | 'draft' }
+    | { type: 'OPEN_SWITCH_CONFIRM'; targetVersion: number | 'draft'; targetTab?: string }
     | { type: 'OPEN_DELETE_CONFIRM'; versionNumber: number; snapshotCount: number; totalViews: number; versionLabel?: string; isStacked?: boolean }
     | {
         type: 'OPEN_SNAPSHOT_REQUEST';
@@ -23,7 +23,7 @@ type ModalAction =
 const modalReducer = (state: ModalState, action: ModalAction): ModalState => {
     switch (action.type) {
         case 'OPEN_SWITCH_CONFIRM':
-            return { type: 'SWITCH_CONFIRM', targetVersion: action.targetVersion };
+            return { type: 'SWITCH_CONFIRM', targetVersion: action.targetVersion, targetTab: action.targetTab };
 
         case 'OPEN_DELETE_CONFIRM':
             return {
@@ -60,8 +60,8 @@ const modalReducer = (state: ModalState, action: ModalAction): ModalState => {
 export const useModalState = () => {
     const [modalState, dispatch] = useReducer(modalReducer, { type: 'IDLE' });
 
-    const openSwitchConfirm = useCallback((targetVersion: number | 'draft') => {
-        dispatch({ type: 'OPEN_SWITCH_CONFIRM', targetVersion });
+    const openSwitchConfirm = useCallback((targetVersion: number | 'draft', targetTab?: string) => {
+        dispatch({ type: 'OPEN_SWITCH_CONFIRM', targetVersion, targetTab });
     }, []);
 
     const openDeleteConfirm = useCallback((versionNumber: number, snapshotCount: number = 0, totalViews: number = 0, versionLabel?: string, isStacked?: boolean) => {

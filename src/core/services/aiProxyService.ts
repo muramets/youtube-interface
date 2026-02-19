@@ -130,8 +130,8 @@ export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult
     let result: StreamChatResult = { text: '' };
     let receivedAnyData = false;
 
-    // --- 60s inactivity timeout: abort reader if no data arrives ---
-    const STREAM_TIMEOUT_MS = 60_000;
+    // --- Inactivity timeout: abort reader if no data arrives (must match server-side STREAM_INACTIVITY_TIMEOUT_MS) ---
+    const STREAM_TIMEOUT_MS = 90_000;
     let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
     const inactivityController = new AbortController();
 
@@ -201,7 +201,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult
     } catch (err) {
         // If the reader was cancelled by our inactivity timer, throw a clear timeout error
         if (inactivityController.signal.aborted) {
-            throw new Error('AI response timed out — no data received for 60 seconds. Please try again.');
+            throw new Error('AI response timed out — no data received for 90 seconds. Please try again.');
         }
         throw err;
     } finally {

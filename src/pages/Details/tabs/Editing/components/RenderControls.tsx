@@ -1,11 +1,10 @@
-import React, { useEffect } from 'react';
-import { Minus, Plus, Play } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ChevronDown, Minus, Play, Plus } from 'lucide-react';
 import { Button } from '../../../../../components/ui/atoms/Button/Button';
 import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
 import { useRenderQueueStore } from '../../../../../core/stores/editing/renderQueueStore';
 import { useUIStore } from '../../../../../core/stores/uiStore';
-import { RESOLUTION_PRESETS, type RenderResolution } from '../../../../../core/types/editing';
-import { getEffectiveDuration } from '../../../../../core/types/editing';
+import { RESOLUTION_PRESETS, getEffectiveDuration, type RenderResolution } from '../../../../../core/types/editing';
 import { BITRATE_MAP } from '../services/renderService';
 import { getSizeCalibrationRatio } from '../../../../../core/stores/editing/renderQueueStore';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
@@ -46,7 +45,180 @@ interface RenderControlsProps {
     defaultImageUrl: string;
 }
 
+// ── Resolution Dropdown ──────────────────────────────────────────────────────
+
+interface ResolutionDropdownProps {
+    resolution: RenderResolution;
+    imageWidth: number | null | undefined;
+    imageHeight: number | null | undefined;
+    onSelect: (res: RenderResolution) => void;
+}
+
+const ResolutionDropdown: React.FC<ResolutionDropdownProps> = ({ resolution, imageWidth, imageHeight, onSelect }) => {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+
+    // Close on outside click
+    useEffect(() => {
+        if (!open) return;
+        const handler = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) {
+                setOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [open]);
+
+    const preset = RESOLUTION_PRESETS[resolution];
+
+    return (
+        <div ref={ref} className="relative">
+            <button
+                onClick={() => setOpen(v => !v)}
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold
+                           bg-text-primary text-bg-primary hover:opacity-90 transition-opacity"
+            >
+                {preset.label.split(' ')[0]}
+                <ChevronDown
+                    size={11}
+                    className="transition-transform duration-150"
+                    style={{ transform: open ? 'rotate(180deg)' : undefined }}
+                />
+            </button>
+
+            {open && (
+                <div
+                    className="absolute bottom-full mb-1 left-0 z-50
+                               bg-bg-secondary border border-border rounded-lg shadow-xl
+                               py-1 min-w-[90px] animate-fade-in"
+                >
+                    {RESOLUTIONS.map(res => {
+                        const p = RESOLUTION_PRESETS[res];
+                        const exceeds = imageWidth != null && imageHeight != null &&
+                            (p.width > imageWidth || p.height > imageHeight);
+                        const isSelected = resolution === res;
+
+                        const item = (
+                            <button
+                                key={res}
+                                disabled={exceeds}
+                                onClick={() => {
+                                    if (!exceeds) { onSelect(res); setOpen(false); }
+                                }}
+                                className={`w-full text-left px-3 py-1.5 text-xs transition-colors
+                                    ${exceeds
+                                        ? 'text-text-tertiary cursor-not-allowed opacity-40'
+                                        : isSelected
+                                            ? 'text-text-primary font-semibold bg-white/[0.06]'
+                                            : 'text-text-secondary hover:bg-hover hover:text-text-primary'
+                                    }`}
+                            >
+                                {p.label.split(' ')[0]}
+                                {isSelected && <span className="ml-1 text-[9px] text-text-tertiary">✓</span>}
+                            </button>
+                        );
+
+                        if (exceeds) {
+                            return (
+                                <PortalTooltip
+                                    key={res}
+                                    content={`Image too small (${imageWidth}×${imageHeight})`}
+                                    side="right"
+                                    enterDelay={100}
+                                >
+                                    {item}
+                                </PortalTooltip>
+                            );
+                        }
+                        return item;
+                    })}
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ── Inline resolution buttons (shown when enough space) ────────────────────
+
+interface InlineResolutionPickerProps {
+    resolution: RenderResolution;
+    imageWidth: number | null | undefined;
+    imageHeight: number | null | undefined;
+    onSelect: (res: RenderResolution) => void;
+}
+
+const InlineResolutionPicker: React.FC<InlineResolutionPickerProps> = ({ resolution, imageWidth, imageHeight, onSelect }) => (
+    <div className="flex items-center gap-1.5">
+        {RESOLUTIONS.map((res) => {
+            const preset = RESOLUTION_PRESETS[res];
+            const exceedsImage = imageWidth != null && imageHeight != null &&
+                (preset.width > imageWidth || preset.height > imageHeight);
+            const isSelected = resolution === res;
+
+            const btn = (
+                <button
+                    onClick={() => !exceedsImage && onSelect(res)}
+                    disabled={exceedsImage}
+                    className={`px-2 py-1 text-xs rounded-md transition-colors ${exceedsImage
+                        ? 'text-neutral-600 cursor-not-allowed'
+                        : isSelected
+                            ? 'bg-text-primary text-bg-primary font-semibold'
+                            : 'text-text-secondary hover:bg-hover'
+                        }`}
+                >
+                    {preset.label.split(' ')[0]}
+                </button>
+            );
+
+            if (!exceedsImage) return <React.Fragment key={res}>{btn}</React.Fragment>;
+
+            return (
+                <PortalTooltip
+                    key={res}
+                    content={`Image too small (${imageWidth}×${imageHeight})`}
+                    side="top"
+                    align="center"
+                    enterDelay={150}
+                >
+                    {btn}
+                </PortalTooltip>
+            );
+        })}
+    </div>
+);
+
+// ── Compact width threshold ─────────────────────────────────────────────────
+// Below this px width the inline buttons won't fit → switch to dropdown.
+// Measured empirically: Loop(116) + dividers(2) + inline-resolution(222) + duration(55) + Render(103) + gaps/padding(~100) ≈ 598px
+const COMPACT_THRESHOLD = 600;
+// Hysteresis buffer — only exit compact mode when width > threshold + buffer.
+// Prevents click-flapping at the exact boundary.
+const HYSTERESIS = 60;
+
+// Below this px width: hide Loop label and duration block (ultra-narrow, e.g. with browser open)
+// Loop(no-label, ~55px) + dropdown(~60px) + Render(~90px) + gaps/padding ≈ 280px
+const TINY_THRESHOLD = 380;
+
+// ── Main component ───────────────────────────────────────────────────────────
+
 export const RenderControls: React.FC<RenderControlsProps> = ({ videoId, videoTitle, defaultImageUrl }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [isCompact, setIsCompact] = useState(false);
+    const [isTiny, setIsTiny] = useState(false);
+
+    // Watch container width — two breakpoints, each with hysteresis
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const observer = new ResizeObserver(([entry]) => {
+            const w = entry.contentRect.width;
+            setIsCompact(prev => prev ? w < COMPACT_THRESHOLD + HYSTERESIS : w < COMPACT_THRESHOLD);
+            setIsTiny(prev => prev ? w < TINY_THRESHOLD + HYSTERESIS : w < TINY_THRESHOLD);
+        });
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
     const tracks = useEditingStore((s) => s.tracks);
     const loopCount = useEditingStore((s) => s.loopCount);
     const resolution = useEditingStore((s) => s.resolution);
@@ -79,7 +251,7 @@ export const RenderControls: React.FC<RenderControlsProps> = ({ videoId, videoTi
 
     const canRender = tracks.length > 0 && effectiveImageUrl !== '' && !imageTooSmall && !!currentChannel?.id && renderStatus !== 'rendering' && renderStatus !== 'queued';
 
-    const handleRender = () => {
+    const handleRender = useCallback(() => {
         if (!canRender) return;
 
         // Block render if any track has a missing audio URL
@@ -102,13 +274,14 @@ export const RenderControls: React.FC<RenderControlsProps> = ({ videoId, videoTi
             loopCount,
             volume,
         });
-    };
+    }, [canRender, tracks, startJob, videoId, videoTitle, effectiveImageUrl, currentChannel, resolution, loopCount, volume]);
 
     return (
-        <div className="flex items-center gap-4 p-3 rounded-xl bg-card-bg flex-wrap overflow-hidden">
+        <div ref={containerRef} className="flex items-center gap-3 p-3 rounded-xl bg-card-bg">
             {/* Loop Counter */}
-            <div className="flex items-center gap-2">
-                <span className="text-xs text-text-secondary">Loop</span>
+            <div className="flex items-center gap-2 flex-shrink-0">
+                {/* Label hidden in tiny mode to save space */}
+                {!isTiny && <span className="text-xs text-text-secondary">Loop</span>}
                 <div className="flex items-center gap-1">
                     <button
                         onClick={() => setLoopCount(loopCount - 1)}
@@ -131,57 +304,37 @@ export const RenderControls: React.FC<RenderControlsProps> = ({ videoId, videoTi
             </div>
 
             {/* Divider */}
-            <div className="w-px h-6 bg-border" />
+            <div className="w-px h-6 bg-border flex-shrink-0" />
 
-            {/* Resolution Picker */}
-            <div className="flex items-center gap-1.5">
-                {RESOLUTIONS.map((res) => {
-                    const preset = RESOLUTION_PRESETS[res];
-                    const exceedsImage = imageWidth != null && imageHeight != null &&
-                        (preset.width > imageWidth || preset.height > imageHeight);
-                    const isSelected = resolution === res;
+            {/* Resolution — inline buttons or compact dropdown */}
+            {isCompact ? (
+                <ResolutionDropdown
+                    resolution={resolution}
+                    imageWidth={imageWidth}
+                    imageHeight={imageHeight}
+                    onSelect={setResolution}
+                />
+            ) : (
+                <InlineResolutionPicker
+                    resolution={resolution}
+                    imageWidth={imageWidth}
+                    imageHeight={imageHeight}
+                    onSelect={setResolution}
+                />
+            )}
 
-                    const btn = (
-                        <button
-                            onClick={() => !exceedsImage && setResolution(res)}
-                            disabled={exceedsImage}
-                            className={`px-2 py-1 text-xs rounded-md transition-colors ${exceedsImage
-                                ? 'text-neutral-600 cursor-not-allowed'
-                                : isSelected
-                                    ? 'bg-text-primary text-bg-primary font-semibold'
-                                    : 'text-text-secondary hover:bg-hover'
-                                }`}
-                        >
-                            {preset.label.split(' ')[0]}
-                        </button>
-                    );
-
-                    if (!exceedsImage) return <React.Fragment key={res}>{btn}</React.Fragment>;
-
-                    return (
-                        <PortalTooltip
-                            key={res}
-                            content={`Image too small (${imageWidth}×${imageHeight})`}
-                            side="top"
-                            align="center"
-                            enterDelay={150}
-                        >
-                            {btn}
-                        </PortalTooltip>
-                    );
-                })}
-            </div>
-
-            {/* Divider */}
-            <div className="w-px h-6 bg-border" />
-
-            {/* Duration & Size */}
-            <div className="flex flex-col text-xs text-text-tertiary select-none cursor-default">
-                <span>~{formatDuration(totalDuration)}</span>
-                {totalDuration > 0 && (
-                    <span>~{estimateFileSize(totalDuration, resolution)}</span>
-                )}
-            </div>
+            {/* Duration & Size — hidden in tiny mode */}
+            {!isTiny && (
+                <>
+                    <div className="w-px h-6 bg-border flex-shrink-0" />
+                    <div className="flex flex-col text-xs text-text-tertiary select-none cursor-default flex-shrink-0">
+                        <span>~{formatDuration(totalDuration)}</span>
+                        {totalDuration > 0 && (
+                            <span>~{estimateFileSize(totalDuration, resolution)}</span>
+                        )}
+                    </div>
+                </>
+            )}
 
             {/* Spacer */}
             <div className="flex-1" />

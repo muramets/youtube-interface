@@ -6,7 +6,7 @@
 // but reads shared metadata (genres, tags, categories) from musicStore.
 // =============================================================================
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useMusicStore, selectAllTags, selectAllCategoryOrder, selectAllFeaturedCategories } from '../stores/musicStore';
 import type { Track, MusicGenre, MusicTag } from '../types/track';
 
@@ -44,6 +44,37 @@ export interface UseTrackFiltersReturn extends TrackFilterState, TrackFilterActi
 // Hook
 // -----------------------------------------------------------------------------
 
+// -----------------------------------------------------------------------------
+// Persistence helpers
+// -----------------------------------------------------------------------------
+
+const FILTER_STORAGE_KEY = 'track-browser-filters';
+
+type PersistedFilters = {
+    genreFilter: string | null;
+    tagFilters: string[];
+    bpmFilter: [number, number] | null;
+};
+
+function readPersistedFilters(): PersistedFilters | null {
+    try {
+        const raw = localStorage.getItem(FILTER_STORAGE_KEY);
+        return raw ? (JSON.parse(raw) as PersistedFilters) : null;
+    } catch {
+        return null;
+    }
+}
+
+function persistFilters(filters: PersistedFilters): void {
+    try {
+        localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters));
+    } catch { /* quota exceeded — ignore */ }
+}
+
+// -----------------------------------------------------------------------------
+// Hook
+// -----------------------------------------------------------------------------
+
 /**
  * Independent filter state + shared filtering pipeline.
  *
@@ -54,10 +85,16 @@ export function useTrackFilters(
     tracks: Track[],
     searchQuery: string,
 ): UseTrackFiltersReturn {
-    // ── Independent filter state (per-instance) ──────────────────────────
-    const [genreFilter, setGenreFilter] = useState<string | null>(null);
-    const [tagFilters, setTagFilters] = useState<string[]>([]);
-    const [bpmFilter, setBpmFilter] = useState<[number, number] | null>(null);
+    // ── Independent filter state (per-instance, persisted) ──────────────
+    const persisted = useMemo(() => readPersistedFilters(), []);
+    const [genreFilter, setGenreFilter] = useState<string | null>(persisted?.genreFilter ?? null);
+    const [tagFilters, setTagFilters] = useState<string[]>(persisted?.tagFilters ?? []);
+    const [bpmFilter, setBpmFilter] = useState<[number, number] | null>(persisted?.bpmFilter ?? null);
+
+    // Sync to localStorage on every change
+    useEffect(() => {
+        persistFilters({ genreFilter, tagFilters, bpmFilter });
+    }, [genreFilter, tagFilters, bpmFilter]);
 
     // ── Shared metadata (read-only, merged own + shared) ─────────────────
     const genres = useMusicStore((s) => s.genres);

@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { Button } from '../atoms/Button/Button';
 
 interface ConfirmationModalProps {
     isOpen: boolean;
@@ -10,6 +11,11 @@ interface ConfirmationModalProps {
     message: React.ReactNode;
     confirmLabel?: string;
     cancelLabel?: string;
+    /** Optional third action button — shown between Cancel and Confirm */
+    onAlternate?: () => void;
+    alternateLabel?: string;
+    /** Controls confirm button colour. Default 'danger' preserves existing behaviour. */
+    confirmVariant?: 'danger' | 'primary';
     className?: string;
 }
 
@@ -21,6 +27,9 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
     message,
     confirmLabel = 'Confirm',
     cancelLabel = 'Cancel',
+    onAlternate,
+    alternateLabel,
+    confirmVariant = 'danger',
     className = ''
 }) => {
     if (!isOpen) return null;
@@ -49,21 +58,31 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                 </div>
 
                 <div className="px-6 py-4 flex justify-end gap-3 border-t border-border bg-bg-secondary/30">
-                    <button
-                        onClick={onClose}
-                        className="px-4 py-2 rounded-lg font-medium text-text-secondary hover:text-text-primary transition-colors bg-transparent border-none cursor-pointer"
-                    >
+                    <Button variant="secondary" onClick={onClose}>
                         {cancelLabel}
-                    </button>
-                    <button
+                    </Button>
+
+                    {onAlternate && alternateLabel && (
+                        <Button
+                            variant="primary"
+                            onClick={() => {
+                                onAlternate();
+                                onClose();
+                            }}
+                        >
+                            {alternateLabel}
+                        </Button>
+                    )}
+
+                    <Button
+                        variant={confirmVariant}
                         onClick={() => {
                             onConfirm();
                             onClose();
                         }}
-                        className="px-4 py-2 rounded-lg font-bold text-white bg-red-600 hover:bg-red-700 transition-colors border-none cursor-pointer"
                     >
                         {confirmLabel}
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div>,

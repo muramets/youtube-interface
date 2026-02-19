@@ -37,9 +37,11 @@ interface PackagingTabProps {
     onRequestSnapshot?: (versionNumber: number) => Promise<string | null | undefined>; // Callback for CSV snapshot request
     trafficData?: TrafficData | null; // Traffic data for finding snapshots
     playlistId?: string;
+    /** Register save/discard handlers with the parent (e.g. for unsaved-changes guard). */
+    onRegisterActions?: (actions: { save: () => Promise<void>; discard: () => void }) => void;
 }
 
-export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState, onDirtyChange, onRestoreVersion, onRequestSnapshot, trafficData, playlistId }) => {
+export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState, onDirtyChange, onRestoreVersion, onRequestSnapshot, trafficData, playlistId, onRegisterActions }) => {
 
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
@@ -112,6 +114,15 @@ export const PackagingTab: React.FC<PackagingTabProps> = ({ video, versionState,
     useEffect(() => {
         onDirtyChange(formState.isDirty);
     }, [formState.isDirty, onDirtyChange]);
+
+    // Register save/discard actions with the parent (used by unsaved-changes guard).
+    // Pattern: same as onRegisterDeleteSource / onRegisterReorder in GalleryTab.
+    useEffect(() => {
+        onRegisterActions?.({
+            save: actions.handleSave,
+            discard: actions.handleCancel,
+        });
+    }, [onRegisterActions, actions.handleSave, actions.handleCancel]);
 
 
     // ============================================================================

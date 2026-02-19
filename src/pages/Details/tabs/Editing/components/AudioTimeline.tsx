@@ -258,6 +258,7 @@ export const AudioTimeline: React.FC = () => {
                                                 widthPx={Math.max(60, Math.round(getEffectiveDuration(track) * pxPerSecond))}
                                                 masterVolume={volume}
                                                 isBeingDragged={activeDragId === track.id}
+                                                isAnyDragging={activeDragId !== null}
                                                 pxPerSecond={pxPerSecond}
                                                 isSelected={selectedTrackId === track.id}
                                                 onSelect={setSelectedTrackId}

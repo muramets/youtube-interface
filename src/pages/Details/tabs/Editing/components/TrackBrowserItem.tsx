@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Plus, Play, Pause, Music2, Check, Heart } from 'lucide-react';
 import type { Track } from '../../../../../core/types/track';
 import { getDefaultVariant } from '../../../../../core/utils/trackUtils';
@@ -53,13 +53,20 @@ export const TrackBrowserItem: React.FC<TrackBrowserItemProps> = ({ track, isOnT
     }, [userId, channelId, track.id]);
 
     // Native drag
+    const [isDragging, setIsDragging] = useState(false);
+
     const handleDragStart = useCallback((e: React.DragEvent) => {
         e.dataTransfer.setData(
             'application/x-editing-track',
             JSON.stringify({ trackId: track.id, variant: defaultVariant })
         );
         e.dataTransfer.effectAllowed = 'copy';
+        setIsDragging(true);
     }, [track.id, defaultVariant]);
+
+    const handleDragEnd = useCallback(() => {
+        setIsDragging(false);
+    }, []);
 
     // ── Tags tooltip (grouped by category) ──
     const allTags = useMusicStore(selectAllTags);
@@ -107,13 +114,14 @@ export const TrackBrowserItem: React.FC<TrackBrowserItemProps> = ({ track, isOnT
         <PortalTooltip
             content={tagsTooltipContent}
             enterDelay={1000}
-            disabled={!tagsTooltipContent}
+            disabled={!tagsTooltipContent || isDragging}
             side="left"
             triggerClassName="w-full min-w-0 !justify-start"
         >
             <div
                 draggable={!isOnTimeline}
                 onDragStart={isOnTimeline ? undefined : handleDragStart}
+                onDragEnd={isOnTimeline ? undefined : handleDragEnd}
                 className={`w-full flex items-center gap-2 px-3 py-3 transition-colors group ${isOnTimeline
                     ? 'opacity-40 cursor-default'
                     : 'hover:bg-hover cursor-pointer'

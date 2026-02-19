@@ -33,9 +33,11 @@ interface TimelineTrackItemProps {
     isSelected?: boolean;
     /** Called when track is clicked to select it */
     onSelect?: (trackId: string) => void;
+    /** True when any track is being dragged — suppresses tooltip */
+    isAnyDragging?: boolean;
 }
 
-export const TimelineTrackItem: React.FC<TimelineTrackItemProps> = ({ track, widthPx, masterVolume, pxPerSecond = 1, isBeingDragged, isOverlay, isSelected, onSelect }) => {
+export const TimelineTrackItem: React.FC<TimelineTrackItemProps> = ({ track, widthPx, masterVolume, pxPerSecond = 1, isBeingDragged, isOverlay, isSelected, onSelect, isAnyDragging }) => {
     const removeTrack = useEditingStore((s) => s.removeTrack);
     const toggleVariant = useEditingStore((s) => s.toggleTrackVariant);
     const musicTracks = useMusicStore(selectAllTracks);
@@ -305,7 +307,7 @@ export const TimelineTrackItem: React.FC<TimelineTrackItemProps> = ({ track, wid
                 <PortalTooltip
                     content={tagsTooltipContent}
                     enterDelay={1000}
-                    disabled={!tagsTooltipContent}
+                    disabled={!tagsTooltipContent || !!isAnyDragging}
                     side="top"
                     triggerClassName="w-full !justify-start"
                 >

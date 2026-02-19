@@ -81,6 +81,10 @@ export const useVersionManagement = ({
         }
 
         if (isFormDirty) {
+            // When leaving the Packaging tab, handleTabChange already opened SWITCH_CONFIRM
+            // with targetTab set. Don't overwrite that dispatch with a version-switch one
+            // (TrafficNav calls both onSelect + onVersionClick in the same click handler).
+            if (activeTab === 'packaging') return;
             // Если есть несохраненные изменения → показываем confirmation
             onOpenSwitchConfirm(versionNumber);
         } else {

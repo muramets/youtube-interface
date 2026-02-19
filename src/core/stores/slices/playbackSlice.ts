@@ -71,8 +71,10 @@ export const createPlaybackSlice: StateCreator<MusicState, [], [], PlaybackSlice
             playingTrimEnd: trimEnd ?? 0,
             playbackVolume: id === null ? null : state.playbackVolume,
             playbackSource: id === null ? null : state.playbackSource,
-            currentTime: 0,
-            duration: 0,
+            // Reset progress only when closing the player — on track-to-track
+            // transitions the audio element reports new values via onDurationChange
+            // within one frame, so resetting to 0 causes a visible progress-bar jump.
+            ...(id === null ? { currentTime: 0, duration: 0 } : {}),
         });
     },
 

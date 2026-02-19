@@ -163,11 +163,13 @@ async function buildHistory(
 }
 
 /**
- * Fetch thumbnail URLs and convert to inlineData Parts for Gemini.
- * Uses parallel fetch with graceful error handling (skips failed downloads).
+ * Upload thumbnail URLs to the Gemini Files API and return fileData Parts.
+ * Uses the Files API (not inlineData) for compatibility with all models including
+ * Gemini 3 Pro Preview, which hangs silently on inline Base64 images.
+ * Runs in parallel with graceful error handling (skips failed uploads).
  */
-async function fetchThumbnailParts(urls: string[]): Promise<Part[]> {
-    console.log(`[thumbnails] Fetching ${urls.length} thumbnail(s):`, urls);
+async function fetchThumbnailParts(apiKey: string, urls: string[]): Promise<Part[]> {
+    console.log(`[thumbnails] Uploading ${urls.length} thumbnail(s) via Files API:`, urls);
     const results = await Promise.allSettled(
         urls.map(async (url) => {
             const response = await fetch(url);
@@ -177,10 +179,12 @@ async function fetchThumbnailParts(urls: string[]): Promise<Part[]> {
             }
             const buffer = await response.arrayBuffer();
             const mimeType = response.headers.get('content-type') || 'image/jpeg';
-            const base64 = Buffer.from(buffer).toString('base64');
-            console.log(`[thumbnails] OK ${url} → ${mimeType}, ${Math.round(buffer.byteLength / 1024)}KB`);
+            const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
+            console.log(`[thumbnails] Uploading ${Math.round(buffer.byteLength / 1024)}KB (${mimeType}) to Gemini Files API...`);
+            const { uri } = await uploadToGemini(apiKey, blob, mimeType, 'thumbnail');
+            console.log(`[thumbnails] OK ${url} → fileUri: ${uri}`);
             return {
-                inlineData: { data: base64, mimeType },
+                fileData: { fileUri: uri, mimeType },
             } as Part;
         })
     );
@@ -192,7 +196,7 @@ async function fetchThumbnailParts(urls: string[]): Promise<Part[]> {
         console.warn(`[thumbnails] ${failed.length}/${urls.length} failed:`,
             failed.map(r => (r as PromiseRejectedResult).reason?.message));
     }
-    console.log(`[thumbnails] Sending ${parts.length} image part(s) to Gemini`);
+    console.log(`[thumbnails] Sending ${parts.length} fileData part(s) to Gemini`);
     return parts;
 }
 
@@ -221,7 +225,7 @@ function buildUserParts(
 // --- Custom error for timeout ---
 
 export class GeminiTimeoutError extends Error {
-    constructor(message = "AI model did not respond within 60 seconds. Please try again.") {
+    constructor(message = "AI model did not respond within 90 seconds. Please try again.") {
         super(message);
         this.name = "GeminiTimeoutError";
     }
@@ -230,7 +234,7 @@ export class GeminiTimeoutError extends Error {
 // --- Streaming chat ---
 
 /** Inactivity timeout: abort if no chunk arrives within this window. */
-const STREAM_INACTIVITY_TIMEOUT_MS = 60_000;
+const STREAM_INACTIVITY_TIMEOUT_MS = 90_000;
 
 export async function streamChat(
     opts: StreamChatOpts
@@ -256,12 +260,12 @@ export async function streamChat(
     const t1 = Date.now();
     console.log(`[streamChat] buildHistory: ${t1 - t0}ms — ${historyContents.length} content entries`);
 
-    // Fetch thumbnail images in parallel (non-blocking, graceful degradation)
+    // Upload thumbnail images to Files API in parallel (graceful degradation)
     const thumbnailParts = thumbnailUrls && thumbnailUrls.length > 0
-        ? await fetchThumbnailParts(thumbnailUrls)
+        ? await fetchThumbnailParts(apiKey, thumbnailUrls)
         : undefined;
     const t2 = Date.now();
-    console.log(`[streamChat] fetchThumbnails: ${t2 - t1}ms — ${thumbnailParts?.length ?? 0} parts`);
+    console.log(`[streamChat] fetchThumbnails (Files API): ${t2 - t1}ms — ${thumbnailParts?.length ?? 0} parts`);
 
     const userParts = buildUserParts(text, attachments, thumbnailParts);
     const contents: Content[] = [
