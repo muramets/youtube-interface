@@ -46,6 +46,7 @@ export const CreateNameModal: React.FC<CreateNameModalProps> = ({
     const [name, setName] = useState('');
     const [group, setGroup] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
+    const mouseDownOnBackdropRef = useRef(false);
 
     // Reset state when modal opens — legitimate prop-driven reset
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -75,10 +76,12 @@ export const CreateNameModal: React.FC<CreateNameModalProps> = ({
     return createPortal(
         <div
             className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
-            onClick={onClose}
+            onMouseDown={() => { mouseDownOnBackdropRef.current = true; }}
+            onClick={() => { if (mouseDownOnBackdropRef.current) onClose(); mouseDownOnBackdropRef.current = false; }}
         >
             <div
                 className="bg-bg-secondary rounded-xl flex flex-col overflow-hidden animate-scale-in border border-border shadow-2xl w-[380px] max-w-[90vw]"
+                onMouseDown={e => e.stopPropagation()}
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}

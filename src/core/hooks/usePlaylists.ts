@@ -99,12 +99,21 @@ export const usePlaylists = (userId: string, channelId: string) => {
     const reorderGroupOrderMutation = useMutation({
         mutationFn: async (newOrder: string[]) => {
             await PlaylistService.updatePlaylistSettings(userId, channelId, { groupOrder: newOrder });
-            // Optimistic update
-            queryClient.setQueryData(settingsKey, (old: PlaylistSettings | undefined) => ({
+        },
+        onMutate: async (newOrder: string[]) => {
+            await queryClient.cancelQueries({ queryKey: settingsKey });
+            const previousSettings = queryClient.getQueryData<PlaylistSettings>(settingsKey);
+            queryClient.setQueryData<PlaylistSettings>(settingsKey, (old) => ({
                 ...old,
-                groupOrder: newOrder
+                groupOrder: newOrder,
             }));
-        }
+            return { previousSettings };
+        },
+        onError: (_err, _newOrder, context) => {
+            if (context?.previousSettings) {
+                queryClient.setQueryData(settingsKey, context.previousSettings);
+            }
+        },
     });
 
     const reorderPlaylistsInGroupMutation = useMutation({

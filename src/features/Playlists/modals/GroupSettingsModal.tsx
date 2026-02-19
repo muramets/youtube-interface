@@ -6,7 +6,7 @@
 //   - Edit mode (groupName !== null): inline edit form with delete support
 // =============================================================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { FormEvent } from 'react';
 import { Trash2 } from 'lucide-react';
 import { createPortal } from 'react-dom';
@@ -74,6 +74,7 @@ function EditGroupModalInner({
     const [name, setName] = useState(groupName || '');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const mouseDownOnOverlayRef = useRef(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -123,7 +124,11 @@ function EditGroupModalInner({
 
     return createPortal(
         <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
-            <div className="absolute inset-0" onClick={onClose} />
+            <div
+                className="absolute inset-0"
+                onMouseDown={() => { mouseDownOnOverlayRef.current = true; }}
+                onClick={() => { if (mouseDownOnOverlayRef.current) onClose(); mouseDownOnOverlayRef.current = false; }}
+            />
             <div className="relative bg-bg-secondary border border-border rounded-xl shadow-2xl w-full max-w-md mx-4 animate-scale-in z-10">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-border">
