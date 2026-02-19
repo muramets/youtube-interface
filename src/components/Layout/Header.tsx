@@ -59,7 +59,7 @@ export const Header: React.FC<{ className?: string }> = ({ className }) => {
   }, [location.pathname, playlists]);
 
   return (
-    <header className={`flex justify-between items-center px-4 py-2 sticky top-0 z-[100] ${className || 'bg-bg-primary'}`}>
+    <header className={`flex justify-between items-center px-4 py-2 sticky top-0 z-sticky ${className || 'bg-bg-primary'}`}>
       <div className="flex items-center gap-4">
         <button
           onClick={toggleSidebar}

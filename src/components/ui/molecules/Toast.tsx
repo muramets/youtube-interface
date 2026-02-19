@@ -67,7 +67,7 @@ export const Toast: React.FC<ToastProps> = ({
     };
 
     return createPortal(
-        <div className={`fixed ${positionClass} left-1/2 -translate-x-1/2 z-[20000]`} onClick={(e) => e.stopPropagation()}>
+        <div className={`fixed ${positionClass} left-1/2 -translate-x-1/2 z-toast`} onClick={(e) => e.stopPropagation()}>
             <div
                 className={`${bgColor} text-white pl-4 pr-3 py-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px] ${animationClass} ${isClickable ? 'cursor-pointer hover:brightness-110 transition-all' : ''}`}
                 onClick={isClickable ? handleToastClick : undefined}

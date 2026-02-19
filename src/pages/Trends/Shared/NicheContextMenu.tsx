@@ -152,7 +152,7 @@ export const NicheContextMenu: React.FC<NicheContextMenuProps> = ({
 
     const content = (
         <div
-            className="fixed z-[9999] bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl animate-fade-in min-w-[140px]"
+            className="fixed z-popover bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl animate-fade-in min-w-[140px]"
             style={position ? { left: position.x, top: position.y } : undefined}
             onClick={(e) => e.stopPropagation()}
         >
@@ -200,7 +200,7 @@ export const NicheContextMenu: React.FC<NicheContextMenuProps> = ({
                     {/* Tooltip for max targets reached */}
                     {showMaxTooltip && createPortal(
                         <div
-                            className="fixed z-[10000] px-2 py-1 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl text-[10px] text-white whitespace-nowrap pointer-events-none animate-fade-in"
+                            className="fixed z-[301] px-2 py-1 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl text-[10px] text-white whitespace-nowrap pointer-events-none animate-fade-in"
                             style={{ left: tooltipPos.x, top: tooltipPos.y, transform: 'translate(-50%, -100%)' }}
                         >
                             Max 2 targets. Remove one to add new.
@@ -253,7 +253,7 @@ export const NicheContextMenu: React.FC<NicheContextMenuProps> = ({
                 position ? (
                     createPortal(
                         <>
-                            <div className="fixed inset-0 z-[9998] cursor-default" onClick={(e) => { e.stopPropagation(); onClose(); }} />
+                            <div className="fixed inset-0 z-[299] cursor-default" onClick={(e) => { e.stopPropagation(); onClose(); }} />
                             {content}
                         </>,
                         document.body

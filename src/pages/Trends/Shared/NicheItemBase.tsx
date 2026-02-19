@@ -93,7 +93,7 @@ export const NicheItemBase: React.FC<NicheItemBaseProps> = ({
     return (
         <div
             ref={setNodeRef}
-            className={`relative group/niche ml-8 ${isDragTarget ? 'z-[10001]' : (isActive || isColorPickerOpen) ? 'z-20' : ''}`}
+            className={`relative group/niche ml-8 ${isDragTarget ? 'z-raised' : (isActive || isColorPickerOpen) ? 'z-20' : ''}`}
         >
             <div
                 onClick={() => !isEditing && onClick?.()}
@@ -178,7 +178,7 @@ export const NicheItemBase: React.FC<NicheItemBaseProps> = ({
                 {/* Portal Tooltip */}
                 {((isNameHovered && !isEditing) || isDragTarget) && createPortal(
                     <div
-                        className="fixed z-[9999] px-2 py-1 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl text-xs text-white whitespace-nowrap pointer-events-none animate-fade-in"
+                        className="fixed z-popover px-2 py-1 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl text-xs text-white whitespace-nowrap pointer-events-none animate-fade-in"
                         style={{ left: tooltipPos.x, top: tooltipPos.y, transform: 'translateY(-100%)' }}
                     >
                         {name}

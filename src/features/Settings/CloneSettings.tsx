@@ -94,7 +94,7 @@ export const CloneSettings: React.FC<CloneSettingsProps> = ({ settings, onChange
                             onClose={() => setAnchorEl(null)}
                             width={128}
                             className={`${dropdownBg}`}
-                            zIndexClass="z-[10000]"
+                            zIndexClass="z-tooltip"
                             connected
                         >
                             {['Seconds', 'Minutes', 'Hours'].map((unit) => (

@@ -442,7 +442,7 @@ export const AudioPlayer: React.FC = () => {
         <>
             <audio ref={audioRef} preload="auto" />
             <div
-                className="fixed bottom-0 left-0 right-0 z-[2500] backdrop-blur-xl border-t border-white/10"
+                className="fixed bottom-0 left-0 right-0 z-panel backdrop-blur-xl border-t border-white/10"
                 style={{
                     background: `linear-gradient(to right, ${accentColor}08, var(--bg-primary) 30%, var(--bg-primary))`,
                 }}

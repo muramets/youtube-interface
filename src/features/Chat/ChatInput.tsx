@@ -281,8 +281,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
                             {isModelMenuOpen && (
                                 <>
-                                    <div className="fixed inset-0 z-[100]" onClick={() => setIsModelMenuOpen(false)} />
-                                    <div className="absolute bottom-full left-0 mb-1 z-[101] min-w-[180px] bg-[#1F1F1F] border border-white/10 rounded-lg shadow-xl py-1 animate-in fade-in slide-in-from-bottom-1 duration-150">
+                                    <div className="fixed inset-0 z-[299]" onClick={() => setIsModelMenuOpen(false)} />
+                                    <div className="absolute bottom-full left-0 mb-1 z-popover min-w-[180px] bg-[#1F1F1F] border border-white/10 rounded-lg shadow-xl py-1 animate-in fade-in slide-in-from-bottom-1 duration-150">
                                         {MODEL_REGISTRY.map(m => (
                                             <button
                                                 key={m.id}

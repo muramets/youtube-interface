@@ -116,7 +116,7 @@ export const ChannelSelectorModal: React.FC<ChannelSelectorModalProps> = ({ isOp
 
     return (
         <div
-            className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
+            className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
         >
             <div
                 className="animate-scale-in-center bg-bg-secondary rounded-[28px] p-10 w-[600px] max-w-[95%] border border-border text-text-primary flex flex-row gap-10 shadow-2xl"

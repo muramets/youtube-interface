@@ -561,7 +561,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
             {shouldRender && createPortal(
                 /* Positioning Container: handles fixed positioning and dimensions */
                 <div
-                    className="fixed z-[10000] will-change-transform"
+                    className="fixed z-tooltip will-change-transform"
                     style={{
                         top: Math.round(position.top),
                         left: Math.round(position.left),

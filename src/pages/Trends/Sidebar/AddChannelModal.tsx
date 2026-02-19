@@ -90,7 +90,7 @@ export const AddChannelModal: React.FC<AddChannelModalProps> = ({ isOpen, onClos
 
     return createPortal(
         <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center"
+            className="fixed inset-0 z-modal flex items-center justify-center"
             onClick={onClose}
         >
             <div

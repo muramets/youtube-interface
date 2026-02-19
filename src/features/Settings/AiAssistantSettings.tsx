@@ -83,7 +83,7 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                         onClose={() => setModelAnchorEl(null)}
                         width={256}
                         className={`${dropdownBg}`}
-                        zIndexClass="z-[10000]"
+                        zIndexClass="z-tooltip"
                         connected
                     >
                         {MODEL_REGISTRY.map((m) => (
@@ -126,7 +126,7 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                         onClose={() => setLangAnchorEl(null)}
                         width={256}
                         className={`${dropdownBg}`}
-                        zIndexClass="z-[10000]"
+                        zIndexClass="z-tooltip"
                         connected
                     >
                         {RESPONSE_LANGUAGES.map((l) => (

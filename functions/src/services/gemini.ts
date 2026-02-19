@@ -218,7 +218,19 @@ function buildUserParts(
     return parts;
 }
 
+// --- Custom error for timeout ---
+
+export class GeminiTimeoutError extends Error {
+    constructor(message = "AI model did not respond within 60 seconds. Please try again.") {
+        super(message);
+        this.name = "GeminiTimeoutError";
+    }
+}
+
 // --- Streaming chat ---
+
+/** Inactivity timeout: abort if no chunk arrives within this window. */
+const STREAM_INACTIVITY_TIMEOUT_MS = 60_000;
 
 export async function streamChat(
     opts: StreamChatOpts
@@ -236,13 +248,20 @@ export async function streamChat(
         onAttachmentUpdate,
     } = opts;
 
+    const t0 = Date.now();
+    console.log(`[streamChat] Starting — model=${model}, history=${history.length} msgs, attachments=${attachments?.length ?? 0}, thumbnails=${thumbnailUrls?.length ?? 0}`);
+
     const ai = await getClient(apiKey);
     const historyContents = await buildHistory(history, apiKey, onAttachmentUpdate);
+    const t1 = Date.now();
+    console.log(`[streamChat] buildHistory: ${t1 - t0}ms — ${historyContents.length} content entries`);
 
     // Fetch thumbnail images in parallel (non-blocking, graceful degradation)
     const thumbnailParts = thumbnailUrls && thumbnailUrls.length > 0
         ? await fetchThumbnailParts(thumbnailUrls)
         : undefined;
+    const t2 = Date.now();
+    console.log(`[streamChat] fetchThumbnails: ${t2 - t1}ms — ${thumbnailParts?.length ?? 0} parts`);
 
     const userParts = buildUserParts(text, attachments, thumbnailParts);
     const contents: Content[] = [
@@ -250,36 +269,103 @@ export async function streamChat(
         { role: "user", parts: userParts },
     ];
 
-    const response = await ai.models.generateContentStream({
-        model,
-        contents,
-        config: {
-            systemInstruction: systemPrompt || undefined,
-        },
+    // Diagnostic: log payload composition
+    const totalParts = contents.reduce((sum, c) => sum + (c.parts?.length ?? 0), 0);
+    const inlineImages = userParts.filter((p: Part) => 'inlineData' in p);
+    const inlineImageSizes = inlineImages.map((p: Part) => {
+        const data = (p as { inlineData: { data: string; mimeType: string } }).inlineData;
+        return `${data.mimeType} ${Math.round(data.data.length * 0.75 / 1024)}KB`;
     });
-
-    let fullText = "";
-    let tokenUsage: TokenUsage | undefined;
-
-    for await (const chunk of response) {
-        const chunkText = chunk.text ?? "";
-        fullText += chunkText;
-        onChunk(fullText);
-
-        if (signal?.aborted) {
-            throw new DOMException("Generation stopped", "AbortError");
-        }
-
-        if (chunk.usageMetadata) {
-            tokenUsage = {
-                promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-                completionTokens: chunk.usageMetadata.candidatesTokenCount ?? 0,
-                totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-            };
-        }
+    const fileDataParts = userParts.filter((p: Part) => 'fileData' in p);
+    console.log(`[streamChat] Payload: ${contents.length} content entries, ${totalParts} total parts`);
+    console.log(`[streamChat] User message: ${userParts.length} parts — ${inlineImages.length} inline images [${inlineImageSizes.join(', ')}], ${fileDataParts.length} fileData, ${userParts.filter((p: Part) => 'text' in p).length} text`);
+    if (systemPrompt) {
+        console.log(`[streamChat] System prompt: ${systemPrompt.length} chars`);
     }
 
-    return { text: fullText, tokenUsage };
+    // --- Inactivity timeout: abort if Gemini doesn't respond within 60s ---
+    const timeoutController = new AbortController();
+    let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const resetTimer = () => {
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(() => {
+            console.error(`[streamChat] ⏰ Inactivity timeout — no chunks for ${STREAM_INACTIVITY_TIMEOUT_MS / 1000}s`);
+            timeoutController.abort();
+        }, STREAM_INACTIVITY_TIMEOUT_MS);
+    };
+
+    // Combine caller's signal with our timeout signal
+    const combinedAbort = new AbortController();
+    signal?.addEventListener("abort", () => combinedAbort.abort(signal.reason));
+    timeoutController.signal.addEventListener("abort", () =>
+        combinedAbort.abort(new GeminiTimeoutError())
+    );
+
+    // Start the timer before the API call (covers initial response wait)
+    resetTimer();
+
+    try {
+        console.log(`[streamChat] Calling generateContentStream...`);
+        const response = await ai.models.generateContentStream({
+            model,
+            contents,
+            config: {
+                systemInstruction: systemPrompt || undefined,
+                abortSignal: combinedAbort.signal,
+            },
+        });
+        const t3 = Date.now();
+        console.log(`[streamChat] generateContentStream returned in ${t3 - t2}ms — starting to iterate chunks`);
+
+        let fullText = "";
+        let tokenUsage: TokenUsage | undefined;
+        let chunkCount = 0;
+
+        for await (const chunk of response) {
+            // Reset inactivity timer on each chunk
+            resetTimer();
+            chunkCount++;
+
+            const chunkText = chunk.text ?? "";
+            fullText += chunkText;
+            onChunk(fullText);
+
+            if (chunkCount <= 3 || chunkCount % 10 === 0) {
+                console.log(`[streamChat] chunk #${chunkCount}: +${chunkText.length} chars (total: ${fullText.length})`);
+            }
+
+            if (combinedAbort.signal.aborted) {
+                const reason = combinedAbort.signal.reason;
+                if (reason instanceof GeminiTimeoutError) throw reason;
+                throw new DOMException("Generation stopped", "AbortError");
+            }
+
+            if (chunk.usageMetadata) {
+                tokenUsage = {
+                    promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+                    completionTokens: chunk.usageMetadata.candidatesTokenCount ?? 0,
+                    totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+                };
+            }
+        }
+
+        const tEnd = Date.now();
+        console.log(`[streamChat] ✅ Done — ${chunkCount} chunks, ${fullText.length} chars, ${tEnd - t0}ms total`);
+        if (tokenUsage) console.log(`[streamChat] Tokens: prompt=${tokenUsage.promptTokens}, completion=${tokenUsage.completionTokens}, total=${tokenUsage.totalTokens}`);
+        return { text: fullText, tokenUsage };
+    } catch (err) {
+        // Map AbortError caused by our timeout to GeminiTimeoutError
+        if (
+            timeoutController.signal.aborted &&
+            !(err instanceof GeminiTimeoutError)
+        ) {
+            throw new GeminiTimeoutError();
+        }
+        throw err;
+    } finally {
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+    }
 }
 
 // --- Title generation ---

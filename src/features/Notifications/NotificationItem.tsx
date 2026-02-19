@@ -206,7 +206,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({ notification
                         {/* Quota Breakdown Tooltip - Portal */}
                         {notification.quotaBreakdown && showTooltip && createPortal(
                             <div
-                                className="fixed z-[9999] p-2 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl pointer-events-none min-w-[120px] animate-in fade-in zoom-in-95 duration-100"
+                                className="fixed z-popover p-2 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl pointer-events-none min-w-[120px] animate-in fade-in zoom-in-95 duration-100"
                                 style={{
                                     top: tooltipPos.top,
                                     left: tooltipPos.left,

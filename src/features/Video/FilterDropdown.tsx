@@ -85,7 +85,7 @@ export const FilterDropdown: React.FC = () => {
             {isOpen && position && createPortal(
                 <div
                     ref={dropdownRef}
-                    className="animate-scale-in fixed bg-bg-secondary border border-border rounded-xl py-2 shadow-2xl z-[1000] min-w-[200px] max-h-[300px] overflow-y-auto"
+                    className="animate-scale-in fixed bg-bg-secondary border border-border rounded-xl py-2 shadow-2xl z-dropdown min-w-[200px] max-h-[300px] overflow-y-auto"
                     style={{
                         top: position.top,
                         right: position.right,

@@ -39,7 +39,7 @@ export const SnapshotContextMenu: React.FC<SnapshotContextMenuProps> = ({
         <>
             {/* Backdrop */}
             <div
-                className="fixed inset-0 z-[9998] cursor-default"
+                className="fixed inset-0 z-[299] cursor-default"
                 onClick={(e) => {
                     e.stopPropagation();
                     onClose();
@@ -48,7 +48,7 @@ export const SnapshotContextMenu: React.FC<SnapshotContextMenuProps> = ({
 
             {/* Menu */}
             <div
-                className="fixed z-[9999] bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl animate-fade-in min-w-[160px]"
+                className="fixed z-popover bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl animate-fade-in min-w-[160px]"
                 style={{
                     left: position.x,
                     top: position.y

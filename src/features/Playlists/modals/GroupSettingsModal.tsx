@@ -122,7 +122,7 @@ function EditGroupModalInner({
     if (!isOpen) return null;
 
     return createPortal(
-        <div className="fixed inset-0 z-[1001] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
             <div className="absolute inset-0" onClick={onClose} />
             <div className="relative bg-bg-secondary border border-border rounded-xl shadow-2xl w-full max-w-md mx-4 animate-scale-in z-10">
                 {/* Header */}

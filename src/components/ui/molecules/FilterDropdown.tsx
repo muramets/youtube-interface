@@ -91,7 +91,7 @@ export const FilterDropdown: React.FC<FilterDropdownProps> = ({
             {isOpen && position && createPortal(
                 <div
                     ref={dropdownRef}
-                    className="fixed z-[1000] bg-[#1F1F1F] rounded-xl shadow-2xl overflow-hidden animate-scale-in flex flex-col"
+                    className="fixed z-dropdown bg-[#1F1F1F] rounded-xl shadow-2xl overflow-hidden animate-scale-in flex flex-col"
                     style={{
                         top: position.top,
                         left: position.left,

@@ -167,7 +167,7 @@ export const GalleryCardInner: React.FC<GalleryCardInnerProps> = ({
                 ${isDragEnabled && !isOverlay ? 'cursor-grab active:cursor-grabbing' : ''}
                 ${isOverlay ? 'cursor-grabbing' : 'cursor-pointer'}
                 ${className || ''}
-                ${showMenu ? 'z-[100]' : ''}
+                ${showMenu ? 'z-raised' : ''}
                 ${isSelected ? 'ring-2 ring-blue-500 bg-blue-500/10' : ''}
             `}
             onClick={handleCardClick}

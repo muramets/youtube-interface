@@ -1,5 +1,6 @@
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import { logger } from '../../../../../core/utils/logger';
+import { debug } from '../../../../../core/utils/debug';
 
 export interface CsvMapping {
     sourceId: number;
@@ -77,11 +78,7 @@ export const parseTrafficCsv = async (
                     const detectedMapping = detectMapping(headers);
 
                     // DEBUG: Log detected mapping in detail
-                    logger.debug('CSV parsing auto-detect', {
-                        component: 'csvParser',
-                        headers,
-                        detectedMapping
-                    });
+                    debug.traffic('CSV auto-detect', { headers, detectedMapping });
 
                     // Check if detection was successful for ALL required columns
                     // We require all columns to be present to safely import.
@@ -102,8 +99,7 @@ export const parseTrafficCsv = async (
                     }
 
                     activeMapping = detectedMapping!;
-                    logger.debug('CSV columns auto-detected', {
-                        component: 'csvParser',
+                    debug.traffic('CSV columns auto-detected', {
                         mapping: activeMapping,
                         sourceIdCol: activeMapping.sourceId,
                         viewsCol: activeMapping.views
@@ -162,8 +158,7 @@ export const parseTrafficCsv = async (
 
                     if (isTotalRow) {
                         totalRow = source;
-                        logger.debug('CSV Total row identified', {
-                            component: 'csvParser',
+                        debug.traffic('CSV Total row identified', {
                             sourceId,
                             impressions: source.impressions,
                             views: source.views

@@ -16,11 +16,12 @@
 const DEBUG_ENABLED = {
     tooltip: false,      // PortalTooltip positioning and render state
     video: false,        // VideoPreviewTooltip resize events
-    timeline: false,     // TimelineVideoLayer hover events
+    timeline: false,     // TяууimelineVideoLayer hover events
     timelineHook: false, // useTimelineTooltip state changes
     dots: false,         // TimelineDotsLayer hover detection
-    chat: false,         // AI chat: system prompt, app context, token usage
+    chat: true,         // AI chat: system prompt, app context, token usage
     scroll: false,       // ChatMessageList scroll state machine
+    traffic: false,      // Traffic tab: unenriched calculation, repair flows
 } as const;
 
 type DebugCategory = keyof typeof DEBUG_ENABLED;
@@ -83,6 +84,7 @@ export const debug = {
     timelineHook: createLogger('timelineHook'),
     chat: createLogger('chat'),
     scroll: createLogger('scroll'),
+    traffic: createLogger('traffic'),
 
     // Grouped logging for complex debugging sessions
     tooltipGroup: createGroupLogger('tooltip'),

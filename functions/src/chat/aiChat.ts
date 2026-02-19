@@ -176,16 +176,22 @@ export const aiChat = onRequest(
             res.end();
         } catch (err) {
             const message = err instanceof Error ? err.message : "AI generation failed";
+            console.error('[aiChat] Generation error:', message);
 
-            // Write lastError to conversation doc so the client can recover.
-            // Find the last user message ID to tag the error.
-            const messagesForError = await db.collection(`${convPath}/messages`)
-                .where('role', '==', 'user').orderBy('createdAt', 'desc').limit(1).get();
-            const lastUserMsgId = messagesForError.docs[0]?.id;
-            if (lastUserMsgId) {
-                db.doc(convPath).update({
-                    lastError: { messageId: lastUserMsgId, error: message },
-                }).catch(e => console.warn('[aiChat] Failed to write lastError', e));
+            // Best-effort: persist lastError so the client can recover on reload.
+            // Wrapped in try/catch — must NEVER prevent the SSE error from being sent.
+            try {
+                // Simple query (no composite index needed): get latest messages, filter in-memory
+                const recentMsgs = await db.collection(`${convPath}/messages`)
+                    .orderBy('createdAt', 'desc').limit(5).get();
+                const lastUserMsgId = recentMsgs.docs.find(d => d.data().role === 'user')?.id;
+                if (lastUserMsgId) {
+                    await db.doc(convPath).update({
+                        lastError: { messageId: lastUserMsgId, error: message },
+                    });
+                }
+            } catch (persistErr) {
+                console.warn('[aiChat] Failed to persist lastError (non-fatal):', persistErr);
             }
 
             res.write(`data: ${JSON.stringify({ type: "error", error: message })}\n\n`);

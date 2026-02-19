@@ -649,11 +649,11 @@ export const TrafficNicheSelector: React.FC<TrafficNicheSelectorProps> = ({
             {colorPickerState && createPortal(
                 <>
                     <div
-                        className="fixed inset-0 z-[100050]"
+                        className="fixed inset-0 z-modal"
                         onClick={() => setColorPickerState(null)}
                     />
                     <div
-                        className="fixed z-[100051] bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-in zoom-in-95 duration-100 w-[240px]"
+                        className="fixed z-[501] bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-in zoom-in-95 duration-100 w-[240px]"
                         style={{
                             top: Math.min(window.innerHeight - 200, colorPickerState.rect.bottom + 8),
                             left: Math.max(8, Math.min(window.innerWidth - 248, colorPickerState.rect.left - 110))

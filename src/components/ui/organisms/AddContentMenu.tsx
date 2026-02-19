@@ -88,7 +88,7 @@ const MenuDropdown: React.FC<MenuDropdownProps> = memo(({
     return createPortal(
         <div
             ref={dropdownRef}
-            className="animate-scale-in bg-bg-secondary border border-border rounded-xl shadow-2xl z-[1000] min-w-[220px] overflow-hidden flex flex-col"
+            className="animate-scale-in bg-bg-secondary border border-border rounded-xl shadow-2xl z-dropdown min-w-[220px] overflow-hidden flex flex-col"
             style={{
                 position: 'fixed',
                 top: position.top,

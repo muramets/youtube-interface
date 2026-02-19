@@ -168,7 +168,7 @@ export const ABTestingModal: React.FC<ABTestingModalProps> = ({
     );
 
     return createPortal(
-        <div className="fixed inset-0 z-[1100] flex items-center justify-center">
+        <div className="fixed inset-0 z-modal flex items-center justify-center">
             {/* Backdrop */}
             <div className="absolute inset-0 bg-black/70" onClick={onClose} />
 

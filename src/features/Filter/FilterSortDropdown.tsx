@@ -106,7 +106,7 @@ export const FilterSortDropdown: React.FC<FilterSortDropdownProps> = ({
             {isOpen && position && createPortal(
                 <div
                     ref={dropdownRef}
-                    className="animate-scale-in bg-bg-secondary border border-border rounded-xl shadow-2xl z-[1000] min-w-[240px] overflow-hidden flex flex-col max-h-[80vh]"
+                    className="animate-scale-in bg-bg-secondary border border-border rounded-xl shadow-2xl z-dropdown min-w-[240px] overflow-hidden flex flex-col max-h-[80vh]"
                     style={{
                         position: 'fixed',
                         top: position.top,

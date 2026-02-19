@@ -133,7 +133,7 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
     return (
         <div
             ref={setNodeRef}
-            className={`relative group/niche ml-8 ${isDragTarget ? 'z-[10001]' : isInteracting ? 'z-20' : ''}`}
+            className={`relative group/niche ml-8 ${isDragTarget ? 'z-raised' : isInteracting ? 'z-20' : ''}`}
         >
             <div
                 onClick={() => !isEditing && onClick(niche.id)}
@@ -246,7 +246,7 @@ export const TrendNicheItem: React.FC<TrendNicheItemProps> = ({
                 {/* Portal Tooltip */}
                 {((isNameHovered && !isDragging) || isDragTarget) && !isEditing && createPortal(
                     <div
-                        className="fixed z-[9999] px-2 py-1 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl text-xs text-white whitespace-nowrap pointer-events-none animate-fade-in"
+                        className="fixed z-popover px-2 py-1 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl text-xs text-white whitespace-nowrap pointer-events-none animate-fade-in"
                         style={{ left: tooltipPos.x, top: tooltipPos.y, transform: 'translateY(-100%)' }}
                     >
                         {niche.name}

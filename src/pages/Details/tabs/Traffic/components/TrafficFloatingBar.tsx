@@ -48,8 +48,14 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
 
     // Handle clicks outside
     React.useEffect(() => {
-        const handleOutsideClick = () => {
-            // If the click reaches document, it's outside.
+        const handleOutsideClick = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            // Ignore clicks on elements that React already removed from DOM
+            // (e.g. chat navigation buttons that unmount on click)
+            if (!document.documentElement.contains(target)) return;
+            // Ignore clicks inside Chat Panel / Chat Bubble — separate UI layer
+            if (target.closest('.chat-panel') || target.closest('.chat-bubble')) return;
+
             if (activeMenu) {
                 setActiveMenu(null);
             } else if (!isMultiSelect) {

@@ -132,7 +132,7 @@ export const MusicPlaylistItem: React.FC<MusicPlaylistItemProps> = ({
         <>
             <div
                 ref={setNodeRef}
-                className={`relative group/playlist ml-4 ${isDragTarget ? 'z-[10001]' : isInteracting ? 'z-20' : ''}`}
+                className={`relative group/playlist ml-4 ${isDragTarget ? 'z-raised' : isInteracting ? 'z-20' : ''}`}
             >
                 <div
                     onClick={() => !isEditing && onClick()}

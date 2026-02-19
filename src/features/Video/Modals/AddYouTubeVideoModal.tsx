@@ -60,7 +60,7 @@ export const AddYouTubeVideoModal: React.FC<AddYouTubeVideoModalProps> = ({
     };
 
     return createPortal(
-        <div className="fixed inset-0 z-[1001] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
             <div className="bg-bg-secondary border border-border rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-scale-in">
                 <div className="flex items-center justify-between p-4 border-b border-border">
                     <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">

@@ -38,7 +38,7 @@ const TargetNicheBadge: React.FC<{ nicheName: string }> = ({ nicheName }) => {
             <span className="truncate">{nicheName}</span>
             {showTooltip && createPortal(
                 <div
-                    className="fixed z-[9999] px-2 py-1 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl text-[10px] text-white whitespace-nowrap pointer-events-none animate-fade-in"
+                    className="fixed z-popover px-2 py-1 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl text-[10px] text-white whitespace-nowrap pointer-events-none animate-fade-in"
                     style={{ left: tooltipPos.x, top: tooltipPos.y, transform: 'translateY(-100%)' }}
                 >
                     {nicheName}

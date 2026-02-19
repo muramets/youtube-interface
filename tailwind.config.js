@@ -43,14 +43,16 @@ export default {
                 'tag-hover': 'var(--tag-hover)',
             },
             zIndex: {
-                'base': '0',
-                'sticky': '100',      // Sticky headers, timeline headers
-                'dropdown': '200',    // Dropdown menus
-                'popover': '300',     // Tooltips, popovers
-                'modal': '400',       // Modals, dialogs
-                'toast': '500',       // Toast notifications
-                'tooltip': '600',     // Tooltips (above toasts)
-                'max': '9999',        // Maximum elevation (use sparingly)
+                'base': '0',       // Default stacking
+                'raised': '1',       // Active cards, gallery items in focus
+                'sticky': '100',     // Sticky headers, floating action bars
+                'dropdown': '200',     // Dropdown menus, select panels, filter popovers
+                'popover': '300',     // Context menus, inline popovers, tooltips attached to content
+                'panel': '400',     // Floating panels: chat, mini player, audio bar
+                'modal': '500',     // Modal dialogs + backdrop overlays
+                'toast': '600',     // Toast notifications (above modals)
+                'tooltip': '700',     // Standalone tooltips (PortalTooltip, Radix menus inside modals)
+                'max': '9999',    // Emergency escape hatch (avoid using)
             },
             keyframes: {
                 'slide-in-left': {

@@ -225,11 +225,11 @@ export const SidebarSnapshotItem: React.FC<SidebarSnapshotItemProps> = ({
             {isSettingActiveDate && popoverPosition && createPortal(
                 <>
                     <div
-                        className="fixed inset-0 z-[9998]"
+                        className="fixed inset-0 z-[299]"
                         onClick={() => onStopSettingActiveDate?.()}
                     />
                     <div
-                        className="fixed z-[9999] rounded-xl overflow-hidden shadow-2xl border border-white/10"
+                        className="fixed z-popover rounded-xl overflow-hidden shadow-2xl border border-white/10"
                         style={{ left: popoverPosition.x, top: popoverPosition.y }}
                     >
                         <DateRangePicker

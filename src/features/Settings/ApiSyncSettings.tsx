@@ -148,7 +148,7 @@ export const ApiSyncSettings: React.FC<ApiSyncSettingsProps> = ({ generalSetting
                                 onClose={() => setAnchorEl(null)}
                                 width={128}
                                 className={`${dropdownBg}`}
-                                zIndexClass="z-[10000]"
+                                zIndexClass="z-tooltip"
                                 connected
                             >
                                 {['Minutes', 'Hours', 'Days', 'Weeks'].map((unit) => (

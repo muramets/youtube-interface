@@ -166,7 +166,7 @@ export const TrendsChannelItem: React.FC<TrendsChannelItemProps> = ({
                 {/* Portal Tooltip */}
                 {showTooltip && createPortal(
                     <div
-                        className="fixed z-[9999] px-2 py-1 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl text-xs text-white whitespace-nowrap pointer-events-none animate-fade-in"
+                        className="fixed z-popover px-2 py-1 bg-[#1a1a1a] border border-white/10 rounded-md shadow-xl text-xs text-white whitespace-nowrap pointer-events-none animate-fade-in"
                         style={{ left: tooltipPos.x, top: tooltipPos.y, transform: 'translateY(-100%)' }}
                     >
                         {channel.title}

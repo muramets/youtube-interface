@@ -364,7 +364,7 @@ export const TimelineAverageLine: React.FC<TimelineAverageLineProps> = ({
                 {/* Tooltip Text (Portal - Global Z-Index) */}
                 {hoveredPoint && createPortal(
                     <div
-                        className="fixed pointer-events-none z-[9999]"
+                        className="fixed pointer-events-none z-popover"
                         style={{
                             left: hoveredPoint.screenX,
                             top: hoveredPoint.screenY,

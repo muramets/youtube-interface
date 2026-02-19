@@ -106,7 +106,7 @@ export const MergeNichesModal: React.FC<MergeNichesModalProps> = ({
 
     return createPortal(
         <div
-            className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
+            className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
             onClick={onClose}
         >
             <div
@@ -223,8 +223,8 @@ export const MergeNichesModal: React.FC<MergeNichesModalProps> = ({
                                     >
                                         <div className="flex items-center gap-3">
                                             <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedIds.has(m.niche.id)
-                                                    ? 'bg-blue-500 border-blue-500'
-                                                    : 'border-white/30'
+                                                ? 'bg-blue-500 border-blue-500'
+                                                : 'border-white/30'
                                                 }`}>
                                                 {selectedIds.has(m.niche.id) && <Check size={12} className="text-white" />}
                                             </div>

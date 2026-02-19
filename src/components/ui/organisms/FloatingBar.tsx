@@ -57,7 +57,7 @@ export const FloatingBar: React.FC<FloatingBarProps> = ({
     const content = (
         <div
             ref={barRef}
-            className={`flex items-center gap-2 bg-bg-secondary/70 backdrop-blur-xl shadow-lg border border-border rounded-full px-4 py-2 z-[1000] ${className}`}
+            className={`flex items-center gap-2 bg-bg-secondary/70 backdrop-blur-xl shadow-lg border border-border rounded-full px-4 py-2 z-sticky ${className}`}
             style={style}
             onMouseDown={(e) => e.stopPropagation()}
             onMouseMove={(e) => e.stopPropagation()}

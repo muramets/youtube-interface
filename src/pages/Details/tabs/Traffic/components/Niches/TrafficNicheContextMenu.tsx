@@ -159,7 +159,7 @@ export const TrafficNicheContextMenu: React.FC<TrafficNicheContextMenuProps> = (
     const content = (
         <div
             ref={menuRef}
-            className="fixed z-[9999] bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg p-1 shadow-xl animate-fade-in min-w-[160px]"
+            className="fixed z-popover bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg p-1 shadow-xl animate-fade-in min-w-[160px]"
             style={adjustedStyle}
             onClick={(e) => e.stopPropagation()}
         >
@@ -169,7 +169,7 @@ export const TrafficNicheContextMenu: React.FC<TrafficNicheContextMenuProps> = (
 
     return createPortal(
         <>
-            <div className="fixed inset-0 z-[9998] cursor-default" onClick={(e) => { e.stopPropagation(); onClose(); }} />
+            <div className="fixed inset-0 z-[299] cursor-default" onClick={(e) => { e.stopPropagation(); onClose(); }} />
             {content}
         </>,
         document.body

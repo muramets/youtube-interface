@@ -158,11 +158,11 @@ export const LanguageTabs: React.FC<LanguageTabsProps> = ({
                     {isAddOpen && createPortal(
                         <>
                             <div
-                                className="fixed inset-0 z-[1049]"
+                                className="fixed inset-0 z-[199]"
                                 onClick={() => setIsAddOpen(false)}
                             />
                             <div
-                                className="fixed z-[1050] bg-bg-secondary border border-border rounded-lg shadow-xl w-max min-w-[160px] animate-scale-in origin-top-left overflow-hidden"
+                                className="fixed z-dropdown bg-bg-secondary border border-border rounded-lg shadow-xl w-max min-w-[160px] animate-scale-in origin-top-left overflow-hidden"
                                 style={{
                                     top: dropdownPosition.top,
                                     left: dropdownPosition.left

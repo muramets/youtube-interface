@@ -105,14 +105,14 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
         <>
             {/* Backdrop */}
             <div
-                className="fixed inset-0 z-[9998] cursor-default"
+                className="fixed inset-0 z-[299] cursor-default"
                 onClick={(e) => { e.stopPropagation(); onClose(); }}
                 onContextMenu={(e) => { e.preventDefault(); onClose(); }}
             />
 
             {/* Menu */}
             <div
-                className="fixed z-[9999] bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl animate-fade-in min-w-[160px]"
+                className="fixed z-popover bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl animate-fade-in min-w-[160px]"
                 style={menuStyle}
                 onClick={(e) => e.stopPropagation()}
             >

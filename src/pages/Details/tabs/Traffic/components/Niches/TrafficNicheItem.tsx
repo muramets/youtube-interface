@@ -199,7 +199,7 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
                                 {isColorPickerOpen && createPortal(
                                     <div
                                         ref={colorPickerPortalRef}
-                                        className="fixed z-[9999] bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-fade-in w-[240px]"
+                                        className="fixed z-popover bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-fade-in w-[240px]"
                                         style={{
                                             left: pickerPosition?.left || 0,
                                             top: pickerPosition?.top || 0,
@@ -264,7 +264,7 @@ export const TrafficNicheItem: React.FC<TrafficNicheItemProps> = ({
                 {/* Name Tooltip (Only if truncated) */}
                 {isNameHovered && isTruncated && !isEditing && createPortal(
                     <div
-                        className="fixed z-[9999] px-2 py-1 bg-[#1a1a1a] rounded-md shadow-xl text-xs text-white whitespace-nowrap pointer-events-none animate-fade-in"
+                        className="fixed z-popover px-2 py-1 bg-[#1a1a1a] rounded-md shadow-xl text-xs text-white whitespace-nowrap pointer-events-none animate-fade-in"
                         style={{ left: tooltipPos.x, top: tooltipPos.y, transform: 'translateY(-100%)' }}
                     >
                         {niche.name}

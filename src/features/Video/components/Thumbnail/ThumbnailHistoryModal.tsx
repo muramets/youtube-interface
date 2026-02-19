@@ -175,7 +175,7 @@ export const ThumbnailHistoryModal: React.FC<ThumbnailHistoryModalProps> = ({
     if (!isOpen) return null;
 
     return createPortal(
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6">
+        <div className="fixed inset-0 z-modal flex items-center justify-center p-6">
             {/* Backdrop - same as Cancel */}
             <motion.div
                 initial={{ opacity: 0 }}

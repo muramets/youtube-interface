@@ -39,7 +39,7 @@ export const FloatingDropdownPortal: React.FC<FloatingDropdownPortalProps> = ({
 
     return createPortal(
         <div
-            className="fixed bg-bg-secondary/90 backdrop-blur-md border border-border rounded-xl shadow-lg overflow-hidden flex flex-col animate-fade-in z-[9999]"
+            className="fixed bg-bg-secondary/90 backdrop-blur-md border border-border rounded-xl shadow-lg overflow-hidden flex flex-col animate-fade-in z-popover"
             style={{
                 left,
                 top,

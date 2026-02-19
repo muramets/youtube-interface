@@ -41,6 +41,28 @@ const settingsPath = (userId: string, channelId: string) =>
 export const MESSAGE_PAGE_SIZE = 50;
 export const CONVERSATION_PAGE_SIZE = 30;
 
+// --- Helpers ---
+
+/**
+ * Recursively strip `undefined` values from an object/array tree.
+ * Firestore rejects `undefined` at any depth; this normalises nested
+ * structures like appContext (SuggestedTrafficContext) before writing.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function stripUndefined(value: any): any {
+    if (value === null || value === undefined) return value;
+    if (value instanceof Timestamp) return value; // Firestore-native, leave as-is
+    if (Array.isArray(value)) return value.map(stripUndefined);
+    if (typeof value === 'object') {
+        const clean: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(value)) {
+            if (v !== undefined) clean[k] = stripUndefined(v);
+        }
+        return clean;
+    }
+    return value;
+}
+
 // --- Projects ---
 
 export const ChatService = {
@@ -162,6 +184,12 @@ export const ChatService = {
         });
     },
 
+    async setLastError(userId: string, channelId: string, conversationId: string, error: string, failedText: string) {
+        await updateDocument(conversationsPath(userId, channelId), conversationId, {
+            lastError: { error, failedText },
+        });
+    },
+
     async deleteConversation(userId: string, channelId: string, conversationId: string) {
         // Just delete the conversation document — cascading cleanup (messages + storage)
         // is handled server-side by the onConversationDeleted Firestore trigger
@@ -210,10 +238,8 @@ export const ChatService = {
             createdAt: now,
         };
 
-        // Firestore rejects `undefined` values — strip them
-        const cleanMsg = Object.fromEntries(
-            Object.entries(msg).filter(([, v]) => v !== undefined)
-        );
+        // Firestore rejects `undefined` values at any depth — strip them recursively
+        const cleanMsg = stripUndefined(msg);
         const batch = writeBatch(db);
         const msgRef = firestoreDoc(db, messagesPath(userId, channelId, conversationId), id);
         const convRef = firestoreDoc(db, conversationsPath(userId, channelId), conversationId);

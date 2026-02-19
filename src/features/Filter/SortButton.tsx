@@ -76,7 +76,7 @@ export const SortButton: React.FC<SortButtonProps> = ({
             {isOpen && position && createPortal(
                 <div
                     ref={dropdownRef}
-                    className="fixed z-[1000] bg-[#1F1F1F] rounded-xl shadow-2xl min-w-[200px] overflow-hidden animate-scale-in"
+                    className="fixed z-dropdown bg-[#1F1F1F] rounded-xl shadow-2xl min-w-[200px] overflow-hidden animate-scale-in"
                     style={{
                         top: position.top,
                         right: position.right,

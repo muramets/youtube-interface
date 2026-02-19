@@ -112,7 +112,7 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
             {isOpen && position && createPortal(
                 <div
                     ref={dropdownRef}
-                    className="fixed z-[1000] bg-[#1F1F1F] rounded-xl shadow-2xl overflow-hidden animate-scale-in flex flex-col"
+                    className="fixed z-dropdown bg-[#1F1F1F] rounded-xl shadow-2xl overflow-hidden animate-scale-in flex flex-col"
                     style={{
                         top: position.top,
                         right: position.right,

@@ -58,7 +58,7 @@ export const ProjectSettings: React.FC<ProjectSettingsProps> = ({ project, onClo
                         <ChevronDown size={14} className={`text-text-tertiary shrink-0 transition-transform duration-150 ${isModelOpen ? 'rotate-180' : ''}`} />
                     </button>
                     {isModelOpen && (
-                        <div className="absolute top-full left-0 right-0 z-[100] bg-card-bg border border-border border-t-0 rounded-b-md shadow-[0_8px_24px_rgba(0,0,0,0.3)] overflow-hidden">
+                        <div className="absolute top-full left-0 right-0 z-dropdown bg-card-bg border border-border border-t-0 rounded-b-md shadow-[0_8px_24px_rgba(0,0,0,0.3)] overflow-hidden">
                             <div
                                 className={`py-2 px-3 text-[13px] cursor-pointer text-text-secondary transition-colors duration-100 hover:bg-hover-bg hover:text-text-primary ${!model ? 'text-text-primary font-medium' : ''}`}
                                 onClick={() => { setModel(''); setIsModelOpen(false); }}

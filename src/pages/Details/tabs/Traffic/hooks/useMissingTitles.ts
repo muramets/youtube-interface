@@ -7,6 +7,7 @@ import { VideoService } from '../../../../../core/services/videoService';
 import { TrafficSnapshotService } from '../../../../../core/services/traffic/TrafficSnapshotService';
 import { generateTrafficCsv } from '../utils/csvGenerator';
 import { assistantLogger } from '../../../../../core/utils/logger';
+import { debug } from '../../../../../core/utils/debug';
 import { suggestedVideoQueryPrefix } from './useSuggestedVideoLookup';
 
 interface UseMissingTitlesProps {
@@ -152,7 +153,7 @@ export const useMissingTitles = ({
             return !hasSourceChannelId && !hasCachedChannelId;
         });
 
-        assistantLogger.debug('[DEBUG-MODAL] Unenriched calculation', {
+        debug.traffic('Unenriched calculation', {
             displayedCount: displayedSources.length,
             unenrichedCount: results.length,
             cachedVideosCount: cachedVideos.length,
@@ -165,6 +166,7 @@ export const useMissingTitles = ({
                 cachedChannelId: results[0].videoId ? cachedMap.get(results[0].videoId)?.channelId : undefined
             } : null
         });
+
         return results;
     }, [displayedSources, cachedVideos]);
 

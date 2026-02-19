@@ -150,7 +150,7 @@ export const FloatingNicheItem: React.FC<FloatingNicheItemProps> = ({
                     />
                     {isColorPickerOpen && pickerPosition && createPortal(
                         <div
-                            className="fixed z-[9999] bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-fade-in"
+                            className="fixed z-popover bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-fade-in"
                             style={{
                                 left: pickerPosition.left,
                                 top: pickerPosition.top,

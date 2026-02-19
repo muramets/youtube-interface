@@ -28,7 +28,7 @@ export const SliderPopover = forwardRef<HTMLDivElement, SliderPopoverProps>(({ i
     return createPortal(
         <div
             ref={ref}
-            className="fixed z-[1000] pointer-events-auto"
+            className="fixed z-dropdown pointer-events-auto"
             style={{
                 left: position.x,
                 top: position.y,

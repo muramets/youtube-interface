@@ -90,7 +90,7 @@ export const SettingsMenuClone: React.FC<SettingsMenuCloneProps> = ({ onBack }) 
                             </button>
 
                             {isUnitDropdownOpen && (
-                                <div className="fixed inset-0 z-[100]" onClick={() => setIsUnitDropdownOpen(false)}>
+                                <div className="fixed inset-0 z-dropdown" onClick={() => setIsUnitDropdownOpen(false)}>
                                     <div
                                         className="absolute bg-bg-secondary border border-border rounded-lg shadow-xl overflow-hidden animate-scale-in"
                                         style={{

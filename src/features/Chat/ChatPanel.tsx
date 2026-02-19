@@ -139,11 +139,11 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
             {/* Invisible overlay during interaction — blocks hover on elements below */}
             {
                 isInteracting && (
-                    <div className="fixed inset-0 z-[9998]" />
+                    <div className="fixed inset-0 z-[399]" />
                 )
             }
             <div
-                className="chat-panel fixed z-[9999] flex flex-col bg-card-bg rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.45)] overflow-hidden"
+                className="chat-panel fixed z-panel flex flex-col bg-card-bg rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.45)] overflow-hidden"
                 style={{
                     top: panelRect.top,
                     left: panelRect.left,

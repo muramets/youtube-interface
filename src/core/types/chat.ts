@@ -24,9 +24,10 @@ export interface ChatConversation {
     model?: string;              // per-conversation model override
     summary?: string;           // cached conversation summary
     summarizedUpTo?: string;    // ID of last message included in summary
-    lastError?: {               // server-set: explicit failure signal for recovery
-        messageId: string;
+    lastError?: {               // explicit failure signal for recovery (server or client)
+        messageId?: string;       // present for server-side failures
         error: string;
+        failedText?: string;      // present for client-side write failures (text preserved for retry)
     } | null;
     createdAt: Timestamp;
     updatedAt: Timestamp;

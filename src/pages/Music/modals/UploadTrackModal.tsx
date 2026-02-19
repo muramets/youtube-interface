@@ -102,7 +102,7 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
 
     return createPortal(
         <div
-            className={`fixed inset-0 z-[2000] flex items-center justify-center p-4 backdrop-blur-sm ${form.isClosing ? 'animate-fade-out' : 'animate-fade-in'}`}
+            className={`fixed inset-0 z-modal flex items-center justify-center p-4 backdrop-blur-sm ${form.isClosing ? 'animate-fade-out' : 'animate-fade-in'}`}
             style={{ backgroundColor: 'var(--modal-overlay)' }}
             onMouseDown={() => { mouseDownOnOverlayRef.current = true; }}
             onClick={() => {

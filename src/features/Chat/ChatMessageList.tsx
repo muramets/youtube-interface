@@ -507,6 +507,26 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
         }
     }, []);
 
+    // Auto-scroll when container height shrinks (e.g. context chips appear in ChatInput)
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        let prevHeight = el.clientHeight;
+        const observer = new ResizeObserver(() => {
+            const newHeight = el.clientHeight;
+            if (newHeight < prevHeight) {
+                // Container shrank — check if user was near bottom before the resize
+                const distFromBottom = el.scrollHeight - el.scrollTop - prevHeight;
+                if (distFromBottom < 80) {
+                    el.scrollTop = el.scrollHeight - newHeight;
+                }
+            }
+            prevHeight = newHeight;
+        });
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
+
     const scrollToBottom = useCallback(() => {
         debug.scroll('scrollToBottom clicked');
         intentRef.current = 'idle';

@@ -73,7 +73,7 @@ export const SourceModal: React.FC<SourceModalProps> = ({
 
     return createPortal(
         <div
-            className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
+            className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
             onClick={onClose}
         >
             <div

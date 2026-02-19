@@ -121,7 +121,7 @@ export const AddCustomVideoModal: React.FC<AddCustomVideoModalProps> = (props) =
                 />
             )}
 
-            <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-modal-overlay backdrop-blur-sm animate-fade-in" onMouseDown={handleBackdropClick}>
+            <div className="fixed inset-0 z-modal flex items-center justify-center bg-modal-overlay backdrop-blur-sm animate-fade-in" onMouseDown={handleBackdropClick}>
                 <div
                     ref={modalRef}
                     className="bg-bg-secondary w-full max-w-[1200px] h-[900px] rounded-xl shadow-2xl flex flex-col overflow-hidden animate-scale-in"

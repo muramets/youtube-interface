@@ -438,7 +438,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                         isLoading: false,
                         hasMoreMessages: firestoreMessages.length >= MESSAGE_PAGE_SIZE,
                         error: conv.lastError.error,
-                        lastFailedRequest: { text: '', messageId: conv.lastError.messageId },
+                        lastFailedRequest: { text: conv.lastError.failedText || '', messageId: conv.lastError.messageId },
                     });
                 } else {
                     set({
@@ -723,6 +723,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     ? 'Context window exceeded. Start a new conversation or delete old messages.'
                     : errorMessage;
                 set({ error: displayMessage, lastFailedRequest: { text, attachments } });
+
+                // Ensure the user stays on the conversation (especially for first-message failures)
+                if (convId && !get().activeConversationId) {
+                    set({ activeConversationId: convId });
+                }
+
+                // Persist error + text to conversation doc so retry survives page reload
+                if (convId) {
+                    ChatService.setLastError(userId, channelId, convId, displayMessage, text)
+                        .catch(() => { /* best-effort */ });
+                }
             }
         } finally {
             // Guaranteed reset — no deadlock possible

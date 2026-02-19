@@ -92,7 +92,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({ isOpen, onCl
 
     if (showDeleteConfirm) {
         return (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+            <div className="fixed inset-0 z-modal flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
                 <div className="bg-bg-secondary rounded-xl w-full max-w-sm p-6 relative shadow-2xl animate-scale-in border border-border">
                     <h3 className="text-xl font-bold text-text-primary mb-2">Delete Channel?</h3>
                     <p className="text-text-secondary mb-6 text-sm">
