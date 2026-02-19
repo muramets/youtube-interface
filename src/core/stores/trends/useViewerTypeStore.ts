@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { ViewerTypeService } from '../services/ViewerTypeService';
-import type { ViewerType } from '../types/viewerType';
+import { ViewerTypeService } from '../../services/ViewerTypeService';
+import type { ViewerType } from '../../types/viewerType';
 
 interface ViewerTypeState {
     // Map of sourceVideoId -> ViewerType information for O(1) lookup

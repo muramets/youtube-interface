@@ -9,7 +9,7 @@ import { formatDuration, durationToSeconds } from '../utils/formatters';
 import { computeAverageDelta } from '../utils/publishDateFormatter';
 import { TRAFFIC_TABLE } from '../utils/constants';
 import type { CTRRule } from '../../../../../core/services/settingsService';
-import { useTrafficNicheStore } from '../../../../../core/stores/useTrafficNicheStore';
+import { useTrafficNicheStore } from '../../../../../core/stores/trends/useTrafficNicheStore';
 import { SmartTrafficTooltip } from './SmartTrafficTooltip';
 
 import type { SuggestedTrafficNiche } from '../../../../../core/types/suggestedTrafficNiches';

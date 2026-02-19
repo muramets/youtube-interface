@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useDroppable } from '@dnd-kit/core';
 import { MoreVertical, Check, Trash2, Target } from 'lucide-react';
 import type { TrendNiche } from '../../../core/types/trends';
-import { useTrendStore, MANUAL_NICHE_PALETTE } from '../../../core/stores/trendStore';
+import { useTrendStore, MANUAL_NICHE_PALETTE } from '../../../core/stores/trends/trendStore';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { ConfirmationModal } from '../../../components/ui/organisms/ConfirmationModal';
 import { NicheContextMenu } from '../Shared/NicheContextMenu';

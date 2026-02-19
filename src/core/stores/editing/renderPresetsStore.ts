@@ -1,12 +1,12 @@
 import { create } from 'zustand';
 import { collection, query, orderBy, limit, getDocs, doc, deleteDoc } from 'firebase/firestore';
-import { db } from '../../config/firebase';
-import type { RenderPreset, TimelineTrack } from '../types/editing';
-import type { Track } from '../types/track';
-import { DEFAULT_GENRES } from '../types/track';
+import { db } from '../../../config/firebase';
+import type { RenderPreset, TimelineTrack } from '../../types/editing';
+import type { Track } from '../../types/track';
+import { DEFAULT_GENRES } from '../../types/track';
 import { useEditingStore } from './editingStore';
-import { useUIStore } from './uiStore';
-import { parseFirestoreTimestamp } from '../utils/firestoreUtils';
+import { useUIStore } from '../uiStore';
+import { parseFirestoreTimestamp } from '../../utils/firestoreUtils';
 
 // ─── Store ─────────────────────────────────────────────────────────────
 

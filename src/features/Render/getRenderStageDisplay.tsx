@@ -6,7 +6,7 @@
  */
 import React from 'react';
 import { AlertTriangle, CloudDownload, CloudUpload, Link2, Loader2, Clock, Check, XCircle, Ban } from 'lucide-react';
-import type { RenderJobStatus } from '../../core/stores/renderQueueStore';
+import type { RenderJobStatus } from '../../core/stores/editing/renderQueueStore';
 
 export interface RenderStageDisplay {
     icon: React.ReactNode;

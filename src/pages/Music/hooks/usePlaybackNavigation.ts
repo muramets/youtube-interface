@@ -4,7 +4,7 @@
 
 import { useCallback } from 'react';
 import { useMusicStore } from '../../../core/stores/musicStore';
-import { useEditingStore } from '../../../core/stores/editingStore';
+import { useEditingStore } from '../../../core/stores/editing/editingStore';
 import { getEffectiveDuration } from '../../../core/types/editing';
 import { getDefaultVariant } from '../../../core/utils/trackUtils';
 import type { Track } from '../../../core/types/track';

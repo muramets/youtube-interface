@@ -16,7 +16,7 @@ import { UploadTrackModal } from '../modals/UploadTrackModal';
 import { WaveformCanvas } from './WaveformCanvas';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import { useMusicStore, selectAllTracks } from '../../../core/stores/musicStore';
-import { useEditingStore } from '../../../core/stores/editingStore';
+import { useEditingStore } from '../../../core/stores/editing/editingStore';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { DEFAULT_ACCENT_COLOR } from '../../../core/utils/trackUtils';

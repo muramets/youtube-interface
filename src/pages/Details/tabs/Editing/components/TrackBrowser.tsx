@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Search, PanelRightClose, Share2 } from 'lucide-react';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
 import { useMusicStore } from '../../../../../core/stores/musicStore';
-import { useEditingStore } from '../../../../../core/stores/editingStore';
+import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
 import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';
 import { useTrackFilters } from '../../../../../core/hooks/useTrackFilters';

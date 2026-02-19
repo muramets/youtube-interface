@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { TrafficNicheService } from '../services/TrafficNicheService';
-import type { SuggestedTrafficNiche, TrafficNicheAssignment } from '../types/suggestedTrafficNiches';
+import { TrafficNicheService } from '../../services/TrafficNicheService';
+import type { SuggestedTrafficNiche, TrafficNicheAssignment } from '../../types/suggestedTrafficNiches';
 import { generateNicheColor } from './trendStore'; // Reusing color generator
 
 interface TrafficNicheState {

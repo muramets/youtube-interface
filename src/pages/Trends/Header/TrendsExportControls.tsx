@@ -4,7 +4,7 @@ import { useUIStore } from '../../../core/stores/uiStore';
 import { downloadImagesAsZip, downloadImageDirect } from '../../../core/utils/zipUtils';
 import { exportTrendsVideoCsv, downloadCsv, generateTrendsExportFilename } from '../utils/exportTrendsVideoCsv';
 import type { TrendVideo } from '../../../core/types/trends';
-import { useTrendStore } from '../../../core/stores/trendStore';
+import { useTrendStore } from '../../../core/stores/trends/trendStore';
 
 interface TrendsExportControlsProps {
     videos: TrendVideo[];

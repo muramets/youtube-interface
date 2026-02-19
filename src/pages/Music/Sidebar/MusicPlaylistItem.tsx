@@ -15,7 +15,7 @@ import type { MusicPlaylist } from '../../../core/types/musicPlaylist';
 import { useMusicStore } from '../../../core/stores/musicStore';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
-import { MANUAL_NICHE_PALETTE } from '../../../core/stores/trendStore';
+import { MANUAL_NICHE_PALETTE } from '../../../core/stores/trends/trendStore';
 import { ColorPickerPopover } from '../../../components/ui/molecules/ColorPickerPopover';
 
 interface MusicPlaylistItemProps {

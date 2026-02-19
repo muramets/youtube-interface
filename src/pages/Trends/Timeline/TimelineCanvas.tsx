@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { useTrendStore } from '../../../core/stores/trendStore';
+import { useTrendStore } from '../../../core/stores/trends/trendStore';
 import { TrendTooltip } from './TrendTooltip';
 import { TimelineDateHeader } from './TimelineDateHeader';
 import { TimelineViewAxis } from './TimelineViewAxis';

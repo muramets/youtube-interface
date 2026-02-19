@@ -3,7 +3,7 @@ import { Info, AlertTriangle } from 'lucide-react';
 import type { SyncSettings } from '../../core/services/settingsService';
 import { useEffect, useState } from 'react';
 import { TrendService } from '../../core/services/trendService';
-import { useTrendStore } from '../../core/stores/trendStore';
+import { useTrendStore } from '../../core/stores/trends/trendStore';
 
 interface TrendSyncSettingsProps {
     settings: SyncSettings;

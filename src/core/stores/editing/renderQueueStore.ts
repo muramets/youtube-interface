@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import { startServerRender, cancelServerRender, deleteServerRender, sanitizeFilename, BITRATE_MAP } from '../../pages/Details/tabs/Editing/services/renderService';
-import type { RenderResolution, TimelineTrack } from '../types/editing';
+import { startServerRender, cancelServerRender, deleteServerRender, sanitizeFilename, BITRATE_MAP } from '../../../pages/Details/tabs/Editing/services/renderService';
+import type { RenderResolution, TimelineTrack } from '../../types/editing';
 import { collection, doc, getDocs, onSnapshot, orderBy, query, limit, where } from 'firebase/firestore';
-import { db } from '../../config/firebase';
-import { parseFirestoreTimestamp } from '../utils/firestoreUtils';
+import { db } from '../../../config/firebase';
+import { parseFirestoreTimestamp } from '../../utils/firestoreUtils';
 
 // ─── Render job types ──────────────────────────────────────────────────
 

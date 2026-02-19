@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, AlertCircle, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '../../../../../components/ui/atoms/Button/Button';
-import { useRenderQueueStore } from '../../../../../core/stores/renderQueueStore';
+import { useRenderQueueStore } from '../../../../../core/stores/editing/renderQueueStore';
 import { RenderStatusBar } from '../../../../../components/ui/atoms/RenderStatusBar';
 import { getRenderStatusDisplay, getUserFriendlyError } from '../../../../../features/Render/getRenderStageDisplay';
 import { useElapsedTimer, formatElapsed } from '../../../../../features/Render/useElapsedTimer';

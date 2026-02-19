@@ -8,7 +8,7 @@ import { Dropdown } from '../../../components/ui/molecules/Dropdown';
 import { ConfirmationModal } from '../../../components/ui/organisms/ConfirmationModal';
 import { CopyChannelModal } from './CopyChannelModal';
 import { useTrendsSidebar } from './hooks/useTrendsSidebar';
-import { useTrendStore } from '../../../core/stores/trendStore';
+import { useTrendStore } from '../../../core/stores/trends/trendStore';
 import type { TrendChannel } from '../../../core/types/trends';
 
 export const TrendsSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded }) => {

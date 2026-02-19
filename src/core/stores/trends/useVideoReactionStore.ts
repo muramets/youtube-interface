@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { VideoReactionService } from '../services/VideoReactionService';
-import type { VideoReaction, VideoReactionEdge } from '../types/videoReaction';
+import { VideoReactionService } from '../../services/VideoReactionService';
+import type { VideoReaction, VideoReactionEdge } from '../../types/videoReaction';
 
 interface VideoReactionState {
     reactions: VideoReactionEdge[];

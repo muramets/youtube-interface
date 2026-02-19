@@ -9,7 +9,7 @@
  */
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { useMusicStore } from '../stores/musicStore';
-import { useEditingStore } from '../stores/editingStore';
+import { useEditingStore } from '../stores/editing/editingStore';
 
 interface FloatingOffset {
     /** Tailwind bottom-* class */

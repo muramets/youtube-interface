@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import type { DragStartEvent, DragOverEvent, DragEndEvent } from '@dnd-kit/core';
 import type { TrendVideo } from '../../../core/types/trends';
-import { useTrendStore } from '../../../core/stores/trendStore';
+import { useTrendStore } from '../../../core/stores/trends/trendStore';
 
 /**
  * Drag and Drop state and handlers for Timeline → Sidebar niche assignment.

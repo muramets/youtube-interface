@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { User, LogOut, Plus, Check, Settings, Target } from 'lucide-react';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useMusicStore } from '../../core/stores/musicStore';
-import { useTrendStore } from '../../core/stores/trendStore';
+import { useTrendStore } from '../../core/stores/trends/trendStore';
 import { useChannels } from '../../core/hooks/useChannels';
 import { useSettings } from '../../core/hooks/useSettings';
 import { type Channel } from '../../core/services/channelService';

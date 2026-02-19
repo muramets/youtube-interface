@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import type { TrafficType } from '../../../../../core/types/videoTrafficType';
-import { useTrafficTypeStore } from '../../../../../core/stores/useTrafficTypeStore';
+import { useTrafficTypeStore } from '../../../../../core/stores/trends/useTrafficTypeStore';
 import { assistantLogger } from '../../../../../core/utils/logger';
 
 /**

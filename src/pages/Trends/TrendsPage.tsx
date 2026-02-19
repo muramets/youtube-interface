@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useTrendStore } from '../../core/stores/trendStore';
+import { useTrendStore } from '../../core/stores/trends/trendStore';
 import { TimelineCanvas } from './Timeline/TimelineCanvas';
 import { TrendsTable } from './Table/TrendsTable';
 import { TrendsHeader } from './Header/TrendsHeader';

@@ -24,7 +24,7 @@ import { useVersionManagement } from './hooks/useVersionManagement';
 import { useSnapshotManagement } from './hooks/useSnapshotManagement';
 import { useModalState } from './hooks/useModalState';
 import { DetailsModals } from './components/DetailsModals';
-import { useTrafficNicheStore } from '../../core/stores/useTrafficNicheStore';
+import { useTrafficNicheStore } from '../../core/stores/trends/useTrafficNicheStore';
 import { TrafficSnapshotService } from '../../core/services/traffic';
 import { VersionService } from './services/VersionService';
 

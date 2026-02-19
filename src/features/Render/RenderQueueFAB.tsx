@@ -7,7 +7,7 @@ import { Film, X, Download, ChevronUp, ChevronDown, RotateCcw } from 'lucide-rea
 import { Button } from '../../components/ui/atoms/Button/Button';
 import { Badge } from '../../components/ui/atoms/Badge/Badge';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
-import { useRenderQueueStore, type RenderJob } from '../../core/stores/renderQueueStore';
+import { useRenderQueueStore, type RenderJob } from '../../core/stores/editing/renderQueueStore';
 import { useFloatingBottomOffset } from '../../core/hooks/useFloatingBottomOffset';
 import { RenderStatusBar } from '../../components/ui/atoms/RenderStatusBar';
 import { getRenderStatusDisplay } from './getRenderStageDisplay';

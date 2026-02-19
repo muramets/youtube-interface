@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { TrendChannel, TrendNiche, TimelineConfig, TrendVideo } from '../types/trends';
-import type { FilterOperator } from './filterStore';
-import { TrendService } from '../services/trendService';
-import { useChannelStore } from './channelStore';
+import type { TrendChannel, TrendNiche, TimelineConfig, TrendVideo } from '../../types/trends';
+import type { FilterOperator } from '../filterStore';
+import { TrendService } from '../../services/trendService';
+import { useChannelStore } from '../channelStore';
 
 // Trends-specific filter item (date, views, percentile)
 

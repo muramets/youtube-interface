@@ -4,7 +4,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { TimelineTrack } from '../../../../../core/types/editing';
 import { getEffectiveDuration } from '../../../../../core/types/editing';
-import { useEditingStore } from '../../../../../core/stores/editingStore';
+import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
 import { useMusicStore, selectAllTracks } from '../../../../../core/stores/musicStore';
 import { formatDuration } from '../utils/formatDuration';
 import { drawWaveform, hexToHSL } from '../utils/waveformUtils';

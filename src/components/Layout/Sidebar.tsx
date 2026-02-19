@@ -9,7 +9,7 @@ import { useChannels } from '../../core/hooks/useChannels';
 import { TrendsSidebarSection } from '../../pages/Trends/Sidebar/TrendsSidebarSection';
 import { MusicSidebarSection } from '../../pages/Music/Sidebar/MusicSidebarSection';
 import { AddChannelModal } from '../../pages/Trends/Sidebar/AddChannelModal';
-import { useTrendStore } from '../../core/stores/trendStore';
+import { useTrendStore } from '../../core/stores/trends/trendStore';
 import type { TrendChannel } from '../../core/types/trends';
 
 // Collapsed sidebar item - icon on top, text below

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { TrafficNoteService } from '../services/TrafficNoteService';
-import type { TrafficNote } from '../types/trafficNote';
+import { TrafficNoteService } from '../../services/TrafficNoteService';
+import type { TrafficNote } from '../../types/trafficNote';
 
 interface TrafficNoteState {
     notes: TrafficNote[];

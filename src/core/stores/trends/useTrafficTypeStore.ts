@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { TrafficTypeService } from '../services/TrafficTypeService';
-import type { TrafficType } from '../types/videoTrafficType';
+import { TrafficTypeService } from '../../services/TrafficTypeService';
+import type { TrafficType } from '../../types/videoTrafficType';
 
 interface TrafficTypeState {
     // Map of sourceVideoId -> TrafficType information for O(1) lookup

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Filter, ChevronRight, X, Calendar, Eye, ChevronLeft, BarChart3, Layers } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { useTrendStore, type PercentileGroup } from '../../../core/stores/trendStore';
+import { useTrendStore, type PercentileGroup } from '../../../core/stores/trends/trendStore';
 import { FilterInputDate } from '../../../features/Filter/FilterInputs/FilterInputDate';
 import { FilterInputNumeric } from '../../../features/Filter/FilterInputs/FilterInputNumeric';
 import { FilterInputPercentile } from '../../../features/Filter/FilterInputs/FilterInputPercentile';
@@ -77,7 +77,7 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
         };
     }, [isOpen]);
 
-    const handleAddFilter = (type: TrendsFilterType, operator: FilterOperator, value: import('../../../core/stores/trendStore').TrendsFilterValue, label: string) => {
+    const handleAddFilter = (type: TrendsFilterType, operator: FilterOperator, value: import('../../../core/stores/trends/trendStore').TrendsFilterValue, label: string) => {
         addTrendsFilter({ type, operator, value, label });
         setIsOpen(false);
     };
@@ -232,7 +232,7 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
                                                 const opLabel = op === 'between' ? `${val}-${max}` : `${op === 'gte' ? '>=' : op === 'lte' ? '<=' : op === 'gt' ? '>' : op === 'lt' ? '<' : '='} ${val}`;
 
                                                 // Explicitly cast the value to TrendsFilterValue to match the union type
-                                                const finalValue: import('../../../core/stores/trendStore').TrendsFilterValue = op === 'between' ? [val, max!] : val;
+                                                const finalValue: import('../../../core/stores/trends/trendStore').TrendsFilterValue = op === 'between' ? [val, max!] : val;
                                                 handleAddFilter('views', op, finalValue, `Views ${opLabel}`);
                                             }}
                                             onRemove={() => {

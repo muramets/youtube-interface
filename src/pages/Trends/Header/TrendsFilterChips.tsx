@@ -1,6 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
-import { useTrendStore } from '../../../core/stores/trendStore';
+import { useTrendStore } from '../../../core/stores/trends/trendStore';
 
 export const TrendsFilterChips: React.FC = () => {
     const { trendsFilters, removeTrendsFilter, addTrendsFilter } = useTrendStore();

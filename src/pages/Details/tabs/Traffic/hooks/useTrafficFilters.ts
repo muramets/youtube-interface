@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import type { TrafficSource, TrafficFilter, TrafficFilterType, EnrichedTrafficSource } from '../../../../../core/types/traffic';
 import { durationToSeconds } from '../utils/formatters';
-import { useTrafficFilterStore } from '../../../../../core/stores/trafficFilterStore';
+import { useTrafficFilterStore } from '../../../../../core/stores/trends/trafficFilterStore';
 
 /**
  * BUSINESS LOGIC: Traffic Filters Hook

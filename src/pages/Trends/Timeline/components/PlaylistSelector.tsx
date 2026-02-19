@@ -3,7 +3,7 @@ import { ListVideo, Plus, Check } from 'lucide-react';
 import { FloatingDropdownPortal } from '../../../../components/ui/atoms/FloatingDropdownPortal';
 import { useAuth } from '../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../core/stores/channelStore';
-import { useTrendStore } from '../../../../core/stores/trendStore';
+import { useTrendStore } from '../../../../core/stores/trends/trendStore';
 import { usePlaylists } from '../../../../core/hooks/usePlaylists';
 import { useVideos } from '../../../../core/hooks/useVideos';
 import { useUIStore } from '../../../../core/stores/uiStore';

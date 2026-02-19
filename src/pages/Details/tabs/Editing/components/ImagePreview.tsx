@@ -1,7 +1,7 @@
 import React, { useCallback, useRef } from 'react';
 import { ImagePlus, X, PanelRightOpen } from 'lucide-react';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
-import { useEditingStore } from '../../../../../core/stores/editingStore';
+import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
 import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';
 import { EditingService } from '../../../../../core/services/editingService';

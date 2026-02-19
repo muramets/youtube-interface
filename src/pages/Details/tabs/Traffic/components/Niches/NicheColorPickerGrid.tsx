@@ -1,6 +1,6 @@
 import React from 'react';
 import { Check } from 'lucide-react';
-import { MANUAL_NICHE_PALETTE } from '@/core/stores/trendStore';
+import { MANUAL_NICHE_PALETTE } from '@/core/stores/trends/trendStore';
 
 interface NicheColorPickerGridProps {
     selectedColor?: string;

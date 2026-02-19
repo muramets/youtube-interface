@@ -1,5 +1,5 @@
 import React from 'react';
-import type { RenderJobStatus } from '../../../core/stores/renderQueueStore';
+import type { RenderJobStatus } from '../../../core/stores/editing/renderQueueStore';
 
 // ─── Shared helpers for render status styling ──────────────────────────
 

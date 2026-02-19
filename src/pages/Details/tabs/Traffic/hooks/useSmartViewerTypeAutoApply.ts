@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
-import { useViewerTypeStore } from '../../../../../core/stores/useViewerTypeStore';
+import { useViewerTypeStore } from '../../../../../core/stores/trends/useViewerTypeStore';
 import { assistantLogger } from '../../../../../core/utils/logger';
 import { durationToSeconds } from '../utils/formatters';
 import type { ViewerType } from '../../../../../core/types/viewerType';

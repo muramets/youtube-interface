@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { TrendService } from '../../../core/services/trendService';
 import type { TrendVideo } from '../../../core/types/trends';
-import { useTrendStore } from '../../../core/stores/trendStore';
+import { useTrendStore } from '../../../core/stores/trends/trendStore';
 
 interface UseTrendVideosProps {
     userUid?: string;

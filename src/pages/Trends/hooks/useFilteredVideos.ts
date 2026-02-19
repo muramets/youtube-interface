@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useTrendStore, type TrendsFilterItem } from '../../../core/stores/trendStore';
+import { useTrendStore, type TrendsFilterItem } from '../../../core/stores/trends/trendStore';
 import type { TrendVideo } from '../../../core/types/trends';
 import { applyNumericFilter } from '../../../core/utils/filterUtils';
 

@@ -1,13 +1,13 @@
 import React, { useEffect } from 'react';
 import { Minus, Plus, Play } from 'lucide-react';
 import { Button } from '../../../../../components/ui/atoms/Button/Button';
-import { useEditingStore } from '../../../../../core/stores/editingStore';
-import { useRenderQueueStore } from '../../../../../core/stores/renderQueueStore';
+import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
+import { useRenderQueueStore } from '../../../../../core/stores/editing/renderQueueStore';
 import { useUIStore } from '../../../../../core/stores/uiStore';
 import { RESOLUTION_PRESETS, type RenderResolution } from '../../../../../core/types/editing';
 import { getEffectiveDuration } from '../../../../../core/types/editing';
 import { BITRATE_MAP } from '../services/renderService';
-import { getSizeCalibrationRatio } from '../../../../../core/stores/renderQueueStore';
+import { getSizeCalibrationRatio } from '../../../../../core/stores/editing/renderQueueStore';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
 import { formatDuration } from '../utils/formatDuration';
 import { useChannelStore } from '../../../../../core/stores/channelStore';

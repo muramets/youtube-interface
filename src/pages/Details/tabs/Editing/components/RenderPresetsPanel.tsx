@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { History, ChevronDown, Check, AlertTriangle, Trash2 } from 'lucide-react';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
-import { useRenderPresetsStore } from '../../../../../core/stores/renderPresetsStore';
+import { useRenderPresetsStore } from '../../../../../core/stores/editing/renderPresetsStore';
 import { useMusicStore, selectAllTracks } from '../../../../../core/stores/musicStore';
 import { useUIStore } from '../../../../../core/stores/uiStore';
 import { useAuth } from '../../../../../core/hooks/useAuth';

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useEditingStore } from '../../../../core/stores/editingStore';
-import { useRenderQueueStore } from '../../../../core/stores/renderQueueStore';
+import { useEditingStore } from '../../../../core/stores/editing/editingStore';
+import { useRenderQueueStore } from '../../../../core/stores/editing/renderQueueStore';
 import { useAuth } from '../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../core/stores/channelStore';
 import { ImagePreview } from './components/ImagePreview';

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { TrendService } from '../../../core/services/trendService';
-import { useTrendStore } from '../../../core/stores/trendStore';
+import { useTrendStore } from '../../../core/stores/trends/trendStore';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import type { VideoDetails } from '../../../core/utils/youtubeApi';

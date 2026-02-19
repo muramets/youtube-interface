@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useAuth } from '../../../core/hooks/useAuth';
-import { useTrendStore } from '../../../core/stores/trendStore';
+import { useTrendStore } from '../../../core/stores/trends/trendStore';
 import { TrendService } from '../../../core/services/trendService';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { ChannelService } from '../../../core/services/channelService';

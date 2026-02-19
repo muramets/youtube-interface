@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { TrafficFilter } from '../types/traffic';
+import type { TrafficFilter } from '../../types/traffic';
 
 /**
  * BUSINESS LOGIC: Traffic Filter Persistence Store

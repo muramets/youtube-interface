@@ -14,8 +14,8 @@ import { VideoPreviewTooltip } from '../../../../../features/Video/components/Vi
 import { formatDuration } from '../utils/formatters';
 import { formatPublishDate, formatDateDelta } from '../utils/publishDateFormatter';
 import type { CTRRule } from '../../../../../core/services/settingsService';
-import { useTrafficNicheStore } from '../../../../../core/stores/useTrafficNicheStore';
-import { useTrafficNoteStore } from '../../../../../core/stores/useTrafficNoteStore';
+import { useTrafficNicheStore } from '../../../../../core/stores/trends/useTrafficNicheStore';
+import { useTrafficNoteStore } from '../../../../../core/stores/trends/useTrafficNoteStore';
 import { TrafficRowBadges } from './TrafficRowBadges';
 import { useVideoPlayer } from '../../../../../core/hooks/useVideoPlayer';
 import { useAuth } from '../../../../../core/hooks/useAuth';

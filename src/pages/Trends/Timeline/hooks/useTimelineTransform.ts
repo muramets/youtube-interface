@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
 import { useDebounce } from '../../../../core/hooks/useDebounce';
-import { useTrendStore } from '../../../../core/stores/trendStore';
+import { useTrendStore } from '../../../../core/stores/trends/trendStore';
 import { useChannelStore } from '../../../../core/stores/channelStore';
 import { calculatePreservedTransform } from '../utils/timelineMath';
 import type { MonthLayout, TimelineStats } from '../../../../core/types/trends';

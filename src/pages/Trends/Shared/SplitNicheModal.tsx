@@ -2,7 +2,7 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, Scissors, X } from 'lucide-react';
 import type { TrendNiche } from '../../../core/types/trends';
-import { useTrendStore } from '../../../core/stores/trendStore';
+import { useTrendStore } from '../../../core/stores/trends/trendStore';
 
 interface ChannelStat {
     channelId: string;

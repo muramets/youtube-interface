@@ -4,7 +4,7 @@ import { downloadImagesAsZip, downloadImageDirect } from '../../../core/utils/zi
 import type { TrendVideo } from '../../../core/types/trends';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
-import { useTrendStore } from '../../../core/stores/trendStore';
+import { useTrendStore } from '../../../core/stores/trends/trendStore';
 import { useVideos } from '../../../core/hooks/useVideos';
 import { useUIStore } from '../../../core/stores/uiStore';
 import { VideoService } from '../../../core/services/videoService';

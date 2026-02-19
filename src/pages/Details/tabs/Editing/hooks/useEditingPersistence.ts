@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useEditingStore } from '../../../../../core/stores/editingStore';
+import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
 import { useMusicStore, selectAllTracks } from '../../../../../core/stores/musicStore';
 import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';

@@ -22,19 +22,19 @@ import type { VideoDetails } from '../../../../core/utils/youtubeApi';
 import { useTrafficSelection } from './hooks/useTrafficSelection';
 import { useSettings } from '../../../../core/hooks/useSettings';
 import { formatPremiumPeriod } from './utils/dateUtils';
-import { useTrafficNicheStore } from '../../../../core/stores/useTrafficNicheStore';
-import { useTrafficNoteStore } from '../../../../core/stores/useTrafficNoteStore';
+import { useTrafficNicheStore } from '../../../../core/stores/trends/useTrafficNicheStore';
+import { useTrafficNoteStore } from '../../../../core/stores/trends/useTrafficNoteStore';
 import { useAuth } from '../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../core/stores/channelStore';
 import { useVideos } from '../../../../core/hooks/useVideos';
 import { useSmartNicheSuggestions } from './hooks/useSmartNicheSuggestions';
 import { assistantLogger } from '../../../../core/utils/logger';
-import { useTrafficTypeStore } from '../../../../core/stores/useTrafficTypeStore';
+import { useTrafficTypeStore } from '../../../../core/stores/trends/useTrafficTypeStore';
 import { useSmartTrafficAutoApply } from './hooks/useSmartTrafficAutoApply';
-import { useViewerTypeStore } from '../../../../core/stores/useViewerTypeStore';
-import { useTrendStore } from '../../../../core/stores/trendStore';
+import { useViewerTypeStore } from '../../../../core/stores/trends/useViewerTypeStore';
+import { useTrendStore } from '../../../../core/stores/trends/trendStore';
 import { useSmartViewerTypeAutoApply } from './hooks/useSmartViewerTypeAutoApply';
-import { useVideoReactionStore } from '../../../../core/stores/useVideoReactionStore';
+import { useVideoReactionStore } from '../../../../core/stores/trends/useVideoReactionStore';
 
 import type { TrafficSource } from '../../../../core/types/traffic';
 

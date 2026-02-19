@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useTrendStore } from '../../../core/stores/trendStore';
+import { useTrendStore } from '../../../core/stores/trends/trendStore';
 import { TrendService } from '../../../core/services/trendService';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';

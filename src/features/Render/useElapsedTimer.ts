@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { RenderJobStatus } from '../../core/stores/renderQueueStore';
+import type { RenderJobStatus } from '../../core/stores/editing/renderQueueStore';
 
 const TERMINAL_STATUSES: ReadonlySet<RenderJobStatus> = new Set([
     'complete', 'render_failed', 'failed_to_start', 'cancelled',

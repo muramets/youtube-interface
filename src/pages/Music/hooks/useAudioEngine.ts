@@ -5,7 +5,7 @@
 
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { useMusicStore, selectAllTracks, selectAllGenres } from '../../../core/stores/musicStore';
-import { useEditingStore } from '../../../core/stores/editingStore';
+import { useEditingStore } from '../../../core/stores/editing/editingStore';
 import { getEffectiveDuration } from '../../../core/types/editing';
 import { refreshAudioUrl } from '../../../core/services/storageService';
 import { TrackService } from '../../../core/services/trackService';

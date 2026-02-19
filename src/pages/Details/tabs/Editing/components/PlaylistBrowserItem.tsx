@@ -3,7 +3,7 @@ import { Check, ChevronRight, ListMusic, Plus } from 'lucide-react';
 import type { MusicPlaylist } from '../../../../../core/types/musicPlaylist';
 import type { Track } from '../../../../../core/types/track';
 import { getDefaultVariant } from '../../../../../core/utils/trackUtils';
-import { useEditingStore } from '../../../../../core/stores/editingStore';
+import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
 import { useMusicStore } from '../../../../../core/stores/musicStore';
 import { createTimelineTrack } from '../../../../../core/types/editing';
 import { TrackBrowserItem } from './TrackBrowserItem';

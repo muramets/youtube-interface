@@ -9,7 +9,7 @@ import {
     type DragOverEvent,
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import { useEditingStore } from '../../../../../core/stores/editingStore';
+import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
 import { useMusicStore, selectAllTracks } from '../../../../../core/stores/musicStore';
 import { createTimelineTrack, type TimelineTrack } from '../../../../../core/types/editing';
 import { getDefaultVariant } from '../../../../../core/utils/trackUtils';

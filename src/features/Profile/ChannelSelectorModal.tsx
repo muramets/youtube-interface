@@ -4,7 +4,7 @@ import { User, Plus } from 'lucide-react';
 // const [loadingYT, setLoadingYT] = useState(false);
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useMusicStore } from '../../core/stores/musicStore';
-import { useTrendStore } from '../../core/stores/trendStore';
+import { useTrendStore } from '../../core/stores/trends/trendStore';
 import { useChannels } from '../../core/hooks/useChannels';
 import { useAuth } from '../../core/hooks/useAuth';
 import { CreateChannelModal } from './CreateChannelModal';

@@ -7,7 +7,7 @@
  *
  * Import this module from a component that's always mounted (e.g. AudioPlayer).
  */
-import { useEditingStore } from '../../../../../core/stores/editingStore';
+import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
 import { useMusicStore } from '../../../../../core/stores/musicStore';
 import { getEffectiveDuration } from '../../../../../core/types/editing';
 

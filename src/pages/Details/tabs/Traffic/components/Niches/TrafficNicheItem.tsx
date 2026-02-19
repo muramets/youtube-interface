@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ThumbsDown, Trophy, Heart, MoreVertical, GitBranch, Trash2 } from 'lucide-react';
 import type { SuggestedTrafficNiche, TrafficNicheProperty } from '@/core/types/suggestedTrafficNiches';
-import { useTrafficNicheStore } from '@/core/stores/useTrafficNicheStore';
+import { useTrafficNicheStore } from '@/core/stores/trends/useTrafficNicheStore';
 import { useAuth } from '@/core/hooks/useAuth';
 import { useChannelStore } from '@/core/stores/channelStore';
 import { TrafficNicheContextMenu } from './TrafficNicheContextMenu';

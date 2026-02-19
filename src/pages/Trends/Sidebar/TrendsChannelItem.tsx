@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Eye, EyeOff, MoreVertical, ChevronDown, ChevronRight } from 'lucide-react';
 import type { TrendChannel, TrendNiche } from '../../../core/types/trends';
 import { CollapsibleNicheList } from './CollapsibleNicheList';
-import { useTrendStore } from '../../../core/stores/trendStore';
+import { useTrendStore } from '../../../core/stores/trends/trendStore';
 
 interface TrendsChannelItemProps {
     channel: TrendChannel;

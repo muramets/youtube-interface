@@ -8,7 +8,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, type SortingStrategy } from '@dnd-kit/sortable';
 import { restrictToHorizontalAxis } from '@dnd-kit/modifiers';
-import { useEditingStore } from '../../../../../core/stores/editingStore';
+import { useEditingStore } from '../../../../../core/stores/editing/editingStore';
 import { getEffectiveDuration } from '../../../../../core/types/editing';
 import { TimelineTrackItem } from './TimelineTrackItem';
 import { TimelineRuler } from './TimelineRuler';

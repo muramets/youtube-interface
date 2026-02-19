@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useAuth } from './useAuth';
-import { useTrendStore } from '../stores/trendStore';
+import { useTrendStore } from '../stores/trends/trendStore';
 import { useFilterStore } from '../stores/filterStore';
 
 /**

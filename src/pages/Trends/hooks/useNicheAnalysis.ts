@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useTrendStore } from '../../../core/stores/trendStore';
+import { useTrendStore } from '../../../core/stores/trends/trendStore';
 import type { TrendNiche } from '../../../core/types/trends';
 
 /**

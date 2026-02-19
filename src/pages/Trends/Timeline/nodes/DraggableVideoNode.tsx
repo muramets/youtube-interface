@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import type { TrendVideo, VideoPosition } from '../../../../core/types/trends';
-import { useTrendStore } from '../../../../core/stores/trendStore';
+import { useTrendStore } from '../../../../core/stores/trends/trendStore';
 
 // Helper for formatting
 const formatCompactNumber = (num: number) => {
