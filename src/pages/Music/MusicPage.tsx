@@ -3,7 +3,7 @@
 // Business logic, store subscriptions, and derived state live in useMusicPageData.
 // =============================================================================
 
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { WifiOff, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -18,8 +18,9 @@ import { MusicLibrarySwitcher } from './components/MusicLibrarySwitcher';
 import { MusicLibraryHeader } from './components/MusicLibraryHeader';
 import { TrackListEmpty } from './components/TrackListEmpty';
 import { useMusicPageData } from './hooks/useMusicPageData';
+import { TRACK_ROW_HEIGHT, GROUP_ROW_OVERHEAD as STATIC_GROUP_ROW_OVERHEAD } from './musicLayout';
 
-const TRACK_ROW_HEIGHT = 88; // px — py-4 (32px) + h-14 cover (56px)
+
 
 export const MusicPage: React.FC = () => {
     "use no memo"; // useVirtualizer returns non-memoizable functions
@@ -40,7 +41,7 @@ export const MusicPage: React.FC = () => {
         setSelectedTrackId, setActiveLibrarySource, setPlaylistAllSources,
         setMusicSortBy, setMusicSortAsc,
         toggleMusicGenreFilter, toggleMusicTagFilter, setMusicBpmFilter, clearMusicFilters,
-        reorderPlaylistTracks, handleDeleteTrack, isLoadTimedOut,
+        reorderPlaylistTracks, handleDeleteTrack, toggleGroup, isLoadTimedOut,
     } = useMusicPageData();
 
     // ── Local UI state ───────────────────────────────────────────────────────
@@ -54,8 +55,14 @@ export const MusicPage: React.FC = () => {
         setEditingTrack(track);
     }, []);
 
-    // ── Virtualizer ──────────────────────────────────────────────────────────
+    // ── Virtualizer ───────────────────────────────────────────────────────────
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    // Dynamic groupOverhead: starts with the static constant as a fallback,
+    // then updated once we can measure an actual expanded group from the DOM.
+    // This way estimateSize stays accurate even if TrackGroupCard styling changes.
+    const groupOverheadRef = useRef(STATIC_GROUP_ROW_OVERHEAD);
+    const overheadMeasuredRef = useRef(false);
 
     const getItemKey = useCallback((index: number) => {
         const item = displayItems[index];
@@ -66,10 +73,67 @@ export const MusicPage: React.FC = () => {
     const virtualizer = useVirtualizer({
         count: displayItems.length,
         getScrollElement: () => scrollContainerRef.current,
-        estimateSize: () => TRACK_ROW_HEIGHT,
+        // Dynamic estimate: expanded groups use N×TRACK_ROW_HEIGHT + overhead so that
+        // virtualizer.measure() (called after unlink in useLayoutEffect) returns
+        // correct row positions from the very first render, before ResizeObserver
+        // confirms the DOM height. Prevents the 270ms stale-position window.
+        // Collapsed groups return TRACK_ROW_HEIGHT (display track only) — returning
+        // the expanded formula for collapsed groups would create large empty gaps
+        // after virtualizer.measure() clears the ResizeObserver cache.
+        estimateSize: (index) => {
+            const item = displayItems[index];
+            if (item?.type === 'group' && item.isExpanded) {
+                return item.tracks.length * TRACK_ROW_HEIGHT + groupOverheadRef.current;
+            }
+            return TRACK_ROW_HEIGHT;
+        },
         overscan: 8,
         getItemKey,
+        // 8px gap between rows. Virtualizer accounts for this in scroll math so
+        // there's no jitter. BetweenDropZone covers this gap for insertion indicators.
+        gap: 8,
     });
+
+    // ── Dynamic overhead measurement ─────────────────────────────────────────────
+    // Measures actual group card overhead (height beyond N×TRACK_ROW_HEIGHT) from
+    // the DOM once after mount, so estimateSize is accurate without relying on the
+    // hardcoded STATIC_GROUP_ROW_OVERHEAD constant.
+    //
+    // Strategy:
+    //   1. Find the first expanded group in displayItems.
+    //   2. Query its DOM element via data-index attribute.
+    //   3. Read its clientHeight (sync browser layout, no ResizeObserver needed).
+    //   4. Compute overhead = clientHeight - tracks.length × TRACK_ROW_HEIGHT.
+    //   5. Store in groupOverheadRef for estimateSize to use on future renders.
+    //
+    // The ref (not state) avoids triggering re-renders on update.
+    // Falls back silently to STATIC_GROUP_ROW_OVERHEAD if no expanded group is visible.
+    useLayoutEffect(() => {
+        if (overheadMeasuredRef.current) return;
+
+        const firstExpandedIdx = displayItems.findIndex(
+            item => item.type === 'group' && item.isExpanded
+        );
+        if (firstExpandedIdx < 0) return;
+        const firstExpanded = displayItems[firstExpandedIdx];
+        if (firstExpanded.type !== 'group') return;
+
+        // The virtualizer renders each row as a div with data-index={virtualRow.index}
+        const rowEl = scrollContainerRef.current?.querySelector<HTMLElement>(
+            `[data-index="${firstExpandedIdx}"]`
+        );
+        if (!rowEl) return;
+
+        const h = rowEl.clientHeight;
+        if (h < TRACK_ROW_HEIGHT) return; // element not laid out yet — retry next commit
+
+        const computed = h - firstExpanded.tracks.length * TRACK_ROW_HEIGHT;
+        if (computed < 0) return; // guard against unexpected measurement
+
+        groupOverheadRef.current = computed;
+        overheadMeasuredRef.current = true;
+    }, [displayItems]); // re-check when displayItems changes (groups may appear/expand)
+
 
     const isPlaylistDragMode = !!(
         activePlaylistId &&
@@ -202,6 +266,7 @@ export const MusicPage: React.FC = () => {
                                     handleDeleteTrack={handleDeleteTrack}
                                     handleEditTrack={handleEditTrack}
                                     reorderPlaylistTracks={reorderPlaylistTracks}
+                                    toggleGroup={toggleGroup}
                                     trackSource={trackSource}
                                     sourceNameMap={sourceNameMap}
                                 />

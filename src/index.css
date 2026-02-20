@@ -406,3 +406,62 @@ textarea.modal-input:hover {
 .interactive-text:hover {
    color: var(--text-primary);
 }
+
+/* =============================================================================
+   KEYFRAME ANIMATIONS
+   ============================================================================= */
+
+/* Audio playback indicator — animated "bar chart" bars */
+@keyframes barBounce {
+
+   0%,
+   100% {
+      height: 2px;
+   }
+
+   50% {
+      height: 8px;
+   }
+}
+
+/* Group child row entry — used by GroupChildRow stagger animation */
+@keyframes groupChildEnter {
+   from {
+      opacity: 0;
+      transform: translateY(-6px);
+   }
+
+   to {
+      opacity: 1;
+      transform: translateY(0);
+   }
+}
+
+/* Group children container reveal — used by TrackGroupCard accordion */
+@keyframes groupChildrenReveal {
+   from {
+      opacity: 0;
+      transform: translateY(-4px);
+   }
+
+   to {
+      opacity: 1;
+      transform: translateY(0);
+   }
+}
+/* Unlinked track appearance — Phase 2 of two-phase unlink animation.
+   Phase 1 (0–150ms): group shrinks, rows shift down (transition: transform).
+   Phase 2 (150ms+): the detached track fades in at its correct sorted position.
+   'both' fill-mode keeps opacity:0 during the delay so the card doesn't flash
+   before Phase 1 completes. */
+@keyframes trackUnlinkAppear {
+   from {
+      opacity: 0;
+      transform: translateY(6px);
+   }
+
+   to {
+      opacity: 1;
+      transform: translateY(0);
+   }
+}

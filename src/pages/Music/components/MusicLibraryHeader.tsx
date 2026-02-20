@@ -21,8 +21,8 @@ interface MusicLibraryHeaderProps {
     activeLibrarySource: SharedLibraryEntry | null;
     // Skeleton / counts
     showSkeleton: boolean;
-    tracks: Pick<Track, 'id'>[];
-    filteredTracks: Pick<Track, 'id'>[];
+    tracks: Pick<Track, 'id' | 'duration'>[];
+    filteredTracks: Pick<Track, 'id' | 'duration'>[];
     hasActiveFilters: boolean;
     // Sort
     musicSortBy: string;
@@ -57,7 +57,17 @@ const SortCategoryHint: React.FC<{ musicSortBy: string; musicSortAsc: boolean; t
     );
 };
 
-/** Crossfade shimmer skeleton for the track count line. */
+/** Formats total seconds into human-readable duration: "1h 23m" or "45m 12s" */
+const formatDuration = (totalSeconds: number): string => {
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = Math.floor(totalSeconds % 60);
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+};
+
+
 const CountSkeleton: React.FC = () => (
     <span className="inline-block h-3 w-20 bg-bg-secondary rounded relative overflow-hidden">
         <span
@@ -110,7 +120,9 @@ export const MusicLibraryHeader: React.FC<MusicLibraryHeaderProps> = ({
                         <p className="text-xs text-text-secondary">
                             <span className="relative inline-block min-w-[80px]">
                                 <span className={`transition-opacity duration-300 whitespace-nowrap ${showSkeleton ? 'opacity-0' : 'opacity-100'}`}>
-                                    {filteredTracks.length} track{filteredTracks.length !== 1 ? 's' : ''}{hasActiveFilters && ' · filtered'}
+                                    {filteredTracks.length} track{filteredTracks.length !== 1 ? 's' : ''}
+                                    {hasActiveFilters && ' · filtered'}
+                                    {filteredTracks.length > 0 && ` · ${formatDuration(filteredTracks.reduce((sum, t) => sum + (t.duration ?? 0), 0))}`}
                                 </span>
                                 <span className={`transition-opacity duration-300 absolute inset-0 flex items-center ${showSkeleton ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                                     <CountSkeleton />
@@ -130,6 +142,7 @@ export const MusicLibraryHeader: React.FC<MusicLibraryHeaderProps> = ({
                             <span className="relative inline-block min-w-[80px]">
                                 <span className={`transition-opacity duration-300 whitespace-nowrap ${showSkeleton ? 'opacity-0' : 'opacity-100'}`}>
                                     {tracks.length} track{tracks.length !== 1 ? 's' : ''}{hasActiveFilters && ` · ${filteredTracks.length} shown`}
+                                    {tracks.length > 0 && ` · ${formatDuration(tracks.reduce((sum, t) => sum + (t.duration ?? 0), 0))}`}
                                 </span>
                                 <span className={`transition-opacity duration-300 absolute inset-0 flex items-center ${showSkeleton ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                                     <CountSkeleton />

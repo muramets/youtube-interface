@@ -20,14 +20,13 @@ export interface MusicDragDropState {
 
 export const useMusicDragDrop = () => {
     // Stable actions — created once, references never change, no subscription needed
-    const { addTracksToPlaylist, linkAsVersion, reorderGroupTracks, setDraggingTrackId } = useMusicStore.getState();
+    const { addTracksToPlaylist, linkAsVersion, linkAsVersionAndReorder, setDraggingTrackId } = useMusicStore.getState();
     // Reactive state — subscribe only to what actually changes
     const activeLibrarySource = useMusicStore((s) => s.activeLibrarySource);
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
 
     const [draggedTrack, setDraggedTrack] = useState<Track | null>(null);
-    const [draggedWidth, setDraggedWidth] = useState<number>(0);
 
     const isDraggingMusic = draggedTrack !== null;
 
@@ -37,12 +36,19 @@ export const useMusicDragDrop = () => {
         if (type === 'music-track' && track) {
             setDraggedTrack(track);
             setDraggingTrackId(track.id);
-            const rect = event.active.rect.current.initial;
-            setDraggedWidth(rect?.width ?? 0);
+        } else if (type === 'playlist-sort' && track) {
+            // Set ghost only — no global dim (useSortable handles visual feedback internally)
+            setDraggedTrack(track);
         }
     }, [setDraggingTrackId]);
 
     const handleMusicDragEnd = useCallback((event: DragEndEvent) => {
+        // playlist-sort reorder is handled locally by PlaylistSortableList's useDndMonitor
+        if (event.active.data.current?.type === 'playlist-sort') {
+            setDraggingTrackId(null);
+            setDraggedTrack(null);
+            return;
+        }
         const { over } = event;
 
         if (over && draggedTrack) {
@@ -64,19 +70,20 @@ export const useMusicDragDrop = () => {
                 const targetGroupId = over.data.current?.groupId as string | undefined;
 
                 if (targetTrackId && targetTrackId !== draggedTrack.id) {
-                    // Primary check: groupId in drop data (set by TrackGroupCard children)
-                    // Fallback: look up target track in store — covers orphaned group children
-                    // in playlist view where TrackCard doesn't expose groupId in drop data.
-                    const targetTrack = useMusicStore.getState().tracks.find(t => t.id === targetTrackId)
-                        ?? useMusicStore.getState().sharedTracks.find(t => t.id === targetTrackId);
+                    const { tracks, sharedTracks } = useMusicStore.getState();
+                    const targetTrack = tracks.find(t => t.id === targetTrackId)
+                        ?? sharedTracks.find(t => t.id === targetTrackId);
                     const resolvedTargetGroupId = targetGroupId ?? targetTrack?.groupId;
                     const sameGroup = draggedTrack.groupId
                         && resolvedTargetGroupId
                         && draggedTrack.groupId === resolvedTargetGroupId;
+                    // Same-group reorder is handled by TrackGroupCard's useDndMonitor.
+                    // Only link as version when dragging between different groups/tracks.
                     if (!sameGroup) {
                         linkAsVersion(userId, channelId, draggedTrack.id, targetTrackId);
                     }
                 }
+
             } else if (dropType === 'music-group-target' && userId && channelId) {
                 const targetGroupId = over.data.current?.groupId as string | undefined;
                 const representativeTrackId = over.data.current?.representativeTrackId as string | undefined;
@@ -84,44 +91,29 @@ export const useMusicDragDrop = () => {
 
                 if (representativeTrackId && representativeTrackId !== draggedTrack.id && targetGroupId) {
                     if (draggedTrack.groupId !== targetGroupId) {
-                        linkAsVersion(userId, channelId, draggedTrack.id, representativeTrackId);
-
-                        if (insertIdx >= 0) {
-                            const { tracks } = useMusicStore.getState();
-                            const groupTracks = tracks
-                                .filter((t) => t.groupId === targetGroupId)
-                                .sort((a, b) => (a.groupOrder ?? 0) - (b.groupOrder ?? 0));
-
-                            const orderedIds = groupTracks
-                                .filter((t) => t.id !== draggedTrack.id)
-                                .map((t) => t.id);
-
-                            orderedIds.splice(insertIdx + 1, 0, draggedTrack.id);
-                            reorderGroupTracks(userId, channelId, targetGroupId, orderedIds);
-                        }
+                        // Single atomic write: sets groupId + final groupOrder in one Firestore batch.
+                        // Avoids the intermediate Firestore snapshot that caused tracks to swap
+                        // when linkAsVersion + reorderGroupTracks fired as two separate writes.
+                        linkAsVersionAndReorder(userId, channelId, draggedTrack.id, representativeTrackId, insertIdx);
                     }
                 }
             }
         }
 
-        // Clear dragging visibility AFTER all optimistic updates
         setDraggingTrackId(null);
         setDraggedTrack(null);
-        setDraggedWidth(0);
-    }, [draggedTrack, user?.uid, currentChannel?.id, activeLibrarySource, addTracksToPlaylist, linkAsVersion, reorderGroupTracks, setDraggingTrackId]);
+    }, [draggedTrack, user?.uid, currentChannel?.id, activeLibrarySource, addTracksToPlaylist, linkAsVersion, linkAsVersionAndReorder, setDraggingTrackId]);
 
     const handleMusicDragCancel = useCallback(() => {
         setDraggingTrackId(null);
         setDraggedTrack(null);
-        setDraggedWidth(0);
     }, [setDraggingTrackId]);
 
     return useMemo(() => ({
         draggedTrack,
-        draggedWidth,
         isDraggingMusic,
         handleMusicDragStart,
         handleMusicDragEnd,
         handleMusicDragCancel,
-    }), [draggedTrack, draggedWidth, isDraggingMusic, handleMusicDragStart, handleMusicDragEnd, handleMusicDragCancel]);
+    }), [draggedTrack, isDraggingMusic, handleMusicDragStart, handleMusicDragEnd, handleMusicDragCancel]);
 };

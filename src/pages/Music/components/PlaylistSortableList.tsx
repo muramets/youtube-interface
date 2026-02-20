@@ -5,20 +5,16 @@
 // Extracted from MusicPage.tsx — previously defined at the bottom of that file.
 // =============================================================================
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useLayoutEffect } from 'react';
+import { flushSync } from 'react-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { GripVertical } from 'lucide-react';
+import { useMusicStore } from '../../../core/stores/musicStore';
 import {
-    DndContext,
-    DragOverlay,
-    closestCenter,
-    PointerSensor,
-    useSensor,
-    useSensors,
-    type DragEndEvent,
-    type DragStartEvent,
+    useDndMonitor,
+    useDndContext,
+    useDroppable,
 } from '@dnd-kit/core';
-import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import {
     SortableContext,
     verticalListSortingStrategy,
@@ -28,11 +24,31 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { TrackCard } from './track/TrackCard';
 import { TrackGroupCard } from './track/TrackGroupCard';
-import { TrackCardGhost } from './track/TrackCardGhost';
 import type { Track } from '../../../core/types/track';
 import type { TrackSource } from '../../../core/types/musicPlaylist';
 import type { DisplayItem } from '../hooks/useTrackDisplay';
 
+// ---------------------------------------------------------------------------
+// getDisplayItemKey — stable identity key for a virtualizer row.
+// Same value used in React `key`, data-flip-key, and FLIP snapshot map.
+// ---------------------------------------------------------------------------
+const getDisplayItemKey = (item: DisplayItem): string =>
+    item.type === 'group' ? item.groupId : item.track.id;
+
+// ---------------------------------------------------------------------------
+// BetweenDropZone — invisible collision buffer between virtualizer rows.
+// Active during group-child-sort drags to prevent the child accidentally
+// landing on tracks it passes over (which would trigger linkAsVersion).
+// The "Release to detach" affordance is shown on the ghost badge in SortableTrackItem.
+// ---------------------------------------------------------------------------
+const BetweenDropZone: React.FC<{ rowIndex: number; isGroupChildDragging: boolean }> = ({ rowIndex, isGroupChildDragging }) => {
+    const { setNodeRef } = useDroppable({
+        id: `between-zone-${rowIndex}`,
+        data: { type: 'between-sort-zone', beforeRowIndex: rowIndex },
+        disabled: !isGroupChildDragging,
+    });
+    return <div ref={setNodeRef} className="absolute left-0 right-0 z-20" style={{ top: -8, height: 8 }} />;
+};
 // -----------------------------------------------------------------------------
 // SortablePlaylistTrackItem — drag-handle wrapper for playlist reorder mode
 // -----------------------------------------------------------------------------
@@ -59,7 +75,10 @@ const SortablePlaylistTrackItem: React.FC<SortablePlaylistTrackItemProps> = Reac
             transform,
             transition,
             isDragging,
-        } = useSortable({ id: track.id });
+        } = useSortable({
+            id: track.id,
+            data: { type: 'playlist-sort', track },
+        });
 
         const style: React.CSSProperties = {
             transform: CSS.Transform.toString(transform),
@@ -122,6 +141,7 @@ export interface PlaylistSortableListProps {
     handleDeleteTrack: (id: string) => void;
     handleEditTrack: (track: Track) => void;
     reorderPlaylistTracks: (userId: string, channelId: string, playlistId: string, orderedTrackIds: string[]) => Promise<void>;
+    toggleGroup: (groupId: string) => void;
     trackSource?: TrackSource;
     /** trackId → channel name, populated in playlist All mode for shared tracks */
     sourceNameMap?: Record<string, string>;
@@ -145,77 +165,226 @@ export const PlaylistSortableList: React.FC<PlaylistSortableListProps> = ({
     handleDeleteTrack,
     handleEditTrack,
     reorderPlaylistTracks,
+    toggleGroup,
     trackSource,
     sourceNameMap,
 }) => {
-    const sensors = useSensors(
-        useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
-    );
-
     const sortableIds = useMemo(
         () => filteredTracks.map(t => t.id),
         [filteredTracks],
     );
 
-    const [activeDragTrack, setActiveDragTrack] = useState<Track | null>(null);
+    // ── Playlist sort monitor ─────────────────────────────────────────────────
+    // Listens to the outer DndContext (AppDndProvider) for playlist-sort events.
+    // Mirrors the pattern used by TrackGroupCard (useDndMonitor instead of
+    // a nested DndContext) so there is always exactly one DndContext in the tree.
+    // Track whether a group is currently expanding/collapsing so we can briefly
+    // apply 'transition: transform' to virtualizer rows. This makes items below
+    // push down/up smoothly in sync with the stagger animation. The transition
+    // is cleared after the animation window to avoid lag during normal scrolling.
+    const [isGroupAnimating, setIsGroupAnimating] = useState(false);
+    const animTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Two-phase unlink animation: track appears with fade-in AFTER rows have
+    // shifted to their new positions. pendingUnlinkTrackId marks the just-detached
+    // track so the virtualizer row applies the trackUnlinkAppear CSS animation.
+    const [pendingUnlinkTrackId, setPendingUnlinkTrackId] = useState<string | null>(null);
 
-    const handleSortStart = useCallback((event: DragStartEvent) => {
-        const track = filteredTracks.find(t => t.id === event.active.id);
-        setActiveDragTrack(track ?? null);
-    }, [filteredTracks]);
+    // ── FLIP snapshot ─────────────────────────────────────────────────────────
+    // Captured in onDragEnd BEFORE any state changes so we have the pre-layout
+    // positions available in useLayoutEffect after React commits the new layout.
+    // Keyed by ITEM IDENTITY (track.id / groupId), not virtualizer index —
+    // because unlink inserts a new row and shifts all indices.
+    // Map<itemKey (string), virtualRow.start (px)>.
+    const flipSnapshotRef = useRef<Map<string, number> | null>(null);
 
-    const handleSortEnd = useCallback((event: DragEndEvent) => {
-        setActiveDragTrack(null);
-        const { active, over } = event;
-        if (!over || active.id === over.id || !activePlaylistId) return;
+    // Guard: virtualizer.measure() triggers virtualizer's internal setState (onChange),
+    // which causes a re-render, which would re-run this effect and call measure() again
+    // → infinite loop. We only need ONE measure per pendingUnlinkTrackId.
+    const measuredForPendingRef = useRef<string | null>(null);
 
-        const oldIdx = filteredTracks.findIndex(t => t.id === active.id);
-        const newIdx = filteredTracks.findIndex(t => t.id === over.id);
-        if (oldIdx < 0 || newIdx < 0) return;
+    // ── Proactive measure + FLIP animation ────────────────────────────────────
+    // Fires after EVERY React commit (no dep array) so we catch the earliest
+    // commit after pendingUnlinkTrackId is first set.
+    useLayoutEffect(() => {
+        if (!pendingUnlinkTrackId) {
+            measuredForPendingRef.current = null;
+            return;
+        }
+        if (measuredForPendingRef.current === pendingUnlinkTrackId) return;
+        measuredForPendingRef.current = pendingUnlinkTrackId;
 
-        const reordered = arrayMove(filteredTracks, oldIdx, newIdx);
-        reorderPlaylistTracks(userId, channelId, activePlaylistId, reordered.map(t => t.id));
-    }, [filteredTracks, activePlaylistId, userId, channelId, reorderPlaylistTracks]);
+        // ── Step 1: proactive measure ──────────────────────────────────────
+        // Clears stale DOM-height cache; virtualizer adopts estimateSize which
+        // already returns the correct group height (tracks.length×88+8).
+        virtualizer.measure();
 
-    const handleSortCancel = useCallback(() => {
-        setActiveDragTrack(null);
-    }, []);
+        // ── Step 2: FLIP animation ─────────────────────────────────────────
+        // Use the snapshot (captured before dragEnd state changes) to animate
+        // rows from their OLD positions to the new CORRECT ones — no flushSync,
+        // no registration-order dependency.
+        const snapshot = flipSnapshotRef.current;
+        flipSnapshotRef.current = null;
+        if (!snapshot) return;
 
-    // ---- Playlist drag-reorder mode: flat list with SortableContext, no virtualizer ----
+        const scrollEl = virtualizer.scrollElement;
+        if (!scrollEl) return;
+
+        // Apply inverse transforms so rows visually appear at their old positions.
+        let anyFlipped = false;
+        virtualizer.getVirtualItems().forEach(vRow => {
+            const item = displayItems[vRow.index];
+            if (!item) return;
+            const itemKey = getDisplayItemKey(item);
+            const oldStart = snapshot.get(itemKey);
+            if (oldStart === undefined) return;
+            const delta = oldStart - vRow.start;
+            if (Math.abs(delta) < 0.5) return;
+            const el = scrollEl.querySelector<HTMLElement>(`[data-flip-key="${itemKey}"]`);
+            if (!el) return;
+            el.style.transition = 'none';
+            el.style.transform = `translateY(${delta}px)`;
+            anyFlipped = true;
+        });
+        if (!anyFlipped) return;
+
+        // Force reflow to commit the inverted positions before the next paint.
+        void scrollEl.getBoundingClientRect();
+
+        // Remove inverse transform — browser CSS transitions animate old→new.
+        virtualizer.getVirtualItems().forEach(vRow => {
+            const item = displayItems[vRow.index];
+            if (!item) return;
+            const itemKey = getDisplayItemKey(item);
+            const el = scrollEl.querySelector<HTMLElement>(`[data-flip-key="${itemKey}"]`);
+            if (!el || !el.style.transform) return;
+            el.style.transition = 'transform 280ms cubic-bezier(0.4, 0, 0.2, 1)';
+            el.style.transform = '';
+        });
+
+        // Clean up inline transition styles after animation completes.
+        setTimeout(() => {
+            virtualizer.getVirtualItems().forEach(vRow => {
+                const item = displayItems[vRow.index];
+                if (!item) return;
+                const itemKey = getDisplayItemKey(item);
+                const el = scrollEl.querySelector<HTMLElement>(`[data-flip-key="${itemKey}"]`);
+                if (el) el.style.transition = '';
+            });
+        }, 300);
+    }); // intentionally no deps
+
+
+    // ── Playlist sort + group animation monitor ─────────────────────────────────────────
+    // Handles three interaction types:
+    //   • playlist-sort     → reorder via arrayMove + reorderPlaylistTracks
+    //   • group-child-sort  → FLIP animation on unlink (no flushSync needed —
+    //                          FLIP captures positions before any state change)
+    //   • music-track       → animation on link-as-version (flushSync needed
+    //                          because the group grows and the transition must
+    //                          be active before the first paint)
+    useDndMonitor({
+        onDragEnd({ active, over }) {
+            // ── Playlist reorder ──────────────────────────────────────────────
+            if (isPlaylistDragMode && active.data.current?.type === 'playlist-sort') {
+                if (!over || active.id === over.id || !activePlaylistId) return;
+
+                const oldIdx = filteredTracks.findIndex(t => t.id === active.id);
+                const newIdx = filteredTracks.findIndex(t => t.id === over.id);
+                if (oldIdx < 0 || newIdx < 0) return;
+
+                const reordered = arrayMove(filteredTracks, oldIdx, newIdx);
+                reorderPlaylistTracks(userId, channelId, activePlaylistId, reordered.map(t => t.id));
+            }
+
+            // ── Group-child unlink ────────────────────────────────────────────
+            // FLIP animation pattern — no flushSync, no registration-order dependency:
+            //   1. Snapshot current row positions (before any React state changes)
+            //   2. Set pendingUnlinkTrackId (TrackGroupCard calls unlinkFromGroup separately)
+            //   3. React commits new layout synchronously in the same event batch
+            //   4. useLayoutEffect runs: proactive measure + FLIP transforms
+            //   5. Browser animates rows from old positions to new correct ones
+            if (active.data.current?.type === 'group-child-sort') {
+                const overType = over?.data.current?.type;
+                const isUnlink = overType !== 'group-child-sort';
+                if (isUnlink) {
+                    // Capture FLIP snapshot BEFORE any state changes so we have
+                    // the pre-layout positions in useLayoutEffect.
+                    // Keyed by item identity, not index (indices shift on insert).
+                    const snapshot = new Map<string, number>();
+                    virtualizer.getVirtualItems().forEach(vRow => {
+                        const dItem = displayItems[vRow.index];
+                        if (dItem) snapshot.set(getDisplayItemKey(dItem), vRow.start);
+                    });
+                    flipSnapshotRef.current = snapshot;
+
+                    setPendingUnlinkTrackId(String(active.id));
+                    setTimeout(() => setPendingUnlinkTrackId(null), 200 + 220 + 50);
+                }
+            }
+
+            // ── music-track → group/track (linkAsVersion) ────────────────────
+            // Group GROWS when a track links into it. Same timing requirement:
+            // commit transition style before useMusicDragDrop calls linkAsVersion.
+            if (active.data.current?.type === 'music-track') {
+                const dropType = over?.data.current?.type;
+                if (dropType === 'music-track-target' || dropType === 'music-group-target') {
+                    if (animTimerRef.current) clearTimeout(animTimerRef.current);
+                    flushSync(() => setIsGroupAnimating(true));
+                    // RAF fires after React commits the expanded group DOM —
+                    // virtualizer measures the final height so rows below
+                    // animate to correct positions as the accordion opens.
+                    requestAnimationFrame(() => virtualizer.measure());
+                    animTimerRef.current = setTimeout(() => setIsGroupAnimating(false), 350);
+                }
+            }
+        },
+    });
+
+    // Subscribe to dragging state for row-level opacity dimming.
+    // When any track is dragged, all other rows dim to 0.5.
+    const draggingTrackId = useMusicStore((s) => s.draggingTrackId);
+    // Read drag type ONCE here so BetweenDropZone instances don't each subscribe.
+    const { active: dndActive } = useDndContext();
+    const isGroupChildDragging = dndActive?.data.current?.type === 'group-child-sort';
+
+    const handleToggleGroup = useCallback((groupId: string) => {
+        if (animTimerRef.current) clearTimeout(animTimerRef.current);
+        // flushSync commits transition style to DOM synchronously (Flush #1)
+        // before the position changes (Flush #2). Without this, React 18 batches
+        // both state updates into one paint frame → transition has nothing to animate.
+        flushSync(() => setIsGroupAnimating(true));
+        toggleGroup(groupId);
+        // Force virtualizer to recalculate row heights after the DOM update.
+        // ResizeObserver sometimes misses CSS grid 0fr collapse.
+        requestAnimationFrame(() => virtualizer.measure());
+        animTimerRef.current = setTimeout(() => setIsGroupAnimating(false), 350);
+    }, [toggleGroup, virtualizer]);
+
+    // ---- Playlist drag-reorder mode: flat list with SortableContext, no nested DndContext ----
     if (isPlaylistDragMode) {
         return (
             <div className="pt-3">
-                <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragStart={handleSortStart}
-                    onDragEnd={handleSortEnd}
-                    onDragCancel={handleSortCancel}
+                <SortableContext
+                    items={sortableIds}
+                    strategy={verticalListSortingStrategy}
                 >
-                    <SortableContext
-                        items={sortableIds}
-                        strategy={verticalListSortingStrategy}
-                    >
-                        {filteredTracks.map(track => (
-                            <SortablePlaylistTrackItem
-                                key={track.id}
-                                track={track}
-                                selectedTrackId={selectedTrackId}
-                                userId={userId}
-                                channelId={channelId}
-                                onSelect={setSelectedTrackId}
-                                onDelete={handleDeleteTrack}
-                                onEdit={handleEditTrack}
-                                isReadOnly={isReadOnly}
-                                trackSource={trackSource}
-                                sourceName={sourceNameMap?.[track.id]}
-                            />
-                        ))}
-                    </SortableContext>
-                    <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
-                        {activeDragTrack && <TrackCardGhost track={activeDragTrack} />}
-                    </DragOverlay>
-                </DndContext>
+                    {filteredTracks.map(track => (
+                        <SortablePlaylistTrackItem
+                            key={track.id}
+                            track={track}
+                            selectedTrackId={selectedTrackId}
+                            userId={userId}
+                            channelId={channelId}
+                            onSelect={setSelectedTrackId}
+                            onDelete={handleDeleteTrack}
+                            onEdit={handleEditTrack}
+                            isReadOnly={isReadOnly}
+                            trackSource={trackSource}
+                            sourceName={sourceNameMap?.[track.id]}
+                        />
+                    ))}
+                </SortableContext>
+                {/* Ghost is rendered by AppDndProvider's global DragOverlay */}
             </div>
         );
     }
@@ -224,7 +393,7 @@ export const PlaylistSortableList: React.FC<PlaylistSortableListProps> = ({
     return (
         <div
             className="pt-3 relative w-full"
-            style={{ height: virtualizer.getTotalSize() + 12 }}
+            style={{ height: virtualizer.getTotalSize() + 12 /* 12px: bottom sentinel so last row isn't flush against scroll edge */ }}
         >
             {virtualizer.getVirtualItems().map((virtualRow) => {
                 const item = displayItems[virtualRow.index];
@@ -244,43 +413,70 @@ export const PlaylistSortableList: React.FC<PlaylistSortableListProps> = ({
                             left: 0,
                             width: '100%',
                             transform: `translateY(${virtualRow.start}px)`,
+                            transition: isGroupAnimating
+                                ? 'transform 280ms cubic-bezier(0.4, 0, 0.2, 1), opacity 150ms ease'
+                                : draggingTrackId ? 'opacity 150ms ease' : undefined,
+                            opacity: draggingTrackId
+                                ? (item.type === 'group'
+                                    ? (item.tracks.some(t => t.id === draggingTrackId) ? 1 : 0.4)
+                                    : (item.track.id === draggingTrackId ? 1 : 0.4))
+                                : 1,
                         }}
                     >
-                        {/* Sibling stripe — rendered at wrapper level for pixel-perfect continuity */}
-                        {item.type === 'sibling' && (
-                            <div
-                                className="absolute left-0 top-0 bottom-0 w-[3px] z-10 pointer-events-none"
-                                style={{ backgroundColor: item.siblingColor }}
-                            />
-                        )}
-                        {item.type === 'group' ? (
-                            <TrackGroupCard
-                                tracks={item.tracks}
-                                selectedTrackId={selectedTrackId}
-                                userId={userId}
-                                channelId={channelId}
-                                onSelect={setSelectedTrackId}
-                                onDelete={handleDeleteTrack}
-                                onEdit={handleEditTrack}
-                                isReadOnly={isReadOnly}
-                                trackSource={trackSource}
-                            />
-                        ) : (
-                            <TrackCard
-                                track={item.track}
-                                isSelected={selectedTrackId === item.track.id}
-                                userId={userId}
-                                channelId={channelId}
-                                onSelect={setSelectedTrackId}
-                                onDelete={handleDeleteTrack}
-                                onEdit={handleEditTrack}
-                                disableDrag={isReadOnly}
-                                disableDropTarget={!!item.track.groupId}
-                                isReadOnly={isReadOnly}
-                                trackSource={trackSource}
-                                sourceName={sourceNameMap?.[item.track.id]}
-                            />
-                        )}
+                        {/* Between-zone: thin droppable gap above this row.
+                            Rendered for ALL row types so group-child drags
+                            can insert between groups too. closestCenter picks:
+                            top zone → insertion line (unlink), center of group card → ring (linkAsVersion). */}
+                        <BetweenDropZone rowIndex={virtualRow.index} isGroupChildDragging={isGroupChildDragging} />
+                        {/* Two-phase unlink appearance: inner wrapper gets the fade-in animation
+                            so it doesn't interfere with the outer div's translateY positioning. */}
+                        {/* FLIP wrapper: receives the inverse transform so the outer div's
+                            translateY (managed by virtualizer) is never overridden. */}
+                        <div data-flip-key={getDisplayItemKey(item)}>
+                            <div style={
+                                item.type !== 'group' && item.track.id === pendingUnlinkTrackId
+                                    ? { animation: 'trackUnlinkAppear 220ms cubic-bezier(0.4, 0, 0.2, 1) 150ms both' }
+                                    : undefined
+                            }>
+
+                                {item.type === 'sibling' && (
+                                    <div
+                                        className="absolute left-0 top-0 bottom-0 w-[3px] z-10 pointer-events-none"
+                                        style={{ backgroundColor: item.siblingColor }}
+                                    />
+                                )}
+                                {item.type === 'group' ? (
+                                    <TrackGroupCard
+                                        tracks={item.tracks}
+                                        isExpanded={item.isExpanded}
+                                        onToggle={() => handleToggleGroup(item.groupId)}
+                                        selectedTrackId={selectedTrackId}
+                                        userId={userId}
+                                        channelId={channelId}
+                                        onSelect={setSelectedTrackId}
+                                        onDelete={handleDeleteTrack}
+                                        onEdit={handleEditTrack}
+                                        isReadOnly={isReadOnly}
+                                        trackSource={trackSource}
+                                    />
+                                ) : (
+                                    <TrackCard
+                                        track={item.track}
+                                        isSelected={selectedTrackId === item.track.id}
+                                        userId={userId}
+                                        channelId={channelId}
+                                        onSelect={setSelectedTrackId}
+                                        onDelete={handleDeleteTrack}
+                                        onEdit={handleEditTrack}
+                                        disableDrag={isReadOnly}
+                                        disableDropTarget={!!item.track.groupId}
+                                        isReadOnly={isReadOnly}
+                                        trackSource={trackSource}
+                                        sourceName={sourceNameMap?.[item.track.id]}
+                                    />
+                                )}
+                            </div>{/* /animation wrapper */}
+                        </div>{/* /data-flip-row */}
                     </div>
                 );
             })}

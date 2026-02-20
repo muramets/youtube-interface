@@ -67,7 +67,10 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
     const [pendingSharedChannels, setPendingSharedChannels] = useState<Set<string>>(new Set());
 
     // On channel switch: reset both maps so the sidebar shows a clean loading state.
+    // Intentional setState-in-effect: this effect exists solely to reset derived UI state
+    // to a clean slate before the new channel's Firestore subscriptions deliver.
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPlaylistsByChannel({});
         setPendingSharedChannels(new Set());
     }, [channelId]);
@@ -78,6 +81,10 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
         if (!sharedLibraries.length) return;
 
         // Mark all channels as pending (skeleton visible) before any subscription fires.
+        // Intentional setState-in-effect: we must set the pending set synchronously before
+        // the subscriptions open, so the skeleton appears immediately — not after the first
+        // snapshot arrives. Callbacks below handle all subsequent setState calls.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPendingSharedChannels(new Set(sharedLibraries.map(l => l.ownerChannelId)));
 
         const unsubs = sharedLibraries.map(lib => {

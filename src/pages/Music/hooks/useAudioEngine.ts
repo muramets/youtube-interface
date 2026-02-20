@@ -139,7 +139,7 @@ export function useAudioEngine(): AudioEngineResult {
 
         audio.addEventListener('error', handleError);
         return () => audio.removeEventListener('error', handleError);
-    }, [track, playingVariant, setIsPlaying]);
+    }, [track, playingVariant, setIsPlaying, refreshTrackUrl]);
 
     // Restore timecode after variant switch or cross-track waveform seek
     useEffect(() => {
@@ -167,7 +167,7 @@ export function useAudioEngine(): AudioEngineResult {
 
         audio.addEventListener('loadeddata', handleLoadedData);
         return () => audio.removeEventListener('loadeddata', handleLoadedData);
-    }, [isPlaying]);
+    }, [isPlaying, resolvePendingSeek]);
 
     // Play/pause sync
     useEffect(() => {

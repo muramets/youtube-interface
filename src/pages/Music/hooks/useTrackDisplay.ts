@@ -7,7 +7,7 @@
 // No JSX — testable in isolation.
 // =============================================================================
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useMusicStore } from '../../../core/stores/musicStore';
 import { useFilterStore } from '../../../core/stores/filterStore';
@@ -18,7 +18,7 @@ import type { MusicPlaylist } from '../../../core/types/musicPlaylist';
 // ── DisplayItem type (also consumed by PlaylistSortableList) ────────────────
 export type DisplayItem =
     | { type: 'single'; track: Track }
-    | { type: 'group'; groupId: string; tracks: Track[] }
+    | { type: 'group'; groupId: string; tracks: Track[]; isExpanded: boolean }
     | { type: 'sibling'; track: Track; siblingColor: string; siblingPosition: 'first' | 'middle' | 'last' };
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -44,6 +44,7 @@ interface UseTrackDisplayParams {
 interface UseTrackDisplayResult {
     filteredTracks: Track[];
     displayItems: DisplayItem[];
+    toggleGroup: (groupId: string) => void;
     bpmRange: { min: number; max: number };
     hasActiveFilters: boolean;
     hasLikedTracks: boolean;
@@ -55,6 +56,18 @@ export function useTrackDisplay({
     musicPlaylists,
     activePlaylistId,
 }: UseTrackDisplayParams): UseTrackDisplayResult {
+    // ── Expanded group state ──────────────────────────────────────────────
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+    const toggleGroup = useCallback((groupId: string) => {
+        setExpandedGroups((prev) => {
+            const next = new Set(prev);
+            if (next.has(groupId)) next.delete(groupId);
+            else next.add(groupId);
+            return next;
+        });
+    }, []);
+
     // ── Store selectors ──────────────────────────────────────────────────
     const searchQuery = useMusicStore((s) => s.searchQuery);
 
@@ -192,7 +205,9 @@ export function useTrackDisplay({
                     const parentInPlaylist = groupTracks.some((t) => t.id === parentTrack?.id);
 
                     if (parentInPlaylist || !activePlaylistId) {
-                        items.push({ type: 'group', groupId: track.groupId, tracks: groupTracks });
+                        const groupId = track.groupId;
+                        const isExpanded = expandedGroups.has(groupId);
+                        items.push({ type: 'group', groupId, tracks: groupTracks, isExpanded });
                     } else {
                         const color = groupIdToColor(track.groupId);
                         for (let i = 0; i < groupTracks.length; i++) {
@@ -209,7 +224,7 @@ export function useTrackDisplay({
             }
         }
         return items;
-    }, [filteredTracks, tracks, activePlaylistId]);
+    }, [filteredTracks, tracks, activePlaylistId, expandedGroups]);
 
     // ── Playback queue: flattened visual order ───────────────────────────
     const setPlaybackQueue = useMusicStore((s) => s.setPlaybackQueue);
@@ -220,7 +235,8 @@ export function useTrackDisplay({
         for (const item of displayItems) {
             if (item.type === 'single' || item.type === 'sibling') {
                 queue.push(item.track.id);
-            } else {
+            } else if (item.type === 'group') {
+                // Always include all group tracks in queue (even when collapsed)
                 const sorted = [...item.tracks].sort(sortByGroupOrder);
                 for (const t of sorted) {
                     queue.push(t.id);
@@ -246,6 +262,7 @@ export function useTrackDisplay({
     return {
         filteredTracks,
         displayItems,
+        toggleGroup,
         bpmRange,
         hasActiveFilters,
         hasLikedTracks,

@@ -227,7 +227,7 @@ export function useMusicPageData() {
     }, [activePlaylistId, playlistAllSources, allPlaylists, sharedLibraries]);
 
     // ── Filter / sort / group / queue ───────────────────────────────────────
-    const { filteredTracks, displayItems, bpmRange, hasActiveFilters, hasLikedTracks } =
+    const { filteredTracks, displayItems, toggleGroup, bpmRange, hasActiveFilters, hasLikedTracks } =
         useTrackDisplay({ tracks, tags, musicPlaylists: allPlaylists, activePlaylistId });
 
     // ── Business logic ──────────────────────────────────────────────────────
@@ -302,6 +302,7 @@ export function useMusicPageData() {
         clearMusicFilters,
         reorderPlaylistTracks,
         handleDeleteTrack,
+        toggleGroup,
         isLoadTimedOut,
     };
 }

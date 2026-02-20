@@ -62,6 +62,27 @@ export interface LibrarySlice {
 
     // Actions: Version grouping
     linkAsVersion: (userId: string, channelId: string, sourceTrackId: string, targetTrackId: string) => Promise<void>;
+    /**
+     * Atomic version of linkAsVersion that also positions the new track in one Firestore batch.
+     * insertIdx follows the TrackGroupCard convention: index within child tracks (excluding the
+     * display track), so the actual array position is insertIdx + 1. Pass -1 to append at end.
+     * Replaces the previous two-step linkAsVersion + reorderGroupTracks pattern.
+     */
+    linkAsVersionAndReorder: (userId: string, channelId: string, sourceTrackId: string, targetTrackId: string, insertIdx: number) => Promise<void>;
+    /**
+     * Move a single grouped track from its current group to another group.
+     * Unlike linkAsVersion (which merges entire groups), this removes the track
+     * from its source group (dissolving it if ≤1 member remains) and inserts it
+     * into the target group at insertIdx. Atomic: one optimistic update + one batch.
+     */
+    moveTrackToGroup: (userId: string, channelId: string, sourceTrackId: string, targetRepTrackId: string, insertIdx: number) => Promise<void>;
+    /**
+     * Moves a grouped track to pair with a standalone (ungrouped) track.
+     * Dissolves the source group if ≤1 track remains after removal.
+     * Creates a new group: [standaloneTarget (order 0), source (order 1)].
+     * Atomic: one optimistic update + one Firestore batch.
+     */
+    relinkGroupMember: (userId: string, channelId: string, sourceTrackId: string, standaloneTargetId: string) => Promise<void>;
     unlinkFromGroup: (userId: string, channelId: string, trackId: string) => Promise<void>;
     reorderGroupTracks: (userId: string, channelId: string, groupId: string, orderedIds: string[]) => Promise<void>;
 
@@ -74,6 +95,35 @@ export interface LibrarySlice {
     // DnD
     setDraggingTrackId: (id: string | null) => void;
 }
+
+// ── Internal helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Populates both the optimistic-state map and the Firestore-write map with entries
+ * to dissolve the source group when only one track would remain after removal.
+ *
+ * Convention: `null` = Firestore field removal (clears the stored value),
+ *             `undefined` = React state absence (never serialised).
+ */
+function markGroupDissolution(
+    srcGroupId: string,
+    sourceTrackId: string,
+    allTracks: Track[],
+    optimistic: Map<string, Partial<Track>>,
+    firestore: Map<string, Record<string, unknown>>,
+): void {
+    const remaining = allTracks
+        .filter((t) => t.groupId === srcGroupId && t.id !== sourceTrackId)
+        .sort((a, b) => (a.groupOrder ?? 0) - (b.groupOrder ?? 0));
+    if (remaining.length === 1) {
+        optimistic.set(remaining[0].id, { groupId: undefined, groupOrder: undefined });
+        firestore.set(remaining[0].id, { groupId: null, groupOrder: null });
+    }
+    // 2+ remaining: preserve existing groupId/groupOrder — caller normalises order if needed.
+    // 0 remaining: source was the sole member, nothing to dissolve.
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> = (set, get) => ({
     // Initial state
@@ -225,6 +275,193 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
             );
         } catch (err) {
             console.error('[MusicStore] Failed to link tracks:', err);
+        }
+    },
+
+    // Atomic variant: links sourceTrack into the group AND positions it in one
+    // Firestore batch, eliminating the intermediate snapshot between the two
+    // separate linkAsVersion + reorderGroupTracks writes.
+    linkAsVersionAndReorder: async (userId, channelId, sourceTrackId, targetTrackId, insertIdx) => {
+        const { tracks } = get();
+        const sourceTrack = tracks.find((t) => t.id === sourceTrackId);
+        const targetTrack = tracks.find((t) => t.id === targetTrackId);
+        if (!sourceTrack || !targetTrack) return;
+
+        // Determine which tracks will be in the resulting group.
+        const groupId = sourceTrack.groupId || targetTrack.groupId || uuidv4();
+        const memberIds = new Set<string>([targetTrackId, sourceTrackId]);
+        for (const t of tracks) {
+            if (t.groupId && (t.groupId === sourceTrack.groupId || t.groupId === targetTrack.groupId)) {
+                memberIds.add(t.id);
+            }
+        }
+
+        // Sort existing members by their current groupOrder (same convention as TrackGroupCard.sorted).
+        const existingMembers = tracks
+            .filter((t) => memberIds.has(t.id) && t.id !== sourceTrackId)
+            .sort((a, b) => (a.groupOrder ?? 0) - (b.groupOrder ?? 0));
+
+        // Build the final ordered array.
+        // insertIdx is the child-relative position (TrackGroupCard convention):
+        //   insertIdx + 1 = actual position in the full array (after the display track at index 0).
+        const orderedFinal = [...existingMembers];
+        if (insertIdx >= 0) {
+            const pos = Math.min(insertIdx + 1, orderedFinal.length);
+            orderedFinal.splice(pos, 0, sourceTrack);
+        } else {
+            orderedFinal.push(sourceTrack); // append at end
+        }
+
+        // Build a flat updateMap: every member gets its final groupId + groupOrder.
+        const updateMap = new Map<string, { groupId: string; groupOrder: number }>();
+        orderedFinal.forEach((t, idx) => {
+            updateMap.set(t.id, { groupId, groupOrder: idx });
+        });
+
+        // Single optimistic update — one React render, no intermediate state.
+        set((state) => ({
+            tracks: state.tracks.map((t) => {
+                const upd = updateMap.get(t.id);
+                return upd ? { ...t, ...upd } : t;
+            }),
+        }));
+
+        // Single atomic Firestore batch — one snapshot trigger, no swapping.
+        try {
+            await TrackService.batchUpdateTracks(
+                userId, channelId,
+                [...updateMap.entries()].map(([trackId, data]) => ({ trackId, data }))
+            );
+        } catch (err) {
+            console.error('[MusicStore] Failed to atomically link and reorder tracks:', err);
+        }
+    },
+
+    // Moves one grouped track into a different existing group.
+    // Unlike linkAsVersion (which merges all tracks from both groups), this:
+    //   1. Removes sourceTrack from its source group (dissolves if ≤1 remain)
+    //   2. Inserts it into the target group at insertIdx position
+    //   3. Writes everything atomically in one Firestore batch.
+    moveTrackToGroup: async (userId, channelId, sourceTrackId, targetRepTrackId, insertIdx) => {
+        const { tracks } = get();
+        const sourceTrack = tracks.find((t) => t.id === sourceTrackId);
+        const targetTrack = tracks.find((t) => t.id === targetRepTrackId);
+        if (!sourceTrack || !targetTrack) return;
+
+        const srcGroupId = sourceTrack.groupId;
+        const tgtGroupId = targetTrack.groupId;
+        if (!tgtGroupId) return; // target must be in a group
+        if (srcGroupId === tgtGroupId) return; // same group — no-op
+
+        const optimistic = new Map<string, Partial<Track>>();
+        const firestoreData = new Map<string, Record<string, unknown>>();
+
+        // ── Source group ────────────────────────────────────────────────────
+        if (srcGroupId) {
+            const remaining = tracks
+                .filter((t) => t.groupId === srcGroupId && t.id !== sourceTrackId)
+                .sort((a, b) => (a.groupOrder ?? 0) - (b.groupOrder ?? 0));
+
+            if (remaining.length === 1) {
+                // Single survivor — dissolve the group
+                markGroupDissolution(srcGroupId, sourceTrackId, tracks, optimistic, firestoreData);
+            } else if (remaining.length >= 2) {
+                // Normalise groupOrders so they remain contiguous after removal.
+                // Skipping this would leave numeric gaps (e.g. orders 1, 2 after
+                // removing order 0), which is harmless for display but poor data hygiene.
+                remaining.forEach((t, idx) => {
+                    if ((t.groupOrder ?? -1) !== idx) {
+                        optimistic.set(t.id, { groupId: t.groupId, groupOrder: idx });
+                        firestoreData.set(t.id, { groupId: t.groupId, groupOrder: idx });
+                    }
+                });
+            }
+        }
+
+        // ── Target group ────────────────────────────────────────────────────
+        const targetMembers = tracks
+            .filter((t) => t.groupId === tgtGroupId)
+            .sort((a, b) => (a.groupOrder ?? 0) - (b.groupOrder ?? 0));
+
+        const orderedFinal = [...targetMembers];
+        if (insertIdx >= 0) {
+            const pos = Math.min(insertIdx + 1, orderedFinal.length);
+            orderedFinal.splice(pos, 0, sourceTrack);
+        } else {
+            orderedFinal.push(sourceTrack); // append at end
+        }
+
+        orderedFinal.forEach((t, idx) => {
+            optimistic.set(t.id, { groupId: tgtGroupId, groupOrder: idx });
+            firestoreData.set(t.id, { groupId: tgtGroupId, groupOrder: idx });
+        });
+
+        // ── Single optimistic update ────────────────────────────────────
+        set((state) => ({
+            tracks: state.tracks.map((t) => {
+                const upd = optimistic.get(t.id);
+                return upd !== undefined ? { ...t, ...upd } : t;
+            }),
+        }));
+
+        // ── Single atomic Firestore batch ────────────────────────────────────
+        try {
+            await TrackService.batchUpdateTracks(
+                userId, channelId,
+                [...firestoreData.entries()].map(([trackId, data]) => ({
+                    trackId,
+                    data: data as Partial<Track>,
+                }))
+            );
+        } catch (err) {
+            console.error('[MusicStore] Failed to move track between groups:', err);
+        }
+    },
+
+    // Pairs a grouped track with a standalone (ungrouped) track.
+    // Correctly dissolves the source group if ≤1 track remains, and
+    // creates a brand-new group rather than re-using the source groupId
+    // (which linkAsVersion would do, incorrectly merging all of B into A).
+    relinkGroupMember: async (userId, channelId, sourceTrackId, standaloneTargetId) => {
+        const { tracks } = get();
+        const sourceTrack = tracks.find((t) => t.id === sourceTrackId);
+        const targetTrack = tracks.find((t) => t.id === standaloneTargetId);
+        if (!sourceTrack || !targetTrack) return;
+        if (targetTrack.groupId) return; // target must be standalone; use moveTrackToGroup otherwise
+
+        const srcGroupId = sourceTrack.groupId;
+        const newGroupId = uuidv4();
+
+        const optimistic = new Map<string, Partial<Track>>();
+        const firestoreData = new Map<string, Record<string, unknown>>();
+
+        if (srcGroupId) {
+            markGroupDissolution(srcGroupId, sourceTrackId, tracks, optimistic, firestoreData);
+        }
+
+        // New group: standalone target at order 0, moved track at order 1.
+        optimistic.set(standaloneTargetId, { groupId: newGroupId, groupOrder: 0 });
+        firestoreData.set(standaloneTargetId, { groupId: newGroupId, groupOrder: 0 });
+        optimistic.set(sourceTrackId, { groupId: newGroupId, groupOrder: 1 });
+        firestoreData.set(sourceTrackId, { groupId: newGroupId, groupOrder: 1 });
+
+        set((state) => ({
+            tracks: state.tracks.map((t) => {
+                const upd = optimistic.get(t.id);
+                return upd !== undefined ? { ...t, ...upd } : t;
+            }),
+        }));
+
+        try {
+            await TrackService.batchUpdateTracks(
+                userId, channelId,
+                [...firestoreData.entries()].map(([trackId, data]) => ({
+                    trackId,
+                    data: data as Partial<Track>,
+                }))
+            );
+        } catch (err) {
+            console.error('[MusicStore] Failed to relink group member:', err);
         }
     },
 
