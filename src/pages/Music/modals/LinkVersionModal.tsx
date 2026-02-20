@@ -6,7 +6,7 @@ import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Search, Link, Music } from 'lucide-react';
 import { useMusicStore } from '../../../core/stores/musicStore';
-import { DEFAULT_ACCENT_COLOR } from '../../../core/utils/trackUtils';
+import { DEFAULT_ACCENT_COLOR, sortByGroupOrder } from '../../../core/utils/trackUtils';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { formatDuration } from '../utils/formatDuration';
@@ -44,12 +44,7 @@ export const LinkVersionModal: React.FC<LinkVersionModalProps> = ({
             groupMap.get(t.groupId)!.push(t);
         }
         for (const [, groupTracks] of groupMap) {
-            const sorted = [...groupTracks].sort((a, b) => {
-                if (a.groupOrder !== undefined && b.groupOrder !== undefined) {
-                    return a.groupOrder - b.groupOrder;
-                }
-                return b.createdAt - a.createdAt;
-            });
+            const sorted = [...groupTracks].sort(sortByGroupOrder);
             if (sorted[0]) groupDisplayIds.add(sorted[0].id);
         }
 

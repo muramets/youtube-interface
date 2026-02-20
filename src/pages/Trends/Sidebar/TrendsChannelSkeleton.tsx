@@ -15,7 +15,7 @@ export const TrendsChannelSkeleton: React.FC = () => {
                     {/* Avatar Skeleton */}
                     <div className="w-6 h-6 rounded-full bg-bg-secondary mr-3 relative overflow-hidden">
                         <div
-                            className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent"
+                            className="shimmer-overlay"
                             style={{ backgroundSize: '200% 100%' }}
                         />
                     </div>
@@ -26,7 +26,7 @@ export const TrendsChannelSkeleton: React.FC = () => {
                         style={{ width: `${55 + (index % 3) * 15}%` }}
                     >
                         <div
-                            className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent"
+                            className="shimmer-overlay"
                             style={{ backgroundSize: '200% 100%' }}
                         />
                     </div>

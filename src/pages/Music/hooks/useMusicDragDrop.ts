@@ -19,7 +19,10 @@ export interface MusicDragDropState {
 }
 
 export const useMusicDragDrop = () => {
-    const { addTracksToPlaylist, linkAsVersion, reorderGroupTracks, setDraggingTrackId } = useMusicStore();
+    // Stable actions — created once, references never change, no subscription needed
+    const { addTracksToPlaylist, linkAsVersion, reorderGroupTracks, setDraggingTrackId } = useMusicStore.getState();
+    // Reactive state — subscribe only to what actually changes
+    const activeLibrarySource = useMusicStore((s) => s.activeLibrarySource);
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
 
@@ -50,14 +53,26 @@ export const useMusicDragDrop = () => {
             if (dropType === 'music-playlist' && userId && channelId) {
                 const playlistId = over.data.current?.playlistId as string | undefined;
                 if (playlistId) {
-                    addTracksToPlaylist(userId, channelId, playlistId, [draggedTrack.id]);
+                    // If dragging from a shared library, record the source
+                    const sources = activeLibrarySource
+                        ? { [draggedTrack.id]: { ownerUserId: activeLibrarySource.ownerUserId, ownerChannelId: activeLibrarySource.ownerChannelId } }
+                        : undefined;
+                    addTracksToPlaylist(userId, channelId, playlistId, [draggedTrack.id], sources);
                 }
             } else if (dropType === 'music-track-target' && userId && channelId) {
                 const targetTrackId = over.data.current?.trackId as string | undefined;
                 const targetGroupId = over.data.current?.groupId as string | undefined;
 
                 if (targetTrackId && targetTrackId !== draggedTrack.id) {
-                    const sameGroup = draggedTrack.groupId && targetGroupId && draggedTrack.groupId === targetGroupId;
+                    // Primary check: groupId in drop data (set by TrackGroupCard children)
+                    // Fallback: look up target track in store — covers orphaned group children
+                    // in playlist view where TrackCard doesn't expose groupId in drop data.
+                    const targetTrack = useMusicStore.getState().tracks.find(t => t.id === targetTrackId)
+                        ?? useMusicStore.getState().sharedTracks.find(t => t.id === targetTrackId);
+                    const resolvedTargetGroupId = targetGroupId ?? targetTrack?.groupId;
+                    const sameGroup = draggedTrack.groupId
+                        && resolvedTargetGroupId
+                        && draggedTrack.groupId === resolvedTargetGroupId;
                     if (!sameGroup) {
                         linkAsVersion(userId, channelId, draggedTrack.id, targetTrackId);
                     }
@@ -93,7 +108,7 @@ export const useMusicDragDrop = () => {
         setDraggingTrackId(null);
         setDraggedTrack(null);
         setDraggedWidth(0);
-    }, [draggedTrack, user?.uid, currentChannel?.id, addTracksToPlaylist, linkAsVersion, reorderGroupTracks, setDraggingTrackId]);
+    }, [draggedTrack, user?.uid, currentChannel?.id, activeLibrarySource, addTracksToPlaylist, linkAsVersion, reorderGroupTracks, setDraggingTrackId]);
 
     const handleMusicDragCancel = useCallback(() => {
         setDraggingTrackId(null);

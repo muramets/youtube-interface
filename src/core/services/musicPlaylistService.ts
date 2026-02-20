@@ -14,9 +14,9 @@ import {
     updateDocument,
     fetchDoc,
 } from './firestore';
-import { orderBy, arrayRemove, doc, updateDoc, getDoc, setDoc, writeBatch, collection, query, where, getDocs } from 'firebase/firestore';
+import { orderBy, arrayUnion, arrayRemove, deleteField, doc, updateDoc, getDoc, setDoc, writeBatch, collection, query, where, getDocs, FieldValue } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import type { MusicPlaylist, MusicPlaylistSettings } from '../types/musicPlaylist';
+import type { MusicPlaylist, MusicPlaylistSettings, TrackSource } from '../types/musicPlaylist';
 
 // ---------------------------------------------------------------------------
 // Path Helpers
@@ -92,60 +92,66 @@ export const MusicPlaylistService = {
     // Track Management
     // -----------------------------------------------------------------------
 
+    /**
+     * Adds new tracks to a playlist.
+     * Accepts only IDs that are not already in the playlist (pre-filtered by the caller).
+     * Uses arrayUnion + dot-notation writes — zero Firestore reads, single write.
+     */
     async addTracksToPlaylist(
         userId: string,
         channelId: string,
         playlistId: string,
-        trackIds: string[],
+        newTrackIds: string[],           // pre-filtered: caller ensures no duplicates
+        sources?: Record<string, TrackSource>,
     ) {
+        if (newTrackIds.length === 0) return;
+
         const playlistRef = doc(db, getPlaylistsPath(userId, channelId), playlistId);
-        const snapshot = await getDoc(playlistRef);
+        const now = Date.now();
 
-        if (snapshot.exists()) {
-            const playlist = snapshot.data() as MusicPlaylist;
-            const currentTrackIds = playlist.trackIds || [];
-            const newTrackIds = trackIds.filter(id => !currentTrackIds.includes(id));
-
-            if (newTrackIds.length > 0) {
-                const now = Date.now();
-                const addedAt: Record<string, number> = { ...(playlist.trackAddedAt || {}) };
-                for (const id of newTrackIds) {
-                    addedAt[id] = now;
-                }
-                await updateDoc(playlistRef, {
-                    trackIds: [...currentTrackIds, ...newTrackIds],
-                    trackAddedAt: addedAt,
-                    updatedAt: now,
-                });
+        // Build a flat update object using dot-notation to merge into map fields
+        // without overwriting existing sibling keys — no read required.
+        // Record<string, unknown> matches Firestore's UpdateData<T> for dynamic keys.
+        const update: Record<string, unknown> = {
+            trackIds: arrayUnion(...newTrackIds),
+            updatedAt: now,
+        };
+        for (const id of newTrackIds) {
+            update[`trackAddedAt.${id}`] = now;
+            if (sources?.[id]) {
+                update[`trackSources.${id}`] = sources[id];
             }
         }
+
+        await updateDoc(playlistRef, update);
     },
 
+    /**
+     * Removes tracks from a playlist.
+     * Accepts the IDs to remove. Uses arrayRemove + deleteField per key — zero reads.
+     */
     async removeTracksFromPlaylist(
         userId: string,
         channelId: string,
         playlistId: string,
         trackIds: string[],
     ) {
+        if (trackIds.length === 0) return;
+
         const playlistRef = doc(db, getPlaylistsPath(userId, channelId), playlistId);
-        const snapshot = await getDoc(playlistRef);
-        if (!snapshot.exists()) return;
 
-        const playlist = snapshot.data() as MusicPlaylist;
-        const removeSet = new Set(trackIds);
-
-        // Clean up trackAddedAt to avoid orphan keys
-        const cleanedAddedAt = playlist.trackAddedAt
-            ? Object.fromEntries(
-                Object.entries(playlist.trackAddedAt).filter(([id]) => !removeSet.has(id))
-            )
-            : {};
-
-        await updateDoc(playlistRef, {
+        // deleteField() per key is the correct pattern for removing map entries
+        // without a read-modify-write cycle.
+        const update: Record<string, FieldValue | number> = {
             trackIds: arrayRemove(...trackIds),
-            trackAddedAt: cleanedAddedAt,
             updatedAt: Date.now(),
-        });
+        };
+        for (const id of trackIds) {
+            update[`trackAddedAt.${id}`] = deleteField();
+            update[`trackSources.${id}`] = deleteField();
+        }
+
+        await updateDoc(playlistRef, update);
     },
 
     async reorderPlaylistTracks(

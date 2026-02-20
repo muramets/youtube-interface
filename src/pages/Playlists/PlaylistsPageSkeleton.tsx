@@ -6,14 +6,14 @@ export const PlaylistsPageSkeleton: React.FC = () => {
             {/* Header Skeleton */}
             <div className="flex items-center justify-between mb-6">
                 <div className="h-8 w-48 bg-bg-secondary rounded relative overflow-hidden">
-                    <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent" style={{ backgroundSize: '200% 100%' }} />
+                    <div className="shimmer-overlay" style={{ backgroundSize: '200% 100%' }} />
                 </div>
                 <div className="flex items-center gap-1">
                     <div className="w-9 h-9 bg-bg-secondary rounded-full relative overflow-hidden">
-                        <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent" style={{ backgroundSize: '200% 100%' }} />
+                        <div className="shimmer-overlay" style={{ backgroundSize: '200% 100%' }} />
                     </div>
                     <div className="w-32 h-9 bg-bg-secondary rounded-lg relative overflow-hidden">
-                        <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent" style={{ backgroundSize: '200% 100%' }} />
+                        <div className="shimmer-overlay" style={{ backgroundSize: '200% 100%' }} />
                     </div>
                 </div>
             </div>
@@ -24,15 +24,15 @@ export const PlaylistsPageSkeleton: React.FC = () => {
                     <div key={i} className="flex flex-col gap-3">
                         {/* Cover Image */}
                         <div className="aspect-video bg-bg-secondary rounded-xl relative overflow-hidden">
-                            <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent" style={{ backgroundSize: '200% 100%' }} />
+                            <div className="shimmer-overlay" style={{ backgroundSize: '200% 100%' }} />
                         </div>
                         {/* Meta */}
                         <div className="flex flex-col gap-2">
                             <div className="h-5 w-3/4 bg-bg-secondary rounded relative overflow-hidden">
-                                <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent" style={{ backgroundSize: '200% 100%' }} />
+                                <div className="shimmer-overlay" style={{ backgroundSize: '200% 100%' }} />
                             </div>
                             <div className="h-4 w-1/2 bg-bg-secondary rounded relative overflow-hidden">
-                                <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent" style={{ backgroundSize: '200% 100%' }} />
+                                <div className="shimmer-overlay" style={{ backgroundSize: '200% 100%' }} />
                             </div>
                         </div>
                     </div>

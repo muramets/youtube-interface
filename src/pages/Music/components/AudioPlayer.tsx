@@ -20,9 +20,6 @@ import { useEditingStore } from '../../../core/stores/editing/editingStore';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { DEFAULT_ACCENT_COLOR } from '../../../core/utils/trackUtils';
-// Side-effect: sets up global zustand subscription for timeline auto-advance.
-// Must be imported from an always-mounted component.
-import '../../Details/tabs/Editing/hooks/useTimelineAutoAdvance';
 import { formatDuration } from '../utils/formatDuration';
 import { useAudioEngine } from '../hooks/useAudioEngine';
 import { usePlaybackNavigation } from '../hooks/usePlaybackNavigation';
@@ -262,7 +259,7 @@ export const AudioPlayer: React.FC = () => {
                                 style={repeatMode === 'one'
                                     ? { color: genreInfo?.color || DEFAULT_ACCENT_COLOR }
                                     : repeatMode === 'all'
-                                        ? { color: '#22c55e' }
+                                        ? { color: 'var(--color-success)' }
                                         : undefined}
                             >
                                 {repeatMode === 'one' ? <Repeat1 size={14} /> : <Repeat size={14} />}

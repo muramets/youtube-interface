@@ -157,7 +157,7 @@ export const Header: React.FC<{ className?: string }> = ({ className }) => {
         >
           {isLoading ? (
             <div className="w-8 h-8 rounded-full bg-bg-secondary relative overflow-hidden">
-              <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent" style={{ backgroundSize: '200% 100%' }} />
+              <div className="shimmer-overlay" style={{ backgroundSize: '200% 100%' }} />
             </div>
           ) : currentChannel?.avatar ? (
             <img src={currentChannel.avatar} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />

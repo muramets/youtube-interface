@@ -6,7 +6,7 @@ import type { Track } from '../../../core/types/track';
 import { Button } from '../../../components/ui/atoms/Button/Button';
 import { useTrackForm } from '../hooks/useTrackForm';
 import { useMusicStore } from '../../../core/stores/musicStore';
-import { DEFAULT_ACCENT_COLOR } from '../../../core/utils/trackUtils';
+import { DEFAULT_ACCENT_COLOR, sortByGroupOrder } from '../../../core/utils/trackUtils';
 import { AudioDropZone } from '../components/upload/AudioDropZone';
 import { AudioFileSlots } from '../components/upload/AudioFileSlots';
 import { TagSection } from '../components/upload/TagSection';
@@ -70,12 +70,7 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
             groupMap.get(t.groupId)!.push(t);
         }
         for (const [, groupTracks] of groupMap) {
-            const sorted = [...groupTracks].sort((a, b) => {
-                if (a.groupOrder !== undefined && b.groupOrder !== undefined) {
-                    return a.groupOrder - b.groupOrder;
-                }
-                return b.createdAt - a.createdAt;
-            });
+            const sorted = [...groupTracks].sort(sortByGroupOrder);
             if (sorted[0]) groupDisplayIds.add(sorted[0].id);
         }
 

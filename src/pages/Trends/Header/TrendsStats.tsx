@@ -21,7 +21,7 @@ export const TrendsStats: React.FC<TrendsStatsProps> = ({
                     {isLoading ? (
                         <div className="h-5 w-full bg-bg-secondary rounded-sm relative overflow-hidden">
                             <div
-                                className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent"
+                                className="shimmer-overlay"
                                 style={{ backgroundSize: '200% 100%' }}
                             />
                         </div>
@@ -38,7 +38,7 @@ export const TrendsStats: React.FC<TrendsStatsProps> = ({
                         {isLoading ? (
                             <div className="h-5 w-full bg-bg-secondary rounded-sm relative overflow-hidden">
                                 <div
-                                    className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent"
+                                    className="shimmer-overlay"
                                     style={{ backgroundSize: '200% 100%' }}
                                 />
                             </div>

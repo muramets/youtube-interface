@@ -13,6 +13,13 @@ export interface FilterItem {
     label?: string; // e.g. "Views > 1000" for display chip
 }
 
+/** Per-channel snapshot of music page filter state */
+export interface ChannelMusicFilters {
+    genreFilters: string[];
+    tagFilters: string[];
+    bpmFilter: [number, number] | null;
+}
+
 // Per-page saved filter/sort/channel state
 export interface PageFilterState {
     selectedChannel: string | null;
@@ -29,10 +36,14 @@ interface FilterState {
     playlistsSortBy: 'default' | 'views' | 'updated' | 'created'; // Persistent sort for the LIST of playlists
     musicSortBy: string; // 'default' or 'tag:CategoryName'
     musicSortAsc: boolean;
+    musicGenreFilters: string[];
+    musicTagFilters: string[];
+    musicBpmFilter: [number, number] | null;
 
     activeFilters: FilterItem[];
     channelFilters: Record<string, FilterItem[]>;
     channelPlaylistsSorts: Record<string, 'default' | 'views' | 'updated' | 'created'>; // Per-channel playlist sort settings
+    channelMusicFilters: Record<string, ChannelMusicFilters>; // Per-channel music filter snapshots
     currentChannelId: string | null;
 
     // Per-page state persistence (keyed by pageId: 'home', 'playlists-list', 'playlist:{id}')
@@ -50,6 +61,10 @@ interface FilterState {
     setPlaylistsSortBy: (sort: 'default' | 'views' | 'updated' | 'created') => void;
     setMusicSortBy: (sort: string) => void;
     setMusicSortAsc: (asc: boolean) => void;
+    toggleMusicGenreFilter: (genreId: string) => void;
+    toggleMusicTagFilter: (tagId: string) => void;
+    setMusicBpmFilter: (range: [number, number] | null) => void;
+    clearMusicFilters: () => void;
 
     addFilter: (filter: Omit<FilterItem, 'id'>) => void;
     removeFilter: (id: string) => void;
@@ -80,10 +95,14 @@ export const useFilterStore = create<FilterState>()(
             playlistsSortBy: 'default',
             musicSortBy: 'default',
             musicSortAsc: true,
+            musicGenreFilters: [],
+            musicTagFilters: [],
+            musicBpmFilter: null,
             freshnessMode: false,
             activeFilters: [],
             channelFilters: {},
             channelPlaylistsSorts: {},
+            channelMusicFilters: {},
             pageStates: {},
             currentChannelId: null,
             userId: null,
@@ -95,12 +114,16 @@ export const useFilterStore = create<FilterState>()(
                 return {
                     userId: id,
                     activeFilters: [],
-                    channelFilters: {}, // Clear all channel presets
+                    channelFilters: {},
                     channelPlaylistsSorts: {},
+                    channelMusicFilters: {},
                     pageStates: {},
                     currentChannelId: null,
                     selectedChannel: null,
-                    searchQuery: ''
+                    searchQuery: '',
+                    musicGenreFilters: [],
+                    musicTagFilters: [],
+                    musicBpmFilter: null,
                 };
             }),
 
@@ -111,6 +134,39 @@ export const useFilterStore = create<FilterState>()(
             setPlaylistsSortBy: (sort) => set({ playlistsSortBy: sort }),
             setMusicSortBy: (sort) => set({ musicSortBy: sort }),
             setMusicSortAsc: (asc) => set({ musicSortAsc: asc }),
+
+            toggleMusicGenreFilter: (genreId) => set((state) => {
+                const exists = state.musicGenreFilters.includes(genreId);
+                const nextGenreFilters = exists
+                    ? state.musicGenreFilters.filter((g) => g !== genreId)
+                    : [...state.musicGenreFilters, genreId];
+                const channelMusicFilters = state.currentChannelId
+                    ? { ...state.channelMusicFilters, [state.currentChannelId]: { genreFilters: nextGenreFilters, tagFilters: state.musicTagFilters, bpmFilter: state.musicBpmFilter } }
+                    : state.channelMusicFilters;
+                return { musicGenreFilters: nextGenreFilters, channelMusicFilters };
+            }),
+            toggleMusicTagFilter: (tagId) => set((state) => {
+                const exists = state.musicTagFilters.includes(tagId);
+                const nextTagFilters = exists
+                    ? state.musicTagFilters.filter((t) => t !== tagId)
+                    : [...state.musicTagFilters, tagId];
+                const channelMusicFilters = state.currentChannelId
+                    ? { ...state.channelMusicFilters, [state.currentChannelId]: { genreFilters: state.musicGenreFilters, tagFilters: nextTagFilters, bpmFilter: state.musicBpmFilter } }
+                    : state.channelMusicFilters;
+                return { musicTagFilters: nextTagFilters, channelMusicFilters };
+            }),
+            setMusicBpmFilter: (range) => set((state) => {
+                const channelMusicFilters = state.currentChannelId
+                    ? { ...state.channelMusicFilters, [state.currentChannelId]: { genreFilters: state.musicGenreFilters, tagFilters: state.musicTagFilters, bpmFilter: range } }
+                    : state.channelMusicFilters;
+                return { musicBpmFilter: range, channelMusicFilters };
+            }),
+            clearMusicFilters: () => set((state) => {
+                const channelMusicFilters = state.currentChannelId
+                    ? { ...state.channelMusicFilters, [state.currentChannelId]: { genreFilters: [], tagFilters: [], bpmFilter: null } }
+                    : state.channelMusicFilters;
+                return { musicGenreFilters: [], musicTagFilters: [], musicBpmFilter: null, channelMusicFilters };
+            }),
             setFreshnessMode: (enabled) => set({ freshnessMode: enabled }),
 
             // Per-page state: snapshot current state into pageStates[pageId]
@@ -220,24 +276,37 @@ export const useFilterStore = create<FilterState>()(
                 // Save current filters & sort to the old channel ID if it exists
                 const updatedChannelFilters = { ...state.channelFilters };
                 const updatedChannelPlaylistsSorts = { ...state.channelPlaylistsSorts };
+                const updatedChannelMusicFilters = { ...state.channelMusicFilters };
 
                 if (state.currentChannelId) {
                     if (state.activeFilters.length > 0) {
                         updatedChannelFilters[state.currentChannelId] = state.activeFilters;
                     }
                     updatedChannelPlaylistsSorts[state.currentChannelId] = state.playlistsSortBy;
+                    // Always save music filters snapshot (even if all empty — that IS the desired state)
+                    updatedChannelMusicFilters[state.currentChannelId] = {
+                        genreFilters: state.musicGenreFilters,
+                        tagFilters: state.musicTagFilters,
+                        bpmFilter: state.musicBpmFilter,
+                    };
                 }
 
                 // Load filters & sort for the new channel
                 const newFilters = (channelId && updatedChannelFilters[channelId]) || [];
                 const newPlaylistsSort = (channelId && updatedChannelPlaylistsSorts[channelId]) || 'default';
+                const newMusicFilters: ChannelMusicFilters | null = channelId ? (updatedChannelMusicFilters[channelId] ?? null) : null;
 
                 return {
                     currentChannelId: channelId,
                     channelFilters: updatedChannelFilters,
                     channelPlaylistsSorts: updatedChannelPlaylistsSorts,
+                    channelMusicFilters: updatedChannelMusicFilters,
                     activeFilters: newFilters,
                     playlistsSortBy: newPlaylistsSort,
+                    // Restore music filters for new channel, or reset to empty
+                    musicGenreFilters: newMusicFilters?.genreFilters ?? [],
+                    musicTagFilters: newMusicFilters?.tagFilters ?? [],
+                    musicBpmFilter: newMusicFilters?.bpmFilter ?? null,
                     // Reset legacy selectedChannel filter when switching app channels
                     selectedChannel: null
                 };
@@ -251,10 +320,14 @@ export const useFilterStore = create<FilterState>()(
                 playlistsSortBy: state.playlistsSortBy,
                 musicSortBy: state.musicSortBy,
                 musicSortAsc: state.musicSortAsc,
+                musicGenreFilters: state.musicGenreFilters,
+                musicTagFilters: state.musicTagFilters,
+                musicBpmFilter: state.musicBpmFilter,
                 channelPlaylistsSorts: state.channelPlaylistsSorts,
-                activeFilters: state.activeFilters, // Persist current active filters too
-                channelFilters: state.channelFilters, // Persist all channel filters
-                pageStates: state.pageStates, // Per-page saved filter states
+                channelMusicFilters: state.channelMusicFilters,
+                activeFilters: state.activeFilters,
+                channelFilters: state.channelFilters,
+                pageStates: state.pageStates,
                 selectedChannel: state.selectedChannel,
                 currentChannelId: state.currentChannelId,
                 userId: state.userId

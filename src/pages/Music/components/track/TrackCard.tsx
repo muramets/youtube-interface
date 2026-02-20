@@ -4,13 +4,18 @@
 
 import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { Play, Pause, Mic, Piano, Sparkles, Copy, Check, BookOpen } from 'lucide-react';
-import { WaveformCanvas } from './WaveformCanvas';
+import { Play, Pause, Mic, Piano, Sparkles, Copy, Check, BookOpen, Share2 } from 'lucide-react';
+import { WaveformCanvas } from '../WaveformCanvas';
 import { TrackContextMenu } from './TrackContextMenu';
-import { useMusicStore } from '../../../core/stores/musicStore';
-import type { Track } from '../../../core/types/track';
-import { DEFAULT_ACCENT_COLOR, getDefaultVariant } from '../../../core/utils/trackUtils';
-import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
+import { useMusicStore } from '../../../../core/stores/musicStore';
+import { selectAllGenres } from '../../../../core/stores/musicStore';
+import { useFilterStore } from '../../../../core/stores/filterStore';
+import type { Track } from '../../../../core/types/track';
+import type { TrackSource } from '../../../../core/types/musicPlaylist';
+import { DEFAULT_ACCENT_COLOR, getDefaultVariant } from '../../../../core/utils/trackUtils';
+import { PortalTooltip } from '../../../../components/ui/atoms/PortalTooltip';
+import { Badge } from '../../../../components/ui/atoms/Badge/Badge';
+import { formatDuration } from '../../utils/formatDuration';
 
 interface TrackCardProps {
     track: Track;
@@ -23,9 +28,13 @@ interface TrackCardProps {
     trailingElement?: React.ReactNode;
     disableDropTarget?: boolean;
     disableDrag?: boolean;
+    /** Hide edit/delete actions (shared library view) */
+    isReadOnly?: boolean;
+    /** Source library metadata for cross-library playlist adds */
+    trackSource?: TrackSource;
+    /** Library name shown as a subtle badge in playlist All mode */
+    sourceName?: string;
 }
-
-import { formatDuration } from '../utils/formatDuration';
 
 const TrackCardInner: React.FC<TrackCardProps> = ({
     track,
@@ -38,6 +47,9 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
     trailingElement,
     disableDropTarget,
     disableDrag,
+    isReadOnly,
+    trackSource,
+    sourceName,
 }) => {
     // Granular selectors — only subscribe to what this card needs
     const playingTrackId = useMusicStore((s) => s.playingTrackId);
@@ -47,7 +59,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
 
     const playingVariant = useMusicStore((s) => s.playingVariant);
     const isPlaying = useMusicStore((s) => s.isPlaying);
-    const genres = useMusicStore((s) => s.genres);
+    const genres = useMusicStore(selectAllGenres);
     const allTags = useMusicStore((s) => s.tags);
     const featuredCategories = useMusicStore((s) => s.featuredCategories);
 
@@ -57,7 +69,8 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
     const seekTo = useMusicStore((s) => isCurrentTrack ? s.seekTo : null);
 
     // Stable action references — don't subscribe to state changes
-    const { setPlayingTrack, setIsPlaying, toggleVariant, setGenreFilter, toggleTagFilter, setSearchQuery } = useMusicStore.getState();
+    const { setPlayingTrack, setIsPlaying, toggleVariant, setSearchQuery } = useMusicStore.getState();
+    const { toggleMusicGenreFilter, toggleMusicTagFilter } = useFilterStore.getState();
     const isCurrentlyPlaying = isCurrentTrack && isPlaying;
 
     const genreInfo = useMemo(() =>
@@ -65,7 +78,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
         [genres, track.genre]
     );
 
-    const handlePlayPause = (e: React.MouseEvent) => {
+    const handlePlayPause = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
         if (isCurrentTrack) {
             setIsPlaying(!isPlaying);
@@ -73,7 +86,16 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             const variant = getDefaultVariant(track);
             setPlayingTrack(track.id, variant);
         }
-    };
+    }, [isCurrentTrack, isPlaying, track, setIsPlaying, setPlayingTrack]);
+
+    const handleCardClick = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (e.metaKey || e.ctrlKey) {
+            onSelect(isSelected ? null : track.id);
+        } else {
+            onSelect(null);
+        }
+    }, [isSelected, track.id, onSelect]);
 
     const [copied, setCopied] = useState(false);
 
@@ -176,9 +198,9 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             ref={mergedRef}
             {...listeners}
             {...attributes}
-            onClick={(e) => { e.stopPropagation(); if (e.metaKey || e.ctrlKey) { onSelect(isSelected ? null : track.id); } else { onSelect(null); } }}
+            onClick={handleCardClick}
 
-            className={`group flex items-center gap-4 px-4 py-4 rounded-lg transition-all duration-300 cursor-pointer relative
+            className={`group flex items-center gap-4 px-4 py-4 rounded-lg transition-all duration-300 cursor-pointer relative select-none
                 ${isOver && !isDragging ? 'ring-2 ring-indigo-400/50 bg-indigo-500/[0.06]' : ''}
                 ${isCurrentTrack
                     ? 'bg-white/[0.06] hover:bg-white/[0.09]'
@@ -254,6 +276,13 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                 >
                     {track.artist || 'Unknown'}
                 </p>
+                {/* Source library badge — shown in playlist All mode for shared tracks */}
+                {sourceName && (
+                    <Badge variant="info" className="mt-0.5 opacity-50" maxWidth="140px">
+                        <Share2 size={8} />
+                        {sourceName}
+                    </Badge>
+                )}
             </div>
 
             {/* Version badge (if passed from TrackGroupCard) */}
@@ -302,7 +331,6 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                         progress={waveformProgress}
                         height={40}
                         playedColor={accentColor}
-                        unplayedColor="rgba(255,255,255,0.08)"
                         onSeek={handleWaveformSeek}
                         compact
                     />
@@ -325,7 +353,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             <div className="w-[72px] flex-shrink-0 flex items-center justify-center ml-3">
                 {genreInfo && (
                     <button
-                        onClick={(e) => { e.stopPropagation(); setGenreFilter(genreInfo.id); }}
+                        onClick={(e) => { e.stopPropagation(); toggleMusicGenreFilter(genreInfo.id); }}
                         className="text-[10px] font-medium truncate max-w-full transition-colors cursor-pointer text-text-tertiary hover:brightness-125"
                         style={{ '--genre-color': genreInfo.color } as React.CSSProperties}
                         onMouseEnter={(e) => (e.currentTarget.style.color = genreInfo.color)}
@@ -350,7 +378,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                             <span
                                 role="button"
                                 tabIndex={0}
-                                onClick={(e) => { e.stopPropagation(); toggleTagFilter(tagDef.id); }}
+                                onClick={(e) => { e.stopPropagation(); toggleMusicTagFilter(tagDef.id); }}
                                 className="text-text-tertiary hover:text-text-secondary transition-colors cursor-pointer"
                             >
                                 {tagDef.name}
@@ -430,6 +458,8 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                     onEdit={onEdit}
                     cardRef={cardRef}
                     onDropdownChange={setDropdownOpen}
+                    isReadOnly={isReadOnly}
+                    trackSource={trackSource}
                 />
             </div>
         </div>

@@ -8,6 +8,7 @@ import type { Track, MusicGenre, MusicTag, MusicSettings } from '../../types/tra
 import type { SharedLibraryEntry, MusicShareGrant } from '../../types/musicSharing';
 import type { MusicPlaylist } from '../../types/musicPlaylist';
 import { TrackService } from '../../services/trackService';
+import { preloadImages } from '../../services/imagePreloaderService';
 import { MusicPlaylistService } from '../../services/musicPlaylistService';
 import { MusicSharingService } from '../../services/musicSharingService';
 import { DEFAULT_GENRES, DEFAULT_TAGS } from '../../types/track';
@@ -17,12 +18,13 @@ export interface LibrarySlice {
     // Track data
     tracks: Track[];
     isLoading: boolean;
+    /** True while the first shared-library track snapshot hasn't arrived yet.
+     *  Mirrors isLoading but for shared subscriptions — used to show skeleton
+     *  when the user is viewing a shared library during initial/channel-switch load. */
+    isSharedTracksLoading: boolean;
 
-    // Filters
+    // Filters (searchQuery kept here; genre/tag/bpm live in filterStore)
     searchQuery: string;
-    genreFilter: string | null;
-    tagFilters: string[];
-    bpmFilter: [number, number] | null;
 
     // Music settings
     genres: MusicGenre[];
@@ -52,10 +54,6 @@ export interface LibrarySlice {
 
     // Actions: Filters
     setSearchQuery: (query: string) => void;
-    setGenreFilter: (genre: string | null) => void;
-    toggleTagFilter: (tagId: string) => void;
-    setBpmFilter: (range: [number, number] | null) => void;
-    clearFilters: () => void;
 
     // Actions: Settings mutations
     setGenres: (genres: MusicGenre[]) => void;
@@ -81,10 +79,8 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
     // Initial state
     tracks: [],
     isLoading: true,
+    isSharedTracksLoading: false,
     searchQuery: '',
-    genreFilter: null,
-    tagFilters: [],
-    bpmFilter: null,
     genres: DEFAULT_GENRES,
     tags: DEFAULT_TAGS,
     categoryOrder: [],
@@ -104,9 +100,32 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
     // ── Subscription ────────────────────────────────────────────────────────
     subscribe: (userId, channelId) => {
         set({ isLoading: true });
+        let isFirstSnapshot = true;
+
         const unsubscribe = TrackService.subscribeToTracks(userId, channelId, (tracks) => {
-            set({ tracks, isLoading: false });
+            if (isFirstSnapshot) {
+                isFirstSnapshot = false;
+                // Stash data immediately so other selectors can access tracks,
+                // but keep isLoading true until cover images are preloaded.
+                set({ tracks });
+
+                // Preload the first 8 visible covers while the skeleton is still
+                // shown. imagePreloaderService owns the DOM concern (new Image());
+                // this slice only coordinates when loading ends.
+                const urls = tracks
+                    .slice(0, 8)
+                    .map((t) => t.coverUrl)
+                    .filter((u): u is string => !!u);
+
+                const clearLoading = () => set({ isLoading: false });
+
+                preloadImages(urls, { timeout: 700 }).then(clearLoading);
+            } else {
+                // Subsequent snapshots (user adds/edits a track — no loading state needed)
+                set({ tracks });
+            }
         });
+
         return unsubscribe;
     },
 
@@ -143,28 +162,6 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
 
     // ── Filters ─────────────────────────────────────────────────────────────
     setSearchQuery: (query) => set({ searchQuery: query }),
-
-    setGenreFilter: (genre) => set((state) => ({
-        genreFilter: state.genreFilter === genre ? null : genre,
-    })),
-
-    toggleTagFilter: (tagId) => set((state) => {
-        const exists = state.tagFilters.includes(tagId);
-        return {
-            tagFilters: exists
-                ? state.tagFilters.filter((t) => t !== tagId)
-                : [...state.tagFilters, tagId],
-        };
-    }),
-
-    setBpmFilter: (range) => set({ bpmFilter: range }),
-
-    clearFilters: () => set({
-        searchQuery: '',
-        genreFilter: null,
-        tagFilters: [],
-        bpmFilter: null,
-    }),
 
     // ── Settings mutations ──────────────────────────────────────────────────
     setGenres: (genres) => set({ genres }),
@@ -280,19 +277,58 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
         try {
             const libraries = await MusicSharingService.getSharedLibraries(userId, channelId);
             set({ sharedLibraries: libraries });
+            // Only clear shared data AFTER Firestore confirms there are no shared libraries.
+            // Do NOT clear eagerly (e.g. during transient empty state on channel switch).
+            if (libraries.length === 0) {
+                set({ sharedTracks: [], sharedPlaylists: [], sharedGenres: [], sharedTags: [], sharedCategoryOrder: [], sharedFeaturedCategories: [] });
+            }
+            // Validate activeLibrarySource against the new channel's libraries.
+            // If the current source is no longer accessible, clear it.
+            const currentSource = get().activeLibrarySource;
+            if (currentSource && !libraries.some(lib => lib.ownerChannelId === currentSource.ownerChannelId)) {
+                set({ activeLibrarySource: null });
+                localStorage.removeItem('music_active_library_channel_id');
+            }
+            // Restore last active library from localStorage (safe — only match known libraries)
+            try {
+                const savedChannelId = localStorage.getItem('music_active_library_channel_id');
+                if (savedChannelId) {
+                    const match = libraries.find(lib => lib.ownerChannelId === savedChannelId);
+                    if (match) set({ activeLibrarySource: match });
+                }
+            } catch { /* storage unavailable — fail silently */ }
         } catch (error) {
             console.error('[MusicStore] Failed to load shared libraries:', error);
         }
     },
 
-    setActiveLibrarySource: (source) => set({ activeLibrarySource: source }),
+    setActiveLibrarySource: (source) => {
+        set({ activeLibrarySource: source });
+        // Persist across reloads: store ownerChannelId so we can restore on next session.
+        try {
+            if (source) {
+                localStorage.setItem('music_active_library_channel_id', source.ownerChannelId);
+            } else {
+                localStorage.removeItem('music_active_library_channel_id');
+            }
+        } catch { /* storage unavailable — fail silently */ }
+    },
 
     subscribeSharedLibraryTracks: () => {
         const { sharedLibraries } = get();
         if (sharedLibraries.length === 0) {
-            set({ sharedTracks: [], sharedPlaylists: [], sharedGenres: [], sharedTags: [], sharedCategoryOrder: [], sharedFeaturedCategories: [] });
+            // No shared libraries — clear loading flag and bail.
+            // Don't clear sharedTracks here: this fires during a transient empty state
+            // (e.g. channel switch before loadSharedLibraries completes). Clearing is
+            // handled by loadSharedLibraries once Firestore confirms zero libraries.
+            set({ isSharedTracksLoading: false });
             return () => { };
         }
+
+        // Mark loading BEFORE subscribing so the UI shows skeleton immediately.
+        // Will be cleared when the first track snapshot from any library arrives.
+        set({ isSharedTracksLoading: true });
+        let firstSnapshotReceived = false;
 
         const unsubs: (() => void)[] = [];
         const trackBuckets: Record<number, Track[]> = {};
@@ -313,11 +349,12 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
                     genreBuckets[i] = settings.genres || [];
                     const allSharedTags = Object.values(tagBuckets).flat();
                     const allSharedGenres = Object.values(genreBuckets).flat();
-                    const ownCats = new Set(get().categoryOrder);
                     const mergedCatOrder = Object.values(tagBuckets)
                         .flatMap((tags) => [...new Set(tags.map((t) => t.category).filter((c): c is string => !!c))]);
-                    const sharedCatOrder = [...new Set(mergedCatOrder)].filter((c) => !ownCats.has(c));
-                    const sharedFeatured = (settings.featuredCategories || []).filter((c: string) => !ownCats.has(c));
+                    // Store the full shared values (not deduped against own).
+                    // Dedup for the merged view happens in selectAllFeaturedCategories (musicStore.ts).
+                    const sharedCatOrder = [...new Set(mergedCatOrder)];
+                    const sharedFeatured = settings.featuredCategories || [];
                     set({ sharedGenres: allSharedGenres, sharedTags: allSharedTags, sharedCategoryOrder: sharedCatOrder, sharedFeaturedCategories: sharedFeatured });
                 })
                 .catch((err) => console.error('[MusicStore] Failed to load shared settings:', err));
@@ -325,7 +362,13 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
             unsubs.push(
                 TrackService.subscribeToTracks(lib.ownerUserId, lib.ownerChannelId, (t) => {
                     trackBuckets[i] = t;
-                    set({ sharedTracks: Object.values(trackBuckets).flat() });
+                    if (!firstSnapshotReceived) {
+                        // First delivery from any library — clear skeleton
+                        firstSnapshotReceived = true;
+                        set({ sharedTracks: Object.values(trackBuckets).flat(), isSharedTracksLoading: false });
+                    } else {
+                        set({ sharedTracks: Object.values(trackBuckets).flat() });
+                    }
                 }),
             );
             unsubs.push(

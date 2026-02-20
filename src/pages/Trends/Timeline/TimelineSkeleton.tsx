@@ -32,7 +32,7 @@ export const TimelineSkeleton: React.FC = () => {
                     <div className="absolute top-1 left-1/2 -translate-x-1/2 h-5 flex items-center justify-center">
                         <div className="h-3 w-12 bg-bg-secondary rounded-sm relative overflow-hidden">
                             <div
-                                className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent"
+                                className="shimmer-overlay"
                                 style={{ backgroundSize: '200% 100%' }}
                             />
                         </div>
@@ -46,7 +46,7 @@ export const TimelineSkeleton: React.FC = () => {
                                     className="h-2.5 w-6 bg-bg-secondary rounded-sm relative overflow-hidden"
                                 >
                                     <div
-                                        className="absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent"
+                                        className="shimmer-overlay"
                                         style={{ backgroundSize: '200% 100%', animationDelay: `${i * 60}ms` }}
                                     />
                                 </div>

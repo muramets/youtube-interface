@@ -37,7 +37,7 @@ export function useAudioEngine(): AudioEngineResult {
     const isPlaying = useMusicStore((s) => s.isPlaying);
     const genres = useMusicStore(selectAllGenres);
     const playbackVolume = useMusicStore((s) => s.playbackVolume);
-    const { setIsPlaying, setCurrentTime: setStoreTime, setDuration: setStoreDuration, registerSeek, setPlayingTrack } = useMusicStore.getState();
+    const { setIsPlaying, setCurrentTime: setStoreTime, setDuration: setStoreDuration, registerSeek, setPlayingTrack, resolvePendingSeek, refreshTrackUrl } = useMusicStore.getState();
 
     const audioRef = useRef<HTMLAudioElement>(null);
     const [volume, setVolume] = useState(0.8);
@@ -125,11 +125,7 @@ export function useAudioEngine(): AudioEngineResult {
                 setIsPlaying(true);
 
                 const urlField = isVocal ? 'vocalUrl' : 'instrumentalUrl';
-                useMusicStore.setState((state) => ({
-                    tracks: state.tracks.map((t) =>
-                        t.id === track.id ? { ...t, [urlField]: fresh } : t
-                    ),
-                }));
+                refreshTrackUrl(track.id, urlField, fresh);
                 const parts = storagePath.split('/');
                 const uid = parts[1];
                 const cid = parts[3];
@@ -154,7 +150,7 @@ export function useAudioEngine(): AudioEngineResult {
             const { pendingSeekSeconds } = useMusicStore.getState();
             if (pendingSeekSeconds !== null) {
                 audio.currentTime = pendingSeekSeconds;
-                useMusicStore.setState({ pendingSeekSeconds: null, currentTime: pendingSeekSeconds });
+                resolvePendingSeek(pendingSeekSeconds);
                 if (isPlaying) audio.play().catch(console.error);
                 return;
             }

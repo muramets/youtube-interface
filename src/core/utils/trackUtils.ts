@@ -17,3 +17,16 @@ export const DEFAULT_ACCENT_COLOR = '#6366F1';
 export function getDefaultVariant(track: Track): 'vocal' | 'instrumental' {
     return track.vocalUrl ? 'vocal' : 'instrumental';
 }
+
+/**
+ * Comparator for sorting version-grouped tracks.
+ * Primary key: groupOrder (explicit position set by user).
+ * Secondary key: createdAt descending (newest first, as a stable tiebreaker).
+ */
+export function sortByGroupOrder(a: Track, b: Track): number {
+    if (a.groupOrder !== undefined && b.groupOrder !== undefined) {
+        return a.groupOrder - b.groupOrder;
+    }
+    return b.createdAt - a.createdAt;
+}
+

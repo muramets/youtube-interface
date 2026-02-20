@@ -6,13 +6,14 @@
 // Shared libraries: shows owner's playlists under "SHARED WITH ME"
 // =============================================================================
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Music, Plus, ChevronDown, ChevronRight, Heart, Share2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useMusicStore } from '../../../core/stores/musicStore';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { MusicPlaylistItem } from './MusicPlaylistItem';
+import { MusicPlaylistSkeleton } from './MusicPlaylistSkeleton';
 import { SidebarDivider } from '../../../components/Layout/Sidebar';
 import { CreateMusicPlaylistModal } from '../modals/CreateMusicPlaylistModal';
 import { MusicPlaylistService } from '../../../core/services/musicPlaylistService';
@@ -27,21 +28,25 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
     const {
         tracks,
         musicPlaylists,
-        activePlaylistId,
         playlistGroupOrder,
         subscribePlaylists,
         loadPlaylistSettings,
-        setActivePlaylist,
-        sharedLibraries,
-        activeLibrarySource,
-        setActiveLibrarySource,
         loadSharedLibraries,
     } = useMusicStore();
+
+    const setActivePlaylist = useMusicStore(s => s.setActivePlaylist);
+    const activePlaylistId = useMusicStore(s => s.activePlaylistId);
+    const activeLibrarySource = useMusicStore(s => s.activeLibrarySource);
+    const sharedLibraries = useMusicStore(s => s.sharedLibraries);
+    const setActiveLibrarySource = useMusicStore(s => s.setActiveLibrarySource);
+    const setPlaylistAllSources = useMusicStore(s => s.setPlaylistAllSources);
+    /** True while own playlists' first Firestore snapshot hasn't arrived yet */
+    const isPlaylistsLoading = useMusicStore(s => s.isPlaylistsLoading);
 
     const userId = user?.uid || '';
     const channelId = currentChannel?.id || '';
 
-    // Subscribe to playlists
+    // Subscribe to own playlists (loading state managed in store: isPlaylistsLoading)
     useEffect(() => {
         if (!userId || !channelId) return;
         const unsub = subscribePlaylists(userId, channelId);
@@ -49,25 +54,53 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
         return unsub;
     }, [userId, channelId, subscribePlaylists, loadPlaylistSettings]);
 
-    // Load shared libraries
+    // Load shared libraries for the current channel
     useEffect(() => {
         if (!userId || !channelId) return;
         loadSharedLibraries(userId, channelId);
     }, [userId, channelId, loadSharedLibraries]);
 
-    // Subscribe to shared library's playlists when activeLibrarySource is set
-    const [sharedPlaylists, setSharedPlaylists] = useState<MusicPlaylist[]>([]);
+    // Per-channel playlist map for the "Shared With Me" section.
+    // pendingSharedChannels tracks channels whose first snapshot hasn't arrived yet
+    // — so the skeleton shows in the interim, even with Firestore local cache.
+    const [playlistsByChannel, setPlaylistsByChannel] = useState<Record<string, MusicPlaylist[]>>({});
+    const [pendingSharedChannels, setPendingSharedChannels] = useState<Set<string>>(new Set());
+
+    // On channel switch: reset both maps so the sidebar shows a clean loading state.
     useEffect(() => {
-        if (!activeLibrarySource) return;
-        const { ownerUserId, ownerChannelId } = activeLibrarySource;
-        const unsub = MusicPlaylistService.subscribeToPlaylists(ownerUserId, ownerChannelId, (playlists) => {
-            setSharedPlaylists(playlists);
+        setPlaylistsByChannel({});
+        setPendingSharedChannels(new Set());
+    }, [channelId]);
+
+    // Subscribe to playlists for each shared library.
+    // Mark every channel as pending BEFORE subscribing; clear when first snapshot arrives.
+    useEffect(() => {
+        if (!sharedLibraries.length) return;
+
+        // Mark all channels as pending (skeleton visible) before any subscription fires.
+        setPendingSharedChannels(new Set(sharedLibraries.map(l => l.ownerChannelId)));
+
+        const unsubs = sharedLibraries.map(lib => {
+            return MusicPlaylistService.subscribeToPlaylists(
+                lib.ownerUserId,
+                lib.ownerChannelId,
+                (playlists) => {
+                    setPlaylistsByChannel(prev => ({ ...prev, [lib.ownerChannelId]: playlists }));
+                    setPendingSharedChannels(prev => {
+                        const next = new Set(prev);
+                        next.delete(lib.ownerChannelId);
+                        return next;
+                    });
+                },
+            );
         });
+
         return () => {
-            unsub();
-            setSharedPlaylists([]);
+            unsubs.forEach(unsub => unsub());
+            // Keep stale playlist data — prevents blank flash when channel switch triggers
+            // a brief empty state before new subscriptions deliver.
         };
-    }, [activeLibrarySource]);
+    }, [sharedLibraries]);
 
     // Persist collapse state
     const [isContentExpanded, setIsContentExpanded] = useState(() => {
@@ -85,6 +118,21 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
     const likedCount = useMemo(() =>
         tracks.filter(t => t.liked).length,
         [tracks]);
+
+    /**
+     * Returns the number of tracks in a playlist that are visible given the
+     * current library context:
+     *  - Own tracks (no trackSource entry) → always counted
+     *  - Shared tracks → counted only when viewing their origin channel
+     */
+    const getEffectiveCount = useCallback((playlist: MusicPlaylist): number => {
+        const activeChannelId = activeLibrarySource?.ownerChannelId;
+        return playlist.trackIds.filter(trackId => {
+            const source = playlist.trackSources?.[trackId];
+            if (!source) return true; // own track, always visible
+            return source.ownerChannelId === activeChannelId;
+        }).length;
+    }, [activeLibrarySource]);
 
     // Group playlists by group field
     const groupedPlaylists = useMemo(() => {
@@ -133,7 +181,7 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
 
     const handleMusicClick = () => {
         setActivePlaylist(null);
-        setActiveLibrarySource(null);
+        setPlaylistAllSources(false);
         navigate('/music');
     };
 
@@ -153,9 +201,8 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
     const handleCreatePlaylist = async (name: string, group?: string) => {
         if (!userId || !channelId) return;
         const { createPlaylist } = useMusicStore.getState();
-        const playlist = await createPlaylist(userId, channelId, name, group);
-        setActivePlaylist(playlist.id);
-        navigate(`/music/playlist/${playlist.id}`);
+        await createPlaylist(userId, channelId, name, group);
+        setShowCreateModal(false);
     };
 
     // Existing groups for group selector
@@ -173,7 +220,7 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
             <div>
                 {/* Music Header */}
                 <div
-                    className={`w-full flex items-center justify-between py-2.5 px-3 mb-1 rounded-lg transition-all duration-200 group ${isOnMusicPage && activePlaylistId === null && !activeLibrarySource
+                    className={`w-full flex items-center justify-between py-2.5 px-3 mb-1 rounded-lg transition-all duration-200 group ${isOnMusicPage && activePlaylistId === null
                         ? 'bg-sidebar-active text-text-primary'
                         : 'text-text-secondary hover:bg-sidebar-hover hover:text-text-primary'
                         }`}
@@ -185,11 +232,11 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
                     >
                         <Music
                             size={24}
-                            strokeWidth={isOnMusicPage && activePlaylistId === null && !activeLibrarySource ? 2.5 : 1.5}
-                            fill={isOnMusicPage && activePlaylistId === null && !activeLibrarySource ? 'currentColor' : 'none'}
+                            strokeWidth={isOnMusicPage && activePlaylistId === null ? 2.5 : 1.5}
+                            fill={isOnMusicPage && activePlaylistId === null ? 'currentColor' : 'none'}
                             className="transition-all"
                         />
-                        <span className={`text-sm ${isOnMusicPage && activePlaylistId === null && !activeLibrarySource ? 'font-medium' : 'font-normal'}`}>
+                        <span className={`text-sm ${isOnMusicPage && activePlaylistId === null ? 'font-medium' : 'font-normal'}`}>
                             Music
                         </span>
                     </div>
@@ -224,110 +271,128 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
                 {/* Content */}
                 {isContentExpanded && (
                     <div className="pl-3 pb-2">
-                        <ul className="space-y-0.5">
-                            {/* ♥ Liked — channel-level sizing */}
-                            <li
-                                onClick={handleLikedClick}
-                                className={`flex items-center cursor-pointer p-2 rounded-lg transition-all duration-200 select-none ${isOnMusicPage && activePlaylistId === 'liked'
-                                    ? 'bg-white/10'
-                                    : 'hover:bg-white/5'
-                                    }`}
-                            >
-                                <div className={`w-6 h-6 rounded-full mr-3 flex items-center justify-center ${isOnMusicPage && activePlaylistId === 'liked'
-                                    ? 'bg-red-500/20 ring-2 ring-red-400/30'
-                                    : 'bg-white/5'
-                                    }`}>
-                                    <Heart
-                                        size={14}
-                                        className={isOnMusicPage && activePlaylistId === 'liked'
-                                            ? 'text-red-400 fill-red-400'
-                                            : 'text-red-400/60 fill-red-400/60'
-                                        }
-                                    />
-                                </div>
-                                <span className={`text-sm flex-1 overflow-hidden whitespace-nowrap transition-colors ${isOnMusicPage && activePlaylistId === 'liked'
-                                    ? 'text-text-primary font-medium'
-                                    : 'text-text-secondary'
-                                    }`}>
-                                    Liked
-                                </span>
-                                <div className="ml-2 flex items-center justify-center shrink-0 w-4">
-                                    <span className="text-[10px] text-text-tertiary leading-none">
-                                        {likedCount}
-                                    </span>
-                                </div>
-                            </li>
-
-                            {/* Grouped Playlists */}
-                            {groupedPlaylists.map(([groupName, playlists]) => {
-                                if (playlists.length === 0) return null;
-
-                                // Ungrouped playlists (no group header)
-                                if (groupName === 'Ungrouped') {
-                                    return playlists.map(playlist => (
-                                        <MusicPlaylistItem
-                                            key={playlist.id}
-                                            id={playlist.id}
-                                            name={playlist.name}
-                                            trackCount={playlist.trackIds.length}
-                                            isActive={isOnMusicPage && activePlaylistId === playlist.id}
-                                            onClick={() => handlePlaylistClick(playlist.id)}
-                                            color={playlist.color}
-                                            playlist={playlist}
-                                            existingGroups={existingGroups}
+                        {isPlaylistsLoading ? (
+                            /* Skeleton replaces the entire list including the Liked row.
+                               GroupRowSkeleton matches Liked's dimensions (w-6 h-6 circle + name + w-4 count). */
+                            <ul className="space-y-0.5">
+                                <MusicPlaylistSkeleton count={5} variant="grouped" />
+                            </ul>
+                        ) : (
+                            <ul className="space-y-0.5">
+                                {/* ♥ Liked — channel-level sizing */}
+                                <li
+                                    onClick={handleLikedClick}
+                                    className={`flex items-center cursor-pointer p-2 rounded-lg transition-all duration-200 select-none animate-fade-in-down ${isOnMusicPage && activePlaylistId === 'liked'
+                                        ? 'bg-white/10'
+                                        : 'hover:bg-white/5'
+                                        }`}
+                                    style={{ animationDelay: '0ms', animationFillMode: 'both' }}
+                                >
+                                    <div className={`w-6 h-6 rounded-full mr-3 flex items-center justify-center ${isOnMusicPage && activePlaylistId === 'liked'
+                                        ? 'bg-red-500/20 ring-2 ring-red-400/30'
+                                        : 'bg-white/5'
+                                        }`}>
+                                        <Heart
+                                            size={14}
+                                            className={isOnMusicPage && activePlaylistId === 'liked'
+                                                ? 'text-red-400 fill-red-400'
+                                                : 'text-red-400/60 fill-red-400/60'
+                                            }
                                         />
-                                    ));
-                                }
+                                    </div>
+                                    <span className={`text-sm flex-1 overflow-hidden whitespace-nowrap transition-colors ${isOnMusicPage && activePlaylistId === 'liked'
+                                        ? 'text-text-primary font-medium'
+                                        : 'text-text-secondary'
+                                        }`}>
+                                        Liked
+                                    </span>
+                                    <div className="ml-2 flex items-center justify-center shrink-0 w-4">
+                                        <span className="text-[10px] text-text-tertiary leading-none">
+                                            {likedCount}
+                                        </span>
+                                    </div>
+                                </li>
 
-                                // Named group with collapsible header — channel-level sizing
-                                const isCollapsed = collapsedGroups.has(groupName);
-                                return (
-                                    <li key={groupName}>
-                                        {/* Group Header — same size as TrendsChannelItem */}
-                                        <div
-                                            onClick={() => toggleGroup(groupName)}
-                                            className="flex items-center cursor-pointer p-2 rounded-lg transition-all duration-200 select-none hover:bg-white/5"
-                                        >
-                                            <div className="w-6 h-6 rounded-full mr-3 flex items-center justify-center bg-white/5">
-                                                <ChevronDown
-                                                    size={14}
-                                                    className={`transition-transform duration-200 text-text-tertiary ${isCollapsed ? '-rotate-90' : ''
-                                                        }`}
+                                {/* Grouped Playlists */}
+                                {groupedPlaylists.map(([groupName, playlists], groupIdx) => {
+                                    if (playlists.length === 0) return null;
+
+                                    // Ungrouped playlists — each item animates in with stagger
+                                    if (groupName === 'Ungrouped') {
+                                        return playlists.map((playlist, itemIdx) => (
+                                            <li
+                                                key={playlist.id}
+                                                className="animate-fade-in-down"
+                                                style={{ animationDelay: `${itemIdx * 35}ms`, animationFillMode: 'both' }}
+                                            >
+                                                <MusicPlaylistItem
+                                                    id={playlist.id}
+                                                    name={playlist.name}
+                                                    trackCount={getEffectiveCount(playlist)}
+                                                    isActive={isOnMusicPage && activePlaylistId === playlist.id}
+                                                    onClick={() => handlePlaylistClick(playlist.id)}
+                                                    color={playlist.color}
+                                                    playlist={playlist}
+                                                    existingGroups={existingGroups}
                                                 />
-                                            </div>
-                                            <span className="text-sm flex-1 overflow-hidden whitespace-nowrap text-text-secondary">
-                                                {groupName}
-                                            </span>
-                                            <div className="ml-2 flex items-center justify-center shrink-0 w-4">
-                                                <span className="text-[10px] text-text-tertiary leading-none">
-                                                    {playlists.length}
-                                                </span>
-                                            </div>
-                                        </div>
+                                            </li>
+                                        ));
+                                    }
 
-                                        {/* Group Playlists */}
-                                        {!isCollapsed && (
-                                            <ul className="space-y-0.5">
-                                                {playlists.map(playlist => (
-                                                    <MusicPlaylistItem
-                                                        key={playlist.id}
-                                                        id={playlist.id}
-                                                        name={playlist.name}
-                                                        trackCount={playlist.trackIds.length}
-                                                        isActive={isOnMusicPage && activePlaylistId === playlist.id}
-                                                        onClick={() => handlePlaylistClick(playlist.id)}
-                                                        color={playlist.color}
-                                                        indent
-                                                        playlist={playlist}
-                                                        existingGroups={existingGroups}
+                                    // Named group — whole li (header + children) animates as a unit
+                                    const isCollapsed = collapsedGroups.has(groupName);
+                                    return (
+                                        <li
+                                            key={groupName}
+                                            className="animate-fade-in-down"
+                                            style={{ animationDelay: `${groupIdx * 35}ms`, animationFillMode: 'both' }}
+                                        >
+                                            {/* Group Header — same size as TrendsChannelItem */}
+                                            <div
+                                                onClick={() => toggleGroup(groupName)}
+                                                className="flex items-center cursor-pointer p-2 rounded-lg transition-all duration-200 select-none hover:bg-white/5"
+                                            >
+                                                <div className="w-6 h-6 rounded-full mr-3 flex items-center justify-center bg-white/5">
+                                                    <ChevronDown
+                                                        size={14}
+                                                        className={`transition-transform duration-200 text-text-tertiary ${isCollapsed ? '-rotate-90' : ''
+                                                            }`}
                                                     />
-                                                ))}
-                                            </ul>
-                                        )}
-                                    </li>
-                                );
-                            })}
-                        </ul>
+                                                </div>
+                                                <span className="text-sm flex-1 overflow-hidden whitespace-nowrap text-text-secondary">
+                                                    {groupName}
+                                                </span>
+                                                <div className="ml-2 flex items-center justify-center shrink-0 w-4">
+                                                    <span className="text-[10px] text-text-tertiary leading-none">
+                                                        {playlists.length}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Group Playlists */}
+                                            {!isCollapsed && (
+                                                <ul className="space-y-0.5">
+                                                    {playlists.map(playlist => (
+                                                        <MusicPlaylistItem
+                                                            key={playlist.id}
+                                                            id={playlist.id}
+                                                            name={playlist.name}
+                                                            trackCount={getEffectiveCount(playlist)}
+                                                            isActive={isOnMusicPage && activePlaylistId === playlist.id}
+                                                            onClick={() => handlePlaylistClick(playlist.id)}
+                                                            color={playlist.color}
+                                                            indent
+                                                            playlist={playlist}
+                                                            existingGroups={existingGroups}
+                                                        />
+                                                    ))}
+                                                </ul>
+                                            )}
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        )}
                     </div>
                 )}
 
@@ -340,78 +405,72 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
                         <ul className="space-y-0.5">
                             {/* Shared library entries — one per shared channel, collapsible */}
                             {sharedLibraries.map(lib => {
-                                const isActive = activeLibrarySource?.ownerChannelId === lib.ownerChannelId;
                                 const isSharedCollapsed = collapsedGroups.has(`shared:${lib.ownerChannelId}`);
                                 return (
                                     <li key={lib.ownerChannelId}>
                                         {/* Channel Header — collapsible like playlist groups */}
                                         <div
                                             onClick={() => {
-                                                // If not active yet, activate it (expand + navigate)
-                                                if (!isActive) {
-                                                    setActiveLibrarySource(lib);
-                                                    setActivePlaylist(null);
-                                                    navigate('/music');
-                                                    // Ensure expanded when first activated
-                                                    if (isSharedCollapsed) toggleGroup(`shared:${lib.ownerChannelId}`);
-                                                } else {
-                                                    // Already active — toggle collapse
-                                                    toggleGroup(`shared:${lib.ownerChannelId}`);
-                                                }
+                                                // Only toggle collapse — never activate the library on header click
+                                                toggleGroup(`shared:${lib.ownerChannelId}`);
                                             }}
-                                            className={`flex items-center cursor-pointer p-2 rounded-lg transition-all duration-200 select-none ${isActive && !activePlaylistId
-                                                ? 'bg-white/10'
-                                                : 'hover:bg-white/5'
-                                                }`}
+                                            className={`flex items-center cursor-pointer p-2 rounded-lg transition-all duration-200 select-none hover:bg-white/5`}
                                         >
-                                            <div className={`w-6 h-6 rounded-full mr-3 flex items-center justify-center ${isActive && !activePlaylistId
-                                                ? 'bg-blue-500/20 ring-2 ring-blue-400/30'
-                                                : 'bg-white/5'
-                                                }`}>
-                                                <Share2 size={12} className={`${isActive && !activePlaylistId
-                                                    ? 'text-blue-400'
-                                                    : 'text-text-tertiary'
-                                                    }`} />
+                                            <div className="w-6 h-6 rounded-full mr-3 flex items-center justify-center bg-white/5">
+                                                <Share2 size={12} className="text-text-tertiary" />
                                             </div>
-                                            <span className={`text-sm flex-1 overflow-hidden whitespace-nowrap truncate transition-colors ${isActive && !activePlaylistId
-                                                ? 'text-text-primary font-medium'
-                                                : 'text-text-secondary'
-                                                }`}>
+                                            <span className="text-sm flex-1 overflow-hidden whitespace-nowrap truncate transition-colors text-text-secondary">
                                                 {lib.ownerChannelName}
                                             </span>
-                                            {/* Collapse chevron + count */}
-                                            {isActive && sharedPlaylists.length > 0 && (
-                                                <div className="ml-2 flex items-center gap-1 shrink-0">
-                                                    <span className="text-[10px] text-text-tertiary leading-none">
-                                                        {sharedPlaylists.length}
-                                                    </span>
-                                                    <ChevronDown
-                                                        size={12}
-                                                        className={`transition-transform duration-200 text-text-tertiary ${isSharedCollapsed ? '-rotate-90' : ''
-                                                            }`}
-                                                    />
-                                                </div>
-                                            )}
+                                            {/* Chevron — visible while loading (no count) and when playlists exist (with count) */}
+                                            {(pendingSharedChannels.has(lib.ownerChannelId) ||
+                                                (playlistsByChannel[lib.ownerChannelId]?.length ?? 0) > 0) && (
+                                                    <div className="ml-2 flex items-center gap-1 shrink-0">
+                                                        {!pendingSharedChannels.has(lib.ownerChannelId) && (
+                                                            <span className="text-[10px] text-text-tertiary leading-none">
+                                                                {playlistsByChannel[lib.ownerChannelId]?.length ?? 0}
+                                                            </span>
+                                                        )}
+                                                        <ChevronDown
+                                                            size={12}
+                                                            className={`transition-transform duration-200 text-text-tertiary ${isSharedCollapsed ? '-rotate-90' : ''
+                                                                }`}
+                                                        />
+                                                    </div>
+                                                )}
                                         </div>
 
                                         {/* Owner's playlists — collapsible */}
-                                        {isActive && !isSharedCollapsed && sharedPlaylists.length > 0 && (
-                                            <ul className="space-y-0.5">
-                                                {sharedPlaylists.map(playlist => (
-                                                    <MusicPlaylistItem
-                                                        key={`shared-${playlist.id}`}
-                                                        id={playlist.id}
-                                                        name={playlist.name}
-                                                        trackCount={playlist.trackIds.length}
-                                                        isActive={isOnMusicPage && activePlaylistId === playlist.id}
-                                                        onClick={() => handlePlaylistClick(playlist.id)}
-                                                        color={playlist.color}
-                                                        indent
-                                                        playlist={playlist}
-                                                        existingGroups={[]}
-                                                    />
-                                                ))}
-                                            </ul>
+                                        {!isSharedCollapsed && (
+                                            pendingSharedChannels.has(lib.ownerChannelId) ? (
+                                                <MusicPlaylistSkeleton count={3} />
+                                            ) : (playlistsByChannel[lib.ownerChannelId]?.length ?? 0) > 0 ? (
+                                                <ul className="space-y-0.5">
+                                                    {playlistsByChannel[lib.ownerChannelId].map((playlist: MusicPlaylist, idx: number) => (
+                                                        <li
+                                                            key={`shared-${playlist.id}`}
+                                                            className="animate-fade-in-down"
+                                                            style={{ animationDelay: `${idx * 35}ms`, animationFillMode: 'both' }}
+                                                        >
+                                                            <MusicPlaylistItem
+                                                                id={playlist.id}
+                                                                name={playlist.name}
+                                                                trackCount={getEffectiveCount(playlist)}
+                                                                isActive={isOnMusicPage && activePlaylistId === playlist.id}
+                                                                onClick={() => {
+                                                                    setActiveLibrarySource(lib);
+                                                                    setPlaylistAllSources(false);
+                                                                    handlePlaylistClick(playlist.id);
+                                                                }}
+                                                                color={playlist.color}
+                                                                indent
+                                                                playlist={playlist}
+                                                                existingGroups={[]}
+                                                            />
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            ) : null
                                         )}
                                     </li>
                                 );

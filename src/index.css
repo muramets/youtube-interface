@@ -23,6 +23,15 @@
       color: transparent;
       animation: shimmer 2s linear infinite;
    }
+
+   /* Skeleton loading shimmer overlay.
+      Apply to an absolute-positioned element inside a relative container.
+      Usage: <span className="shimmer-overlay" /> */
+   .shimmer-overlay {
+      @apply absolute inset-0 animate-shimmer;
+      background: linear-gradient(to right, transparent, var(--shimmer-highlight), transparent);
+      background-size: 200% 100%;
+   }
 }
 
 /* =============================================================================
@@ -108,6 +117,34 @@
      --------------------------------------------------------------------------- */
    --floating-bar-bg: rgba(240, 240, 240, 0.82);
    --floating-bar-border: rgba(0, 0, 0, 0.08);
+
+   /* ---------------------------------------------------------------------------
+     Component: Waveform
+     --------------------------------------------------------------------------- */
+   --waveform-bar: rgba(0, 0, 0, 0.18);
+   --waveform-trim: rgba(0, 0, 0, 0.06);
+   --waveform-line: rgba(0, 0, 0, 0.25);
+   --waveform-hover: rgba(0, 0, 0, 0.45);
+
+   /* Skeleton shimmer highlight — dark shimmer on light backgrounds */
+   --shimmer-highlight: rgba(0, 0, 0, 0.06);
+
+   /* ---------------------------------------------------------------------------
+     Component: Music / Track Groups
+     Indigo-500 accent — theme-independent (same in light & dark).
+     --------------------------------------------------------------------------- */
+   --group-accent-bg: rgba(99, 102, 241, 0.08);
+   /* children underlay */
+   --group-accent-bg-strong: rgba(99, 102, 241, 0.12);
+   /* expand bar active state */
+   --group-accent-bar: rgb(129 140 248 / 0.8);
+   /* playing animation bars */
+
+   /* ---------------------------------------------------------------------------
+     Semantic: Status Colors
+     --------------------------------------------------------------------------- */
+   --color-success: #22c55e;
+   /* green-500 — used for repeat-all active, copy success */
 }
 
 /* =============================================================================
@@ -183,6 +220,17 @@
      --------------------------------------------------------------------------- */
    --floating-bar-bg: rgba(30, 30, 30, 0.82);
    --floating-bar-border: rgba(255, 255, 255, 0.08);
+
+   /* ---------------------------------------------------------------------------
+     Component: Waveform
+     --------------------------------------------------------------------------- */
+   --waveform-bar: rgba(255, 255, 255, 0.12);
+   --waveform-trim: rgba(255, 255, 255, 0.06);
+   --waveform-line: rgba(255, 255, 255, 0.25);
+   --waveform-hover: rgba(255, 255, 255, 0.5);
+
+   /* Skeleton shimmer highlight — white shimmer on dark backgrounds */
+   --shimmer-highlight: rgba(255, 255, 255, 0.10);
 }
 
 /* =============================================================================

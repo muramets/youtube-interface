@@ -13,7 +13,7 @@ import type { DragStartEvent, DragOverEvent, DragEndEvent } from '@dnd-kit/core'
 import { useTrendsDragDrop } from '../../pages/Trends/hooks/useTrendsDragDrop';
 import { useMusicDragDrop } from '../../pages/Music/hooks/useMusicDragDrop';
 import { VideoNodeGhost } from '../../pages/Trends/Timeline/nodes/DraggableVideoNode';
-import { TrackCardGhost } from '../../pages/Music/components/TrackCardGhost';
+import { TrackCardGhost } from '../../pages/Music/components/track/TrackCardGhost';
 
 export const AppDndProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const {

@@ -3,6 +3,7 @@
 // =============================================================================
 // Wraps AddToCollectionModal for adding tracks to music playlists.
 // Business logic (useMusicStore) stays here; presentation is shared.
+// Always shows OWN playlists only — shared playlists cannot be managed.
 // =============================================================================
 
 import React, { useMemo } from 'react';
@@ -12,20 +13,25 @@ import type { CollectionItem } from '../../../components/ui/molecules/AddToColle
 import { useMusicStore } from '../../../core/stores/musicStore';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
+import type { TrackSource } from '../../../core/types/musicPlaylist';
 
 interface AddToMusicPlaylistModalProps {
     isOpen: boolean;
     onClose: () => void;
     trackId: string;
+    /** If the track originates from a shared library, pass its source here */
+    trackSource?: TrackSource;
 }
 
 export const AddToMusicPlaylistModal: React.FC<AddToMusicPlaylistModalProps> = ({
     isOpen,
     onClose,
     trackId,
+    trackSource,
 }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
+    // Always use OWN playlists — shared playlists are read-only
     const { musicPlaylists, addTracksToPlaylist, removeTracksFromPlaylist, createPlaylist } = useMusicStore();
 
     const userId = user?.uid || '';
@@ -46,13 +52,15 @@ export const AddToMusicPlaylistModal: React.FC<AddToMusicPlaylistModalProps> = (
         if (currentlyMember) {
             await removeTracksFromPlaylist(userId, channelId, playlistId, [trackId]);
         } else {
-            await addTracksToPlaylist(userId, channelId, playlistId, [trackId]);
+            const sources = trackSource ? { [trackId]: trackSource } : undefined;
+            await addTracksToPlaylist(userId, channelId, playlistId, [trackId], sources);
         }
     };
 
     const handleCreate = async (name: string) => {
         if (!userId || !channelId) return;
-        await createPlaylist(userId, channelId, name, undefined, [trackId]);
+        const sources = trackSource ? { [trackId]: trackSource } : undefined;
+        await createPlaylist(userId, channelId, name, undefined, [trackId], sources);
     };
 
     return (

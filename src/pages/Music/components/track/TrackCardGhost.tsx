@@ -6,7 +6,7 @@
 // =============================================================================
 
 import React from 'react';
-import type { Track } from '../../../core/types/track';
+import type { Track } from '../../../../core/types/track';
 
 interface TrackCardGhostProps {
     track: Track;

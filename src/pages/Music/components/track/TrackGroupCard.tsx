@@ -30,10 +30,10 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { TrackCard } from './TrackCard';
-import type { Track } from '../../../core/types/track';
-import { useMusicStore } from '../../../core/stores/musicStore';
-import { useAuth } from '../../../core/hooks/useAuth';
-import { useChannelStore } from '../../../core/stores/channelStore';
+import type { Track } from '../../../../core/types/track';
+import type { TrackSource } from '../../../../core/types/musicPlaylist';
+import { useMusicStore } from '../../../../core/stores/musicStore';
+import { sortByGroupOrder } from '../../../../core/utils/trackUtils';
 
 // Skip layout animation on drop to prevent flash from dnd-kit flushSync
 const skipDropAnimation: AnimateLayoutChanges = (args) => {
@@ -54,7 +54,9 @@ const SortableTrackItem: React.FC<{
     onEdit?: (track: Track) => void;
     trailingElement?: React.ReactNode;
     children?: React.ReactNode;
-}> = ({ track, selectedTrackId, userId, channelId, onSelect, onDelete, onEdit, trailingElement, children }) => {
+    isReadOnly?: boolean;
+    trackSource?: TrackSource;
+}> = ({ track, selectedTrackId, userId, channelId, onSelect, onDelete, onEdit, trailingElement, children, isReadOnly, trackSource }) => {
     const {
         attributes,
         listeners,
@@ -70,10 +72,17 @@ const SortableTrackItem: React.FC<{
         opacity: isDragging ? 0.4 : 1,
         position: 'relative' as const,
         zIndex: isDragging ? 50 : 'auto',
+        userSelect: 'none',
     };
 
     return (
-        <div ref={setNodeRef} style={style} {...attributes} {...listeners} data-group-child>
+        <div
+            ref={setNodeRef}
+            style={style}
+            {...(!isReadOnly ? attributes : {})}
+            {...(!isReadOnly ? listeners : {})}
+            data-group-child
+        >
             <TrackCard
                 track={track}
                 isSelected={selectedTrackId === track.id}
@@ -85,6 +94,8 @@ const SortableTrackItem: React.FC<{
                 trailingElement={trailingElement}
                 disableDropTarget
                 disableDrag
+                isReadOnly={isReadOnly}
+                trackSource={trackSource}
             />
             {children}
         </div>
@@ -112,6 +123,8 @@ interface TrackGroupCardProps {
     onSelect: (trackId: string | null) => void;
     onDelete?: (trackId: string) => void;
     onEdit?: (track: Track) => void;
+    isReadOnly?: boolean;
+    trackSource?: TrackSource;
 }
 
 export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
@@ -122,18 +135,17 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
     onSelect,
     onDelete,
     onEdit,
+    isReadOnly,
+    trackSource,
 }) => {
     const [isExpanded, setIsExpanded] = useState(false);
-    const [contentHeight, setContentHeight] = useState(0);
     const [insertionIndex, setInsertionIndex] = useState(-1);
-    const contentRef = useRef<HTMLDivElement>(null);
+    const [isInternalDragging, setIsInternalDragging] = useState(false);
     const childrenContainerRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const playingTrackId = useMusicStore((s) => s.playingTrackId);
     const reorderGroupTracks = useMusicStore((s) => s.reorderGroupTracks);
     const unlinkFromGroup = useMusicStore((s) => s.unlinkFromGroup);
-    const { user } = useAuth();
-    const { currentChannel } = useChannelStore();
 
     // Sync Shield: useRef so flushSync render reads it synchronously
     const localOrderRef = useRef<string[] | null>(null);
@@ -147,14 +159,7 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
     }, []);
 
     // Sort by groupOrder (if set), then by createdAt
-    const storeSorted = useMemo(() => {
-        return [...tracks].sort((a, b) => {
-            if (a.groupOrder !== undefined && b.groupOrder !== undefined) {
-                return a.groupOrder - b.groupOrder;
-            }
-            return b.createdAt - a.createdAt;
-        });
-    }, [tracks]);
+    const storeSorted = useMemo(() => [...tracks].sort(sortByGroupOrder), [tracks]);
 
     // Reactive shield clearing: drop shield when Firestore catches up
     useEffect(() => {
@@ -250,13 +255,6 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
         if (!isGroupOver) setInsertionIndex(-1);
     }, [isGroupOver]);
 
-    // Measure content height for expand animation
-    useEffect(() => {
-        if (contentRef.current) {
-            setContentHeight(contentRef.current.scrollHeight);
-        }
-    }, [isExpanded, tracks.length, insertionIndex]);
-
     const toggleExpand = useCallback(() => {
         setIsExpanded((prev) => !prev);
     }, []);
@@ -291,10 +289,10 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
                     pointer.x < groupRect.left ||
                     pointer.x > groupRect.right;
 
-                if (isOutside && groupId && user?.uid && currentChannel?.id) {
+                if (isOutside && groupId && userId && channelId) {
                     // Only children can be unlinked — display track stays
                     if (active.id !== displayTrack?.id) {
-                        unlinkFromGroup(user.uid, currentChannel.id, active.id as string);
+                        unlinkFromGroup(userId, channelId, active.id as string);
                     }
                 }
             }
@@ -319,91 +317,95 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
         // Fallback: clear shield after 5s in case Firestore batch fails
         shieldTimerRef.current = setTimeout(() => { localOrderRef.current = null; }, 5000);
 
-        if (groupId && user?.uid && currentChannel?.id) {
-            reorderGroupTracks(user.uid, currentChannel.id, groupId, allOrdered);
+        if (groupId && userId && channelId) {
+            reorderGroupTracks(userId, channelId, groupId, allOrdered);
         }
-    }, [sorted, groupId, user?.uid, currentChannel?.id, reorderGroupTracks, unlinkFromGroup, displayTrack?.id]);
+    }, [sorted, groupId, userId, channelId, reorderGroupTracks, unlinkFromGroup, displayTrack?.id]);
 
     if (!displayTrack) return null;
 
 
-    return (
-        <div
-            ref={mergedGroupRef}
-            className={`relative transition-all duration-200 rounded-xl
-                ${isGroupOver ? 'ring-2 ring-indigo-400/40 bg-indigo-500/[0.03]' : ''}`}
-        >
-            <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragMove={handleDragMove}
-                onDragEnd={handleSortEnd}
-            >
-                <SortableContext
-                    items={allIds}
-                    strategy={verticalListSortingStrategy}
+    // When read-only (shared playlist), skip DndContext+SortableContext entirely
+    // so useSortable has nothing to register with and children can't be reordered.
+    const groupContent = (
+        <>
+            {/* Display track — first in sort order, always visible */}
+            <div className="relative">
+                <SortableTrackItem
+                    track={displayTrack}
+                    selectedTrackId={selectedTrackId}
+                    userId={userId}
+                    channelId={channelId}
+                    onSelect={onSelect}
+                    onDelete={onDelete}
+                    onEdit={onEdit}
+                    isReadOnly={isReadOnly}
+                    trackSource={trackSource}
+                />
+
+                {/* "N versions" expand bar at the bottom of display track */}
+                <button
+                    onClick={(e) => { e.stopPropagation(); toggleExpand(); }}
+                    className={`absolute bottom-0 left-0 right-0 flex items-center justify-center gap-1
+                        border-none cursor-pointer transition-[border-radius,color] duration-300 ease-out z-10
+                        ${isExpanded ? '' : 'rounded-b-lg'}`}
+                    style={{
+                        height: 16,
+                        background: isExpanded ? 'var(--group-accent-bg-strong)' : 'rgba(255,255,255,0.04)',
+                    }}
                 >
-                    {/* Display track — first in sort order, always visible */}
-                    <div className="relative">
-                        <SortableTrackItem
-                            track={displayTrack}
-                            selectedTrackId={selectedTrackId}
-                            userId={userId}
-                            channelId={channelId}
-                            onSelect={onSelect}
-                            onDelete={onDelete}
-                            onEdit={onEdit}
-                        />
+                    <Layers size={8} className={isExpanded ? 'text-indigo-400/80' : 'text-text-tertiary'} />
+                    <span className={`text-[8px] font-medium tracking-wider uppercase ${isExpanded ? 'text-indigo-300/80' : 'text-text-tertiary'}`}>
+                        {tracks.length} versions
+                    </span>
+                    {isChildPlaying && (
+                        <span className="flex items-end gap-[1.5px] ml-0.5">
+                            {[0, 1, 2].map((i) => (
+                                <span
+                                    key={i}
+                                    className="w-[2px] rounded-full"
+                                    style={{
+                                        backgroundColor: 'var(--group-accent-bar)',
+                                        animation: `barBounce 0.6s ease-in-out ${i * 0.15}s infinite`,
+                                    }}
+                                />
+                            ))}
+                        </span>
+                    )}
+                    <ChevronDown
+                        size={8}
+                        className={`transition-transform duration-300 ease-out ${isExpanded ? 'text-indigo-400/60' : 'text-text-tertiary'}`}
+                        style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                    />
+                </button>
+            </div>
 
-                        {/* "N versions" expand bar at the bottom of display track */}
-                        <button
-                            onClick={(e) => { e.stopPropagation(); toggleExpand(); }}
-                            className={`absolute bottom-0 left-0 right-0 flex items-center justify-center gap-1
-                                border-none cursor-pointer transition-[border-radius,color] duration-300 ease-out z-10
-                                ${isExpanded ? '' : 'rounded-b-lg'}`}
-                            style={{
-                                height: 16,
-                                background: isExpanded ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.04)',
-                            }}
-                        >
-                            <Layers size={8} className={isExpanded ? 'text-indigo-400/80' : 'text-text-tertiary'} />
-                            <span className={`text-[8px] font-medium tracking-wider uppercase ${isExpanded ? 'text-indigo-300/80' : 'text-text-tertiary'}`}>
-                                {tracks.length} versions
-                            </span>
-                            {isChildPlaying && (
-                                <span className="flex items-end gap-[1.5px] ml-0.5">
-                                    {[0, 1, 2].map((i) => (
-                                        <span
-                                            key={i}
-                                            className="w-[2px] rounded-full"
-                                            style={{
-                                                backgroundColor: 'rgb(129 140 248 / 0.8)',
-                                                animation: `barBounce 0.6s ease-in-out ${i * 0.15}s infinite`,
-                                            }}
-                                        />
-                                    ))}
-                                </span>
-                            )}
-                            <ChevronDown
-                                size={8}
-                                className={`transition-transform duration-300 ease-out ${isExpanded ? 'text-indigo-400/60' : 'text-text-tertiary'}`}
-                                style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
-                            />
-                        </button>
-                    </div>
-
-                    {/* Expandable children */}
+            {/* Expandable children.
+                Outer grid: NO transition — height changes instantly so react-virtuoso
+                repositions items below on the same frame, preventing overlap.
+                Visual premium feel comes from inner content fade+slide animation. */}
+            <div
+                style={{
+                    display: 'grid',
+                    gridTemplateRows: isExpanded ? '1fr' : '0fr',
+                }}
+            >
+                <div style={{ overflow: isInternalDragging ? 'visible' : 'hidden' }}>
+                    {/* Content slides in — opacity + translateY on the content itself,
+                        not the container, so layout is unaffected by the animation. */}
                     <div
-                        ref={contentRef}
-                        className="overflow-hidden transition-[max-height] duration-300 ease-out"
                         style={{
-                            maxHeight: isExpanded ? contentHeight || 'none' : 0,
+                            opacity: isExpanded ? 1 : 0,
+                            transform: isExpanded ? 'translateY(0)' : 'translateY(-10px)',
+                            transition: isExpanded
+                                ? 'opacity 260ms ease, transform 280ms cubic-bezier(0.4, 0, 0.2, 1)'
+                                : 'opacity 150ms ease, transform 150ms ease',
                         }}
                     >
                         <div
                             ref={childrenContainerRef}
-                            className="relative rounded-b-xl"
-                            style={{ background: 'rgba(99,102,241,0.08)' }}
+                            className={`relative rounded-b-xl ${isGroupOver ? 'pb-3' : ''}`}
+                            style={{ background: 'var(--group-accent-bg)' }}
                         >
                             {childTracks.map((track, i) => (
                                 <React.Fragment key={track.id}>
@@ -416,14 +418,42 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
                                         onSelect={onSelect}
                                         onDelete={onDelete}
                                         onEdit={onEdit}
+                                        isReadOnly={isReadOnly}
+                                        trackSource={trackSource}
                                     />
                                 </React.Fragment>
                             ))}
-                            {isGroupOver && insertionIndex === childTracks.length && <InsertionLine />}
                         </div>
                     </div>
-                </SortableContext>
-            </DndContext>
+                </div>
+            </div>
+            {/* Append-at-end indicator: rendered OUTSIDE contentRef so maxHeight never clips it */}
+            {isGroupOver && isExpanded && insertionIndex === childTracks.length && <InsertionLine />}
+        </>
+    );
+
+    return (
+        <div
+            ref={mergedGroupRef}
+            className={`relative transition-all duration-200 rounded-xl
+                ${isGroupOver ? 'ring-2 ring-indigo-400/40 bg-indigo-500/[0.03]' : ''}`}
+        >
+            {isReadOnly ? groupContent : (
+                <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragStart={() => setIsInternalDragging(true)}
+                    onDragMove={handleDragMove}
+                    onDragEnd={(e) => { setIsInternalDragging(false); handleSortEnd(e); }}
+                >
+                    <SortableContext
+                        items={allIds}
+                        strategy={verticalListSortingStrategy}
+                    >
+                        {groupContent}
+                    </SortableContext>
+                </DndContext>
+            )}
         </div>
     );
 };

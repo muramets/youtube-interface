@@ -124,6 +124,8 @@ function drawWaveform(
     progress: number,
     playedColor: string,
     unplayedColor: string,
+    trimmedColor: string,
+    lineColor: string,
     trimStartFraction = 0,
     trimEndFraction = 0,
 ) {
@@ -137,7 +139,6 @@ function drawWaveform(
     const minBarHeight = 2;
 
     const progressX = progress * width;
-    const trimmedColor = 'rgba(255, 255, 255, 0.06)';
 
     for (let i = 0; i < barCount; i++) {
         const x = i * (barWidth + gap) + gap / 2;
@@ -162,7 +163,7 @@ function drawWaveform(
     }
 
     // Draw vertical separator lines at trim boundaries
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.strokeStyle = lineColor;
     ctx.lineWidth = 1;
     if (trimStartFraction > 0) {
         const x = Math.round(trimStartFraction * width) + 0.5;
@@ -190,7 +191,7 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
     progress = 0,
     height = 48,
     playedColor = '#FFFFFF',
-    unplayedColor = 'rgba(255, 255, 255, 0.25)',
+    unplayedColor = 'var(--waveform-bar)',
     onSeek,
     onPeaksComputed,
     compact = false,
@@ -222,8 +223,24 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
+        // Resolve CSS custom properties (e.g. 'var(--waveform-bar)') at draw time
+        // so colors automatically adapt when the user switches themes.
+        const style = getComputedStyle(container);
+        const resolveColor = (c: string) => {
+            if (c.startsWith('var(')) {
+                const name = c.slice(4, -1).trim();
+                return style.getPropertyValue(name).trim() || c;
+            }
+            return c;
+        };
+
+        const resolvedPlayed = resolveColor(playedColor);
+        const resolvedUnplayed = resolveColor(unplayedColor);
+        const trimmedColor = resolveColor('var(--waveform-trim)');
+        const lineColor = resolveColor('var(--waveform-line)');
+
         ctx.scale(dpr, dpr);
-        drawWaveform(ctx, peaks, rect.width, height, progress, playedColor, unplayedColor, trimStartFraction, trimEndFraction);
+        drawWaveform(ctx, peaks, rect.width, height, progress, resolvedPlayed, resolvedUnplayed, trimmedColor, lineColor, trimStartFraction, trimEndFraction);
     }, [peaks, progress, height, playedColor, unplayedColor, trimStartFraction, trimEndFraction]);
 
     useEffect(() => {
@@ -249,8 +266,10 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
         ctx.clearRect(0, 0, hoverCanvas.width, hoverCanvas.height);
 
         if (isHoveringRef.current && onSeek) {
+            const hoverColor = getComputedStyle(container).getPropertyValue('--waveform-hover').trim()
+                || 'rgba(128,128,128,0.5)';
             ctx.scale(dpr, dpr);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.fillStyle = hoverColor;
             ctx.fillRect(hoverXRef.current - 0.5, 0, 1, height);
         }
     }, [height, onSeek]);
@@ -267,6 +286,18 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
         observer.observe(container);
         return () => observer.disconnect();
     }, [render, drawHoverLine]);
+
+    // Theme-change observer — re-draw when .dark class toggles on <html>.
+    // Canvas pixels are static: CSS variable updates don't trigger a redraw
+    // automatically, so we watch for class attribute changes on the root element.
+    useEffect(() => {
+        const observer = new MutationObserver(() => render());
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['class'],
+        });
+        return () => observer.disconnect();
+    }, [render]);
 
     const handleClick = (e: React.MouseEvent) => {
         if (!onSeek || !containerRef.current) return;
@@ -307,7 +338,7 @@ export const WaveformCanvas: React.FC<WaveformCanvasProps> = ({
                         {Array.from({ length: compact ? 12 : 20 }).map((_, i) => (
                             <div
                                 key={i}
-                                className="w-[2px] bg-white/10 rounded-full animate-pulse"
+                                className="w-[2px] bg-[var(--waveform-bar)] rounded-full animate-pulse"
                                 style={{
                                     height: `${(compact ? LOADING_HEIGHTS_COMPACT : LOADING_HEIGHTS)[i]}%`,
                                     animationDelay: `${i * 0.05}s`,

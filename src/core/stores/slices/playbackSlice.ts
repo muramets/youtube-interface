@@ -36,6 +36,10 @@ export interface PlaybackSlice {
     setPlaybackVolume: (vol: number | null) => void;
     setPlaybackSource: (source: 'library' | 'timeline' | 'browser-preview' | null) => void;
     signalTrackEnded: () => void;
+    /** Clears pendingSeekSeconds and sets currentTime atomically after audio loads. */
+    resolvePendingSeek: (seconds: number) => void;
+    /** Updates a cached audio URL in the track list after a Firebase Storage token refresh. */
+    refreshTrackUrl: (trackId: string, field: 'vocalUrl' | 'instrumentalUrl', url: string) => void;
 }
 
 export const createPlaybackSlice: StateCreator<MusicState, [], [], PlaybackSlice> = (set, get) => ({
@@ -95,4 +99,10 @@ export const createPlaybackSlice: StateCreator<MusicState, [], [], PlaybackSlice
     setPlaybackVolume: (vol) => set({ playbackVolume: vol }),
     setPlaybackSource: (source) => set({ playbackSource: source }),
     signalTrackEnded: () => set((s) => ({ trackEndedSignal: s.trackEndedSignal + 1 })),
+
+    resolvePendingSeek: (seconds) => set({ pendingSeekSeconds: null, currentTime: seconds }),
+
+    refreshTrackUrl: (trackId, field, url) => set((s) => ({
+        tracks: s.tracks.map((t) => t.id === trackId ? { ...t, [field]: url } : t),
+    })),
 });

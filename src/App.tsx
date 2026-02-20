@@ -26,6 +26,10 @@ import { AppDndProvider } from './components/providers/AppDndProvider';
 import { AudioPlayer } from './pages/Music/components/AudioPlayer';
 import { ChatBubble } from './features/Chat/ChatBubble';
 import { RenderQueueFAB } from './features/Render/RenderQueueFAB';
+// Side-effect: sets up global Zustand subscription for timeline auto-advance.
+// Must be imported from an always-mounted module. App.tsx is the correct home
+// since it is never unmounted, regardless of which page the user navigates to.
+import './pages/Details/tabs/Editing/hooks/useTimelineAutoAdvance';
 
 // ---------------------------------------------------------------------------
 // Lazy-with-retry: auto-reload once on stale chunk errors after deploy
@@ -104,7 +108,9 @@ function AppContent() {
                         <Route path="/playlists" element={<PlaylistsPage />} />
                         <Route path="/playlists/:id" element={<PlaylistDetailPage />} />
                         <Route path="/trends" element={<TrendsPage />} />
-                        <Route path="/music/*" element={<MusicPage />} />
+                        <Route path="/music" element={<MusicPage />} />
+                        <Route path="/music/liked" element={<MusicPage />} />
+                        <Route path="/music/playlist/:playlistId" element={<MusicPage />} />
                       </Routes>
                     </main>
                   </div>

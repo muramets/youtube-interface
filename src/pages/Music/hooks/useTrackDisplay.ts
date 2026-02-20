@@ -8,8 +8,10 @@
 // =============================================================================
 
 import { useEffect, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useMusicStore } from '../../../core/stores/musicStore';
 import { useFilterStore } from '../../../core/stores/filterStore';
+import { sortByGroupOrder } from '../../../core/utils/trackUtils';
 import type { Track, MusicTag } from '../../../core/types/track';
 import type { MusicPlaylist } from '../../../core/types/musicPlaylist';
 
@@ -55,11 +57,20 @@ export function useTrackDisplay({
 }: UseTrackDisplayParams): UseTrackDisplayResult {
     // ── Store selectors ──────────────────────────────────────────────────
     const searchQuery = useMusicStore((s) => s.searchQuery);
-    const genreFilter = useMusicStore((s) => s.genreFilter);
-    const tagFilters = useMusicStore((s) => s.tagFilters);
-    const bpmFilter = useMusicStore((s) => s.bpmFilter);
 
-    const { musicSortBy, musicSortAsc } = useFilterStore();
+    const { musicSortBy, musicSortAsc,
+        musicGenreFilters: genreFilters,
+        musicTagFilters: tagFilters,
+        musicBpmFilter: bpmFilter,
+    } = useFilterStore(
+        useShallow((s) => ({
+            musicSortBy: s.musicSortBy,
+            musicSortAsc: s.musicSortAsc,
+            musicGenreFilters: s.musicGenreFilters,
+            musicTagFilters: s.musicTagFilters,
+            musicBpmFilter: s.musicBpmFilter,
+        }))
+    );
 
     // ── Filtered & sorted tracks ─────────────────────────────────────────
     const filteredTracks = useMemo(() => {
@@ -87,9 +98,9 @@ export function useTrackDisplay({
             );
         }
 
-        // Genre filter
-        if (genreFilter) {
-            result = result.filter((t) => t.genre === genreFilter);
+        // Genre filter (multi-select: track must match at least one selected genre)
+        if (genreFilters.length > 0) {
+            result = result.filter((t) => genreFilters.includes(t.genre ?? ''));
         }
 
         // Tag filters (track.tags and tagFilters are both ID-based)
@@ -153,7 +164,7 @@ export function useTrackDisplay({
         }
 
         return result;
-    }, [tracks, searchQuery, genreFilter, tagFilters, bpmFilter, activePlaylistId, musicPlaylists, musicSortBy, musicSortAsc, tags]);
+    }, [tracks, searchQuery, genreFilters, tagFilters, bpmFilter, activePlaylistId, musicPlaylists, musicSortBy, musicSortAsc, tags]);
 
     // ── BPM range from all tracks ────────────────────────────────────────
     const bpmRange = useMemo(() => {
@@ -162,7 +173,7 @@ export function useTrackDisplay({
         return { min: Math.min(...bpms), max: Math.max(...bpms) };
     }, [tracks]);
 
-    const hasActiveFilters = !!(searchQuery || genreFilter || tagFilters.length > 0 || bpmFilter);
+    const hasActiveFilters = !!(searchQuery || genreFilters.length > 0 || tagFilters.length > 0 || bpmFilter);
     const hasLikedTracks = useMemo(() => tracks.some(t => t.liked), [tracks]);
 
     // ── Version grouping → displayItems ──────────────────────────────────
@@ -177,12 +188,7 @@ export function useTrackDisplay({
                 const groupTracks = filteredTracks.filter((t) => t.groupId === track.groupId);
                 if (groupTracks.length >= 2) {
                     const allGroupTracks = tracks.filter((t) => t.groupId === track.groupId);
-                    const parentTrack = [...allGroupTracks].sort((a, b) => {
-                        if (a.groupOrder !== undefined && b.groupOrder !== undefined) {
-                            return a.groupOrder - b.groupOrder;
-                        }
-                        return b.createdAt - a.createdAt;
-                    })[0];
+                    const parentTrack = [...allGroupTracks].sort(sortByGroupOrder)[0];
                     const parentInPlaylist = groupTracks.some((t) => t.id === parentTrack?.id);
 
                     if (parentInPlaylist || !activePlaylistId) {
@@ -215,12 +221,7 @@ export function useTrackDisplay({
             if (item.type === 'single' || item.type === 'sibling') {
                 queue.push(item.track.id);
             } else {
-                const sorted = [...item.tracks].sort((a, b) => {
-                    if (a.groupOrder !== undefined && b.groupOrder !== undefined) {
-                        return a.groupOrder - b.groupOrder;
-                    }
-                    return b.createdAt - a.createdAt;
-                });
+                const sorted = [...item.tracks].sort(sortByGroupOrder);
                 for (const t of sorted) {
                     queue.push(t.id);
                 }
