@@ -7,12 +7,13 @@
 // =============================================================================
 
 import React from 'react';
-import { DndContext, DragOverlay, useDndContext, useSensor, useSensors, PointerSensor, pointerWithin } from '@dnd-kit/core';
+import { DndContext, DragOverlay, useSensor, useSensors, PointerSensor, pointerWithin } from '@dnd-kit/core';
 import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { Unlink } from 'lucide-react';
 import type { DragStartEvent, DragOverEvent, DragEndEvent, CollisionDetection } from '@dnd-kit/core';
 import { useTrendsDragDrop } from '../../pages/Trends/hooks/useTrendsDragDrop';
 import { useMusicDragDrop } from '../../pages/Music/hooks/useMusicDragDrop';
+import { useDragOverlayState } from '../../pages/Music/hooks/useDragOverlayState';
 import { VideoNodeGhost } from '../../pages/Trends/Timeline/nodes/DraggableVideoNode';
 import { TrackCardGhost } from '../../pages/Music/components/track/TrackCardGhost';
 
@@ -47,38 +48,21 @@ const contentFirstCollision: CollisionDetection = (args) => {
 };
 
 // ── Overlay Manager ───────────────────────────────────────────────────────────
-// Lives INSIDE DndContext so it can call useDndContext().
+// Lives INSIDE DndContext so useDragOverlayState can call useDndContext().
 // Manages all DragOverlay content in one place (dnd-kit warns against multiple
-// DragOverlay instances). Handles three drag types:
-//   1. music-track       → TrackCardGhost (snapCenterToCursor)
-//   2. group-child-sort  → Amber "Release to detach" pill when cursor is outside
-//                          the group or between rows. Hidden during in-group reorder
-//                          and when hovering over a link target.
-//   3. trend-video       → VideoNodeGhost (no modifier)
+// DragOverlay instances). All ghost/pill state logic lives in useDragOverlayState.
 type OverlayManagerProps = {
     draggedTrack: ReturnType<typeof useMusicDragDrop>['draggedTrack'];
     draggedVideo: ReturnType<typeof useTrendsDragDrop>['draggedVideo'];
 };
 const OverlayManager: React.FC<OverlayManagerProps> = ({ draggedTrack, draggedVideo }) => {
-    const { active, over } = useDndContext();
-
-    const isGroupChildDragging = active?.data.current?.type === 'group-child-sort';
-    const overType = over?.data.current?.type as string | undefined;
-    // Show detach hint when dragging a group child AND cursor is not over:
-    //   - another group member (reorder) → 'group-child-sort'
-    //   - a link target (would create a new group) → 'music-track-target' / 'music-group-target'
-    const showDetachHint = isGroupChildDragging
-        && overType !== 'group-child-sort'
-        && overType !== 'music-track-target'
-        && overType !== 'music-group-target';
-
-    const modifiers = (draggedTrack || showDetachHint) ? [snapCenterToCursor] : undefined;
+    const { showTrackGhost, showDetachPill, isGhostDisabled, useSnapModifier, alreadyInPlaylist } = useDragOverlayState(draggedTrack);
 
     return (
-        <DragOverlay dropAnimation={null} modifiers={modifiers}>
+        <DragOverlay dropAnimation={null} modifiers={useSnapModifier ? [snapCenterToCursor] : undefined}>
             {draggedVideo && <VideoNodeGhost video={draggedVideo} />}
-            {draggedTrack && <TrackCardGhost track={draggedTrack} />}
-            {showDetachHint && (
+            {showTrackGhost && <TrackCardGhost track={draggedTrack!} disabled={isGhostDisabled} alreadyInPlaylist={alreadyInPlaylist} />}
+            {showDetachPill && (
                 <div className="w-fit flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500 shadow-lg pointer-events-none">
                     <Unlink size={9} className="text-white flex-shrink-0" />
                     <span className="text-[10px] font-semibold text-white whitespace-nowrap tracking-wide">
@@ -118,11 +102,9 @@ export const AppDndProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Polymorphic handlers: route events to appropriate handler based on type
     const handleDragStart = (event: DragStartEvent) => {
         const type = event.active.data.current?.type;
-        if (type === 'music-track' || type === 'playlist-sort') {
-            // music-track: full drag (ghost + dim). playlist-sort: ghost only (no dim).
+        if (type === 'music-track' || type === 'playlist-sort' || type === 'group-child-sort') {
+            // music-track: full drag (ghost + dim). playlist-sort / group-child-sort: ghost only (no dim).
             handleMusicDragStart(event);
-        } else if (type === 'group-child-sort') {
-            // Handled entirely by TrackGroupCard's useDndMonitor — no global handler needed.
         } else {
             trendsDragStart(event);
         }

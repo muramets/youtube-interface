@@ -11,6 +11,8 @@ import {
     fetchDoc,
     batchUpdateDocuments,
 } from './firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../../config/firebase';
 import type { Track, TrackCreateData, MusicSettings } from '../types/track';
 import { DEFAULT_GENRES, DEFAULT_TAGS } from '../types/track';
 import type { UpdateData, DocumentData } from 'firebase/firestore';
@@ -146,6 +148,29 @@ export const TrackService = {
         }
 
         return data;
+    },
+
+    /**
+     * Subscribe to music settings (genres + tags) for a channel (real-time).
+     * Returns defaults on first call if no settings doc exists.
+     */
+    subscribeToMusicSettings(
+        userId: string,
+        channelId: string,
+        callback: (settings: MusicSettings) => void,
+    ): () => void {
+        const path = getMusicSettingsPath(userId, channelId);
+        const ref = doc(db, path, MUSIC_SETTINGS_DOC_ID);
+
+        return onSnapshot(ref, (snap) => {
+            if (!snap.exists()) {
+                callback({ genres: DEFAULT_GENRES, tags: DEFAULT_TAGS });
+                return;
+            }
+            callback(snap.data() as MusicSettings);
+        }, (err) => {
+            console.error('[TrackService] Settings subscription error:', err);
+        });
     },
 
     /**

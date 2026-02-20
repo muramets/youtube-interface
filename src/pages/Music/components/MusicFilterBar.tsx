@@ -149,7 +149,7 @@ export const MusicFilterBar: React.FC<MusicFilterBarProps> = ({
     const skeletonWidths = [64, 84, 72, 56];
 
     return (
-        <div className="relative flex flex-col gap-2.5">
+        <div className="relative flex flex-col gap-4">
             {/* SKELETON LAYER — crossfade out when loading ends */}
             <div
                 className={`transition-opacity duration-300 ${isLoading ? 'opacity-100' : 'opacity-0 absolute inset-0 pointer-events-none'
@@ -169,7 +169,7 @@ export const MusicFilterBar: React.FC<MusicFilterBarProps> = ({
             </div>
 
             {/* CONTENT LAYER — absolute during loading (no layout impact), in flow when visible */}
-            <div className={`transition-opacity duration-300 ${isLoading ? 'opacity-0 absolute inset-0 pointer-events-none' : 'opacity-100'}`}>
+            <div className={`flex flex-col gap-3 transition-opacity duration-300 ${isLoading ? 'opacity-0 absolute inset-0 pointer-events-none' : 'opacity-100'}`}>
                 {/* Row 1: Category labels with scroll fades */}
                 <div className="relative">
                     {showLeftFade && (

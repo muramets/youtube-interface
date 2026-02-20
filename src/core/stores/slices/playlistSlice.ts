@@ -5,6 +5,7 @@
 import type { StateCreator } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import type { MusicPlaylist, TrackSource } from '../../types/musicPlaylist';
+import type { SharedLibraryEntry } from '../../types/musicSharing';
 import { MusicPlaylistService } from '../../services/musicPlaylistService';
 import type { MusicState } from '../musicStore';
 
@@ -18,6 +19,14 @@ export interface PlaylistSlice {
     playlistAllSources: boolean;
     /** True while the first Firestore snapshot hasn't arrived yet (mirrors Trends isLoadingChannels) */
     isPlaylistsLoading: boolean;
+
+    // Per-view memory: library view vs subview (playlist/liked)
+    /** Remembered library source when user leaves the main library view */
+    libraryViewSource: SharedLibraryEntry | null;
+    /** Remembered library source when user leaves a subview */
+    subviewSource: SharedLibraryEntry | null;
+    /** Remembered All toggle when user leaves a subview */
+    subviewAllSources: boolean;
 
     // Actions
     subscribePlaylists: (userId: string, channelId: string) => () => void;
@@ -38,8 +47,11 @@ export const createPlaylistSlice: StateCreator<MusicState, [], [], PlaylistSlice
     sharedPlaylists: [],
     activePlaylistId: null,
     playlistGroupOrder: [],
-    playlistAllSources: true,
+    playlistAllSources: false,
     isPlaylistsLoading: true,
+    libraryViewSource: null,
+    subviewSource: null,
+    subviewAllSources: true,
 
     // Actions
     subscribePlaylists: (userId, channelId) => {
@@ -66,7 +78,33 @@ export const createPlaylistSlice: StateCreator<MusicState, [], [], PlaylistSlice
         }
     },
 
-    setActivePlaylist: (id) => set({ activePlaylistId: id }),
+    setActivePlaylist: (id) => {
+        const s = get();
+        const wasLibrary = s.activePlaylistId === null;
+        const willBeLibrary = id === null;
+
+        if (wasLibrary && !willBeLibrary) {
+            // Library → subview: save library state, restore subview state
+            set({
+                activePlaylistId: id,
+                libraryViewSource: s.activeLibrarySource,
+                activeLibrarySource: s.subviewSource,
+                playlistAllSources: s.subviewAllSources,
+            });
+        } else if (!wasLibrary && willBeLibrary) {
+            // Subview → library: save subview state, restore library state
+            set({
+                activePlaylistId: id,
+                subviewSource: s.activeLibrarySource,
+                subviewAllSources: s.playlistAllSources,
+                activeLibrarySource: s.libraryViewSource,
+                playlistAllSources: false,
+            });
+        } else {
+            // Subview → subview (playlist switch): no swap needed
+            set({ activePlaylistId: id });
+        }
+    },
 
     setPlaylistAllSources: (value) => set({ playlistAllSources: value }),
 

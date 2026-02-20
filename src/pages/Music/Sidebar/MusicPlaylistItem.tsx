@@ -30,6 +30,13 @@ interface MusicPlaylistItemProps {
     droppable?: boolean;
     playlist?: MusicPlaylist;
     existingGroups?: string[];
+    /** Permission: can rename, change color, move to group */
+    canEdit?: boolean;
+    /** Permission: can delete */
+    canDelete?: boolean;
+    /** Owner credentials for shared playlists */
+    ownerUserId?: string;
+    ownerChannelId?: string;
 }
 
 export const MusicPlaylistItem: React.FC<MusicPlaylistItemProps> = ({
@@ -43,6 +50,10 @@ export const MusicPlaylistItem: React.FC<MusicPlaylistItemProps> = ({
     droppable = true,
     playlist,
     existingGroups = [],
+    canEdit = true,
+    canDelete = true,
+    ownerUserId,
+    ownerChannelId,
 }) => {
     const nameRef = useRef<HTMLSpanElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -62,14 +73,21 @@ export const MusicPlaylistItem: React.FC<MusicPlaylistItemProps> = ({
 
     const PRESET_COLORS = MANUAL_NICHE_PALETTE;
 
-    // DnD: Make this playlist a drop target
+    // DnD: Make this playlist a drop target.
+    // For shared playlists: include owner credentials in data so the drop handler
+    // can write to the correct Firestore collection. Disabled when canEdit is false.
+    const isSharedPlaylist = !!ownerUserId;
     const { setNodeRef, isOver } = useDroppable({
         id: `playlist-drop-${id}`,
-        data: { type: 'music-playlist', playlistId: id },
-        disabled: !droppable || icon === 'heart',
+        data: {
+            type: 'music-playlist',
+            playlistId: id,
+            ...(isSharedPlaylist && { ownerUserId, ownerChannelId }),
+        },
+        disabled: !droppable || icon === 'heart' || (isSharedPlaylist && !canEdit),
     });
 
-    const isDragTarget = isOver && droppable && icon !== 'heart';
+    const isDragTarget = isOver && droppable && icon !== 'heart' && !(isSharedPlaylist && !canEdit);
     const isInteracting = isMenuOpen || isColorPickerOpen;
 
     // Detect text truncation
@@ -250,6 +268,10 @@ export const MusicPlaylistItem: React.FC<MusicPlaylistItemProps> = ({
                     onClose={() => setIsMenuOpen(false)}
                     position={menuPosition}
                     existingGroups={existingGroups}
+                    canEdit={canEdit}
+                    canDelete={canDelete}
+                    ownerUserId={ownerUserId}
+                    ownerChannelId={ownerChannelId}
                     onStartRename={() => {
                         setIsEditing(true);
                         setEditName(name);

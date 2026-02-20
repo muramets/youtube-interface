@@ -20,7 +20,7 @@ export interface MusicDragDropState {
 
 export const useMusicDragDrop = () => {
     // Stable actions — created once, references never change, no subscription needed
-    const { addTracksToPlaylist, linkAsVersion, linkAsVersionAndReorder, setDraggingTrackId } = useMusicStore.getState();
+    const { addTracksToPlaylist, linkAsVersion, linkAsVersionAndReorder, unlinkFromGroup, setDraggingTrackId } = useMusicStore.getState();
     // Reactive state — subscribe only to what actually changes
     const activeLibrarySource = useMusicStore((s) => s.activeLibrarySource);
     const { user } = useAuth();
@@ -36,18 +36,42 @@ export const useMusicDragDrop = () => {
         if (type === 'music-track' && track) {
             setDraggedTrack(track);
             setDraggingTrackId(track.id);
-        } else if (type === 'playlist-sort' && track) {
+        } else if ((type === 'playlist-sort' || type === 'group-child-sort') && track) {
             // Set ghost only — no global dim (useSortable handles visual feedback internally)
             setDraggedTrack(track);
         }
     }, [setDraggingTrackId]);
 
     const handleMusicDragEnd = useCallback((event: DragEndEvent) => {
-        // playlist-sort reorder is handled locally by PlaylistSortableList's useDndMonitor
-        if (event.active.data.current?.type === 'playlist-sort') {
-            setDraggingTrackId(null);
-            setDraggedTrack(null);
-            return;
+        const activeType = event.active.data.current?.type;
+        const overType = event.over?.data.current?.type as string | undefined;
+
+        // playlist-sort and group-child-sort are handled locally by their
+        // respective useDndMonitor hooks. We only clean up ghost state here —
+        // UNLESS the drop target is a playlist, in which case we fall through
+        // to handle the playlist add.
+        if (activeType === 'playlist-sort' || activeType === 'group-child-sort') {
+            if (overType !== 'music-playlist') {
+                // group-child-sort dropped "outside" (no target, or target is not
+                // a group member / link target) → detach from group.
+                // Note: BetweenDropZone ('between-sort-zone') can catch the pointer
+                // even when visually "outside", so we check overType semantically.
+                const isOverGroupOrLink = overType === 'group-child-sort'
+                    || overType === 'music-track-target'
+                    || overType === 'music-group-target';
+                if (activeType === 'group-child-sort' && !isOverGroupOrLink && draggedTrack?.groupId) {
+                    const userId = user?.uid || '';
+                    const channelId = currentChannel?.id || '';
+                    const trackOwnerUserId = activeLibrarySource?.ownerUserId ?? userId;
+                    const trackOwnerChannelId = activeLibrarySource?.ownerChannelId ?? channelId;
+                    if (trackOwnerUserId && trackOwnerChannelId) {
+                        unlinkFromGroup(trackOwnerUserId, trackOwnerChannelId, draggedTrack.id);
+                    }
+                }
+                setDraggingTrackId(null);
+                setDraggedTrack(null);
+                return;
+            }
         }
         const { over } = event;
 
@@ -56,16 +80,24 @@ export const useMusicDragDrop = () => {
             const userId = user?.uid || '';
             const channelId = currentChannel?.id || '';
 
+            // Effective credentials for mutation operations on tracks.
+            // When viewing a shared library, mutations must target the owner's Firestore collection.
+            const trackOwnerUserId = activeLibrarySource?.ownerUserId ?? userId;
+            const trackOwnerChannelId = activeLibrarySource?.ownerChannelId ?? channelId;
+
             if (dropType === 'music-playlist' && userId && channelId) {
                 const playlistId = over.data.current?.playlistId as string | undefined;
+                // Shared playlist: droppable data carries owner credentials
+                const playlistOwnerUserId = (over.data.current?.ownerUserId as string) || userId;
+                const playlistOwnerChannelId = (over.data.current?.ownerChannelId as string) || channelId;
                 if (playlistId) {
                     // If dragging from a shared library, record the source
                     const sources = activeLibrarySource
                         ? { [draggedTrack.id]: { ownerUserId: activeLibrarySource.ownerUserId, ownerChannelId: activeLibrarySource.ownerChannelId } }
                         : undefined;
-                    addTracksToPlaylist(userId, channelId, playlistId, [draggedTrack.id], sources);
+                    addTracksToPlaylist(playlistOwnerUserId, playlistOwnerChannelId, playlistId, [draggedTrack.id], sources);
                 }
-            } else if (dropType === 'music-track-target' && userId && channelId) {
+            } else if (dropType === 'music-track-target' && trackOwnerUserId && trackOwnerChannelId) {
                 const targetTrackId = over.data.current?.trackId as string | undefined;
                 const targetGroupId = over.data.current?.groupId as string | undefined;
 
@@ -80,11 +112,11 @@ export const useMusicDragDrop = () => {
                     // Same-group reorder is handled by TrackGroupCard's useDndMonitor.
                     // Only link as version when dragging between different groups/tracks.
                     if (!sameGroup) {
-                        linkAsVersion(userId, channelId, draggedTrack.id, targetTrackId);
+                        linkAsVersion(trackOwnerUserId, trackOwnerChannelId, draggedTrack.id, targetTrackId);
                     }
                 }
 
-            } else if (dropType === 'music-group-target' && userId && channelId) {
+            } else if (dropType === 'music-group-target' && trackOwnerUserId && trackOwnerChannelId) {
                 const targetGroupId = over.data.current?.groupId as string | undefined;
                 const representativeTrackId = over.data.current?.representativeTrackId as string | undefined;
                 const insertIdx = (over.data.current?.insertionIndex as number) ?? -1;
@@ -94,7 +126,7 @@ export const useMusicDragDrop = () => {
                         // Single atomic write: sets groupId + final groupOrder in one Firestore batch.
                         // Avoids the intermediate Firestore snapshot that caused tracks to swap
                         // when linkAsVersion + reorderGroupTracks fired as two separate writes.
-                        linkAsVersionAndReorder(userId, channelId, draggedTrack.id, representativeTrackId, insertIdx);
+                        linkAsVersionAndReorder(trackOwnerUserId, trackOwnerChannelId, draggedTrack.id, representativeTrackId, insertIdx);
                     }
                 }
             }

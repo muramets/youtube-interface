@@ -3,7 +3,7 @@
 // Business logic, store subscriptions, and derived state live in useMusicPageData.
 // =============================================================================
 
-import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { WifiOff, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -19,6 +19,8 @@ import { MusicLibraryHeader } from './components/MusicLibraryHeader';
 import { TrackListEmpty } from './components/TrackListEmpty';
 import { useMusicPageData } from './hooks/useMusicPageData';
 import { TRACK_ROW_HEIGHT, GROUP_ROW_OVERHEAD as STATIC_GROUP_ROW_OVERHEAD } from './musicLayout';
+import { SharedLibraryContext } from './contexts/SharedLibraryContext';
+import type { SharedLibraryContextValue } from './contexts/SharedLibraryContext';
 
 
 
@@ -27,17 +29,17 @@ export const MusicPage: React.FC = () => {
 
     // ── Data / logic from hook ───────────────────────────────────────────────
     const {
-        userId, channelId,
+        userId, channelId, trackOwnerUserId, trackOwnerChannelId,
         showSkeleton, playingTrackId,
         tracks, genres, tags, allPlaylists, sourceNameMap,
         filteredTracks, displayItems, bpmRange,
-        activePlaylistId, playlistAllSources, isReadOnly, trackSource,
+        activePlaylistId, playlistAllSources, granteePermissions, isSharedView, trackSource,
         sharedPlaylistIds, activeLibrarySource, sharedLibraries,
         selectedTrackId,
         genreFilters, tagFilters, bpmFilter,
         musicSortBy, musicSortAsc, sortableCategories,
         hasActiveFilters, hasLikedTracks,
-        categoryOrder, featuredCategories, sharedCategoryOrder, sharedFeaturedCategories,
+        categoryOrder, featuredCategories,
         setSelectedTrackId, setActiveLibrarySource, setPlaylistAllSources,
         setMusicSortBy, setMusicSortAsc,
         toggleMusicGenreFilter, toggleMusicTagFilter, setMusicBpmFilter, clearMusicFilters,
@@ -139,161 +141,172 @@ export const MusicPage: React.FC = () => {
         activePlaylistId &&
         activePlaylistId !== 'liked' &&
         musicSortBy === 'playlistOrder' &&
-        !isReadOnly
+        granteePermissions.canReorder
     );
+
+    // ── Shared library context ────────────────────────────────────────────
+    const sharedLibCtx = useMemo<SharedLibraryContextValue>(() => ({
+        effectiveUserId: trackOwnerUserId,
+        effectiveChannelId: trackOwnerChannelId,
+        granteeUserId: userId,
+        granteeChannelId: channelId,
+        permissions: granteePermissions,
+        isSharedView,
+        trackSource,
+    }), [trackOwnerUserId, trackOwnerChannelId, userId, channelId, granteePermissions, isSharedView, trackSource]);
 
     // ── Render ───────────────────────────────────────────────────────────────
     return (
-        <div className="flex flex-col h-full">
-            {/* Header */}
-            <div className="flex-shrink-0 px-6 pt-6 pb-4">
-                <MusicLibrarySwitcher
-                    sharedLibraries={sharedLibraries}
-                    activePlaylistId={activePlaylistId}
-                    sharedPlaylistIds={sharedPlaylistIds}
-                    playlistAllSources={playlistAllSources}
-                    activeLibrarySource={activeLibrarySource}
-                    setPlaylistAllSources={setPlaylistAllSources}
-                    setActiveLibrarySource={setActiveLibrarySource}
-                />
-                <MusicLibraryHeader
-                    activePlaylistId={activePlaylistId}
-                    allPlaylists={allPlaylists}
-                    isReadOnly={isReadOnly}
-                    activeLibrarySource={activeLibrarySource}
-                    showSkeleton={showSkeleton}
-                    tracks={tracks}
-                    filteredTracks={filteredTracks}
-                    hasActiveFilters={hasActiveFilters}
-                    musicSortBy={musicSortBy}
-                    musicSortAsc={musicSortAsc}
-                    sortableCategories={sortableCategories}
-                    hasLikedTracks={hasLikedTracks}
-                    tags={tags}
-                    navigate={navigate}
-                    setMusicSortBy={setMusicSortBy}
-                    setMusicSortAsc={setMusicSortAsc}
-                    setShowSettings={setShowSettings}
-                    setShowUpload={setShowUpload}
-                    showSettings={!!showSettings}
-                />
-                <MusicFilterBar
-                    genres={genres}
-                    tags={tags}
-                    categoryOrder={activeLibrarySource ? sharedCategoryOrder : categoryOrder}
-                    featuredCategories={activeLibrarySource ? sharedFeaturedCategories : featuredCategories}
-                    genreFilters={genreFilters}
-                    tagFilters={tagFilters}
-                    bpmFilter={bpmFilter}
-                    bpmRange={bpmRange}
-                    hasActiveFilters={hasActiveFilters}
-                    toggleGenreFilter={toggleMusicGenreFilter}
-                    toggleTagFilter={toggleMusicTagFilter}
-                    setBpmFilter={setMusicBpmFilter}
-                    clearFilters={clearMusicFilters}
-                    isLoading={showSkeleton}
-                />
-            </div>
+        <SharedLibraryContext.Provider value={sharedLibCtx}>
+            <div className="flex flex-col h-full">
+                {/* Header */}
+                <div className="flex-shrink-0 px-6 pt-6 pb-4">
+                    <MusicLibrarySwitcher
+                        sharedLibraries={sharedLibraries}
+                        activePlaylistId={activePlaylistId}
+                        sharedPlaylistIds={sharedPlaylistIds}
+                        playlistAllSources={playlistAllSources}
+                        activeLibrarySource={activeLibrarySource}
+                        setPlaylistAllSources={setPlaylistAllSources}
+                        setActiveLibrarySource={setActiveLibrarySource}
+                    />
+                    <MusicLibraryHeader
+                        activePlaylistId={activePlaylistId}
+                        allPlaylists={allPlaylists}
+                        isSharedView={isSharedView}
+                        activeLibrarySource={activeLibrarySource}
+                        showSkeleton={showSkeleton}
+                        tracks={tracks}
+                        filteredTracks={filteredTracks}
+                        hasActiveFilters={hasActiveFilters}
+                        musicSortBy={musicSortBy}
+                        musicSortAsc={musicSortAsc}
+                        sortableCategories={sortableCategories}
+                        hasLikedTracks={hasLikedTracks}
+                        tags={tags}
+                        navigate={navigate}
+                        setMusicSortBy={setMusicSortBy}
+                        setMusicSortAsc={setMusicSortAsc}
+                        setShowSettings={setShowSettings}
+                        setShowUpload={setShowUpload}
+                        showSettings={!!showSettings}
+                    />
+                    <MusicFilterBar
+                        genres={genres}
+                        tags={tags}
+                        categoryOrder={categoryOrder}
+                        featuredCategories={featuredCategories}
+                        genreFilters={genreFilters}
+                        tagFilters={tagFilters}
+                        bpmFilter={bpmFilter}
+                        bpmRange={bpmRange}
+                        hasActiveFilters={hasActiveFilters}
+                        toggleGenreFilter={toggleMusicGenreFilter}
+                        toggleTagFilter={toggleMusicTagFilter}
+                        setBpmFilter={setMusicBpmFilter}
+                        clearFilters={clearMusicFilters}
+                        isLoading={showSkeleton}
+                    />
+                </div>
 
-            {/* Track list */}
-            <div
-                ref={scrollContainerRef}
-                className="flex-1 overflow-y-auto px-6 pb-6"
-                onClick={() => setSelectedTrackId(null)}
-            >
-                <MusicErrorBoundary>
-                    {/* ── Crossfade: skeleton ↔ content ──────────────────────────────────────
+                {/* Track list */}
+                <div
+                    ref={scrollContainerRef}
+                    className="flex-1 overflow-y-auto px-6 pt-0.5 pb-6"
+                    onClick={() => setSelectedTrackId(null)}
+                >
+                    <MusicErrorBoundary>
+                        {/* ── Crossfade: skeleton ↔ content ──────────────────────────────────────
                         Both layers stay in the DOM simultaneously during the transition.
                         This eliminates the single blank frame that happens when React
                         unmounts the skeleton and mounts the content div at opacity:0.
                         Skeleton: relative when loading, absolute overlay when fading out.
                         Content:  opacity-0 + pointer-events-none while loading, then fades in.
                     ─────────────────────────────────────────────────────────────────────── */}
-                    <div className="relative">
-                        {/* SKELETON LAYER — replaced by error state if load times out */}
-                        {isLoadTimedOut ? (
-                            <div className="flex flex-col items-center justify-center py-20 text-center">
-                                <div className="w-14 h-14 rounded-2xl bg-white/[0.05] flex items-center justify-center mb-4">
-                                    <WifiOff size={24} className="text-text-tertiary" />
+                        <div className="relative">
+                            {/* SKELETON LAYER — replaced by error state if load times out */}
+                            {isLoadTimedOut ? (
+                                <div className="flex flex-col items-center justify-center py-20 text-center">
+                                    <div className="w-14 h-14 rounded-2xl bg-white/[0.05] flex items-center justify-center mb-4">
+                                        <WifiOff size={24} className="text-text-tertiary" />
+                                    </div>
+                                    <h3 className="text-base font-medium text-text-primary mb-1">Could not load tracks</h3>
+                                    <p className="text-sm text-text-secondary mb-4 max-w-xs">
+                                        Check your connection and try again.
+                                    </p>
+                                    <button
+                                        onClick={() => window.location.reload()}
+                                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-white/[0.06] text-text-primary hover:bg-white/10 transition-colors"
+                                    >
+                                        <RefreshCw size={14} />
+                                        Retry
+                                    </button>
                                 </div>
-                                <h3 className="text-base font-medium text-text-primary mb-1">Could not load tracks</h3>
-                                <p className="text-sm text-text-secondary mb-4 max-w-xs">
-                                    Check your connection and try again.
-                                </p>
-                                <button
-                                    onClick={() => window.location.reload()}
-                                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-white/[0.06] text-text-primary hover:bg-white/10 transition-colors"
-                                >
-                                    <RefreshCw size={14} />
-                                    Retry
-                                </button>
-                            </div>
-                        ) : (
-                            <div
-                                className={`transition-opacity duration-300 ${showSkeleton
-                                    ? 'opacity-100'
-                                    : 'opacity-0 absolute inset-0 pointer-events-none'
-                                    }`}
-                                aria-hidden={!showSkeleton}
-                            >
-                                <TrackListSkeleton count={8} />
-                            </div>
-                        )}
-
-                        {/* CONTENT LAYER — hidden while loading OR timed out */}
-                        <div
-                            className={`transition-opacity duration-300 ${showSkeleton || isLoadTimedOut ? 'opacity-0 absolute inset-0 pointer-events-none' : 'opacity-100'
-                                }`}
-                        >
-                            {!showSkeleton && filteredTracks.length === 0 ? (
-                                <TrackListEmpty
-                                    hasAnyTracks={tracks.length > 0}
-                                    onUpload={() => setShowUpload(true)}
-                                    onClearFilters={clearMusicFilters}
-                                />
                             ) : (
-                                <PlaylistSortableList
-                                    isPlaylistDragMode={isPlaylistDragMode}
-                                    displayItems={displayItems}
-                                    filteredTracks={filteredTracks}
-                                    virtualizer={virtualizer}
-                                    selectedTrackId={selectedTrackId}
-                                    userId={userId}
-                                    channelId={channelId}
-                                    isReadOnly={isReadOnly}
-                                    activePlaylistId={activePlaylistId}
-                                    setSelectedTrackId={setSelectedTrackId}
-                                    handleDeleteTrack={handleDeleteTrack}
-                                    handleEditTrack={handleEditTrack}
-                                    reorderPlaylistTracks={reorderPlaylistTracks}
-                                    toggleGroup={toggleGroup}
-                                    trackSource={trackSource}
-                                    sourceNameMap={sourceNameMap}
-                                />
+                                <div
+                                    className={`transition-opacity duration-300 ${showSkeleton
+                                        ? 'opacity-100'
+                                        : 'opacity-0 absolute inset-0 pointer-events-none'
+                                        }`}
+                                    aria-hidden={!showSkeleton}
+                                >
+                                    <TrackListSkeleton count={8} />
+                                </div>
                             )}
+
+                            {/* CONTENT LAYER — hidden while loading OR timed out */}
+                            <div
+                                className={`transition-opacity duration-300 ${showSkeleton || isLoadTimedOut ? 'opacity-0 absolute inset-0 pointer-events-none' : 'opacity-100'
+                                    }`}
+                            >
+                                {!showSkeleton && filteredTracks.length === 0 && (tracks.length === 0 || hasActiveFilters) ? (
+                                    <TrackListEmpty
+                                        hasAnyTracks={tracks.length > 0}
+                                        onUpload={() => setShowUpload(true)}
+                                        onClearFilters={clearMusicFilters}
+                                    />
+                                ) : (
+                                    <PlaylistSortableList
+                                        isPlaylistDragMode={isPlaylistDragMode}
+                                        displayItems={displayItems}
+                                        filteredTracks={filteredTracks}
+                                        virtualizer={virtualizer}
+                                        selectedTrackId={selectedTrackId}
+                                        activePlaylistId={activePlaylistId}
+                                        setSelectedTrackId={setSelectedTrackId}
+                                        handleDeleteTrack={handleDeleteTrack}
+                                        handleEditTrack={handleEditTrack}
+                                        reorderPlaylistTracks={reorderPlaylistTracks}
+                                        toggleGroup={toggleGroup}
+                                        sourceNameMap={sourceNameMap}
+                                        availableTags={tags}
+                                        featuredCategories={featuredCategories}
+                                    />
+                                )}
+                            </div>
                         </div>
-                    </div>
-                </MusicErrorBoundary>
+                    </MusicErrorBoundary>
+                </div>
+
+                {playingTrackId && <div className="h-[76px] flex-shrink-0" />}
+
+                {/* Modals */}
+                <UploadTrackModal
+                    isOpen={showUpload || !!editingTrack}
+                    onClose={() => { setShowUpload(false); setEditingTrack(null); }}
+                    userId={editingTrack && activeLibrarySource ? activeLibrarySource.ownerUserId : userId}
+                    channelId={editingTrack && activeLibrarySource ? activeLibrarySource.ownerChannelId : channelId}
+                    editTrack={editingTrack}
+                    initialTab={editingTrack ? 'library' : 'track'}
+                />
+                <MusicSettingsModal
+                    isOpen={!!showSettings}
+                    onClose={() => setShowSettings(null)}
+                    userId={userId}
+                    channelId={channelId}
+                    initialTab={showSettings || undefined}
+                />
             </div>
-
-            {playingTrackId && <div className="h-[76px] flex-shrink-0" />}
-
-            {/* Modals */}
-            <UploadTrackModal
-                isOpen={showUpload || !!editingTrack}
-                onClose={() => { setShowUpload(false); setEditingTrack(null); }}
-                userId={userId}
-                channelId={channelId}
-                editTrack={editingTrack}
-                initialTab={editingTrack ? 'library' : 'track'}
-            />
-            <MusicSettingsModal
-                isOpen={!!showSettings}
-                onClose={() => setShowSettings(null)}
-                userId={userId}
-                channelId={channelId}
-                initialTab={showSettings || undefined}
-            />
-        </div>
+        </SharedLibraryContext.Provider>
     );
 };

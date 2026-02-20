@@ -10,6 +10,15 @@ service cloud.firestore {
     // User-scoped data: only the owner can access their data
     // Covers all nested collections: channels, settings, videos,
     // trendChannels, chatConversations, aiUsage, notifications, etc.
+    //
+    // TODO: When cross-user library sharing is needed (different Firebase Auth UIDs),
+    // migrate grants from array-in-document to subcollection:
+    //   users/{ownerId}/channels/{channelId}/grants/{granteeUserId}
+    // Then add granular rules:
+    //   allow read:   if grant doc exists (any permission)
+    //   allow update: if grant.permissions.canEdit == true
+    //   allow delete: if grant.permissions.canDelete == true
+    // Current same-user sharing (different channels, same UID) is safe as-is.
     match /users/{userId}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }

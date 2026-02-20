@@ -21,6 +21,13 @@ interface MusicPlaylistContextMenuProps {
     position: { x: number; y: number };
     existingGroups: string[];
     onStartRename: () => void;
+    /** Permission: can rename / move to group */
+    canEdit?: boolean;
+    /** Permission: can delete */
+    canDelete?: boolean;
+    /** Owner credentials for shared playlists */
+    ownerUserId?: string;
+    ownerChannelId?: string;
 }
 
 export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> = ({
@@ -30,12 +37,16 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
     position,
     existingGroups,
     onStartRename,
+    canEdit = true,
+    canDelete = true,
+    ownerUserId,
+    ownerChannelId,
 }) => {
     const { deletePlaylist, updatePlaylist } = useMusicStore();
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const userId = user?.uid || '';
-    const channelId = currentChannel?.id || '';
+    const userId = ownerUserId || user?.uid || '';
+    const channelId = ownerChannelId || currentChannel?.id || '';
 
     const [showGroupSubmenu, setShowGroupSubmenu] = useState(false);
     const [newGroupName, setNewGroupName] = useState('');
@@ -116,106 +127,112 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
                 style={menuStyle}
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Rename */}
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onStartRename();
-                        onClose();
-                    }}
-                    className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer"
-                >
-                    <Pencil size={10} /> Rename
-                </button>
-
-                {/* Move to Group */}
-                <div
-                    className="relative"
-                    onMouseEnter={() => { clearSubmenuTimer(); setShowGroupSubmenu(true); }}
-                    onMouseLeave={startSubmenuCloseTimer}
-                >
+                {/* Rename — requires canEdit */}
+                {canEdit && (
                     <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onStartRename();
+                            onClose();
+                        }}
                         className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer"
                     >
-                        <FolderOpen size={10} />
-                        <span className="flex-1">Move to group</span>
-                        <span className="text-text-tertiary">›</span>
+                        <Pencil size={10} /> Rename
                     </button>
+                )}
 
-                    {/* Submenu */}
-                    {showGroupSubmenu && (
-                        <div
-                            className="absolute left-full top-0 bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl min-w-[140px] animate-fade-in"
-                            onMouseEnter={clearSubmenuTimer}
-                            onMouseLeave={startSubmenuCloseTimer}
+                {/* Move to Group — requires canEdit */}
+                {canEdit && (
+                    <div
+                        className="relative"
+                        onMouseEnter={() => { clearSubmenuTimer(); setShowGroupSubmenu(true); }}
+                        onMouseLeave={startSubmenuCloseTimer}
+                    >
+                        <button
+                            className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer"
                         >
-                            {/* No group option */}
-                            <button
-                                onClick={() => handleMoveToGroup(undefined)}
-                                className={`w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer ${!playlist.group ? 'text-indigo-400' : 'text-text-primary'
-                                    }`}
-                            >
-                                No group
-                            </button>
+                            <FolderOpen size={10} />
+                            <span className="flex-1">Move to group</span>
+                            <span className="text-text-tertiary">›</span>
+                        </button>
 
-                            {/* Existing groups */}
-                            {existingGroups.map(g => (
+                        {/* Submenu */}
+                        {showGroupSubmenu && (
+                            <div
+                                className="absolute left-full top-0 bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl min-w-[140px] animate-fade-in"
+                                onMouseEnter={clearSubmenuTimer}
+                                onMouseLeave={startSubmenuCloseTimer}
+                            >
+                                {/* No group option */}
                                 <button
-                                    key={g}
-                                    onClick={() => handleMoveToGroup(g)}
-                                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer ${playlist.group === g ? 'text-indigo-400' : 'text-text-primary'
+                                    onClick={() => handleMoveToGroup(undefined)}
+                                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer ${!playlist.group ? 'text-indigo-400' : 'text-text-primary'
                                         }`}
                                 >
-                                    {g}
+                                    No group
                                 </button>
-                            ))}
 
-                            {/* Divider */}
-                            {existingGroups.length > 0 && (
-                                <div className="my-1 border-t border-white/5" />
-                            )}
+                                {/* Existing groups */}
+                                {existingGroups.map(g => (
+                                    <button
+                                        key={g}
+                                        onClick={() => handleMoveToGroup(g)}
+                                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer ${playlist.group === g ? 'text-indigo-400' : 'text-text-primary'
+                                            }`}
+                                    >
+                                        {g}
+                                    </button>
+                                ))}
 
-                            {/* New group */}
-                            {showNewGroupInput ? (
-                                <div className="px-2 py-1 flex items-center gap-1">
-                                    <input
-                                        ref={newGroupInputRef}
-                                        type="text"
-                                        value={newGroupName}
-                                        onChange={e => setNewGroupName(e.target.value)}
-                                        onKeyDown={e => {
-                                            if (e.key === 'Enter') handleCreateGroup();
-                                            if (e.key === 'Escape') setShowNewGroupInput(false);
-                                        }}
-                                        placeholder="Group name..."
-                                        className="flex-1 px-2 py-1 bg-bg-primary border border-border rounded text-xs text-text-primary placeholder-text-tertiary outline-none focus:border-indigo-400/50 w-[100px]"
-                                    />
-                                </div>
-                            ) : (
-                                <button
-                                    onClick={() => setShowNewGroupInput(true)}
-                                    className="w-full text-left px-3 py-1.5 text-xs text-text-tertiary hover:text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer"
-                                >
-                                    <FolderPlus size={10} /> New group
-                                </button>
-                            )}
-                        </div>
-                    )}
-                </div>
+                                {/* Divider */}
+                                {existingGroups.length > 0 && (
+                                    <div className="my-1 border-t border-white/5" />
+                                )}
 
-                {/* Divider */}
-                <div className="my-1 border-t border-white/5" />
+                                {/* New group */}
+                                {showNewGroupInput ? (
+                                    <div className="px-2 py-1 flex items-center gap-1">
+                                        <input
+                                            ref={newGroupInputRef}
+                                            type="text"
+                                            value={newGroupName}
+                                            onChange={e => setNewGroupName(e.target.value)}
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter') handleCreateGroup();
+                                                if (e.key === 'Escape') setShowNewGroupInput(false);
+                                            }}
+                                            placeholder="Group name..."
+                                            className="flex-1 px-2 py-1 bg-bg-primary border border-border rounded text-xs text-text-primary placeholder-text-tertiary outline-none focus:border-indigo-400/50 w-[100px]"
+                                        />
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => setShowNewGroupInput(true)}
+                                        className="w-full text-left px-3 py-1.5 text-xs text-text-tertiary hover:text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer"
+                                    >
+                                        <FolderPlus size={10} /> New group
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
 
-                {/* Delete */}
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete();
-                    }}
-                    className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer"
-                >
-                    <Trash2 size={10} /> Delete
-                </button>
+                {/* Divider + Delete — requires canDelete */}
+                {canDelete && (
+                    <>
+                        <div className="my-1 border-t border-white/5" />
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete();
+                            }}
+                            className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer"
+                        >
+                            <Trash2 size={10} /> Delete
+                        </button>
+                    </>
+                )}
             </div>
         </>,
         document.body

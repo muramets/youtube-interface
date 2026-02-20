@@ -611,7 +611,9 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                                 style={{
                                     maxHeight: position.maxHeight ? position.maxHeight - 16 : undefined,
                                     overflowY: position.maxHeight ? 'auto' : undefined,
+                                    overscrollBehavior: 'contain',
                                 }}
+                                onWheel={(e) => e.stopPropagation()}
                             >
                                 {content}
                             </div>

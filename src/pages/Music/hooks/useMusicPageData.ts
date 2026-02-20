@@ -11,7 +11,13 @@ import { useMatch } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
-import { useMusicStore } from '../../../core/stores/musicStore';
+import type { SharePermissions } from '../../../core/types/musicSharing';
+import { DEFAULT_SHARE_PERMISSIONS, OWNER_PERMISSIONS } from '../../../core/types/musicSharing';
+import {
+    useMusicStore,
+    selectAllTags, selectAllGenres,
+    selectAllCategoryOrder, selectAllFeaturedCategories,
+} from '../../../core/stores/musicStore';
 import { useFilterStore } from '../../../core/stores/filterStore';
 import { useTrackDisplay } from './useTrackDisplay';
 import { TrackService } from '../../../core/services/trackService';
@@ -68,7 +74,7 @@ export function useMusicPageData() {
     // references are permanently stable. No subscription needed.
     const {
         subscribe, loadSettings, setSelectedTrackId, setActivePlaylist,
-        setActiveLibrarySource, loadSharedLibraries, setPlaylistAllSources,
+        setActiveLibrarySource, subscribeSharedLibraries, setPlaylistAllSources,
         subscribeSharedLibraryTracks, reorderPlaylistTracks,
     } = useMusicStore.getState();
 
@@ -123,24 +129,19 @@ export function useMusicPageData() {
     const playlistMatch = useMatch('/music/playlist/:playlistId');
 
     useEffect(() => {
-        if (likedMatch) {
-            setActivePlaylist('liked');
-            setPlaylistAllSources(true);
-        } else if (playlistMatch) {
-            const id = playlistMatch.params.playlistId;
-            if (id) {
-                setActivePlaylist(id);
-                // Sidebar sets activeLibrarySource synchronously before navigate(),
-                // so the ref already reflects the new value by the time this fires.
-                if (!activeLibrarySourceRef.current) {
-                    setPlaylistAllSources(true);
-                }
-            }
-        } else {
-            setActivePlaylist(null);
-            setPlaylistAllSources(false);
-        }
-    }, [likedMatch, playlistMatch, setActivePlaylist, setPlaylistAllSources]);
+        // Derive target playlist ID from the current route.
+        const targetId = likedMatch
+            ? 'liked'
+            : playlistMatch?.params.playlistId ?? null;
+
+        // Use getState() (not reactive) so this effect only fires on URL changes.
+        // The sidebar handler calls setActivePlaylist synchronously before navigate(),
+        // so getState().activePlaylistId is already correct by the time this runs.
+        const currentId = useMusicStore.getState().activePlaylistId;
+        if (targetId === currentId) return;
+
+        setActivePlaylist(targetId);
+    }, [likedMatch, playlistMatch, setActivePlaylist]);
 
     // ── Subscriptions ───────────────────────────────────────────────────────
     useEffect(() => {
@@ -152,8 +153,8 @@ export function useMusicPageData() {
 
     useEffect(() => {
         if (!userId || !channelId) return;
-        loadSharedLibraries(userId, channelId);
-    }, [userId, channelId, loadSharedLibraries]);
+        return subscribeSharedLibraries(userId, channelId);
+    }, [userId, channelId, subscribeSharedLibraries]);
 
     // Derive a stable primitive key from the set of shared library IDs.
     // sharedLibraries is an array — its reference changes on every Firestore
@@ -178,8 +179,15 @@ export function useMusicPageData() {
         () => new Set(sharedPlaylists.map(p => p.id)),
         [sharedPlaylists]
     );
-    const isReadOnly = (!playlistAllSources && activeLibrarySource !== null)
-        || (!!activePlaylistId && sharedPlaylistIds.has(activePlaylistId));
+    // ── Grantee permissions ─────────────────────────────────────────────────
+    // Replaces the old binary `isReadOnly`. Each consumer checks the specific
+    // permission it needs. Own library = full permissions. Shared = per-grant.
+    const isSharedView = !playlistAllSources && activeLibrarySource !== null;
+    const isSharedPlaylist = !!activePlaylistId && sharedPlaylistIds.has(activePlaylistId);
+    const granteePermissions = useMemo<SharePermissions>(() => {
+        if (!isSharedView && !isSharedPlaylist) return OWNER_PERMISSIONS;
+        return activeLibrarySource?.permissions ?? DEFAULT_SHARE_PERMISSIONS;
+    }, [isSharedView, isSharedPlaylist, activeLibrarySource]);
 
     // Stable object identity — prevents unnecessary re-renders in memoized children.
     const trackSource = useMemo<TrackSource | undefined>(
@@ -188,6 +196,11 @@ export function useMusicPageData() {
             : undefined,
         [activeLibrarySource]
     );
+
+    // Effective credentials for mutation operations on tracks.
+    // When viewing a shared library, mutations must target the owner's Firestore collection.
+    const trackOwnerUserId = activeLibrarySource?.ownerUserId ?? userId;
+    const trackOwnerChannelId = activeLibrarySource?.ownerChannelId ?? channelId;
 
     // ── Derived: view-layer source switching ────────────────────────────────
     const tracks = useMemo(() => {
@@ -198,14 +211,36 @@ export function useMusicPageData() {
         return activeLibrarySource ? sharedTracks : ownTracks;
     }, [activePlaylistId, playlistAllSources, activeLibrarySource, ownTracks, sharedTracks]);
 
-    const genres = useMemo(
-        () => activeLibrarySource ? sharedGenres : ownGenres,
-        [activeLibrarySource, sharedGenres, ownGenres]
-    );
-    const tags = useMemo(
-        () => activeLibrarySource ? sharedTags : ownTags,
-        [activeLibrarySource, sharedTags, ownTags]
-    );
+    // ── Merged selectors for mixed-mode (All playlist) ────────────────────
+    const mergedTags = useMusicStore(selectAllTags);
+    const mergedGenres = useMusicStore(selectAllGenres);
+    const mergedCategoryOrder = useMusicStore(selectAllCategoryOrder);
+    const mergedFeaturedCategories = useMusicStore(selectAllFeaturedCategories);
+
+    // ── Context-aware metadata: shared > mixed > own ─────────────────────
+    const genres = useMemo(() => {
+        if (activeLibrarySource) return sharedGenres;
+        if (playlistAllSources) return mergedGenres;
+        return ownGenres;
+    }, [activeLibrarySource, playlistAllSources, sharedGenres, mergedGenres, ownGenres]);
+
+    const tags = useMemo(() => {
+        if (activeLibrarySource) return sharedTags;
+        if (playlistAllSources) return mergedTags;
+        return ownTags;
+    }, [activeLibrarySource, playlistAllSources, sharedTags, mergedTags, ownTags]);
+
+    const resolvedCategoryOrder = useMemo(() => {
+        if (activeLibrarySource) return sharedCategoryOrder;
+        if (playlistAllSources) return mergedCategoryOrder;
+        return categoryOrder;
+    }, [activeLibrarySource, playlistAllSources, sharedCategoryOrder, mergedCategoryOrder, categoryOrder]);
+
+    const resolvedFeaturedCategories = useMemo(() => {
+        if (activeLibrarySource) return sharedFeaturedCategories;
+        if (playlistAllSources) return mergedFeaturedCategories;
+        return featuredCategories;
+    }, [activeLibrarySource, playlistAllSources, sharedFeaturedCategories, mergedFeaturedCategories, featuredCategories]);
     // Always merge playlists — active playlist may belong to either source.
     const allPlaylists = useMemo(
         () => [...ownPlaylists, ...sharedPlaylists],
@@ -227,33 +262,60 @@ export function useMusicPageData() {
     }, [activePlaylistId, playlistAllSources, allPlaylists, sharedLibraries]);
 
     // ── Filter / sort / group / queue ───────────────────────────────────────
+    // queueContextId identifies this view so the queue isn't overwritten when
+    // the user navigates away while a track is playing.
+    const queueContextId = activeLibrarySource
+        ? `shared:${activeLibrarySource.ownerChannelId}`
+        : activePlaylistId
+            ? `playlist:${activePlaylistId}`
+            : 'library';
+
     const { filteredTracks, displayItems, toggleGroup, bpmRange, hasActiveFilters, hasLikedTracks } =
-        useTrackDisplay({ tracks, tags, musicPlaylists: allPlaylists, activePlaylistId });
+        useTrackDisplay({ tracks, tags, musicPlaylists: allPlaylists, activePlaylistId, queueContextId });
 
     // ── Business logic ──────────────────────────────────────────────────────
     const handleDeleteTrack = useCallback(async (trackId: string) => {
-        if (!userId || !channelId) return;
+        // Use owner credentials when deleting a shared track
+        const effectiveUserId = activeLibrarySource ? activeLibrarySource.ownerUserId : userId;
+        const effectiveChannelId = activeLibrarySource ? activeLibrarySource.ownerChannelId : channelId;
+        if (!effectiveUserId || !effectiveChannelId) return;
+
+        const track = tracks.find(t => t.id === trackId);
+        const remainingSibling = track?.groupId
+            ? tracks.filter(t => t.groupId === track.groupId && t.id !== trackId)
+            : [];
+        const shouldDissolve = remainingSibling.length === 1;
+
+        // Optimistic update: remove track + dissolve group immediately
+        useMusicStore.setState((state) => ({
+            tracks: state.tracks
+                .filter(t => t.id !== trackId)
+                .map(t => shouldDissolve && t.id === remainingSibling[0].id
+                    ? { ...t, groupId: undefined }
+                    : t
+                ),
+        }));
+
         try {
-            // Auto-cleanup: if this was in a 2-member group, dissolve the group.
-            const track = tracks.find(t => t.id === trackId);
-            if (track?.groupId) {
-                const remaining = tracks.filter(t => t.groupId === track.groupId && t.id !== trackId);
-                if (remaining.length === 1) {
-                    await TrackService.updateTrack(userId, channelId, remaining[0].id, { groupId: undefined });
-                }
+            if (shouldDissolve) {
+                await TrackService.updateTrack(effectiveUserId, effectiveChannelId, remainingSibling[0].id, { groupId: undefined });
             }
-            await deleteTrackFolder(userId, channelId, trackId);
-            await TrackService.deleteTrack(userId, channelId, trackId);
+            await deleteTrackFolder(effectiveUserId, effectiveChannelId, trackId);
+            await TrackService.deleteTrack(effectiveUserId, effectiveChannelId, trackId);
         } catch (error) {
+            // Rollback: restore the deleted track and its group membership
+            useMusicStore.setState({ tracks });
             console.error('[Music] Failed to delete track:', error);
         }
-    }, [userId, channelId, tracks]);
+    }, [userId, channelId, tracks, activeLibrarySource]);
 
     // ── Return ──────────────────────────────────────────────────────────────
     return {
         // IDs
         userId,
         channelId,
+        trackOwnerUserId,
+        trackOwnerChannelId,
         // Loading
         showSkeleton,
         playingTrackId,
@@ -269,7 +331,8 @@ export function useMusicPageData() {
         // Playlist / library state
         activePlaylistId,
         playlistAllSources,
-        isReadOnly,
+        granteePermissions,
+        isSharedView,
         trackSource,
         sharedPlaylistIds,
         activeLibrarySource,
@@ -285,11 +348,9 @@ export function useMusicPageData() {
         sortableCategories,
         hasActiveFilters,
         hasLikedTracks,
-        // Category settings
-        categoryOrder,
-        featuredCategories,
-        sharedCategoryOrder,
-        sharedFeaturedCategories,
+        // Category settings (context-resolved)
+        categoryOrder: resolvedCategoryOrder,
+        featuredCategories: resolvedFeaturedCategories,
         // Actions
         setSelectedTrackId,
         setActiveLibrarySource,

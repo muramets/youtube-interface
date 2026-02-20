@@ -3,21 +3,24 @@
 // =============================================================================
 //
 // Manages share grants (owner → grantee) and reverse index (grantee → owner).
-// Uses atomic writeBatch to keep both sides in sync.
+// Uses Firestore transactions to prevent stale-read race conditions when
+// multiple writes happen concurrently (e.g. rapid permission toggles).
 //
 // Firestore paths:
 //   Grant:   users/{uid}/channels/{cid}/settings/musicSharing
 //   Reverse: users/{uid}/channels/{granteeChannelId}/settings/sharedLibraries
 // =============================================================================
 
-import { doc, getDoc, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, runTransaction } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import type {
     MusicShareGrant,
     MusicSharingSettings,
     SharedLibraryEntry,
     SharedLibrariesSettings,
+    SharePermissions,
 } from '../types/musicSharing';
+import { DEFAULT_SHARE_PERMISSIONS } from '../types/musicSharing';
 
 // ---------------------------------------------------------------------------
 // Path Helpers
@@ -62,7 +65,7 @@ export const MusicSharingService = {
     },
 
     // -----------------------------------------------------------------------
-    // Grant Access (atomic: owner grant + grantee reverse index)
+    // Grant Access (transaction: owner grant + grantee reverse index)
     // -----------------------------------------------------------------------
 
     async grantAccess(
@@ -72,46 +75,48 @@ export const MusicSharingService = {
         granteeChannelId: string,
         granteeChannelName: string,
     ): Promise<void> {
-        const batch = writeBatch(db);
-        const now = Date.now();
-
-        // 1. Add grant on owner side
         const ownerRef = doc(db, getSettingsPath(userId, ownerChannelId), SHARING_DOC_ID);
-        const ownerSnap = await getDoc(ownerRef);
-        const currentGrants: MusicShareGrant[] = ownerSnap.exists()
-            ? (ownerSnap.data() as MusicSharingSettings).grants || []
-            : [];
-
-        // Prevent duplicate grants
-        if (currentGrants.some(g => g.channelId === granteeChannelId)) return;
-
-        const newGrant: MusicShareGrant = {
-            channelId: granteeChannelId,
-            channelName: granteeChannelName,
-            grantedAt: now,
-        };
-        batch.set(ownerRef, { grants: [...currentGrants, newGrant] }, { merge: true });
-
-        // 2. Add reverse index on grantee side
         const granteeRef = doc(db, getSettingsPath(userId, granteeChannelId), SHARED_LIBRARIES_DOC_ID);
-        const granteeSnap = await getDoc(granteeRef);
-        const currentLibraries: SharedLibraryEntry[] = granteeSnap.exists()
-            ? (granteeSnap.data() as SharedLibrariesSettings).libraries || []
-            : [];
 
-        const newEntry: SharedLibraryEntry = {
-            ownerUserId: userId,
-            ownerChannelId,
-            ownerChannelName,
-            sharedAt: now,
-        };
-        batch.set(granteeRef, { libraries: [...currentLibraries, newEntry] }, { merge: true });
+        await runTransaction(db, async (txn) => {
+            const [ownerSnap, granteeSnap] = await Promise.all([
+                txn.get(ownerRef),
+                txn.get(granteeRef),
+            ]);
 
-        await batch.commit();
+            const currentGrants: MusicShareGrant[] = ownerSnap.exists()
+                ? (ownerSnap.data() as MusicSharingSettings).grants || []
+                : [];
+
+            // Prevent duplicate grants
+            if (currentGrants.some(g => g.channelId === granteeChannelId)) return;
+
+            const now = Date.now();
+            const newGrant: MusicShareGrant = {
+                channelId: granteeChannelId,
+                channelName: granteeChannelName,
+                grantedAt: now,
+                permissions: DEFAULT_SHARE_PERMISSIONS,
+            };
+            txn.set(ownerRef, { grants: [...currentGrants, newGrant] }, { merge: true });
+
+            const currentLibraries: SharedLibraryEntry[] = granteeSnap.exists()
+                ? (granteeSnap.data() as SharedLibrariesSettings).libraries || []
+                : [];
+
+            const newEntry: SharedLibraryEntry = {
+                ownerUserId: userId,
+                ownerChannelId,
+                ownerChannelName,
+                sharedAt: now,
+                permissions: DEFAULT_SHARE_PERMISSIONS,
+            };
+            txn.set(granteeRef, { libraries: [...currentLibraries, newEntry] }, { merge: true });
+        });
     },
 
     // -----------------------------------------------------------------------
-    // Revoke Access (atomic: remove from both sides)
+    // Revoke Access (transaction: remove from both sides)
     // -----------------------------------------------------------------------
 
     async revokeAccess(
@@ -119,28 +124,65 @@ export const MusicSharingService = {
         ownerChannelId: string,
         granteeChannelId: string,
     ): Promise<void> {
-        const batch = writeBatch(db);
-
-        // 1. Remove grant from owner side
         const ownerRef = doc(db, getSettingsPath(userId, ownerChannelId), SHARING_DOC_ID);
-        const ownerSnap = await getDoc(ownerRef);
-        if (ownerSnap.exists()) {
-            const data = ownerSnap.data() as MusicSharingSettings;
-            const filtered = (data.grants || []).filter(g => g.channelId !== granteeChannelId);
-            batch.set(ownerRef, { grants: filtered }, { merge: true });
-        }
-
-        // 2. Remove reverse index from grantee side
         const granteeRef = doc(db, getSettingsPath(userId, granteeChannelId), SHARED_LIBRARIES_DOC_ID);
-        const granteeSnap = await getDoc(granteeRef);
-        if (granteeSnap.exists()) {
-            const data = granteeSnap.data() as SharedLibrariesSettings;
-            const filtered = (data.libraries || []).filter(
-                l => l.ownerChannelId !== ownerChannelId,
-            );
-            batch.set(granteeRef, { libraries: filtered }, { merge: true });
-        }
 
-        await batch.commit();
+        await runTransaction(db, async (txn) => {
+            const [ownerSnap, granteeSnap] = await Promise.all([
+                txn.get(ownerRef),
+                txn.get(granteeRef),
+            ]);
+
+            if (ownerSnap.exists()) {
+                const data = ownerSnap.data() as MusicSharingSettings;
+                const filtered = (data.grants || []).filter(g => g.channelId !== granteeChannelId);
+                txn.set(ownerRef, { grants: filtered }, { merge: true });
+            }
+
+            if (granteeSnap.exists()) {
+                const data = granteeSnap.data() as SharedLibrariesSettings;
+                const filtered = (data.libraries || []).filter(
+                    l => l.ownerChannelId !== ownerChannelId,
+                );
+                txn.set(granteeRef, { libraries: filtered }, { merge: true });
+            }
+        });
+    },
+
+    // -----------------------------------------------------------------------
+    // Update Permissions (transaction: sync both sides)
+    // -----------------------------------------------------------------------
+
+    async updatePermissions(
+        userId: string,
+        ownerChannelId: string,
+        granteeChannelId: string,
+        permissions: SharePermissions,
+    ): Promise<void> {
+        const ownerRef = doc(db, getSettingsPath(userId, ownerChannelId), SHARING_DOC_ID);
+        const granteeRef = doc(db, getSettingsPath(userId, granteeChannelId), SHARED_LIBRARIES_DOC_ID);
+
+        await runTransaction(db, async (txn) => {
+            const [ownerSnap, granteeSnap] = await Promise.all([
+                txn.get(ownerRef),
+                txn.get(granteeRef),
+            ]);
+
+            if (ownerSnap.exists()) {
+                const data = ownerSnap.data() as MusicSharingSettings;
+                const updated = (data.grants || []).map(g =>
+                    g.channelId === granteeChannelId ? { ...g, permissions } : g
+                );
+                txn.set(ownerRef, { grants: updated }, { merge: true });
+            }
+
+            if (granteeSnap.exists()) {
+                const data = granteeSnap.data() as SharedLibrariesSettings;
+                const updated = (data.libraries || []).map(l =>
+                    l.ownerChannelId === ownerChannelId ? { ...l, permissions } : l
+                );
+                txn.set(granteeRef, { libraries: updated }, { merge: true });
+            }
+        });
     },
 };

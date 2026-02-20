@@ -1,16 +1,79 @@
-// =============================================================================
-// SHARE TAB: Manage shared access to this channel's music library
-// Sub-component of MusicSettingsModal
-// =============================================================================
-
 import React, { useState, useEffect, useCallback } from 'react';
-import { Share2, X, Plus, Trash2, Users } from 'lucide-react';
+import { Share2, X, Plus, Trash2, Users, Pencil, TrashIcon, GripVertical } from 'lucide-react';
 import { useAuth } from '../../../../core/hooks/useAuth';
 import { useChannels } from '../../../../core/hooks/useChannels';
 import { useChannelStore } from '../../../../core/stores/channelStore';
 import { useMusicStore } from '../../../../core/stores/musicStore';
 import { MusicSharingService } from '../../../../core/services/musicSharingService';
 import type { MusicShareGrant } from '../../../../core/types/musicSharing';
+import type { SharePermissions } from '../../../../core/types/musicSharing';
+import { DEFAULT_SHARE_PERMISSIONS } from '../../../../core/types/musicSharing';
+import { Badge } from '../../../../components/ui/atoms/Badge/Badge';
+import type { BadgeVariant } from '../../../../components/ui/atoms/Badge/Badge';
+
+// ---------------------------------------------------------------------------
+// Permission Toggle
+// ---------------------------------------------------------------------------
+
+const PERMISSION_META: { key: keyof SharePermissions; icon: React.ReactNode; label: string; tooltip: string; activeVariant: BadgeVariant }[] = [
+    { key: 'canEdit', icon: <Pencil size={11} />, label: 'Edit', tooltip: 'Allow editing track settings', activeVariant: 'warning' },
+    { key: 'canDelete', icon: <TrashIcon size={11} />, label: 'Delete', tooltip: 'Allow deleting tracks', activeVariant: 'error' },
+    { key: 'canReorder', icon: <GripVertical size={11} />, label: 'DnD', tooltip: 'Allow reorder, link & unlink', activeVariant: 'info' },
+];
+
+interface PermissionToggleProps {
+    grant: MusicShareGrant;
+    userId: string;
+    channelId: string;
+    onUpdated: () => void;
+}
+
+const PermissionToggles: React.FC<PermissionToggleProps> = ({ grant, userId, channelId, onUpdated }) => {
+    const perms = grant.permissions ?? DEFAULT_SHARE_PERMISSIONS;
+    const [pending, setPending] = useState<keyof SharePermissions | null>(null);
+
+    const handleToggle = async (key: keyof SharePermissions) => {
+        setPending(key);
+        try {
+            const updated: SharePermissions = { ...perms, [key]: !perms[key] };
+            await MusicSharingService.updatePermissions(userId, channelId, grant.channelId, updated);
+            onUpdated();
+        } catch (err) {
+            console.error('[ShareTab] Failed to update permissions:', err);
+        } finally {
+            setPending(null);
+        }
+    };
+
+    return (
+        <div className="flex items-center gap-1 mt-1">
+            {PERMISSION_META.map(({ key, icon, label, tooltip, activeVariant }) => {
+                const active = perms[key];
+                const loading = pending === key;
+                return (
+                    <button
+                        key={key}
+                        title={tooltip}
+                        disabled={loading}
+                        onClick={(e) => { e.stopPropagation(); handleToggle(key); }}
+                        className={`transition-opacity ${loading ? 'opacity-50' : 'hover:opacity-80'}`}
+                    >
+                        <Badge
+                            variant={active ? activeVariant : 'neutral'}
+                            className={active ? '' : 'opacity-50'}
+                            disableTooltip
+                        >
+                            {loading ? (
+                                <span className="w-[11px] h-[11px] border border-current border-t-transparent rounded-full animate-spin" />
+                            ) : icon}
+                            {label}
+                        </Badge>
+                    </button>
+                );
+            })}
+        </div>
+    );
+};
 
 // ---------------------------------------------------------------------------
 // Share Tab
@@ -73,15 +136,19 @@ export const ShareTab: React.FC<ShareTabProps> = ({ userId, channelId }) => {
         }
     }, [userId, channelId, loadSharingGrants]);
 
+    const handlePermissionsUpdated = useCallback(() => {
+        loadSharingGrants(userId, channelId);
+    }, [userId, channelId, loadSharingGrants]);
+
     return (
         <div className="space-y-4">
             {/* Description */}
             <div className="flex items-start gap-3 p-3 rounded-lg bg-white/[0.03]">
                 <Share2 size={16} className="text-text-tertiary mt-0.5 shrink-0" />
                 <p className="text-xs text-text-secondary leading-relaxed">
-                    Share your music library (read-only) with your other channels.
-                    Shared channels can browse tracks, playlists, and use them in projects,
-                    but cannot upload, edit, or delete tracks.
+                    Share your music library with your other channels.
+                    Configure permissions per channel: edit tracks, delete, and reorder/link.
+                    Drag to playlist is always available.
                 </p>
             </div>
 
@@ -116,9 +183,12 @@ export const ShareTab: React.FC<ShareTabProps> = ({ userId, channelId }) => {
                                     <p className="text-sm font-medium text-text-primary truncate">
                                         {grant.channelName}
                                     </p>
-                                    <p className="text-[11px] text-text-tertiary">
-                                        Shared {new Date(grant.grantedAt).toLocaleDateString()}
-                                    </p>
+                                    <PermissionToggles
+                                        grant={grant}
+                                        userId={userId}
+                                        channelId={channelId}
+                                        onUpdated={handlePermissionsUpdated}
+                                    />
                                 </div>
 
                                 {/* Revoke */}

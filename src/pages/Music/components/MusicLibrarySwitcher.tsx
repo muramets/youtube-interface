@@ -39,13 +39,13 @@ export const MusicLibrarySwitcher: React.FC<MusicLibrarySwitcherProps> = ({
         >
             <div style={{ overflow: 'hidden' }}>
                 <div className="flex items-center gap-1.5 mb-4 p-1 bg-white/[0.04] rounded-xl w-fit">
-                    {/* "All" button — only in playlist view */}
-                    {activePlaylistId && activePlaylistId !== 'liked' && (
+                    {/* "All" button — in all subviews (playlists + liked) */}
+                    {activePlaylistId && (
                         <button
                             onClick={() => setPlaylistAllSources(true)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${playlistAllSources
-                                    ? 'bg-white/[0.1] text-text-primary shadow-sm'
-                                    : 'text-text-secondary hover:text-text-primary'
+                                ? 'bg-white/[0.1] text-text-primary shadow-sm'
+                                : 'text-text-secondary hover:text-text-primary'
                                 }`}
                         >
                             All
@@ -54,8 +54,8 @@ export const MusicLibrarySwitcher: React.FC<MusicLibrarySwitcherProps> = ({
                     <button
                         onClick={() => { setPlaylistAllSources(false); setActiveLibrarySource(null); }}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${!playlistAllSources && !activeLibrarySource
-                                ? 'bg-white/[0.1] text-text-primary shadow-sm'
-                                : 'text-text-secondary hover:text-text-primary'
+                            ? 'bg-white/[0.1] text-text-primary shadow-sm'
+                            : 'text-text-secondary hover:text-text-primary'
                             }`}
                     >
                         My Library
@@ -65,8 +65,8 @@ export const MusicLibrarySwitcher: React.FC<MusicLibrarySwitcherProps> = ({
                             key={lib.ownerChannelId}
                             onClick={() => { setPlaylistAllSources(false); setActiveLibrarySource(lib); }}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${!playlistAllSources && activeLibrarySource?.ownerChannelId === lib.ownerChannelId
-                                    ? 'bg-white/[0.1] text-text-primary shadow-sm'
-                                    : 'text-text-secondary hover:text-text-primary'
+                                ? 'bg-white/[0.1] text-text-primary shadow-sm'
+                                : 'text-text-secondary hover:text-text-primary'
                                 }`}
                         >
                             <Share2 size={11} />

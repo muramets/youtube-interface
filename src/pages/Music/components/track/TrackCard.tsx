@@ -10,9 +10,46 @@ import { TrackContextMenu } from './TrackContextMenu';
 import { useMusicStore } from '../../../../core/stores/musicStore';
 import { selectAllGenres } from '../../../../core/stores/musicStore';
 import { useFilterStore } from '../../../../core/stores/filterStore';
-import type { Track } from '../../../../core/types/track';
+import type { Track, MusicTag } from '../../../../core/types/track';
 import type { TrackSource } from '../../../../core/types/musicPlaylist';
 import { DEFAULT_ACCENT_COLOR, getDefaultVariant } from '../../../../core/utils/trackUtils';
+
+// Section marker regex: matches [Verse 1], [Chorus], (Bridge), or bare "Verse 1:" etc.
+const SECTION_RE = /^\s*(?:\[|\()?(verse|chorus|bridge|pre-chorus|intro|outro|hook|interlude|refrain)(?:\s*\d+)?(?:\]|\))?\s*:?\s*$/i;
+
+/** Renders lyrics with section markers styled as mini-headers. */
+function formatLyrics(text: string): React.ReactNode {
+    const lines = text.split('\n');
+    const elements: React.ReactNode[] = [];
+    let blockLines: string[] = [];
+    let key = 0;
+
+    const flushBlock = () => {
+        if (blockLines.length === 0) return;
+        elements.push(
+            <p key={key++} className="text-xs text-text-primary whitespace-pre-wrap leading-relaxed">
+                {blockLines.join('\n')}
+            </p>
+        );
+        blockLines = [];
+    };
+
+    for (const line of lines) {
+        if (SECTION_RE.test(line)) {
+            flushBlock();
+            const label = line.replace(/[\[\]()]/g, '').replace(/:$/, '').trim();
+            elements.push(
+                <span key={key++} className="block text-[10px] font-semibold uppercase tracking-wider text-indigo-400/80 mt-3 mb-1 first:mt-0">
+                    {label}
+                </span>
+            );
+        } else {
+            blockLines.push(line);
+        }
+    }
+    flushBlock();
+    return <>{elements}</>;
+}
 import { PortalTooltip } from '../../../../components/ui/atoms/PortalTooltip';
 import { Badge } from '../../../../components/ui/atoms/Badge/Badge';
 import { formatDuration } from '../../utils/formatDuration';
@@ -28,12 +65,18 @@ interface TrackCardProps {
     trailingElement?: React.ReactNode;
     disableDropTarget?: boolean;
     disableDrag?: boolean;
-    /** Hide edit/delete actions (shared library view) */
-    isReadOnly?: boolean;
+    /** Whether the user can edit tracks (like, settings) */
+    canEdit?: boolean;
+    /** Whether the user can reorder/link/unlink tracks */
+    canReorder?: boolean;
     /** Source library metadata for cross-library playlist adds */
     trackSource?: TrackSource;
     /** Library name shown as a subtle badge in playlist All mode */
     sourceName?: string;
+    /** Context-aware tag definitions for resolving track.tags ids */
+    availableTags: MusicTag[];
+    /** Context-aware featured categories for tag filtering */
+    featuredCategories: string[];
 }
 
 const TrackCardInner: React.FC<TrackCardProps> = ({
@@ -47,9 +90,12 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
     trailingElement,
     disableDropTarget,
     disableDrag,
-    isReadOnly,
+    canEdit,
+    canReorder,
     trackSource,
     sourceName,
+    availableTags,
+    featuredCategories,
 }) => {
     // Granular selectors — only subscribe to what this card needs
     const playingTrackId = useMusicStore((s) => s.playingTrackId);
@@ -60,8 +106,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
     const playingVariant = useMusicStore((s) => s.playingVariant);
     const isPlaying = useMusicStore((s) => s.isPlaying);
     const genres = useMusicStore(selectAllGenres);
-    const allTags = useMusicStore((s) => s.tags);
-    const featuredCategories = useMusicStore((s) => s.featuredCategories);
+    // Tags and featured categories are context-aware — received from parent
 
     // Only subscribe to time-sensitive data for the active track
     const currentTime = useMusicStore((s) => isCurrentTrack ? s.currentTime : 0);
@@ -338,7 +383,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             </div>
 
             {/* 4. Duration / BPM */}
-            <div className="flex flex-col items-end flex-shrink-0">
+            <div className="flex flex-col items-end flex-shrink-0 min-w-[44px]">
                 <span className="text-[11px] text-text-secondary tabular-nums">
                     {track.duration > 0 ? formatDuration(track.duration) : '—'}
                 </span>
@@ -367,7 +412,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             {/* 6. Tags */}
             <div className="flex-1 min-w-0 max-w-[200px] line-clamp-2 text-[10px] text-text-tertiary leading-relaxed ml-3">
                 {track.tags
-                    .map(tagId => allTags.find(t => t.id === tagId))
+                    .map(tagId => availableTags.find(t => t.id === tagId))
                     .filter((tagDef): tagDef is NonNullable<typeof tagDef> => {
                         if (!tagDef) return false;
                         if (featuredCategories.length === 0) return true;
@@ -396,18 +441,22 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                     <PortalTooltip
                         variant="default"
                         sizeMode="auto"
+                        maxWidth={480}
                         enterDelay={350}
                         onOpenChange={setTooltipOpen}
                         content={
-                            <div className="flex flex-col gap-2 max-w-[280px]">
-                                <p className="text-xs text-text-primary whitespace-pre-wrap">{track.prompt}</p>
-                                <button
-                                    onClick={handleCopyPrompt}
-                                    className="flex items-center gap-1.5 text-[10px] text-text-secondary hover:text-text-primary transition-colors self-end"
-                                >
-                                    {copied ? <Check size={10} /> : <Copy size={10} />}
-                                    {copied ? 'Copied!' : 'Copy prompt'}
-                                </button>
+                            <div className="flex flex-col min-w-[280px]">
+                                <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-white/5">
+                                    <span className="text-[10px] text-text-tertiary uppercase tracking-wider">Prompt</span>
+                                    <button
+                                        onClick={handleCopyPrompt}
+                                        className="flex items-center gap-1 text-[10px] text-text-secondary hover:text-text-primary transition-colors"
+                                    >
+                                        {copied ? <Check size={10} /> : <Copy size={10} />}
+                                        {copied ? 'Copied!' : 'Copy'}
+                                    </button>
+                                </div>
+                                <p className="text-xs text-text-primary whitespace-pre-wrap leading-relaxed">{track.prompt}</p>
                             </div>
                         }
                     >
@@ -429,15 +478,20 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                         enterDelay={350}
                         onOpenChange={setTooltipOpen}
                         content={
-                            <div className="flex flex-col gap-2 min-w-[160px]">
-                                <p className="text-xs text-text-primary whitespace-pre-wrap max-h-[360px] overflow-y-auto">{track.lyrics}</p>
-                                <button
-                                    onClick={handleCopyLyrics}
-                                    className="flex items-center gap-1.5 text-[10px] text-text-secondary hover:text-text-primary transition-colors self-end"
-                                >
-                                    {lyricsCopied ? <Check size={10} /> : <Copy size={10} />}
-                                    {lyricsCopied ? 'Copied!' : 'Copy lyrics'}
-                                </button>
+                            <div className="flex flex-col min-w-[280px]">
+                                {/* Sticky header with copy action */}
+                                <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-white/5">
+                                    <span className="text-[10px] text-text-tertiary uppercase tracking-wider">Lyrics</span>
+                                    <button
+                                        onClick={handleCopyLyrics}
+                                        className="flex items-center gap-1 text-[10px] text-text-secondary hover:text-text-primary transition-colors"
+                                    >
+                                        {lyricsCopied ? <Check size={10} /> : <Copy size={10} />}
+                                        {lyricsCopied ? 'Copied!' : 'Copy'}
+                                    </button>
+                                </div>
+                                {/* Lyrics text with styled section headers */}
+                                {formatLyrics(track.lyrics)}
                             </div>
                         }
                     >
@@ -458,7 +512,8 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                     onEdit={onEdit}
                     cardRef={cardRef}
                     onDropdownChange={setDropdownOpen}
-                    isReadOnly={isReadOnly}
+                    canEdit={canEdit}
+                    canReorder={canReorder}
                     trackSource={trackSource}
                 />
             </div>

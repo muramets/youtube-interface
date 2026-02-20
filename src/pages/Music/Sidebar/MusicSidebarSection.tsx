@@ -7,6 +7,7 @@
 // =============================================================================
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useDndContext } from '@dnd-kit/core';
 import { Music, Plus, ChevronDown, ChevronRight, Heart, Share2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useMusicStore } from '../../../core/stores/musicStore';
@@ -19,7 +20,34 @@ import { CreateMusicPlaylistModal } from '../modals/CreateMusicPlaylistModal';
 import { MusicPlaylistService } from '../../../core/services/musicPlaylistService';
 import type { MusicPlaylist } from '../../../core/types/musicPlaylist';
 
+// ---------------------------------------------------------------------------
+// LikedPlaylistRow — a regular sidebar item. Dropping on Liked is forbidden, so
+// no useDroppable here to avoid false `over` detections and sidebar jitter.
+// pointer-events disabled during drag to prevent cursor-pointer/drag cursor flicker.
+// ---------------------------------------------------------------------------
+const LikedPlaylistRow: React.FC<{ isActive: boolean; likedCount: number; onClick: () => void }> = ({ isActive, likedCount, onClick }) => {
+    return (
+        <li
+            onClick={onClick}
+            className={`flex items-center cursor-pointer p-2 rounded-lg transition-all duration-200 select-none animate-fade-in-down ${isActive ? 'bg-white/10' : 'hover:bg-white/5'}`}
+            style={{ animationDelay: '0ms', animationFillMode: 'both' }}
+        >
+            <div className={`w-6 h-6 rounded-full mr-3 flex items-center justify-center ${isActive ? 'bg-red-500/20 ring-2 ring-red-400/30' : 'bg-white/5'}`}>
+                <Heart size={14} className={isActive ? 'text-red-400 fill-red-400' : 'text-red-400/60 fill-red-400/60'} />
+            </div>
+            <span className={`text-sm flex-1 overflow-hidden whitespace-nowrap transition-colors ${isActive ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
+                Liked
+            </span>
+            <div className="ml-2 flex items-center justify-center shrink-0 w-4">
+                <span className="text-[10px] text-text-tertiary leading-none">{likedCount}</span>
+            </div>
+        </li>
+    );
+};
+
 export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded }) => {
+    const { active: dndActive } = useDndContext();
+    const isDragging = !!dndActive;
     const navigate = useNavigate();
     const location = useLocation();
     const { user } = useAuth();
@@ -31,7 +59,7 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
         playlistGroupOrder,
         subscribePlaylists,
         loadPlaylistSettings,
-        loadSharedLibraries,
+        subscribeSharedLibraries,
     } = useMusicStore();
 
     const setActivePlaylist = useMusicStore(s => s.setActivePlaylist);
@@ -57,8 +85,8 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
     // Load shared libraries for the current channel
     useEffect(() => {
         if (!userId || !channelId) return;
-        loadSharedLibraries(userId, channelId);
-    }, [userId, channelId, loadSharedLibraries]);
+        return subscribeSharedLibraries(userId, channelId);
+    }, [userId, channelId, subscribeSharedLibraries]);
 
     // Per-channel playlist map for the "Shared With Me" section.
     // pendingSharedChannels tracks channels whose first snapshot hasn't arrived yet
@@ -188,16 +216,28 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
 
     const handleMusicClick = () => {
         setActivePlaylist(null);
-        setPlaylistAllSources(false);
         navigate('/music');
     };
 
     const handlePlaylistClick = (playlistId: string) => {
+        // Only restore subview state for subview→subview transitions
+        // (e.g. coming from a shared playlist). For library→subview,
+        // setActivePlaylist handles the swap and needs activeLibrarySource intact.
+        const s = useMusicStore.getState();
+        if (s.activePlaylistId !== null) {
+            setActiveLibrarySource(s.subviewSource);
+            setPlaylistAllSources(s.subviewAllSources);
+        }
         setActivePlaylist(playlistId);
         navigate(`/music/playlist/${playlistId}`);
     };
 
     const handleLikedClick = () => {
+        const s = useMusicStore.getState();
+        if (s.activePlaylistId !== null) {
+            setActiveLibrarySource(s.subviewSource);
+            setPlaylistAllSources(s.subviewAllSources);
+        }
         setActivePlaylist('liked');
         navigate('/music/liked');
     };
@@ -222,7 +262,7 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
     if (!expanded) return null;
 
     return (
-        <div className="mt-2">
+        <div className={`mt-2 ${isDragging ? 'pointer-events-none' : ''}`}>
             <SidebarDivider />
             <div>
                 {/* Music Header */}
@@ -287,38 +327,11 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
                         ) : (
                             <ul className="space-y-0.5">
                                 {/* ♥ Liked — channel-level sizing */}
-                                <li
+                                <LikedPlaylistRow
+                                    isActive={isOnMusicPage && activePlaylistId === 'liked'}
+                                    likedCount={likedCount}
                                     onClick={handleLikedClick}
-                                    className={`flex items-center cursor-pointer p-2 rounded-lg transition-all duration-200 select-none animate-fade-in-down ${isOnMusicPage && activePlaylistId === 'liked'
-                                        ? 'bg-white/10'
-                                        : 'hover:bg-white/5'
-                                        }`}
-                                    style={{ animationDelay: '0ms', animationFillMode: 'both' }}
-                                >
-                                    <div className={`w-6 h-6 rounded-full mr-3 flex items-center justify-center ${isOnMusicPage && activePlaylistId === 'liked'
-                                        ? 'bg-red-500/20 ring-2 ring-red-400/30'
-                                        : 'bg-white/5'
-                                        }`}>
-                                        <Heart
-                                            size={14}
-                                            className={isOnMusicPage && activePlaylistId === 'liked'
-                                                ? 'text-red-400 fill-red-400'
-                                                : 'text-red-400/60 fill-red-400/60'
-                                            }
-                                        />
-                                    </div>
-                                    <span className={`text-sm flex-1 overflow-hidden whitespace-nowrap transition-colors ${isOnMusicPage && activePlaylistId === 'liked'
-                                        ? 'text-text-primary font-medium'
-                                        : 'text-text-secondary'
-                                        }`}>
-                                        Liked
-                                    </span>
-                                    <div className="ml-2 flex items-center justify-center shrink-0 w-4">
-                                        <span className="text-[10px] text-text-tertiary leading-none">
-                                            {likedCount}
-                                        </span>
-                                    </div>
-                                </li>
+                                />
 
                                 {/* Grouped Playlists */}
                                 {groupedPlaylists.map(([groupName, playlists], groupIdx) => {
@@ -465,6 +478,14 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
                                                                 trackCount={getEffectiveCount(playlist)}
                                                                 isActive={isOnMusicPage && activePlaylistId === playlist.id}
                                                                 onClick={() => {
+                                                                    // Save current subview state before overriding with shared lib context.
+                                                                    // Shared playlists hide the switcher, so this override shouldn't
+                                                                    // pollute the persisted subview selection for own playlists.
+                                                                    const s = useMusicStore.getState();
+                                                                    useMusicStore.setState({
+                                                                        subviewSource: s.activeLibrarySource,
+                                                                        subviewAllSources: s.playlistAllSources,
+                                                                    });
                                                                     setActiveLibrarySource(lib);
                                                                     setPlaylistAllSources(false);
                                                                     handlePlaylistClick(playlist.id);
@@ -473,6 +494,10 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
                                                                 indent
                                                                 playlist={playlist}
                                                                 existingGroups={[]}
+                                                                canEdit={lib.permissions?.canEdit ?? false}
+                                                                canDelete={lib.permissions?.canDelete ?? false}
+                                                                ownerUserId={lib.ownerUserId}
+                                                                ownerChannelId={lib.ownerChannelId}
                                                             />
                                                         </li>
                                                     ))}
@@ -494,6 +519,6 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
                 onConfirm={handleCreatePlaylist}
                 existingGroups={existingGroups}
             />
-        </div>
+        </div >
     );
 };

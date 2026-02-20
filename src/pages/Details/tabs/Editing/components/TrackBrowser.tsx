@@ -62,7 +62,7 @@ export const TrackBrowser: React.FC = () => {
     const subscribe = useMusicStore((s) => s.subscribe);
     const subscribePlaylists = useMusicStore((s) => s.subscribePlaylists);
     const loadSettings = useMusicStore((s) => s.loadSettings);
-    const loadSharedLibraries = useMusicStore((s) => s.loadSharedLibraries);
+    const subscribeSharedLibraries = useMusicStore((s) => s.subscribeSharedLibraries);
     const subscribeSharedLibraryTracks = useMusicStore((s) => s.subscribeSharedLibraryTracks);
     const sharedLibraries = useMusicStore((s) => s.sharedLibraries);
     const timelineTracks = useEditingStore((s) => s.tracks);
@@ -86,8 +86,8 @@ export const TrackBrowser: React.FC = () => {
     // Load shared library metadata
     useEffect(() => {
         if (!userId || !channelId) return;
-        loadSharedLibraries(userId, channelId);
-    }, [userId, channelId, loadSharedLibraries]);
+        return subscribeSharedLibraries(userId, channelId);
+    }, [userId, channelId, subscribeSharedLibraries]);
 
     // Subscribe to shared library tracks/playlists at store level
     useEffect(() => {

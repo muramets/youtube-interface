@@ -24,9 +24,10 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { TrackCard } from './track/TrackCard';
 import { TrackGroupCard } from './track/TrackGroupCard';
-import type { Track } from '../../../core/types/track';
+import type { Track, MusicTag } from '../../../core/types/track';
 import type { TrackSource } from '../../../core/types/musicPlaylist';
 import type { DisplayItem } from '../hooks/useTrackDisplay';
+import { useSharedLibrary } from '../contexts/SharedLibraryContext';
 
 // ---------------------------------------------------------------------------
 // getDisplayItemKey — stable identity key for a virtualizer row.
@@ -61,13 +62,16 @@ interface SortablePlaylistTrackItemProps {
     onSelect: (trackId: string | null) => void;
     onDelete?: (trackId: string) => void;
     onEdit?: (track: Track) => void;
-    isReadOnly?: boolean;
+    canEdit?: boolean;
+    canReorder?: boolean;
     trackSource?: TrackSource;
     sourceName?: string;
+    availableTags: MusicTag[];
+    featuredCategories: string[];
 }
 
 const SortablePlaylistTrackItem: React.FC<SortablePlaylistTrackItemProps> = React.memo(
-    ({ track, selectedTrackId, userId, channelId, onSelect, onDelete, onEdit, isReadOnly, trackSource, sourceName }) => {
+    ({ track, selectedTrackId, userId, channelId, onSelect, onDelete, onEdit, canEdit, canReorder, trackSource, sourceName, availableTags, featuredCategories }) => {
         const {
             attributes,
             listeners,
@@ -91,8 +95,8 @@ const SortablePlaylistTrackItem: React.FC<SortablePlaylistTrackItemProps> = Reac
 
         return (
             <div ref={setNodeRef} style={style} className="flex items-center">
-                {/* Drag handle — hidden in read-only (shared playlist) */}
-                {!isReadOnly && (
+                {/* Drag handle — hidden without reorder permission */}
+                {canReorder && (
                     <div
                         {...attributes}
                         {...listeners}
@@ -112,9 +116,12 @@ const SortablePlaylistTrackItem: React.FC<SortablePlaylistTrackItemProps> = Reac
                         onEdit={onEdit}
                         disableDrag
                         disableDropTarget
-                        isReadOnly={isReadOnly}
+                        canEdit={canEdit}
+                        canReorder={canReorder}
                         trackSource={trackSource}
                         sourceName={sourceName}
+                        availableTags={availableTags}
+                        featuredCategories={featuredCategories}
                     />
                 </div>
             </div>
@@ -133,18 +140,18 @@ export interface PlaylistSortableListProps {
     filteredTracks: Track[];
     virtualizer: ReturnType<typeof useVirtualizer<HTMLDivElement, Element>>;
     selectedTrackId: string | null;
-    userId: string;
-    channelId: string;
-    isReadOnly: boolean;
     activePlaylistId: string | null;
     setSelectedTrackId: (id: string | null) => void;
     handleDeleteTrack: (id: string) => void;
     handleEditTrack: (track: Track) => void;
     reorderPlaylistTracks: (userId: string, channelId: string, playlistId: string, orderedTrackIds: string[]) => Promise<void>;
     toggleGroup: (groupId: string) => void;
-    trackSource?: TrackSource;
     /** trackId → channel name, populated in playlist All mode for shared tracks */
     sourceNameMap?: Record<string, string>;
+    /** Context-aware tag definitions for resolving track.tags ids */
+    availableTags: MusicTag[];
+    /** Context-aware featured categories for tag filtering */
+    featuredCategories: string[];
 }
 
 // -----------------------------------------------------------------------------
@@ -157,18 +164,22 @@ export const PlaylistSortableList: React.FC<PlaylistSortableListProps> = ({
     filteredTracks,
     virtualizer,
     selectedTrackId,
-    userId,
-    channelId,
-    isReadOnly,
     activePlaylistId,
     setSelectedTrackId,
     handleDeleteTrack,
     handleEditTrack,
     reorderPlaylistTracks,
     toggleGroup,
-    trackSource,
     sourceNameMap,
+    availableTags,
+    featuredCategories,
 }) => {
+    const {
+        effectiveUserId: trackOwnerUserId,
+        effectiveChannelId: trackOwnerChannelId,
+        permissions: granteePermissions,
+        trackSource,
+    } = useSharedLibrary();
     const sortableIds = useMemo(
         () => filteredTracks.map(t => t.id),
         [filteredTracks],
@@ -293,7 +304,7 @@ export const PlaylistSortableList: React.FC<PlaylistSortableListProps> = ({
                 if (oldIdx < 0 || newIdx < 0) return;
 
                 const reordered = arrayMove(filteredTracks, oldIdx, newIdx);
-                reorderPlaylistTracks(userId, channelId, activePlaylistId, reordered.map(t => t.id));
+                reorderPlaylistTracks(trackOwnerUserId, trackOwnerChannelId, activePlaylistId, reordered.map(t => t.id));
             }
 
             // ── Group-child unlink ────────────────────────────────────────────
@@ -373,14 +384,17 @@ export const PlaylistSortableList: React.FC<PlaylistSortableListProps> = ({
                             key={track.id}
                             track={track}
                             selectedTrackId={selectedTrackId}
-                            userId={userId}
-                            channelId={channelId}
+                            userId={trackOwnerUserId}
+                            channelId={trackOwnerChannelId}
                             onSelect={setSelectedTrackId}
                             onDelete={handleDeleteTrack}
                             onEdit={handleEditTrack}
-                            isReadOnly={isReadOnly}
+                            canEdit={granteePermissions.canEdit}
+                            canReorder={granteePermissions.canReorder}
                             trackSource={trackSource}
                             sourceName={sourceNameMap?.[track.id]}
+                            availableTags={availableTags}
+                            featuredCategories={featuredCategories}
                         />
                     ))}
                 </SortableContext>
@@ -451,28 +465,34 @@ export const PlaylistSortableList: React.FC<PlaylistSortableListProps> = ({
                                         isExpanded={item.isExpanded}
                                         onToggle={() => handleToggleGroup(item.groupId)}
                                         selectedTrackId={selectedTrackId}
-                                        userId={userId}
-                                        channelId={channelId}
+                                        userId={trackOwnerUserId}
+                                        channelId={trackOwnerChannelId}
                                         onSelect={setSelectedTrackId}
-                                        onDelete={handleDeleteTrack}
-                                        onEdit={handleEditTrack}
-                                        isReadOnly={isReadOnly}
+                                        canReorder={granteePermissions.canReorder}
+                                        canEdit={granteePermissions.canEdit}
+                                        onDelete={granteePermissions.canDelete ? handleDeleteTrack : undefined}
+                                        onEdit={granteePermissions.canEdit ? handleEditTrack : undefined}
                                         trackSource={trackSource}
+                                        availableTags={availableTags}
+                                        featuredCategories={featuredCategories}
                                     />
                                 ) : (
                                     <TrackCard
                                         track={item.track}
                                         isSelected={selectedTrackId === item.track.id}
-                                        userId={userId}
-                                        channelId={channelId}
+                                        userId={trackOwnerUserId}
+                                        channelId={trackOwnerChannelId}
                                         onSelect={setSelectedTrackId}
-                                        onDelete={handleDeleteTrack}
-                                        onEdit={handleEditTrack}
-                                        disableDrag={isReadOnly}
+                                        onDelete={granteePermissions.canDelete ? handleDeleteTrack : undefined}
+                                        onEdit={granteePermissions.canEdit ? handleEditTrack : undefined}
+                                        disableDrag={false}
                                         disableDropTarget={!!item.track.groupId}
-                                        isReadOnly={isReadOnly}
+                                        canEdit={granteePermissions.canEdit}
+                                        canReorder={granteePermissions.canReorder}
                                         trackSource={trackSource}
                                         sourceName={sourceNameMap?.[item.track.id]}
+                                        availableTags={availableTags}
+                                        featuredCategories={featuredCategories}
                                     />
                                 )}
                             </div>{/* /animation wrapper */}

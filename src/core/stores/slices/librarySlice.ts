@@ -11,6 +11,9 @@ import { TrackService } from '../../services/trackService';
 import { preloadImages } from '../../services/imagePreloaderService';
 import { MusicPlaylistService } from '../../services/musicPlaylistService';
 import { MusicSharingService } from '../../services/musicSharingService';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../../../config/firebase';
+import type { SharedLibrariesSettings } from '../../types/musicSharing';
 import { DEFAULT_GENRES, DEFAULT_TAGS } from '../../types/track';
 import type { MusicState } from '../musicStore';
 
@@ -87,7 +90,7 @@ export interface LibrarySlice {
     reorderGroupTracks: (userId: string, channelId: string, groupId: string, orderedIds: string[]) => Promise<void>;
 
     // Actions: Sharing
-    loadSharedLibraries: (userId: string, channelId: string) => Promise<void>;
+    subscribeSharedLibraries: (userId: string, channelId: string) => () => void;
     subscribeSharedLibraryTracks: () => () => void;
     setActiveLibrarySource: (source: SharedLibraryEntry | null) => void;
     loadSharingGrants: (userId: string, channelId: string) => Promise<void>;
@@ -218,62 +221,118 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
     setTags: (tags) => set({ tags }),
 
     toggleLike: (userId, channelId, trackId) => {
-        const track = get().tracks.find((t) => t.id === trackId);
-        const newLiked = !track?.liked;
-        // Optimistic update
-        set((state) => ({
-            tracks: state.tracks.map((t) =>
-                t.id === trackId ? { ...t, liked: newLiked } : t
-            ),
-        }));
+        const { tracks, sharedTracks } = get();
+        const ownTrack = tracks.find((t) => t.id === trackId);
+        const sharedTrack = !ownTrack ? sharedTracks.find((t) => t.id === trackId) : undefined;
+        const track = ownTrack ?? sharedTrack;
+        if (!track) return;
+
+        const newLiked = !track.liked;
+        const isShared = !!sharedTrack;
+
+        // Optimistic update in the correct array
+        if (isShared) {
+            set((state) => ({
+                sharedTracks: state.sharedTracks.map((t) =>
+                    t.id === trackId ? { ...t, liked: newLiked } : t
+                ),
+            }));
+        } else {
+            set((state) => ({
+                tracks: state.tracks.map((t) =>
+                    t.id === trackId ? { ...t, liked: newLiked } : t
+                ),
+            }));
+        }
+
         // Persist to Firestore
         TrackService.updateTrack(userId, channelId, trackId, { liked: newLiked }).catch((err) => {
+            // Rollback
+            if (isShared) {
+                set({ sharedTracks });
+            } else {
+                set({ tracks });
+            }
             console.error('[MusicStore] Failed to persist like:', err);
         });
     },
 
     // ── Version grouping ────────────────────────────────────────────────────
+    // Moves ONE track into the target's group (or creates a new group if target
+    // is standalone). The rest of the source group stays intact.
+    //
+    // Behavior:
+    //   - Source leaves its current group (dissolves if ≤1 remain, re-indexes otherwise)
+    //   - If target is standalone → creates new group {target(order:0), source(order:1)}
+    //   - If target is in a group → appends source as last member
     linkAsVersion: async (userId, channelId, sourceTrackId, targetTrackId) => {
         const { tracks } = get();
         const sourceTrack = tracks.find((t) => t.id === sourceTrackId);
         const targetTrack = tracks.find((t) => t.id === targetTrackId);
         if (!sourceTrack || !targetTrack) return;
+        if (sourceTrack.groupId && sourceTrack.groupId === targetTrack.groupId) return;
 
-        const groupId = sourceTrack.groupId || targetTrack.groupId || uuidv4();
-        const idsToLink = new Set<string>([targetTrackId, sourceTrackId]);
-        for (const t of tracks) {
-            if (t.groupId && (t.groupId === sourceTrack.groupId || t.groupId === targetTrack.groupId)) {
-                idsToLink.add(t.id);
+        const optimistic = new Map<string, Partial<Track>>();
+        const firestoreData = new Map<string, Record<string, unknown>>();
+
+        // ── Source group cleanup ────────────────────────────────────────────
+        if (sourceTrack.groupId) {
+            const remaining = tracks
+                .filter((t) => t.groupId === sourceTrack.groupId && t.id !== sourceTrackId)
+                .sort((a, b) => (a.groupOrder ?? 0) - (b.groupOrder ?? 0));
+
+            if (remaining.length === 1) {
+                markGroupDissolution(sourceTrack.groupId, sourceTrackId, tracks, optimistic, firestoreData);
+            } else if (remaining.length >= 2) {
+                // Re-index orders so they stay contiguous after removal
+                remaining.forEach((t, idx) => {
+                    if ((t.groupOrder ?? -1) !== idx) {
+                        optimistic.set(t.id, { groupId: t.groupId, groupOrder: idx });
+                        firestoreData.set(t.id, { groupId: t.groupId, groupOrder: idx });
+                    }
+                });
             }
         }
 
-        const allLinked = tracks.filter(t => idsToLink.has(t.id));
-        const existingMembers = allLinked.filter(t => t.id !== sourceTrackId);
-        let nextOrder = existingMembers.reduce((max, t) => Math.max(max, t.groupOrder ?? -1), -1) + 1;
+        // ── Target group (existing or new) ─────────────────────────────────
+        const tgtGroupId = targetTrack.groupId || uuidv4();
 
-        const updateMap = new Map<string, { groupId: string; groupOrder?: number }>();
-        for (const t of existingMembers) {
-            if (t.groupOrder !== undefined) {
-                updateMap.set(t.id, { groupId });
-            } else {
-                updateMap.set(t.id, { groupId, groupOrder: nextOrder++ });
-            }
+        if (targetTrack.groupId) {
+            // Target already in a group — append source as last member
+            const targetMembers = tracks
+                .filter((t) => t.groupId === tgtGroupId)
+                .sort((a, b) => (a.groupOrder ?? 0) - (b.groupOrder ?? 0));
+
+            const nextOrder = targetMembers.length;
+            optimistic.set(sourceTrackId, { groupId: tgtGroupId, groupOrder: nextOrder });
+            firestoreData.set(sourceTrackId, { groupId: tgtGroupId, groupOrder: nextOrder });
+        } else {
+            // Target is standalone — new group: target=display(0), source=child(1)
+            optimistic.set(targetTrackId, { groupId: tgtGroupId, groupOrder: 0 });
+            firestoreData.set(targetTrackId, { groupId: tgtGroupId, groupOrder: 0 });
+            optimistic.set(sourceTrackId, { groupId: tgtGroupId, groupOrder: 1 });
+            firestoreData.set(sourceTrackId, { groupId: tgtGroupId, groupOrder: 1 });
         }
-        updateMap.set(sourceTrackId, { groupId, groupOrder: nextOrder });
 
+        // ── Single optimistic update ────────────────────────────────────────
+        const prevTracks = tracks;
         set((state) => ({
             tracks: state.tracks.map((t) => {
-                const upd = updateMap.get(t.id);
-                return upd ? { ...t, ...upd } : t;
+                const upd = optimistic.get(t.id);
+                return upd !== undefined ? { ...t, ...upd } : t;
             }),
         }));
 
         try {
             await TrackService.batchUpdateTracks(
                 userId, channelId,
-                [...updateMap.entries()].map(([trackId, data]) => ({ trackId, data }))
+                [...firestoreData.entries()].map(([trackId, data]) => ({
+                    trackId,
+                    data: data as Partial<Track>,
+                }))
             );
         } catch (err) {
+            set({ tracks: prevTracks });
             console.error('[MusicStore] Failed to link tracks:', err);
         }
     },
@@ -318,6 +377,7 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
             updateMap.set(t.id, { groupId, groupOrder: idx });
         });
 
+        const prevTracks = tracks;
         // Single optimistic update — one React render, no intermediate state.
         set((state) => ({
             tracks: state.tracks.map((t) => {
@@ -333,6 +393,7 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
                 [...updateMap.entries()].map(([trackId, data]) => ({ trackId, data }))
             );
         } catch (err) {
+            set({ tracks: prevTracks });
             console.error('[MusicStore] Failed to atomically link and reorder tracks:', err);
         }
     },
@@ -397,6 +458,7 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
         });
 
         // ── Single optimistic update ────────────────────────────────────
+        const prevTracks = tracks;
         set((state) => ({
             tracks: state.tracks.map((t) => {
                 const upd = optimistic.get(t.id);
@@ -414,6 +476,7 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
                 }))
             );
         } catch (err) {
+            set({ tracks: prevTracks });
             console.error('[MusicStore] Failed to move track between groups:', err);
         }
     },
@@ -445,6 +508,7 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
         optimistic.set(sourceTrackId, { groupId: newGroupId, groupOrder: 1 });
         firestoreData.set(sourceTrackId, { groupId: newGroupId, groupOrder: 1 });
 
+        const prevTracks = tracks;
         set((state) => ({
             tracks: state.tracks.map((t) => {
                 const upd = optimistic.get(t.id);
@@ -461,6 +525,7 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
                 }))
             );
         } catch (err) {
+            set({ tracks: prevTracks });
             console.error('[MusicStore] Failed to relink group member:', err);
         }
     },
@@ -473,6 +538,7 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
         const groupId = track.groupId;
         const remaining = tracks.filter((t) => t.groupId === groupId && t.id !== trackId);
 
+        const prevTracks = tracks;
         set((state) => ({
             tracks: state.tracks.map((t) => {
                 if (t.id === trackId) return { ...t, groupId: undefined };
@@ -484,11 +550,13 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
         try {
             await TrackService.unlinkFromGroup(userId, channelId, trackId, tracks);
         } catch (err) {
+            set({ tracks: prevTracks });
             console.error('[MusicStore] Failed to unlink track:', err);
         }
     },
 
     reorderGroupTracks: async (userId, channelId, groupId, orderedIds) => {
+        const prevTracks = get().tracks;
         set((state) => ({
             tracks: state.tracks.map((t) => {
                 if (t.groupId !== groupId) return t;
@@ -505,39 +573,94 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
                 { quiet: true }
             );
         } catch (err) {
+            set({ tracks: prevTracks });
             console.error('[MusicStore] Failed to reorder group tracks:', err);
         }
     },
 
     // ── Sharing ─────────────────────────────────────────────────────────────
-    loadSharedLibraries: async (userId, channelId) => {
-        try {
-            const libraries = await MusicSharingService.getSharedLibraries(userId, channelId);
-            set({ sharedLibraries: libraries });
-            // Only clear shared data AFTER Firestore confirms there are no shared libraries.
-            // Do NOT clear eagerly (e.g. during transient empty state on channel switch).
-            if (libraries.length === 0) {
-                set({ sharedTracks: [], sharedPlaylists: [], sharedGenres: [], sharedTags: [], sharedCategoryOrder: [], sharedFeaturedCategories: [] });
+    // Reference-counted subscription: multiple components (MusicPage,
+    // TrackBrowser, MusicSidebarSection) can subscribe independently.
+    // Only one real Firestore listener is active at a time.
+    subscribeSharedLibraries: (() => {
+        let refCount = 0;
+        let activeUnsub: (() => void) | null = null;
+        let activeKey = '';
+
+        return (userId: string, channelId: string) => {
+            const key = `${userId}:${channelId}`;
+
+            // If credentials changed, tear down old subscription
+            if (key !== activeKey && activeUnsub) {
+                activeUnsub();
+                activeUnsub = null;
+                refCount = 0;
+                activeKey = '';
             }
-            // Validate activeLibrarySource against the new channel's libraries.
-            // If the current source is no longer accessible, clear it.
-            const currentSource = get().activeLibrarySource;
-            if (currentSource && !libraries.some(lib => lib.ownerChannelId === currentSource.ownerChannelId)) {
-                set({ activeLibrarySource: null });
-                localStorage.removeItem('music_active_library_channel_id');
+
+            refCount++;
+
+            // First subscriber creates the real Firestore listener
+            if (refCount === 1) {
+                activeKey = key;
+                const ref = doc(db, `users/${userId}/channels/${channelId}/settings`, 'sharedLibraries');
+                let isFirstSnapshot = true;
+
+                activeUnsub = onSnapshot(ref, (snap) => {
+                    const libraries = snap.exists()
+                        ? (snap.data() as SharedLibrariesSettings).libraries || []
+                        : [];
+
+                    set({ sharedLibraries: libraries });
+
+                    if (libraries.length === 0) {
+                        set({ sharedTracks: [], sharedPlaylists: [], sharedGenres: [], sharedTags: [], sharedCategoryOrder: [], sharedFeaturedCategories: [] });
+                    }
+
+                    // Validate activeLibrarySource against the current libraries.
+                    const currentSource = get().activeLibrarySource;
+                    if (currentSource) {
+                        const match = libraries.find(lib => lib.ownerChannelId === currentSource.ownerChannelId);
+                        if (!match) {
+                            set({ activeLibrarySource: null });
+                            localStorage.removeItem('music_active_library_channel_id');
+                        } else if (
+                            match.permissions?.canEdit !== currentSource.permissions?.canEdit ||
+                            match.permissions?.canDelete !== currentSource.permissions?.canDelete ||
+                            match.permissions?.canReorder !== currentSource.permissions?.canReorder
+                        ) {
+                            set({ activeLibrarySource: match });
+                        }
+                    }
+
+                    // First snapshot: restore from localStorage
+                    if (isFirstSnapshot) {
+                        isFirstSnapshot = false;
+                        try {
+                            const savedChannelId = localStorage.getItem('music_active_library_channel_id');
+                            if (savedChannelId && !get().activeLibrarySource) {
+                                const match = libraries.find(lib => lib.ownerChannelId === savedChannelId);
+                                if (match) set({ activeLibrarySource: match });
+                            }
+                        } catch { /* storage unavailable — fail silently */ }
+                    }
+                }, (error) => {
+                    console.error('[MusicStore] Shared libraries subscription error:', error);
+                });
             }
-            // Restore last active library from localStorage (safe — only match known libraries)
-            try {
-                const savedChannelId = localStorage.getItem('music_active_library_channel_id');
-                if (savedChannelId) {
-                    const match = libraries.find(lib => lib.ownerChannelId === savedChannelId);
-                    if (match) set({ activeLibrarySource: match });
+
+            // Return unsubscribe that decrements ref count
+            return () => {
+                refCount--;
+                if (refCount <= 0 && activeUnsub) {
+                    activeUnsub();
+                    activeUnsub = null;
+                    refCount = 0;
+                    activeKey = '';
                 }
-            } catch { /* storage unavailable — fail silently */ }
-        } catch (error) {
-            console.error('[MusicStore] Failed to load shared libraries:', error);
-        }
-    },
+            };
+        };
+    })(),
 
     setActiveLibrarySource: (source) => {
         set({ activeLibrarySource: source });
@@ -556,8 +679,8 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
         if (sharedLibraries.length === 0) {
             // No shared libraries — clear loading flag and bail.
             // Don't clear sharedTracks here: this fires during a transient empty state
-            // (e.g. channel switch before loadSharedLibraries completes). Clearing is
-            // handled by loadSharedLibraries once Firestore confirms zero libraries.
+            // (e.g. channel switch before subscribeSharedLibraries fires). Clearing is
+            // handled by subscribeSharedLibraries once Firestore confirms zero libraries.
             set({ isSharedTracksLoading: false });
             return () => { };
         }
@@ -579,22 +702,20 @@ export const createLibrarySlice: StateCreator<MusicState, [], [], LibrarySlice> 
             tagBuckets[i] = [];
             genreBuckets[i] = [];
 
-            // Load owner's settings for genre/tag/category resolution
-            TrackService.getMusicSettings(lib.ownerUserId, lib.ownerChannelId)
-                .then((settings) => {
+            // Subscribe to owner's settings for live genre/tag/category resolution
+            unsubs.push(
+                TrackService.subscribeToMusicSettings(lib.ownerUserId, lib.ownerChannelId, (settings) => {
                     tagBuckets[i] = settings.tags || [];
                     genreBuckets[i] = settings.genres || [];
                     const allSharedTags = Object.values(tagBuckets).flat();
                     const allSharedGenres = Object.values(genreBuckets).flat();
                     const mergedCatOrder = Object.values(tagBuckets)
                         .flatMap((tags) => [...new Set(tags.map((t) => t.category).filter((c): c is string => !!c))]);
-                    // Store the full shared values (not deduped against own).
-                    // Dedup for the merged view happens in selectAllFeaturedCategories (musicStore.ts).
                     const sharedCatOrder = [...new Set(mergedCatOrder)];
                     const sharedFeatured = settings.featuredCategories || [];
                     set({ sharedGenres: allSharedGenres, sharedTags: allSharedTags, sharedCategoryOrder: sharedCatOrder, sharedFeaturedCategories: sharedFeatured });
-                })
-                .catch((err) => console.error('[MusicStore] Failed to load shared settings:', err));
+                }),
+            );
 
             unsubs.push(
                 TrackService.subscribeToTracks(lib.ownerUserId, lib.ownerChannelId, (t) => {

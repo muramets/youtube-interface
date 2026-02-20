@@ -22,6 +22,8 @@ export interface PlaybackSlice {
     trackEndedSignal: number;
     seekTo: ((position: number) => void) | null;
     playbackQueue: string[];
+    /** Identifies which view built the current queue (e.g. 'library', 'playlist:id', 'shared:ownerChannel') */
+    playbackQueueContextId: string | null;
 
     // Actions
     setSelectedTrackId: (id: string | null) => void;
@@ -32,7 +34,7 @@ export interface PlaybackSlice {
     setCurrentTime: (time: number) => void;
     setDuration: (duration: number) => void;
     registerSeek: (fn: ((position: number) => void) | null) => void;
-    setPlaybackQueue: (queue: string[]) => void;
+    setPlaybackQueue: (queue: string[], contextId?: string) => void;
     setPlaybackVolume: (vol: number | null) => void;
     setPlaybackSource: (source: 'library' | 'timeline' | 'browser-preview' | null) => void;
     signalTrackEnded: () => void;
@@ -59,6 +61,7 @@ export const createPlaybackSlice: StateCreator<MusicState, [], [], PlaybackSlice
     trackEndedSignal: 0,
     seekTo: null,
     playbackQueue: [],
+    playbackQueueContextId: null,
 
     // Actions
     setSelectedTrackId: (id) => set({ selectedTrackId: id }),
@@ -95,7 +98,10 @@ export const createPlaybackSlice: StateCreator<MusicState, [], [], PlaybackSlice
     setCurrentTime: (time) => set({ currentTime: time }),
     setDuration: (duration) => set({ duration }),
     registerSeek: (fn) => set({ seekTo: fn }),
-    setPlaybackQueue: (queue) => set({ playbackQueue: queue }),
+    setPlaybackQueue: (queue, contextId) => set({
+        playbackQueue: queue,
+        ...(contextId !== undefined ? { playbackQueueContextId: contextId } : {}),
+    }),
     setPlaybackVolume: (vol) => set({ playbackVolume: vol }),
     setPlaybackSource: (source) => set({ playbackSource: source }),
     signalTrackEnded: () => set((s) => ({ trackEndedSignal: s.trackEndedSignal + 1 })),

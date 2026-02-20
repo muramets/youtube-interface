@@ -17,7 +17,7 @@ interface MusicLibraryHeaderProps {
     // Context
     activePlaylistId: string | null;
     allPlaylists: MusicPlaylist[];
-    isReadOnly: boolean;
+    isSharedView: boolean;
     activeLibrarySource: SharedLibraryEntry | null;
     // Skeleton / counts
     showSkeleton: boolean;
@@ -80,7 +80,7 @@ const CountSkeleton: React.FC = () => (
 export const MusicLibraryHeader: React.FC<MusicLibraryHeaderProps> = ({
     activePlaylistId,
     allPlaylists,
-    isReadOnly,
+    isSharedView,
     activeLibrarySource,
     showSkeleton,
     tracks,
@@ -187,7 +187,7 @@ export const MusicLibraryHeader: React.FC<MusicLibraryHeaderProps> = ({
                     </>
                 )}
             </div>
-            {!isReadOnly && (
+            {!isSharedView && (
                 <>
                     <PortalTooltip
                         content={<span className="whitespace-nowrap">Manage genres &amp; tags</span>}
@@ -212,10 +212,10 @@ export const MusicLibraryHeader: React.FC<MusicLibraryHeaderProps> = ({
                     </Button>
                 </>
             )}
-            {isReadOnly && activeLibrarySource && (
+            {isSharedView && activeLibrarySource && (
                 <span className="text-xs text-text-tertiary flex items-center gap-1.5">
                     <Share2 size={12} />
-                    Shared from {activeLibrarySource.ownerChannelName} · Read-only
+                    Shared from {activeLibrarySource.ownerChannelName}
                 </span>
             )}
         </div>

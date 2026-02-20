@@ -6,7 +6,8 @@
 //   - useAudioEngine.ts        — <audio> lifecycle, src transitions, error retry, volume, seek
 //   - usePlaybackNavigation.ts — prev/next for library and timeline modes
 //
-// This file is pure UI composition.
+// This file is UI composition + lightweight derived state for shared library
+// awareness (owner credentials, permission-gated like/settings buttons).
 // =============================================================================
 
 import React, { useEffect, useState } from 'react';
@@ -23,6 +24,8 @@ import { DEFAULT_ACCENT_COLOR } from '../../../core/utils/trackUtils';
 import { formatDuration } from '../utils/formatDuration';
 import { useAudioEngine } from '../hooks/useAudioEngine';
 import { usePlaybackNavigation } from '../hooks/usePlaybackNavigation';
+import type { SharePermissions } from '../../../core/types/musicSharing';
+import { DEFAULT_SHARE_PERMISSIONS } from '../../../core/types/musicSharing';
 
 export const AudioPlayer: React.FC = () => {
     // ── Hook composition ────────────────────────────────────────────────────
@@ -54,6 +57,19 @@ export const AudioPlayer: React.FC = () => {
     const { currentChannel } = useChannelStore();
     const userId = user?.uid || '';
     const channelId = currentChannel?.id || '';
+
+    // ── Shared library awareness ─────────────────────────────────────────
+    // Determine if the playing track belongs to a shared library so we can
+    // use the owner's credentials for mutations and respect permissions.
+    const sharedTracks = useMusicStore((s) => s.sharedTracks);
+    const activeLibrarySource = useMusicStore((s) => s.activeLibrarySource);
+
+    const isSharedTrack = !!playingTrackId && sharedTracks.some((t) => t.id === playingTrackId);
+    const effectiveUserId = isSharedTrack && activeLibrarySource ? activeLibrarySource.ownerUserId : userId;
+    const effectiveChannelId = isSharedTrack && activeLibrarySource ? activeLibrarySource.ownerChannelId : channelId;
+    const permissions: SharePermissions = isSharedTrack && activeLibrarySource?.permissions
+        ? activeLibrarySource.permissions
+        : DEFAULT_SHARE_PERMISSIONS;
 
     const [showPlaylistModal, setShowPlaylistModal] = useState(false);
     const [showTrackSettings, setShowTrackSettings] = useState(false);
@@ -157,16 +173,18 @@ export const AudioPlayer: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Like button */}
-                    <button
-                        onClick={() => useMusicStore.getState().toggleLike(userId, channelId, track.id)}
-                        className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${track.liked
-                            ? 'text-red-400 hover:text-red-300'
-                            : 'text-text-tertiary hover:text-text-primary'
-                            }`}
-                    >
-                        <Heart size={16} fill={track.liked ? 'currentColor' : 'none'} />
-                    </button>
+                    {/* Like button — requires edit permission, uses owner credentials */}
+                    {permissions.canEdit && (
+                        <button
+                            onClick={() => useMusicStore.getState().toggleLike(effectiveUserId, effectiveChannelId, track.id)}
+                            className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${track.liked
+                                ? 'text-red-400 hover:text-red-300'
+                                : 'text-text-tertiary hover:text-text-primary'
+                                }`}
+                        >
+                            <Heart size={16} fill={track.liked ? 'currentColor' : 'none'} />
+                        </button>
+                    )}
 
                     {/* Playback controls */}
                     <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -280,19 +298,21 @@ export const AudioPlayer: React.FC = () => {
                             </button>
                         </PortalTooltip>
 
-                        {/* Track settings */}
-                        <PortalTooltip
-                            content="Track settings"
-                            enterDelay={800}
-                            side="top"
-                        >
-                            <button
-                                onClick={() => setShowTrackSettings(true)}
-                                className="p-1.5 rounded-lg text-text-secondary hover:text-text-primary transition-colors"
+                        {/* Track settings — requires edit permission */}
+                        {permissions.canEdit && (
+                            <PortalTooltip
+                                content="Track settings"
+                                enterDelay={800}
+                                side="top"
                             >
-                                <Settings size={14} />
-                            </button>
-                        </PortalTooltip>
+                                <button
+                                    onClick={() => setShowTrackSettings(true)}
+                                    className="p-1.5 rounded-lg text-text-secondary hover:text-text-primary transition-colors"
+                                >
+                                    <Settings size={14} />
+                                </button>
+                            </PortalTooltip>
+                        )}
 
                         {/* Volume */}
                         <button
@@ -354,8 +374,8 @@ export const AudioPlayer: React.FC = () => {
             <UploadTrackModal
                 isOpen={showTrackSettings}
                 onClose={() => setShowTrackSettings(false)}
-                userId={userId}
-                channelId={channelId}
+                userId={effectiveUserId}
+                channelId={effectiveChannelId}
                 editTrack={track}
                 initialTab="library"
             />

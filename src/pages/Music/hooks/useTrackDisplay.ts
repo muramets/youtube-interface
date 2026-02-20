@@ -39,6 +39,8 @@ interface UseTrackDisplayParams {
     tags: MusicTag[];
     musicPlaylists: MusicPlaylist[];
     activePlaylistId: string | null;
+    /** Identifies the current view for queue context matching (e.g. 'library', 'shared:channelId', 'playlist:id') */
+    queueContextId: string;
 }
 
 interface UseTrackDisplayResult {
@@ -55,6 +57,7 @@ export function useTrackDisplay({
     tags,
     musicPlaylists,
     activePlaylistId,
+    queueContextId,
 }: UseTrackDisplayParams): UseTrackDisplayResult {
     // ── Expanded group state ──────────────────────────────────────────────
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -97,6 +100,9 @@ export function useTrackDisplay({
             if (playlist) {
                 const trackIdSet = new Set(playlist.trackIds);
                 result = result.filter(t => trackIdSet.has(t.id));
+            } else {
+                // Playlist not yet in subscription (e.g. just created) — show empty
+                result = [];
             }
         }
 
@@ -229,6 +235,7 @@ export function useTrackDisplay({
     // ── Playback queue: flattened visual order ───────────────────────────
     const setPlaybackQueue = useMusicStore((s) => s.setPlaybackQueue);
     const playingTrackIdForQueue = useMusicStore((s) => s.playingTrackId);
+    const storedQueueContextId = useMusicStore((s) => s.playbackQueueContextId);
 
     useEffect(() => {
         const queue: string[] = [];
@@ -244,15 +251,15 @@ export function useTrackDisplay({
             }
         }
 
-        // If a track is playing and it's not in the new queue (user switched
-        // to a different library view), keep the existing queue so next/prev
-        // still work within the original playback context.
-        if (playingTrackIdForQueue && !queue.includes(playingTrackIdForQueue)) {
+        // If a track is playing and the queue was built from a different view
+        // context, keep the existing queue so next/prev still work within the
+        // original playback context (e.g. shared library → navigate to playlist).
+        if (playingTrackIdForQueue && storedQueueContextId && storedQueueContextId !== queueContextId) {
             return;
         }
 
-        setPlaybackQueue(queue);
-    }, [displayItems, setPlaybackQueue, playingTrackIdForQueue]);
+        setPlaybackQueue(queue, queueContextId);
+    }, [displayItems, setPlaybackQueue, playingTrackIdForQueue, queueContextId, storedQueueContextId]);
 
     // ── Virtualizer cache invalidation ───────────────────────────────────
     // Moved here so consumers get displayItems.length changes tracked.

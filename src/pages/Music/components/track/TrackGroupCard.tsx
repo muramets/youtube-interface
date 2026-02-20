@@ -33,7 +33,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { TrackCard } from './TrackCard';
 import { InsertionLine } from './InsertionLine';
-import type { Track } from '../../../../core/types/track';
+import type { Track, MusicTag } from '../../../../core/types/track';
 import type { TrackSource } from '../../../../core/types/musicPlaylist';
 import { useMusicStore } from '../../../../core/stores/musicStore';
 import { sortByGroupOrder } from '../../../../core/utils/trackUtils';
@@ -61,11 +61,14 @@ interface SortableTrackItemProps {
     onEdit?: (track: Track) => void;
     trailingElement?: React.ReactNode;
     children?: React.ReactNode;
-    isReadOnly?: boolean;
+    canEdit?: boolean;
+    canReorder?: boolean;
     trackSource?: TrackSource;
+    availableTags: MusicTag[];
+    featuredCategories: string[];
 }
 
-const SortableTrackItem: React.FC<SortableTrackItemProps> = ({ track, selectedTrackId, userId, channelId, onSelect, onDelete, onEdit, trailingElement, children, isReadOnly, trackSource }) => {
+const SortableTrackItem: React.FC<SortableTrackItemProps> = ({ track, selectedTrackId, userId, channelId, onSelect, onDelete, onEdit, trailingElement, children, canEdit, canReorder, trackSource, availableTags, featuredCategories }) => {
     const {
         attributes,
         listeners,
@@ -77,6 +80,9 @@ const SortableTrackItem: React.FC<SortableTrackItemProps> = ({ track, selectedTr
         id: track.id,
         animateLayoutChanges: skipDropAnimation,
         data: { type: 'group-child-sort', track },
+        // Granular disable: block sorting (droppable) without blocking drag (draggable).
+        // Grantees without canReorder can still drag tracks to playlist targets.
+        disabled: canReorder === false ? { droppable: true } : false,
     });
 
     // When another group child is being dragged, dim non-active children.
@@ -96,8 +102,8 @@ const SortableTrackItem: React.FC<SortableTrackItemProps> = ({ track, selectedTr
         <div
             ref={setNodeRef}
             style={style}
-            {...(!isReadOnly ? attributes : {})}
-            {...(!isReadOnly ? listeners : {})}
+            {...attributes}
+            {...listeners}
             data-group-child
         >
             <TrackCard
@@ -111,8 +117,11 @@ const SortableTrackItem: React.FC<SortableTrackItemProps> = ({ track, selectedTr
                 trailingElement={trailingElement}
                 disableDropTarget
                 disableDrag
-                isReadOnly={isReadOnly}
+                canEdit={canEdit}
+                canReorder={canReorder}
                 trackSource={trackSource}
+                availableTags={availableTags}
+                featuredCategories={featuredCategories}
             />
             {children}
         </div>
@@ -131,8 +140,11 @@ interface TrackGroupCardProps {
     onSelect: (trackId: string | null) => void;
     onDelete?: (trackId: string) => void;
     onEdit?: (track: Track) => void;
-    isReadOnly?: boolean;
+    canReorder?: boolean;
+    canEdit?: boolean;
     trackSource?: TrackSource;
+    availableTags: MusicTag[];
+    featuredCategories: string[];
 }
 
 export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
@@ -145,8 +157,11 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
     onSelect,
     onDelete,
     onEdit,
-    isReadOnly,
+    canReorder,
+    canEdit,
     trackSource,
+    availableTags,
+    featuredCategories,
 }) => {
     const [insertionIndex, setInsertionIndex] = React.useState(-1);
     const childrenContainerRef = useRef<HTMLDivElement>(null);
@@ -214,7 +229,7 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
     const { setNodeRef: setGroupDropRef, isOver: isGroupOver } = useDroppable({
         id: `group-drop-${groupId}`,
         data: { type: 'music-group-target', groupId, representativeTrackId: displayTrack?.id, insertionIndex },
-        disabled: isReadOnly || isDraggingOwnChild,
+        disabled: !canReorder || isDraggingOwnChild,
     });
 
     const mergedGroupRef = useCallback((node: HTMLDivElement | null) => {
@@ -255,6 +270,9 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
         onDragEnd({ active, over }) {
             const activeInGroup = sorted.some((t) => t.id === active.id);
             if (!activeInGroup) return;
+            // Read-only mode: no mutations (reorder, unlink, move) — drag is
+            // still enabled so grantees can drop tracks onto playlist targets.
+            if (!canReorder) return;
 
             // Dropped outside any target → unlink child (display track stays)
             if (!over) {
@@ -333,8 +351,11 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
                     onSelect={onSelect}
                     onDelete={onDelete}
                     onEdit={onEdit}
-                    isReadOnly={isReadOnly}
+                    canEdit={canEdit}
+                    canReorder={canReorder}
                     trackSource={trackSource}
+                    availableTags={availableTags}
+                    featuredCategories={featuredCategories}
                 />
 
                 {/* "N versions" expand bar */}
@@ -395,8 +416,11 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
                                         onSelect={onSelect}
                                         onDelete={onDelete}
                                         onEdit={onEdit}
-                                        isReadOnly={isReadOnly}
+                                        canEdit={canEdit}
+                                        canReorder={canReorder}
                                         trackSource={trackSource}
+                                        availableTags={availableTags}
+                                        featuredCategories={featuredCategories}
                                     />
                                 </React.Fragment>
                             ))}
@@ -415,12 +439,9 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
             className={`relative transition-all duration-200 rounded-xl
                 ${isGroupOver ? 'ring-2 ring-indigo-400/40 bg-indigo-500/[0.03]' : ''}`}
         >
-            {/* Read-only: skip SortableContext so useSortable has nothing to register */}
-            {isReadOnly ? groupContent : (
-                <SortableContext items={allIds} strategy={verticalListSortingStrategy}>
-                    {groupContent}
-                </SortableContext>
-            )}
+            <SortableContext items={allIds} strategy={verticalListSortingStrategy}>
+                {groupContent}
+            </SortableContext>
         </div>
     );
 };
