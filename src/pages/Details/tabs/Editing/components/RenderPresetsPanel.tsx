@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { History, ChevronDown, Check, AlertTriangle, Trash2 } from 'lucide-react';
 import { PortalTooltip } from '../../../../../components/ui/atoms/PortalTooltip';
 import { useRenderPresetsStore } from '../../../../../core/stores/editing/renderPresetsStore';
-import { useMusicStore, selectAllTracks } from '../../../../../core/stores/musicStore';
+import { useMusicStore, selectAllTracks, selectAllGenres } from '../../../../../core/stores/musicStore';
 import { useUIStore } from '../../../../../core/stores/uiStore';
 import { useAuth } from '../../../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../../../core/stores/channelStore';
@@ -44,6 +44,7 @@ export const RenderPresetsPanel: React.FC<RenderPresetsPanelProps> = ({ videoId 
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const musicTracks = useMusicStore(selectAllTracks);
+    const allGenres = useMusicStore(selectAllGenres);
 
     const presets = useRenderPresetsStore((s) => s.presets);
     const loading = useRenderPresetsStore((s) => s.loading);
@@ -120,11 +121,11 @@ export const RenderPresetsPanel: React.FC<RenderPresetsPanelProps> = ({ videoId 
     const handleApply = useCallback((preset: RenderPreset) => {
         // Guard against double-click
         if (appliedId) return;
-        applyPreset(preset, musicTracks);
+        applyPreset(preset, musicTracks, allGenres);
         setAppliedId(preset.renderId);
         clearTimeout(appliedTimerRef.current);
         appliedTimerRef.current = setTimeout(() => setAppliedId(null), 2000);
-    }, [applyPreset, musicTracks, appliedId]);
+    }, [applyPreset, musicTracks, allGenres, appliedId]);
 
     const uid = user?.uid;
     const channelId = currentChannel?.id;

@@ -8,6 +8,11 @@ import { isDraggingTimeline } from './useTimelineDnd';
  * Keyboard shortcuts for the editing timeline:
  * - Space: play/pause toggle (respects browser-preview mode)
  * - ArrowUp/Down: track navigation
+ *
+ * IMPORTANT: The Space handler is registered in the **capture phase**
+ * (`{ capture: true }`) so it always fires BEFORE AudioPlayer's bubble-phase
+ * listener. This lets the timeline call `stopImmediatePropagation()` to
+ * prevent AudioPlayer from seeing the event — no state-coordination needed.
  */
 export function useKeyboardShortcuts(
     tracks: TimelineTrack[],
@@ -27,6 +32,9 @@ export function useKeyboardShortcuts(
 
             if (e.code === 'Space') {
                 e.preventDefault();
+                // Stop the event from reaching AudioPlayer's bubble-phase listener.
+                e.stopImmediatePropagation();
+
                 const musicState = useMusicStore.getState();
                 const musicPlaying = musicState.isPlaying;
                 const timelinePlaying = useEditingStore.getState().isPlaying;
@@ -77,7 +85,8 @@ export function useKeyboardShortcuts(
                 }
             }
         };
-        document.addEventListener('keydown', onKeyDown);
-        return () => document.removeEventListener('keydown', onKeyDown);
+        // Capture phase: fires BEFORE any bubble-phase listeners (e.g. AudioPlayer)
+        document.addEventListener('keydown', onKeyDown, true);
+        return () => document.removeEventListener('keydown', onKeyDown, true);
     }, [handlePlayPause, tracks, cumulativeElapsed, setPlaybackPosition, setPlaying, scrollToPosition]);
 }

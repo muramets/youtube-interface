@@ -88,11 +88,11 @@ export function useTimelinePlayback(
                 useMusicStore.getState().setPlaybackVolume(hit.track.volume * masterVol);
                 useMusicStore.getState().setPlaybackSource('timeline');
                 const store = useMusicStore.getState();
-                // Fast-seek only when audio is already loaded and playing.
-                // Without the isPlaying check, stale store.duration from a previous
-                // session would incorrectly route through seekTo, skipping setPlayingTrack
-                // and leaving the audio engine uninitialised.
-                if (store.isPlaying && store.playingTrackId === hit.track.trackId && store.seekTo && store.duration > 0) {
+                // Fast-seek when the same track is already loaded (duration known, seekTo registered).
+                // This covers both mid-playback track switches AND resume-after-pause.
+                // Falls back to setPlayingTrack only for first-time loads where the audio
+                // element hasn't reported duration yet.
+                if (store.playingTrackId === hit.track.trackId && store.seekTo && store.duration > 0) {
                     store.seekTo(hit.seekWithinTrack / store.duration);
                     store.setIsPlaying(true);
                 } else {

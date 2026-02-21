@@ -2,8 +2,7 @@ import { create } from 'zustand';
 import { collection, query, orderBy, limit, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import type { RenderPreset, TimelineTrack } from '../../types/editing';
-import type { Track } from '../../types/track';
-import { DEFAULT_GENRES } from '../../types/track';
+import type { Track, MusicGenre } from '../../types/track';
 import { useEditingStore } from './editingStore';
 import { useUIStore } from '../uiStore';
 import { parseFirestoreTimestamp } from '../../utils/firestoreUtils';
@@ -21,7 +20,7 @@ interface RenderPresetsActions {
     /** Fetch recent completed renders for the channel */
     fetchPresets: (userId: string, channelId: string) => Promise<void>;
     /** Apply a preset's audio timeline to the current editing session */
-    applyPreset: (preset: RenderPreset, musicTracks: Track[]) => void;
+    applyPreset: (preset: RenderPreset, musicTracks: Track[], allGenres: MusicGenre[]) => void;
     /** Delete a preset (optimistic) */
     deletePreset: (userId: string, channelId: string, presetId: string) => void;
     /** Reset store (e.g. on channel switch) */
@@ -93,7 +92,7 @@ export const useRenderPresetsStore = create<RenderPresetsState & RenderPresetsAc
             }
         },
 
-        applyPreset: (preset, musicTracks) => {
+        applyPreset: (preset, musicTracks, allGenres) => {
             const { tracks: presetTracks, resolution, loopCount, masterVolume } = preset;
 
             // Build a lookup: audioStoragePath → Track (for matching)
@@ -120,7 +119,7 @@ export const useRenderPresetsStore = create<RenderPresetsState & RenderPresetsAc
 
                 const { track: source, variant } = match;
                 const isVocal = variant === 'vocal';
-                const genreDef = DEFAULT_GENRES.find((g) => g.id === source.genre);
+                const genreDef = allGenres.find((g) => g.id === source.genre);
 
                 hydrated.push({
                     id: `${source.id}-${variant}-${crypto.randomUUID()}`,
@@ -158,13 +157,8 @@ export const useRenderPresetsStore = create<RenderPresetsState & RenderPresetsAc
 
             if (unavailableCount > 0) {
                 useUIStore.getState().showToast(
-                    `Applied! ${unavailableCount} track${unavailableCount > 1 ? 's' : ''} unavailable — removed from timeline`,
+                    `${unavailableCount} track${unavailableCount > 1 ? 's' : ''} unavailable — removed from timeline`,
                     'error',
-                );
-            } else {
-                useUIStore.getState().showToast(
-                    `Applied audio timeline from "${preset.videoTitle}"`,
-                    'success',
                 );
             }
         },
