@@ -129,7 +129,7 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
                                 className={`pb-2.5 text-sm font-medium transition-colors border-b-2 ${activeTab === tab
-                                    ? 'text-text-primary border-white'
+                                    ? 'text-text-primary border-black dark:border-white'
                                     : 'text-text-tertiary border-transparent hover:text-text-secondary'
                                     }`}
                             >
@@ -183,7 +183,7 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
                                             setIsVariation(next);
                                             if (!next) setActiveTab('track');
                                         }}
-                                        className={`relative w-8 h-[18px] rounded-full transition-colors duration-200 ${isVariation ? 'bg-[var(--primary-button-bg)]' : 'bg-white/10'
+                                        className={`relative w-8 h-[18px] rounded-full transition-colors duration-200 ${isVariation ? 'bg-[var(--primary-button-bg)]' : 'bg-black/10 dark:bg-white/10'
                                             }`}
                                     >
                                         <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white transition-transform duration-200 ${isVariation ? 'translate-x-[16px]' : 'translate-x-[2px]'
@@ -354,7 +354,7 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
                             </p>
 
                             {/* Search */}
-                            <div className="flex items-center gap-2 bg-white/[0.06] rounded-lg px-3 py-2">
+                            <div className="flex items-center gap-2 bg-black/5 dark:bg-white/[0.06] rounded-lg px-3 py-2">
                                 <Search size={14} className="text-text-tertiary flex-shrink-0" />
                                 <input
                                     type="text"
@@ -382,7 +382,7 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
                                             <button
                                                 key={track.id}
                                                 onClick={() => setSelectedVersionTargetId(isSelected ? null : track.id)}
-                                                className={`w-full flex items-center gap-3 px-6 py-2.5 transition-colors cursor-pointer bg-transparent border-none text-left ${isSelected ? 'bg-white/[0.08]' : 'hover:bg-white/[0.06]'}`}
+                                                className={`w-full flex items-center gap-3 px-6 py-2.5 transition-colors cursor-pointer bg-transparent border-none text-left ${isSelected ? 'bg-black/[0.08] dark:bg-white/[0.08]' : 'hover:bg-black/[0.06] dark:hover:bg-white/[0.06]'}`}
                                             >
                                                 {/* Mini cover */}
                                                 <div
@@ -396,7 +396,7 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
                                                     {track.coverUrl ? (
                                                         <img src={track.coverUrl} alt="" className="w-full h-full object-cover" />
                                                     ) : (
-                                                        <span className="text-white/60 text-[10px] font-bold">
+                                                        <span className="text-text-primary/60 dark:text-white/60 text-[10px] font-bold">
                                                             {track.title.charAt(0).toUpperCase()}
                                                         </span>
                                                     )}
@@ -407,7 +407,7 @@ export const UploadTrackModal: React.FC<UploadTrackModalProps> = ({
                                                     <p className="text-sm text-text-primary truncate m-0 flex items-center gap-1.5">
                                                         {track.title}
                                                         {isInGroup && (
-                                                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/10 text-text-tertiary">
+                                                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-black/10 text-text-primary dark:bg-white/10 dark:text-text-tertiary">
                                                                 grouped
                                                             </span>
                                                         )}

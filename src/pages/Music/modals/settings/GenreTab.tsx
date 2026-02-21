@@ -68,7 +68,7 @@ const SortableGenreItem: React.FC<SortableGenreItemProps> = ({ genre, onUpdateCo
                         e.stopPropagation();
                         setIsColorPickerOpen(!isColorPickerOpen);
                     }}
-                    className="w-5 h-5 rounded-full cursor-pointer ring-1 ring-white/10 hover:ring-white/30 hover:scale-110 transition-all"
+                    className="w-5 h-5 rounded-full cursor-pointer ring-1 ring-black/10 dark:ring-white/10 hover:ring-black/30 dark:hover:ring-white/30 hover:scale-110 transition-all"
                     style={{ backgroundColor: genre.color }}
                 />
 
@@ -210,7 +210,7 @@ export const GenreTab: React.FC<GenreTabProps> = ({ localGenres, setLocalGenres 
             {isAddingGenre ? (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-hover-bg">
                     <div
-                        className="w-5 h-5 rounded-full ring-1 ring-white/10 shrink-0"
+                        className="w-5 h-5 rounded-full ring-1 ring-black/10 dark:ring-white/10 shrink-0"
                         style={{ backgroundColor: PRESET_COLORS[localGenres.length % PRESET_COLORS.length] }}
                     />
                     <input
@@ -232,7 +232,7 @@ export const GenreTab: React.FC<GenreTabProps> = ({ localGenres, setLocalGenres 
                     onClick={() => setIsAddingGenre(true)}
                     className="flex items-center gap-2 px-3 py-2 rounded-lg w-full text-text-tertiary hover:text-text-primary hover:bg-hover-bg transition-colors"
                 >
-                    <div className="w-5 h-5 rounded-full bg-white/[0.06] flex items-center justify-center">
+                    <div className="w-5 h-5 rounded-full bg-black/5 dark:bg-white/[0.06] flex items-center justify-center">
                         <Plus size={12} />
                     </div>
                     <span className="text-sm">New Genre</span>

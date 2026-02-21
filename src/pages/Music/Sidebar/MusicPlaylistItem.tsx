@@ -158,12 +158,12 @@ export const MusicPlaylistItem: React.FC<MusicPlaylistItemProps> = ({
                     className={`
                         flex items-center pl-3 pr-2 py-2 cursor-pointer transition-all rounded-lg
                         ${isDragTarget
-                            ? 'bg-white/20 text-white'
+                            ? 'bg-black/10 text-black dark:bg-white/20 dark:text-white'
                             : isActive
-                                ? 'bg-white/10 text-white'
+                                ? 'bg-black/5 text-black dark:bg-white/10 dark:text-white'
                                 : isInteracting
-                                    ? 'bg-white/5 text-white'
-                                    : 'text-text-secondary hover:text-white hover:bg-white/5'
+                                    ? 'bg-black/5 text-black dark:bg-white/5 dark:text-white'
+                                    : 'text-text-secondary hover:text-black hover:bg-black/5 dark:hover:text-white dark:hover:bg-white/5'
                         }
                     `}
                 >
@@ -222,7 +222,7 @@ export const MusicPlaylistItem: React.FC<MusicPlaylistItemProps> = ({
                                 onBlur={handleNameSubmit}
                                 onKeyDown={handleKeyDown}
                                 onClick={(e) => e.stopPropagation()}
-                                className="absolute inset-y-0 left-0 right-0 text-xs bg-[#1a1a1a] border-0 border-b border-white/40 outline-none text-white z-10"
+                                className="absolute inset-y-0 left-0 right-0 text-xs bg-bg-primary border-0 border-b border-black/20 dark:border-white/40 outline-none text-text-primary z-10"
                             />
                         )}
                     </div>
@@ -248,8 +248,8 @@ export const MusicPlaylistItem: React.FC<MusicPlaylistItemProps> = ({
                                     setIsColorPickerOpen(false);
                                 }}
                                 className={`
-                                    hover:text-white transition-colors border-none bg-transparent cursor-pointer p-0 leading-none
-                                    ${isInteracting ? 'flex text-white' : 'hidden text-text-tertiary group-hover/playlist:flex'}
+                                    hover:text-text-primary dark:hover:text-white transition-colors border-none bg-transparent cursor-pointer p-0 leading-none
+                                    ${isInteracting ? 'flex text-text-primary dark:text-white' : 'hidden text-text-tertiary group-hover/playlist:flex'}
                                     relative after:absolute after:-inset-2 after:content-['']
                                 `}
                             >

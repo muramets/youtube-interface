@@ -22,3 +22,6 @@ export { generateChatTitle } from "./chat/generateChatTitle.js";
 // ─── Firestore Triggers ────────────────────────────────────────────────
 export { onConversationDeleted } from "./triggers/onConversationDeleted.js";
 export { onProjectDeleted } from "./triggers/onProjectDeleted.js";
+
+// ─── Audio Processing ──────────────────────────────────────────────────
+export { trimAudioFile } from "./audio/trimAudioFile.js";

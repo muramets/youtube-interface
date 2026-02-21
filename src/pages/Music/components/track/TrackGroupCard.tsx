@@ -362,15 +362,17 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
                 <button
                     onClick={(e) => { e.stopPropagation(); onToggle(); }}
                     className={`absolute bottom-0 left-0 right-0 flex items-center justify-center gap-1
-                        border-none cursor-pointer transition-[border-radius,color] duration-300 ease-out z-10
-                        ${isExpanded ? '' : 'rounded-b-lg'}`}
+                        border-none cursor-pointer transition-[border-radius,color,background-color] duration-300 ease-out z-10
+                        ${isExpanded ? '' : 'rounded-b-lg'}
+                        ${!isExpanded && 'bg-black/5 dark:bg-white/5'}
+                        `}
                     style={{
                         height: 16,
-                        background: isExpanded ? 'var(--group-accent-bg-strong)' : 'rgba(255,255,255,0.04)',
+                        ...(isExpanded ? { background: 'var(--group-accent-bg-strong)' } : {}),
                     }}
                 >
-                    <Layers size={8} className={isExpanded ? 'text-indigo-400/80' : 'text-text-tertiary'} />
-                    <span className={`text-[8px] font-medium tracking-wider uppercase ${isExpanded ? 'text-indigo-300/80' : 'text-text-tertiary'}`}>
+                    <Layers size={8} className={isExpanded ? 'text-indigo-500 dark:text-indigo-400/80' : 'text-text-tertiary'} />
+                    <span className={`text-[8px] font-medium tracking-wider uppercase ${isExpanded ? 'text-indigo-600 dark:text-indigo-300/80' : 'text-text-tertiary'}`}>
                         {tracks.length} versions
                     </span>
                     {isChildPlaying && (
@@ -437,7 +439,7 @@ export const TrackGroupCard: React.FC<TrackGroupCardProps> = ({
         <div
             ref={mergedGroupRef}
             className={`relative transition-all duration-200 rounded-xl
-                ${isGroupOver ? 'ring-2 ring-indigo-400/40 bg-indigo-500/[0.03]' : ''}`}
+                ${isGroupOver ? 'ring-2 ring-indigo-500/30 dark:ring-indigo-400/40 bg-indigo-500/[0.05] dark:bg-indigo-500/[0.03]' : ''}`}
         >
             <SortableContext items={allIds} strategy={verticalListSortingStrategy}>
                 {groupContent}

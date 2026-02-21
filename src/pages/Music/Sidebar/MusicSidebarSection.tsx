@@ -29,10 +29,10 @@ const LikedPlaylistRow: React.FC<{ isActive: boolean; likedCount: number; onClic
     return (
         <li
             onClick={onClick}
-            className={`flex items-center cursor-pointer p-2 rounded-lg transition-all duration-200 select-none animate-fade-in-down ${isActive ? 'bg-white/10' : 'hover:bg-white/5'}`}
+            className={`flex items-center cursor-pointer p-2 rounded-lg transition-all duration-200 select-none animate-fade-in-down ${isActive ? 'bg-black/10 dark:bg-white/10' : 'hover:bg-black/5 dark:hover:bg-white/5'}`}
             style={{ animationDelay: '0ms', animationFillMode: 'both' }}
         >
-            <div className={`w-6 h-6 rounded-full mr-3 flex items-center justify-center ${isActive ? 'bg-red-500/20 ring-2 ring-red-400/30' : 'bg-white/5'}`}>
+            <div className={`w-6 h-6 rounded-full mr-3 flex items-center justify-center ${isActive ? 'bg-red-500/20 ring-2 ring-red-400/30' : 'bg-black/5 dark:bg-white/5'}`}>
                 <Heart size={14} className={isActive ? 'text-red-400 fill-red-400' : 'text-red-400/60 fill-red-400/60'} />
             </div>
             <span className={`text-sm flex-1 overflow-hidden whitespace-nowrap transition-colors ${isActive ? 'text-text-primary font-medium' : 'text-text-secondary'}`}>
@@ -55,6 +55,7 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
 
     const {
         tracks,
+        sharedTracks,
         musicPlaylists,
         playlistGroupOrder,
         subscribePlaylists,
@@ -65,6 +66,7 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
     const setActivePlaylist = useMusicStore(s => s.setActivePlaylist);
     const activePlaylistId = useMusicStore(s => s.activePlaylistId);
     const activeLibrarySource = useMusicStore(s => s.activeLibrarySource);
+    const playlistAllSources = useMusicStore(s => s.playlistAllSources);
     const sharedLibraries = useMusicStore(s => s.sharedLibraries);
     const setActiveLibrarySource = useMusicStore(s => s.setActiveLibrarySource);
     const setPlaylistAllSources = useMusicStore(s => s.setPlaylistAllSources);
@@ -157,17 +159,25 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
     /**
      * Returns the number of tracks in a playlist that are visible given the
      * current library context:
+     *  - If "All" sources is selected, counts only tracks that physically exist in the global track state (own or shared)
      *  - Own tracks (no trackSource entry) → always counted
      *  - Shared tracks → counted only when viewing their origin channel
      */
     const getEffectiveCount = useCallback((playlist: MusicPlaylist): number => {
         const activeChannelId = activeLibrarySource?.ownerChannelId;
+
+        if (playlistAllSources) {
+            return playlist.trackIds.filter(trackId =>
+                tracks.some(t => t.id === trackId) || sharedTracks.some(t => t.id === trackId)
+            ).length;
+        }
+
         return playlist.trackIds.filter(trackId => {
             const source = playlist.trackSources?.[trackId];
             if (!source) return true; // own track, always visible
             return source.ownerChannelId === activeChannelId;
         }).length;
-    }, [activeLibrarySource]);
+    }, [activeLibrarySource, playlistAllSources, tracks, sharedTracks]);
 
     // Group playlists by group field
     const groupedPlaylists = useMemo(() => {
@@ -296,7 +306,7 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
                                 e.stopPropagation();
                                 setIsContentExpanded(!isContentExpanded);
                             }}
-                            className="p-1 hover:bg-white/10 rounded-full transition-colors cursor-pointer text-text-secondary hover:text-text-primary"
+                            className="p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded-full transition-colors cursor-pointer text-text-secondary hover:text-text-primary"
                         >
                             {isContentExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         </button>
@@ -307,7 +317,7 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
                                 e.stopPropagation();
                                 setShowCreateModal(true);
                             }}
-                            className="p-1 hover:bg-white/10 rounded-full transition-colors cursor-pointer text-text-secondary hover:text-text-primary"
+                            className="p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded-full transition-colors cursor-pointer text-text-secondary hover:text-text-primary"
                             title="New playlist"
                         >
                             <Plus size={16} />
@@ -370,9 +380,9 @@ export const MusicSidebarSection: React.FC<{ expanded: boolean }> = ({ expanded 
                                             {/* Group Header — same size as TrendsChannelItem */}
                                             <div
                                                 onClick={() => toggleGroup(groupName)}
-                                                className="flex items-center cursor-pointer p-2 rounded-lg transition-all duration-200 select-none hover:bg-white/5"
+                                                className="flex items-center cursor-pointer p-2 rounded-lg transition-all duration-200 select-none hover:bg-black/5 dark:hover:bg-white/5"
                                             >
-                                                <div className="w-6 h-6 rounded-full mr-3 flex items-center justify-center bg-white/5">
+                                                <div className="w-6 h-6 rounded-full mr-3 flex items-center justify-center bg-black/5 dark:bg-white/5">
                                                     <ChevronDown
                                                         size={14}
                                                         className={`transition-transform duration-200 text-text-tertiary ${isCollapsed ? '-rotate-90' : ''

@@ -143,7 +143,7 @@ export const ShareTab: React.FC<ShareTabProps> = ({ userId, channelId }) => {
     return (
         <div className="space-y-4">
             {/* Description */}
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-white/[0.03]">
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-black/[0.03] dark:bg-white/[0.03]">
                 <Share2 size={16} className="text-text-tertiary mt-0.5 shrink-0" />
                 <p className="text-xs text-text-secondary leading-relaxed">
                     Share your music library with your other channels.
@@ -169,7 +169,7 @@ export const ShareTab: React.FC<ShareTabProps> = ({ userId, channelId }) => {
                                 className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-hover-bg group transition-colors"
                             >
                                 {/* Channel avatar */}
-                                <div className="w-8 h-8 rounded-full bg-white/[0.08] flex items-center justify-center shrink-0 overflow-hidden">
+                                <div className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/[0.08] flex items-center justify-center shrink-0 overflow-hidden">
                                     {ch?.avatar ? (
                                         <img src={ch.avatar} alt={grant.channelName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                     ) : (
@@ -235,7 +235,7 @@ export const ShareTab: React.FC<ShareTabProps> = ({ userId, channelId }) => {
                                     disabled={isGranting}
                                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-hover-bg transition-colors text-left disabled:opacity-50"
                                 >
-                                    <div className="w-8 h-8 rounded-full bg-white/[0.08] flex items-center justify-center shrink-0 overflow-hidden">
+                                    <div className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/[0.08] flex items-center justify-center shrink-0 overflow-hidden">
                                         {ch.avatar ? (
                                             <img src={ch.avatar} alt={ch.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                         ) : (
@@ -257,7 +257,7 @@ export const ShareTab: React.FC<ShareTabProps> = ({ userId, channelId }) => {
                     onClick={() => setIsAdding(true)}
                     className="flex items-center gap-2 px-3 py-2 rounded-lg w-full text-text-tertiary hover:text-text-primary hover:bg-hover-bg transition-colors"
                 >
-                    <div className="w-8 h-8 rounded-full bg-white/[0.06] flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/[0.06] flex items-center justify-center">
                         <Plus size={14} />
                     </div>
                     <span className="text-sm">Share with another channel</span>
@@ -267,7 +267,7 @@ export const ShareTab: React.FC<ShareTabProps> = ({ userId, channelId }) => {
             {/* Empty state */}
             {sharingGrants.length === 0 && !isAdding && (
                 <div className="text-center py-8">
-                    <div className="w-12 h-12 rounded-xl bg-white/[0.04] flex items-center justify-center mx-auto mb-3">
+                    <div className="w-12 h-12 rounded-xl bg-black/5 dark:bg-white/[0.04] flex items-center justify-center mx-auto mb-3">
                         <Share2 size={20} className="text-text-tertiary" />
                     </div>
                     <p className="text-sm text-text-secondary mb-1">Not shared yet</p>

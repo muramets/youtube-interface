@@ -105,7 +105,7 @@ export const MusicLibraryHeader: React.FC<MusicLibraryHeaderProps> = ({
                 <>
                     <button
                         onClick={() => navigate('/music')}
-                        className="w-10 h-10 rounded-xl bg-white/[0.06] flex items-center justify-center hover:bg-white/10 transition-colors"
+                        className="w-10 h-10 rounded-xl bg-black/5 dark:bg-white/[0.06] flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
                     >
                         <ArrowLeft size={20} className="text-text-secondary" />
                     </button>
@@ -133,7 +133,7 @@ export const MusicLibraryHeader: React.FC<MusicLibraryHeaderProps> = ({
                 </>
             ) : (
                 <>
-                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-black/5 dark:bg-white/5 flex items-center justify-center">
                         <Music size={20} className="text-text-secondary" />
                     </div>
                     <div>
@@ -167,11 +167,11 @@ export const MusicLibraryHeader: React.FC<MusicLibraryHeaderProps> = ({
                     ]}
                     activeSort={musicSortBy}
                     onSortChange={setMusicSortBy}
-                    buttonClassName="w-[34px] h-[34px] flex items-center justify-center transition-colors border-none cursor-pointer relative flex-shrink-0 bg-transparent text-text-primary hover:text-white"
+                    buttonClassName="w-[34px] h-[34px] flex items-center justify-center transition-colors border-none cursor-pointer relative flex-shrink-0 bg-transparent text-text-primary hover:text-black dark:hover:text-white"
                 />
                 {musicSortBy !== 'playlistOrder' && (
                     <>
-                        <div className="w-[1px] h-[16px] bg-white/15" />
+                        <div className="w-[1px] h-[16px] bg-black/15 dark:bg-white/15" />
                         <PortalTooltip content={
                             musicSortBy === 'default'
                                 ? (musicSortAsc ? 'Oldest First' : 'Newest First')
@@ -179,7 +179,7 @@ export const MusicLibraryHeader: React.FC<MusicLibraryHeaderProps> = ({
                         }>
                             <button
                                 onClick={() => setMusicSortAsc(!musicSortAsc)}
-                                className="w-[30px] h-[34px] flex items-center justify-center border-none cursor-pointer bg-transparent text-text-primary hover:text-white transition-colors"
+                                className="w-[30px] h-[34px] flex items-center justify-center border-none cursor-pointer bg-transparent text-text-primary hover:text-black dark:hover:text-white transition-colors"
                             >
                                 {musicSortAsc ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
                             </button>

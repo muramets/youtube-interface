@@ -93,7 +93,7 @@ export const AudioFileSlots: React.FC<AudioFileSlotsProps> = ({
                             setInstrumentalFile(EMPTY_FILE);
                         }
                     }}
-                    className={`relative w-8 h-[18px] rounded-full transition-colors duration-200 ${isInstrumentalOnly ? 'bg-[var(--primary-button-bg)]' : 'bg-white/10'
+                    className={`relative w-8 h-[18px] rounded-full transition-colors duration-200 ${isInstrumentalOnly ? 'bg-[var(--primary-button-bg)]' : 'bg-black/10 dark:bg-white/10'
                         }`}
                 >
                     <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white transition-transform duration-200 ${isInstrumentalOnly ? 'translate-x-[16px]' : 'translate-x-[2px]'

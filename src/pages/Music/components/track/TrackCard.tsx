@@ -37,7 +37,7 @@ function formatLyrics(text: string): React.ReactNode {
     for (const line of lines) {
         if (SECTION_RE.test(line)) {
             flushBlock();
-            const label = line.replace(/[\[\]()]/g, '').replace(/:$/, '').trim();
+            const label = line.replace(/[[\]()]/g, '').replace(/:$/, '').trim();
             elements.push(
                 <span key={key++} className="block text-[10px] font-semibold uppercase tracking-wider text-indigo-400/80 mt-3 mb-1 first:mt-0">
                     {label}
@@ -248,12 +248,12 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             className={`group flex items-center gap-4 px-4 py-4 rounded-lg transition-all duration-300 cursor-pointer relative select-none
                 ${isOver && !isDragging ? 'ring-2 ring-indigo-400/50 bg-indigo-500/[0.06]' : ''}
                 ${isCurrentTrack
-                    ? 'bg-white/[0.06] hover:bg-white/[0.09]'
+                    ? 'bg-black/5 hover:bg-black/10 dark:bg-white/[0.06] dark:hover:bg-white/[0.09]'
                     : (dropdownOpen || tooltipOpen)
-                        ? 'bg-white/[0.04]'
+                        ? 'bg-black/5 dark:bg-white/[0.04]'
                         : isSelected
-                            ? 'bg-white/[0.03] ring-1 ring-white/10 hover:bg-white/[0.06]'
-                            : 'hover:bg-white/[0.04]'
+                            ? 'bg-black/5 ring-1 ring-black/10 hover:bg-black/10 dark:bg-white/[0.03] dark:ring-white/10 dark:hover:bg-white/[0.06]'
+                            : 'hover:bg-black/5 dark:hover:bg-white/[0.04]'
                 }`}
         >
             {/* 1. Cover + Play/Pause overlay */}
@@ -269,7 +269,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                 {track.coverUrl ? (
                     <img src={track.coverUrl} alt="" className="w-full h-full object-cover" />
                 ) : (
-                    <span className="text-white/60 text-sm font-bold">
+                    <span className="text-text-primary/60 dark:text-white/60 text-sm font-bold">
                         {track.title.charAt(0).toUpperCase()}
                     </span>
                 )}
@@ -317,7 +317,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                 </PortalTooltip>
                 <p
                     onClick={(e) => { e.stopPropagation(); setSearchQuery(track.artist || ''); }}
-                    className="text-xs text-text-tertiary truncate transition-colors hover:text-text-secondary cursor-pointer"
+                    className="mt-0.5 text-xs text-text-tertiary truncate transition-colors hover:text-text-secondary cursor-pointer"
                 >
                     {track.artist || 'Unknown'}
                 </p>
@@ -354,8 +354,8 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                             className={`p-1.5 rounded-lg text-xs flex items-center gap-1 flex-shrink-0 transition-all duration-300
                                 ${isCurrentTrack ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
                                 ${currentVariant === 'instrumental'
-                                    ? 'bg-white/10 text-white'
-                                    : 'text-text-secondary hover:text-text-primary hover:bg-white/10'
+                                    ? 'bg-black/10 text-text-primary dark:bg-white/10 dark:text-white'
+                                    : 'text-text-secondary hover:text-text-primary hover:bg-black/10 dark:hover:bg-white/10'
                                 }`}
                         >
                             {currentVariant === 'vocal' ? <Mic size={14} /> : <Piano size={14} />}
@@ -446,7 +446,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                         onOpenChange={setTooltipOpen}
                         content={
                             <div className="flex flex-col min-w-[280px]">
-                                <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-white/5">
+                                <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-black/10 dark:border-white/5">
                                     <span className="text-[10px] text-text-tertiary uppercase tracking-wider">Prompt</span>
                                     <button
                                         onClick={handleCopyPrompt}
@@ -480,7 +480,7 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
                         content={
                             <div className="flex flex-col min-w-[280px]">
                                 {/* Sticky header with copy action */}
-                                <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-white/5">
+                                <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-black/10 dark:border-white/5">
                                     <span className="text-[10px] text-text-tertiary uppercase tracking-wider">Lyrics</span>
                                     <button
                                         onClick={handleCopyLyrics}

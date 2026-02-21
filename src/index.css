@@ -122,9 +122,15 @@
      Component: Waveform
      --------------------------------------------------------------------------- */
    --waveform-bar: rgba(0, 0, 0, 0.18);
-   --waveform-trim: rgba(0, 0, 0, 0.06);
+   --waveform-trim: rgba(0, 0, 0, 0.04);
    --waveform-line: rgba(0, 0, 0, 0.25);
    --waveform-hover: rgba(0, 0, 0, 0.45);
+   /* Fade-out envelope overlay (light theme: dark shadow on waveform) */
+   --waveform-fade-fill: rgba(0, 0, 0, 0.15);
+   --waveform-fade-line: rgba(0, 0, 0, 0.35);
+   --waveform-fade-handle: rgba(0, 0, 0, 0.75);
+   --waveform-fade-handle-bg: rgba(255, 255, 255, 0.9);
+   --waveform-fade-dot-stroke: rgba(0, 0, 0, 0.2);
 
    /* Skeleton shimmer highlight — dark shimmer on light backgrounds */
    --shimmer-highlight: rgba(0, 0, 0, 0.06);
@@ -225,9 +231,15 @@
      Component: Waveform
      --------------------------------------------------------------------------- */
    --waveform-bar: rgba(255, 255, 255, 0.12);
-   --waveform-trim: rgba(255, 255, 255, 0.06);
+   --waveform-trim: rgba(255, 255, 255, 0.03);
    --waveform-line: rgba(255, 255, 255, 0.25);
    --waveform-hover: rgba(255, 255, 255, 0.5);
+   /* Fade-out envelope overlay (dark theme: white glow on waveform) */
+   --waveform-fade-fill: rgba(0, 0, 0, 0.22);
+   --waveform-fade-line: rgba(255, 255, 255, 0.4);
+   --waveform-fade-handle: rgba(255, 255, 255, 0.7);
+   --waveform-fade-handle-bg: rgba(255, 255, 255, 0.9);
+   --waveform-fade-dot-stroke: rgba(0, 0, 0, 0.3);
 
    /* Skeleton shimmer highlight — white shimmer on dark backgrounds */
    --shimmer-highlight: rgba(255, 255, 255, 0.10);
@@ -449,6 +461,7 @@ textarea.modal-input:hover {
       transform: translateY(0);
    }
 }
+
 /* Unlinked track appearance — Phase 2 of two-phase unlink animation.
    Phase 1 (0–150ms): group shrinks, rows shift down (transition: transform).
    Phase 2 (150ms+): the detached track fades in at its correct sorted position.

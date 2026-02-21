@@ -19,7 +19,7 @@ interface TrackCardGhostProps {
 
 export const TrackCardGhost: React.FC<TrackCardGhostProps> = ({ track, disabled, alreadyInPlaylist }) => {
     return (
-        <div className={`pointer-events-none flex items-center gap-2.5 pl-1.5 pr-4 py-1.5 rounded-lg bg-[#1e1e22] shadow-2xl max-w-[220px] ${disabled ? 'opacity-40' : ''}`}>
+        <div className={`pointer-events-none flex items-center gap-2.5 pl-1.5 pr-4 py-1.5 rounded-lg bg-white dark:bg-[#1e1e22] shadow-2xl max-w-[220px] ${disabled ? 'opacity-40' : ''}`}>
             {/* Compact cover with optional checkmark badge */}
             <div className="relative w-7 h-7 flex-shrink-0">
                 <div
@@ -33,20 +33,20 @@ export const TrackCardGhost: React.FC<TrackCardGhostProps> = ({ track, disabled,
                     {track.coverUrl ? (
                         <img src={track.coverUrl} alt="" className="w-full h-full object-cover" />
                     ) : (
-                        <span className="text-white/60 text-[10px] font-bold">
+                        <span className="text-text-primary/60 dark:text-white/60 text-[10px] font-bold">
                             {track.title.charAt(0).toUpperCase()}
                         </span>
                     )}
                 </div>
                 {alreadyInPlaylist && (
-                    <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 flex items-center justify-center ring-1 ring-[#1e1e22]">
+                    <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 flex items-center justify-center ring-1 ring-white dark:ring-[#1e1e22]">
                         <Check size={8} className="text-white" strokeWidth={3} />
                     </div>
                 )}
             </div>
 
             {/* Title or "Already added" */}
-            <p className={`text-xs font-medium truncate ${alreadyInPlaylist ? 'text-white/40' : 'text-text-primary'}`}>
+            <p className={`text-xs font-medium truncate ${alreadyInPlaylist ? 'text-black/40 dark:text-white/40' : 'text-text-primary'}`}>
                 {alreadyInPlaylist ? 'Already added' : track.title}
             </p>
         </div>

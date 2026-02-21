@@ -134,7 +134,7 @@ export const useMusicDragDrop = () => {
 
         setDraggingTrackId(null);
         setDraggedTrack(null);
-    }, [draggedTrack, user?.uid, currentChannel?.id, activeLibrarySource, addTracksToPlaylist, linkAsVersion, linkAsVersionAndReorder, setDraggingTrackId]);
+    }, [draggedTrack, user?.uid, currentChannel?.id, activeLibrarySource, addTracksToPlaylist, linkAsVersion, linkAsVersionAndReorder, unlinkFromGroup, setDraggingTrackId]);
 
     const handleMusicDragCancel = useCallback(() => {
         setDraggingTrackId(null);

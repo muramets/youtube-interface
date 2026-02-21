@@ -123,7 +123,7 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
 
             {/* Menu */}
             <div
-                className="fixed z-popover bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl animate-fade-in min-w-[160px]"
+                className="fixed z-popover bg-bg-secondary/95 backdrop-blur-md border border-black/10 dark:border-white/10 rounded-lg py-1 shadow-xl animate-fade-in min-w-[160px]"
                 style={menuStyle}
                 onClick={(e) => e.stopPropagation()}
             >
@@ -135,7 +135,7 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
                             onStartRename();
                             onClose();
                         }}
-                        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer"
+                        className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer"
                     >
                         <Pencil size={10} /> Rename
                     </button>
@@ -149,7 +149,7 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
                         onMouseLeave={startSubmenuCloseTimer}
                     >
                         <button
-                            className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer"
+                            className="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer"
                         >
                             <FolderOpen size={10} />
                             <span className="flex-1">Move to group</span>
@@ -159,14 +159,14 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
                         {/* Submenu */}
                         {showGroupSubmenu && (
                             <div
-                                className="absolute left-full top-0 bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl min-w-[140px] animate-fade-in"
+                                className="absolute left-full top-0 bg-bg-secondary/95 backdrop-blur-md border border-black/10 dark:border-white/10 rounded-lg py-1 shadow-xl min-w-[140px] animate-fade-in"
                                 onMouseEnter={clearSubmenuTimer}
                                 onMouseLeave={startSubmenuCloseTimer}
                             >
                                 {/* No group option */}
                                 <button
                                     onClick={() => handleMoveToGroup(undefined)}
-                                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer ${!playlist.group ? 'text-indigo-400' : 'text-text-primary'
+                                    className={`w-full text-left px-3 py-1.5 text-xs hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer ${!playlist.group ? 'text-indigo-400' : 'text-text-primary'
                                         }`}
                                 >
                                     No group
@@ -177,7 +177,7 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
                                     <button
                                         key={g}
                                         onClick={() => handleMoveToGroup(g)}
-                                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer ${playlist.group === g ? 'text-indigo-400' : 'text-text-primary'
+                                        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer ${playlist.group === g ? 'text-indigo-400' : 'text-text-primary'
                                             }`}
                                     >
                                         {g}
@@ -186,7 +186,7 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
 
                                 {/* Divider */}
                                 {existingGroups.length > 0 && (
-                                    <div className="my-1 border-t border-white/5" />
+                                    <div className="my-1 border-t border-black/5 dark:border-white/5" />
                                 )}
 
                                 {/* New group */}
@@ -208,7 +208,7 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
                                 ) : (
                                     <button
                                         onClick={() => setShowNewGroupInput(true)}
-                                        className="w-full text-left px-3 py-1.5 text-xs text-text-tertiary hover:text-text-primary hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer"
+                                        className="w-full text-left px-3 py-1.5 text-xs text-text-tertiary hover:text-text-primary hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer"
                                     >
                                         <FolderPlus size={10} /> New group
                                     </button>
@@ -221,13 +221,13 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
                 {/* Divider + Delete — requires canDelete */}
                 {canDelete && (
                     <>
-                        <div className="my-1 border-t border-white/5" />
+                        <div className="my-1 border-t border-black/5 dark:border-white/5" />
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
                                 handleDelete();
                             }}
-                            className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer"
+                            className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-black/5 dark:hover:bg-white/5 transition-colors flex items-center gap-2 border-none bg-transparent cursor-pointer"
                         >
                             <Trash2 size={10} /> Delete
                         </button>

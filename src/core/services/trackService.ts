@@ -3,6 +3,7 @@
 // =============================================================================
 
 import { v4 as uuidv4 } from 'uuid';
+import { httpsCallable } from 'firebase/functions';
 import {
     subscribeToCollection,
     setDocument,
@@ -12,10 +13,23 @@ import {
     batchUpdateDocuments,
 } from './firestore';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '../../config/firebase';
-import type { Track, TrackCreateData, MusicSettings } from '../types/track';
+import { db, functions } from '../../config/firebase';
+import type { Track, TrackCreateData, TrackVariant, MusicSettings } from '../types/track';
 import { DEFAULT_GENRES, DEFAULT_TAGS } from '../types/track';
 import type { UpdateData, DocumentData } from 'firebase/firestore';
+
+// ---------------------------------------------------------------------------
+// Callable function singletons — created once at module load
+// ---------------------------------------------------------------------------
+
+const _trimAudioFileFn = httpsCallable<{
+    trackId: string;
+    channelId: string;
+    variant: TrackVariant;
+    trimStartSec: number;
+    trimEndSec: number;
+    fadeOut?: { startSec: number; durationSec: number; curvature: number };
+}, { newDuration: number }>(functions, 'trimAudioFile');
 
 // ---------------------------------------------------------------------------
 // Path Helpers
@@ -244,5 +258,33 @@ export const TrackService = {
             } as UpdateData<DocumentData>);
         }
     },
-};
 
+    // -----------------------------------------------------------------------
+    // Audio Processing
+    // -----------------------------------------------------------------------
+
+    /**
+     * Trim a track's audio file and optionally apply Bezier fade-out.
+     * Calls the `trimAudioFile` Cloud Function which uses FFmpeg.
+     */
+    async trimTrack(
+        _userId: string,
+        channelId: string,
+        trackId: string,
+        variant: TrackVariant,
+        trimStartSec: number,
+        trimEndSec: number,
+        fadeOut?: { startSec: number; durationSec: number; curvature: number },
+    ): Promise<{ newDuration: number }> {
+        const result = await _trimAudioFileFn({
+            trackId,
+            channelId,
+            variant,
+            trimStartSec,
+            trimEndSec,
+            fadeOut,
+        });
+
+        return { newDuration: result.data.newDuration };
+    },
+};

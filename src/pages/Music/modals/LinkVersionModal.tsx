@@ -82,11 +82,11 @@ export const LinkVersionModal: React.FC<LinkVersionModalProps> = ({
             onClick={onClose}
         >
             <div
-                className="bg-bg-secondary rounded-xl flex flex-col overflow-hidden animate-scale-in border border-white/[0.08] shadow-2xl w-[440px] max-w-[90vw] max-h-[70vh]"
+                className="bg-bg-secondary rounded-xl flex flex-col overflow-hidden animate-scale-in border border-black/[0.08] dark:border-white/[0.08] shadow-2xl w-[440px] max-w-[90vw] max-h-[70vh]"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="px-5 py-4 flex items-center justify-between border-b border-white/[0.08]">
+                <div className="px-5 py-4 flex items-center justify-between border-b border-black/[0.08] dark:border-white/[0.08]">
                     <div className="flex items-center gap-2">
                         <Link size={16} className="text-text-secondary" />
                         <h2 className="text-base font-semibold text-text-primary m-0">Link as Version</h2>
@@ -100,8 +100,8 @@ export const LinkVersionModal: React.FC<LinkVersionModalProps> = ({
                 </div>
 
                 {/* Search */}
-                <div className="px-5 py-3 border-b border-white/[0.06]">
-                    <div className="flex items-center gap-2 bg-white/[0.06] rounded-lg px-3 py-2">
+                <div className="px-5 py-3 border-b border-black/[0.06] dark:border-white/[0.06]">
+                    <div className="flex items-center gap-2 bg-black/[0.06] dark:bg-white/[0.06] rounded-lg px-3 py-2">
                         <Search size={14} className="text-text-tertiary flex-shrink-0" />
                         <input
                             type="text"
@@ -129,7 +129,7 @@ export const LinkVersionModal: React.FC<LinkVersionModalProps> = ({
                                 <button
                                     key={track.id}
                                     onClick={() => handleLink(track.id)}
-                                    className="w-full flex items-center gap-3 px-5 py-2.5 hover:bg-white/[0.06] transition-colors cursor-pointer bg-transparent border-none text-left"
+                                    className="w-full flex items-center gap-3 px-5 py-2.5 hover:bg-black/[0.06] dark:hover:bg-white/[0.06] transition-colors cursor-pointer bg-transparent border-none text-left"
                                 >
                                     {/* Mini cover */}
                                     <div
@@ -143,7 +143,7 @@ export const LinkVersionModal: React.FC<LinkVersionModalProps> = ({
                                         {track.coverUrl ? (
                                             <img src={track.coverUrl} alt="" className="w-full h-full object-cover" />
                                         ) : (
-                                            <span className="text-white/60 text-[10px] font-bold">
+                                            <span className="text-text-primary/60 dark:text-white/60 text-[10px] font-bold">
                                                 {track.title.charAt(0).toUpperCase()}
                                             </span>
                                         )}
@@ -154,7 +154,7 @@ export const LinkVersionModal: React.FC<LinkVersionModalProps> = ({
                                         <p className="text-sm text-text-primary truncate m-0 flex items-center gap-1.5">
                                             {track.title}
                                             {isInGroup && (
-                                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/10 text-text-tertiary">
+                                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-black/10 text-text-primary dark:bg-white/10 dark:text-text-tertiary">
                                                     grouped
                                                 </span>
                                             )}

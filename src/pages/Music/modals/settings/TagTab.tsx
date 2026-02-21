@@ -103,8 +103,8 @@ const SortableTagChip: React.FC<{
             {...attributes}
             className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-text-primary cursor-grab outline-none
                 ${isDragging
-                    ? 'bg-white/[0.12] shadow-lg shadow-black/25 ring-1 ring-white/15 scale-105'
-                    : 'bg-white/[0.06] hover:bg-white/[0.1] transition-colors'
+                    ? 'bg-black/10 dark:bg-white/[0.12] shadow-lg shadow-black/25 ring-1 ring-black/10 dark:ring-white/15 scale-105'
+                    : 'bg-black/5 dark:bg-white/[0.06] hover:bg-black/10 dark:hover:bg-white/[0.1] transition-colors'
                 }`}
         >
             {isEditing ? (
@@ -164,7 +164,7 @@ const DroppableCategoryZone: React.FC<{
     return (
         <div
             ref={setNodeRef}
-            className={`rounded-lg transition-colors duration-150 ${isTagDragActive && isOver && !isSourceCategory ? 'bg-white/[0.04] ring-1 ring-white/10' : ''}`}
+            className={`rounded-lg transition-colors duration-150 ${isTagDragActive && isOver && !isSourceCategory ? 'bg-black/5 dark:bg-white/[0.04] ring-1 ring-black/10 dark:ring-white/10' : ''}`}
         >
             {children}
         </div>
@@ -186,7 +186,7 @@ const DroppableAddButton: React.FC<{
         <button
             ref={setNodeRef}
             onClick={onClick}
-            className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-white/[0.04] text-text-tertiary hover:bg-white/[0.1] hover:text-text-primary transition-colors"
+            className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-black/5 dark:bg-white/[0.04] text-text-tertiary hover:bg-black/10 dark:hover:bg-white/[0.1] hover:text-text-primary transition-colors"
         >
             <Plus size={14} />
         </button>
@@ -673,7 +673,7 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
                                                     ))}
                                                     {/* Inline add / Droppable "+" button */}
                                                     {addingToCategory === category ? (
-                                                        <div className="inline-flex items-center gap-1 bg-white/[0.06] rounded-full pl-3 pr-1 py-1.5">
+                                                        <div className="inline-flex items-center gap-1 bg-black/5 dark:bg-white/[0.06] rounded-full pl-3 pr-1 py-1.5">
                                                             <span className="relative inline-flex items-center">
                                                                 <span className="invisible whitespace-pre text-xs min-w-[3ch]">{inlineTagName || '···'}</span>
                                                                 <input
@@ -724,7 +724,7 @@ export const TagTab: React.FC<TagTabProps> = ({ localTags, setLocalTags, categor
                             return (
                                 <div
                                     className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-text-primary
-                                        bg-white/[0.12] shadow-lg shadow-black/25 ring-1 ring-white/15 scale-105 cursor-grabbing"
+                                        bg-white shadow-lg shadow-black/25 ring-1 ring-black/10 dark:bg-white/[0.12] dark:ring-white/15 scale-105 cursor-grabbing"
                                 >
                                     {tag.name}
                                 </div>

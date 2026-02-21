@@ -45,7 +45,7 @@ export class MusicErrorBoundary extends Component<Props, State> {
                     </p>
                     <button
                         onClick={this.handleRetry}
-                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-white/[0.06] text-text-primary hover:bg-white/10 transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-black/5 dark:bg-white/[0.06] text-text-primary hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
                     >
                         <RefreshCw size={14} />
                         Retry

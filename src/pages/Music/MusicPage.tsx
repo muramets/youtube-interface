@@ -227,7 +227,7 @@ export const MusicPage: React.FC = () => {
                             {/* SKELETON LAYER — replaced by error state if load times out */}
                             {isLoadTimedOut ? (
                                 <div className="flex flex-col items-center justify-center py-20 text-center">
-                                    <div className="w-14 h-14 rounded-2xl bg-white/[0.05] flex items-center justify-center mb-4">
+                                    <div className="w-14 h-14 rounded-2xl bg-black/5 dark:bg-white/[0.05] flex items-center justify-center mb-4">
                                         <WifiOff size={24} className="text-text-tertiary" />
                                     </div>
                                     <h3 className="text-base font-medium text-text-primary mb-1">Could not load tracks</h3>
@@ -236,7 +236,7 @@ export const MusicPage: React.FC = () => {
                                     </p>
                                     <button
                                         onClick={() => window.location.reload()}
-                                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-white/[0.06] text-text-primary hover:bg-white/10 transition-colors"
+                                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-black/5 dark:bg-white/[0.06] text-text-primary hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
                                     >
                                         <RefreshCw size={14} />
                                         Retry
