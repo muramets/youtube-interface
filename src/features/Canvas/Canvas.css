@@ -43,8 +43,7 @@
 /* --- Infinite canvas board: dot-grid background --- */
 
 .canvas-board {
-    background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
-    /* background-size and background-position are set dynamically via inline style in CanvasBoard.tsx */
+    /* background-image, background-size, and background-position are set dynamically in CanvasBoard.tsx */
     cursor: default;
 }
 

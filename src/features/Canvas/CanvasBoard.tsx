@@ -137,14 +137,21 @@ export const CanvasBoard = React.forwardRef<CanvasBoardHandle, CanvasBoardProps>
             },
         }), [applyTarget, transformRef]);
 
-        // Dot grid
+        // Dot grid — fade out smoothly at low zoom to prevent moiré
         const gridSize = 24 * transform.zoom;
+        const gridOpacity = transform.zoom < 0.15 ? 0.15
+            : transform.zoom < 0.4 ? 0.15 + (transform.zoom - 0.15) / 0.25 * 0.85
+                : 1;
+        const dotR = Math.max(0.4, transform.zoom);
 
         return (
             <div
                 ref={containerRef}
                 className={`canvas-board w-full h-full overflow-hidden relative select-none ${isPanning ? 'is-panning' : 'pan-ready'}`}
                 style={{
+                    backgroundImage: gridOpacity > 0
+                        ? `radial-gradient(circle, rgba(var(--border-rgb), ${gridOpacity}) ${dotR}px, transparent ${dotR}px)`
+                        : 'none',
                     backgroundSize: `${gridSize}px ${gridSize}px`,
                     backgroundPosition: `${transform.x % gridSize}px ${transform.y % gridSize}px`,
                 }}
