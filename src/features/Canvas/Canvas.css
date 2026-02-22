@@ -62,6 +62,25 @@
     user-select: none;
 }
 
+/* Subtle pulse glow for nodes not yet manually moved */
+.canvas-node-pending {
+    animation: pendingGlow 2.5s ease-in-out infinite;
+    border-radius: 14px;
+    will-change: box-shadow;
+}
+
+@keyframes pendingGlow {
+
+    0%,
+    100% {
+        box-shadow: 0 0 20px rgba(99, 102, 241, 0.35), 0 0 40px rgba(99, 102, 241, 0.15);
+    }
+
+    50% {
+        box-shadow: 0 0 32px rgba(99, 102, 241, 0.6), 0 0 64px rgba(99, 102, 241, 0.25);
+    }
+}
+
 .canvas-node-drag-handle {
     cursor: grab;
 }

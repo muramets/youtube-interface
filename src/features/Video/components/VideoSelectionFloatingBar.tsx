@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trash2, ListPlus, Home, Layers } from 'lucide-react';
+import { Trash2, ListPlus, Home, LayoutGrid } from 'lucide-react';
 import { FloatingBar } from '../../../components/ui/organisms/FloatingBar';
 import { AddToPlaylistModal } from '../../Playlists/modals/AddToPlaylistModal';
 
@@ -60,7 +60,7 @@ export const VideoSelectionFloatingBar: React.FC<VideoSelectionFloatingBarProps>
                                 className="p-2 hover:bg-white/10 rounded-full text-text-primary transition-colors border-none cursor-pointer flex items-center justify-center"
                                 title="Add to Canvas"
                             >
-                                <Layers size={20} />
+                                <LayoutGrid size={20} />
                             </button>
                         )}
 

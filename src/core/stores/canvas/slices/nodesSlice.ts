@@ -57,7 +57,7 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
 
     moveNode: (id, position) => {
         set((s) => ({
-            nodes: s.nodes.map((n) => n.id === id ? { ...n, position } : n),
+            nodes: s.nodes.map((n) => n.id === id ? { ...n, position, isPlaced: true } : n),
         }));
         get()._save();
     },
@@ -67,7 +67,7 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
         set((s) => ({
             nodes: s.nodes.map((n) => {
                 const pos = byId.get(n.id);
-                return pos ? { ...n, position: pos } : n;
+                return pos ? { ...n, position: pos, isPlaced: true } : n;
             }),
         }));
         get()._save();

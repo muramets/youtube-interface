@@ -42,6 +42,8 @@ export interface CanvasNode {
     size?: CanvasSize;
     /** Higher = rendered on top. Incremented on click (bring-to-front) */
     zIndex: number;
+    /** True once the user has manually dragged this node. Unplaced nodes show a glow. */
+    isPlaced?: boolean;
     createdAt: Timestamp;
 }
 

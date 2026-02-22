@@ -5,7 +5,7 @@
 // =============================================================================
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Layers } from 'lucide-react';
+import { LayoutGrid } from 'lucide-react';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 import { useFloatingBottomOffset } from '../../core/hooks/useFloatingBottomOffset';
 import { useAuth } from '../../core/hooks/useAuth';
@@ -89,7 +89,7 @@ export const CanvasBubble: React.FC = () => {
             onDragOver={handleDragOver}
             onDrop={handleDrop}
         >
-            <Layers className="w-[20px] h-[20px]" />
+            <LayoutGrid className="w-[20px] h-[20px]" />
         </button>
     );
 };

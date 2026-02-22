@@ -26,7 +26,6 @@ export const createLayoutSlice: CanvasSlice<LayoutSlice> = (set, get) => ({
         const placed = nodes.filter((n) => n.position !== null);
         const nodeSizes = get().nodeSizes;
 
-        const nodeW = (n: CanvasNode) => n.size?.w ?? NODE_WIDTH;
         const nodeH = (n: CanvasNode) => nodeSizes[n.id] ?? NODE_HEIGHT_FALLBACK;
 
         // Build a lookup: videoId → placed canvas node
@@ -41,17 +40,18 @@ export const createLayoutSlice: CanvasSlice<LayoutSlice> = (set, get) => ({
         const sourceChildOffsets = new Map<string, number>();
 
         let genericPending = 0;
-        const rightmost = placed.reduce<CanvasNode | null>((prev, n) => {
-            if (!prev) return n;
-            return n.position!.x > prev.position!.x ? n : prev;
-        }, null);
 
-        const baseX = rightmost
-            ? rightmost.position!.x + nodeW(rightmost) + PLACEMENT_GAP
-            : viewportCenter.x - NODE_WIDTH / 2;
-        const baseY = rightmost
-            ? rightmost.position!.y
-            : viewportCenter.y - 94;
+        // Place new nodes above all existing content — a visual shelf zone
+        const SHELF_GAP = 120;
+        let minX = Infinity;
+        let minY = Infinity;
+        for (const n of placed) {
+            minX = Math.min(minX, n.position!.x);
+            minY = Math.min(minY, n.position!.y);
+        }
+
+        const baseX = placed.length > 0 ? minX : viewportCenter.x - NODE_WIDTH / 2;
+        const baseY = placed.length > 0 ? minY - SHELF_GAP - NODE_HEIGHT_FALLBACK : viewportCenter.y - 94;
 
         set((s) => ({
             nodes: s.nodes.map((n) => {

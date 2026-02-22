@@ -168,7 +168,7 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
 
             <div
                 ref={nodeRef}
-                className="canvas-node absolute"
+                className={`canvas-node absolute ${!node.isPlaced ? 'canvas-node-pending' : ''}`}
                 data-node-id={node.id}
                 style={{
                     left: node.position.x,

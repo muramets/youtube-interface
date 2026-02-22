@@ -953,8 +953,10 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             addCanvasNode(data);
         });
         showToast(
-            selectedVideos.length === 1 ? 'Added to Canvas' : `${selectedVideos.length} videos added to Canvas`,
-            'success'
+            selectedVideos.length === 1 ? 'Added to Canvas — click to open' : `${selectedVideos.length} videos added to Canvas — click to open`,
+            'success',
+            'Open',
+            () => useCanvasStore.getState().setOpen(true),
         );
     }, [allVideos, allAssignments, allNiches, trafficEdges, viewerEdges, ctrRules, _video.id, _video.title, viewMode, addCanvasNode, showToast]);
 

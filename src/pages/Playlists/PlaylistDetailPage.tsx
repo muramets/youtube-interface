@@ -462,8 +462,10 @@ export const PlaylistDetailPage: React.FC = () => {
             addCanvasNode(contextItem);
         });
         showToast(
-            videosToAdd.length === 1 ? 'Added to Canvas' : `${videosToAdd.length} videos added to Canvas`,
-            'success'
+            videosToAdd.length === 1 ? 'Added to Canvas — click to open' : `${videosToAdd.length} videos added to Canvas — click to open`,
+            'success',
+            'Open',
+            () => useCanvasStore.getState().setOpen(true),
         );
         clearSelection();
     }, [playlistVideos, currentChannel?.name, addCanvasNode, showToast, clearSelection]);
