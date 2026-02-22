@@ -23,6 +23,8 @@ export interface VideoCardContext {
     viewCount?: string;
     publishedAt?: string;
     duration?: string;
+    /** Canvas-only: accent color for visual grouping */
+    color?: string;
 }
 
 /**
@@ -58,6 +60,8 @@ export interface SuggestedVideoItem {
     // --- CSV metrics (always available) ---
     impressions: number;
     ctr: number;
+    /** Computed CTR color from rules at creation time */
+    ctrColor?: string;
     views: number;
     avgViewDuration: string;   // "HH:MM:SS"
     watchTimeHours: number;
@@ -78,5 +82,40 @@ export interface SuggestedVideoItem {
     nicheProperty?: string;    // 'desired' | 'targeted' | etc.
 }
 
+/**
+ * Suggested traffic source card — one row from the Suggested Traffic table.
+ * Flat type: one node per suggested video on the canvas.
+ * Distinct from SuggestedTrafficContext (which is grouped for AI chat).
+ */
+export interface TrafficSourceCardData {
+    type: 'traffic-source';
+    videoId: string;
+    title: string;
+    thumbnailUrl?: string;
+    channelTitle?: string;
+    /** YouTube channel ID for clickable channel link */
+    channelId?: string;
+    publishedAt?: string;
+    // CSV traffic metrics
+    impressions: number;
+    ctr: number;             // e.g. 4.2 → displayed as "4.2%"
+    /** Computed CTR color from rules at creation time */
+    ctrColor?: string;
+    views: number;           // views originating from this suggested source
+    avgViewDuration: string; // "MM:SS"
+    watchTimeHours: number;
+    // Smart Assistant labels
+    trafficType?: string;    // 'autoplay' | 'user_click'
+    viewerType?: string;
+    niche?: string;
+    /** Hex color of the assigned niche (snapshot at creation time) */
+    nicheColor?: string;
+    // Context: which source video this was suggested alongside
+    sourceVideoId?: string;
+    sourceVideoTitle?: string;
+    /** Whether metrics represent cumulative totals or delta growth since last snapshot */
+    viewMode?: 'cumulative' | 'delta';
+}
+
 /** Discriminated union — extend with `|` for new context types. */
-export type AppContextItem = VideoCardContext | SuggestedTrafficContext;
+export type AppContextItem = VideoCardContext | SuggestedTrafficContext | TrafficSourceCardData;

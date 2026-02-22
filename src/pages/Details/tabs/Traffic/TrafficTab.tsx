@@ -12,7 +12,9 @@ import { exportTrafficCsv, downloadCsv, generateExportFilename, generateDiscrepa
 import { useApiKey } from '../../../../core/hooks/useApiKey';
 import { useSuggestedVideoLookup } from './hooks/useSuggestedVideoLookup';
 import { useAppContextStore } from '../../../../core/stores/appContextStore';
-import type { SuggestedTrafficContext, SuggestedVideoItem } from '../../../../core/types/appContext';
+import type { SuggestedTrafficContext, SuggestedVideoItem, TrafficSourceCardData } from '../../../../core/types/appContext';
+import { useCanvasStore } from '../../../../core/stores/canvas/canvasStore';
+import { useUIStore } from '../../../../core/stores/uiStore';
 
 
 // ... imports
@@ -129,6 +131,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
     // Video Data: Home Videos + per-document suggested video lookup
     const { videos: homeVideos } = useVideos(user?.uid || '', currentChannel?.id || '');
+    const addCanvasNode = useCanvasStore((s) => s.addNode);
+    const { showToast } = useUIStore();
 
     // Extract video IDs from displayedSources for on-demand Firestore queries
     const sourceVideoIds = useMemo(() => {
@@ -890,6 +894,70 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     );
     const clearFloatingBar = React.useCallback(() => toggleAll([]), [toggleAll]);
 
+    // Canvas: add selected traffic rows as TrafficSourceNode cards
+    const handleAddToCanvas = useCallback((selectedVideos: TrafficSource[]) => {
+        // Inline getCtrColor — same logic as TrafficRow
+        const computeCtrColor = (ctr: number): string | undefined => {
+            for (const rule of ctrRules) {
+                switch (rule.operator) {
+                    case '<': if (ctr < rule.value) return rule.color; break;
+                    case '>': if (ctr > rule.value) return rule.color; break;
+                    case '<=': if (ctr <= rule.value) return rule.color; break;
+                    case '>=': if (ctr >= rule.value) return rule.color; break;
+                    case 'between':
+                        if (rule.maxValue !== undefined && ctr >= rule.value && ctr <= rule.maxValue) return rule.color;
+                        break;
+                }
+            }
+            return undefined;
+        };
+
+        // Sort by AVD descending — highest AVD positioned closest to parent video
+        const parseAvdSeconds = (avd: string): number => {
+            const parts = avd.split(':').map(Number);
+            if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+            if (parts.length === 2) return parts[0] * 60 + parts[1];
+            return 0;
+        };
+        const sorted = [...selectedVideos].sort(
+            (a, b) => parseAvdSeconds(b.avgViewDuration) - parseAvdSeconds(a.avgViewDuration)
+        );
+
+        sorted.forEach((s) => {
+            if (!s.videoId) return;
+            const cachedVideo = allVideos.find((v) => v.id === s.videoId);
+            const nicheAssignment = allAssignments.find((a) => a.videoId === s.videoId);
+            const niche = nicheAssignment ? allNiches.find((n) => n.id === nicheAssignment.nicheId) : undefined;
+            const data: TrafficSourceCardData = {
+                type: 'traffic-source',
+                videoId: s.videoId,
+                title: s.sourceTitle,
+                thumbnailUrl: s.thumbnail || cachedVideo?.thumbnail,
+                channelTitle: s.channelTitle || cachedVideo?.channelTitle,
+                channelId: s.channelId || cachedVideo?.channelId,
+                publishedAt: s.publishedAt || cachedVideo?.publishedAt,
+                impressions: s.impressions,
+                ctr: s.ctr,
+                ctrColor: computeCtrColor(s.ctr),
+                views: s.views,
+                avgViewDuration: s.avgViewDuration,
+                watchTimeHours: s.watchTimeHours,
+                trafficType: trafficEdges[s.videoId]?.type,
+                viewerType: viewerEdges[s.videoId]?.type,
+                niche: niche?.name,
+                nicheColor: niche?.color,
+                sourceVideoId: _video.id,
+                sourceVideoTitle: _video.title,
+                viewMode,
+            };
+            addCanvasNode(data);
+        });
+        showToast(
+            selectedVideos.length === 1 ? 'Added to Canvas' : `${selectedVideos.length} videos added to Canvas`,
+            'success'
+        );
+    }, [allVideos, allAssignments, allNiches, trafficEdges, viewerEdges, ctrRules, _video.id, _video.title, viewMode, addCanvasNode, showToast]);
+
     /**
      * BUSINESS LOGIC: Check if current viewing context has a snapshot with data
      * 
@@ -1103,6 +1171,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                                         onClose={clearFloatingBar}
                                         isDocked={true}
                                         dockingStrategy="absolute"
+                                        onAddToCanvas={handleAddToCanvas}
                                     />
                                 )}
                             </div>

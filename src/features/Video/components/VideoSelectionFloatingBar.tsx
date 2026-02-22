@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trash2, ListPlus, Home } from 'lucide-react';
+import { Trash2, ListPlus, Home, Layers } from 'lucide-react';
 import { FloatingBar } from '../../../components/ui/organisms/FloatingBar';
 import { AddToPlaylistModal } from '../../Playlists/modals/AddToPlaylistModal';
 
@@ -9,6 +9,7 @@ interface VideoSelectionFloatingBarProps {
     onDelete: (ids: string[]) => void;
     isDeleting?: boolean;
     onAddToHome?: (ids: string[]) => void;
+    onAddToCanvas?: (ids: string[]) => void;
 }
 
 export const VideoSelectionFloatingBar: React.FC<VideoSelectionFloatingBarProps> = ({
@@ -16,17 +17,19 @@ export const VideoSelectionFloatingBar: React.FC<VideoSelectionFloatingBarProps>
     onClearSelection,
     onDelete,
     isDeleting = false,
-    onAddToHome
+    onAddToHome,
+    onAddToCanvas,
 }) => {
     const [showPlaylistModal, setShowPlaylistModal] = useState(false);
 
-    if (selectedIds.size < 2) return null;
+    // Show for 1+ selected (canvas action makes sense for single video too)
+    if (selectedIds.size < 1) return null;
 
     return (
         <>
             <FloatingBar
-                title={`${selectedIds.size} selected`}
-                position={{ x: 0, y: 0 }} // Ignored when docked
+                title={selectedIds.size === 1 ? '1 selected' : `${selectedIds.size} selected`}
+                position={{ x: 0, y: 0 }}
                 onClose={onClearSelection}
                 isDocked={true}
                 dockingStrategy="fixed"
@@ -48,6 +51,16 @@ export const VideoSelectionFloatingBar: React.FC<VideoSelectionFloatingBarProps>
                                 title="Add to Home"
                             >
                                 <Home size={20} />
+                            </button>
+                        )}
+
+                        {onAddToCanvas && (
+                            <button
+                                onClick={() => onAddToCanvas(Array.from(selectedIds))}
+                                className="p-2 hover:bg-white/10 rounded-full text-text-primary transition-colors border-none cursor-pointer flex items-center justify-center"
+                                title="Add to Canvas"
+                            >
+                                <Layers size={20} />
                             </button>
                         )}
 

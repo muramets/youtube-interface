@@ -30,7 +30,7 @@ export const GlobalMiniPlayer: React.FC = () => {
 
     return (
         <div
-            className="fixed z-panel flex flex-col shadow-2xl rounded-xl overflow-hidden bg-bg-secondary animate-in slide-in-from-bottom-5 fade-in"
+            className="fixed z-panel-elevated flex flex-col shadow-2xl rounded-xl overflow-hidden bg-bg-secondary animate-in slide-in-from-bottom-5 fade-in"
             style={style}
         >
             {/* Header — draggable */}

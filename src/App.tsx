@@ -26,6 +26,8 @@ import { AppDndProvider } from './components/providers/AppDndProvider';
 import { AudioPlayer } from './pages/Music/components/AudioPlayer';
 import { ChatBubble } from './features/Chat/ChatBubble';
 import { RenderQueueFAB } from './features/Render/RenderQueueFAB';
+import { CanvasBubble } from './features/Canvas/CanvasBubble';
+import { CanvasOverlay } from './features/Canvas/CanvasOverlay';
 // Side-effect: sets up global Zustand subscription for timeline auto-advance.
 // Must be imported from an always-mounted module. App.tsx is the correct home
 // since it is never unmounted, regardless of which page the user navigates to.
@@ -123,7 +125,9 @@ function AppContent() {
       <GlobalMiniPlayer />
       <AudioPlayer />
       <RenderQueueFAB />
+      <CanvasBubble />
       <ChatBubble />
+      <CanvasOverlay />
     </div >
   );
 }

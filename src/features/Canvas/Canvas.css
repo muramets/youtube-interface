@@ -1,0 +1,78 @@
+/* =============================================================================
+   CANVAS: Minimal CSS — only what Tailwind can't express.
+   ============================================================================= */
+
+/* --- Canvas Overlay entry animation (from bottom-right corner) --- */
+
+.canvas-overlay {
+    animation: canvasOverlayIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transform-origin: bottom right;
+}
+
+@keyframes canvasOverlayIn {
+    from {
+        opacity: 0;
+        transform: scale(0.94) translateY(12px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* --- Canvas FAB glow on hover --- */
+
+.canvas-bubble:hover {
+    transform: scale(1.06);
+    box-shadow: 0 0 18px rgba(99, 102, 241, 0.5), 0 0 6px rgba(99, 102, 241, 0.3);
+}
+
+.canvas-bubble:active {
+    transform: scale(0.95);
+}
+
+/* --- Drop zone indicator: glow when dragging over FAB --- */
+
+.canvas-bubble-drop-active {
+    transform: scale(1.15) !important;
+    box-shadow: 0 0 24px rgba(99, 102, 241, 0.75), 0 0 10px rgba(99, 102, 241, 0.5) !important;
+    border-color: rgba(99, 102, 241, 0.8) !important;
+}
+
+/* --- Infinite canvas board: dot-grid background --- */
+
+.canvas-board {
+    background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+    /* background-size and background-position are set dynamically via inline style in CanvasBoard.tsx */
+    cursor: default;
+}
+
+.canvas-board.is-panning {
+    cursor: grabbing;
+}
+
+.canvas-board.pan-ready {
+    cursor: grab;
+}
+
+/* --- Canvas node wrapper --- */
+
+.canvas-node {
+    position: absolute;
+    user-select: none;
+}
+
+.canvas-node-drag-handle {
+    cursor: grab;
+}
+
+.canvas-node-drag-handle:active {
+    cursor: grabbing;
+}
+
+/* --- Toolbar scrollbar --- */
+
+.canvas-toolbar::-webkit-scrollbar {
+    height: 0;
+}

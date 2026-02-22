@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Check, Home, Loader2, Trash2 } from 'lucide-react';
+import { Check, Home, Layers, Loader2, Trash2 } from 'lucide-react';
 import type { TrafficSource } from '@/core/types/traffic';
 import { useAuth } from '@/core/hooks/useAuth';
 import { useTrafficNicheStore } from '@/core/stores/trends/useTrafficNicheStore';
@@ -23,6 +23,7 @@ interface TrafficFloatingBarProps {
     onClose: () => void;
     isDocked?: boolean;
     dockingStrategy?: 'absolute' | 'fixed' | 'sticky';
+    onAddToCanvas?: (videos: TrafficSource[]) => void;
 }
 
 export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
@@ -31,7 +32,8 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
     position,
     onClose,
     isDocked = false,
-    dockingStrategy = 'sticky'
+    dockingStrategy = 'sticky',
+    onAddToCanvas,
 }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
@@ -337,6 +339,24 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
 
                     {/* Separator */}
                     <div className="w-px h-4 bg-white/10 mx-1" />
+
+                    {/* Canvas Button */}
+                    {onAddToCanvas && (
+                        <PortalTooltip
+                            content={<span className="text-xs">Add to Canvas</span>}
+                            side="top"
+                            align="center"
+                            variant="glass"
+                            enterDelay={400}
+                        >
+                            <button
+                                onClick={() => { onAddToCanvas(videos); onClose(); }}
+                                className="p-1.5 rounded-full transition-colors duration-150 text-text-secondary hover:text-white hover:bg-white/10"
+                            >
+                                <Layers size={16} />
+                            </button>
+                        </PortalTooltip>
+                    )}
 
                     {/* Home Button with Premium Tooltip and Pulse Animation */}
                     <PortalTooltip

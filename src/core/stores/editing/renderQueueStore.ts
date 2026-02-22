@@ -43,6 +43,8 @@ interface RenderJobInternal extends RenderJob {
     unsubscribe?: (() => void);
     /** Stall watchdog timer ID */
     stallTimerId?: ReturnType<typeof setTimeout>;
+    /** Set when cancel is requested before renderId is available (race condition guard) */
+    pendingCancellation?: boolean;
 }
 
 // ─── Snapshot of everything needed to render (decoupled from editingStore) ──
@@ -160,6 +162,8 @@ export const useRenderQueueStore = create<RenderQueueState & RenderQueueActions>
                         renderId: job.renderId,
                     }).catch((err: unknown) => console.error('[renderQueue] cancel failed:', err));
                 }
+                // else: renderId not yet available — executeServerRender() will
+                // detect pendingCancellation after its await and send deferred cancel
 
                 set((s) => {
                     // Atomically cancel + dequeue next to avoid activeJobId gap
@@ -168,7 +172,13 @@ export const useRenderQueueStore = create<RenderQueueState & RenderQueueActions>
                     let nextQueue = queue;
                     const nextJobs = {
                         ...s.jobs,
-                        [videoId]: { ...s.jobs[videoId], status: 'cancelled' as const, progress: 0 },
+                        [videoId]: {
+                            ...s.jobs[videoId],
+                            status: 'cancelled' as const,
+                            progress: 0,
+                            // Flag for executeServerRender() to send deferred cancel
+                            pendingCancellation: !s.jobs[videoId].renderId,
+                        },
                     };
 
                     // Find the next valid queued job
@@ -504,7 +514,30 @@ async function executeServerRender(videoId: string): Promise<void> {
             masterVolume: job.snapshot.volume,
         });
 
-        // Update job with renderId and renderDocPath
+        // Check if job was cancelled or deleted while we waited for the Cloud Function
+        const currentJob = useRenderQueueStore.getState().jobs[videoId];
+        if (!currentJob || currentJob.status === 'cancelled' || currentJob.pendingCancellation) {
+            // Send deferred cancel now that we have the renderId
+            console.log(`[renderQueue] Deferred cancel for ${videoId} (renderId: ${result.renderId})`);
+            cancelServerRender({
+                channelId: job.snapshot.channelId,
+                videoId,
+                renderId: result.renderId,
+            }).catch((err: unknown) => console.error('[renderQueue] deferred cancel failed:', err));
+            // If job still exists (cancelled but not deleted), store renderId for deleteJob cleanup
+            if (currentJob) {
+                useRenderQueueStore.setState((s) => {
+                    const j = s.jobs[videoId];
+                    if (!j) return s;
+                    return {
+                        jobs: { ...s.jobs, [videoId]: { ...j, renderId: result.renderId, renderDocPath: result.renderDocPath, pendingCancellation: false } },
+                    };
+                });
+            }
+            return; // Don't subscribe to progress — job is cancelled/deleted
+        }
+
+        // Job is still active — store renderId and subscribe to progress
         useRenderQueueStore.setState((s) => ({
             jobs: {
                 ...s.jobs,
@@ -515,8 +548,6 @@ async function executeServerRender(videoId: string): Promise<void> {
                 },
             },
         }));
-
-        // Start listening for Firestore progress updates
         subscribeToRenderProgress(videoId, result.renderDocPath);
 
     } catch (err) {

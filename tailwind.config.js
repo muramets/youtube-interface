@@ -43,16 +43,19 @@ export default {
                 'tag-hover': 'var(--tag-hover)',
             },
             zIndex: {
-                'base': '0',       // Default stacking
-                'raised': '1',       // Active cards, gallery items in focus
-                'sticky': '100',     // Sticky headers, floating action bars
+                'base': '0',           // Default stacking
+                'raised': '1',         // Active cards, gallery items in focus
+                'sticky': '100',       // Sticky headers, floating action bars
                 'dropdown': '200',     // Dropdown menus, select panels, filter popovers
-                'popover': '300',     // Context menus, inline popovers, tooltips attached to content
-                'panel': '400',     // Floating panels: chat, mini player, audio bar
-                'modal': '500',     // Modal dialogs + backdrop overlays
-                'toast': '600',     // Toast notifications (above modals)
-                'tooltip': '700',     // Standalone tooltips (PortalTooltip, Radix menus inside modals)
-                'max': '9999',    // Emergency escape hatch (avoid using)
+                'popover': '300',      // Context menus, inline popovers, tooltips attached to content
+                'fab': '350',          // Floating action buttons (Canvas FAB, Chat FAB) — below panels
+                'panel': '400',        // Floating panels: chat, mini player, audio bar, canvas overlay
+                'panel-elevated': '401', // Panel that needs to float above another z-panel (chat when canvas is open)
+                'overlay-ui': '403',   // UI rendered above canvas overlay (toolbar drag cursors, node drag overlays)
+                'modal': '500',        // Modal dialogs + backdrop overlays
+                'toast': '600',        // Toast notifications (above modals)
+                'tooltip': '700',      // Standalone tooltips (PortalTooltip, Radix menus inside modals)
+                'max': '9999',         // Emergency escape hatch (avoid using)
             },
             keyframes: {
                 'slide-in-left': {
@@ -148,5 +151,10 @@ export default {
             }
         },
     },
+    safelist: [
+        'z-fab',
+        'z-panel-elevated',
+        'z-overlay-ui',
+    ],
     plugins: [],
 }

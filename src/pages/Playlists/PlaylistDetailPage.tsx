@@ -24,6 +24,8 @@ import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { useVideoSelection } from '../../features/Video/hooks/useVideoSelection';
 import { VideoSelectionFloatingBar } from '../../features/Video/components/VideoSelectionFloatingBar';
 import { useAppContextStore } from '../../core/stores/appContextStore';
+import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
+import { useUIStore } from '../../core/stores/uiStore';
 import type { VideoCardContext } from '../../core/types/appContext';
 
 // Format number with K/M suffix
@@ -380,6 +382,8 @@ export const PlaylistDetailPage: React.FC = () => {
     // Bridge: sync selected videos → appContextStore for AI chat
     const setContextItems = useAppContextStore(s => s.setItems);
     const clearContextItems = useAppContextStore(s => s.clearItems);
+    const addCanvasNode = useCanvasStore(s => s.addNode);
+    const { showToast } = useUIStore();
 
     React.useEffect(() => {
         if (selectedVideos.length === 0) {
@@ -423,6 +427,46 @@ export const PlaylistDetailPage: React.FC = () => {
     React.useEffect(() => {
         return () => clearContextItems();
     }, [clearContextItems]);
+
+    // Canvas: add selected videos as nodes
+    const handleAddToCanvas = React.useCallback((ids: string[]) => {
+        const videosToAdd = playlistVideos.filter(v => ids.includes(v.id))
+            .sort((a, b) => {
+                const da = a.mergedVideoData?.publishedAt || a.publishedAt || '';
+                const db = b.mergedVideoData?.publishedAt || b.publishedAt || '';
+                return da < db ? -1 : da > db ? 1 : 0;
+            });
+        videosToAdd.forEach(v => {
+            let ownership: VideoCardContext['ownership'];
+            if (v.isCustom && !v.publishedVideoId) ownership = 'own-draft';
+            else if (v.isCustom) ownership = 'own-published';
+            else if (v.channelTitle === currentChannel?.name) ownership = 'own-published';
+            else ownership = 'competitor';
+
+            const publishedAt = v.mergedVideoData?.publishedAt || v.publishedAt || null;
+            const viewCount = v.mergedVideoData?.viewCount || v.viewCount || null;
+            const duration = v.mergedVideoData?.duration || null;
+            const contextItem: VideoCardContext = {
+                type: 'video-card',
+                ownership,
+                videoId: v.id,
+                title: v.title,
+                description: v.description || '',
+                tags: v.tags || [],
+                thumbnailUrl: v.customImage || v.thumbnail,
+                ...(viewCount && ownership !== 'own-draft' ? { viewCount } : {}),
+                ...(publishedAt && ownership !== 'own-draft' ? { publishedAt } : {}),
+                ...(duration ? { duration } : {}),
+                ...(v.channelTitle ? { channelTitle: v.channelTitle } : {}),
+            };
+            addCanvasNode(contextItem);
+        });
+        showToast(
+            videosToAdd.length === 1 ? 'Added to Canvas' : `${videosToAdd.length} videos added to Canvas`,
+            'success'
+        );
+        clearSelection();
+    }, [playlistVideos, currentChannel?.name, addCanvasNode, showToast, clearSelection]);
 
     const videosToExport = selectedCount > 0 ? selectedVideos : playlistVideos;
 
@@ -708,6 +752,7 @@ export const PlaylistDetailPage: React.FC = () => {
                 <VideoSelectionFloatingBar
                     selectedIds={selectedIds}
                     onClearSelection={clearSelection}
+                    onAddToCanvas={handleAddToCanvas}
                     onDelete={async (ids) => {
                         if (playlist) {
                             // Detect orphan videos BEFORE removing from playlist

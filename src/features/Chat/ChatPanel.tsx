@@ -15,6 +15,7 @@ import { useChatNavigation } from './hooks/useChatNavigation';
 
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
+import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatInput } from './ChatInput';
 import { ChatHeader } from './components/ChatHeader';
@@ -32,6 +33,7 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
     const { currentChannel } = useChannelStore();
     const userId = user?.uid ?? null;
     const channelId = currentChannel?.id ?? null;
+    const isCanvasOpen = useCanvasStore((s) => s.isOpen);
 
     // --- Store: data (changes on Firestore updates) ---
     const { projects, conversations, messages, aiSettings } = useChatStore(
@@ -139,11 +141,11 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
             {/* Invisible overlay during interaction — blocks hover on elements below */}
             {
                 isInteracting && (
-                    <div className="fixed inset-0 z-[399]" />
+                    <div className="fixed inset-0 z-fab" />
                 )
             }
             <div
-                className="chat-panel fixed z-panel flex flex-col bg-card-bg rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.45)] overflow-hidden"
+                className="chat-panel fixed flex flex-col bg-card-bg rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.45)] overflow-hidden"
                 style={{
                     top: panelRect.top,
                     left: panelRect.left,
@@ -152,6 +154,7 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
                     transform: dragTransform ? `translate(${dragTransform.x}px, ${dragTransform.y}px)` : undefined,
                     transition: isInteracting ? 'none' : undefined,
                     willChange: isInteracting ? 'transform' : undefined,
+                    zIndex: isCanvasOpen ? 401 : 400, // z-panel-elevated : z-panel (inline — conditional value)
                 }}
                 onDragEnter={handleDragEnter}
                 onDragLeave={handleDragLeave}
