@@ -19,11 +19,26 @@ export function useCanvasKeyboard(
     const setOpen = useCanvasStore((s) => s.setOpen);
 
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
+        // Skip canvas shortcuts when editing text (sticky note contentEditable)
+        const active = document.activeElement;
+        const isEditing = active instanceof HTMLElement && active.isContentEditable;
+
         if (e.key === 'Escape') {
+            if (isEditing) return; // let StickyNoteNode handle Escape → blur
             const hasModal = document.querySelector('[data-modal], [role="dialog"]');
             if (!hasModal) setOpen(false);
         }
-        if (e.code === 'KeyZ' && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+
+        // Delete / Backspace → remove selected nodes
+        if ((e.key === 'Delete' || e.key === 'Backspace') && !isEditing) {
+            const { selectedNodeIds, deleteNodes } = useCanvasStore.getState();
+            if (selectedNodeIds.size > 0) {
+                e.preventDefault();
+                deleteNodes(Array.from(selectedNodeIds));
+            }
+        }
+
+        if (e.code === 'KeyZ' && !e.metaKey && !e.ctrlKey && !e.shiftKey && !isEditing) {
             const { nodes: allNodes, nodeSizes } = useCanvasStore.getState();
             const rects = allNodes
                 .filter((n) => n.position)

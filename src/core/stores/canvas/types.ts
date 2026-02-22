@@ -62,7 +62,7 @@ export interface CanvasState {
     deleteNode: (id: string) => void;
     deleteNodes: (ids: string[]) => void;
     alignNodesTop: (ids: string[]) => void;
-    resizeNode: (id: string, width: number) => void;
+    resizeNode: (id: string, width: number, height?: number) => void;
     bringToFront: (id: string) => void;
     placePendingNodes: (viewportCenter: { x: number; y: number }) => void;
     /** Correction pass: re-stack children of each parent using measured heights */

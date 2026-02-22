@@ -38,6 +38,7 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
             position: null,
             zIndex: maxZ + 1,
             ...(nodeType === 'traffic-source' ? { size: { w: TRAFFIC_NODE_WIDTH, h: 0 } } : {}),
+            ...(nodeType === 'sticky-note' ? { size: { w: 200, h: 0 } } : {}),
             createdAt: Timestamp.now(),
         };
         set((s) => ({ nodes: [...s.nodes, newNode] }));
@@ -106,11 +107,12 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
         get()._save();
     },
 
-    resizeNode: (id, width) => {
-        const clamped = Math.max(160, Math.min(600, width));
+    resizeNode: (id, width, height) => {
+        const w = Math.max(120, Math.min(600, width));
+        const h = height != null ? Math.max(60, Math.min(800, height)) : 0;
         set((s) => ({
             nodes: s.nodes.map((n) =>
-                n.id === id ? { ...n, size: { w: clamped, h: 0 } } : n
+                n.id === id ? { ...n, size: { w, h } } : n
             ),
         }));
         get()._save();

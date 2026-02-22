@@ -52,7 +52,10 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
     // resizeRef stores start info for resize drag
     const resizeRef = useRef<{
         startClientX: number;
+        startClientY: number;
         startWidth: number;
+        startHeight: number;
+        is2D: boolean;
         zoom: number;
     } | null>(null);
 
@@ -88,11 +91,16 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
 
     // --- Resize (rAF-throttled) ---
     const [isResizing, startResize] = usePointerDrag({
-        onMove: (clientX) => {
+        onMove: (clientX, clientY) => {
             const r = resizeRef.current;
             if (!r) return;
             const dx = (clientX - r.startClientX) / r.zoom;
-            resizeNode(node.id, r.startWidth + dx);
+            if (r.is2D) {
+                const dy = (clientY - r.startClientY) / r.zoom;
+                resizeNode(node.id, r.startWidth + dx, r.startHeight + dy);
+            } else {
+                resizeNode(node.id, r.startWidth + dx);
+            }
         },
     });
 
@@ -130,25 +138,32 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
         startDrag();
     }, [node.id, bringToFront, selectNode, startDrag]);
 
+    const is2DResize = node.type === 'sticky-note';
+
     const handleResizeStart = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
         e.preventDefault();
+        const el = nodeRef.current;
         resizeRef.current = {
             startClientX: e.clientX,
+            startClientY: e.clientY,
             startWidth: node.size?.w ?? NODE_WIDTH,
+            startHeight: el?.offsetHeight ?? 100,
+            is2D: is2DResize,
             zoom: liveZoom.current,
         };
         startResize();
-    }, [node.size, startResize]);
+    }, [node.size, is2DResize, startResize]);
 
     if (!node.position) return null;
 
     const nodeWidth = node.size?.w ?? NODE_WIDTH;
+    const nodeHeight = (node.size?.h && node.size.h > 0) ? node.size.h : undefined;
 
     return (
         <>
             {(isDragging || isResizing) && (
-                <div className="fixed inset-0 z-overlay-ui" style={{ cursor: isResizing ? 'ew-resize' : 'grabbing' }} />
+                <div className="fixed inset-0 z-overlay-ui" style={{ cursor: isResizing ? (is2DResize ? 'nwse-resize' : 'ew-resize') : 'grabbing' }} />
             )}
 
             <div
@@ -159,12 +174,15 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
                     left: node.position.x,
                     top: node.position.y,
                     width: nodeWidth,
+                    height: nodeHeight,
                     zIndex: isDragging ? 9999 : node.zIndex,
                     cursor: isDragging ? 'grabbing' : 'grab',
                     // Selection ring
                     outline: isSelected ? '2px solid #6366f1' : undefined,
                     outlineOffset: isSelected ? '2px' : undefined,
-                    borderRadius: isSelected ? '14px' : undefined,
+                    borderRadius: isSelected
+                        ? (node.type === 'sticky-note' ? '4px' : '14px')
+                        : undefined,
                 }}
                 onMouseDown={handleDragStart}
                 onMouseEnter={() => setIsHovered(true)}
@@ -186,7 +204,7 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
                 <div
                     className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-sm transition-opacity duration-150 ${isHovered || isResizing ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                     style={{
-                        cursor: 'ew-resize',
+                        cursor: is2DResize ? 'nwse-resize' : 'ew-resize',
                         background: 'linear-gradient(135deg, transparent 50%, rgba(99,102,241,0.6) 50%)',
                     }}
                     onMouseDown={handleResizeStart}

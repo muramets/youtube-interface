@@ -5,10 +5,11 @@
 // =============================================================================
 
 import React, { useRef, useCallback, useState, useEffect } from 'react';
-import { X, RotateCcw } from 'lucide-react';
+import { X, RotateCcw, StickyNote } from 'lucide-react';
 import { ControlPill } from '../../pages/Trends/Timeline/components/ControlPill';
 import type { CanvasBoardHandle } from './CanvasBoard';
 import { useMusicStore } from '../../core/stores/musicStore';
+import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4;
@@ -22,7 +23,12 @@ interface CanvasToolbarProps {
 
 export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom, onClose, boardRef }) => {
     const hasAudioPlayer = !!useMusicStore((s) => s.playingTrackId);
+    const addNode = useCanvasStore((s) => s.addNode);
     const zoomPct = Math.round(zoom * 100);
+
+    const handleAddNote = useCallback(() => {
+        addNode({ type: 'sticky-note', content: '', color: 'yellow' });
+    }, [addNode]);
 
     const [isDragging, setIsDragging] = useState(false);
     const dragStartRef = useRef<{ x: number; zoom: number } | null>(null);
@@ -93,6 +99,15 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom, onClose, boa
             {isDragging && (
                 <div className="fixed inset-0 z-overlay-ui cursor-ew-resize" />
             )}
+
+            {/* Add sticky note */}
+            <button
+                onClick={handleAddNote}
+                className="flex items-center justify-center w-[34px] h-[34px] rounded-full bg-bg-secondary/90 backdrop-blur-md border border-border shadow-lg text-text-secondary hover:text-text-primary hover:brightness-125 transition-all duration-200 select-none"
+                title="Add sticky note"
+            >
+                <StickyNote size={14} />
+            </button>
 
             {/* Close button */}
             <button

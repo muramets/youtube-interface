@@ -15,9 +15,11 @@ import { CanvasBoard, type CanvasBoardHandle } from './CanvasBoard';
 import { CanvasNodeWrapper } from './CanvasNodeWrapper';
 import { VideoCardNode } from './VideoCardNode';
 import { TrafficSourceNode } from './TrafficSourceNode';
+import { StickyNoteNode } from './StickyNoteNode';
 import { EdgeLayer, EdgeHandles } from './EdgeLayer';
 import type { CanvasViewport } from '../../core/types/canvas';
 import type { VideoCardContext, TrafficSourceCardData } from '../../core/types/appContext';
+import type { StickyNoteData } from '../../core/types/canvas';
 import './Canvas.css';
 
 export const CanvasOverlay: React.FC = () => {
@@ -98,6 +100,9 @@ export const CanvasOverlay: React.FC = () => {
                             )}
                             {node.type === 'traffic-source' && (
                                 <TrafficSourceNode data={node.data as TrafficSourceCardData} />
+                            )}
+                            {node.type === 'sticky-note' && (
+                                <StickyNoteNode data={node.data as StickyNoteData} nodeId={node.id} />
                             )}
                         </CanvasNodeWrapper>
                     ))}

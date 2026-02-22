@@ -75,3 +75,9 @@
 .canvas-toolbar::-webkit-scrollbar {
     height: 0;
 }
+
+/* --- Sticky note color dot hover --- */
+
+.sticky-color-dot:hover {
+    transform: scale(1.3);
+}
