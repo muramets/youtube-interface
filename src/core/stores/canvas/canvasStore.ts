@@ -15,6 +15,7 @@ import { createEdgesSlice } from './slices/edgesSlice';
 import { createSelectionSlice } from './slices/selectionSlice';
 import { createLayoutSlice } from './slices/layoutSlice';
 import { createViewportSlice, DEFAULT_VIEWPORT } from './slices/viewportSlice';
+import { debug } from '../../utils/debug';
 
 // Re-export types for consumers
 export type { PendingEdge, CanvasState } from './types';
@@ -27,6 +28,48 @@ const canvasDocPath = (userId: string, channelId: string) =>
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let _hasSyncedOnce = false;
 const _dirtyNodeIds = new Set<string>();
+
+/**
+ * Recursive deep equality for plain objects, arrays, and primitives.
+ * Handles Firestore key-ordering instability that breaks JSON.stringify.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function deepEqual(a: any, b: any): boolean {
+    if (Object.is(a, b)) return true;
+    if (a == null || b == null) return a === b;
+    if (typeof a !== typeof b) return false;
+
+    if (Array.isArray(a)) {
+        if (!Array.isArray(b) || a.length !== b.length) return false;
+        return a.every((v, i) => deepEqual(v, b[i]));
+    }
+
+    if (typeof a === 'object') {
+        const keysA = Object.keys(a);
+        const keysB = Object.keys(b);
+        if (keysA.length !== keysB.length) return false;
+        return keysA.every((k) => Object.prototype.hasOwnProperty.call(b, k) && deepEqual(a[k], b[k]));
+    }
+
+    return false;
+}
+
+/**
+ * Structural equality check for CanvasNode objects.
+ * Used during Firestore merge to reuse local node references when data
+ * hasn't actually changed — preserves React.memo reference stability.
+ */
+function isNodeEqual(a: CanvasNode, b: CanvasNode): boolean {
+    return (
+        a.id === b.id &&
+        a.type === b.type &&
+        a.isPlaced === b.isPlaced &&
+        a.zIndex === b.zIndex &&
+        deepEqual(a.position, b.position) &&
+        deepEqual(a.size, b.size) &&
+        deepEqual(a.data, b.data)
+    );
+}
 
 // --- Store ---
 export const useCanvasStore = create<CanvasState>((...a) => {
@@ -109,8 +152,16 @@ export const useCanvasStore = create<CanvasState>((...a) => {
                     if (local && ((local.position !== null && fn.position === null) || _dirtyNodeIds.has(fn.id))) {
                         return local;
                     }
+                    // Reuse local object when structurally identical — preserves
+                    // reference equality for React.memo comparators downstream.
+                    if (local && isNodeEqual(local, fn)) {
+                        return local;
+                    }
                     return fn;
                 });
+
+                const reused = mergedFirestore.filter((n, i) => n === localById.get(firestoreNodes[i]?.id)).length;
+                debug.canvas('🔄 Firestore sync:', firestoreNodes.length, 'nodes,', reused, 'reused,', firestoreNodes.length - reused, 'changed');
 
                 if (!hasSyncedOnce) {
                     set({
@@ -122,10 +173,20 @@ export const useCanvasStore = create<CanvasState>((...a) => {
                     hasSyncedOnce = true;
                     _hasSyncedOnce = true;
                 } else {
-                    set({
-                        nodes: [...mergedFirestore, ...localUnsaved],
-                        edges: firestoreEdges,
-                    });
+                    // Skip set() if nothing actually changed — avoids new array
+                    // reference that triggers downstream re-renders for no reason.
+                    const merged = [...mergedFirestore, ...localUnsaved];
+                    const nodesChanged = merged.length !== localNodes.length ||
+                        merged.some((n, i) => n !== localNodes[i]);
+                    const edgesChanged = firestoreEdges.length !== get().edges.length ||
+                        firestoreEdges.some((e, i) => e.id !== get().edges[i]?.id);
+
+                    if (nodesChanged || edgesChanged) {
+                        set({
+                            nodes: merged,
+                            edges: firestoreEdges,
+                        });
+                    }
                 }
             }, (error) => {
                 console.error('[canvasStore] snapshot error:', error);

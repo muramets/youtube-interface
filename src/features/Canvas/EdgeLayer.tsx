@@ -202,6 +202,7 @@ const PendingEdgePath: React.FC = () => {
 const SVG_STYLE_LINES: React.CSSProperties = {
     position: 'absolute', top: 0, left: 0, width: 1, height: 1,
     overflow: 'visible', pointerEvents: 'none',
+    zIndex: 9999,
 };
 
 const SVG_STYLE_HANDLES: React.CSSProperties = {

@@ -45,7 +45,7 @@ function formatPublishDate(raw?: string): string | null {
     return date.toLocaleDateString();
 }
 
-export const VideoCardNode: React.FC<VideoCardNodeProps> = ({ data, nodeId }) => {
+const VideoCardNodeInner: React.FC<VideoCardNodeProps> = ({ data, nodeId }) => {
     const views = formatViewCount(data.viewCount);
     const date = formatPublishDate(data.publishedAt);
     const navigate = useNavigate();
@@ -232,3 +232,6 @@ export const VideoCardNode: React.FC<VideoCardNodeProps> = ({ data, nodeId }) =>
         </div>
     );
 };
+
+export const VideoCardNode = React.memo(VideoCardNodeInner);
+VideoCardNode.displayName = 'VideoCardNode';

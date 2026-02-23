@@ -34,6 +34,7 @@ export interface CanvasBoardHandle {
 export const CanvasBoard = React.forwardRef<CanvasBoardHandle, CanvasBoardProps>(
     ({ viewport, onViewportChange, onZoomFrame, onClick, onSelectRect, onCursorMove, onDblClick, children }, ref) => {
         const containerRef = useRef<HTMLDivElement>(null);
+        const transformLayerRef = useRef<HTMLDivElement>(null);
         const containerSizeRef = useRef({ width: 0, height: 0 });
         const mouseDownOnBoardRef = useRef(false);
 
@@ -55,7 +56,7 @@ export const CanvasBoard = React.forwardRef<CanvasBoardHandle, CanvasBoardProps>
 
         // --- Pan/Zoom ---
         const {
-            transform, isPanning,
+            transform, isPanning, isAnimating,
             handlePanStart, handlePanMove, handlePanEnd,
             applyTarget, transformRef,
         } = useCanvasPanZoom({
@@ -63,6 +64,7 @@ export const CanvasBoard = React.forwardRef<CanvasBoardHandle, CanvasBoardProps>
             onViewportChange,
             onZoomFrame,
             containerRef,
+            transformLayerRef,
         });
 
         // --- Marquee Selection ---
@@ -208,15 +210,17 @@ export const CanvasBoard = React.forwardRef<CanvasBoardHandle, CanvasBoardProps>
                         }}
                     />
                 )}
-                {/* Transform layer */}
+                {/* Transform layer — during animation, transform is written
+                    directly to DOM by flushToDom (bypasses React). */}
                 <div
+                    ref={transformLayerRef}
                     style={{
                         position: 'absolute',
                         top: 0,
                         left: 0,
                         transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.zoom})`,
                         transformOrigin: '0 0',
-                        willChange: isPanning ? 'transform' : undefined,
+                        willChange: (isPanning || isAnimating) ? 'transform' : undefined,
                     }}
                 >
                     {children}

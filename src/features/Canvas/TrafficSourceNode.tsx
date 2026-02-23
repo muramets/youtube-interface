@@ -75,7 +75,7 @@ function viewerBadgeTooltip(type?: string): string {
     }
 }
 
-export const TrafficSourceNode: React.FC<TrafficSourceNodeProps> = ({ data }) => {
+const TrafficSourceNodeInner: React.FC<TrafficSourceNodeProps> = ({ data }) => {
     const ctrStr = data.ctr.toFixed(1) + '%';
     const impStr = formatImpressions(data.impressions);
     const viewsStr = formatViews(data.views);
@@ -248,6 +248,9 @@ export const TrafficSourceNode: React.FC<TrafficSourceNodeProps> = ({ data }) =>
         </div>
     );
 };
+
+export const TrafficSourceNode = React.memo(TrafficSourceNodeInner);
+TrafficSourceNode.displayName = 'TrafficSourceNode';
 
 const MetricPill: React.FC<{ label: string; value: string; accentColor?: string }> = ({ label, value, accentColor }) => (
     <div className="flex items-center gap-1">

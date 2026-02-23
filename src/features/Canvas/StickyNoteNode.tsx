@@ -24,7 +24,7 @@ interface StickyNoteNodeProps {
     nodeId: string;
 }
 
-export const StickyNoteNode: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) => {
+const StickyNoteNodeInner: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) => {
     const updateNodeData = useCanvasStore((s) => s.updateNodeData);
     const [isEditing, setIsEditing] = useState(false);
     const [hovered, setHovered] = useState(false);
@@ -148,9 +148,9 @@ export const StickyNoteNode: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) 
                 }}>Double-click to type...</div>
             )}
 
-            {/* Color picker dots — bottom-right on hover, hidden during resize */}
-            {hovered && !isEditing && !rootRef.current?.closest('.is-resizing') && (
-                <div style={{
+            {/* Color picker dots — bottom-right on hover, hidden during resize via CSS */}
+            {hovered && !isEditing && (
+                <div className="sticky-color-picker" style={{
                     position: 'absolute',
                     bottom: 6,
                     right: 6,
@@ -183,4 +183,5 @@ export const StickyNoteNode: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) 
     );
 };
 
+export const StickyNoteNode = React.memo(StickyNoteNodeInner);
 StickyNoteNode.displayName = 'StickyNoteNode';

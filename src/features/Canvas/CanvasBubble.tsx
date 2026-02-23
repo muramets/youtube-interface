@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { LayoutGrid } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 import { useFloatingBottomOffset } from '../../core/hooks/useFloatingBottomOffset';
 import { useAuth } from '../../core/hooks/useAuth';
@@ -17,7 +18,9 @@ import './Canvas.css';
 const CANVAS_FAB_OFFSET = 56;
 
 export const CanvasBubble: React.FC = () => {
-    const { isOpen, toggleOpen, addNode } = useCanvasStore();
+    const { isOpen, toggleOpen, addNode } = useCanvasStore(
+        useShallow((s) => ({ isOpen: s.isOpen, toggleOpen: s.toggleOpen, addNode: s.addNode }))
+    );
     const { user, isLoading } = useAuth();
     const { bottomPx, rightPx } = useFloatingBottomOffset();
     const { showToast } = useUIStore();

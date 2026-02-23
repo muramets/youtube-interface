@@ -24,7 +24,7 @@ export const ChatBubble: React.FC = () => {
         return () => clearTimeout(t);
     }, []);
 
-    const { isOpen: isCanvasOpen } = useCanvasStore();
+    const isCanvasOpen = useCanvasStore((s) => s.isOpen);
     const hasAudioPlayer = !!useMusicStore((s) => s.playingTrackId);
 
     // When canvas is open, position Chat FAB just above the zoom pill:

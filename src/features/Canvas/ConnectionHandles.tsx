@@ -37,7 +37,7 @@ function elementCenterWorld(el: Element) {
     return screenToWorld(rect.left + rect.width / 2, rect.top + rect.height / 2);
 }
 
-export const ConnectionHandles: React.FC<ConnectionHandlesProps> = ({ node, visible }) => {
+const ConnectionHandlesInner: React.FC<ConnectionHandlesProps> = ({ node, visible }) => {
     const {
         startPendingEdge,
         updatePendingEdge,
@@ -131,3 +131,6 @@ export const ConnectionHandles: React.FC<ConnectionHandlesProps> = ({ node, visi
         </>
     );
 };
+
+export const ConnectionHandles = React.memo(ConnectionHandlesInner);
+ConnectionHandles.displayName = 'ConnectionHandles';

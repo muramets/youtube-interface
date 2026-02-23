@@ -5,6 +5,7 @@
 // =============================================================================
 
 import React, { useRef, useCallback } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 import { useCanvasSync } from './hooks/useCanvasSync';
 import { useCanvasPlacement } from './hooks/useCanvasPlacement';
@@ -20,6 +21,7 @@ import { EdgeLayer, EdgeHandles } from './EdgeLayer';
 import type { CanvasViewport } from '../../core/types/canvas';
 import type { VideoCardContext, TrafficSourceCardData } from '../../core/types/appContext';
 import type { StickyNoteData } from '../../core/types/canvas';
+import { debug } from '../../core/utils/debug';
 import './Canvas.css';
 
 export const CanvasOverlay: React.FC = () => {
@@ -34,7 +36,20 @@ export const CanvasOverlay: React.FC = () => {
         setLastCanvasWorldPos,
         addNodeAt,
         markPlaced,
-    } = useCanvasStore();
+    } = useCanvasStore(
+        useShallow((s) => ({
+            isOpen: s.isOpen,
+            setOpen: s.setOpen,
+            nodes: s.nodes,
+            viewport: s.viewport,
+            setViewport: s.setViewport,
+            clearSelection: s.clearSelection,
+            setSelectedNodeIds: s.setSelectedNodeIds,
+            setLastCanvasWorldPos: s.setLastCanvasWorldPos,
+            addNodeAt: s.addNodeAt,
+            markPlaced: s.markPlaced,
+        }))
+    );
 
     const boardRef = useRef<CanvasBoardHandle>(null);
     const [liveZoom, setLiveZoom] = React.useState(viewport.zoom);
@@ -86,6 +101,7 @@ export const CanvasOverlay: React.FC = () => {
 
     const placedNodes = nodes.filter((n) => n.position !== null);
     const hasNodes = placedNodes.length > 0;
+    debug.fps('canvas', `CanvasOverlay (zoom=${viewport.zoom.toFixed(2)}, nodes=${placedNodes.length})`);
 
     if (!isOpen) return null;
 

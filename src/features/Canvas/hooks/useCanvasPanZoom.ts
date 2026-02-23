@@ -5,6 +5,7 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import type { CanvasViewport } from '../../../core/types/canvas';
 import { liveZoom } from '../liveZoom';
+import { debug, DEBUG_ENABLED } from '../../../core/utils/debug';
 
 // --- Constants ---
 const SMOOTH_FACTOR = 0.15;
@@ -17,11 +18,15 @@ interface UseCanvasPanZoomOptions {
     onViewportChange: (vp: CanvasViewport) => void;
     onZoomFrame?: (zoom: number) => void;
     containerRef: React.RefObject<HTMLDivElement | null>;
+    /** Ref to the transform layer div — used for direct DOM writes during animation */
+    transformLayerRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export interface PanZoomControls {
     transform: { x: number; y: number; zoom: number };
     isPanning: boolean;
+    /** True while lerp animation is running (pan or zoom) */
+    isAnimating: boolean;
     /** Start a pan drag from mousedown on the board */
     handlePanStart: (clientX: number, clientY: number) => void;
     /** Continue a pan during mousemove */
@@ -40,18 +45,59 @@ export function useCanvasPanZoom({
     onViewportChange,
     onZoomFrame,
     containerRef,
+    transformLayerRef,
 }: UseCanvasPanZoomOptions): PanZoomControls {
     const transformRef = useRef({ x: viewport.x, y: viewport.y, zoom: viewport.zoom });
     const targetRef = useRef({ x: viewport.x, y: viewport.y, zoom: viewport.zoom });
     const [transform, setTransform] = useState({ x: viewport.x, y: viewport.y, zoom: viewport.zoom });
     const rafRef = useRef<number | null>(null);
     const [isPanning, setIsPanning] = useState(false);
+    const [isAnimating, setIsAnimating] = useState(false);
     const panStartRef = useRef({ x: 0, y: 0 });
     const mouseDownPosRef = useRef({ x: 0, y: 0 });
     const hasMoveRef = useRef(false);
 
-    // --- rAF helpers ---
-    const syncToDom = useCallback(() => {
+    // --- Direct DOM write (bypasses React during animation) ---
+    const GRID_SIZE_BASE = 24;
+    const rafFpsRef = useRef({ count: 0, lastLog: 0 });
+    const flushToDom = useCallback(() => {
+        const t = transformRef.current;
+        // rAF FPS tracking — gated behind debug flag for zero overhead
+        if (DEBUG_ENABLED.canvas) {
+            const now = performance.now();
+            const fps = rafFpsRef.current;
+            if (fps.lastLog === 0) fps.lastLog = now;
+            fps.count++;
+            if (now - fps.lastLog >= 1000) {
+                const rate = Math.round(fps.count / ((now - fps.lastLog) / 1000));
+                debug.canvas(`🎞 rAF FPS: ${rate} (zoom=${t.zoom.toFixed(2)})`);
+                fps.count = 0;
+                fps.lastLog = now;
+            }
+        }
+        // 1. Transform layer
+        const layer = transformLayerRef.current;
+        if (layer) {
+            layer.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.zoom})`;
+        }
+        // 2. Grid background on container
+        const container = containerRef.current;
+        if (container) {
+            const gridSize = GRID_SIZE_BASE * t.zoom;
+            const dotR = Math.max(0.6, t.zoom);
+            const gridOpacity = t.zoom < 0.15 ? 0.35
+                : t.zoom < 0.4 ? 0.35 + (t.zoom - 0.15) / 0.25 * 0.65 : 1;
+            container.style.backgroundSize = `${gridSize}px ${gridSize}px`;
+            container.style.backgroundPosition = `${t.x % gridSize}px ${t.y % gridSize}px`;
+            container.style.backgroundImage = gridOpacity > 0
+                ? `radial-gradient(circle, rgba(var(--border-rgb), ${gridOpacity}) ${dotR}px, transparent ${dotR}px)`
+                : 'none';
+            container.style.setProperty('--canvas-zoom', String(t.zoom));
+        }
+    }, [containerRef, transformLayerRef]);
+
+    // --- React state sync (only called when animation ends) ---
+    const syncToReact = useCallback(() => {
         setTransform({ ...transformRef.current });
     }, []);
 
@@ -65,15 +111,16 @@ export function useCanvasPanZoom({
             transformRef.current = { ...viewport };
             targetRef.current = { ...viewport };
             liveZoom.current = viewport.zoom;
-            // Trigger one rAF tick to flush refs → React state (outside effect)
+            // Flush directly to DOM + sync React state
             if (!rafRef.current) {
                 rafRef.current = requestAnimationFrame(() => {
-                    syncToDom();
+                    flushToDom();
+                    syncToReact();
                     rafRef.current = null;
                 });
             }
         }
-    }, [viewport, syncToDom]);
+    }, [viewport, flushToDom, syncToReact]);
 
     const updateAnimRef = useRef<() => void>(null!);
     const updateAnim = useCallback(() => {
@@ -92,19 +139,21 @@ export function useCanvasPanZoom({
 
         if (finished) {
             transformRef.current = { ...tgt };
-            syncToDom();
+            flushToDom();
+            syncToReact(); // Sync React state only on finish
+            setIsAnimating(false);
             liveZoom.current = tgt.zoom;
             onViewportChange({ x: tgt.x, y: tgt.y, zoom: tgt.zoom });
             onZoomFrame?.(tgt.zoom);
             rafRef.current = null;
         } else {
             transformRef.current = { x: nx, y: ny, zoom: nz };
-            syncToDom();
+            flushToDom(); // Direct DOM write — no React
             liveZoom.current = nz;
             onZoomFrame?.(nz);
             rafRef.current = requestAnimationFrame(updateAnimRef.current);
         }
-    }, [syncToDom, onViewportChange, onZoomFrame]);
+    }, [flushToDom, syncToReact, onViewportChange, onZoomFrame]);
 
     useEffect(() => {
         updateAnimRef.current = updateAnim;
@@ -114,6 +163,7 @@ export function useCanvasPanZoom({
     }, [updateAnim]);
 
     const startAnim = useCallback(() => {
+        setIsAnimating(true);
         if (!rafRef.current) {
             rafRef.current = requestAnimationFrame(updateAnimRef.current);
         }
@@ -199,12 +249,13 @@ export function useCanvasPanZoom({
         const newY = clientY - panStartRef.current.y;
         transformRef.current = { ...transformRef.current, x: newX, y: newY };
         targetRef.current = { ...transformRef.current };
-        syncToDom();
+        flushToDom(); // Direct DOM write — no React
         return true;
-    }, [syncToDom]);
+    }, [flushToDom]);
 
     const handlePanEnd = useCallback(() => {
         if (hasMoveRef.current) {
+            syncToReact(); // Sync React state when pan ends
             onViewportChange({
                 x: transformRef.current.x,
                 y: transformRef.current.y,
@@ -213,11 +264,12 @@ export function useCanvasPanZoom({
         }
         setIsPanning(false);
         hasMoveRef.current = false;
-    }, [onViewportChange]);
+    }, [onViewportChange, syncToReact]);
 
     return {
         transform,
         isPanning,
+        isAnimating,
         handlePanStart,
         handlePanMove,
         handlePanEnd,

@@ -14,16 +14,19 @@ import { ConnectionHandles } from './ConnectionHandles';
 import type { CanvasNode } from '../../core/types/canvas';
 import { NODE_WIDTH } from '../../core/stores/canvas/constants';
 import { usePointerDrag } from './hooks/usePointerDrag';
+import { debug } from '../../core/utils/debug';
 
 interface CanvasNodeWrapperProps {
     node: CanvasNode;
     children: React.ReactNode;
 }
 
-export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, children }) => {
+const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, children }) => {
+    debug.canvas('⟳ render', node.type, node.id.slice(0, 8));
     const {
         moveNode, moveNodes, deleteNode, updateNodeSize, resizeNode,
-        selectedNodeIds, selectNode, markPlaced,
+        selectNode, markPlaced,
+        isDraggingEdge,
     } = useCanvasStore(
         useShallow((s) => ({
             moveNode: s.moveNode,
@@ -31,14 +34,18 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
             deleteNode: s.deleteNode,
             updateNodeSize: s.updateNodeSize,
             resizeNode: s.resizeNode,
-            selectedNodeIds: s.selectedNodeIds,
             selectNode: s.selectNode,
             markPlaced: s.markPlaced,
+            isDraggingEdge: s.pendingEdge !== null,
         }))
     );
 
+    // Subscribe to selection state for THIS node only — avoids re-rendering
+    // all 50+ wrappers when a different node is selected (new Set reference).
+    const isSelected = useCanvasStore((s) => s.selectedNodeIds.has(node.id));
+
     const [isHovered, setIsHovered] = useState(false);
-    const isSelected = selectedNodeIds.has(node.id);
+    const [resizeMode, setResizeMode] = useState<'corner' | 'right' | 'bottom' | null>(null);
     const nodeRef = useRef<HTMLDivElement>(null);
 
     // dragRef stores start info for group drag
@@ -104,6 +111,7 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
                 resizeNode(node.id, r.startWidth, r.startHeight + dy);
             }
         },
+        onEnd: () => setResizeMode(null),
     });
 
     const handleDragStart = useCallback((e: React.MouseEvent) => {
@@ -161,6 +169,7 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
                 mode,
                 zoom: liveZoom.current,
             };
+            setResizeMode(mode);
             startResize();
         }
         , [node.size, startResize]);
@@ -171,8 +180,8 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
 
     // Cursor for the full-screen overlay while resizing
     const resizeCursor = !isResizing ? 'grabbing'
-        : resizeRef.current?.mode === 'right' ? 'ew-resize'
-            : resizeRef.current?.mode === 'bottom' ? 'ns-resize'
+        : resizeMode === 'right' ? 'ew-resize'
+            : resizeMode === 'bottom' ? 'ns-resize'
                 : 'nwse-resize';
 
     if (!node.position) return null;
@@ -212,7 +221,10 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
                 onMouseLeave={() => setIsHovered(false)}
                 onClick={(e) => e.stopPropagation()}
             >
-                <ConnectionHandles node={node} visible={isHovered} />
+                {/* ConnectionHandles: lazy — only mount when visible or edge drag in progress */}
+                {(isHovered || isDraggingEdge) && (
+                    <ConnectionHandles node={node} visible />
+                )}
 
                 <button
                     className={`absolute -top-2.5 -right-2.5 z-10 w-5 h-5 rounded-full bg-bg-primary border border-border shadow-md flex items-center justify-center text-text-secondary hover:text-white hover:bg-red-500 hover:border-red-500 transition-all duration-150 ${isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
@@ -270,3 +282,23 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
         </>
     );
 };
+
+/**
+ * Custom comparator: node object reference changes on every store write,
+ * but we only re-render when visual-affecting fields actually change.
+ */
+export const CanvasNodeWrapper = React.memo(CanvasNodeWrapperInner, (prev, next) => {
+    const a = prev.node;
+    const b = next.node;
+    return (
+        a.id === b.id &&
+        a.position === b.position &&
+        a.size === b.size &&
+        a.data === b.data &&
+        a.isPlaced === b.isPlaced &&
+        a.zIndex === b.zIndex &&
+        a.type === b.type
+    );
+});
+
+CanvasNodeWrapper.displayName = 'CanvasNodeWrapper';
