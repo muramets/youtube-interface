@@ -14,6 +14,9 @@ export const PLACEMENT_GAP = 14;
 /** Estimated height for compact traffic-source nodes */
 export const TRAFFIC_NODE_HEIGHT_ESTIMATE = 100;
 
+/** Estimated height for a new sticky note (before ResizeObserver measures) */
+export const STICKY_NOTE_HEIGHT_ESTIMATE = 160;
+
 /** Debounce delay for Firestore save (ms) */
 export const SAVE_DEBOUNCE_MS = 1500;
 

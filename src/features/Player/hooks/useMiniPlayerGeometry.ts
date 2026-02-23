@@ -199,6 +199,11 @@ export function useMiniPlayerGeometry(): PlayerGeometryResult {
             // Corner resize: width already set above; now ensure aspect-locked height fits
             const newH = heightFromWidth(newW);
 
+            // For corner resize with top edge: grow upward (keep bottom edge fixed)
+            if (mode.includes('top') && mode !== 'top') {
+                newTop = s.top + sH - newH;
+            }
+
             // Ensure the panel still fits vertically after aspect-ratio-driven height change
             if (mode.includes('top')) {
                 // Grows upward: ensure top >= APP_HEADER_H + MIN_MARGIN

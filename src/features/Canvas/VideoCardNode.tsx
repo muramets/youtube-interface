@@ -7,7 +7,7 @@
 
 import React, { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowUpRight, RefreshCw } from 'lucide-react';
+import { ArrowUpRight, RefreshCw, Play } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { VideoCardContext } from '../../core/types/appContext';
 import type { VideoDetails } from '../../core/utils/youtubeApi';
@@ -16,6 +16,7 @@ import { useAuth } from '../../core/hooks/useAuth';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 import { formatDuration } from '../../core/utils/formatUtils';
 import { ColorPickerPopover } from '../../components/ui/molecules/ColorPickerPopover';
+import { useVideoPlayer } from '../../core/hooks/useVideoPlayer';
 
 const NODE_COLORS = [
     '#EF4444', '#F97316', '#F59E0B', '#84CC16', '#22C55E',
@@ -60,6 +61,11 @@ export const VideoCardNode: React.FC<VideoCardNodeProps> = ({ data, nodeId }) =>
     const isOwnVideo = data.ownership === 'own-published' || data.ownership === 'own-draft';
     const nodeColor = data.color || '#64748B'; // default slate
 
+    // Mini player — use publishedVideoId (YouTube ID) instead of videoId (Firestore doc ID)
+    const playableId = data.publishedVideoId;
+    const { minimize, activeVideoId, isMinimized } = useVideoPlayer();
+    const isNowPlaying = isMinimized && !!playableId && activeVideoId === playableId;
+
     const handleOpenDetails = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (!currentChannel?.id) return;
@@ -82,6 +88,8 @@ export const VideoCardNode: React.FC<VideoCardNodeProps> = ({ data, nodeId }) =>
             duration: fresh.mergedVideoData?.duration || data.duration,
             thumbnailUrl: fresh.customImage || fresh.thumbnail || data.thumbnailUrl,
             title: fresh.title || data.title,
+            // Pull published YouTube ID so play button works after refresh
+            ...(fresh.publishedVideoId ? { publishedVideoId: fresh.publishedVideoId } : {}),
         });
     }, [user, currentChannel, data, nodeId, queryClient, updateNodeData]);
 
@@ -101,7 +109,7 @@ export const VideoCardNode: React.FC<VideoCardNodeProps> = ({ data, nodeId }) =>
             }}
         >
             {/* Thumbnail — 16:9 */}
-            <div className="relative w-full aspect-video bg-bg-secondary overflow-hidden rounded-t-xl">
+            <div className={`relative w-full aspect-video bg-bg-secondary overflow-hidden rounded-t-xl ${isNowPlaying ? 'ring-1 ring-emerald-400/60' : ''}`}>
                 {data.thumbnailUrl ? (
                     <img
                         src={data.thumbnailUrl}
@@ -146,6 +154,34 @@ export const VideoCardNode: React.FC<VideoCardNodeProps> = ({ data, nodeId }) =>
                 {data.duration && (
                     <div className="absolute bottom-1.5 right-1.5 bg-black/80 px-1.5 py-0.5 rounded text-[10px] font-medium text-white">
                         {formatDuration(data.duration)}
+                    </div>
+                )}
+
+                {/* Play button overlay — visible on group hover, only if video is published */}
+                {playableId && !isNowPlaying && (
+                    <button
+                        style={{ pointerEvents: 'auto' }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            minimize(playableId, data.title);
+                        }}
+                        className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer bg-transparent border-none z-10"
+                    >
+                        <div className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center shadow-lg transition-transform duration-150 ease-out hover:scale-110">
+                            <Play size={14} className="text-white fill-white ml-[1px]" />
+                        </div>
+                    </button>
+                )}
+
+                {/* Now Playing indicator */}
+                {isNowPlaying && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                        <div className="flex items-end gap-px h-[12px]">
+                            <span className="w-[2px] bg-white rounded-full animate-[barBounce_0.8s_ease-in-out_infinite]" style={{ height: '6px' }} />
+                            <span className="w-[2px] bg-white rounded-full animate-[barBounce_0.8s_ease-in-out_0.2s_infinite]" style={{ height: '10px' }} />
+                            <span className="w-[2px] bg-white rounded-full animate-[barBounce_0.8s_ease-in-out_0.4s_infinite]" style={{ height: '7px' }} />
+                        </div>
                     </div>
                 )}
             </div>

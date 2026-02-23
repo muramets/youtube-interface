@@ -15,6 +15,8 @@ export interface VideoCardContext {
     /** Video ownership relative to the user's channel */
     ownership: 'own-draft' | 'own-published' | 'competitor';
     videoId: string;
+    /** YouTube video ID for published own-channel videos (used for mini player) */
+    publishedVideoId?: string;
     title: string;
     description: string;
     tags: string[];

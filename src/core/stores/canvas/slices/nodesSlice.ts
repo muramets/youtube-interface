@@ -4,24 +4,38 @@
 
 import type { CanvasNode, CanvasNodeData } from '../../../types/canvas';
 import { Timestamp } from 'firebase/firestore';
-import { TRAFFIC_NODE_WIDTH } from '../constants';
+import { TRAFFIC_NODE_WIDTH, STICKY_NOTE_HEIGHT_ESTIMATE } from '../constants';
 import type { CanvasSlice, CanvasState } from '../types';
 
 export interface NodesSlice {
     nodes: CanvasNode[];
+    lastCanvasWorldPos: { x: number; y: number } | null;
+    lastHoveredNodeId: string | null;
     addNode: CanvasState['addNode'];
+    addNodeAt: CanvasState['addNodeAt'];
     updateNodeData: CanvasState['updateNodeData'];
     moveNode: CanvasState['moveNode'];
     moveNodes: CanvasState['moveNodes'];
+    markPlaced: CanvasState['markPlaced'];
     deleteNode: CanvasState['deleteNode'];
     deleteNodes: CanvasState['deleteNodes'];
     alignNodesTop: CanvasState['alignNodesTop'];
     resizeNode: CanvasState['resizeNode'];
     bringToFront: CanvasState['bringToFront'];
+    sendToBack: CanvasState['sendToBack'];
+    bringNodesToFront: CanvasState['bringNodesToFront'];
+    sendNodesToBack: CanvasState['sendNodesToBack'];
+    setLastCanvasWorldPos: CanvasState['setLastCanvasWorldPos'];
+    setLastHoveredNodeId: CanvasState['setLastHoveredNodeId'];
 }
 
 export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
     nodes: [],
+    lastCanvasWorldPos: null,
+    lastHoveredNodeId: null,
+
+    setLastCanvasWorldPos: (pos) => set({ lastCanvasWorldPos: pos }),
+    setLastHoveredNodeId: (id) => set({ lastHoveredNodeId: id }),
 
     addNode: (data) => {
         const maxZ = get().nodes.reduce((m, n) => Math.max(m, n.zIndex), 0);
@@ -36,6 +50,29 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
             type: nodeType,
             data,
             position: null,
+            zIndex: maxZ + 1,
+            ...(nodeType === 'traffic-source' ? { size: { w: TRAFFIC_NODE_WIDTH, h: 0 } } : {}),
+            ...(nodeType === 'sticky-note' ? { size: { w: 200, h: 0 } } : {}),
+            createdAt: Timestamp.now(),
+        };
+        set((s) => ({ nodes: [...s.nodes, newNode] }));
+        get()._save();
+    },
+
+    addNodeAt: (data, position) => {
+        const maxZ = get().nodes.reduce((m, n) => Math.max(m, n.zIndex), 0);
+
+        let nodeType: CanvasNode['type'] = 'sticky-note';
+        if (data.type === 'video-card') nodeType = 'video-card';
+        else if (data.type === 'suggested-traffic') nodeType = 'suggested-traffic';
+        else if (data.type === 'traffic-source') nodeType = 'traffic-source';
+
+        const newNode: CanvasNode = {
+            id: crypto.randomUUID(),
+            type: nodeType,
+            data,
+            position,
+            isPlaced: true,
             zIndex: maxZ + 1,
             ...(nodeType === 'traffic-source' ? { size: { w: TRAFFIC_NODE_WIDTH, h: 0 } } : {}),
             ...(nodeType === 'sticky-note' ? { size: { w: 200, h: 0 } } : {}),
@@ -69,6 +106,15 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
                 const pos = byId.get(n.id);
                 return pos ? { ...n, position: pos, isPlaced: true } : n;
             }),
+        }));
+        get()._save();
+    },
+
+    markPlaced: (id) => {
+        const node = get().nodes.find((n) => n.id === id);
+        if (!node || node.isPlaced) return;
+        set((s) => ({
+            nodes: s.nodes.map((n) => n.id === id ? { ...n, isPlaced: true } : n),
         }));
         get()._save();
     },
@@ -108,12 +154,17 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
     },
 
     resizeNode: (id, width, height) => {
-        const w = Math.max(120, Math.min(600, width));
-        const h = height != null ? Math.max(60, Math.min(800, height)) : 0;
         set((s) => ({
-            nodes: s.nodes.map((n) =>
-                n.id === id ? { ...n, size: { w, h } } : n
-            ),
+            nodes: s.nodes.map((n) => {
+                if (n.id !== id) return n;
+                // Sticky notes cannot shrink below their default creation size
+                const minW = n.type === 'sticky-note' ? 200 : 40;
+                const minH = n.type === 'sticky-note' ? STICKY_NOTE_HEIGHT_ESTIMATE : 40;
+                const w = Math.max(minW, width);
+                const existingH = n.size?.h ?? 0;
+                const h = height != null ? Math.max(minH, height) : existingH;
+                return { ...n, size: { w, h } };
+            }),
         }));
         get()._save();
     },
@@ -123,5 +174,40 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
         set((s) => ({
             nodes: s.nodes.map((n) => n.id === id ? { ...n, zIndex: maxZ + 1 } : n),
         }));
+    },
+
+    sendToBack: (id) => {
+        const minZ = get().nodes.reduce((m, n) => Math.min(m, n.zIndex), Infinity);
+        set((s) => ({
+            nodes: s.nodes.map((n) => n.id === id ? { ...n, zIndex: minZ - 1 } : n),
+        }));
+        get()._save();
+    },
+
+    bringNodesToFront: (ids) => {
+        const idSet = new Set(ids);
+        // Sort by current zIndex so relative order is preserved
+        const sorted = get().nodes
+            .filter((n) => idSet.has(n.id))
+            .sort((a, b) => a.zIndex - b.zIndex);
+        const maxZ = get().nodes.reduce((m, n) => Math.max(m, n.zIndex), 0);
+        const newZ = new Map(sorted.map((n, i) => [n.id, maxZ + 1 + i]));
+        set((s) => ({
+            nodes: s.nodes.map((n) => newZ.has(n.id) ? { ...n, zIndex: newZ.get(n.id)! } : n),
+        }));
+        get()._save();
+    },
+
+    sendNodesToBack: (ids) => {
+        const idSet = new Set(ids);
+        const sorted = get().nodes
+            .filter((n) => idSet.has(n.id))
+            .sort((a, b) => a.zIndex - b.zIndex);
+        const minZ = get().nodes.reduce((m, n) => Math.min(m, n.zIndex), Infinity);
+        const newZ = new Map(sorted.map((n, i) => [n.id, minZ - ids.length + i]));
+        set((s) => ({
+            nodes: s.nodes.map((n) => newZ.has(n.id) ? { ...n, zIndex: newZ.get(n.id)! } : n),
+        }));
+        get()._save();
     },
 });

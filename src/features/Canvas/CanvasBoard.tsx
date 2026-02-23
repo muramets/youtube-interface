@@ -18,6 +18,10 @@ interface CanvasBoardProps {
     onZoomFrame?: (zoom: number) => void;
     onClick?: () => void;
     onSelectRect?: (rect: { left: number; top: number; right: number; bottom: number }) => void;
+    /** Called when cursor moves over empty canvas (not panning). World coordinates. */
+    onCursorMove?: (worldPos: { x: number; y: number }) => void;
+    /** Called on double-click on empty canvas. World coordinates centered on cursor. */
+    onDblClick?: (worldPos: { x: number; y: number }) => void;
     children?: React.ReactNode;
 }
 
@@ -28,7 +32,7 @@ export interface CanvasBoardHandle {
 }
 
 export const CanvasBoard = React.forwardRef<CanvasBoardHandle, CanvasBoardProps>(
-    ({ viewport, onViewportChange, onZoomFrame, onClick, onSelectRect, children }, ref) => {
+    ({ viewport, onViewportChange, onZoomFrame, onClick, onSelectRect, onCursorMove, onDblClick, children }, ref) => {
         const containerRef = useRef<HTMLDivElement>(null);
         const containerSizeRef = useRef({ width: 0, height: 0 });
         const mouseDownOnBoardRef = useRef(false);
@@ -82,6 +86,18 @@ export const CanvasBoard = React.forwardRef<CanvasBoardHandle, CanvasBoardProps>
             handlePanMove(e.clientX, e.clientY);
         }, [marquee, handlePanMove]);
 
+        const handleMouseMoveCapture = useCallback((e: React.MouseEvent) => {
+            // Track cursor position in world coordinates (only when not panning)
+            if (!onCursorMove || isPanning) return;
+            const el = containerRef.current;
+            if (!el) return;
+            const rect = el.getBoundingClientRect();
+            const { x, y, zoom } = transform;
+            const worldX = (e.clientX - rect.left - x) / zoom;
+            const worldY = (e.clientY - rect.top - y) / zoom;
+            onCursorMove({ x: worldX, y: worldY });
+        }, [onCursorMove, isPanning, transform]);
+
         const handleMouseUp = useCallback(() => {
             mouseDownOnBoardRef.current = false;
             if (marquee.end()) return;
@@ -95,6 +111,18 @@ export const CanvasBoard = React.forwardRef<CanvasBoardHandle, CanvasBoardProps>
             }
             onClick?.();
         }, [onClick, marquee]);
+
+        const handleDblClick = useCallback((e: React.MouseEvent) => {
+            if (!onDblClick) return;
+            if ((e.target as HTMLElement).closest('.canvas-node')) return;
+            const el = containerRef.current;
+            if (!el) return;
+            const rect = el.getBoundingClientRect();
+            const { x, y, zoom } = transform;
+            const worldX = (e.clientX - rect.left - x) / zoom;
+            const worldY = (e.clientY - rect.top - y) / zoom;
+            onDblClick({ x: worldX, y: worldY });
+        }, [onDblClick, transform]);
 
         // --- Imperative handle ---
         useImperativeHandle(ref, () => ({
@@ -139,10 +167,10 @@ export const CanvasBoard = React.forwardRef<CanvasBoardHandle, CanvasBoardProps>
 
         // Dot grid — fade out smoothly at low zoom to prevent moiré
         const gridSize = 24 * transform.zoom;
-        const gridOpacity = transform.zoom < 0.15 ? 0.15
-            : transform.zoom < 0.4 ? 0.15 + (transform.zoom - 0.15) / 0.25 * 0.85
+        const gridOpacity = transform.zoom < 0.15 ? 0.35
+            : transform.zoom < 0.4 ? 0.35 + (transform.zoom - 0.15) / 0.25 * 0.65
                 : 1;
-        const dotR = Math.max(0.4, transform.zoom);
+        const dotR = Math.max(0.6, transform.zoom);
 
         return (
             <div
@@ -154,12 +182,16 @@ export const CanvasBoard = React.forwardRef<CanvasBoardHandle, CanvasBoardProps>
                         : 'none',
                     backgroundSize: `${gridSize}px ${gridSize}px`,
                     backgroundPosition: `${transform.x % gridSize}px ${transform.y % gridSize}px`,
+                    // Publish zoom for child CSS consumers (e.g. resize handle counter-scaling)
+                    ['--canvas-zoom' as string]: transform.zoom,
                 }}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
+                onMouseMoveCapture={handleMouseMoveCapture}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
                 onClick={handleClick}
+                onDoubleClick={handleDblClick}
             >
                 {/* Selection rect overlay */}
                 {marquee.selectionRect && (

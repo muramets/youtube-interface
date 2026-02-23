@@ -31,6 +31,8 @@ export const CanvasOverlay: React.FC = () => {
         setViewport,
         clearSelection,
         setSelectedNodeIds,
+        setLastCanvasWorldPos,
+        addNodeAt,
     } = useCanvasStore();
 
     const boardRef = useRef<CanvasBoardHandle>(null);
@@ -69,6 +71,16 @@ export const CanvasOverlay: React.FC = () => {
         setSelectedNodeIds(ids);
     }, [setSelectedNodeIds]);
 
+    // Double-click on empty canvas → create sticky note centered on cursor
+    const STICKY_NOTE_W = 200;
+    const STICKY_NOTE_H = 160;
+    const handleCanvasDblClick = useCallback((worldPos: { x: number; y: number }) => {
+        addNodeAt(
+            { type: 'sticky-note', content: '', color: 'yellow' },
+            { x: worldPos.x - STICKY_NOTE_W / 2, y: worldPos.y - STICKY_NOTE_H / 2 },
+        );
+    }, [addNodeAt]);
+
     const placedNodes = nodes.filter((n) => n.position !== null);
     const hasNodes = placedNodes.length > 0;
 
@@ -89,6 +101,8 @@ export const CanvasOverlay: React.FC = () => {
                     onZoomFrame={handleZoomFrame}
                     onClick={clearSelection}
                     onSelectRect={handleSelectRect}
+                    onCursorMove={setLastCanvasWorldPos}
+                    onDblClick={handleCanvasDblClick}
                 >
                     {/* EdgeLayer behind nodes so cards appear on top of edge lines */}
                     <EdgeLayer />

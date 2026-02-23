@@ -29,6 +29,7 @@ export const StickyNoteNode: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) 
     const [isEditing, setIsEditing] = useState(false);
     const [hovered, setHovered] = useState(false);
     const contentRef = useRef<HTMLDivElement>(null);
+    const rootRef = useRef<HTMLDivElement>(null);
 
     const colors = NOTE_COLORS[data.color] || NOTE_COLORS.yellow;
 
@@ -78,6 +79,7 @@ export const StickyNoteNode: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) 
 
     return (
         <div
+            ref={rootRef}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
             onDoubleClick={handleDoubleClick}
@@ -85,7 +87,7 @@ export const StickyNoteNode: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) 
                 position: 'relative',
                 width: '100%',
                 height: '100%',
-                minHeight: 80,
+                minHeight: 160,
                 background: colors.bg,
                 borderRadius: 2,
                 padding: '28px 14px 14px',
@@ -146,8 +148,8 @@ export const StickyNoteNode: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) 
                 }}>Double-click to type...</div>
             )}
 
-            {/* Color picker dots — bottom-right on hover */}
-            {hovered && !isEditing && (
+            {/* Color picker dots — bottom-right on hover, hidden during resize */}
+            {hovered && !isEditing && !rootRef.current?.closest('.is-resizing') && (
                 <div style={{
                     position: 'absolute',
                     bottom: 6,

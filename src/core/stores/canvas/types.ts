@@ -43,6 +43,10 @@ export interface CanvasState {
     /** True after first Firestore snapshot has been processed */
     hasSynced: boolean;
     pendingEdge: PendingEdge | null;
+    /** Last known cursor position in world coordinates (updated on canvas mousemove) */
+    lastCanvasWorldPos: { x: number; y: number } | null;
+    /** ID of the last canvas node the cursor hovered over (never cleared on leave — intent signal) */
+    lastHoveredNodeId: string | null;
 
     // Selection
     selectedNodeIds: Set<string>;
@@ -53,17 +57,25 @@ export interface CanvasState {
     // Actions: UI
     toggleOpen: () => void;
     setOpen: (open: boolean) => void;
+    setLastCanvasWorldPos: (pos: { x: number; y: number }) => void;
+    setLastHoveredNodeId: (id: string | null) => void;
 
     // Nodes
     addNode: (data: CanvasNodeData) => void;
+    /** Place a node immediately at the given world position (skips pending placement). */
+    addNodeAt: (data: CanvasNodeData, position: { x: number; y: number }) => void;
     updateNodeData: (id: string, data: Partial<CanvasNodeData>) => void;
     moveNode: (id: string, position: { x: number; y: number }) => void;
     moveNodes: (updates: { id: string; position: { x: number; y: number } }[]) => void;
+    markPlaced: (id: string) => void;
     deleteNode: (id: string) => void;
     deleteNodes: (ids: string[]) => void;
     alignNodesTop: (ids: string[]) => void;
     resizeNode: (id: string, width: number, height?: number) => void;
     bringToFront: (id: string) => void;
+    sendToBack: (id: string) => void;
+    bringNodesToFront: (ids: string[]) => void;
+    sendNodesToBack: (ids: string[]) => void;
     placePendingNodes: (viewportCenter: { x: number; y: number }) => void;
     /** Correction pass: re-stack children of each parent using measured heights */
     relayoutChildren: () => void;

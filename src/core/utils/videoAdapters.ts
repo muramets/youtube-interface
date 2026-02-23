@@ -34,6 +34,7 @@ export const trendVideoToVideoCardContext = (
         type: 'video-card',
         ownership: isOwnChannel ? 'own-published' : 'competitor',
         videoId: video.id,
+        publishedVideoId: video.id, // trend videos always have a YouTube ID
         title: video.title,
         description: video.description || '',
         tags: video.tags || [],

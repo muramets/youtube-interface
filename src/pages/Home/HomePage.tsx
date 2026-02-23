@@ -75,6 +75,9 @@ export const HomePage: React.FC = () => {
                 type: 'video-card',
                 ownership,
                 videoId: v.id,
+                // For competitor/YouTube-API videos, videoId IS the YouTube ID.
+                // For own-channel custom videos, publishedVideoId is stored separately.
+                ...(v.publishedVideoId || ownership === 'competitor' ? { publishedVideoId: v.publishedVideoId || v.id } : {}),
                 title: v.title,
                 description: v.description || '',
                 tags: v.tags || [],

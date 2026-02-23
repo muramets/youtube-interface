@@ -22,18 +22,18 @@ interface CanvasNodeWrapperProps {
 
 export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, children }) => {
     const {
-        moveNode, moveNodes, deleteNode, bringToFront, updateNodeSize, resizeNode,
-        selectedNodeIds, selectNode,
+        moveNode, moveNodes, deleteNode, updateNodeSize, resizeNode,
+        selectedNodeIds, selectNode, markPlaced,
     } = useCanvasStore(
         useShallow((s) => ({
             moveNode: s.moveNode,
             moveNodes: s.moveNodes,
             deleteNode: s.deleteNode,
-            bringToFront: s.bringToFront,
             updateNodeSize: s.updateNodeSize,
             resizeNode: s.resizeNode,
             selectedNodeIds: s.selectedNodeIds,
             selectNode: s.selectNode,
+            markPlaced: s.markPlaced,
         }))
     );
 
@@ -55,7 +55,7 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
         startClientY: number;
         startWidth: number;
         startHeight: number;
-        is2D: boolean;
+        mode: 'corner' | 'right' | 'bottom';
         zoom: number;
     } | null>(null);
 
@@ -95,11 +95,13 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
             const r = resizeRef.current;
             if (!r) return;
             const dx = (clientX - r.startClientX) / r.zoom;
-            if (r.is2D) {
-                const dy = (clientY - r.startClientY) / r.zoom;
+            const dy = (clientY - r.startClientY) / r.zoom;
+            if (r.mode === 'corner') {
                 resizeNode(node.id, r.startWidth + dx, r.startHeight + dy);
-            } else {
+            } else if (r.mode === 'right') {
                 resizeNode(node.id, r.startWidth + dx);
+            } else if (r.mode === 'bottom') {
+                resizeNode(node.id, r.startWidth, r.startHeight + dy);
             }
         },
     });
@@ -107,12 +109,18 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
     const handleDragStart = useCallback((e: React.MouseEvent) => {
         if (e.button !== 0) return;
 
+        // Dismiss the "new node" indigo glow on first interaction
+        markPlaced(node.id);
+
         if (e.metaKey) {
             selectNode(node.id, true);
             return;
         }
 
-        bringToFront(node.id);
+        // Note: bringToFront is intentionally NOT called here.
+        // During drag, the node renders at z-index 9999 via the isDragging CSS override,
+        // so no persistent zIndex mutation is needed. This preserves user-set z-ordering
+        // from the Bring to Front / Send to Back toolbar buttons.
 
         const currentSelectedIds = useCanvasStore.getState().selectedNodeIds;
         const currentNodes = useCanvasStore.getState().nodes;
@@ -136,24 +144,36 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
             nodeStartPositions,
         };
         startDrag();
-    }, [node.id, bringToFront, selectNode, startDrag]);
+    }, [node.id, selectNode, startDrag, markPlaced]);
 
-    const is2DResize = node.type === 'sticky-note';
+    const isSticky = node.type === 'sticky-note';
 
-    const handleResizeStart = useCallback((e: React.MouseEvent) => {
-        e.stopPropagation();
-        e.preventDefault();
-        const el = nodeRef.current;
-        resizeRef.current = {
-            startClientX: e.clientX,
-            startClientY: e.clientY,
-            startWidth: node.size?.w ?? NODE_WIDTH,
-            startHeight: el?.offsetHeight ?? 100,
-            is2D: is2DResize,
-            zoom: liveZoom.current,
-        };
-        startResize();
-    }, [node.size, is2DResize, startResize]);
+    const makeResizeStart = useCallback((mode: 'corner' | 'right' | 'bottom') =>
+        (e: React.MouseEvent) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const el = nodeRef.current;
+            resizeRef.current = {
+                startClientX: e.clientX,
+                startClientY: e.clientY,
+                startWidth: node.size?.w ?? NODE_WIDTH,
+                startHeight: el?.offsetHeight ?? 100,
+                mode,
+                zoom: liveZoom.current,
+            };
+            startResize();
+        }
+        , [node.size, startResize]);
+
+    const handleResizeCorner = makeResizeStart('corner');
+    const handleResizeRight = makeResizeStart('right');
+    const handleResizeBottom = makeResizeStart('bottom');
+
+    // Cursor for the full-screen overlay while resizing
+    const resizeCursor = !isResizing ? 'grabbing'
+        : resizeRef.current?.mode === 'right' ? 'ew-resize'
+            : resizeRef.current?.mode === 'bottom' ? 'ns-resize'
+                : 'nwse-resize';
 
     if (!node.position) return null;
 
@@ -163,19 +183,19 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
     return (
         <>
             {(isDragging || isResizing) && (
-                <div className="fixed inset-0 z-overlay-ui" style={{ cursor: isResizing ? (is2DResize ? 'nwse-resize' : 'ew-resize') : 'grabbing' }} />
+                <div className="fixed inset-0 z-overlay-ui" style={{ cursor: isDragging ? 'grabbing' : resizeCursor }} />
             )}
 
             <div
                 ref={nodeRef}
-                className={`canvas-node absolute ${!node.isPlaced ? 'canvas-node-pending' : ''}`}
+                className={`canvas-node absolute ${!node.isPlaced ? 'canvas-node-pending' : ''} ${isResizing ? 'is-resizing' : ''}`}
                 data-node-id={node.id}
                 style={{
                     left: node.position.x,
                     top: node.position.y,
                     width: nodeWidth,
                     height: nodeHeight,
-                    zIndex: isDragging ? 9999 : node.zIndex,
+                    zIndex: node.zIndex,
                     cursor: isDragging ? 'grabbing' : 'grab',
                     // Selection ring
                     outline: isSelected ? '2px solid #6366f1' : undefined,
@@ -185,7 +205,10 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
                         : undefined,
                 }}
                 onMouseDown={handleDragStart}
-                onMouseEnter={() => setIsHovered(true)}
+                onMouseEnter={() => {
+                    setIsHovered(true);
+                    useCanvasStore.getState().setLastHoveredNodeId(node.id);
+                }}
                 onMouseLeave={() => setIsHovered(false)}
                 onClick={(e) => e.stopPropagation()}
             >
@@ -200,17 +223,48 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
                     <X size={10} strokeWidth={2.5} />
                 </button>
 
-                {/* Resize handle — bottom-right corner */}
+                {/* Corner resize handle — bottom-right. Counter-scales with zoom. */}
                 <div
-                    className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-sm transition-opacity duration-150 ${isHovered || isResizing ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                    className={`absolute transition-opacity duration-150 ${isHovered || isResizing ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                     style={{
-                        cursor: is2DResize ? 'nwse-resize' : 'ew-resize',
+                        cursor: isSticky ? 'nwse-resize' : 'ew-resize',
                         background: 'linear-gradient(135deg, transparent 50%, rgba(99,102,241,0.6) 50%)',
+                        borderRadius: '2px',
+                        width: 'calc(20px / var(--canvas-zoom, 1))',
+                        height: 'calc(20px / var(--canvas-zoom, 1))',
+                        bottom: 'calc(-4px / var(--canvas-zoom, 1))',
+                        right: 'calc(-4px / var(--canvas-zoom, 1))',
                     }}
-                    onMouseDown={handleResizeStart}
+                    onMouseDown={handleResizeCorner}
                 />
 
                 {children}
+
+                {/* Sticky note edge handles — rendered after children so they're on top. Invisible, cursor only. */}
+                {isSticky && (
+                    <>
+                        {/* Right edge */}
+                        <div
+                            className={`absolute top-0 right-0 h-full ${isHovered || isResizing ? 'pointer-events-auto' : 'pointer-events-none'}`}
+                            style={{
+                                width: 'calc(8px / var(--canvas-zoom, 1))',
+                                cursor: 'ew-resize',
+                                zIndex: 10,
+                            }}
+                            onMouseDown={handleResizeRight}
+                        />
+                        {/* Bottom edge */}
+                        <div
+                            className={`absolute bottom-0 left-0 w-full ${isHovered || isResizing ? 'pointer-events-auto' : 'pointer-events-none'}`}
+                            style={{
+                                height: 'calc(8px / var(--canvas-zoom, 1))',
+                                cursor: 'ns-resize',
+                                zIndex: 10,
+                            }}
+                            onMouseDown={handleResizeBottom}
+                        />
+                    </>
+                )}
             </div>
         </>
     );
