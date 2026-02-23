@@ -73,7 +73,7 @@ export const useTrafficData = ({ userId, channelId, video }: UseTrafficDataProps
         if (!userId || !video.id) return null;
         setIsSaving(true);
         try {
-            const effectiveVersion = video.activeVersion === 'draft' ? 0 : (video.activeVersion || 1);
+            const effectiveVersion = video.activeVersion === 'draft' ? 1 : (video.activeVersion || 1);
 
             // 1. Create the snapshot (Hybrid Approach)
             // This will also update the main traffic document's snapshots array

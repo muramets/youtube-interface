@@ -16,18 +16,14 @@ export const useTrafficVersions = ({
 }: UseTrafficVersionsProps) => {
 
     // Helper: Get snapshots for a specific virtual period
-    const getVirtualVersionSnapshots = useCallback((version: number, start: number, end?: number | null): TrafficSnapshot[] => {
+    const getVirtualVersionSnapshots = useCallback((version: number, start: number, end?: number | null, isFirstPeriod?: boolean): TrafficSnapshot[] => {
         return snapshots.filter(s => {
             if (s.version !== version) return false;
             // Strict timestamp check: must be >= start AND (if end exists) <= end
             // EXCEPTION: If end is null/undefined, we accept all future snapshots (e.g. for active version)
-            // BUT: For historical versions, we usually pass an 'end'.
-            // To support "late-arriving" snapshots for the LATEST period of a historical version,
-            // we should interpret the 'end' parameter carefully.
-            // If the caller passes 'end', we respect it. 
-            // The Logic fix needs to be passed in from the caller (the loop below).
-
-            const matchesStart = s.timestamp >= (start - 5000);
+            // For the FIRST period of a version, skip the start-bound check so that
+            // snapshots uploaded during draft (before the version was published) survive.
+            const matchesStart = isFirstPeriod || s.timestamp >= (start - 5000);
             const matchesEnd = end ? s.timestamp <= (end + 5000) : true;
             return matchesStart && matchesEnd;
         }).sort((a, b) => b.timestamp - a.timestamp); // Latest first
@@ -100,6 +96,30 @@ export const useTrafficVersions = ({
         // Find versions that exist in snapshots but NOT in packaging history (deleted versions)
         const deletedVersionNumbers = [...snapshotVersionSet].filter(v => !packagingVersionSet.has(v));
 
+        // When activeVersion is 'draft', v.1 hasn't been published yet.
+        // If there are snapshots for v.1, inject a synthetic version so it's
+        // handled via the normal single-period path (not the deleted path).
+        let extraVersions: PackagingVersionType[] = [];
+        if (activeVersion === 'draft' && !packagingVersionSet.has(1) && snapshotVersionSet.has(1)) {
+            const draftSnapshots = snapshots.filter(s => s.version === 1);
+            const earliestTimestamp = Math.min(...draftSnapshots.map(s => s.timestamp));
+            extraVersions = [{
+                versionNumber: 1,
+                startDate: earliestTimestamp,
+                endDate: null,
+                revision: 0,
+                checkins: [],
+                configurationSnapshot: {
+                    title: '', description: '', tags: [], coverImage: null,
+                } as unknown as PackagingSnapshot,
+                activePeriods: [],
+            }];
+            packagingVersionSet.add(1);
+            // Remove v.1 from deleted list since we've synthesized it
+            const idx = deletedVersionNumbers.indexOf(1);
+            if (idx !== -1) deletedVersionNumbers.splice(idx, 1);
+        }
+
         // Create placeholders for deleted versions
         const deletedVersions: PackagingVersionType[] = deletedVersionNumbers.map(vNum => ({
             versionNumber: vNum,
@@ -107,19 +127,17 @@ export const useTrafficVersions = ({
             endDate: null,
             revision: 0,
             checkins: [],
-            // Minimal mock of configurationSnapshot to satisfy type
             configurationSnapshot: {
                 title: '',
                 description: '',
                 tags: [],
                 coverImage: null
             } as unknown as PackagingSnapshot,
-            // We'll rely on snapshots[].packagingSnapshot for deleted versions' metadata
             activePeriods: []
         }));
 
         // Combine all raw versions
-        const allVersions = [...versions, ...deletedVersions];
+        const allVersions = [...versions, ...extraVersions, ...deletedVersions];
 
         // Virtual Expansion Helper
         const virtualList: Array<{
@@ -221,7 +239,7 @@ export const useTrafficVersions = ({
 
                 // Multiple periods (Restored or Coalesced)
                 coalescedPeriods.forEach((period: { startDate: number; endDate: number | null }, index: number) => {
-                    const versionSnapshots = getVirtualVersionSnapshots(v.versionNumber, period.startDate, period.endDate);
+                    const versionSnapshots = getVirtualVersionSnapshots(v.versionNumber, period.startDate, period.endDate, index === 0);
                     const isActive = !period.endDate;
 
                     // GHOST FILTER REFINED
@@ -252,7 +270,7 @@ export const useTrafficVersions = ({
                 });
             } else if (v.startDate !== 0) {
                 // Single period (standard) or legacy version without activePeriods
-                const versionSnapshots = getVirtualVersionSnapshots(v.versionNumber, v.startDate || 0, v.endDate);
+                const versionSnapshots = getVirtualVersionSnapshots(v.versionNumber, v.startDate || 0, v.endDate, true);
                 const isActive = v.versionNumber === activeVersion;
 
                 // GHOST FILTER: Hide if inactive AND has no data

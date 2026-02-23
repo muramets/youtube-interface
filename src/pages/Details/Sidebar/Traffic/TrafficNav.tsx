@@ -72,6 +72,17 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
         new Set([`${activeVersion}-0`])
     );
 
+    // Auto-expand the active version when activeVersion changes (e.g. draft → v.1)
+    React.useEffect(() => {
+        const key = `${activeVersion}-0`;
+        setExpandedVersions(prev => {
+            if (prev.has(key)) return prev;
+            const next = new Set(prev);
+            next.add(key);
+            return next;
+        });
+    }, [activeVersion]);
+
     // Snapshot context menu state
     const [menuState, setMenuState] = useState<{
         snapshotId: string | null;
@@ -157,7 +168,8 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                 const snapshotsInVersion = getVirtualVersionSnapshots(
                     versionItem.displayVersion,
                     versionItem.periodStart,
-                    versionItem.periodEnd
+                    versionItem.periodEnd,
+                    true // Don't filter out pre-publication snapshots
                 );
 
                 if (snapshotsInVersion.some(s => s.id === selectedSnapshot)) {
@@ -212,7 +224,7 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                 <div className="flex flex-col gap-1 py-1">
                     {/* Saved versions */}
                     {sortedVersions.map((item) => {
-                        const versionSnapshots = getVirtualVersionSnapshots(item.displayVersion, item.periodStart, item.periodEnd)
+                        const versionSnapshots = getVirtualVersionSnapshots(item.displayVersion, item.periodStart, item.periodEnd, item.arrayIndex === 0)
                             .filter(s => !hiddenSnapshotIds.has(s.id));
                         const isVersionExpanded = expandedVersions.has(item.key);
                         const hasSnapshots = versionSnapshots.length > 0;
