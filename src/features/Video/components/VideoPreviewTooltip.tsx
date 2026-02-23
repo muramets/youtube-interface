@@ -3,6 +3,7 @@ import { Copy, Check, Calendar, Tag, AlignLeft, GitCompare } from 'lucide-react'
 import { useVideoPlayer } from '../../../core/hooks/useVideoPlayer';
 import { DiffHighlight } from './DiffHighlight';
 import type { VideoDetails } from '../../../core/utils/youtubeApi';
+import type { VideoDeltaStats } from '../../../core/types/videoDeltaStats';
 
 interface VideoPreviewTooltipProps {
     videoId: string;
@@ -16,6 +17,8 @@ interface VideoPreviewTooltipProps {
     className?: string;
     // Comparison Data
     comparisonVideo?: VideoDetails;
+    // Delta stats from Trend Snapshots (optional)
+    deltaStats?: VideoDeltaStats;
 }
 
 export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
@@ -28,7 +31,8 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
     description,
     tags,
     className = '',
-    comparisonVideo
+    comparisonVideo,
+    deltaStats
 }) => {
     const [isTitleCopied, setIsTitleCopied] = useState(false);
     const [isDescriptionCopied, setIsDescriptionCopied] = useState(false);
@@ -187,13 +191,46 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
             </div>
 
             {/* Metadata Badges (Only if provided) */}
-            {(viewCount !== undefined || publishedAt || percentileGroup) && (
-                <div className="flex items-center justify-between text-xs mt-1">
+            {(viewCount !== undefined || publishedAt || percentileGroup || deltaStats) && (
+                <div className="flex items-center flex-wrap gap-1.5 text-xs mt-1">
                     {viewCount !== undefined && (
                         <span className="text-text-primary font-bold px-2 py-1 bg-black/10 dark:bg-white/10 rounded-full whitespace-nowrap">
                             {viewCount.toLocaleString()} views
                         </span>
                     )}
+
+                    {/* Delta Stats Badges — inline between views and publish date */}
+                    {deltaStats && (deltaStats.delta24h !== null || deltaStats.delta7d !== null || deltaStats.delta30d !== null) && (() => {
+                        const formatDelta = (value: number) => {
+                            const abs = Math.abs(value);
+                            const formatted = abs >= 1000 ? `${(abs / 1000).toFixed(1)}K` : String(abs);
+                            return value >= 0 ? `+${formatted}` : `−${formatted}`;
+                        };
+                        const colorFor = (value: number, opacity: string = '') =>
+                            value >= 0
+                                ? `text-emerald-400${opacity} bg-emerald-500/10`
+                                : `text-orange-400${opacity} bg-orange-500/10`;
+
+                        return (
+                            <>
+                                {deltaStats.delta24h !== null && (
+                                    <span className={`${colorFor(deltaStats.delta24h)} font-mono font-medium text-[10px] px-1.5 py-0.5 rounded-md whitespace-nowrap`}>
+                                        24h: {formatDelta(deltaStats.delta24h)}
+                                    </span>
+                                )}
+                                {deltaStats.delta7d !== null && (
+                                    <span className={`${colorFor(deltaStats.delta7d, '/80')} font-mono font-medium text-[10px] px-1.5 py-0.5 rounded-md whitespace-nowrap`}>
+                                        7d: {formatDelta(deltaStats.delta7d)}
+                                    </span>
+                                )}
+                                {deltaStats.delta30d !== null && (
+                                    <span className={`${colorFor(deltaStats.delta30d, '/60')} font-mono font-medium text-[10px] px-1.5 py-0.5 rounded-md whitespace-nowrap`}>
+                                        30d: {formatDelta(deltaStats.delta30d)}
+                                    </span>
+                                )}
+                            </>
+                        );
+                    })()}
 
                     {percentileGroup && (
                         <span className={`font-bold px-2 py-1 rounded-full whitespace-nowrap ${percentileGroup.includes('Top 1%') ? 'text-emerald-700 dark:text-white bg-emerald-500/30 border border-emerald-500/50' :
@@ -207,7 +244,7 @@ export const VideoPreviewTooltip: React.FC<VideoPreviewTooltipProps> = ({
                     )}
 
                     {publishedAt && (
-                        <div className="flex items-center gap-1.5 text-text-secondary bg-black/5 dark:bg-white/10 px-2 py-1 rounded-full whitespace-nowrap">
+                        <div className="flex items-center gap-1.5 text-text-secondary bg-black/5 dark:bg-white/10 px-2 py-1 rounded-full whitespace-nowrap ml-auto">
                             <Calendar size={12} />
                             <span>{formatDate(publishedAt)}</span>
                         </div>

@@ -16,6 +16,7 @@ import type { SuggestedTrafficNiche } from '../../../../../core/types/suggestedT
 import type { SmartSuggestion } from '../hooks/useSmartNicheSuggestions';
 
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
+import type { VideoDeltaStats } from '../../../../../core/types/videoDeltaStats';
 
 
 import type { TrafficType } from '../../../../../core/types/videoTrafficType';
@@ -92,6 +93,9 @@ interface TrafficTableProps {
 
     // Current Video for metadata comparison
     currentVideo?: VideoDetails;
+
+    // Per-video delta stats from Trend Snapshots
+    deltaMap?: Map<string, VideoDeltaStats>;
 }
 
 export const TrafficTable = memo<TrafficTableProps>(({
@@ -123,7 +127,8 @@ export const TrafficTable = memo<TrafficTableProps>(({
     onToggleViewerType,
     reactionMap,
     onToggleReaction,
-    currentVideo
+    currentVideo,
+    deltaMap
 }) => {
     // Virtualization refs
     const parentRef = useRef<HTMLDivElement>(null);
@@ -517,6 +522,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
                                             currentVideo={currentVideo}
                                             reaction={item.videoId && reactionMap ? reactionMap[item.videoId] : undefined}
                                             onToggleReaction={onToggleReaction}
+                                            deltaStats={item.videoId && deltaMap ? deltaMap.get(item.videoId) : undefined}
                                         />
                                     </div>
                                 );

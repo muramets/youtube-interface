@@ -37,6 +37,7 @@ import { useViewerTypeStore } from '../../../../core/stores/trends/useViewerType
 import { useTrendStore } from '../../../../core/stores/trends/trendStore';
 import { useSmartViewerTypeAutoApply } from './hooks/useSmartViewerTypeAutoApply';
 import { useVideoReactionStore } from '../../../../core/stores/trends/useVideoReactionStore';
+import { useVideoDeltaMap } from '../../../../core/hooks/useVideoDeltaMap';
 
 import type { TrafficSource } from '../../../../core/types/traffic';
 
@@ -625,6 +626,21 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     // Without memoization, `|| []` creates a new array reference each render.
     const { trafficSettings } = useSettings();
     const ctrRules = useMemo(() => trafficSettings?.ctrRules || [], [trafficSettings?.ctrRules]);
+
+    // Delta stats for per-row VideoPreviewTooltip
+    const trafficVideoIds = useMemo(() => {
+        return displayedSources
+            .map(s => s.videoId)
+            .filter((id): id is string => !!id);
+    }, [displayedSources]);
+    // Optimization: narrow snapshot queries to only trend channels that own these videos
+    const trafficChannelHints = useMemo(() => {
+        const ids = displayedSources
+            .map(s => s.channelId)
+            .filter((id): id is string => !!id);
+        return ids.length > 0 ? new Set(ids) : undefined;
+    }, [displayedSources]);
+    const { perVideo: deltaMap } = useVideoDeltaMap(trafficVideoIds, trafficChannelHints);
     // groups is now passed as prop
 
     // user and currentChannel hooks moved up
@@ -1162,6 +1178,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                                     // Video Reaction Props
                                     reactionMap={reactionMap}
                                     onToggleReaction={handleToggleReaction}
+                                    // Delta Stats for per-row tooltip
+                                    deltaMap={deltaMap}
                                 />
 
                                 {/* Floating Action Bar - Positioned absolutely relative to parent container */}

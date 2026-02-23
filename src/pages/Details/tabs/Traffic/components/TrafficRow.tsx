@@ -23,6 +23,7 @@ import { useChannelStore } from '../../../../../core/stores/channelStore';
 import type { SuggestedTrafficNiche } from '../../../../../core/types/suggestedTrafficNiches';
 
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
+import type { VideoDeltaStats } from '../../../../../core/types/videoDeltaStats';
 
 interface TrafficRowProps {
     item: TrafficSource;
@@ -57,6 +58,7 @@ interface TrafficRowProps {
     // Video Reactions (star/like/dislike)
     reaction?: VideoReaction;
     onToggleReaction?: (videoId: string, reaction: VideoReaction) => void;
+    deltaStats?: VideoDeltaStats;
 }
 
 const getCtrColor = (ctr: number | string, rules: CTRRule[]): string | undefined => {
@@ -107,7 +109,8 @@ export const TrafficRow = ({
     currentVideo,
     showPublishDate,
     reaction,
-    onToggleReaction
+    onToggleReaction,
+    deltaStats
 }: TrafficRowProps) => {
     // Connect to Niche Store
     const { niches, assignments } = useTrafficNicheStore();
@@ -430,6 +433,7 @@ export const TrafficRow = ({
                                                         tags={videoDetails?.tags}
                                                         className="w-full"
                                                         comparisonVideo={currentVideo}
+                                                        deltaStats={deltaStats}
                                                     />
                                                 </div>
                                             }
