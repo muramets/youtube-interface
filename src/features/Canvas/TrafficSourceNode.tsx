@@ -199,25 +199,24 @@ const TrafficSourceNodeInner: React.FC<TrafficSourceNodeProps> = ({ data }) => {
                 {/* Channel + niche */}
                 <div className="flex items-center gap-1.5 min-w-0">
                     {data.channelTitle && (
-                        data.channelId ? (
-                            <a
-                                href={`https://www.youtube.com/channel/${data.channelId}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-[10px] truncate flex-1 no-underline pointer-events-auto transition-colors"
-                                style={{ color: 'var(--text-secondary)' }}
-                                onMouseOver={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
-                                onMouseOut={(e) => (e.currentTarget.style.color = 'var(--text-secondary)')}
-                            >
-                                {data.channelTitle}
-                            </a>
-                        ) : (
-                            <p className="text-[10px] truncate flex-1" style={{ color: 'var(--text-secondary)' }}>
+                        <div className="flex items-center gap-0.5 min-w-0 flex-1 group/ch pointer-events-auto">
+                            <p className="text-[10px] truncate" style={{ color: 'var(--text-secondary)' }}>
                                 {data.channelTitle}
                             </p>
-                        )
+                            {data.channelId && (
+                                <a
+                                    href={`https://www.youtube.com/channel/${data.channelId}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="shrink-0 opacity-0 group-hover/ch:opacity-100 transition-all duration-150 text-text-tertiary hover:text-text-primary"
+                                    title={`Open ${data.channelTitle} on YouTube`}
+                                >
+                                    <ArrowUpRight size={10} strokeWidth={2.5} />
+                                </a>
+                            )}
+                        </div>
                     )}
                     {data.niche && (
                         <span className="px-1 py-px rounded text-[8px] font-medium shrink-0"

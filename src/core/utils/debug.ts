@@ -23,7 +23,7 @@ export const DEBUG_ENABLED = {
     scroll: false,       // ChatMessageList scroll state machine
     traffic: false,      // Traffic tab: unenriched calculation, repair flows
     trends: false,        // Trends table: snapshot loading, delta calculations
-    canvas: false,       // Canvas: node re-renders, drag frame timing, memo hits
+    canvas: true,       // Canvas: node re-renders, drag frame timing, memo hits
 } as const;
 
 type DebugCategory = keyof typeof DEBUG_ENABLED;
