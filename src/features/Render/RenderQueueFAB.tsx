@@ -3,12 +3,13 @@
 // =============================================================================
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Film, X, Download, ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
 import { Button } from '../../components/ui/atoms/Button/Button';
 import { Badge } from '../../components/ui/atoms/Badge/Badge';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { useRenderQueueStore, type RenderJob } from '../../core/stores/editing/renderQueueStore';
-import { useFloatingBottomOffset } from '../../core/hooks/useFloatingBottomOffset';
+import { useMusicStore } from '../../core/stores/musicStore';
 import { RenderStatusBar } from '../../components/ui/atoms/RenderStatusBar';
 import { getRenderStatusDisplay } from './getRenderStageDisplay';
 import { useElapsedTimer, formatElapsed } from './useElapsedTimer';
@@ -91,7 +92,8 @@ export const RenderQueueFAB: React.FC = () => {
     const retryJob = useRenderQueueStore((s) => s.retryJob);
     const dismissFromFab = useRenderQueueStore((s) => s.dismissFromFab);
     const cleanExpired = useRenderQueueStore((s) => s.cleanExpired);
-    const { bottomClass, rightPx } = useFloatingBottomOffset();
+    const hasAudioPlayer = !!useMusicStore((s) => s.playingTrackId);
+    const { pathname } = useLocation();
 
     const [isExpanded, setIsExpanded] = useState(false);
     const panelRef = useRef<HTMLDivElement>(null);
@@ -148,18 +150,35 @@ export const RenderQueueFAB: React.FC = () => {
     const activeJob = visibleJobs.find((j) => j.status === 'rendering');
     const queuedCount = visibleJobs.filter((j) => j.status === 'queued').length;
 
-    // Position FAB to the left of ChatBubble
-    const CHAT_BUBBLE_WIDTH = 48;
+    // ── Floor-1 positioning ─────────────────────────────────────────────
+    // Render FAB sits on the FIRST floor (same level as page controls),
+    // not the second floor where Chat/Canvas bubbles live.
+    const hasZoomControls = pathname === '/' || /^\/playlists\/[^/]+$/.test(pathname);
+    const hasTimelineControls = pathname === '/trends';
+
+    // Bottom: match the page-specific controls vertical level
+    const bottomPx = hasTimelineControls
+        ? (hasAudioPlayer ? 88 : 16)                  // TimelineControls: bottom-4 / bottom-[88px]
+        : hasZoomControls
+            ? (hasAudioPlayer ? 88 : 32)               // ZoomControls: bottom-8 / bottom-[88px]
+            : (hasAudioPlayer ? 88 : 32);              // Default: bottom-8 / bottom-[88px]
+
+    // Right: position to the LEFT of page-specific controls
+    //   Homepage/Playlists: ZoomControls at right-8 (32px), width 2×48+8=104px → left edge 136px
+    //   Trends: TimelineControls at right-6 (24px), bottom row ~192px → left edge 216px
+    //   Music/Other: CanvasBubble at right 88px, width 48px → left edge 136px
     const FAB_GAP = 12;
-    const fabRightPx = rightPx + CHAT_BUBBLE_WIDTH + FAB_GAP;
+    const fabRightPx = hasTimelineControls
+        ? 24 + 192 + FAB_GAP   // 228px — left of timeline pills
+        : 32 + 104 + FAB_GAP;  // 148px — left of zoom controls / canvas bubble
 
     return (
         <div ref={panelRef} className="fixed z-sticky" style={{ opacity: ready ? 1 : 0, pointerEvents: ready ? undefined : 'none' }}>
             {/* ── Expanded panel ─────────────────────────────────────── */}
             {isExpanded && (
                 <div
-                    className={`render-queue-panel fixed ${bottomClass} mb-16 w-72 rounded-xl border border-border bg-bg-secondary/70 backdrop-blur-xl shadow-xl overflow-hidden transition-[bottom] duration-500`}
-                    style={{ right: fabRightPx }}
+                    className="render-queue-panel fixed mb-16 w-72 rounded-xl border border-border bg-bg-secondary/70 backdrop-blur-xl shadow-xl overflow-hidden transition-[bottom] duration-500"
+                    style={{ bottom: bottomPx, right: fabRightPx }}
                 >
                     {/* Header */}
                     <div className="flex items-center justify-between px-3 py-2.5 border-b border-border">
@@ -190,8 +209,8 @@ export const RenderQueueFAB: React.FC = () => {
             {/* ── Collapsed FAB ──────────────────────────────────────── */}
             <button
                 ref={fabRef}
-                className={`render-fab fixed ${bottomClass} h-12 rounded-full border border-border cursor-pointer flex items-center gap-2.5 px-4 bg-bg-secondary/70 backdrop-blur-xl shadow-lg text-text-secondary transition-[bottom,transform,filter,opacity] duration-500 hover:brightness-125`}
-                style={{ right: fabRightPx }}
+                className="render-fab fixed h-12 rounded-full border border-border cursor-pointer flex items-center gap-2.5 px-4 bg-bg-secondary/70 backdrop-blur-xl shadow-lg text-text-secondary transition-[bottom,transform,filter,opacity] duration-500 hover:brightness-125"
+                style={{ bottom: bottomPx, right: fabRightPx }}
                 onClick={() => setIsExpanded(!isExpanded)}
                 title="Render Queue"
             >
