@@ -10,7 +10,7 @@
 // awareness (owner credentials, permission-gated like/settings buttons).
 // =============================================================================
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart, Mic, Piano, X, Repeat, Repeat1, Settings, ListMusic, Scissors, Check, Loader2 } from 'lucide-react';
 import { AddToMusicPlaylistModal } from '../modals/AddToMusicPlaylistModal';
 import { UploadTrackModal } from '../modals/UploadTrackModal';
@@ -20,6 +20,7 @@ import { useMusicStore, selectAllTracks } from '../../../core/stores/musicStore'
 import { useEditingStore } from '../../../core/stores/editing/editingStore';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
+import { TrackService } from '../../../core/services/trackService';
 import { DEFAULT_ACCENT_COLOR } from '../../../core/utils/trackUtils';
 import { formatDuration } from '../utils/formatDuration';
 import { useAudioEngine } from '../hooks/useAudioEngine';
@@ -92,6 +93,20 @@ export const AudioPlayer: React.FC = () => {
         effectiveUserId, effectiveChannelId,
     });
 
+    // ── Persist recomputed peaks after trim ────────────────────────────────
+    // Cloud Function deletes peaks on trim; usePeaks recomputes from the new
+    // audio URL. This callback saves them back to Firestore so timeline
+    // waveforms (and future sessions) have peaks available immediately.
+    const handlePeaksRecomputed = useCallback((peaks: number[]) => {
+        clearWaveformReloading();
+        if (track && effectiveUserId && effectiveChannelId) {
+            const peaksKey = playingVariant === 'vocal' ? 'vocalPeaks' : 'instrumentalPeaks';
+            TrackService.updateTrack(
+                effectiveUserId, effectiveChannelId, track.id,
+                { [peaksKey]: peaks },
+            ).catch((err) => console.error('[AudioPlayer] Failed to persist peaks:', err));
+        }
+    }, [clearWaveformReloading, track, effectiveUserId, effectiveChannelId, playingVariant]);
 
     // Close player on Esc — only if no modals are open
     useEffect(() => {
@@ -271,7 +286,7 @@ export const AudioPlayer: React.FC = () => {
                                 fadeOutStartFrac={fadeOutStartFrac}
                                 fadeOutCurvature={fadeOutCurvature}
                                 onFadeOutChange={isTrimMode ? handleFadeOutChange : undefined}
-                                onPeaksComputed={isWaveformReloading ? clearWaveformReloading : undefined}
+                                onPeaksComputed={handlePeaksRecomputed}
                                 compact
                             />
                         </div>
