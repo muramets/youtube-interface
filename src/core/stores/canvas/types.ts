@@ -8,6 +8,19 @@ import type {
     CanvasEdge, HandlePosition,
 } from '../../types/canvas';
 
+// --- Canvas page metadata (stored in canvas/meta doc) ---
+export interface CanvasPageMeta {
+    id: string;
+    title: string;
+    order: number;
+}
+
+// --- Undo/Redo snapshot (nodes + edges only, no viewport/selection) ---
+export interface CanvasSnapshot {
+    nodes: CanvasNode[];
+    edges: CanvasEdge[];
+}
+
 // --- Pending edge (rubber-band while dragging from a handle) ---
 export interface PendingEdge {
     sourceNodeId: string;
@@ -31,12 +44,25 @@ export interface CanvasState {
     userId: string | null;
     channelId: string | null;
 
-    // Data
+    // Pages
+    pages: CanvasPageMeta[];
+    activePageId: string | null;
+
+    // Data (current page)
     nodes: CanvasNode[];
     edges: CanvasEdge[];
     viewport: CanvasViewport;
     /** Measured node heights from ResizeObserver — not persisted */
     nodeSizes: Record<string, number>;
+
+    // Clipboard (in-memory, survives page switches)
+    clipboard: { nodes: CanvasNode[]; edges: CanvasEdge[]; sourcePageId: string } | null;
+
+    // Undo/Redo (per-page, max 50 levels)
+    _undoStack: CanvasSnapshot[];
+    _redoStack: CanvasSnapshot[];
+    canUndo: boolean;
+    canRedo: boolean;
 
     // UI
     isOpen: boolean;
@@ -99,13 +125,35 @@ export interface CanvasState {
     // Actions: Viewport
     setViewport: (viewport: CanvasViewport) => void;
 
+    // Pages
+    switchPage: (pageId: string) => void;
+    addPage: (title: string) => void;
+    renamePage: (pageId: string, title: string) => void;
+    deletePage: (pageId: string) => void;
+
+    // Clipboard
+    copySelected: () => void;
+    pasteClipboard: (viewportCenter: { x: number; y: number }) => void;
+    /** Paste + delete originals from source page (Cmd+Opt+V move) */
+    moveClipboard: (viewportCenter: { x: number; y: number }) => void;
+
     // Firestore
-    subscribe: () => () => void;
+    subscribeMeta: () => () => void;
+    subscribe: (pageId: string) => () => void;
     _save: () => void;
     /** Immediately persist any pending debounced save (call on close) */
     _flush: () => void;
     /** Mark a node as dirty — onSnapshot preserves local version for dirty nodes */
     _markDirty: (id: string) => void;
+    /** Mark node IDs as locally deleted — onSnapshot skips them until save completes */
+    _markDeleted: (ids: string[]) => void;
+    _saveMeta: () => void;
+
+    // Undo/Redo
+    /** Push current nodes+edges onto undo stack (call before destructive mutations) */
+    _pushUndo: () => void;
+    undo: () => void;
+    redo: () => void;
 }
 
 /** Zustand slice creator type — all slices share the full CanvasState */

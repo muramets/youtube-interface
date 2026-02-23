@@ -7,7 +7,7 @@
 //   <EdgeHandles> — re-wire circles, rendered AFTER nodes (above cards)
 // =============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 import type { CanvasEdge, CanvasNode, EdgeLineStyle } from '../../core/types/canvas';
@@ -17,6 +17,7 @@ import {
     getMidPoint, getArrowPath, getControlOffset,
     type Point,
 } from './geometry/edgeGeometry';
+import { isNodeVisible } from './geometry/viewportCulling';
 import { startRewire } from './geometry/rewireLogic';
 
 // --- Constants ---
@@ -214,15 +215,32 @@ const SVG_STYLE_HANDLES: React.CSSProperties = {
 // --- EdgeLines: lines + arrowheads + rubber-band (rendered BEFORE nodes) ---
 
 export const EdgeLines: React.FC = () => {
-    const { edges, nodes, nodeSizes } = useCanvasStore(
-        useShallow((s) => ({ edges: s.edges, nodes: s.nodes, nodeSizes: s.nodeSizes }))
+    const { edges, nodes, nodeSizes, viewport } = useCanvasStore(
+        useShallow((s) => ({ edges: s.edges, nodes: s.nodes, nodeSizes: s.nodeSizes, viewport: s.viewport }))
     );
     const placedNodes = nodes.filter((n) => n.position !== null);
+
+    // Build set of visible node IDs for O(1) edge filtering
+    const screenW = typeof window !== 'undefined' ? window.innerWidth : 1920;
+    const screenH = typeof window !== 'undefined' ? window.innerHeight : 1080;
+    const visibleIds = useMemo(() => {
+        const set = new Set<string>();
+        for (const n of placedNodes) {
+            if (isNodeVisible(n, viewport, screenW, screenH, nodeSizes[n.id])) set.add(n.id);
+        }
+        return set;
+    }, [placedNodes, viewport, screenW, screenH, nodeSizes]);
+
+    // Render edge if at least one of its nodes is visible
+    const visibleEdges = useMemo(
+        () => edges.filter((e) => visibleIds.has(e.sourceNodeId) || visibleIds.has(e.targetNodeId)),
+        [edges, visibleIds],
+    );
 
     return (
         <svg style={SVG_STYLE_LINES}>
             <g style={{ pointerEvents: 'all' }}>
-                {edges.map((edge) => (
+                {visibleEdges.map((edge) => (
                     <EdgeLine key={edge.id} edge={edge} nodes={placedNodes} nodeSizes={nodeSizes} />
                 ))}
             </g>
@@ -234,15 +252,31 @@ export const EdgeLines: React.FC = () => {
 // --- EdgeHandles: re-wire circles (rendered AFTER nodes, above cards) ---
 
 export const EdgeHandles: React.FC = () => {
-    const { edges, nodes, nodeSizes } = useCanvasStore(
-        useShallow((s) => ({ edges: s.edges, nodes: s.nodes, nodeSizes: s.nodeSizes }))
+    const { edges, nodes, nodeSizes, viewport } = useCanvasStore(
+        useShallow((s) => ({ edges: s.edges, nodes: s.nodes, nodeSizes: s.nodeSizes, viewport: s.viewport }))
     );
     const placedNodes = nodes.filter((n) => n.position !== null);
+
+    // Same visibility filter as EdgeLines
+    const screenW = typeof window !== 'undefined' ? window.innerWidth : 1920;
+    const screenH = typeof window !== 'undefined' ? window.innerHeight : 1080;
+    const visibleIds = useMemo(() => {
+        const set = new Set<string>();
+        for (const n of placedNodes) {
+            if (isNodeVisible(n, viewport, screenW, screenH, nodeSizes[n.id])) set.add(n.id);
+        }
+        return set;
+    }, [placedNodes, viewport, screenW, screenH, nodeSizes]);
+
+    const visibleEdges = useMemo(
+        () => edges.filter((e) => visibleIds.has(e.sourceNodeId) || visibleIds.has(e.targetNodeId)),
+        [edges, visibleIds],
+    );
 
     return (
         <svg style={SVG_STYLE_HANDLES}>
             <g style={{ pointerEvents: 'all' }}>
-                {edges.map((edge) => (
+                {visibleEdges.map((edge) => (
                     <EdgeHandle key={edge.id} edge={edge} nodes={placedNodes} nodeSizes={nodeSizes} />
                 ))}
             </g>

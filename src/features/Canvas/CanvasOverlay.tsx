@@ -4,7 +4,7 @@
 // places pending nodes when Canvas opens or when new nodes are added while open.
 // =============================================================================
 
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 import { useCanvasSync } from './hooks/useCanvasSync';
@@ -18,17 +18,38 @@ import { VideoCardNode } from './VideoCardNode';
 import { TrafficSourceNode } from './TrafficSourceNode';
 import { StickyNoteNode } from './StickyNoteNode';
 import { EdgeLayer, EdgeHandles } from './EdgeLayer';
+import { isNodeVisible } from './geometry/viewportCulling';
 import type { CanvasViewport } from '../../core/types/canvas';
 import type { VideoCardContext, TrafficSourceCardData } from '../../core/types/appContext';
 import type { StickyNoteData } from '../../core/types/canvas';
 import { debug } from '../../core/utils/debug';
+import { CanvasPageHeader } from './CanvasPageHeader';
 import './Canvas.css';
+
+// --- Module-level constants ---
+const STICKY_NOTE_W = 200;
+const STICKY_NOTE_H = 160;
+
+// --- Two-level LOD thresholds with hysteresis ±0.03 ---
+const LOD_FULL_UP = 0.53;  // zoom-in: switch TO full
+const LOD_FULL_DOWN = 0.47;  // zoom-out: switch FROM full
+const LOD_MIN_UP = 0.28;  // zoom-in: switch TO medium
+const LOD_MIN_DOWN = 0.22;  // zoom-out: switch FROM medium
+
+type LodLevel = import('./CanvasNodeWrapper').LodLevel;
+
+const computeLod = (zoom: number, prev: LodLevel): LodLevel => {
+    if (prev === 'full') return zoom < LOD_FULL_DOWN ? (zoom < LOD_MIN_DOWN ? 'minimal' : 'medium') : 'full';
+    if (prev === 'medium') return zoom >= LOD_FULL_UP ? 'full' : (zoom < LOD_MIN_DOWN ? 'minimal' : 'medium');
+    /* minimal */           return zoom >= LOD_MIN_UP ? (zoom >= LOD_FULL_UP ? 'full' : 'medium') : 'minimal';
+};
 
 export const CanvasOverlay: React.FC = () => {
     const {
         isOpen,
         setOpen,
         nodes,
+        nodeSizes,
         viewport,
         setViewport,
         clearSelection,
@@ -36,11 +57,18 @@ export const CanvasOverlay: React.FC = () => {
         setLastCanvasWorldPos,
         addNodeAt,
         markPlaced,
+        pages,
+        activePageId,
+        switchPage,
+        addPage,
+        renamePage,
+        deletePage,
     } = useCanvasStore(
         useShallow((s) => ({
             isOpen: s.isOpen,
             setOpen: s.setOpen,
             nodes: s.nodes,
+            nodeSizes: s.nodeSizes,
             viewport: s.viewport,
             setViewport: s.setViewport,
             clearSelection: s.clearSelection,
@@ -48,25 +76,55 @@ export const CanvasOverlay: React.FC = () => {
             setLastCanvasWorldPos: s.setLastCanvasWorldPos,
             addNodeAt: s.addNodeAt,
             markPlaced: s.markPlaced,
+            pages: s.pages,
+            activePageId: s.activePageId,
+            switchPage: s.switchPage,
+            addPage: s.addPage,
+            renamePage: s.renamePage,
+            deletePage: s.deletePage,
         }))
     );
 
     const boardRef = useRef<CanvasBoardHandle>(null);
-    const [liveZoom, setLiveZoom] = React.useState(viewport.zoom);
+    const liveZoomRef = useRef(viewport.zoom);
+    // Culling viewport: updated mid-pan/zoom via throttled callback
+    const [cullingViewport, setCullingViewport] = React.useState(viewport);
+    // LOD level — only re-renders when level actually transitions (rare)
+    const [lodLevel, setLodLevel] = React.useState<LodLevel>('full');
 
     // --- Hooks: sync, placement, keyboard ---
     useCanvasSync(isOpen);
     useCanvasPlacement(isOpen, boardRef);
     useCanvasKeyboard(isOpen, boardRef);
 
+    // Sync liveZoom and cullingViewport when viewport changes externally
+    React.useEffect(() => {
+        liveZoomRef.current = viewport.zoom;
+        setCullingViewport(viewport);
+    }, [viewport]);
+
     const handleViewportChange = useCallback((vp: CanvasViewport) => {
         setViewport(vp);
-        setLiveZoom(vp.zoom);
+        liveZoomRef.current = vp.zoom;
+        setCullingViewport(vp);
     }, [setViewport]);
 
-    // Called every rAF frame — updates zoom pill display without store overhead
+    // Called every rAF frame — updates zoom ref and LOD level (no React re-render
+    // unless LOD actually transitions, which is rare: 3 levels with hysteresis)
     const handleZoomFrame = useCallback((zoom: number) => {
-        setLiveZoom(zoom);
+        liveZoomRef.current = zoom;
+        setLodLevel((prev) => {
+            const next = computeLod(zoom, prev);
+            if (next !== prev) {
+                debug.canvas(`🎨 LOD → ${next} (zoom=${zoom.toFixed(3)})`);
+            }
+            return next;
+        });
+    }, []);
+
+    // Throttled mid-pan/zoom update — drives viewport culling recalculation
+    const handlePanFrame = useCallback((vp: CanvasViewport) => {
+        setCullingViewport(vp);
     }, []);
 
     // Marquee selection: hit-test all [data-node-id] elements against client rect
@@ -90,8 +148,6 @@ export const CanvasOverlay: React.FC = () => {
     }, [setSelectedNodeIds, markPlaced]);
 
     // Double-click on empty canvas → create sticky note centered on cursor
-    const STICKY_NOTE_W = 200;
-    const STICKY_NOTE_H = 160;
     const handleCanvasDblClick = useCallback((worldPos: { x: number; y: number }) => {
         addNodeAt(
             { type: 'sticky-note', content: '', color: 'yellow' },
@@ -99,11 +155,26 @@ export const CanvasOverlay: React.FC = () => {
         );
     }, [addNodeAt]);
 
-    const placedNodes = nodes.filter((n) => n.position !== null);
+
+
+    const placedNodes = useMemo(() => nodes.filter((n) => n.position !== null), [nodes]);
     const hasNodes = placedNodes.length > 0;
-    debug.fps('canvas', `CanvasOverlay (zoom=${viewport.zoom.toFixed(2)}, nodes=${placedNodes.length})`);
+
+    // --- Viewport Culling: only render nodes visible on screen ---
+    // Uses cullingViewport (updated mid-pan) instead of store viewport
+    const screenW = typeof window !== 'undefined' ? window.innerWidth : 1920;
+    const screenH = typeof window !== 'undefined' ? window.innerHeight : 1080;
+    const visibleNodes = useMemo(
+        () => placedNodes.filter((n) => isNodeVisible(n, cullingViewport, screenW, screenH, nodeSizes[n.id])),
+        [placedNodes, cullingViewport, screenW, screenH, nodeSizes],
+    );
+
+    debug.fps('canvas', `CanvasOverlay (zoom=${viewport.zoom.toFixed(2)}, nodes=${placedNodes.length}, visible=${visibleNodes.length}, lod=${lodLevel})`);
 
     if (!isOpen) return null;
+
+    // Map CanvasPageMeta to CanvasPage shape for tabs
+    const tabPages = pages.map((p) => ({ id: p.id, title: p.title }));
 
     return (
         <>
@@ -112,12 +183,23 @@ export const CanvasOverlay: React.FC = () => {
                 className="canvas-overlay fixed inset-0 z-panel flex flex-col"
                 style={{ background: 'var(--bg-primary)' }}
             >
+                {/* Page header — frozen blur, above board */}
+                <CanvasPageHeader
+                    pages={tabPages}
+                    activePageId={activePageId ?? ''}
+                    onSwitch={switchPage}
+                    onAdd={() => addPage(`Page ${pages.length + 1}`)}
+                    onRename={renamePage}
+                    onDelete={deletePage}
+                />
+
                 {/* Board — nodes are children of the transform layer */}
                 <CanvasBoard
                     ref={boardRef}
                     viewport={viewport}
                     onViewportChange={handleViewportChange}
                     onZoomFrame={handleZoomFrame}
+                    onPanFrame={handlePanFrame}
                     onClick={clearSelection}
                     onSelectRect={handleSelectRect}
                     onCursorMove={setLastCanvasWorldPos}
@@ -126,8 +208,8 @@ export const CanvasOverlay: React.FC = () => {
                     {/* EdgeLayer behind nodes so cards appear on top of edge lines */}
                     <EdgeLayer />
 
-                    {placedNodes.map((node) => (
-                        <CanvasNodeWrapper key={node.id} node={node}>
+                    {visibleNodes.map((node) => (
+                        <CanvasNodeWrapper key={node.id} node={node} lodLevel={lodLevel} measuredHeight={nodeSizes[node.id]}>
                             {node.type === 'video-card' && (
                                 <VideoCardNode data={node.data as VideoCardContext} nodeId={node.id} />
                             )}
@@ -164,7 +246,6 @@ export const CanvasOverlay: React.FC = () => {
 
             {/* Toolbar: fixed, outside overlay stacking context → genuinely z-overlay-ui (403) globally */}
             <CanvasToolbar
-                zoom={liveZoom}
                 onClose={() => setOpen(false)}
                 boardRef={boardRef}
             />

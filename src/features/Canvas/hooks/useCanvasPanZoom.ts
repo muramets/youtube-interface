@@ -17,6 +17,8 @@ interface UseCanvasPanZoomOptions {
     viewport: CanvasViewport;
     onViewportChange: (vp: CanvasViewport) => void;
     onZoomFrame?: (zoom: number) => void;
+    /** Throttled callback during pan/zoom — used for mid-animation culling updates */
+    onPanFrame?: (vp: CanvasViewport) => void;
     containerRef: React.RefObject<HTMLDivElement | null>;
     /** Ref to the transform layer div — used for direct DOM writes during animation */
     transformLayerRef: React.RefObject<HTMLDivElement | null>;
@@ -44,6 +46,7 @@ export function useCanvasPanZoom({
     viewport,
     onViewportChange,
     onZoomFrame,
+    onPanFrame,
     containerRef,
     transformLayerRef,
 }: UseCanvasPanZoomOptions): PanZoomControls {
@@ -56,6 +59,21 @@ export function useCanvasPanZoom({
     const panStartRef = useRef({ x: 0, y: 0 });
     const mouseDownPosRef = useRef({ x: 0, y: 0 });
     const hasMoveRef = useRef(false);
+
+    // Throttle state for onPanFrame (150ms)
+    const lastPanFrameRef = useRef(0);
+    const PAN_FRAME_THROTTLE = 150;
+
+    // Stable refs for callbacks — prevents updateAnim from depending on
+    // potentially unstable callback props (which would cause infinite rAF loop)
+    const onViewportChangeRef = useRef(onViewportChange);
+    const onZoomFrameRef = useRef(onZoomFrame);
+    const onPanFrameRef = useRef(onPanFrame);
+    useEffect(() => {
+        onViewportChangeRef.current = onViewportChange;
+        onZoomFrameRef.current = onZoomFrame;
+        onPanFrameRef.current = onPanFrame;
+    });
 
     // --- Direct DOM write (bypasses React during animation) ---
     const GRID_SIZE_BASE = 24;
@@ -143,17 +161,23 @@ export function useCanvasPanZoom({
             syncToReact(); // Sync React state only on finish
             setIsAnimating(false);
             liveZoom.current = tgt.zoom;
-            onViewportChange({ x: tgt.x, y: tgt.y, zoom: tgt.zoom });
-            onZoomFrame?.(tgt.zoom);
+            onViewportChangeRef.current({ x: tgt.x, y: tgt.y, zoom: tgt.zoom });
+            onZoomFrameRef.current?.(tgt.zoom);
             rafRef.current = null;
         } else {
             transformRef.current = { x: nx, y: ny, zoom: nz };
             flushToDom(); // Direct DOM write — no React
             liveZoom.current = nz;
-            onZoomFrame?.(nz);
+            onZoomFrameRef.current?.(nz);
+            // Throttled culling update during zoom animation
+            const now = performance.now();
+            if (onPanFrameRef.current && now - lastPanFrameRef.current > PAN_FRAME_THROTTLE) {
+                lastPanFrameRef.current = now;
+                onPanFrameRef.current({ x: nx, y: ny, zoom: nz });
+            }
             rafRef.current = requestAnimationFrame(updateAnimRef.current);
         }
-    }, [flushToDom, syncToReact, onViewportChange, onZoomFrame]);
+    }, [flushToDom, syncToReact]);
 
     useEffect(() => {
         updateAnimRef.current = updateAnim;
@@ -250,13 +274,20 @@ export function useCanvasPanZoom({
         transformRef.current = { ...transformRef.current, x: newX, y: newY };
         targetRef.current = { ...transformRef.current };
         flushToDom(); // Direct DOM write — no React
+
+        // Throttled culling update during pan
+        const now = performance.now();
+        if (onPanFrameRef.current && now - lastPanFrameRef.current > PAN_FRAME_THROTTLE) {
+            lastPanFrameRef.current = now;
+            onPanFrameRef.current({ x: newX, y: newY, zoom: transformRef.current.zoom });
+        }
         return true;
     }, [flushToDom]);
 
     const handlePanEnd = useCallback(() => {
         if (hasMoveRef.current) {
             syncToReact(); // Sync React state when pan ends
-            onViewportChange({
+            onViewportChangeRef.current({
                 x: transformRef.current.x,
                 y: transformRef.current.y,
                 zoom: transformRef.current.zoom,
@@ -264,7 +295,7 @@ export function useCanvasPanZoom({
         }
         setIsPanning(false);
         hasMoveRef.current = false;
-    }, [onViewportChange, syncToReact]);
+    }, [syncToReact]);
 
     return {
         transform,

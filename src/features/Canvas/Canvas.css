@@ -63,6 +63,12 @@
     contain: layout style paint;
 }
 
+/* Relax paint containment during resize — prevents stale GPU artifacts
+   when a node shrinks and old pixels linger outside the new bounds */
+.canvas-node.is-resizing {
+    contain: layout style;
+}
+
 /* Subtle pulse glow for nodes not yet manually moved */
 .canvas-node-pending {
     animation: pendingGlow 2.5s ease-in-out infinite;

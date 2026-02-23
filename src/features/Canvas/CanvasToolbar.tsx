@@ -10,21 +10,33 @@ import { ControlPill } from '../../pages/Trends/Timeline/components/ControlPill'
 import type { CanvasBoardHandle } from './CanvasBoard';
 import { useMusicStore } from '../../core/stores/musicStore';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
+import { liveZoom } from './liveZoom';
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4;
 const DRAG_SENSITIVITY = 0.005; // zoom units per pixel dragged
 
 interface CanvasToolbarProps {
-    zoom: number;
     onClose: () => void;
     boardRef: React.RefObject<CanvasBoardHandle | null>;
 }
 
-export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom, onClose, boardRef }) => {
+export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ onClose, boardRef }) => {
     const hasAudioPlayer = !!useMusicStore((s) => s.playingTrackId);
     const addNode = useCanvasStore((s) => s.addNode);
-    const zoomPct = Math.round(zoom * 100);
+
+    // Read zoom from shared ref — poll via rAF for smooth pill updates
+    const [zoomDisplay, setZoomDisplay] = useState(liveZoom.current);
+    useEffect(() => {
+        let raf: number;
+        const tick = () => {
+            const z = Math.round(liveZoom.current * 100);
+            setZoomDisplay((prev) => prev === z ? prev : z);
+            raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(raf);
+    }, []);
 
     const handleAddNote = useCallback(() => {
         addNode({ type: 'sticky-note', content: '', color: 'yellow' });
@@ -42,9 +54,9 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom, onClose, boa
     const handlePillMouseDown = useCallback((e: React.MouseEvent) => {
         if ((e.target as HTMLElement).closest('button')) return;
         e.preventDefault();
-        dragStartRef.current = { x: e.clientX, zoom };
+        dragStartRef.current = { x: e.clientX, zoom: liveZoom.current };
         setIsDragging(true);
-    }, [zoom]);
+    }, []);
 
     useEffect(() => {
         if (!isDragging) return;
@@ -79,7 +91,7 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ zoom, onClose, boa
             {/* Zoom pill — drag left/right, ↺ resets to 100% */}
             <ControlPill
                 orientation="horizontal"
-                text={`${zoomPct}%`}
+                text={`${zoomDisplay}%`}
                 className="w-[92px]"
                 isDragging={isDragging}
                 containerRef={pillRef}

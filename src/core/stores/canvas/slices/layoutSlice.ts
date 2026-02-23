@@ -69,12 +69,27 @@ export interface LayoutSlice {
     placePendingNodes: CanvasState['placePendingNodes'];
     relayoutChildren: CanvasState['relayoutChildren'];
 }
+// Batched node-size updates: accumulate in a map, flush once per rAF frame.
+// This prevents "Maximum update depth exceeded" when many ResizeObservers
+// fire synchronously (e.g. on initial mount or page switch).
+const _pendingSizes: Record<string, number> = {};
+let _sizeFlushId: number | null = null;
 
 export const createLayoutSlice: CanvasSlice<LayoutSlice> = (set, get) => ({
     nodeSizes: {},
 
     updateNodeSize: (id, height) => {
-        set((s) => ({ nodeSizes: { ...s.nodeSizes, [id]: height } }));
+        if (get().nodeSizes[id] === height) return;
+        _pendingSizes[id] = height;
+        if (_sizeFlushId === null) {
+            _sizeFlushId = requestAnimationFrame(() => {
+                _sizeFlushId = null;
+                const batch = { ..._pendingSizes };
+                // Clear pending before set() to avoid stale reads
+                for (const k of Object.keys(_pendingSizes)) delete _pendingSizes[k];
+                set((s) => ({ nodeSizes: { ...s.nodeSizes, ...batch } }));
+            });
+        }
     },
 
     placePendingNodes: (viewportCenter) => {

@@ -11,17 +11,25 @@ import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 import { liveZoom } from './liveZoom';
 import { useShallow } from 'zustand/react/shallow';
 import { ConnectionHandles } from './ConnectionHandles';
+import SimplifiedNode from './SimplifiedNode';
+import MediumLodNode from './MediumLodNode';
 import type { CanvasNode } from '../../core/types/canvas';
 import { NODE_WIDTH } from '../../core/stores/canvas/constants';
 import { usePointerDrag } from './hooks/usePointerDrag';
 import { debug } from '../../core/utils/debug';
 
+export type LodLevel = 'full' | 'medium' | 'minimal';
+
 interface CanvasNodeWrapperProps {
     node: CanvasNode;
     children: React.ReactNode;
+    /** Current LOD level: 'full' | 'medium' | 'minimal' */
+    lodLevel?: LodLevel;
+    /** Measured height from nodeSizes store, for LOD rendering */
+    measuredHeight?: number;
 }
 
-const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, children }) => {
+const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, children, lodLevel = 'full', measuredHeight }) => {
     debug.canvas('⟳ render', node.type, node.id.slice(0, 8));
     const {
         moveNode, moveNodes, deleteNode, updateNodeSize, resizeNode,
@@ -106,7 +114,8 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
             if (r.mode === 'corner') {
                 resizeNode(node.id, r.startWidth + dx, r.startHeight + dy);
             } else if (r.mode === 'right') {
-                resizeNode(node.id, r.startWidth + dx);
+                // Width-only: pass height=0 for non-sticky to reset to auto
+                resizeNode(node.id, r.startWidth + dx, isSticky ? undefined : 0);
             } else if (r.mode === 'bottom') {
                 resizeNode(node.id, r.startWidth, r.startHeight + dy);
             }
@@ -125,13 +134,15 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
             return;
         }
 
+        // Snapshot for undo before drag begins (after metaKey guard — no undo for selection toggle)
+        useCanvasStore.getState()._pushUndo();
+
         // Note: bringToFront is intentionally NOT called here.
         // During drag, the node renders at z-index 9999 via the isDragging CSS override,
         // so no persistent zIndex mutation is needed. This preserves user-set z-ordering
         // from the Bring to Front / Send to Back toolbar buttons.
 
-        const currentSelectedIds = useCanvasStore.getState().selectedNodeIds;
-        const currentNodes = useCanvasStore.getState().nodes;
+        const { selectedNodeIds: currentSelectedIds, nodes: currentNodes } = useCanvasStore.getState();
         const ids = currentSelectedIds.has(node.id)
             ? Array.from(currentSelectedIds)
             : [node.id];
@@ -160,6 +171,8 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
         (e: React.MouseEvent) => {
             e.stopPropagation();
             e.preventDefault();
+            // Snapshot for undo before resize begins
+            useCanvasStore.getState()._pushUndo();
             const el = nodeRef.current;
             resizeRef.current = {
                 startClientX: e.clientX,
@@ -174,7 +187,12 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
         }
         , [node.size, startResize]);
 
-    const handleResizeCorner = makeResizeStart('corner');
+    // For non-sticky nodes, corner handle acts as width-only resize
+    // (height is determined by content: thumbnail aspect-ratio + metadata)
+    const handleResizeCorner = React.useMemo(
+        () => makeResizeStart(isSticky ? 'corner' : 'right'),
+        [makeResizeStart, isSticky]
+    );
     const handleResizeRight = makeResizeStart('right');
     const handleResizeBottom = makeResizeStart('bottom');
 
@@ -251,7 +269,13 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
                     onMouseDown={handleResizeCorner}
                 />
 
-                {children}
+                {lodLevel === 'minimal' ? (
+                    <SimplifiedNode node={node} measuredHeight={measuredHeight} />
+                ) : lodLevel === 'medium' ? (
+                    <MediumLodNode node={node} />
+                ) : (
+                    children
+                )}
 
                 {/* Sticky note edge handles — rendered after children so they're on top. Invisible, cursor only. */}
                 {isSticky && (
@@ -291,6 +315,8 @@ export const CanvasNodeWrapper = React.memo(CanvasNodeWrapperInner, (prev, next)
     const a = prev.node;
     const b = next.node;
     return (
+        prev.lodLevel === next.lodLevel &&
+        prev.measuredHeight === next.measuredHeight &&
         a.id === b.id &&
         a.position === b.position &&
         a.size === b.size &&

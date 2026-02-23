@@ -16,6 +16,8 @@ interface CanvasBoardProps {
     viewport: CanvasViewport;
     onViewportChange: (vp: CanvasViewport) => void;
     onZoomFrame?: (zoom: number) => void;
+    /** Throttled callback during pan/zoom — used for mid-animation culling updates */
+    onPanFrame?: (vp: CanvasViewport) => void;
     onClick?: () => void;
     onSelectRect?: (rect: { left: number; top: number; right: number; bottom: number }) => void;
     /** Called when cursor moves over empty canvas (not panning). World coordinates. */
@@ -32,7 +34,7 @@ export interface CanvasBoardHandle {
 }
 
 export const CanvasBoard = React.forwardRef<CanvasBoardHandle, CanvasBoardProps>(
-    ({ viewport, onViewportChange, onZoomFrame, onClick, onSelectRect, onCursorMove, onDblClick, children }, ref) => {
+    ({ viewport, onViewportChange, onZoomFrame, onPanFrame, onClick, onSelectRect, onCursorMove, onDblClick, children }, ref) => {
         const containerRef = useRef<HTMLDivElement>(null);
         const transformLayerRef = useRef<HTMLDivElement>(null);
         const containerSizeRef = useRef({ width: 0, height: 0 });
@@ -63,6 +65,7 @@ export const CanvasBoard = React.forwardRef<CanvasBoardHandle, CanvasBoardProps>
             viewport,
             onViewportChange,
             onZoomFrame,
+            onPanFrame,
             containerRef,
             transformLayerRef,
         });

@@ -22,3 +22,6 @@ export const SAVE_DEBOUNCE_MS = 1500;
 
 /** Default traffic-source node width */
 export const TRAFFIC_NODE_WIDTH = 360;
+
+/** Maximum undo history levels per page */
+export const MAX_UNDO_LEVELS = 50;

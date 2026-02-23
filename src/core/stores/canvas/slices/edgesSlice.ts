@@ -31,6 +31,8 @@ export const createEdgesSlice: CanvasSlice<EdgesSlice> = (set, get) => ({
         );
         if (exists) return;
 
+        get()._pushUndo();
+
         const newEdge: CanvasEdge = {
             ...edgeData,
             id: crypto.randomUUID(),
@@ -41,6 +43,7 @@ export const createEdgesSlice: CanvasSlice<EdgesSlice> = (set, get) => ({
     },
 
     deleteEdge: (id) => {
+        get()._pushUndo();
         set((s) => ({ edges: s.edges.filter((e) => e.id !== id) }));
         get()._save();
     },

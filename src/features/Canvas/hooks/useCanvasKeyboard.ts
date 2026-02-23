@@ -19,9 +19,11 @@ export function useCanvasKeyboard(
     const setOpen = useCanvasStore((s) => s.setOpen);
 
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
-        // Skip canvas shortcuts when editing text (sticky note contentEditable)
+        // Skip canvas shortcuts when editing text (sticky note contentEditable, rename input)
         const active = document.activeElement;
-        const isEditing = active instanceof HTMLElement && active.isContentEditable;
+        const isEditing = active instanceof HTMLElement &&
+            (active.isContentEditable || active.tagName === 'INPUT');
+        const mod = e.metaKey || e.ctrlKey;
 
         if (e.key === 'Escape') {
             if (isEditing) return; // let StickyNoteNode handle Escape → blur
@@ -38,7 +40,68 @@ export function useCanvasKeyboard(
             }
         }
 
-        if (e.code === 'KeyZ' && !e.metaKey && !e.ctrlKey && !e.shiftKey && !isEditing) {
+        // Cmd+C → copy selected nodes
+        if (mod && e.code === 'KeyC' && !e.shiftKey && !isEditing) {
+            const { selectedNodeIds, copySelected } = useCanvasStore.getState();
+            if (selectedNodeIds.size > 0) {
+                e.preventDefault();
+                copySelected();
+            }
+        }
+
+        // Cmd+X → cut (copy + delete + immediate save)
+        if (mod && e.code === 'KeyX' && !e.shiftKey && !isEditing) {
+            const { selectedNodeIds, copySelected, deleteNodes, _flush } = useCanvasStore.getState();
+            if (selectedNodeIds.size > 0) {
+                e.preventDefault();
+                copySelected();
+                deleteNodes(Array.from(selectedNodeIds));
+                _flush(); // Bypass debounce — save immediately so onSnapshot can't re-add
+            }
+        }
+
+        // Cmd+Opt+V → move (paste + delete originals from source page)
+        if (mod && e.code === 'KeyV' && e.altKey && !e.shiftKey && !isEditing) {
+            const { clipboard } = useCanvasStore.getState();
+            if (clipboard && clipboard.nodes.length > 0) {
+                e.preventDefault();
+                const center = boardRef.current?.getViewportCenter?.() ?? { x: 0, y: 0 };
+                useCanvasStore.getState().moveClipboard(center);
+            }
+        }
+
+        // Cmd+V → paste clipboard
+        if (mod && e.code === 'KeyV' && !e.altKey && !e.shiftKey && !isEditing) {
+            const { clipboard } = useCanvasStore.getState();
+            if (clipboard && clipboard.nodes.length > 0) {
+                e.preventDefault();
+                const center = boardRef.current?.getViewportCenter?.() ?? { x: 0, y: 0 };
+                useCanvasStore.getState().pasteClipboard(center);
+            }
+        }
+
+        // Cmd+D → duplicate (copy + paste in one step)
+        if (mod && e.code === 'KeyD' && !e.shiftKey && !isEditing) {
+            const { selectedNodeIds, copySelected: copy, pasteClipboard: paste } = useCanvasStore.getState();
+            if (selectedNodeIds.size > 0) {
+                e.preventDefault();
+                copy();
+                const center = boardRef.current?.getViewportCenter?.() ?? { x: 0, y: 0 };
+                paste(center);
+            }
+        }
+
+        // Cmd+Z → undo / Cmd+Shift+Z → redo
+        if (mod && e.code === 'KeyZ' && !isEditing) {
+            e.preventDefault();
+            if (e.shiftKey) {
+                useCanvasStore.getState().redo();
+            } else {
+                useCanvasStore.getState().undo();
+            }
+        }
+
+        if (e.code === 'KeyZ' && !mod && !e.shiftKey && !isEditing) {
             const { nodes: allNodes, nodeSizes } = useCanvasStore.getState();
             const rects = allNodes
                 .filter((n) => n.position)

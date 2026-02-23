@@ -7,6 +7,34 @@ import { Timestamp } from 'firebase/firestore';
 import { TRAFFIC_NODE_WIDTH, STICKY_NOTE_HEIGHT_ESTIMATE } from '../constants';
 import type { CanvasSlice, CanvasState } from '../types';
 
+// ---------------------------------------------------------------------------
+// Node factory — consolidates type mapping and default sizes for addNode/addNodeAt
+// ---------------------------------------------------------------------------
+function createCanvasNode(
+    data: CanvasNodeData,
+    position: { x: number; y: number } | null,
+    existingNodes: CanvasNode[],
+): CanvasNode {
+    const maxZ = existingNodes.reduce((m, n) => Math.max(m, n.zIndex), 0);
+
+    let nodeType: CanvasNode['type'] = 'sticky-note';
+    if (data.type === 'video-card') nodeType = 'video-card';
+    else if (data.type === 'suggested-traffic') nodeType = 'suggested-traffic';
+    else if (data.type === 'traffic-source') nodeType = 'traffic-source';
+
+    return {
+        id: crypto.randomUUID(),
+        type: nodeType,
+        data,
+        position,
+        // Traffic-source nodes are auto-positioned; skip the pending glow
+        isPlaced: position !== null ? true : (nodeType === 'traffic-source' ? true : undefined),
+        zIndex: maxZ + 1,
+        ...(nodeType === 'traffic-source' ? { size: { w: TRAFFIC_NODE_WIDTH, h: 0 } } : {}),
+        ...(nodeType === 'sticky-note' ? { size: { w: 200, h: 0 } } : {}),
+        createdAt: Timestamp.now(),
+    };
+}
 export interface NodesSlice {
     nodes: CanvasNode[];
     lastCanvasWorldPos: { x: number; y: number } | null;
@@ -38,48 +66,15 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
     setLastHoveredNodeId: (id) => set({ lastHoveredNodeId: id }),
 
     addNode: (data) => {
-        const maxZ = get().nodes.reduce((m, n) => Math.max(m, n.zIndex), 0);
-
-        let nodeType: CanvasNode['type'] = 'sticky-note';
-        if (data.type === 'video-card') nodeType = 'video-card';
-        else if (data.type === 'suggested-traffic') nodeType = 'suggested-traffic';
-        else if (data.type === 'traffic-source') nodeType = 'traffic-source';
-
-        const newNode: CanvasNode = {
-            id: crypto.randomUUID(),
-            type: nodeType,
-            data,
-            position: null,
-            // Traffic-source nodes are auto-positioned; skip the pending glow
-            isPlaced: nodeType === 'traffic-source' ? true : undefined,
-            zIndex: maxZ + 1,
-            ...(nodeType === 'traffic-source' ? { size: { w: TRAFFIC_NODE_WIDTH, h: 0 } } : {}),
-            ...(nodeType === 'sticky-note' ? { size: { w: 200, h: 0 } } : {}),
-            createdAt: Timestamp.now(),
-        };
+        get()._pushUndo();
+        const newNode = createCanvasNode(data, null, get().nodes);
         set((s) => ({ nodes: [...s.nodes, newNode] }));
         get()._save();
     },
 
     addNodeAt: (data, position) => {
-        const maxZ = get().nodes.reduce((m, n) => Math.max(m, n.zIndex), 0);
-
-        let nodeType: CanvasNode['type'] = 'sticky-note';
-        if (data.type === 'video-card') nodeType = 'video-card';
-        else if (data.type === 'suggested-traffic') nodeType = 'suggested-traffic';
-        else if (data.type === 'traffic-source') nodeType = 'traffic-source';
-
-        const newNode: CanvasNode = {
-            id: crypto.randomUUID(),
-            type: nodeType,
-            data,
-            position,
-            isPlaced: true,
-            zIndex: maxZ + 1,
-            ...(nodeType === 'traffic-source' ? { size: { w: TRAFFIC_NODE_WIDTH, h: 0 } } : {}),
-            ...(nodeType === 'sticky-note' ? { size: { w: 200, h: 0 } } : {}),
-            createdAt: Timestamp.now(),
-        };
+        get()._pushUndo();
+        const newNode = createCanvasNode(data, position, get().nodes);
         set((s) => ({ nodes: [...s.nodes, newNode] }));
         get()._save();
     },
@@ -122,24 +117,29 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
     },
 
     deleteNode: (id) => {
+        get()._pushUndo();
         set((s) => ({
             nodes: s.nodes.filter((n) => n.id !== id),
             edges: s.edges.filter((e) => e.sourceNodeId !== id && e.targetNodeId !== id),
         }));
+        get()._markDeleted([id]);
         get()._save();
     },
 
     deleteNodes: (ids) => {
+        get()._pushUndo();
         const idSet = new Set(ids);
         set((s) => ({
             nodes: s.nodes.filter((n) => !idSet.has(n.id)),
             edges: s.edges.filter((e) => !idSet.has(e.sourceNodeId) && !idSet.has(e.targetNodeId)),
             selectedNodeIds: new Set<string>(),
         }));
+        get()._markDeleted(ids);
         get()._save();
     },
 
     alignNodesTop: (ids) => {
+        get()._pushUndo();
         const idSet = new Set(ids);
         const targets = get().nodes.filter((n) => idSet.has(n.id) && n.position);
         if (targets.length < 2) return;
@@ -164,7 +164,10 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
                 const minH = n.type === 'sticky-note' ? STICKY_NOTE_HEIGHT_ESTIMATE : 40;
                 const w = Math.max(minW, width);
                 const existingH = n.size?.h ?? 0;
-                const h = height != null ? Math.max(minH, height) : existingH;
+                // height=0 means "auto" (determined by content, e.g. video card)
+                const h = height === 0 ? 0
+                    : height != null ? Math.max(minH, height)
+                        : existingH;
                 return { ...n, size: { w, h } };
             }),
         }));
@@ -176,6 +179,7 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
         set((s) => ({
             nodes: s.nodes.map((n) => n.id === id ? { ...n, zIndex: maxZ + 1 } : n),
         }));
+        get()._save();
     },
 
     sendToBack: (id) => {
