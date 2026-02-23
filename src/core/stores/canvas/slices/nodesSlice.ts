@@ -50,6 +50,8 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
             type: nodeType,
             data,
             position: null,
+            // Traffic-source nodes are auto-positioned; skip the pending glow
+            isPlaced: nodeType === 'traffic-source' ? true : undefined,
             zIndex: maxZ + 1,
             ...(nodeType === 'traffic-source' ? { size: { w: TRAFFIC_NODE_WIDTH, h: 0 } } : {}),
             ...(nodeType === 'sticky-note' ? { size: { w: 200, h: 0 } } : {}),

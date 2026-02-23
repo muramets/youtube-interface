@@ -127,7 +127,7 @@ export const VideoCardNode: React.FC<VideoCardNodeProps> = ({ data, nodeId }) =>
                 )}
 
                 {/* Action buttons — appear on hover */}
-                <div className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                <div className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-20">
                     <button
                         style={{ pointerEvents: 'auto' }}
                         onMouseDown={(e) => e.stopPropagation()}
@@ -157,7 +157,7 @@ export const VideoCardNode: React.FC<VideoCardNodeProps> = ({ data, nodeId }) =>
                     </div>
                 )}
 
-                {/* Play button overlay — visible on group hover, only if video is published */}
+                {/* Play button — small centered button, only if video is published */}
                 {playableId && !isNowPlaying && (
                     <button
                         style={{ pointerEvents: 'auto' }}
@@ -166,11 +166,9 @@ export const VideoCardNode: React.FC<VideoCardNodeProps> = ({ data, nodeId }) =>
                             e.stopPropagation();
                             minimize(playableId, data.title);
                         }}
-                        className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer bg-transparent border-none z-10"
+                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all duration-200 cursor-pointer border-none z-10 hover:scale-110"
                     >
-                        <div className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center shadow-lg transition-transform duration-150 ease-out hover:scale-110">
-                            <Play size={14} className="text-white fill-white ml-[1px]" />
-                        </div>
+                        <Play size={14} className="text-white fill-white ml-[1px]" />
                     </button>
                 )}
 

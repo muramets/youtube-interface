@@ -234,6 +234,7 @@ export const CanvasNodeWrapper: React.FC<CanvasNodeWrapperProps> = ({ node, chil
                         height: 'calc(20px / var(--canvas-zoom, 1))',
                         bottom: 'calc(-4px / var(--canvas-zoom, 1))',
                         right: 'calc(-4px / var(--canvas-zoom, 1))',
+                        zIndex: 20, // Above edge handles (z-10) to prevent interception
                     }}
                     onMouseDown={handleResizeCorner}
                 />

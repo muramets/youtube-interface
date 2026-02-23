@@ -33,6 +33,7 @@ export const CanvasOverlay: React.FC = () => {
         setSelectedNodeIds,
         setLastCanvasWorldPos,
         addNodeAt,
+        markPlaced,
     } = useCanvasStore();
 
     const boardRef = useRef<CanvasBoardHandle>(null);
@@ -69,7 +70,9 @@ export const CanvasOverlay: React.FC = () => {
             if (overlaps) ids.push(id);
         });
         setSelectedNodeIds(ids);
-    }, [setSelectedNodeIds]);
+        // Dismiss pending glow for all selected nodes (same as single-click)
+        ids.forEach(markPlaced);
+    }, [setSelectedNodeIds, markPlaced]);
 
     // Double-click on empty canvas → create sticky note centered on cursor
     const STICKY_NOTE_W = 200;
