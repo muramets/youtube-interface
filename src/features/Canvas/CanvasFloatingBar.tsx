@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trash2, AlignStartHorizontal, BringToFront, SendToBack } from 'lucide-react';
+import { Trash2, AlignStartHorizontal, AlignCenterHorizontal, BringToFront, SendToBack } from 'lucide-react';
 import { FloatingBar } from '../../components/ui/organisms/FloatingBar';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -10,6 +10,7 @@ export const CanvasFloatingBar: React.FC = () => {
         clearSelection,
         deleteNodes,
         alignNodesTop,
+        alignNodesCenterY,
         bringNodesToFront,
         sendNodesToBack,
     } = useCanvasStore(
@@ -18,6 +19,7 @@ export const CanvasFloatingBar: React.FC = () => {
             clearSelection: s.clearSelection,
             deleteNodes: s.deleteNodes,
             alignNodesTop: s.alignNodesTop,
+            alignNodesCenterY: s.alignNodesCenterY,
             bringNodesToFront: s.bringNodesToFront,
             sendNodesToBack: s.sendNodesToBack,
         }))
@@ -66,6 +68,17 @@ export const CanvasFloatingBar: React.FC = () => {
                             title="Align top edges"
                         >
                             <AlignStartHorizontal size={20} />
+                        </button>
+                    )}
+
+                    {/* Align vertical centers — only meaningful for 2+ nodes */}
+                    {isMulti && (
+                        <button
+                            onClick={() => alignNodesCenterY(ids)}
+                            className="p-2 hover:bg-white/10 rounded-full text-text-primary hover:text-white transition-colors border-none cursor-pointer flex items-center justify-center"
+                            title="Align vertical centers"
+                        >
+                            <AlignCenterHorizontal size={20} />
                         </button>
                     )}
 

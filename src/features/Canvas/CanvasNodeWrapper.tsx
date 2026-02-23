@@ -33,7 +33,7 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
     debug.canvas('⟳ render', node.type, node.id.slice(0, 8));
     const {
         moveNode, moveNodes, deleteNode, updateNodeSize, resizeNode,
-        selectNode, markPlaced,
+        selectNode, markPlaced, duplicateNodes,
         isDraggingEdge,
     } = useCanvasStore(
         useShallow((s) => ({
@@ -44,6 +44,7 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
             resizeNode: s.resizeNode,
             selectNode: s.selectNode,
             markPlaced: s.markPlaced,
+            duplicateNodes: s.duplicateNodes,
             isDraggingEdge: s.pendingEdge !== null,
         }))
     );
@@ -142,8 +143,8 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
         // so no persistent zIndex mutation is needed. This preserves user-set z-ordering
         // from the Bring to Front / Send to Back toolbar buttons.
 
-        const { selectedNodeIds: currentSelectedIds, nodes: currentNodes } = useCanvasStore.getState();
-        const ids = currentSelectedIds.has(node.id)
+        const { selectedNodeIds: currentSelectedIds } = useCanvasStore.getState();
+        let ids = currentSelectedIds.has(node.id)
             ? Array.from(currentSelectedIds)
             : [node.id];
 
@@ -151,8 +152,18 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
             selectNode(node.id, false);
         }
 
+        // ⌥ Option + Drag → duplicate nodes, then drag the clones
+        if (e.altKey) {
+            const newIds = duplicateNodes(ids);
+            if (newIds.length > 0) {
+                ids = newIds;
+            }
+        }
+
+        // Re-read nodes after potential duplication
+        const latestNodes = useCanvasStore.getState().nodes;
         const nodeStartPositions = ids.map((id) => {
-            const n = currentNodes.find((nd) => nd.id === id);
+            const n = latestNodes.find((nd) => nd.id === id);
             return { id, x: n?.position?.x ?? 0, y: n?.position?.y ?? 0 };
         });
 
@@ -163,7 +174,7 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
             nodeStartPositions,
         };
         startDrag();
-    }, [node.id, selectNode, startDrag, markPlaced]);
+    }, [node.id, selectNode, startDrag, markPlaced, duplicateNodes]);
 
     const isSticky = node.type === 'sticky-note';
 

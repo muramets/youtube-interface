@@ -72,5 +72,5 @@ export const DetailsPage: React.FC = () => {
         );
     }
 
-    return <DetailsLayout video={video} playlistId={playlistId} />;
+    return <DetailsLayout key={video.id} video={video} playlistId={playlistId} />;
 };

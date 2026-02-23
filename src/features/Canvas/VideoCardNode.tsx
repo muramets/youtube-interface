@@ -69,8 +69,8 @@ const VideoCardNodeInner: React.FC<VideoCardNodeProps> = ({ data, nodeId }) => {
     const handleOpenDetails = (e: React.MouseEvent) => {
         e.stopPropagation();
         if (!currentChannel?.id) return;
-        setOpen(false);
         navigate(`/video/${currentChannel.id}/${data.videoId}/details`);
+        setOpen(false);
     };
 
     const handleRefresh = useCallback((e: React.MouseEvent) => {

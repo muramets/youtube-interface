@@ -101,7 +101,7 @@ const TrafficSourceNodeInner: React.FC<TrafficSourceNodeProps> = ({ data }) => {
             }}
         >
             {/* Left: Thumbnail */}
-            <div className={`relative shrink-0 bg-bg-secondary overflow-hidden rounded-lg m-2 ${isNowPlaying ? 'ring-1 ring-emerald-400/60' : ''}`} style={{ width: '38%', aspectRatio: '16/9' }}>
+            <div className={`relative shrink-0 bg-bg-secondary overflow-hidden rounded-lg m-2 group/thumb pointer-events-auto ${isNowPlaying ? 'ring-1 ring-emerald-400/60' : ''}`} style={{ width: '38%', aspectRatio: '16/9' }}>
                 {data.thumbnailUrl ? (
                     <img
                         src={data.thumbnailUrl}
@@ -128,11 +128,9 @@ const TrafficSourceNodeInner: React.FC<TrafficSourceNodeProps> = ({ data }) => {
                             e.stopPropagation();
                             minimize(data.videoId, data.title);
                         }}
-                        className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer bg-transparent border-none z-10"
+                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center shadow-lg opacity-0 group-hover/thumb:opacity-100 transition-all duration-200 cursor-pointer border-none z-10 hover:scale-110"
                     >
-                        <div className="w-6 h-6 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center shadow-lg transition-transform duration-150 ease-out hover:scale-110">
-                            <Play size={12} className="text-white fill-white ml-[1px]" />
-                        </div>
+                        <Play size={12} className="text-white fill-white ml-[1px]" />
                     </button>
                 )}
 

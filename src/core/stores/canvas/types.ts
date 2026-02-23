@@ -97,6 +97,9 @@ export interface CanvasState {
     deleteNode: (id: string) => void;
     deleteNodes: (ids: string[]) => void;
     alignNodesTop: (ids: string[]) => void;
+    alignNodesCenterY: (ids: string[]) => void;
+    /** Clone nodes (and internal edges) at their current positions; returns new IDs. Does NOT push undo. */
+    duplicateNodes: (ids: string[]) => string[];
     resizeNode: (id: string, width: number, height?: number) => void;
     bringToFront: (id: string) => void;
     sendToBack: (id: string) => void;

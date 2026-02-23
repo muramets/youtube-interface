@@ -4,7 +4,7 @@
 
 import type { CanvasNode, CanvasNodeData } from '../../../types/canvas';
 import { Timestamp } from 'firebase/firestore';
-import { TRAFFIC_NODE_WIDTH, STICKY_NOTE_HEIGHT_ESTIMATE } from '../constants';
+import { TRAFFIC_NODE_WIDTH, STICKY_NOTE_HEIGHT_ESTIMATE, NODE_HEIGHT_FALLBACK } from '../constants';
 import type { CanvasSlice, CanvasState } from '../types';
 
 // ---------------------------------------------------------------------------
@@ -48,6 +48,8 @@ export interface NodesSlice {
     deleteNode: CanvasState['deleteNode'];
     deleteNodes: CanvasState['deleteNodes'];
     alignNodesTop: CanvasState['alignNodesTop'];
+    alignNodesCenterY: CanvasState['alignNodesCenterY'];
+    duplicateNodes: CanvasState['duplicateNodes'];
     resizeNode: CanvasState['resizeNode'];
     bringToFront: CanvasState['bringToFront'];
     sendToBack: CanvasState['sendToBack'];
@@ -153,6 +155,83 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
             ),
         }));
         get()._save();
+    },
+
+    alignNodesCenterY: (ids) => {
+        get()._pushUndo();
+        const idSet = new Set(ids);
+        const targets = get().nodes.filter((n) => idSet.has(n.id) && n.position);
+        if (targets.length < 2) return;
+        ids.forEach((id) => get()._markDirty(id));
+
+        const nodeSizes = get().nodeSizes;
+        const nodeH = (n: CanvasNode) => nodeSizes[n.id] ?? n.size?.h ?? NODE_HEIGHT_FALLBACK;
+
+        // Find the tallest node
+        let tallest = targets[0];
+        let tallestH = nodeH(tallest);
+        for (const n of targets) {
+            const h = nodeH(n);
+            if (h > tallestH) { tallest = n; tallestH = h; }
+        }
+
+        // Vertical center of the tallest node
+        const centerY = tallest.position!.y + tallestH / 2;
+
+        set((s) => ({
+            nodes: s.nodes.map((n) => {
+                if (!idSet.has(n.id) || !n.position) return n;
+                const h = nodeH(n);
+                const newY = centerY - h / 2;
+                return { ...n, position: { ...n.position, y: newY } };
+            }),
+        }));
+        get()._save();
+    },
+
+    duplicateNodes: (ids) => {
+        const idSet = new Set(ids);
+        const sources = get().nodes.filter((n) => idSet.has(n.id) && n.position);
+        if (sources.length === 0) return [];
+
+        const maxZ = get().nodes.reduce((m, n) => Math.max(m, n.zIndex), 0);
+        // Map old ID → new ID for edge remapping
+        const idMap = new Map<string, string>();
+        const clones: CanvasNode[] = sources.map((n, i) => {
+            const newId = crypto.randomUUID();
+            idMap.set(n.id, newId);
+            return {
+                ...n,
+                id: newId,
+                position: { ...n.position! },
+                size: n.size ? { ...n.size } : undefined,
+                data: { ...n.data } as CanvasNodeData,
+                zIndex: maxZ + 1 + i,
+                isPlaced: true,
+                createdAt: Timestamp.now(),
+            };
+        });
+
+        // Clone edges where both endpoints are in the selection
+        const edgeClones = get().edges
+            .filter((e) => idSet.has(e.sourceNodeId) && idSet.has(e.targetNodeId))
+            .map((e) => ({
+                ...e,
+                id: crypto.randomUUID(),
+                sourceNodeId: idMap.get(e.sourceNodeId)!,
+                targetNodeId: idMap.get(e.targetNodeId)!,
+                createdAt: Date.now(),
+            }));
+
+        const newIds = clones.map((c) => c.id);
+
+        set((s) => ({
+            nodes: [...s.nodes, ...clones],
+            edges: [...s.edges, ...edgeClones],
+            selectedNodeIds: new Set(newIds),
+        }));
+        get()._save();
+        return newIds;
     },
 
     resizeNode: (id, width, height) => {

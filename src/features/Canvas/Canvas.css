@@ -60,13 +60,13 @@
 .canvas-node {
     position: absolute;
     user-select: none;
-    contain: layout style paint;
+    contain: layout style;
+    border-radius: 12px;
 }
 
-/* Relax paint containment during resize — prevents stale GPU artifacts
-   when a node shrinks and old pixels linger outside the new bounds */
+/* During resize, relax containment further to prevent stale layout artifacts */
 .canvas-node.is-resizing {
-    contain: layout style;
+    contain: style;
 }
 
 /* Subtle pulse glow for nodes not yet manually moved */
