@@ -41,6 +41,10 @@ interface UseTrackDisplayParams {
     activePlaylistId: string | null;
     /** Identifies the current view for queue context matching (e.g. 'library', 'shared:channelId', 'playlist:id') */
     queueContextId: string;
+    /** Resolved sort field for the current context (library or playlist) */
+    sortBy: string;
+    /** Resolved sort direction for the current context */
+    sortAsc: boolean;
 }
 
 interface UseTrackDisplayResult {
@@ -58,6 +62,8 @@ export function useTrackDisplay({
     musicPlaylists,
     activePlaylistId,
     queueContextId,
+    sortBy: musicSortBy,
+    sortAsc: musicSortAsc,
 }: UseTrackDisplayParams): UseTrackDisplayResult {
     // ── Expanded group state ──────────────────────────────────────────────
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -74,14 +80,12 @@ export function useTrackDisplay({
     // ── Store selectors ──────────────────────────────────────────────────
     const searchQuery = useMusicStore((s) => s.searchQuery);
 
-    const { musicSortBy, musicSortAsc,
+    const {
         musicGenreFilters: genreFilters,
         musicTagFilters: tagFilters,
         musicBpmFilter: bpmFilter,
     } = useFilterStore(
         useShallow((s) => ({
-            musicSortBy: s.musicSortBy,
-            musicSortAsc: s.musicSortAsc,
             musicGenreFilters: s.musicGenreFilters,
             musicTagFilters: s.musicTagFilters,
             musicBpmFilter: s.musicBpmFilter,

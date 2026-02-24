@@ -31,7 +31,7 @@ function createCanvasNode(
         isPlaced: position !== null ? true : (nodeType === 'traffic-source' ? true : undefined),
         zIndex: maxZ + 1,
         ...(nodeType === 'traffic-source' ? { size: { w: TRAFFIC_NODE_WIDTH, h: 0 } } : {}),
-        ...(nodeType === 'sticky-note' ? { size: { w: 200, h: 0 } } : {}),
+        ...(nodeType === 'sticky-note' ? { size: { w: TRAFFIC_NODE_WIDTH, h: 0 } } : {}),
         createdAt: Timestamp.now(),
     };
 }
@@ -239,7 +239,7 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
             nodes: s.nodes.map((n) => {
                 if (n.id !== id) return n;
                 // Sticky notes cannot shrink below their default creation size
-                const minW = n.type === 'sticky-note' ? 200 : 40;
+                const minW = n.type === 'sticky-note' ? TRAFFIC_NODE_WIDTH : 40;
                 const minH = n.type === 'sticky-note' ? STICKY_NOTE_HEIGHT_ESTIMATE : 40;
                 const w = Math.max(minW, width);
                 const existingH = n.size?.h ?? 0;

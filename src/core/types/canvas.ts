@@ -5,14 +5,25 @@
 import type { AppContextItem } from './appContext';
 import { Timestamp } from 'firebase/firestore';
 
+// --- Node Insights ---
+
+export type InsightCategory = 'packaging' | 'visual' | 'music';
+
+export interface NodeInsight {
+    text: string;
+    pinned?: boolean;
+}
+
 // --- Sticky Note ---
 
-export type NoteColor = 'yellow' | 'pink' | 'blue' | 'green' | 'neutral';
+export type NoteColor = 'yellow' | 'pink' | 'red' | 'blue' | 'green' | 'neutral';
 
 export interface StickyNoteData {
     type: 'sticky-note';
     content: string;   // Markdown
     color: NoteColor;
+    /** Whether the note is expanded to show full content (default: compact) */
+    isExpanded?: boolean;
 }
 
 // --- Canvas Node ---

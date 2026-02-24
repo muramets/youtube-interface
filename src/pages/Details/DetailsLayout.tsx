@@ -12,8 +12,8 @@ import { usePackagingVersions } from './tabs/Packaging/hooks/usePackagingVersion
 import { useTrafficFilters } from './tabs/Traffic/hooks/useTrafficFilters';
 import { useTrafficData } from './tabs/Traffic/hooks/useTrafficData';
 import { useTrafficDataLoader } from './tabs/Traffic/hooks/useTrafficDataLoader';
-import { type SortConfig } from './tabs/Traffic/components/TrafficTable';
-
+import type { TrafficSortConfig } from '../../core/types/traffic';
+import { useTrafficFilterStore } from '../../core/stores/trends/trafficFilterStore';
 // ... existing imports ...
 
 
@@ -57,6 +57,8 @@ interface DetailsLayoutProps {
     video: VideoDetails;
     playlistId?: string;
 }
+
+const DEFAULT_SORT_CONFIG: TrafficSortConfig = { key: 'views', direction: 'desc' };
 
 export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId }) => {
     const { user } = useAuth();
@@ -171,11 +173,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
     const memoizedTrafficData = useMemo(() => trafficState.trafficData, [trafficState.trafficData]);
     const memoizedPackagingHistory = useMemo(() => versions.packagingHistory, [versions.packagingHistory]);
 
-    // Traffic View Mode (Lifted State from TrafficTab)
-    const [trafficViewMode, setTrafficViewMode] = useState<'cumulative' | 'delta'>('delta');
-
-    // Sort State (Lifted)
-    const [sortConfig, setSortConfig] = useState<SortConfig | null>({ key: 'views', direction: 'desc' });
+    // Note: trafficViewMode is now derived from the store below
 
     /**
      * BUSINESS LOGIC: Filter Context Key
@@ -187,6 +185,44 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
         }
         return `version-${versions.viewingVersion}-period-${versions.viewingPeriodIndex}`;
     }, [selectedSnapshot, versions.viewingVersion, versions.viewingPeriodIndex]);
+
+    // Sort State with Context-Aware Persistence
+    const sortConfigFromStore = useTrafficFilterStore(state => state.sortsByContext[filterContextKey]);
+    const setSortConfigInStore = useTrafficFilterStore(state => state.setSort);
+    // Provide default fallback sorting if no sort is persisted for this context
+    const sortConfig: TrafficSortConfig = sortConfigFromStore || DEFAULT_SORT_CONFIG;
+
+    // View Mode State with Context-Aware Persistence
+    const viewModeFromStore = useTrafficFilterStore(state => state.viewModesByContext[filterContextKey]);
+    const setViewModeInStore = useTrafficFilterStore(state => state.setViewMode);
+
+    // BUSINESS RULE: Default view mode logic (used if no persisted state exists)
+    // - First snapshot (no predecessor) → 'cumulative'
+    // - Any other snapshot (or version history) → 'delta'
+    const defaultViewMode = useMemo(() => {
+        if (!selectedSnapshot || !trafficState.trafficData) return 'delta';
+        const clickedSnapshot = trafficState.trafficData.snapshots.find(s => s.id === selectedSnapshot);
+        if (clickedSnapshot) {
+            const versionSnapshots = trafficState.trafficData.snapshots
+                .filter(s => s.version === clickedSnapshot.version)
+                .sort((a, b) => a.timestamp - b.timestamp);
+            const isFirst = versionSnapshots.length > 0 && versionSnapshots[0].id === selectedSnapshot;
+            return isFirst ? 'cumulative' : 'delta';
+        }
+        return 'delta';
+    }, [selectedSnapshot, trafficState.trafficData]);
+
+    const trafficViewMode = viewModeFromStore || defaultViewMode;
+
+    // Create stable callbacks to replace local setters
+    const setSortConfig = useCallback((action: React.SetStateAction<TrafficSortConfig | null>) => {
+        const nextSort = typeof action === 'function' ? action(sortConfig) : action;
+        setSortConfigInStore(filterContextKey, nextSort);
+    }, [filterContextKey, setSortConfigInStore, sortConfig]);
+
+    const setTrafficViewMode = useCallback((mode: 'cumulative' | 'delta') => {
+        setViewModeInStore(filterContextKey, mode);
+    }, [filterContextKey, setViewModeInStore]);
 
     // Filters Logic with Context-Aware Persistence
     const { filters, addFilter, removeFilter, clearFilters, applyFilters } = useTrafficFilters({
@@ -502,7 +538,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
 
     // State to track the "previous" niche filter for restoration on "Back" navigation
     const previousNicheFilterRef = React.useRef<import('../../core/types/traffic').TrafficFilter | null>(null);
-    const previousSortConfigRef = React.useRef<SortConfig | null>(null);
+    const previousSortConfigRef = React.useRef<TrafficSortConfig | null>(null);
 
     // Latest Ref Pattern for filter/snapshot callbacks
     const filtersRef = React.useRef(filters);
@@ -586,26 +622,12 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
                 previousSortConfigRef.current = null;
             }
         }
-        // BUSINESS RULE: Auto-switch view mode based on snapshot position
-        // - First snapshot (no predecessor) → 'cumulative' (total data)
-        //   because delta mode would show empty table (no history to diff against)
-        // - Any other snapshot → 'delta' (new/changed sources)
-        //   because users primarily care about what changed between snapshots
-        const currentTraffic = trafficStateRef.current.trafficData;
-        if (currentTraffic) {
-            const clickedSnapshot = currentTraffic.snapshots.find(s => s.id === snapshotId);
-            if (clickedSnapshot) {
-                const versionSnapshots = currentTraffic.snapshots
-                    .filter(s => s.version === clickedSnapshot.version)
-                    .sort((a, b) => a.timestamp - b.timestamp);
-                const isFirst = versionSnapshots.length > 0 && versionSnapshots[0].id === snapshotId;
-                if (isFirst) {
-                    setTrafficViewMode('cumulative');
-                } else {
-                    setTrafficViewMode('delta');
-                }
-            }
-        }
+        // BUSINESS RULE: Auto-switch view mode based on snapshot position IF NO PERSISTED STATE EXISTS
+        // We now rely on defaultViewMode derived above, but we still need to clear/set
+        // the store state if the user clicks a different snapshot. Actually, since the store
+        // separates state by snapshot, the new snapshot will naturally get its own persisted state 
+        // or fall back to the newly calculated `defaultViewMode`.
+        // We don't need to force a default *into the store*, we just let it render the fallback.
         snapshotMgmtRef.current.handleSnapshotClick(snapshotId);
     }, []); // Empty deps = 100% stable callback
 

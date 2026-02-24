@@ -4,8 +4,15 @@
 
 import type { CanvasNode } from '../../../types/canvas';
 import { getVideoId, getSourceVideoId, getNodeDataType } from '../../../types/canvas';
-import { NODE_WIDTH, NODE_HEIGHT_FALLBACK, PLACEMENT_GAP, TRAFFIC_NODE_HEIGHT_ESTIMATE, STICKY_NOTE_HEIGHT_ESTIMATE } from '../constants';
+import type { TrafficSourceCardData } from '../../../types/appContext';
+import {
+    NODE_WIDTH, NODE_HEIGHT_FALLBACK, PLACEMENT_GAP,
+    TRAFFIC_NODE_HEIGHT_ESTIMATE, TRAFFIC_NODE_WIDTH,
+    STICKY_NOTE_HEIGHT_ESTIMATE,
+    FRAME_PADDING, FRAME_TITLE_HEIGHT, FRAME_GAP,
+} from '../constants';
 import type { CanvasSlice, CanvasState } from '../types';
+import { buildFrameGroups, frameKey } from '../../../../features/Canvas/utils/frameLayout';
 
 // ---------------------------------------------------------------------------
 // Free-spot finder — spiral grid search for a non-overlapping position
@@ -106,8 +113,108 @@ export const createLayoutSlice: CanvasSlice<LayoutSlice> = (set, get) => ({
             if (vid) videoIdToNode.set(vid, n);
         }
 
-        // No pre-seeding — relayoutChildren correction pass will re-stack
-        // ALL children (old + new) with measured heights after rendering.
+        // ---------------------------------------------------------------
+        // Frame-aware placement: group pending traffic nodes by snapshot
+        // ---------------------------------------------------------------
+        const pendingNodes = nodes.filter((n) => n.position === null);
+        const frameGroups = buildFrameGroups(pendingNodes);
+
+        // Pre-compute frame placements for all groups under each parent
+        const framePlacementMap = new Map<string, { x: number; y: number }>();
+        const parentsSeen = new Set<string>();
+
+        // Group frameGroups by sourceVideoId to batch per parent
+        const groupsByParent = new Map<string, typeof frameGroups>();
+        for (const fg of frameGroups) {
+            const arr = groupsByParent.get(fg.sourceVideoId) || [];
+            arr.push(fg);
+            groupsByParent.set(fg.sourceVideoId, arr);
+        }
+
+        for (const [srcVid, groups] of groupsByParent) {
+            const parent = videoIdToNode.get(srcVid);
+            if (!parent?.position) continue;
+            parentsSeen.add(srcVid);
+
+            // Find existing frame columns (already-placed nodes in frames under this parent)
+            const existingFrameNodes = placed.filter((n) => {
+                const sv = getSourceVideoId(n.data);
+                if (sv !== srcVid || getNodeDataType(n.data) !== 'traffic-source') return false;
+                return (n.data as TrafficSourceCardData).snapshotId != null;
+            });
+
+            // Discover existing frame columns by snapshotId
+            const existingFrameKeys = new Set<string>();
+            for (const n of existingFrameNodes) {
+                const d = n.data as TrafficSourceCardData;
+                if (d.snapshotId) existingFrameKeys.add(frameKey(srcVid, d.snapshotId));
+            }
+
+            // Compute where existing frames end (to place new frames after them)
+            let existingMaxRight = parent.position.x;
+            for (const n of existingFrameNodes) {
+                if (!n.position) continue;
+                const nw = n.size?.w ?? TRAFFIC_NODE_WIDTH;
+                existingMaxRight = Math.max(existingMaxRight, n.position.x + nw + FRAME_PADDING + FRAME_GAP);
+            }
+
+            // Split groups: existing frames (append nodes) vs new frames
+            const appendGroups: typeof groups = [];
+            const newGroups: typeof groups = [];
+            for (const g of groups) {
+                const key = frameKey(g.sourceVideoId, g.snapshotId);
+                if (existingFrameKeys.has(key)) {
+                    appendGroups.push(g);
+                } else {
+                    newGroups.push(g);
+                }
+            }
+
+            // For append groups: stack below existing nodes in the same frame column
+            for (const ag of appendGroups) {
+                const sameFrameNodes = existingFrameNodes.filter((n) => {
+                    const d = n.data as TrafficSourceCardData;
+                    return d.snapshotId === ag.snapshotId;
+                });
+                // Find the reference X and bottom Y of existing nodes in this frame
+                let refX = parent.position.x;
+                let bottomY = parent.position.y + nodeH(parent) + PLACEMENT_GAP + FRAME_TITLE_HEIGHT + FRAME_PADDING;
+                for (const sn of sameFrameNodes) {
+                    if (!sn.position) continue;
+                    refX = sn.position.x; // All share same X within a frame
+                    const snH = nodeSizes[sn.id] ?? TRAFFIC_NODE_HEIGHT_ESTIMATE;
+                    bottomY = Math.max(bottomY, sn.position.y + snH + PLACEMENT_GAP);
+                }
+                let yOff = 0;
+                for (const node of ag.pendingNodes) {
+                    framePlacementMap.set(node.id, { x: refX, y: bottomY + yOff });
+                    const h = nodeSizes[node.id] ?? TRAFFIC_NODE_HEIGHT_ESTIMATE;
+                    yOff += h + PLACEMENT_GAP;
+                }
+            }
+
+            // For new groups: place as new frame columns to the right
+            const parentH = nodeH(parent);
+            const baseY = parent.position.y + parentH + PLACEMENT_GAP;
+            let cursorX = existingMaxRight;
+            // If no existing frames, start at parent.x
+            if (existingFrameNodes.length === 0) cursorX = parent.position.x;
+
+            for (const ng of newGroups) {
+                const contentX = cursorX + FRAME_PADDING;
+                const contentY = baseY + FRAME_TITLE_HEIGHT + FRAME_PADDING;
+                let yOff = 0;
+                for (const node of ng.pendingNodes) {
+                    framePlacementMap.set(node.id, { x: contentX, y: contentY + yOff });
+                    const h = nodeSizes[node.id] ?? TRAFFIC_NODE_HEIGHT_ESTIMATE;
+                    yOff += h + PLACEMENT_GAP;
+                }
+                const frameW = TRAFFIC_NODE_WIDTH + FRAME_PADDING * 2;
+                cursorX += frameW + FRAME_GAP;
+            }
+        }
+
+        // Fallback offset tracker for non-framed children
         const sourceChildOffsets = new Map<string, number>();
 
         // --- Shelf zone (top): competitor nodes ---
@@ -140,7 +247,13 @@ export const createLayoutSlice: CanvasSlice<LayoutSlice> = (set, get) => ({
             nodes: s.nodes.map((n) => {
                 if (n.position !== null) return n;
 
-                // Children of traffic-source parents: stack below parent
+                // Frame-placed nodes: use pre-computed positions
+                const framePos = framePlacementMap.get(n.id);
+                if (framePos) {
+                    return { ...n, position: framePos };
+                }
+
+                // Non-framed children of traffic-source parents: stack below parent
                 const srcVideoId = getSourceVideoId(n.data);
                 if (srcVideoId && videoIdToNode.has(srcVideoId)) {
                     const parent = videoIdToNode.get(srcVideoId)!;
@@ -234,10 +347,71 @@ export const createLayoutSlice: CanvasSlice<LayoutSlice> = (set, get) => ({
             }
         }
 
-        // Only children aligned with parent (not manually moved)
+        let changed = false;
+        const updates = new Map<string, { x: number; y: number }>();
+
+        // ---------------------------------------------------------------
+        // Pass 1: Frame-grouped children (traffic-source with snapshotId)
+        // Each frame column is corrected independently.
+        // Recalculates Y from parent's measured height to handle resized parents.
+        // ---------------------------------------------------------------
+        const framedNodeIds = new Set<string>();
+        // Group by (sourceVideoId, snapshotId)
+        const frameColumns = new Map<string, { srcVid: string; nodes: CanvasNode[] }>();
+        for (const n of nodes) {
+            if (!n.position) continue;
+            if (getNodeDataType(n.data) !== 'traffic-source') continue;
+            const srcVid = getSourceVideoId(n.data);
+            if (!srcVid || !videoIdToNode.has(srcVid)) continue;
+            const data = n.data as TrafficSourceCardData;
+            if (!data.snapshotId) continue;
+
+            const key = frameKey(srcVid, data.snapshotId);
+            let entry = frameColumns.get(key);
+            if (!entry) {
+                entry = { srcVid, nodes: [] };
+                frameColumns.set(key, entry);
+            }
+            entry.nodes.push(n);
+            framedNodeIds.add(n.id);
+        }
+
+        for (const [, column] of frameColumns) {
+            if (column.nodes.length === 0) continue;
+
+            const parent = videoIdToNode.get(column.srcVid);
+            if (!parent?.position) continue;
+
+            const parentH = nodeSizes[parent.id];
+            if (parentH === undefined) continue; // Wait for measurement
+
+            // All nodes in a frame column share the same X
+            const refX = column.nodes[0].position!.x;
+
+            column.nodes.sort((a, b) => a.position!.y - b.position!.y);
+
+            // Compute content Y from parent's measured height
+            const contentStartY = parent.position.y + parentH + PLACEMENT_GAP
+                + FRAME_TITLE_HEIGHT + FRAME_PADDING;
+
+            let cumulativeY = contentStartY;
+            for (const child of column.nodes) {
+                if (child.position!.x !== refX || Math.abs(child.position!.y - cumulativeY) > 1) {
+                    updates.set(child.id, { x: refX, y: cumulativeY });
+                    changed = true;
+                }
+                const childH = nodeSizes[child.id] ?? TRAFFIC_NODE_HEIGHT_ESTIMATE;
+                cumulativeY += childH + PLACEMENT_GAP;
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Pass 2: Non-framed children (legacy stacking below parent)
+        // ---------------------------------------------------------------
         const childrenByParent = new Map<string, CanvasNode[]>();
         for (const n of nodes) {
             if (!n.position) continue;
+            if (framedNodeIds.has(n.id)) continue; // Skip framed nodes
             const srcVid = getSourceVideoId(n.data);
             if (srcVid && videoIdToNode.has(srcVid)) {
                 const parent = videoIdToNode.get(srcVid)!;
@@ -248,11 +422,6 @@ export const createLayoutSlice: CanvasSlice<LayoutSlice> = (set, get) => ({
                 childrenByParent.set(srcVid, arr);
             }
         }
-
-        if (childrenByParent.size === 0) return;
-
-        let changed = false;
-        const updates = new Map<string, { x: number; y: number }>();
 
         for (const [srcVid, children] of childrenByParent) {
             const parent = videoIdToNode.get(srcVid)!;

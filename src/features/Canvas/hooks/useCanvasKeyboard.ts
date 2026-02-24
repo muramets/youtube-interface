@@ -28,7 +28,16 @@ export function useCanvasKeyboard(
         if (e.key === 'Escape') {
             if (isEditing) return; // let StickyNoteNode handle Escape → blur
             const hasModal = document.querySelector('[data-modal], [role="dialog"]');
-            if (!hasModal) setOpen(false);
+            if (hasModal) return;
+            // Clear edge highlight first, then selection, then close canvas.
+            const { selectedNodeIds, clearSelection, highlightedEdgeId, clearHighlightedEdge } = useCanvasStore.getState();
+            if (highlightedEdgeId) {
+                clearHighlightedEdge();
+            } else if (selectedNodeIds.size > 0) {
+                clearSelection();
+            } else {
+                setOpen(false);
+            }
         }
 
         // Delete / Backspace → remove selected nodes
@@ -40,8 +49,12 @@ export function useCanvasKeyboard(
             }
         }
 
-        // Cmd+C → copy selected nodes
+        // Cmd+C → copy selected nodes (but not when user is selecting text in another panel)
         if (mod && e.code === 'KeyC' && !e.shiftKey && !isEditing) {
+            // Let native copy work when user has text selected (e.g. chat panel)
+            const textSelection = window.getSelection();
+            if (textSelection && textSelection.toString().length > 0) return;
+
             const { selectedNodeIds, copySelected } = useCanvasStore.getState();
             if (selectedNodeIds.size > 0) {
                 e.preventDefault();

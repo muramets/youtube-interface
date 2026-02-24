@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useMemo, memo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowUp, ArrowDown } from 'lucide-react';
-import type { TrafficSource } from '../../../../../core/types/traffic';
+import type { TrafficSource, TrafficSortKey, TrafficSortConfig } from '../../../../../core/types/traffic';
 import { Checkbox } from '../../../../../components/ui/atoms/Checkbox/Checkbox';
 import { TrafficRow } from './TrafficRow';
 import { TrafficEmptyState } from './TrafficEmptyState';
@@ -18,16 +18,9 @@ import type { SmartSuggestion } from '../hooks/useSmartNicheSuggestions';
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 import type { VideoDeltaStats } from '../../../../../core/types/videoDeltaStats';
 
-
 import type { TrafficType } from '../../../../../core/types/videoTrafficType';
 import type { ViewerType } from '../../../../../core/types/viewerType';
 import type { VideoReaction } from '../../../../../core/types/videoReaction';
-
-export type SortKey = keyof TrafficSource | 'trafficType' | 'viewerType' | 'reaction' | 'publishDate';
-export interface SortConfig {
-    key: SortKey;
-    direction: 'asc' | 'desc';
-}
 
 interface TrafficTableProps {
     data: TrafficSource[];
@@ -67,8 +60,8 @@ interface TrafficTableProps {
     videos?: VideoDetails[];
 
     // Sorting (Controlled)
-    sortConfig: SortConfig | null;
-    onSort: (key: SortKey) => void;
+    sortConfig: TrafficSortConfig | null;
+    onSort: (key: TrafficSortKey) => void;
 
     // Smart Assistant
     getSuggestion?: (videoId: string) => SmartSuggestion | null;
@@ -233,7 +226,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
     }, [data, onToggleAll]);
 
     // handleSort uses prop now
-    const handleSort = (key: SortKey) => {
+    const handleSort = (key: TrafficSortKey) => {
         onSort(key);
     };
 
@@ -302,7 +295,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
         };
     }, [data, currentVideo?.mergedVideoData?.publishedAt, currentVideo?.publishedAt, showPublishDateColumn]);
 
-    const renderHeaderCell = (label: string, sortKey?: SortKey, align: 'left' | 'right' | 'center' = 'right') => {
+    const renderHeaderCell = (label: string, sortKey?: TrafficSortKey, align: 'left' | 'right' | 'center' = 'right') => {
         const isSorted = sortConfig?.key === sortKey;
         const canSort = !!sortKey;
 

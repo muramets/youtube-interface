@@ -38,6 +38,8 @@ interface EdgeLineProps {
 const EdgeLine: React.FC<EdgeLineProps> = ({ edge, nodes, nodeSizes }) => {
     const [hovered, setHovered] = useState(false);
     const deleteEdge = useCanvasStore((s) => s.deleteEdge);
+    const highlightEdge = useCanvasStore((s) => s.highlightEdge);
+    const isHighlighted = useCanvasStore((s) => s.highlightedEdgeId === edge.id);
 
     const srcNode = nodes.find((n) => n.id === edge.sourceNodeId);
     const tgtNode = nodes.find((n) => n.id === edge.targetNodeId);
@@ -56,7 +58,7 @@ const EdgeLine: React.FC<EdgeLineProps> = ({ edge, nodes, nodeSizes }) => {
 
     const color = edge.color ?? '#6366f1';
     const strokeDash = DASH_ARRAYS[edge.lineStyle ?? 'solid'];
-    const opacity = hovered ? 1 : 0.7;
+    const opacity = isHighlighted ? 1 : hovered ? 1 : 0.7;
 
     return (
         <g
@@ -66,7 +68,14 @@ const EdgeLine: React.FC<EdgeLineProps> = ({ edge, nodes, nodeSizes }) => {
         >
             {/* Hit area */}
             <path d={pathD} stroke="transparent" strokeWidth={16} fill="none"
-                style={{ cursor: 'pointer', pointerEvents: 'stroke' }} />
+                style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
+                onClick={(e) => {
+                    if (e.metaKey || e.ctrlKey) {
+                        e.stopPropagation();
+                        highlightEdge(edge.id);
+                    }
+                }}
+            />
 
             {/* Visible line */}
             <path
@@ -120,6 +129,7 @@ const EdgeLine: React.FC<EdgeLineProps> = ({ edge, nodes, nodeSizes }) => {
 
 const EdgeHandle: React.FC<EdgeLineProps> = ({ edge, nodes, nodeSizes }) => {
     const [hovered, setHovered] = useState(false);
+    const isDraggingEdge = useCanvasStore((s) => s.pendingEdge !== null);
 
     const srcNode = nodes.find((n) => n.id === edge.sourceNodeId);
     const tgtNode = nodes.find((n) => n.id === edge.targetNodeId);
@@ -136,14 +146,26 @@ const EdgeHandle: React.FC<EdgeLineProps> = ({ edge, nodes, nodeSizes }) => {
             fill={hovered ? color : 'transparent'}
             stroke={hovered ? 'var(--bg-primary)' : 'transparent'}
             strokeWidth={2}
-            style={{ cursor: 'crosshair', pointerEvents: 'all', transition: 'fill 0.15s' }}
+            style={{
+                cursor: 'crosshair',
+                // During edge drag: become transparent to mouse so ConnectionHandle
+                // dots can receive snap events for multi-edge connections.
+                pointerEvents: isDraggingEdge ? 'none' : 'all',
+                transition: 'fill 0.15s',
+            }}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
             onMouseDown={(e) => {
                 e.stopPropagation();
                 e.preventDefault();
+                // Cmd/Ctrl+Click → highlight edge (don't rewire)
+                if (e.metaKey || e.ctrlKey) {
+                    useCanvasStore.getState().highlightEdge(edge.id);
+                    return;
+                }
                 startRewire(edge, srcNode, srcH, tgt);
             }}
+            onClick={(e) => e.stopPropagation()} // prevent board click from clearing highlight
         />
     );
 };

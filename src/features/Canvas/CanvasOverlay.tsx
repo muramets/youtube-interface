@@ -18,18 +18,20 @@ import { CanvasNodeWrapper } from './CanvasNodeWrapper';
 import { VideoCardNode } from './VideoCardNode';
 import { TrafficSourceNode } from './TrafficSourceNode';
 import { StickyNoteNode } from './StickyNoteNode';
+import { GlobalInsightsBar } from './GlobalInsightsBar';
 import { EdgeLayer, EdgeHandles } from './EdgeLayer';
+import { SnapshotFrame } from './SnapshotFrame';
 import { isNodeVisible } from './geometry/viewportCulling';
-import type { CanvasViewport } from '../../core/types/canvas';
+import { deriveFrameBounds } from './utils/frameLayout';
+import type { CanvasViewport, StickyNoteData } from '../../core/types/canvas';
 import type { VideoCardContext, TrafficSourceCardData } from '../../core/types/appContext';
-import type { StickyNoteData } from '../../core/types/canvas';
 import { debug } from '../../core/utils/debug';
 import { CanvasPageHeader } from './CanvasPageHeader';
 import './Canvas.css';
 
 // --- Module-level constants ---
-const STICKY_NOTE_W = 200;
-const STICKY_NOTE_H = 160;
+const STICKY_NOTE_W = 360;
+const STICKY_NOTE_H = 100;
 
 // --- Two-level LOD thresholds with hysteresis ±0.03 ---
 const LOD_FULL_UP = 0.53;  // zoom-in: switch TO full
@@ -157,9 +159,23 @@ export const CanvasOverlay: React.FC = () => {
         );
     }, [addNodeAt]);
 
+    // Register pan-to-node handler so store.panToNode() can animate camera
+    React.useEffect(() => {
+        const handler = (worldX: number, worldY: number, onComplete?: () => void) => {
+            boardRef.current?.centerOnPos(worldX, worldY, true, onComplete);
+        };
+        useCanvasStore.getState()._registerPanHandler(handler);
+        return () => useCanvasStore.getState()._unregisterPanHandler();
+    }, []);
 
-
-    const placedNodes = useMemo(() => nodes.filter((n) => n.position !== null), [nodes]);
+    // Register panBy handler so store.autoPanBy() can shift viewport during edge drag
+    React.useEffect(() => {
+        const handler = (dx: number, dy: number) => {
+            boardRef.current?.panBy(dx, dy);
+        };
+        useCanvasStore.getState()._registerPanByHandler(handler);
+        return () => useCanvasStore.getState()._unregisterPanByHandler();
+    }, []); const placedNodes = useMemo(() => nodes.filter((n) => n.position !== null), [nodes]);
     const hasNodes = placedNodes.length > 0;
 
     // --- Viewport Culling: only render nodes visible on screen ---
@@ -171,7 +187,13 @@ export const CanvasOverlay: React.FC = () => {
         [placedNodes, cullingViewport, screenW, screenH, nodeSizes],
     );
 
-    debug.fps('canvas', `CanvasOverlay (zoom=${viewport.zoom.toFixed(2)}, nodes=${placedNodes.length}, visible=${visibleNodes.length}, lod=${lodLevel})`);
+    // --- Snapshot Frames: compute bounds from placed node positions ---
+    const frameBounds = useMemo(
+        () => deriveFrameBounds(placedNodes, nodeSizes),
+        [placedNodes, nodeSizes],
+    );
+
+    debug.fps('canvas', `CanvasOverlay (zoom=${viewport.zoom.toFixed(2)}, nodes=${placedNodes.length}, visible=${visibleNodes.length}, lod=${lodLevel}, frames=${frameBounds.length})`);
 
     if (!isOpen) return null;
 
@@ -195,6 +217,9 @@ export const CanvasOverlay: React.FC = () => {
                     onDelete={deletePage}
                 />
 
+                {/* Global Pinned Insights */}
+                <GlobalInsightsBar />
+
                 {/* Board — nodes are children of the transform layer */}
                 <CanvasBoard
                     ref={boardRef}
@@ -202,13 +227,26 @@ export const CanvasOverlay: React.FC = () => {
                     onViewportChange={handleViewportChange}
                     onZoomFrame={handleZoomFrame}
                     onPanFrame={handlePanFrame}
-                    onClick={clearSelection}
+                    onClick={() => { clearSelection(); useCanvasStore.getState().clearHighlightedEdge(); }}
                     onSelectRect={handleSelectRect}
                     onCursorMove={setLastCanvasWorldPos}
                     onDblClick={handleCanvasDblClick}
                 >
                     {/* EdgeLayer behind nodes so cards appear on top of edge lines */}
                     <EdgeLayer />
+
+                    {/* Snapshot frames: rendered below nodes (visual grouping)
+                        — not selectable, not draggable */}
+                    {frameBounds.map((fb) => (
+                        <SnapshotFrame
+                            key={fb.key}
+                            label={fb.snapshotLabel}
+                            x={fb.x}
+                            y={fb.y}
+                            w={fb.w}
+                            h={fb.h}
+                        />
+                    ))}
 
                     {visibleNodes.map((node) => (
                         <CanvasNodeWrapper key={node.id} node={node} lodLevel={lodLevel} measuredHeight={nodeSizes[node.id]}>

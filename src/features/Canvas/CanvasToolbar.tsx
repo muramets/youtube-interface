@@ -10,7 +10,7 @@ import { ControlPill } from '../../pages/Trends/Timeline/components/ControlPill'
 import type { CanvasBoardHandle } from './CanvasBoard';
 import { useMusicStore } from '../../core/stores/musicStore';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
-import { liveZoom } from './liveZoom';
+import { liveZoom } from './utils/liveZoom';
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4;

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { TrafficTable, type SortConfig, type SortKey } from './components/TrafficTable';
+import { TrafficTable } from './components/TrafficTable';
+import type { TrafficSortConfig, TrafficSortKey } from '../../../../core/types/traffic';
 import { TrafficHeader } from './components/TrafficHeader';
 import { TrafficModals } from './components/TrafficModals';
 import { TrafficFilterChips } from './components/TrafficFilterChips';
@@ -70,8 +71,8 @@ interface TrafficTabProps {
     onClearFilters: () => void;
     applyFilters: (sources: import('../../../../core/types/traffic').TrafficSource[], groups?: import('../../../../core/types/traffic').TrafficGroup[]) => import('../../../../core/types/traffic').TrafficSource[];
     // Sorting (Lifted)
-    sortConfig: SortConfig | null;
-    onSort: (key: SortKey) => void;
+    sortConfig: TrafficSortConfig | null;
+    onSort: (key: TrafficSortKey) => void;
     actualTotalRow?: TrafficSource;
     trashMetrics?: import('./hooks/useTrafficDataLoader').TrashMetrics;
     deltaContext?: import('./hooks/useTrafficDataLoader').DeltaContext;
@@ -964,6 +965,14 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 nicheColor: niche?.color,
                 sourceVideoId: _video.id,
                 sourceVideoTitle: _video.title,
+                snapshotId: effectiveSnapshotId ?? undefined,
+                snapshotLabel: (() => {
+                    const snap = trafficData?.snapshots?.find(s => s.id === effectiveSnapshotId);
+                    if (!snap) return undefined;
+                    return snap.label || new Date(snap.timestamp).toLocaleDateString('en-US', {
+                        month: 'short', day: 'numeric', year: 'numeric',
+                    });
+                })(),
                 viewMode,
             };
             addCanvasNode(data);
@@ -974,7 +983,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             'Open',
             () => useCanvasStore.getState().setOpen(true),
         );
-    }, [allVideos, allAssignments, allNiches, trafficEdges, viewerEdges, ctrRules, _video.id, _video.title, viewMode, addCanvasNode, showToast]);
+    }, [allVideos, allAssignments, allNiches, trafficEdges, viewerEdges, ctrRules, _video.id, _video.title, viewMode, addCanvasNode, showToast, effectiveSnapshotId, trafficData?.snapshots]);
 
     /**
      * BUSINESS LOGIC: Check if current viewing context has a snapshot with data

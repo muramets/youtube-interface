@@ -5,6 +5,8 @@
 // Extracted from MusicPage.tsx to keep the page component focused on rendering.
 // All effects (track subscriptions, URL sync) live here so the page stays clean.
 // =============================================================================
+const DEFAULT_PLAYLIST_SORT_BY = 'default';
+const DEFAULT_PLAYLIST_SORT_ASC = true;
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useMatch } from 'react-router-dom';
@@ -79,20 +81,22 @@ export function useMusicPageData() {
     } = useMusicStore.getState();
 
     // ── Filter store: reactive state — single shallow subscription ──────────
-    const { musicSortBy, musicSortAsc, genreFilters, tagFilters, bpmFilter } = useFilterStore(
+    const { musicSortBy: librarySortBy, musicSortAsc: librarySortAsc, genreFilters, tagFilters, bpmFilter, playlistMusicSorts } = useFilterStore(
         useShallow(s => ({
             musicSortBy: s.musicSortBy,
             musicSortAsc: s.musicSortAsc,
             genreFilters: s.musicGenreFilters,
             tagFilters: s.musicTagFilters,
             bpmFilter: s.musicBpmFilter,
+            playlistMusicSorts: s.playlistMusicSorts,
         }))
     );
 
     // ── Filter store: stable actions ────────────────────────────────────────
     const {
-        setMusicSortBy, setMusicSortAsc,
+        setMusicSortBy: setLibrarySortBy, setMusicSortAsc: setLibrarySortAsc,
         toggleMusicGenreFilter, toggleMusicTagFilter, setMusicBpmFilter, clearMusicFilters,
+        setPlaylistMusicSort,
     } = useFilterStore.getState();
 
     // ── Loading state ───────────────────────────────────────────────────────
@@ -270,8 +274,37 @@ export function useMusicPageData() {
             ? `playlist:${activePlaylistId}`
             : 'library';
 
+    // ── Resolved sort: per-playlist override or library default ─────────
+    const playlistSort = activePlaylistId ? playlistMusicSorts[activePlaylistId] : undefined;
+
+    const musicSortBy = playlistSort?.sortBy ?? (activePlaylistId ? DEFAULT_PLAYLIST_SORT_BY : librarySortBy);
+    const musicSortAsc = playlistSort?.sortAsc ?? (activePlaylistId ? DEFAULT_PLAYLIST_SORT_ASC : librarySortAsc);
+
+    // Context-aware sort setters: route to playlist-specific or library-level
+    const setMusicSortBy = useCallback((sort: string) => {
+        if (activePlaylistId) {
+            const current = useFilterStore.getState().playlistMusicSorts[activePlaylistId];
+            // If current is undefined, fallback to the default playlist sortAsc, NOT the library one
+            const currentSortAsc = current?.sortAsc ?? DEFAULT_PLAYLIST_SORT_ASC;
+            setPlaylistMusicSort(activePlaylistId, sort, currentSortAsc);
+        } else {
+            setLibrarySortBy(sort);
+        }
+    }, [activePlaylistId, setPlaylistMusicSort, setLibrarySortBy]);
+
+    const setMusicSortAsc = useCallback((asc: boolean) => {
+        if (activePlaylistId) {
+            const current = useFilterStore.getState().playlistMusicSorts[activePlaylistId];
+            // If current is undefined, fallback to the default playlist sortBy, NOT the library one
+            const currentSortBy = current?.sortBy ?? DEFAULT_PLAYLIST_SORT_BY;
+            setPlaylistMusicSort(activePlaylistId, currentSortBy, asc);
+        } else {
+            setLibrarySortAsc(asc);
+        }
+    }, [activePlaylistId, setPlaylistMusicSort, setLibrarySortAsc]);
+
     const { filteredTracks, displayItems, toggleGroup, bpmRange, hasActiveFilters, hasLikedTracks } =
-        useTrackDisplay({ tracks, tags, musicPlaylists: allPlaylists, activePlaylistId, queueContextId });
+        useTrackDisplay({ tracks, tags, musicPlaylists: allPlaylists, activePlaylistId, queueContextId, sortBy: musicSortBy, sortAsc: musicSortAsc });
 
     // ── Business logic ──────────────────────────────────────────────────────
     const handleDeleteTrack = useCallback(async (trackId: string) => {

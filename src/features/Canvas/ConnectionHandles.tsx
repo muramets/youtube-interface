@@ -9,6 +9,7 @@ import React, { useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 import type { CanvasNode, HandlePosition } from '../../core/types/canvas';
+import { startEdgeAutoPan } from './utils/edgeAutoPan';
 
 interface ConnectionHandlesProps {
     node: CanvasNode;
@@ -69,12 +70,22 @@ const ConnectionHandlesInner: React.FC<ConnectionHandlesProps> = ({ node, visibl
         const sourceAnchor = elementCenterWorld(e.currentTarget);
         startPendingEdge(node.id, position, sourceAnchor);
 
+        // Start auto-pan: shifts viewport when cursor is near screen edges
+        const autoPan = startEdgeAutoPan((dx, dy, clientX, clientY) => {
+            useCanvasStore.getState().autoPanBy(dx, dy);
+            // Re-compute world position after viewport shift and update pending edge
+            const worldPos = screenToWorld(clientX, clientY);
+            updatePendingEdge(worldPos.x, worldPos.y);
+        });
+
         const onMouseMove = (ev: MouseEvent) => {
+            autoPan.updateCursor(ev.clientX, ev.clientY);
             const worldPos = screenToWorld(ev.clientX, ev.clientY);
             updatePendingEdge(worldPos.x, worldPos.y);
         };
 
         const onMouseUp = () => {
+            autoPan.stop();
             window.removeEventListener('mousemove', onMouseMove);
             window.removeEventListener('mouseup', onMouseUp);
 

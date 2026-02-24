@@ -1,23 +1,46 @@
 // =============================================================================
 // CANVAS: StickyNoteNode — skeuomorphic sticky note with editable content.
-// Color picker on hover, contentEditable text.
+// Compact mode (default): fixed height, scrollable content.
+// Expanded mode: auto-height showing all content.
+// Markdown rendering in view mode (same as chat messages).
+// Color picker on hover, raw text textarea in edit mode.
 // =============================================================================
 
 import React, { useRef, useCallback, useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import TurndownService from 'turndown';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { StickyNoteData, NoteColor } from '../../core/types/canvas';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
+
+// Shared Turndown instance for HTML → Markdown conversion on paste
+const turndown = new TurndownService({
+    headingStyle: 'atx',
+    codeBlockStyle: 'fenced',
+    bulletListMarker: '-',
+});
 
 // --- Color palette ---
 
 const NOTE_COLORS: Record<NoteColor, { bg: string; shadow: string; text: string }> = {
     yellow: { bg: '#FEF3C7', shadow: '#F59E0B', text: '#78350F' },
     pink: { bg: '#FCE7F3', shadow: '#EC4899', text: '#831843' },
+    red: { bg: '#FEE2E2', shadow: '#EF4444', text: '#7F1D1D' },
     blue: { bg: '#DBEAFE', shadow: '#3B82F6', text: '#1E3A5F' },
     green: { bg: '#D1FAE5', shadow: '#10B981', text: '#064E3B' },
     neutral: { bg: '#F3F4F6', shadow: '#9CA3AF', text: '#374151' },
 };
 
-const COLOR_OPTIONS: NoteColor[] = ['yellow', 'pink', 'blue', 'green', 'neutral'];
+const COLOR_OPTIONS: NoteColor[] = ['yellow', 'pink', 'red', 'blue', 'green', 'neutral'];
+
+/** Compact mode fixed height (matches traffic-source node) */
+const COMPACT_HEIGHT = 100;
+
+/** Padding above (tape strip) + below content */
+const CONTENT_PAD_TOP = 28;
+const CONTENT_PAD_BOTTOM = 14;
+const SCROLL_AREA_HEIGHT = COMPACT_HEIGHT - CONTENT_PAD_TOP - CONTENT_PAD_BOTTOM;
 
 interface StickyNoteNodeProps {
     data: StickyNoteData;
@@ -28,21 +51,57 @@ const StickyNoteNodeInner: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) =>
     const updateNodeData = useCanvasStore((s) => s.updateNodeData);
     const [isEditing, setIsEditing] = useState(false);
     const [hovered, setHovered] = useState(false);
-    const contentRef = useRef<HTMLDivElement>(null);
+    const [isOverflowing, setIsOverflowing] = useState(false);
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const editRef = useRef<HTMLTextAreaElement>(null);
     const rootRef = useRef<HTMLDivElement>(null);
 
     const colors = NOTE_COLORS[data.color] || NOTE_COLORS.yellow;
+    const isExpanded = data.isExpanded ?? false;
 
-    // Sync content from store to editable
+    // Detect content overflow in compact mode
     useEffect(() => {
-        if (contentRef.current && !isEditing) {
-            contentRef.current.textContent = data.content || '';
+        const el = scrollRef.current;
+        if (!el || isEditing || isExpanded) {
+            requestAnimationFrame(() => setIsOverflowing(false));
+            return;
         }
-    }, [data.content, isEditing]);
+        requestAnimationFrame(() => {
+            setIsOverflowing(el.scrollHeight > el.clientHeight + 2);
+        });
+    }, [data.content, isExpanded, isEditing]);
+
+    // Native wheel event handler — stops propagation to canvas zoom/pan
+    // Must be native because canvas uses native addEventListener('wheel', ...)
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        const stop = (e: WheelEvent) => {
+            // Only intercept if content is scrollable
+            if (el.scrollHeight > el.clientHeight) {
+                e.stopPropagation();
+            }
+        };
+        el.addEventListener('wheel', stop, { passive: true });
+        return () => el.removeEventListener('wheel', stop);
+    }, [isEditing, isExpanded]);
+
+    // Also stop wheel on textarea in edit mode
+    useEffect(() => {
+        const el = editRef.current;
+        if (!el || !isEditing) return;
+        const stop = (e: WheelEvent) => {
+            if (el.scrollHeight > el.clientHeight) {
+                e.stopPropagation();
+            }
+        };
+        el.addEventListener('wheel', stop, { passive: true });
+        return () => el.removeEventListener('wheel', stop);
+    }, [isEditing]);
 
     const handleBlur = useCallback(() => {
         setIsEditing(false);
-        const text = contentRef.current?.textContent ?? '';
+        const text = editRef.current?.value ?? '';
         if (text !== data.content) {
             updateNodeData(nodeId, { content: text });
         }
@@ -51,31 +110,53 @@ const StickyNoteNodeInner: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) =>
     const handleDoubleClick = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
         setIsEditing(true);
-        // Focus and place cursor at end
         setTimeout(() => {
-            const el = contentRef.current;
+            const el = editRef.current;
             if (!el) return;
             el.focus();
-            const range = document.createRange();
-            range.selectNodeContents(el);
-            range.collapse(false);
-            const sel = window.getSelection();
-            sel?.removeAllRanges();
-            sel?.addRange(range);
+            el.setSelectionRange(el.value.length, el.value.length);
+            // Auto-resize textarea in expanded mode
+            if (isExpanded) {
+                el.style.height = 'auto';
+                el.style.height = el.scrollHeight + 'px';
+            }
         }, 0);
-    }, []);
+    }, [isExpanded]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-        // Prevent canvas keyboard shortcuts while editing
         e.stopPropagation();
         if (e.key === 'Escape') {
-            contentRef.current?.blur();
+            editRef.current?.blur();
         }
+    }, []);
+
+    // Paste handler: convert HTML clipboard → markdown
+    const handlePaste = useCallback((e: React.ClipboardEvent) => {
+        const html = e.clipboardData.getData('text/html');
+        if (!html) return;
+
+        e.preventDefault();
+        const md = turndown.turndown(html).trim();
+        const ta = editRef.current;
+        if (!ta) return;
+
+        const start = ta.selectionStart;
+        const end = ta.selectionEnd;
+        const before = ta.value.slice(0, start);
+        const after = ta.value.slice(end);
+        ta.value = before + md + after;
+        const newPos = start + md.length;
+        ta.setSelectionRange(newPos, newPos);
     }, []);
 
     const handleColorChange = useCallback((color: NoteColor) => {
         updateNodeData(nodeId, { color });
     }, [nodeId, updateNodeData]);
+
+    const toggleExpand = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        updateNodeData(nodeId, { isExpanded: !isExpanded });
+    }, [nodeId, isExpanded, updateNodeData]);
 
     return (
         <div
@@ -86,18 +167,17 @@ const StickyNoteNodeInner: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) =>
             style={{
                 position: 'relative',
                 width: '100%',
-                height: '100%',
-                minHeight: 160,
+                minHeight: isExpanded ? COMPACT_HEIGHT : undefined,
+                height: isExpanded ? 'auto' : '100%',
                 background: colors.bg,
                 borderRadius: 2,
-                padding: '28px 14px 14px',
+                overflow: 'hidden',
+                cursor: isEditing ? 'text' : 'default',
                 boxShadow: `
                     0 1px 3px rgba(0,0,0,0.12),
                     0 4px 8px rgba(0,0,0,0.06),
                     inset 0 -2px 4px rgba(0,0,0,0.04)
                 `,
-                overflow: 'hidden',
-                cursor: isEditing ? 'text' : 'default',
             }}
         >
             {/* Tape strip */}
@@ -111,32 +191,86 @@ const StickyNoteNodeInner: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) =>
                 background: 'rgba(255,255,255,0.5)',
                 borderBottom: '1px solid rgba(0,0,0,0.06)',
                 borderRadius: '0 0 2px 2px',
+                zIndex: 3,
             }} />
 
-            {/* Content */}
-            <div
-                ref={contentRef}
-                contentEditable={isEditing}
-                suppressContentEditableWarning
-                onBlur={handleBlur}
-                onKeyDown={handleKeyDown}
-                style={{
-                    outline: 'none',
-                    color: colors.text,
-                    fontSize: 13,
-                    lineHeight: 1.5,
-                    minHeight: 40,
-                    wordBreak: 'break-word',
-                    whiteSpace: 'pre-wrap',
-                    userSelect: isEditing ? 'text' : 'none',
-                }}
-            />
+            {/* === Scrollable content area === */}
+            {!isEditing && (
+                <div
+                    ref={scrollRef}
+                    className="sticky-note-scroll"
+                    style={{
+                        padding: `${CONTENT_PAD_TOP}px 14px ${CONTENT_PAD_BOTTOM}px`,
+                        maxHeight: isExpanded ? undefined : COMPACT_HEIGHT,
+                        overflowY: isExpanded ? 'visible' : 'auto',
+                        overflowX: 'hidden',
+                    }}
+                >
+                    <div className="sticky-note-prose" style={{
+                        color: colors.text,
+                        fontSize: 13,
+                        lineHeight: 1.5,
+                        minHeight: 20,
+                        wordBreak: 'break-word',
+                        userSelect: 'text',
+                    }}>
+                        {data.content ? (
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {data.content}
+                            </ReactMarkdown>
+                        ) : null}
+                    </div>
+                </div>
+            )}
+
+            {/* === Edit mode: textarea === */}
+            {isEditing && (
+                <div style={{
+                    padding: `${CONTENT_PAD_TOP}px 14px ${CONTENT_PAD_BOTTOM}px`,
+                    height: isExpanded ? 'auto' : '100%',
+                    boxSizing: 'border-box',
+                }}>
+                    <textarea
+                        ref={editRef}
+                        className="sticky-note-textarea"
+                        defaultValue={data.content || ''}
+                        onBlur={handleBlur}
+                        onKeyDown={handleKeyDown}
+                        onPaste={handlePaste}
+                        onInput={(e) => {
+                            if (isExpanded) {
+                                const ta = e.currentTarget;
+                                ta.style.height = 'auto';
+                                ta.style.height = ta.scrollHeight + 'px';
+                            }
+                        }}
+                        style={{
+                            width: '100%',
+                            height: isExpanded ? 'auto' : `${SCROLL_AREA_HEIGHT}px`,
+                            minHeight: 20,
+                            resize: 'none',
+                            border: 'none',
+                            outline: 'none',
+                            background: 'transparent',
+                            color: colors.text,
+                            fontSize: 13,
+                            lineHeight: 1.5,
+                            fontFamily: 'monospace',
+                            wordBreak: 'break-word',
+                            whiteSpace: 'pre-wrap',
+                            padding: 0,
+                            margin: 0,
+                            overflow: isExpanded ? 'hidden' : 'auto',
+                        }}
+                    />
+                </div>
+            )}
 
             {/* Placeholder */}
             {!data.content && !isEditing && (
                 <div style={{
                     position: 'absolute',
-                    top: 28,
+                    top: CONTENT_PAD_TOP,
                     left: 14,
                     right: 14,
                     color: colors.text,
@@ -148,7 +282,54 @@ const StickyNoteNodeInner: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) =>
                 }}>Double-click to type...</div>
             )}
 
-            {/* Color picker dots — bottom-right on hover, hidden during resize via CSS */}
+            {/* Fade gradient — pinned to bottom of root, NOT inside scroll area */}
+            {!isExpanded && isOverflowing && !isEditing && (
+                <div style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: 28,
+                    background: `linear-gradient(transparent, ${colors.bg})`,
+                    pointerEvents: 'none',
+                    zIndex: 2,
+                }} />
+            )}
+
+            {/* Expand/Collapse toggle — pinned to root bottom */}
+            {(isOverflowing || isExpanded) && !isEditing && (
+                <button
+                    onClick={toggleExpand}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    style={{
+                        position: 'absolute',
+                        bottom: 2,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 24,
+                        height: 16,
+                        borderRadius: 8,
+                        background: `${colors.shadow}22`,
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: 0,
+                        opacity: hovered ? 1 : 0.4,
+                        transition: 'opacity 0.15s ease',
+                        zIndex: 5,
+                    }}
+                    title={isExpanded ? 'Collapse' : 'Expand'}
+                >
+                    {isExpanded
+                        ? <ChevronUp size={12} color={colors.text} strokeWidth={2.5} />
+                        : <ChevronDown size={12} color={colors.text} strokeWidth={2.5} />
+                    }
+                </button>
+            )}
+
+            {/* Color picker dots — pinned to root bottom-right */}
             {hovered && !isEditing && (
                 <div className="sticky-color-picker" style={{
                     position: 'absolute',
@@ -156,6 +337,7 @@ const StickyNoteNodeInner: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) =>
                     right: 6,
                     display: 'flex',
                     gap: 3,
+                    zIndex: 5,
                 }}>
                     {COLOR_OPTIONS.map((c) => (
                         <button

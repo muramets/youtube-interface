@@ -194,11 +194,13 @@ const TrackCardInner: React.FC<TrackCardProps> = ({
             seekTo(position);
             if (!isPlaying) setIsPlaying(true);
         } else {
-            // Start playing this track and seek to position once audio loads
-            // position is ratio 0–1, convert to seconds for pendingSeekPosition
+            // Start playing this track and seek to position once audio loads.
+            // setPlayingTrack sets currentTime optimistically to seekSeconds,
+            // and the audio engine skips timeupdate/durationchange while
+            // pendingSeekSeconds is active, preventing progress flash.
             const variant = getDefaultVariant(track);
             const seekSeconds = position * track.duration;
-            setPlayingTrack(track.id, variant, seekSeconds);
+            setPlayingTrack(track.id, variant, seekSeconds, undefined, undefined, track.duration);
         }
     }, [isCurrentTrack, seekTo, isPlaying, setIsPlaying, setPlayingTrack, track]);
 

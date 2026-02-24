@@ -55,6 +55,10 @@ let _hasSyncedOnce = false;
 const _dirtyNodeIds = new Set<string>();
 /** Nodes deleted locally but not yet saved — prevents onSnapshot from re-adding them */
 const _deletedNodeIds = new Set<string>();
+/** Imperative pan callback registered by CanvasOverlay — used by panToNode */
+let _panHandler: ((worldX: number, worldY: number, onComplete?: () => void) => void) | null = null;
+/** Imperative panBy callback registered by CanvasOverlay — used by edge auto-pan */
+let _panByHandler: ((dx: number, dy: number) => void) | null = null;
 
 // Recursive deep equality for plain objects, arrays, and primitives.
 // Handles Firestore key-ordering instability that breaks JSON.stringify.
@@ -242,10 +246,41 @@ export const useCanvasStore = create<CanvasState>((...a) => {
         // --- UI ---
         toggleOpen: () => set((s) => ({ isOpen: !s.isOpen })),
         setOpen: (open) => set({ isOpen: open }),
+        pendingInsightReveal: null,
+        revealInsight: (nodeId, category) => set({ pendingInsightReveal: { nodeId, category } }),
+        clearPendingInsightReveal: () => set({ pendingInsightReveal: null }),
+        highlightedEdgeId: null,
+        highlightEdge: (edgeId) => set((s) => ({
+            highlightedEdgeId: s.highlightedEdgeId === edgeId ? null : edgeId,
+        })),
+        clearHighlightedEdge: () => set({ highlightedEdgeId: null }),
 
         // --- Dirty node tracking ---
         _markDirty: (id) => { _dirtyNodeIds.add(id); },
         _markDeleted: (ids) => { for (const id of ids) _deletedNodeIds.add(id); },
+
+        // --- Pan-to-node (callback registration pattern) ---
+        _registerPanHandler: (handler) => { _panHandler = handler; },
+        _unregisterPanHandler: () => { _panHandler = null; },
+        panToNode: (nodeId, onComplete) => {
+            const node = get().nodes.find((n) => n.id === nodeId);
+            if (!node?.position || !_panHandler) return;
+            const hw = (node.size?.w ?? 400) / 2;
+            const hh = (node.size?.h ?? 150) / 2;
+            _panHandler(node.position.x + hw, node.position.y + hh, onComplete);
+        },
+
+        // --- PanBy (edge auto-pan) ---
+        _registerPanByHandler: (handler) => { _panByHandler = handler; },
+        _unregisterPanByHandler: () => { _panByHandler = null; },
+        autoPanBy: (dx, dy) => {
+            _panByHandler?.(dx, dy);
+            // Sync store viewport so screenToWorld() reads correct values.
+            // panBy shifts the DOM transform directly, but the store viewport
+            // must track it for world-coordinate calculations in edge drag.
+            const vp = get().viewport;
+            set({ viewport: { ...vp, x: vp.x + dx, y: vp.y + dy } });
+        },
 
         // --- Page Management ---
         switchPage: (pageId) => {

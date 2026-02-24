@@ -34,8 +34,9 @@ interface FilterState {
     homeSortBy: 'default' | 'views' | 'date' | 'recently_added';
     playlistVideoSortBy: 'default' | 'views' | 'date' | 'delta24h' | 'delta7d' | 'delta30d'; // Persistent sort for videos INSIDE a playlist
     playlistsSortBy: 'default' | 'views' | 'updated' | 'created'; // Persistent sort for the LIST of playlists
-    musicSortBy: string; // 'default' or 'tag:CategoryName'
-    musicSortAsc: boolean;
+    musicSortBy: string; // 'default' or 'tag:CategoryName' — library-level sort
+    musicSortAsc: boolean; // library-level sort direction
+    playlistMusicSorts: Record<string, { sortBy: string; sortAsc: boolean }>; // per-playlist sort overrides
     musicGenreFilters: string[];
     musicTagFilters: string[];
     musicBpmFilter: [number, number] | null;
@@ -44,6 +45,7 @@ interface FilterState {
     channelFilters: Record<string, FilterItem[]>;
     channelPlaylistsSorts: Record<string, 'default' | 'views' | 'updated' | 'created'>; // Per-channel playlist sort settings
     channelMusicFilters: Record<string, ChannelMusicFilters>; // Per-channel music filter snapshots
+    channelPlaylistMusicSorts: Record<string, Record<string, { sortBy: string; sortAsc: boolean }>>; // Per-channel per-playlist sort snapshots
     currentChannelId: string | null;
 
     // Per-page state persistence (keyed by pageId: 'home', 'playlists-list', 'playlist:{id}')
@@ -61,6 +63,7 @@ interface FilterState {
     setPlaylistsSortBy: (sort: 'default' | 'views' | 'updated' | 'created') => void;
     setMusicSortBy: (sort: string) => void;
     setMusicSortAsc: (asc: boolean) => void;
+    setPlaylistMusicSort: (playlistId: string, sortBy: string, sortAsc: boolean) => void;
     toggleMusicGenreFilter: (genreId: string) => void;
     toggleMusicTagFilter: (tagId: string) => void;
     setMusicBpmFilter: (range: [number, number] | null) => void;
@@ -95,6 +98,7 @@ export const useFilterStore = create<FilterState>()(
             playlistsSortBy: 'default',
             musicSortBy: 'default',
             musicSortAsc: true,
+            playlistMusicSorts: {},
             musicGenreFilters: [],
             musicTagFilters: [],
             musicBpmFilter: null,
@@ -103,6 +107,7 @@ export const useFilterStore = create<FilterState>()(
             channelFilters: {},
             channelPlaylistsSorts: {},
             channelMusicFilters: {},
+            channelPlaylistMusicSorts: {},
             pageStates: {},
             currentChannelId: null,
             userId: null,
@@ -134,6 +139,12 @@ export const useFilterStore = create<FilterState>()(
             setPlaylistsSortBy: (sort) => set({ playlistsSortBy: sort }),
             setMusicSortBy: (sort) => set({ musicSortBy: sort }),
             setMusicSortAsc: (asc) => set({ musicSortAsc: asc }),
+            setPlaylistMusicSort: (playlistId, sortBy, sortAsc) => set((state) => ({
+                playlistMusicSorts: {
+                    ...state.playlistMusicSorts,
+                    [playlistId]: { sortBy, sortAsc },
+                },
+            })),
 
             toggleMusicGenreFilter: (genreId) => set((state) => {
                 const exists = state.musicGenreFilters.includes(genreId);
@@ -277,6 +288,7 @@ export const useFilterStore = create<FilterState>()(
                 const updatedChannelFilters = { ...state.channelFilters };
                 const updatedChannelPlaylistsSorts = { ...state.channelPlaylistsSorts };
                 const updatedChannelMusicFilters = { ...state.channelMusicFilters };
+                const updatedChannelPlaylistMusicSorts = { ...state.channelPlaylistMusicSorts };
 
                 if (state.currentChannelId) {
                     if (state.activeFilters.length > 0) {
@@ -289,24 +301,28 @@ export const useFilterStore = create<FilterState>()(
                         tagFilters: state.musicTagFilters,
                         bpmFilter: state.musicBpmFilter,
                     };
+                    updatedChannelPlaylistMusicSorts[state.currentChannelId] = state.playlistMusicSorts;
                 }
 
                 // Load filters & sort for the new channel
                 const newFilters = (channelId && updatedChannelFilters[channelId]) || [];
                 const newPlaylistsSort = (channelId && updatedChannelPlaylistsSorts[channelId]) || 'default';
                 const newMusicFilters: ChannelMusicFilters | null = channelId ? (updatedChannelMusicFilters[channelId] ?? null) : null;
+                const newPlaylistMusicSorts = (channelId && updatedChannelPlaylistMusicSorts[channelId]) || {};
 
                 return {
                     currentChannelId: channelId,
                     channelFilters: updatedChannelFilters,
                     channelPlaylistsSorts: updatedChannelPlaylistsSorts,
                     channelMusicFilters: updatedChannelMusicFilters,
+                    channelPlaylistMusicSorts: updatedChannelPlaylistMusicSorts,
                     activeFilters: newFilters,
                     playlistsSortBy: newPlaylistsSort,
                     // Restore music filters for new channel, or reset to empty
                     musicGenreFilters: newMusicFilters?.genreFilters ?? [],
                     musicTagFilters: newMusicFilters?.tagFilters ?? [],
                     musicBpmFilter: newMusicFilters?.bpmFilter ?? null,
+                    playlistMusicSorts: newPlaylistMusicSorts,
                     // Reset legacy selectedChannel filter when switching app channels
                     selectedChannel: null
                 };
@@ -325,6 +341,8 @@ export const useFilterStore = create<FilterState>()(
                 musicBpmFilter: state.musicBpmFilter,
                 channelPlaylistsSorts: state.channelPlaylistsSorts,
                 channelMusicFilters: state.channelMusicFilters,
+                playlistMusicSorts: state.playlistMusicSorts,
+                channelPlaylistMusicSorts: state.channelPlaylistMusicSorts,
                 activeFilters: state.activeFilters,
                 channelFilters: state.channelFilters,
                 pageStates: state.pageStates,

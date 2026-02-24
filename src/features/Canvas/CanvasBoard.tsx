@@ -31,6 +31,9 @@ export interface CanvasBoardHandle {
     getViewportCenter: () => { x: number; y: number };
     zoomTo: (zoom: number) => void;
     fitToContent: (nodeRects: { x: number; y: number; w: number; h: number }[]) => void;
+    centerOnPos: (worldX: number, worldY: number, animate?: boolean, onComplete?: () => void) => void;
+    /** Immediately shift the viewport by screen-space delta (no animation, no React render) */
+    panBy: (dx: number, dy: number) => void;
 }
 
 export const CanvasBoard = React.forwardRef<CanvasBoardHandle, CanvasBoardProps>(
@@ -60,7 +63,7 @@ export const CanvasBoard = React.forwardRef<CanvasBoardHandle, CanvasBoardProps>
         const {
             transform, isPanning, isAnimating,
             handlePanStart, handlePanMove, handlePanEnd,
-            applyTarget, transformRef,
+            applyTarget, transformRef, panBy,
         } = useCanvasPanZoom({
             viewport,
             onViewportChange,
@@ -168,7 +171,16 @@ export const CanvasBoard = React.forwardRef<CanvasBoardHandle, CanvasBoardProps>
                 const y = height / 2 - (minY + contentH / 2) * zoom;
                 applyTarget({ x, y, zoom });
             },
-        }), [applyTarget, transformRef]);
+            centerOnPos: (worldX, worldY, _animate, onComplete) => {
+                const { width, height } = containerSizeRef.current;
+                const cur = transformRef.current;
+                // Keep current zoom, just translate
+                const targetX = width / 2 - worldX * cur.zoom;
+                const targetY = height / 2 - worldY * cur.zoom;
+                applyTarget({ x: targetX, y: targetY, zoom: cur.zoom }, onComplete);
+            },
+            panBy,
+        }), [applyTarget, transformRef, panBy]);
 
         // Dot grid — fade out smoothly at low zoom to prevent moiré
         const gridSize = 24 * transform.zoom;

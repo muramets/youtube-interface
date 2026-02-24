@@ -166,3 +166,15 @@ export interface TrafficFilter {
     value: number | string | string[] | [number, number]; // Filter value (number, range, etc.)
     label: string;                 // Display label for filter chips
 }
+
+/**
+ * BUSINESS LOGIC: Traffic Sort Configuration
+ * 
+ * Defines the keys and directions by which the traffic table can be sorted.
+ */
+export type TrafficSortKey = keyof TrafficSource | 'trafficType' | 'viewerType' | 'reaction' | 'publishDate';
+
+export interface TrafficSortConfig {
+    key: TrafficSortKey;
+    direction: 'asc' | 'desc';
+}

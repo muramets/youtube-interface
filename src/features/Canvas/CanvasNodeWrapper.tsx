@@ -8,12 +8,14 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
-import { liveZoom } from './liveZoom';
+import { liveZoom } from './utils/liveZoom';
 import { useShallow } from 'zustand/react/shallow';
 import { ConnectionHandles } from './ConnectionHandles';
 import SimplifiedNode from './SimplifiedNode';
 import MediumLodNode from './MediumLodNode';
+import { InsightButtons } from './InsightButtons';
 import type { CanvasNode } from '../../core/types/canvas';
+import type { TrafficSourceCardData } from '../../core/types/appContext';
 import { NODE_WIDTH } from '../../core/stores/canvas/constants';
 import { usePointerDrag } from './hooks/usePointerDrag';
 import { debug } from '../../core/utils/debug';
@@ -52,6 +54,23 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
     // Subscribe to selection state for THIS node only — avoids re-rendering
     // all 50+ wrappers when a different node is selected (new Set reference).
     const isSelected = useCanvasStore((s) => s.selectedNodeIds.has(node.id));
+
+    // Edge highlight dimming: when an edge is Cmd+Clicked, nodes NOT connected
+    // to either endpoint (via any edge) get dimmed.
+    const isDimmed = useCanvasStore((s) => {
+        if (!s.highlightedEdgeId) return false;
+        const hlEdge = s.edges.find((e) => e.id === s.highlightedEdgeId);
+        if (!hlEdge) return false;
+        // Collect all node IDs connected to the highlighted edge's endpoints
+        const endpoints = new Set([hlEdge.sourceNodeId, hlEdge.targetNodeId]);
+        if (endpoints.has(node.id)) return false; // this node IS an endpoint
+        // Check if this node shares any edge with either endpoint
+        for (const e of s.edges) {
+            if (endpoints.has(e.sourceNodeId) && e.targetNodeId === node.id) return false;
+            if (endpoints.has(e.targetNodeId) && e.sourceNodeId === node.id) return false;
+        }
+        return true;
+    });
 
     const [isHovered, setIsHovered] = useState(false);
     const [resizeMode, setResizeMode] = useState<'corner' | 'right' | 'bottom' | null>(null);
@@ -177,6 +196,7 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
     }, [node.id, selectNode, startDrag, markPlaced, duplicateNodes]);
 
     const isSticky = node.type === 'sticky-note';
+    const isTrafficSource = node.type === 'traffic-source';
 
     const makeResizeStart = useCallback((mode: 'corner' | 'right' | 'bottom') =>
         (e: React.MouseEvent) => {
@@ -198,11 +218,12 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
         }
         , [node.size, startResize]);
 
-    // For non-sticky nodes, corner handle acts as width-only resize
-    // (height is determined by content: thumbnail aspect-ratio + metadata)
+    // For non-sticky nodes, corner handle acts as width-only resize.
+    // For expanded sticky notes, also width-only (height is auto from content).
+    const isStickyExpanded = isSticky && 'isExpanded' in node.data && (node.data as { isExpanded?: boolean }).isExpanded;
     const handleResizeCorner = React.useMemo(
-        () => makeResizeStart(isSticky ? 'corner' : 'right'),
-        [makeResizeStart, isSticky]
+        () => makeResizeStart((isSticky && !isStickyExpanded) ? 'corner' : 'right'),
+        [makeResizeStart, isSticky, isStickyExpanded]
     );
     const handleResizeRight = makeResizeStart('right');
     const handleResizeBottom = makeResizeStart('bottom');
@@ -216,7 +237,13 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
     if (!node.position) return null;
 
     const nodeWidth = node.size?.w ?? NODE_WIDTH;
-    const nodeHeight = (node.size?.h && node.size.h > 0) ? node.size.h : undefined;
+    // In expanded sticky mode, let height be auto (content-driven).
+    // In compact sticky mode, use explicit height or fallback to 100px so overflow clips.
+    const nodeHeight = isStickyExpanded
+        ? undefined
+        : isSticky
+            ? (node.size?.h && node.size.h > 0) ? node.size.h : 100
+            : (node.size?.h && node.size.h > 0) ? node.size.h : undefined;
 
     return (
         <>
@@ -241,13 +268,23 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
                     borderRadius: isSelected
                         ? (node.type === 'sticky-note' ? '4px' : '14px')
                         : undefined,
+                    // Edge highlight dimming
+                    opacity: isDimmed ? 0.2 : undefined,
+                    filter: isDimmed ? 'grayscale(0.8)' : undefined,
+                    transition: 'opacity 0.2s, filter 0.2s',
+                    pointerEvents: isDimmed ? 'none' : undefined,
                 }}
                 onMouseDown={handleDragStart}
                 onMouseEnter={() => {
                     setIsHovered(true);
                     useCanvasStore.getState().setLastHoveredNodeId(node.id);
                 }}
-                onMouseLeave={() => setIsHovered(false)}
+                onMouseLeave={(e) => {
+                    const related = e.relatedTarget;
+                    // Guard: relatedTarget may be an SVG element which isn't a DOM Node
+                    if (related instanceof Node && nodeRef.current?.contains(related)) return;
+                    setIsHovered(false);
+                }}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* ConnectionHandles: lazy — only mount when visible or edge drag in progress */}
@@ -286,6 +323,16 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
                     <MediumLodNode node={node} />
                 ) : (
                     children
+                )}
+
+                {/* Insight buttons — always mounted at full LOD so popover survives cursor leaving node */}
+                {isTrafficSource && lodLevel === 'full' && (
+                    <InsightButtons
+                        nodeId={node.id}
+                        data={node.data as TrafficSourceCardData}
+                        nodeWidth={nodeWidth}
+                        isHovered={isHovered}
+                    />
                 )}
 
                 {/* Sticky note edge handles — rendered after children so they're on top. Invisible, cursor only. */}

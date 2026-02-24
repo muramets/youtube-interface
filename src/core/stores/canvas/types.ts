@@ -5,7 +5,7 @@
 import type { StateCreator } from 'zustand';
 import type {
     CanvasNode, CanvasViewport, CanvasNodeData,
-    CanvasEdge, HandlePosition,
+    CanvasEdge, HandlePosition, InsightCategory,
 } from '../../types/canvas';
 
 // --- Canvas page metadata (stored in canvas/meta doc) ---
@@ -73,6 +73,10 @@ export interface CanvasState {
     lastCanvasWorldPos: { x: number; y: number } | null;
     /** ID of the last canvas node the cursor hovered over (never cleared on leave — intent signal) */
     lastHoveredNodeId: string | null;
+    /** Transient signal: auto-open an insight popover after panToNode completes */
+    pendingInsightReveal: { nodeId: string; category: InsightCategory } | null;
+    /** Edge ID highlighted via Cmd+Click — connected nodes stay bright, others dim */
+    highlightedEdgeId: string | null;
 
     // Selection
     selectedNodeIds: Set<string>;
@@ -85,6 +89,12 @@ export interface CanvasState {
     setOpen: (open: boolean) => void;
     setLastCanvasWorldPos: (pos: { x: number; y: number }) => void;
     setLastHoveredNodeId: (id: string | null) => void;
+    /** Signal InsightButtons to auto-open a specific category popover */
+    revealInsight: (nodeId: string, category: InsightCategory) => void;
+    clearPendingInsightReveal: () => void;
+    /** Highlight an edge and dim unrelated nodes (Cmd+Click) */
+    highlightEdge: (edgeId: string) => void;
+    clearHighlightedEdge: () => void;
 
     // Nodes
     addNode: (data: CanvasNodeData) => void;
@@ -127,6 +137,17 @@ export interface CanvasState {
 
     // Actions: Viewport
     setViewport: (viewport: CanvasViewport) => void;
+    /** Animate the camera to center on a node by ID. Calls onComplete when animation finishes. */
+    panToNode: (nodeId: string, onComplete?: () => void) => void;
+    /** Register the imperative pan handler (called by CanvasOverlay on mount) */
+    _registerPanHandler: (handler: (worldX: number, worldY: number, onComplete?: () => void) => void) => void;
+    /** Unregister the pan handler (called on unmount) */
+    _unregisterPanHandler: () => void;
+    /** Register the imperative panBy handler for auto-pan during edge drag */
+    _registerPanByHandler: (handler: (dx: number, dy: number) => void) => void;
+    _unregisterPanByHandler: () => void;
+    /** Shift viewport by screen-space delta — used by edge auto-pan */
+    autoPanBy: (dx: number, dy: number) => void;
 
     // Pages
     switchPage: (pageId: string) => void;

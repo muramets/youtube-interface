@@ -197,6 +197,12 @@ export function useAudioEngine(): AudioEngineResult {
         if (!audio) return;
 
         const onTimeUpdate = () => {
+            // Skip while a pending seek is queued — the store already holds the
+            // optimistic currentTime from setPlayingTrack(). Without this guard,
+            // the browser fires timeupdate with currentTime=0 during src loading,
+            // which overwrites the optimistic value and causes a progress flash.
+            if (useMusicStore.getState().pendingSeekSeconds !== null) return;
+
             const time = audio.currentTime;
             setStoreTime(time);
             const { playingTrimEnd: trimEnd } = useMusicStore.getState();
@@ -206,6 +212,8 @@ export function useAudioEngine(): AudioEngineResult {
             }
         };
         const onDurationChange = () => {
+            // Skip while pending seek — store already has optimistic duration.
+            if (useMusicStore.getState().pendingSeekSeconds !== null) return;
             setStoreDuration(audio.duration || 0);
         };
         const onEnded = () => {

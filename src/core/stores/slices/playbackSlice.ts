@@ -27,7 +27,7 @@ export interface PlaybackSlice {
 
     // Actions
     setSelectedTrackId: (id: string | null) => void;
-    setPlayingTrack: (id: string | null, variant?: 'vocal' | 'instrumental', seekPosition?: number, trimStart?: number, trimEnd?: number) => void;
+    setPlayingTrack: (id: string | null, variant?: 'vocal' | 'instrumental', seekPosition?: number, trimStart?: number, trimEnd?: number, knownDuration?: number) => void;
     setIsPlaying: (isPlaying: boolean) => void;
     toggleVariant: () => void;
     cycleRepeatMode: () => void;
@@ -66,7 +66,7 @@ export const createPlaybackSlice: StateCreator<MusicState, [], [], PlaybackSlice
     // Actions
     setSelectedTrackId: (id) => set({ selectedTrackId: id }),
 
-    setPlayingTrack: (id, variant, seekPosition, trimStart, trimEnd) => {
+    setPlayingTrack: (id, variant, seekPosition, trimStart, trimEnd, knownDuration) => {
         const state = get();
         set({
             playingTrackId: id,
@@ -78,10 +78,18 @@ export const createPlaybackSlice: StateCreator<MusicState, [], [], PlaybackSlice
             playingTrimEnd: trimEnd ?? 0,
             playbackVolume: id === null ? null : state.playbackVolume,
             playbackSource: id === null ? null : state.playbackSource,
-            // Reset progress only when closing the player — on track-to-track
-            // transitions the audio element reports new values via onDurationChange
-            // within one frame, so resetting to 0 causes a visible progress-bar jump.
-            ...(id === null ? { currentTime: 0, duration: 0 } : {}),
+            // Optimistic progress: set currentTime and duration immediately so the
+            // waveform shows the correct fill while the audio engine loads.
+            // The audio engine's onTimeUpdate/onDurationChange are gated by
+            // pendingSeekSeconds, so these values won't be overwritten until the
+            // seek resolves.
+            ...(id === null
+                ? { currentTime: 0, duration: 0 }
+                : {
+                    currentTime: seekPosition ?? 0,
+                    ...(knownDuration != null ? { duration: knownDuration } : {}),
+                }
+            ),
         });
     },
 

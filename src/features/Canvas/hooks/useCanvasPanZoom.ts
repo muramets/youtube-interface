@@ -4,7 +4,7 @@
 
 import { useRef, useEffect, useCallback, useState } from 'react';
 import type { CanvasViewport } from '../../../core/types/canvas';
-import { liveZoom } from '../liveZoom';
+import { liveZoom } from '../utils/liveZoom';
 import { debug, DEBUG_ENABLED } from '../../../core/utils/debug';
 
 // --- Constants ---
@@ -35,11 +35,13 @@ export interface PanZoomControls {
     handlePanMove: (clientX: number, clientY: number) => boolean;
     /** End pan on mouseup */
     handlePanEnd: () => void;
-    /** Apply an animated target (used by zoomTo, fitToContent) */
-    applyTarget: (target: { x: number; y: number; zoom: number }) => void;
+    /** Apply an animated target (used by zoomTo, fitToContent, centerOnPos) */
+    applyTarget: (target: { x: number; y: number; zoom: number }, onComplete?: () => void) => void;
     /** Get current refs for imperative handle */
     transformRef: React.RefObject<{ x: number; y: number; zoom: number }>;
     targetRef: React.RefObject<{ x: number; y: number; zoom: number }>;
+    /** Immediately shift the viewport by screen-space delta (no animation, no React render) */
+    panBy: (dx: number, dy: number) => void;
 }
 
 export function useCanvasPanZoom({
@@ -54,6 +56,8 @@ export function useCanvasPanZoom({
     const targetRef = useRef({ x: viewport.x, y: viewport.y, zoom: viewport.zoom });
     const [transform, setTransform] = useState({ x: viewport.x, y: viewport.y, zoom: viewport.zoom });
     const rafRef = useRef<number | null>(null);
+    /** Fired once when the current applyTarget animation finishes */
+    const onAnimCompleteRef = useRef<(() => void) | null>(null);
     const [isPanning, setIsPanning] = useState(false);
     const [isAnimating, setIsAnimating] = useState(false);
     const panStartRef = useRef({ x: 0, y: 0 });
@@ -160,6 +164,8 @@ export function useCanvasPanZoom({
             flushToDom();
             syncToReact(); // Sync React state only on finish
             setIsAnimating(false);
+            onAnimCompleteRef.current?.();
+            onAnimCompleteRef.current = null;
             liveZoom.current = tgt.zoom;
             onViewportChangeRef.current({ x: tgt.x, y: tgt.y, zoom: tgt.zoom });
             onZoomFrameRef.current?.(tgt.zoom);
@@ -193,7 +199,8 @@ export function useCanvasPanZoom({
         }
     }, []);
 
-    const applyTarget = useCallback((newTarget: { x: number; y: number; zoom: number }) => {
+    const applyTarget = useCallback((newTarget: { x: number; y: number; zoom: number }, onComplete?: () => void) => {
+        onAnimCompleteRef.current = onComplete ?? null;
         targetRef.current = newTarget;
         startAnim();
     }, [startAnim]);
@@ -297,6 +304,14 @@ export function useCanvasPanZoom({
         hasMoveRef.current = false;
     }, [syncToReact]);
 
+    const panBy = useCallback((dx: number, dy: number) => {
+        const cur = transformRef.current;
+        const shifted = { x: cur.x + dx, y: cur.y + dy, zoom: cur.zoom };
+        transformRef.current = shifted;
+        targetRef.current = shifted;
+        flushToDom();
+    }, [flushToDom]);
+
     return {
         transform,
         isPanning,
@@ -307,5 +322,6 @@ export function useCanvasPanZoom({
         applyTarget,
         transformRef,
         targetRef,
+        panBy,
     };
 }

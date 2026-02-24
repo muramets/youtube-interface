@@ -3,37 +3,13 @@ import { Play } from 'lucide-react';
 import { type VideoDetails, type PackagingVersion } from '../../../core/utils/youtubeApi';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import { useVideoPlayer } from '../../../core/hooks/useVideoPlayer';
+import { formatDuration } from '../../../core/utils/formatUtils';
 
 interface SidebarVideoPreviewProps {
     video: VideoDetails;
     viewingVersion?: number | 'draft';
     versions?: PackagingVersion[];
 }
-
-// Parse ISO 8601 duration (PT1H2M3S) to seconds
-const parseDuration = (duration?: string): number | null => {
-    if (!duration) return null;
-    const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-    if (!match) return null;
-    const hours = parseInt(match[1] || '0', 10);
-    const minutes = parseInt(match[2] || '0', 10);
-    const seconds = parseInt(match[3] || '0', 10);
-    return hours * 3600 + minutes * 60 + seconds;
-};
-
-const formatDuration = (durationStr?: string): string => {
-    const totalSeconds = parseDuration(durationStr);
-    if (totalSeconds === null) return '';
-
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-
-    if (hours > 0) {
-        return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-};
 
 export const SidebarVideoPreview: React.FC<SidebarVideoPreviewProps> = ({
     video,
@@ -103,11 +79,16 @@ export const SidebarVideoPreview: React.FC<SidebarVideoPreviewProps> = ({
                         </div>
                     </div>
                 )}
-                {video.duration && (
-                    <span className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/80 text-white text-xs font-medium rounded z-20">
-                        {formatDuration(video.duration)}
-                    </span>
-                )}
+                {(() => {
+                    // Mirror VideoCard: use YouTube duration (mergedVideoData) for published videos,
+                    // fallback to draft duration for unpublished custom videos.
+                    const duration = video.mergedVideoData?.duration || video.duration;
+                    return duration ? (
+                        <span className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/80 text-white text-xs font-medium rounded z-20">
+                            {formatDuration(duration)}
+                        </span>
+                    ) : null;
+                })()}
             </div>
 
             {/* Video Info */}

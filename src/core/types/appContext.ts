@@ -115,8 +115,14 @@ export interface TrafficSourceCardData {
     // Context: which source video this was suggested alongside
     sourceVideoId?: string;
     sourceVideoTitle?: string;
+    /** Snapshot ID this traffic source was added from (for canvas frame grouping) */
+    snapshotId?: string;
+    /** Display label for the snapshot (user-defined or auto-generated date) */
+    snapshotLabel?: string;
     /** Whether metrics represent cumulative totals or delta growth since last snapshot */
     viewMode?: 'cumulative' | 'delta';
+    /** Per-node insights: packaging, visual, music analysis notes */
+    insights?: Partial<Record<import('./canvas').InsightCategory, import('./canvas').NodeInsight>>;
 }
 
 /** Discriminated union — extend with `|` for new context types. */
