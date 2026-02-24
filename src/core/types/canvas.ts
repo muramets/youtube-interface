@@ -26,10 +26,22 @@ export interface StickyNoteData {
     isExpanded?: boolean;
 }
 
+// --- Image Node ---
+
+export interface ImageNodeData {
+    type: 'image';
+    /** Firebase Storage download URL (set after upload completes) */
+    downloadUrl: string;
+    /** Firebase Storage path — used for deletion */
+    storagePath: string;
+    /** Optional alt text for accessibility */
+    alt?: string;
+}
+
 // --- Canvas Node ---
 
-/** Data payload for a canvas node — context card or sticky note */
-export type CanvasNodeData = AppContextItem | StickyNoteData;
+/** Data payload for a canvas node — context card, sticky note, or pasted image */
+export type CanvasNodeData = AppContextItem | StickyNoteData | ImageNodeData;
 
 /** Position on the infinite canvas in world coordinates */
 export interface CanvasPosition {
@@ -46,7 +58,7 @@ export interface CanvasSize {
 /** A single node placed on the canvas */
 export interface CanvasNode {
     id: string;
-    type: 'video-card' | 'suggested-traffic' | 'traffic-source' | 'sticky-note';
+    type: 'video-card' | 'suggested-traffic' | 'traffic-source' | 'sticky-note' | 'image';
     data: CanvasNodeData;
     /** null = pending placement (created by drop on closed Canvas FAB) */
     position: CanvasPosition | null;

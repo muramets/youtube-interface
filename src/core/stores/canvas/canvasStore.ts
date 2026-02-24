@@ -21,7 +21,7 @@ import { create } from 'zustand';
 import { doc, onSnapshot, setDoc, getDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import type { CanvasNode, CanvasViewport, CanvasEdge } from '../../types/canvas';
-import { SAVE_DEBOUNCE_MS, MAX_UNDO_LEVELS } from './constants';
+import { SAVE_DEBOUNCE_MS, MAX_UNDO_LEVELS, IMAGE_NODE_WIDTH, NODE_HEIGHT_FALLBACK } from './constants';
 import type { CanvasState, CanvasPageMeta } from './types';
 import { stripUndefined } from './stripUndefined';
 import { createNodesSlice } from './slices/nodesSlice';
@@ -29,6 +29,7 @@ import { createEdgesSlice } from './slices/edgesSlice';
 import { createSelectionSlice } from './slices/selectionSlice';
 import { createLayoutSlice } from './slices/layoutSlice';
 import { createViewportSlice, DEFAULT_VIEWPORT } from './slices/viewportSlice';
+import { uploadCanvasImage } from '../../services/storageService';
 import { debug } from '../../utils/debug';
 
 // Re-export types for consumers
@@ -120,18 +121,22 @@ function _pasteNodes(
 
     // Calculate centroid of copied nodes for offset
     const positions = clipboard.nodes.filter((n) => n.position);
-    let offsetX = 30;
-    let offsetY = 30;
+    let offsetX = 0;
+    let offsetY = 0;
 
     if (positions.length > 0) {
-        const cx = positions.reduce((s, n) => s + n.position!.x, 0) / positions.length;
-        const cy = positions.reduce((s, n) => s + n.position!.y, 0) / positions.length;
-        // Same page → offset by 30px; different page → center on viewport
-        const isSamePage = clipboard.sourcePageId === get().activePageId;
-        if (!isSamePage) {
-            offsetX = viewportCenter.x - cx;
-            offsetY = viewportCenter.y - cy;
-        }
+        // Calculate the bounding box center of the copied nodes to accurately place them
+        const minX = Math.min(...positions.map((n) => n.position!.x));
+        const maxX = Math.max(...positions.map((n) => n.position!.x + (n.size?.w ?? IMAGE_NODE_WIDTH)));
+        const minY = Math.min(...positions.map((n) => n.position!.y));
+        const maxY = Math.max(...positions.map((n) => n.position!.y + (n.size?.h ?? NODE_HEIGHT_FALLBACK)));
+
+        const cx = minX + (maxX - minX) / 2;
+        const cy = minY + (maxY - minY) / 2;
+
+        // Shift the cluster so its center lands exactly on the requested viewportCenter (which is our cursor pos)
+        offsetX = viewportCenter.x - cx;
+        offsetY = viewportCenter.y - cy;
     }
 
     const newNodes = clipboard.nodes.map((n) => ({
@@ -254,6 +259,44 @@ export const useCanvasStore = create<CanvasState>((...a) => {
             highlightedEdgeId: s.highlightedEdgeId === edgeId ? null : edgeId,
         })),
         clearHighlightedEdge: () => set({ highlightedEdgeId: null }),
+
+        // --- Image paste from OS clipboard ---
+        addImageNode: (blob, viewportCenter) => {
+            const { userId, channelId, activePageId } = get();
+            if (!userId || !channelId || !activePageId) return;
+
+            // 1. Create placeholder node immediately (optimistic UI)
+            // Note: addNodeAt pushes undo internally — no extra push needed
+            const placeholderData = { type: 'image' as const, downloadUrl: '', storagePath: '' };
+            get().addNodeAt(placeholderData, viewportCenter);
+
+            // The node was added by addNodeAt with its own ID — grab the last one
+            const addedNode = get().nodes[get().nodes.length - 1];
+            const realId = addedNode.id;
+
+            // 2. Upload in background, then update node data with real URL
+            uploadCanvasImage(userId, channelId, activePageId, realId, blob)
+                .then(({ storagePath, downloadUrl }) => {
+                    get()._markDirty(realId);
+                    set((s) => ({
+                        nodes: s.nodes.map((n) =>
+                            n.id === realId
+                                ? { ...n, data: { ...n.data, downloadUrl, storagePath } }
+                                : n
+                        ),
+                    }));
+                    get()._save();
+                    debug.canvas('🖼️ Image uploaded:', storagePath);
+                })
+                .catch((err) => {
+                    console.error('[Canvas] Image upload failed:', err);
+                    // Remove the placeholder node on failure
+                    set((s) => ({
+                        nodes: s.nodes.filter((n) => n.id !== realId),
+                    }));
+                    get()._save();
+                });
+        },
 
         // --- Dirty node tracking ---
         _markDirty: (id) => { _dirtyNodeIds.add(id); },

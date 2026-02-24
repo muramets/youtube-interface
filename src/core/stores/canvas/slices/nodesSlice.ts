@@ -4,8 +4,9 @@
 
 import type { CanvasNode, CanvasNodeData } from '../../../types/canvas';
 import { Timestamp } from 'firebase/firestore';
-import { TRAFFIC_NODE_WIDTH, STICKY_NOTE_HEIGHT_ESTIMATE, NODE_HEIGHT_FALLBACK } from '../constants';
+import { TRAFFIC_NODE_WIDTH, IMAGE_NODE_WIDTH, STICKY_NOTE_HEIGHT_ESTIMATE, NODE_HEIGHT_FALLBACK } from '../constants';
 import type { CanvasSlice, CanvasState } from '../types';
+import { deleteCanvasImage } from '../../../services/storageService';
 
 // ---------------------------------------------------------------------------
 // Node factory — consolidates type mapping and default sizes for addNode/addNodeAt
@@ -21,6 +22,7 @@ function createCanvasNode(
     if (data.type === 'video-card') nodeType = 'video-card';
     else if (data.type === 'suggested-traffic') nodeType = 'suggested-traffic';
     else if (data.type === 'traffic-source') nodeType = 'traffic-source';
+    else if (data.type === 'image') nodeType = 'image';
 
     return {
         id: crypto.randomUUID(),
@@ -32,6 +34,7 @@ function createCanvasNode(
         zIndex: maxZ + 1,
         ...(nodeType === 'traffic-source' ? { size: { w: TRAFFIC_NODE_WIDTH, h: 0 } } : {}),
         ...(nodeType === 'sticky-note' ? { size: { w: TRAFFIC_NODE_WIDTH, h: 0 } } : {}),
+        ...(nodeType === 'image' ? { size: { w: IMAGE_NODE_WIDTH, h: 0 } } : {}),
         createdAt: Timestamp.now(),
     };
 }
@@ -119,6 +122,12 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
     },
 
     deleteNode: (id) => {
+        // Fire-and-forget Storage cleanup for image nodes
+        const target = get().nodes.find((n) => n.id === id);
+        if (target?.type === 'image' && 'storagePath' in target.data) {
+            const sp = (target.data as { storagePath?: string }).storagePath;
+            if (sp) deleteCanvasImage(sp);
+        }
         get()._pushUndo();
         set((s) => ({
             nodes: s.nodes.filter((n) => n.id !== id),
@@ -129,8 +138,15 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
     },
 
     deleteNodes: (ids) => {
-        get()._pushUndo();
+        // Fire-and-forget Storage cleanup for image nodes
         const idSet = new Set(ids);
+        for (const n of get().nodes) {
+            if (idSet.has(n.id) && n.type === 'image' && 'storagePath' in n.data) {
+                const sp = (n.data as { storagePath?: string }).storagePath;
+                if (sp) deleteCanvasImage(sp);
+            }
+        }
+        get()._pushUndo();
         set((s) => ({
             nodes: s.nodes.filter((n) => !idSet.has(n.id)),
             edges: s.edges.filter((e) => !idSet.has(e.sourceNodeId) && !idSet.has(e.targetNodeId)),

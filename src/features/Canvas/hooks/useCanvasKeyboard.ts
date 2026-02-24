@@ -11,6 +11,7 @@ import type { CanvasBoardHandle } from '../CanvasBoard';
  * Registers keyboard shortcuts for the Canvas overlay:
  * - Escape: close canvas (unless a modal is open)
  * - Z: fit all nodes to viewport
+ * - Cmd+V: paste OS clipboard image OR internal canvas clipboard (via 'paste' event)
  */
 export function useCanvasKeyboard(
     isOpen: boolean,
@@ -59,6 +60,8 @@ export function useCanvasKeyboard(
             if (selectedNodeIds.size > 0) {
                 e.preventDefault();
                 copySelected();
+                // Overwrite OS clipboard so old images don't linger and interfere with Cmd+V
+                navigator.clipboard.writeText('[Canvas Nodes Copied]').catch(() => { });
             }
         }
 
@@ -70,37 +73,34 @@ export function useCanvasKeyboard(
                 copySelected();
                 deleteNodes(Array.from(selectedNodeIds));
                 _flush(); // Bypass debounce — save immediately so onSnapshot can't re-add
+                // Overwrite OS clipboard so old images don't linger
+                navigator.clipboard.writeText('[Canvas Nodes Copied]').catch(() => { });
             }
         }
 
         // Cmd+Opt+V → move (paste + delete originals from source page)
         if (mod && e.code === 'KeyV' && e.altKey && !e.shiftKey && !isEditing) {
-            const { clipboard } = useCanvasStore.getState();
-            if (clipboard && clipboard.nodes.length > 0) {
+            const state = useCanvasStore.getState();
+            if (state.clipboard && state.clipboard.nodes.length > 0) {
                 e.preventDefault();
-                const center = boardRef.current?.getViewportCenter?.() ?? { x: 0, y: 0 };
-                useCanvasStore.getState().moveClipboard(center);
+                const pos = state.lastCanvasWorldPos ?? boardRef.current?.getViewportCenter?.() ?? { x: 0, y: 0 };
+                state.moveClipboard(pos);
             }
         }
 
-        // Cmd+V → paste clipboard
-        if (mod && e.code === 'KeyV' && !e.altKey && !e.shiftKey && !isEditing) {
-            const { clipboard } = useCanvasStore.getState();
-            if (clipboard && clipboard.nodes.length > 0) {
-                e.preventDefault();
-                const center = boardRef.current?.getViewportCenter?.() ?? { x: 0, y: 0 };
-                useCanvasStore.getState().pasteClipboard(center);
-            }
-        }
+        // NOTE: Cmd+V (plain paste) is NOT handled here.
+        // It is handled by the 'paste' event listener below, which checks for
+        // OS clipboard images first, then falls back to internal canvas clipboard.
+        // We must NOT preventDefault here, otherwise the 'paste' event won't fire.
 
         // Cmd+D → duplicate (copy + paste in one step)
         if (mod && e.code === 'KeyD' && !e.shiftKey && !isEditing) {
-            const { selectedNodeIds, copySelected: copy, pasteClipboard: paste } = useCanvasStore.getState();
-            if (selectedNodeIds.size > 0) {
+            const state = useCanvasStore.getState();
+            if (state.selectedNodeIds.size > 0) {
                 e.preventDefault();
-                copy();
-                const center = boardRef.current?.getViewportCenter?.() ?? { x: 0, y: 0 };
-                paste(center);
+                state.copySelected();
+                const pos = state.lastCanvasWorldPos ?? boardRef.current?.getViewportCenter?.() ?? { x: 0, y: 0 };
+                state.pasteClipboard(pos);
             }
         }
 
@@ -130,9 +130,53 @@ export function useCanvasKeyboard(
         }
     }, [setOpen, boardRef]);
 
+    // --- Paste event: handles BOTH OS clipboard images AND internal canvas clipboard ---
+    //
+    // Why here and not in keydown?
+    // The native 'paste' event provides clipboardData (images, text) without needing
+    // any permissions. If we preventDefault() in keydown, the paste event never fires
+    // and we can't read OS clipboard contents. So ALL Cmd+V paste logic lives here.
+    //
+    // Priority: OS clipboard image > internal canvas clipboard > do nothing
+    const handlePaste = useCallback((e: ClipboardEvent) => {
+        const active = document.activeElement;
+        const isEditing = active instanceof HTMLElement &&
+            (active.isContentEditable || active.tagName === 'INPUT');
+        if (isEditing) return; // let native paste handle text in contentEditable
+
+        const items = e.clipboardData?.items;
+        if (!items) return;
+
+        // 1) Check for image in OS clipboard (screenshots, copied images)
+        for (const item of items) {
+            if (item.type.startsWith('image/')) {
+                const blob = item.getAsFile();
+                if (blob) {
+                    e.preventDefault();
+                    const state = useCanvasStore.getState();
+                    const pos = state.lastCanvasWorldPos ?? boardRef.current?.getViewportCenter?.() ?? { x: 0, y: 0 };
+                    state.addImageNode(blob, pos);
+                    return;
+                }
+            }
+        }
+
+        // 2) No image → try internal canvas clipboard
+        const state = useCanvasStore.getState();
+        if (state.clipboard && state.clipboard.nodes.length > 0) {
+            e.preventDefault();
+            const pos = state.lastCanvasWorldPos ?? boardRef.current?.getViewportCenter?.() ?? { x: 0, y: 0 };
+            state.pasteClipboard(pos);
+        }
+    }, [boardRef]);
+
     useEffect(() => {
         if (!isOpen) return;
         document.addEventListener('keydown', handleKeyDown);
-        return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, handleKeyDown]);
+        document.addEventListener('paste', handlePaste);
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+            document.removeEventListener('paste', handlePaste);
+        };
+    }, [isOpen, handleKeyDown, handlePaste]);
 }

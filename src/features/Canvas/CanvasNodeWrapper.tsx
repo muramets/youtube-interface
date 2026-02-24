@@ -266,7 +266,7 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
                     outline: isSelected ? '2px solid #6366f1' : undefined,
                     outlineOffset: isSelected ? '2px' : undefined,
                     borderRadius: isSelected
-                        ? (node.type === 'sticky-note' ? '4px' : '14px')
+                        ? (node.type === 'sticky-note' || node.type === 'image' ? '4px' : '14px')
                         : undefined,
                     // Edge highlight dimming
                     opacity: isDimmed ? 0.2 : undefined,

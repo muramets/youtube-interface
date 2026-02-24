@@ -20,6 +20,9 @@ export const STICKY_NOTE_HEIGHT_ESTIMATE = 100;
 /** Debounce delay for Firestore save (ms) */
 export const SAVE_DEBOUNCE_MS = 1500;
 
+/** Default image node width */
+export const IMAGE_NODE_WIDTH = 400;
+
 /** Default traffic-source node width */
 export const TRAFFIC_NODE_WIDTH = 360;
 

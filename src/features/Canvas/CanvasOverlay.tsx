@@ -18,12 +18,13 @@ import { CanvasNodeWrapper } from './CanvasNodeWrapper';
 import { VideoCardNode } from './VideoCardNode';
 import { TrafficSourceNode } from './TrafficSourceNode';
 import { StickyNoteNode } from './StickyNoteNode';
+import { ImageNode } from './ImageNode';
 import { GlobalInsightsBar } from './GlobalInsightsBar';
 import { EdgeLayer, EdgeHandles } from './EdgeLayer';
 import { SnapshotFrame } from './SnapshotFrame';
 import { isNodeVisible } from './geometry/viewportCulling';
 import { deriveFrameBounds } from './utils/frameLayout';
-import type { CanvasViewport, StickyNoteData } from '../../core/types/canvas';
+import type { CanvasViewport, StickyNoteData, ImageNodeData } from '../../core/types/canvas';
 import type { VideoCardContext, TrafficSourceCardData } from '../../core/types/appContext';
 import { debug } from '../../core/utils/debug';
 import { CanvasPageHeader } from './CanvasPageHeader';
@@ -89,11 +90,17 @@ export const CanvasOverlay: React.FC = () => {
     );
 
     const boardRef = useRef<CanvasBoardHandle>(null);
+    const overlayRef = useRef<HTMLDivElement>(null);
     const liveZoomRef = useRef(viewport.zoom);
     // Culling viewport: updated mid-pan/zoom via throttled callback
     const [cullingViewport, setCullingViewport] = React.useState(viewport);
     // LOD level — only re-renders when level actually transitions (rare)
     const [lodLevel, setLodLevel] = React.useState<LodLevel>('full');
+
+    // Auto-focus overlay so document receives generic paste/keyboard events
+    React.useEffect(() => {
+        if (isOpen) overlayRef.current?.focus();
+    }, [isOpen]);
 
     // --- Hooks: sync, placement, keyboard ---
     useCanvasSync(isOpen);
@@ -204,7 +211,9 @@ export const CanvasOverlay: React.FC = () => {
         <>
             {/* Overlay: board background + nodes */}
             <div
-                className="canvas-overlay fixed inset-0 z-panel flex flex-col"
+                ref={overlayRef}
+                tabIndex={-1}
+                className="canvas-overlay fixed inset-0 z-panel flex flex-col focus:outline-none"
                 style={{ background: 'var(--bg-primary)' }}
             >
                 {/* Page header — frozen blur, above board */}
@@ -227,7 +236,12 @@ export const CanvasOverlay: React.FC = () => {
                     onViewportChange={handleViewportChange}
                     onZoomFrame={handleZoomFrame}
                     onPanFrame={handlePanFrame}
-                    onClick={() => { clearSelection(); useCanvasStore.getState().clearHighlightedEdge(); }}
+                    onPointerDown={() => overlayRef.current?.focus()}
+                    onClick={() => {
+                        clearSelection();
+                        useCanvasStore.getState().clearHighlightedEdge();
+                        overlayRef.current?.focus();
+                    }}
                     onSelectRect={handleSelectRect}
                     onCursorMove={setLastCanvasWorldPos}
                     onDblClick={handleCanvasDblClick}
@@ -258,6 +272,9 @@ export const CanvasOverlay: React.FC = () => {
                             )}
                             {node.type === 'sticky-note' && (
                                 <StickyNoteNode data={node.data as StickyNoteData} nodeId={node.id} />
+                            )}
+                            {node.type === 'image' && (
+                                <ImageNode data={node.data as ImageNodeData} nodeId={node.id} />
                             )}
                         </CanvasNodeWrapper>
                     ))}

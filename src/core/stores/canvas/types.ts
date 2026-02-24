@@ -118,6 +118,8 @@ export interface CanvasState {
     placePendingNodes: (viewportCenter: { x: number; y: number }) => void;
     /** Correction pass: re-stack children of each parent using measured heights */
     relayoutChildren: () => void;
+    /** Paste an image blob from OS clipboard: creates placeholder node → uploads → updates URL */
+    addImageNode: (blob: Blob, viewportCenter: { x: number; y: number }) => void;
 
     // Selection
     selectNode: (id: string, multi: boolean) => void;

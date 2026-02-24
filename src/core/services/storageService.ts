@@ -79,6 +79,53 @@ export const dataURLtoBlob = (dataurl: string): Blob => {
 };
 
 // ============================================================================
+// CANVAS IMAGE STORAGE
+// ============================================================================
+
+/**
+ * Upload a pasted image to Firebase Storage for a canvas node.
+ *
+ * Storage path: users/{userId}/channels/{channelId}/canvas/{pageId}/{nodeId}.{ext}
+ */
+export const uploadCanvasImage = async (
+    userId: string,
+    channelId: string,
+    pageId: string,
+    nodeId: string,
+    blob: Blob,
+): Promise<{ storagePath: string; downloadUrl: string }> => {
+    // Infer extension from MIME (screenshot paste is typically image/png)
+    const ext = blob.type === 'image/jpeg' ? 'jpg'
+        : blob.type === 'image/webp' ? 'webp'
+            : 'png';
+    const storagePath = `users/${userId}/channels/${channelId}/canvas/${pageId}/${nodeId}.${ext}`;
+    const storageRef = ref(storage, storagePath);
+
+    await uploadBytes(storageRef, blob, {
+        contentType: blob.type || 'image/png',
+        cacheControl: 'public,max-age=31536000',
+    });
+
+    const downloadUrl = await getDownloadURL(storageRef);
+    return { storagePath, downloadUrl };
+};
+
+/**
+ * Delete a canvas image from Firebase Storage (fire-and-forget safe).
+ */
+export const deleteCanvasImage = async (storagePath: string): Promise<void> => {
+    try {
+        const storageRef = ref(storage, storagePath);
+        await deleteObject(storageRef);
+    } catch (error: unknown) {
+        if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === 'storage/object-not-found') {
+            return;
+        }
+        console.warn('[Canvas] Failed to delete image from Storage:', storagePath, error);
+    }
+};
+
+// ============================================================================
 // CHAT ATTACHMENT STORAGE
 // ============================================================================
 
