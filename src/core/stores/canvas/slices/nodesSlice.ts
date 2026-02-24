@@ -11,7 +11,7 @@ import { deleteCanvasImage } from '../../../services/storageService';
 // ---------------------------------------------------------------------------
 // Node factory — consolidates type mapping and default sizes for addNode/addNodeAt
 // ---------------------------------------------------------------------------
-function createCanvasNode(
+export function createCanvasNode(
     data: CanvasNodeData,
     position: { x: number; y: number } | null,
     existingNodes: CanvasNode[],

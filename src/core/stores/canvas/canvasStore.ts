@@ -24,7 +24,7 @@ import type { CanvasNode, CanvasViewport, CanvasEdge } from '../../types/canvas'
 import { SAVE_DEBOUNCE_MS, MAX_UNDO_LEVELS, IMAGE_NODE_WIDTH, NODE_HEIGHT_FALLBACK } from './constants';
 import type { CanvasState, CanvasPageMeta } from './types';
 import { stripUndefined } from './stripUndefined';
-import { createNodesSlice } from './slices/nodesSlice';
+import { createNodesSlice, createCanvasNode } from './slices/nodesSlice';
 import { createEdgesSlice } from './slices/edgesSlice';
 import { createSelectionSlice } from './slices/selectionSlice';
 import { createLayoutSlice } from './slices/layoutSlice';
@@ -42,7 +42,7 @@ const canvasBasePath = (userId: string, channelId: string) =>
 const canvasMetaPath = (userId: string, channelId: string) =>
     `${canvasBasePath(userId, channelId)}/meta`;
 
-const canvasPageDocPath = (userId: string, channelId: string, pageId: string) =>
+export const canvasPageDocPath = (userId: string, channelId: string, pageId: string) =>
     `${canvasBasePath(userId, channelId)}/page_${pageId}`;
 
 /** Legacy path — used only for migration */
@@ -259,6 +259,38 @@ export const useCanvasStore = create<CanvasState>((...a) => {
             highlightedEdgeId: s.highlightedEdgeId === edgeId ? null : edgeId,
         })),
         clearHighlightedEdge: () => set({ highlightedEdgeId: null }),
+
+        // --- Cross-page insert ---
+        addNodeToPage: async (dataArr, pageId) => {
+            const { userId, channelId, activePageId } = get();
+            if (!userId || !channelId) return;
+
+            // Same page → use in-memory addNode (supports undo, pending placement, etc.)
+            if (pageId === activePageId) {
+                for (const data of dataArr) {
+                    get().addNode(data);
+                }
+                return;
+            }
+
+            // Cross-page → direct Firestore read-modify-write
+            try {
+                const ref = doc(db, canvasPageDocPath(userId, channelId, pageId));
+                const snap = await getDoc(ref);
+                const existing = snap.exists() ? (snap.data().nodes ?? []) as CanvasNode[] : [];
+
+                const newNodes = dataArr.map((data) => createCanvasNode(data, null, existing));
+
+                await setDoc(ref, {
+                    nodes: stripUndefined([...existing, ...newNodes]),
+                    updatedAt: serverTimestamp(),
+                }, { merge: true });
+
+                debug.canvas('📌 Cross-page insert:', newNodes.length, 'nodes → page', pageId);
+            } catch (err) {
+                console.error('[canvasStore] addNodeToPage failed:', err);
+            }
+        },
 
         // --- Image paste from OS clipboard ---
         addImageNode: (blob, viewportCenter) => {

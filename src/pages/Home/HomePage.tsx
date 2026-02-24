@@ -10,7 +10,7 @@ import { VideoSelectionFloatingBar } from '../../features/Video/components/Video
 import { useFilterStore } from '../../core/stores/filterStore';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 import { useUIStore } from '../../core/stores/uiStore';
-import type { VideoCardContext } from '../../core/types/appContext';
+import { videoToCardContext } from '../../core/utils/videoAdapters';
 
 export const HomePage: React.FC = () => {
     const { user } = useAuth();
@@ -18,7 +18,7 @@ export const HomePage: React.FC = () => {
     const { videos, isLoading, updateVideo, removeVideo } = useVideos(user?.uid || '', currentChannel?.id || '');
     const { playlists } = usePlaylists(user?.uid || '', currentChannel?.id || '');
     const { savePageState, loadPageState } = useFilterStore();
-    const addCanvasNode = useCanvasStore((s) => s.addNode);
+    const addNodeToPage = useCanvasStore((s) => s.addNodeToPage);
     const { showToast } = useUIStore();
 
     // Per-page state persistence: load on enter, save on leave
@@ -53,50 +53,29 @@ export const HomePage: React.FC = () => {
         clearSelection();
     };
 
-    const handleAddToCanvas = React.useCallback((ids: string[]) => {
+    const handleAddToCanvas = React.useCallback((ids: string[], pageId: string, pageTitle: string) => {
         const videosToAdd = videos.filter((v) => ids.includes(v.id))
             .sort((a, b) => {
                 const da = a.mergedVideoData?.publishedAt || a.publishedAt || '';
                 const db = b.mergedVideoData?.publishedAt || b.publishedAt || '';
                 return da < db ? -1 : da > db ? 1 : 0; // oldest first → leftmost on canvas
             });
-        videosToAdd.forEach((v) => {
-            let ownership: VideoCardContext['ownership'];
-            if (v.isCustom && !v.publishedVideoId) ownership = 'own-draft';
-            else if (v.isCustom) ownership = 'own-published';
-            else if (v.channelTitle === currentChannel?.name) ownership = 'own-published';
-            else ownership = 'competitor';
-
-            const publishedAt = v.mergedVideoData?.publishedAt || v.publishedAt || null;
-            const viewCount = v.mergedVideoData?.viewCount || v.viewCount || null;
-            const duration = v.mergedVideoData?.duration || null;
-
-            const contextItem: VideoCardContext = {
-                type: 'video-card',
-                ownership,
-                videoId: v.id,
-                // For competitor/YouTube-API videos, videoId IS the YouTube ID.
-                // For own-channel custom videos, publishedVideoId is stored separately.
-                ...(v.publishedVideoId || ownership === 'competitor' ? { publishedVideoId: v.publishedVideoId || v.id } : {}),
-                title: v.title,
-                description: v.description || '',
-                tags: v.tags || [],
-                thumbnailUrl: v.customImage || v.thumbnail,
-                ...(viewCount && ownership !== 'own-draft' ? { viewCount } : {}),
-                ...(publishedAt && ownership !== 'own-draft' ? { publishedAt } : {}),
-                ...(duration ? { duration } : {}),
-                ...(v.channelTitle ? { channelTitle: v.channelTitle } : {}),
-            };
-            addCanvasNode(contextItem);
-        });
+        const dataArr = videosToAdd.map((v) => videoToCardContext(v, currentChannel?.name));
+        addNodeToPage(dataArr, pageId);
         showToast(
-            videosToAdd.length === 1 ? 'Added to Canvas — click to open' : `${videosToAdd.length} videos added to Canvas — click to open`,
+            videosToAdd.length === 1
+                ? `Added to ${pageTitle} — click to open`
+                : `${videosToAdd.length} videos added to ${pageTitle} — click to open`,
             'success',
             'Open',
-            () => useCanvasStore.getState().setOpen(true),
+            () => {
+                const store = useCanvasStore.getState();
+                if (store.activePageId !== pageId) store.switchPage(pageId);
+                store.setOpen(true);
+            },
         );
         clearSelection();
-    }, [videos, currentChannel?.name, addCanvasNode, showToast, clearSelection]);
+    }, [videos, currentChannel?.name, addNodeToPage, showToast, clearSelection]);
 
     return (
         <div className="h-full flex flex-col">

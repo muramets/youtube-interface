@@ -26,7 +26,7 @@ import { VideoSelectionFloatingBar } from '../../features/Video/components/Video
 import { useAppContextStore } from '../../core/stores/appContextStore';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 import { useUIStore } from '../../core/stores/uiStore';
-import type { VideoCardContext } from '../../core/types/appContext';
+import { videoToCardContext } from '../../core/utils/videoAdapters';
 
 // Format number with K/M suffix
 const formatDelta = (value: number | null): string | null => {
@@ -382,7 +382,7 @@ export const PlaylistDetailPage: React.FC = () => {
     // Bridge: sync selected videos → appContextStore for AI chat
     const setContextItems = useAppContextStore(s => s.setItems);
     const clearContextItems = useAppContextStore(s => s.clearItems);
-    const addCanvasNode = useCanvasStore(s => s.addNode);
+    const addNodeToPage = useCanvasStore(s => s.addNodeToPage);
     const { showToast } = useUIStore();
 
     React.useEffect(() => {
@@ -390,37 +390,7 @@ export const PlaylistDetailPage: React.FC = () => {
             clearContextItems();
             return;
         }
-        const contextItems: VideoCardContext[] = selectedVideos.map(v => {
-            // Determine ownership category
-            let ownership: VideoCardContext['ownership'];
-            if (v.isCustom && !v.publishedVideoId) {
-                ownership = 'own-draft';
-            } else if (v.isCustom) {
-                // Custom video with publishedVideoId → user's published video
-                ownership = 'own-published';
-            } else if (v.channelTitle === currentChannel?.name) {
-                // YouTube video from user's own channel
-                ownership = 'own-published';
-            } else {
-                ownership = 'competitor';
-            }
-
-            return {
-                type: 'video-card' as const,
-                ownership,
-                videoId: v.id,
-                ...(v.publishedVideoId || ownership === 'competitor' ? { publishedVideoId: v.publishedVideoId || v.id } : {}),
-                title: v.title,
-                description: v.description || '',
-                tags: v.tags || [],
-                thumbnailUrl: v.customImage || v.thumbnail,
-                ...(ownership === 'competitor' && v.channelTitle ? { channelTitle: v.channelTitle } : {}),
-                // Don't include stats for drafts — they are placeholder values
-                ...(ownership !== 'own-draft' && (v.mergedVideoData?.viewCount || v.viewCount) ? { viewCount: v.mergedVideoData?.viewCount || v.viewCount } : {}),
-                ...(ownership !== 'own-draft' && (v.mergedVideoData?.publishedAt || v.publishedAt) ? { publishedAt: v.mergedVideoData?.publishedAt || v.publishedAt } : {}),
-                ...(ownership !== 'own-draft' && (v.mergedVideoData?.duration || v.duration) ? { duration: v.mergedVideoData?.duration || v.duration } : {}),
-            };
-        });
+        const contextItems = selectedVideos.map(v => videoToCardContext(v, currentChannel?.name));
         setContextItems(contextItems);
     }, [selectedVideos, setContextItems, clearContextItems, currentChannel?.name]);
 
@@ -429,48 +399,29 @@ export const PlaylistDetailPage: React.FC = () => {
         return () => clearContextItems();
     }, [clearContextItems]);
 
-    // Canvas: add selected videos as nodes
-    const handleAddToCanvas = React.useCallback((ids: string[]) => {
+    const handleAddToCanvas = React.useCallback((ids: string[], pageId: string, pageTitle: string) => {
         const videosToAdd = playlistVideos.filter(v => ids.includes(v.id))
             .sort((a, b) => {
                 const da = a.mergedVideoData?.publishedAt || a.publishedAt || '';
                 const db = b.mergedVideoData?.publishedAt || b.publishedAt || '';
                 return da < db ? -1 : da > db ? 1 : 0;
             });
-        videosToAdd.forEach(v => {
-            let ownership: VideoCardContext['ownership'];
-            if (v.isCustom && !v.publishedVideoId) ownership = 'own-draft';
-            else if (v.isCustom) ownership = 'own-published';
-            else if (v.channelTitle === currentChannel?.name) ownership = 'own-published';
-            else ownership = 'competitor';
-
-            const publishedAt = v.mergedVideoData?.publishedAt || v.publishedAt || null;
-            const viewCount = v.mergedVideoData?.viewCount || v.viewCount || null;
-            const duration = v.mergedVideoData?.duration || null;
-            const contextItem: VideoCardContext = {
-                type: 'video-card',
-                ownership,
-                videoId: v.id,
-                publishedVideoId: v.publishedVideoId || (ownership === 'competitor' ? v.id : undefined),
-                title: v.title,
-                description: v.description || '',
-                tags: v.tags || [],
-                thumbnailUrl: v.customImage || v.thumbnail,
-                ...(viewCount && ownership !== 'own-draft' ? { viewCount } : {}),
-                ...(publishedAt && ownership !== 'own-draft' ? { publishedAt } : {}),
-                ...(duration ? { duration } : {}),
-                ...(v.channelTitle ? { channelTitle: v.channelTitle } : {}),
-            };
-            addCanvasNode(contextItem);
-        });
+        const dataArr = videosToAdd.map(v => videoToCardContext(v, currentChannel?.name));
+        addNodeToPage(dataArr, pageId);
         showToast(
-            videosToAdd.length === 1 ? 'Added to Canvas — click to open' : `${videosToAdd.length} videos added to Canvas — click to open`,
+            videosToAdd.length === 1
+                ? `Added to ${pageTitle} — click to open`
+                : `${videosToAdd.length} videos added to ${pageTitle} — click to open`,
             'success',
             'Open',
-            () => useCanvasStore.getState().setOpen(true),
+            () => {
+                const store = useCanvasStore.getState();
+                if (store.activePageId !== pageId) store.switchPage(pageId);
+                store.setOpen(true);
+            },
         );
         clearSelection();
-    }, [playlistVideos, currentChannel?.name, addCanvasNode, showToast, clearSelection]);
+    }, [playlistVideos, currentChannel?.name, addNodeToPage, showToast, clearSelection]);
 
     const videosToExport = selectedCount > 0 ? selectedVideos : playlistVideos;
 

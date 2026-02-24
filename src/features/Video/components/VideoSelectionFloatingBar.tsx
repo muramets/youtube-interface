@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Trash2, ListPlus, Home, LayoutGrid } from 'lucide-react';
+import { Trash2, ListPlus, Home } from 'lucide-react';
 import { FloatingBar } from '../../../components/ui/organisms/FloatingBar';
 import { AddToPlaylistModal } from '../../Playlists/modals/AddToPlaylistModal';
+import { CanvasPageSelector } from '../../Canvas/components/CanvasPageSelector';
 
 interface VideoSelectionFloatingBarProps {
     selectedIds: Set<string>;
@@ -9,7 +10,7 @@ interface VideoSelectionFloatingBarProps {
     onDelete: (ids: string[]) => void;
     isDeleting?: boolean;
     onAddToHome?: (ids: string[]) => void;
-    onAddToCanvas?: (ids: string[]) => void;
+    onAddToCanvas?: (ids: string[], pageId: string, pageTitle: string) => void;
 }
 
 export const VideoSelectionFloatingBar: React.FC<VideoSelectionFloatingBarProps> = ({
@@ -21,6 +22,7 @@ export const VideoSelectionFloatingBar: React.FC<VideoSelectionFloatingBarProps>
     onAddToCanvas,
 }) => {
     const [showPlaylistModal, setShowPlaylistModal] = useState(false);
+    const [canvasMenuOpen, setCanvasMenuOpen] = useState(false);
 
     // Show for 1+ selected (canvas action makes sense for single video too)
     if (selectedIds.size < 1) return null;
@@ -34,7 +36,7 @@ export const VideoSelectionFloatingBar: React.FC<VideoSelectionFloatingBarProps>
                 isDocked={true}
                 dockingStrategy="fixed"
             >
-                {() => (
+                {({ openAbove }) => (
                     <>
                         <button
                             onClick={() => setShowPlaylistModal(true)}
@@ -55,13 +57,17 @@ export const VideoSelectionFloatingBar: React.FC<VideoSelectionFloatingBarProps>
                         )}
 
                         {onAddToCanvas && (
-                            <button
-                                onClick={() => onAddToCanvas(Array.from(selectedIds))}
-                                className="p-2 hover:bg-white/10 rounded-full text-text-primary transition-colors border-none cursor-pointer flex items-center justify-center"
-                                title="Add to Canvas"
-                            >
-                                <LayoutGrid size={20} />
-                            </button>
+                            <CanvasPageSelector
+                                isOpen={canvasMenuOpen}
+                                openAbove={openAbove}
+                                onToggle={() => setCanvasMenuOpen(!canvasMenuOpen)}
+                                onSelectPage={(pageId, pageTitle) => {
+                                    onAddToCanvas(Array.from(selectedIds), pageId, pageTitle);
+                                    setCanvasMenuOpen(false);
+                                }}
+                                buttonClassName="text-text-primary hover:text-white hover:bg-white/10"
+                                selectedVideoIds={Array.from(selectedIds)}
+                            />
                         )}
 
                         <div className="w-px h-6 bg-white/10 mx-1" />

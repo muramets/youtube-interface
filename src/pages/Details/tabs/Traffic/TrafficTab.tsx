@@ -133,7 +133,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
     // Video Data: Home Videos + per-document suggested video lookup
     const { videos: homeVideos } = useVideos(user?.uid || '', currentChannel?.id || '');
-    const addCanvasNode = useCanvasStore((s) => s.addNode);
+    const addNodeToPage = useCanvasStore((s) => s.addNodeToPage);
     const { showToast } = useUIStore();
 
     // Extract video IDs from displayedSources for on-demand Firestore queries
@@ -912,7 +912,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     const clearFloatingBar = React.useCallback(() => toggleAll([]), [toggleAll]);
 
     // Canvas: add selected traffic rows as TrafficSourceNode cards
-    const handleAddToCanvas = useCallback((selectedVideos: TrafficSource[]) => {
+    const handleAddToCanvas = useCallback((selectedVideos: TrafficSource[], pageId: string, pageTitle: string) => {
         // Inline getCtrColor — same logic as TrafficRow
         const computeCtrColor = (ctr: number): string | undefined => {
             for (const rule of ctrRules) {
@@ -940,50 +940,59 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             (a, b) => parseAvdSeconds(b.avgViewDuration) - parseAvdSeconds(a.avgViewDuration)
         );
 
-        sorted.forEach((s) => {
-            if (!s.videoId) return;
-            const cachedVideo = allVideos.find((v) => v.id === s.videoId);
-            const nicheAssignment = allAssignments.find((a) => a.videoId === s.videoId);
-            const niche = nicheAssignment ? allNiches.find((n) => n.id === nicheAssignment.nicheId) : undefined;
-            const data: TrafficSourceCardData = {
-                type: 'traffic-source',
-                videoId: s.videoId,
-                title: s.sourceTitle,
-                thumbnailUrl: s.thumbnail || cachedVideo?.thumbnail,
-                channelTitle: s.channelTitle || cachedVideo?.channelTitle,
-                channelId: s.channelId || cachedVideo?.channelId,
-                publishedAt: s.publishedAt || cachedVideo?.publishedAt,
-                impressions: s.impressions,
-                ctr: s.ctr,
-                ctrColor: computeCtrColor(s.ctr),
-                views: s.views,
-                avgViewDuration: s.avgViewDuration,
-                watchTimeHours: s.watchTimeHours,
-                trafficType: trafficEdges[s.videoId]?.type,
-                viewerType: viewerEdges[s.videoId]?.type,
-                niche: niche?.name,
-                nicheColor: niche?.color,
-                sourceVideoId: _video.id,
-                sourceVideoTitle: _video.title,
-                snapshotId: effectiveSnapshotId ?? undefined,
-                snapshotLabel: (() => {
-                    const snap = trafficData?.snapshots?.find(s => s.id === effectiveSnapshotId);
-                    if (!snap) return undefined;
-                    return snap.label || new Date(snap.timestamp).toLocaleDateString('en-US', {
-                        month: 'short', day: 'numeric', year: 'numeric',
-                    });
-                })(),
-                viewMode,
-            };
-            addCanvasNode(data);
-        });
+        const dataArr = sorted
+            .filter((s) => !!s.videoId)
+            .map((s) => {
+                const cachedVideo = allVideos.find((v) => v.id === s.videoId);
+                const nicheAssignment = allAssignments.find((a) => a.videoId === s.videoId);
+                const niche = nicheAssignment ? allNiches.find((n) => n.id === nicheAssignment.nicheId) : undefined;
+                const data: TrafficSourceCardData = {
+                    type: 'traffic-source',
+                    videoId: s.videoId!,
+                    title: s.sourceTitle,
+                    thumbnailUrl: s.thumbnail || cachedVideo?.thumbnail,
+                    channelTitle: s.channelTitle || cachedVideo?.channelTitle,
+                    channelId: s.channelId || cachedVideo?.channelId,
+                    publishedAt: s.publishedAt || cachedVideo?.publishedAt,
+                    impressions: s.impressions,
+                    ctr: s.ctr,
+                    ctrColor: computeCtrColor(s.ctr),
+                    views: s.views,
+                    avgViewDuration: s.avgViewDuration,
+                    watchTimeHours: s.watchTimeHours,
+                    trafficType: trafficEdges[s.videoId!]?.type,
+                    viewerType: viewerEdges[s.videoId!]?.type,
+                    niche: niche?.name,
+                    nicheColor: niche?.color,
+                    sourceVideoId: _video.id,
+                    sourceVideoTitle: _video.title,
+                    snapshotId: effectiveSnapshotId ?? undefined,
+                    snapshotLabel: (() => {
+                        const snap = trafficData?.snapshots?.find(sn => sn.id === effectiveSnapshotId);
+                        if (!snap) return undefined;
+                        return snap.label || new Date(snap.timestamp).toLocaleDateString('en-US', {
+                            month: 'short', day: 'numeric', year: 'numeric',
+                        });
+                    })(),
+                    viewMode,
+                };
+                return data;
+            });
+
+        addNodeToPage(dataArr, pageId);
         showToast(
-            selectedVideos.length === 1 ? 'Added to Canvas — click to open' : `${selectedVideos.length} videos added to Canvas — click to open`,
+            selectedVideos.length === 1
+                ? `Added to ${pageTitle} \u2014 click to open`
+                : `${selectedVideos.length} videos added to ${pageTitle} \u2014 click to open`,
             'success',
             'Open',
-            () => useCanvasStore.getState().setOpen(true),
+            () => {
+                const store = useCanvasStore.getState();
+                if (store.activePageId !== pageId) store.switchPage(pageId);
+                store.setOpen(true);
+            },
         );
-    }, [allVideos, allAssignments, allNiches, trafficEdges, viewerEdges, ctrRules, _video.id, _video.title, viewMode, addCanvasNode, showToast, effectiveSnapshotId, trafficData?.snapshots]);
+    }, [allVideos, allAssignments, allNiches, trafficEdges, viewerEdges, ctrRules, _video.id, _video.title, viewMode, addNodeToPage, showToast, effectiveSnapshotId, trafficData?.snapshots]);
 
     /**
      * BUSINESS LOGIC: Check if current viewing context has a snapshot with data

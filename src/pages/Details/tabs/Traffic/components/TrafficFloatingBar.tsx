@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Check, Home, Layers, Loader2, Trash2 } from 'lucide-react';
+import { Check, Home, Loader2, Trash2 } from 'lucide-react';
 import type { TrafficSource } from '@/core/types/traffic';
 import { useAuth } from '@/core/hooks/useAuth';
 import { useTrafficNicheStore } from '@/core/stores/trends/useTrafficNicheStore';
@@ -9,6 +9,7 @@ import { useUIStore } from '@/core/stores/uiStore';
 import { VideoService } from '@/core/services/videoService';
 import { TrafficNicheSelector } from './Niches/TrafficNicheSelector';
 import { TrafficPlaylistSelector } from './TrafficPlaylistSelector';
+import { CanvasPageSelector } from '@/features/Canvas/components/CanvasPageSelector';
 import { FloatingBar } from '@/components/ui/organisms/FloatingBar';
 import { PortalTooltip } from '@/components/ui/atoms/PortalTooltip';
 import { fetchVideosBatch } from '@/core/utils/youtubeApi';
@@ -23,7 +24,7 @@ interface TrafficFloatingBarProps {
     onClose: () => void;
     isDocked?: boolean;
     dockingStrategy?: 'absolute' | 'fixed' | 'sticky';
-    onAddToCanvas?: (videos: TrafficSource[]) => void;
+    onAddToCanvas?: (videos: TrafficSource[], pageId: string, pageTitle: string) => void;
 }
 
 export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
@@ -42,7 +43,7 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
     const { niches, assignments, addTrafficNiche, assignVideoToTrafficNiche, removeVideoFromTrafficNiche } = useTrafficNicheStore();
 
     // State
-    const [activeMenu, setActiveMenu] = useState<'niche' | 'playlist' | null>(null);
+    const [activeMenu, setActiveMenu] = useState<'niche' | 'playlist' | 'canvas' | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
 
     const isMultiSelect = videos.length > 1;
@@ -340,22 +341,19 @@ export const TrafficFloatingBar: React.FC<TrafficFloatingBarProps> = ({
                     {/* Separator */}
                     <div className="w-px h-4 bg-white/10 mx-1" />
 
-                    {/* Canvas Button */}
+                    {/* Canvas Dropdown */}
                     {onAddToCanvas && (
-                        <PortalTooltip
-                            content={<span className="text-xs">Add to Canvas</span>}
-                            side="top"
-                            align="center"
-                            variant="glass"
-                            enterDelay={400}
-                        >
-                            <button
-                                onClick={() => { onAddToCanvas(videos); onClose(); }}
-                                className="p-1.5 rounded-full transition-colors duration-150 text-text-secondary hover:text-white hover:bg-white/10"
-                            >
-                                <Layers size={16} />
-                            </button>
-                        </PortalTooltip>
+                        <CanvasPageSelector
+                            isOpen={activeMenu === 'canvas'}
+                            openAbove={openAbove}
+                            onToggle={() => setActiveMenu(activeMenu === 'canvas' ? null : 'canvas')}
+                            onSelectPage={(pageId, pageTitle) => {
+                                onAddToCanvas(videos, pageId, pageTitle);
+                                setActiveMenu(null);
+                                onClose();
+                            }}
+                            selectedVideoIds={videos.map(v => v.videoId!).filter(Boolean)}
+                        />
                     )}
 
                     {/* Home Button with Premium Tooltip and Pulse Animation */}

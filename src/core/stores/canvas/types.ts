@@ -98,6 +98,9 @@ export interface CanvasState {
 
     // Nodes
     addNode: (data: CanvasNodeData) => void;
+    /** Add node(s) to a specific canvas page. If pageId === activePageId, delegates to addNode.
+     *  Otherwise, writes directly to Firestore (cross-page insert, no in-memory mutation). */
+    addNodeToPage: (data: CanvasNodeData[], pageId: string) => Promise<void>;
     /** Place a node immediately at the given world position (skips pending placement). */
     addNodeAt: (data: CanvasNodeData, position: { x: number; y: number }) => void;
     updateNodeData: (id: string, data: Partial<CanvasNodeData>) => void;
