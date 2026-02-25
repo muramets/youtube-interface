@@ -297,8 +297,8 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                             onClick={handleHomeToggle}
                             disabled={isProcessing}
                             className={`relative p-1.5 rounded-full transition-all ${areAllAddedToHome
-                                ? 'text-white hover:bg-red-500/20 hover:text-red-300'
-                                : 'text-text-secondary hover:text-white hover:bg-white/10'
+                                ? 'text-text-primary hover:bg-red-500/20 hover:text-red-300'
+                                : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
                                 } ${isProcessing ? 'opacity-50' : ''}`}
                             title={areAllAddedToHome ? 'Remove from Home' : 'Add to Home'}
                         >
@@ -363,7 +363,7 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                                     relative flex items-center justify-center w-[34px] h-[34px] rounded-full transition-all duration-300 ease-out
                                     ${showImageDownload
                                         ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-500 scale-105'
-                                        : 'text-text-secondary hover:text-white hover:bg-white/10'
+                                        : 'text-text-secondary hover:text-text-primary hover:bg-hover-bg'
                                     }
                                 `}
                                 title={showImageDownload ? "Download Covers (ZIP)" : "Export to CSV"}
@@ -394,13 +394,13 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                             </button>
                         </div>
 
-                        <div className="w-px h-4 bg-white/10 mx-1" />
+                        <div className="w-px h-4 bg-[var(--floating-bar-border)] mx-1" />
 
                         {/* Trash / Restore Button */}
                         <button
                             onMouseDown={(e) => e.stopPropagation()}
                             onClick={() => setIsConfirmOpen(true)}
-                            className="p-1.5 rounded-full transition-all text-text-secondary hover:text-white hover:bg-white/10"
+                            className="p-1.5 rounded-full transition-all text-text-secondary hover:text-text-primary hover:bg-hover-bg"
                             title={isTrashMode ? 'Restore to timeline' : 'Move to Untracked'}
                         >
                             {isTrashMode ? <RotateCcw size={16} /> : <Trash2 size={16} />}

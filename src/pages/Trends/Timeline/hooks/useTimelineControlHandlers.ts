@@ -1,6 +1,6 @@
 import { useRef, useCallback } from 'react';
 import type { VideoPosition, TimelineStats, MonthLayout, TimelineConfig } from '../../../../core/types/trends';
-import type { Transform } from './useTimelineTransform';
+import type { Transform } from '../utils/timelineMath';
 import { findSmartAnchorTime, getTimeAtWorldX } from '../utils/timelineMath';
 
 interface UseTimelineControlHandlersProps {

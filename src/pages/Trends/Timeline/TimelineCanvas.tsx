@@ -23,7 +23,6 @@ import { useTimelineInteraction } from './hooks/useTimelineInteraction';
 import { useTimelineHotkeys } from './hooks/useTimelineHotkeys';
 import { useTimelineAutoUpdate } from './hooks/useTimelineAutoUpdate';
 import { useTimelineTooltip } from './hooks/useTimelineTooltip';
-// import { useSelectionState } from './hooks/useSelectionState'; // REMOVED
 import { LOD_SHOW_THUMBNAIL } from './utils/timelineConstants';
 
 // Constants
@@ -34,8 +33,6 @@ const PADDING_TOP = 12;
 const PADDING_BOTTOM = 12;
 
 
-
-// import { TrendsFloatingBar } from './TrendsFloatingBar'; // MOVED TO PARENT
 
 interface TimelineCanvasProps {
     videos: TrendVideo[];
@@ -53,7 +50,6 @@ interface TimelineCanvasProps {
     /** If true, skip auto-fit on next structure update (for filterMode toggle) */
     skipAutoFitRef?: React.RefObject<boolean>;
     filterHash?: string;
-    /** True when on main page and all channels have visibility toggled off */
     /** True when on main page and all channels have visibility toggled off */
     allChannelsHidden?: boolean;
     // Selection Props (External Control)

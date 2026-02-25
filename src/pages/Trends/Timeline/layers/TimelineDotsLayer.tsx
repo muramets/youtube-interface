@@ -1,6 +1,7 @@
 import React, { useRef, useLayoutEffect, useEffect, useState, useCallback } from 'react';
 import type { TrendVideo, VideoPosition } from '../../../../core/types/trends';
 import { getDotStyle } from '../../../../core/utils/trendStyles';
+import type { Transform } from '../utils/timelineMath';
 import {
     ANIMATION_DURATION_MS,
     DOT_HIT_BUFFER_PX,
@@ -13,6 +14,31 @@ import {
 // =============================================================================
 // CONFIGURATION CONSTANTS
 // =============================================================================
+
+/** Draw a soft radial glow on canvas — shared by selection and hover effects. */
+const drawGlow = (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    innerRadius: number,
+    progress: number,
+    glowRgb: string
+) => {
+    const glowRadius = innerRadius * 3.5;
+    const gradient = ctx.createRadialGradient(x, y, innerRadius * 0.5, x, y, glowRadius);
+    const alpha = 0.3 * progress;
+    gradient.addColorStop(0, `rgba(${glowRgb}, ${alpha})`);
+    gradient.addColorStop(0.15, `rgba(${glowRgb}, ${alpha * 0.7})`);
+    gradient.addColorStop(0.3, `rgba(${glowRgb}, ${alpha * 0.45})`);
+    gradient.addColorStop(0.5, `rgba(${glowRgb}, ${alpha * 0.2})`);
+    gradient.addColorStop(0.7, `rgba(${glowRgb}, ${alpha * 0.08})`);
+    gradient.addColorStop(0.85, `rgba(${glowRgb}, ${alpha * 0.02})`);
+    gradient.addColorStop(1, `rgba(${glowRgb}, 0)`);
+    ctx.beginPath();
+    ctx.arc(x, y, glowRadius, 0, 2 * Math.PI);
+    ctx.fillStyle = gradient;
+    ctx.fill();
+};
 
 /**
  * Hover scale factor for dots (matches VideoNode's CSS transform: scale(1.25))
@@ -38,6 +64,20 @@ const DOT_SCALE_COMPENSATION_THRESHOLD = 0.20;
  */
 const MIN_VISUAL_RADIUS = 12;
 
+/**
+ * Calculate visual radius for a dot based on its base size, zoom, and scale compensation.
+ * Shared between render loop and hit detection — minSize differs per use case.
+ */
+const getVisualRadius = (
+    baseSize: number,
+    minSize: number,
+    dotScaleFactor: number,
+    currentScale: number
+) => {
+    const effectiveSize = Math.max(baseSize, minSize);
+    return (effectiveSize / 2) * dotScaleFactor * currentScale;
+};
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -46,7 +86,7 @@ interface TimelineDotsLayerProps {
     /** Array of video positions in normalized coordinates (0-1) */
     videoPositions: VideoPosition[];
     /** Current pan/zoom transform state */
-    transform: { scale: number; offsetX: number; offsetY: number };
+    transform: Transform;
     /** World coordinate width (computed from date range) */
     worldWidth: number;
     /** World coordinate height (computed from view count range) */
@@ -130,6 +170,9 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
     const animStartRef = useRef(0);
     const animStartTimeRef = useRef(0);
 
+    // Cached CSS variable for glow color (avoids getComputedStyle in render loop)
+    const glowRgbRef = useRef('255, 255, 255');
+
     // =========================================================================
     // STATE
     // =========================================================================
@@ -152,6 +195,24 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
     // Set device pixel ratio for crisp Retina rendering
     useEffect(() => {
         setDpr(window.devicePixelRatio || 1);
+    }, []);
+
+    // Cache --dot-glow-rgb CSS variable and update on theme change
+    useEffect(() => {
+        const readGlowRgb = () => {
+            const raw = getComputedStyle(document.documentElement)
+                .getPropertyValue('--dot-glow-rgb').trim();
+            if (raw) glowRgbRef.current = raw;
+        };
+        readGlowRgb();
+
+        // Watch for class/attribute changes on <html> (theme toggle)
+        const observer = new MutationObserver(readGlowRgb);
+        observer.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['class', 'data-theme']
+        });
+        return () => observer.disconnect();
     }, []);
 
     // Cleanup timeouts on unmount
@@ -366,14 +427,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
         const currentScale = transform.scale || 0.001;
         const dotScaleFactor = Math.max(1, DOT_SCALE_COMPENSATION_THRESHOLD / currentScale);
 
-        /**
-         * Calculate visual radius for a dot based on its base size.
-         * Ensures minimum interaction size while respecting zoom level.
-         */
-        const getVisualRadius = (baseSize: number) => {
-            const effectiveSize = Math.max(baseSize, MIN_VISUAL_RADIUS);
-            return (effectiveSize / 2) * dotScaleFactor * currentScale;
-        };
+
 
         // Track hovered item for second pass rendering
         let activeHoverItem: { pos: VideoPosition; x: number; y: number; r: number } | null = null;
@@ -389,7 +443,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
 
             const percentileGroup = getPercentileGroup(pos.video.id);
             const style = getDotStyle(percentileGroup);
-            const visualRadius = getVisualRadius(style.size);
+            const visualRadius = getVisualRadius(style.size, MIN_VISUAL_RADIUS, dotScaleFactor, currentScale);
 
             // Check if this dot is being hover-animated (skip for second pass)
             const isActive = activeVideoIds.has(pos.video.id);
@@ -409,30 +463,13 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
                 const activeRadius = visualRadius * activeScale;
 
                 // Soft outer glow (radial gradient)
-                const computedStyle = getComputedStyle(document.documentElement);
-                const glowRgb = computedStyle.getPropertyValue('--dot-glow-rgb').trim() || '255, 255, 255';
-                const glowRadius = activeRadius * 3.5;
-                const gradient = ctx.createRadialGradient(
-                    screenX, screenY, activeRadius * 0.5,
-                    screenX, screenY, glowRadius
-                );
-                const glowAlpha = 0.3 * selectProgress;
-                gradient.addColorStop(0, `rgba(${glowRgb}, ${glowAlpha})`);
-                gradient.addColorStop(0.15, `rgba(${glowRgb}, ${glowAlpha * 0.7})`);
-                gradient.addColorStop(0.3, `rgba(${glowRgb}, ${glowAlpha * 0.45})`);
-                gradient.addColorStop(0.5, `rgba(${glowRgb}, ${glowAlpha * 0.2})`);
-                gradient.addColorStop(0.7, `rgba(${glowRgb}, ${glowAlpha * 0.08})`);
-                gradient.addColorStop(0.85, `rgba(${glowRgb}, ${glowAlpha * 0.02})`);
-                gradient.addColorStop(1, `rgba(${glowRgb}, 0)`);
-                ctx.beginPath();
-                ctx.arc(screenX, screenY, glowRadius, 0, 2 * Math.PI);
-                ctx.fillStyle = gradient;
-                ctx.fill();
+                const glowRgb = glowRgbRef.current;
+                drawGlow(ctx, screenX, screenY, activeRadius, selectProgress, glowRgb);
 
                 // Selection ring
                 ctx.beginPath();
                 ctx.arc(screenX, screenY, activeRadius * 1.1, 0, 2 * Math.PI);
-                ctx.strokeStyle = `rgba(255, 255, 255, ${0.9 * selectProgress})`;
+                ctx.strokeStyle = `rgba(${glowRgb}, ${0.9 * selectProgress})`;
                 ctx.lineWidth = 2;
                 ctx.stroke();
 
@@ -466,28 +503,8 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
 
             // Soft outer glow (matches selection glow style)
             if (animProgress > 0) {
-                const computedStyle = getComputedStyle(document.documentElement);
-                const glowRgb = computedStyle.getPropertyValue('--dot-glow-rgb').trim() || '255, 255, 255';
-
-                const glowRadius = animatedRadius * 3.5;
-                const gradient = ctx.createRadialGradient(
-                    screenX, screenY, animatedRadius * 0.5,
-                    screenX, screenY, glowRadius
-                );
-
-                const glowAlpha = 0.3 * animProgress;
-                gradient.addColorStop(0, `rgba(${glowRgb}, ${glowAlpha})`);
-                gradient.addColorStop(0.15, `rgba(${glowRgb}, ${glowAlpha * 0.7})`);
-                gradient.addColorStop(0.3, `rgba(${glowRgb}, ${glowAlpha * 0.45})`);
-                gradient.addColorStop(0.5, `rgba(${glowRgb}, ${glowAlpha * 0.2})`);
-                gradient.addColorStop(0.7, `rgba(${glowRgb}, ${glowAlpha * 0.08})`);
-                gradient.addColorStop(0.85, `rgba(${glowRgb}, ${glowAlpha * 0.02})`);
-                gradient.addColorStop(1, `rgba(${glowRgb}, 0)`);
-
-                ctx.beginPath();
-                ctx.arc(screenX, screenY, glowRadius, 0, 2 * Math.PI);
-                ctx.fillStyle = gradient;
-                ctx.fill();
+                const glowRgb = glowRgbRef.current;
+                drawGlow(ctx, screenX, screenY, animatedRadius, animProgress, glowRgb);
             }
 
             // Main dot
@@ -527,10 +544,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
         const currentScale = transform.scale || 0.001;
         const dotScaleFactor = Math.max(1, DOT_SCALE_COMPENSATION_THRESHOLD / currentScale);
 
-        const getVisualRadius = (baseSize: number) => {
-            const effectiveSize = Math.max(baseSize, MIN_INTERACTION_SIZE_PX);
-            return (effectiveSize / 2) * dotScaleFactor * currentScale;
-        };
+
 
         /**
          * Hit detection with z-order priority.
@@ -550,7 +564,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
 
             const percentileGroup = getPercentileGroup(pos.video.id);
             const style = getDotStyle(percentileGroup);
-            const visualRadius = getVisualRadius(style.size);
+            const visualRadius = getVisualRadius(style.size, MIN_INTERACTION_SIZE_PX, dotScaleFactor, currentScale);
 
             const dx = x - screenX;
             const dy = y - screenY;
@@ -598,7 +612,7 @@ export const TimelineDotsLayer: React.FC<TimelineDotsLayerProps> = ({
 
                         const percentileGroup = getPercentileGroup(found.video.id);
                         const style = getDotStyle(percentileGroup);
-                        const visualRadius = getVisualRadius(style.size);
+                        const visualRadius = getVisualRadius(style.size, MIN_INTERACTION_SIZE_PX, dotScaleFactor, currentScale);
 
                         // Calculate dot bounds for tooltip positioning
                         const dotDiameter = visualRadius * 2 * HOVER_SCALE_FACTOR;

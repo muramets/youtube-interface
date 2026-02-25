@@ -3,7 +3,11 @@ import { useDebounce } from '../../../../core/hooks/useDebounce';
 import { useTrendStore } from '../../../../core/stores/trends/trendStore';
 import { useChannelStore } from '../../../../core/stores/channelStore';
 import { calculatePreservedTransform } from '../utils/timelineMath';
+import type { Transform } from '../utils/timelineMath';
 import type { MonthLayout, TimelineStats } from '../../../../core/types/trends';
+
+// Re-export Transform so existing consumers of this module keep working
+export type { Transform };
 
 /**
  * useTimelineTransform — Viewport State Management (Miro-like)
@@ -41,12 +45,6 @@ import type { MonthLayout, TimelineStats } from '../../../../core/types/trends';
  * 
  * This ensures restored values are not immediately overwritten.
  */
-
-export interface Transform {
-    scale: number;
-    offsetX: number;
-    offsetY: number;
-}
 
 interface UseTimelineTransformProps {
     worldWidth: number;

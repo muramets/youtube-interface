@@ -2,12 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TimelineVideoLayerHandle } from '../layers/TimelineVideoLayer';
 
 import { calculateSelectionZoomTransform } from '../utils/timelineMath';
-
-interface Transform {
-    scale: number;
-    offsetX: number;
-    offsetY: number;
-}
+import type { Transform } from '../utils/timelineMath';
 
 interface UseTimelineInteractionProps {
     containerRef: React.RefObject<HTMLDivElement | null>;

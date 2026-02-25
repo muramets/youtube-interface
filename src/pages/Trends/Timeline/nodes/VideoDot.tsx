@@ -65,7 +65,7 @@ export const VideoDot = memo(({
             }}
         >
             <div
-                className={`rounded-full cursor-pointer ${color} ${isHighlighted ? 'shadow-lg shadow-white/30' : 'shadow-sm'}`}
+                className={`rounded-full cursor-pointer ${color} ${isHighlighted ? 'shadow-lg' : 'shadow-sm'}`}
                 style={{
                     position: 'absolute',
                     left: '50%',
@@ -77,9 +77,9 @@ export const VideoDot = memo(({
                     transition: 'transform 200ms ease-out, filter 200ms ease-out, box-shadow 200ms ease-out',
                     // Premium ring only for active state (on top of hover glow)
                     boxShadow: isActive
-                        ? '0 0 0 3px rgba(255,255,255,0.9), 0 0 24px rgba(255,255,255,0.5)'
+                        ? '0 0 0 3px rgba(var(--dot-glow-rgb), 0.9), 0 0 24px rgba(var(--dot-glow-rgb), 0.5)'
                         : isHighlighted
-                            ? '0 4px 20px rgba(255,255,255,0.3)'
+                            ? '0 4px 20px rgba(var(--dot-glow-rgb), 0.3)'
                             : undefined,
                 }}
             />

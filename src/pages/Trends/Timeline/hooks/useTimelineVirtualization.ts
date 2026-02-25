@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
+import type { Transform } from '../utils/timelineMath';
 
 import type { VideoPosition } from '../../../../core/types/trends';
 
 interface UseTimelineVirtualizationProps {
     videoPositions: VideoPosition[];
-    transform: { scale: number; offsetX: number; offsetY: number };
+    transform: Transform;
     worldWidth: number;
     viewportWidth?: number; // Optional, can default to window.innerWidth
 }

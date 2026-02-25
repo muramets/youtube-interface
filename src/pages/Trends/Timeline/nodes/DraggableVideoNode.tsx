@@ -80,7 +80,7 @@ export const DraggableVideoNode = memo(({
     return (
         <div
             ref={setNodeRef}
-            className={`absolute group flex flex-col items-center will-change-transform outline-none focus:outline-none focus:ring-0 ${isHighlighted ? 'drop-shadow-[0_8px_30px_rgba(255,255,255,0.15)]' : ''}`}
+            className={`absolute group flex flex-col items-center will-change-transform outline-none focus:outline-none focus:ring-0`}
             style={{
                 left: x,
                 top: y,
@@ -90,7 +90,7 @@ export const DraggableVideoNode = memo(({
                 // During drag: hide original completely (ghost shown via DragOverlay)
                 opacity: isDragging ? 0 : 1,
                 zIndex: isDragging ? 2000 : (isHighlighted || isElevated ? 1000 : 10),
-                filter: isHighlighted ? 'brightness(1.1)' : 'brightness(1)',
+                filter: isHighlighted ? 'brightness(1.1) drop-shadow(0 8px 30px rgba(var(--dot-glow-rgb), 0.15))' : 'brightness(1)',
                 transition: isDragging ? 'none' : 'transform 200ms ease-out, filter 200ms ease-out, box-shadow 200ms ease-out',
                 // Apply drag translation
                 ...dragStyle
@@ -123,7 +123,7 @@ export const DraggableVideoNode = memo(({
             }}
         >
             <div
-                className={`overflow-hidden shadow-lg bg-black/50 w-full ${isHighlighted ? 'shadow-2xl shadow-white/20' : 'group-hover:shadow-xl'}`}
+                className={`overflow-hidden shadow-lg bg-black/50 w-full ${isHighlighted ? 'shadow-2xl' : 'group-hover:shadow-xl'}`}
                 style={{
                     height,
                     borderRadius: `${borderRadius}px`,
@@ -132,7 +132,7 @@ export const DraggableVideoNode = memo(({
                     backgroundPosition: 'center',
                     transition: 'box-shadow 200ms ease-out',
                     boxShadow: isActive
-                        ? '0 0 0 3px rgba(255,255,255,0.95), 0 0 30px rgba(255,255,255,0.4)'
+                        ? '0 0 0 3px rgba(var(--dot-glow-rgb), 0.95), 0 0 30px rgba(var(--dot-glow-rgb), 0.4)'
                         : undefined,
                 }}
             />
@@ -182,7 +182,7 @@ export const VideoNodeGhost: React.FC<VideoNodeGhostProps> = ({ video }) => {
                 // Smooth interpolation for faster feel while remaining fluid
                 transition: 'transform 50ms ease-out',
                 // Premium glow effect during drag
-                filter: 'drop-shadow(0 12px 40px rgba(255,255,255,0.3))',
+                filter: 'drop-shadow(0 12px 40px rgba(var(--dot-glow-rgb), 0.3))',
             }}
         >
             <div

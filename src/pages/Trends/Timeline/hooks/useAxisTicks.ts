@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { Transform } from './useTimelineTransform';
+import type { Transform } from '../utils/timelineMath';
 
 // Constants matching useTimelinePositions
 const BASE_THUMBNAIL_SIZE = 200;

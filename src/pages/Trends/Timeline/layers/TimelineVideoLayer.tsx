@@ -1,6 +1,7 @@
 import React, { useState, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useDndMonitor } from '@dnd-kit/core';
 import type { TrendVideo, VideoPosition } from '../../../../core/types/trends';
+import type { Transform } from '../utils/timelineMath';
 import { useTimelineVirtualization } from '../hooks/useTimelineVirtualization';
 import { VideoDot } from '../nodes/VideoDot';
 import { DraggableVideoNode } from '../nodes/DraggableVideoNode';
@@ -15,7 +16,7 @@ import { debug } from '../../../../core/utils/debug';
 
 interface TimelineVideoLayerProps {
     videoPositions: VideoPosition[];
-    transform: { scale: number; offsetX: number; offsetY: number };
+    transform: Transform;
     worldWidth: number;
     worldHeight: number;
     activeVideoIds: Set<string>;
@@ -29,7 +30,7 @@ interface TimelineVideoLayerProps {
 }
 
 export interface TimelineVideoLayerHandle {
-    updateTransform: (transform: { scale: number; offsetX: number; offsetY: number }) => void;
+    updateTransform: (transform: Transform) => void;
 }
 
 

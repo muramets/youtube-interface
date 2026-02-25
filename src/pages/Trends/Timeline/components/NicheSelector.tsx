@@ -262,8 +262,8 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                 className={`
                     relative flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap
                     before:absolute before:inset-[-8px] before:content-['']
-                    ${displayNiche ? 'bg-white/10 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}
-                    ${isOpen ? 'ring-1 ring-white/30' : ''}
+                    ${displayNiche ? 'bg-hover-bg text-text-primary' : 'bg-hover-bg hover:bg-hover-bg/80 text-text-primary'}
+                    ${isOpen ? 'ring-1 ring-border' : ''}
                 `}
                 style={{ backgroundColor: displayNiche?.color ? `${displayNiche.color}20` : undefined }}
             >
@@ -294,14 +294,14 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                 openAbove={openAbove}
             >
                 <div data-portal-wrapper className="flex flex-col h-full min-h-0">
-                    <div className="p-2 border-b border-white/10 bg-white/5">
+                    <div className="p-2 border-b border-[var(--floating-bar-border)] bg-bg-secondary/30">
                         <form onSubmit={handleCreateSubmit} className="relative flex flex-col gap-2">
                             <div className="relative">
                                 <input
                                     ref={inputRef}
                                     type="text"
                                     placeholder="Search or create niche..."
-                                    className="w-full bg-bg-primary text-white text-xs px-3 py-2 pl-8 rounded-lg focus:outline-none focus:ring-1 focus:ring-white/20 placeholder:text-text-secondary"
+                                    className="w-full bg-bg-primary text-text-primary text-xs px-3 py-2 pl-8 rounded-lg focus:outline-none focus:ring-1 focus:ring-border placeholder:text-text-secondary"
                                     value={newNicheName}
                                     onChange={(e) => setNewNicheName(e.target.value)}
                                     onKeyDown={handleKeyDown}
@@ -310,9 +310,9 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                             </div>
                             {newNicheName && (
                                 <div className="flex items-center justify-between px-1 gap-3">
-                                    <div className="relative flex bg-white/5 rounded-full p-0.5 border border-white/10 backdrop-blur-sm">
+                                    <div className="relative flex bg-bg-secondary/50 rounded-full p-0.5 border border-border backdrop-blur-sm">
                                         <div
-                                            className="absolute top-0.5 h-[calc(100%-4px)] w-[calc(50%-2px)] bg-gradient-to-r from-white/25 to-white/15 rounded-full transition-all duration-300 ease-out shadow-sm"
+                                            className="absolute top-0.5 h-[calc(100%-4px)] w-[calc(50%-2px)] bg-gradient-to-r from-text-primary/25 to-text-primary/15 rounded-full transition-all duration-300 ease-out shadow-sm"
                                             style={{
                                                 left: isGlobal ? 'calc(50% + 1px)' : '2px',
                                             }}
@@ -321,7 +321,7 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                                             type="button"
                                             onClick={() => !isMultiChannel && setIsGlobal(false)}
                                             disabled={isMultiChannel}
-                                            className={`relative z-10 flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full transition-all duration-200 ${isMultiChannel ? 'text-text-tertiary cursor-not-allowed opacity-50' : (!isGlobal ? 'text-white font-medium' : 'text-text-secondary hover:text-white/70')}`}
+                                            className={`relative z-10 flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full transition-all duration-200 ${isMultiChannel ? 'text-text-tertiary cursor-not-allowed opacity-50' : (!isGlobal ? 'text-text-primary font-medium' : 'text-text-secondary hover:text-text-primary/70')}`}
                                             title={isMultiChannel ? 'Local niches not available for multi-channel selection' : undefined}
                                         >
                                             <Home size={9} className="flex-shrink-0" />
@@ -330,7 +330,7 @@ export const NicheSelector: React.FC<NicheSelectorProps> = ({
                                         <button
                                             type="button"
                                             onClick={() => setIsGlobal(true)}
-                                            className={`relative z-10 flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full transition-all duration-200 ${isGlobal ? 'text-white font-medium' : 'text-text-secondary hover:text-white/70'}`}
+                                            className={`relative z-10 flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full transition-all duration-200 ${isGlobal ? 'text-text-primary font-medium' : 'text-text-secondary hover:text-text-primary/70'}`}
                                         >
                                             <Globe size={9} className="flex-shrink-0" />
                                             <span>Global</span>

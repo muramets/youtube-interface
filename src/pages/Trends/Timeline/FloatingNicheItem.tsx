@@ -108,8 +108,8 @@ export const FloatingNicheItem: React.FC<FloatingNicheItemProps> = ({
         <div
             className={`
                 group relative w-full text-left px-3 py-2 text-xs rounded-lg flex items-center justify-between transition-colors scroll-mt-1
-                ${isAssigned ? 'text-white' : 'text-text-secondary hover:text-white'}
-                ${isInteracting ? 'bg-white/5 z-20' : isHighlighted ? 'bg-white/10 text-white' : 'hover:bg-white/5'}
+                ${isAssigned ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary'}
+                ${isInteracting ? 'bg-hover-bg/50 z-20' : isHighlighted ? 'bg-hover-bg text-text-primary' : 'hover:bg-hover-bg/50'}
             `}
             onClick={() => !isEditing && !isInteracting && onToggle()}
             role="button"
@@ -145,12 +145,12 @@ export const FloatingNicheItem: React.FC<FloatingNicheItemProps> = ({
                                 onCloseMenu();
                             }
                         }}
-                        className="w-2 h-2 rounded-full cursor-pointer hover:scale-125 transition-transform hover:ring-2 hover:ring-white/20"
+                        className="w-2 h-2 rounded-full cursor-pointer hover:scale-125 transition-transform hover:ring-2 hover:ring-border"
                         style={{ backgroundColor: niche.color }}
                     />
                     {isColorPickerOpen && pickerPosition && createPortal(
                         <div
-                            className="fixed z-popover bg-[#1a1a1a] border border-white/10 rounded-xl p-3 shadow-xl animate-fade-in"
+                            className="fixed z-popover bg-bg-secondary border border-border rounded-xl p-3 shadow-xl animate-fade-in"
                             style={{
                                 left: pickerPosition.left,
                                 top: pickerPosition.top,
@@ -165,7 +165,7 @@ export const FloatingNicheItem: React.FC<FloatingNicheItemProps> = ({
                                             updateNiche(niche.id, { color });
                                             setIsColorPickerOpen(false);
                                         }}
-                                        className="w-6 h-6 rounded-full transition-shadow relative hover:ring-2 hover:ring-white/50 ring-offset-1 ring-offset-[#1a1a1a]"
+                                        className="w-6 h-6 rounded-full transition-shadow relative hover:ring-2 hover:ring-text-primary/50 ring-offset-1 ring-offset-bg-secondary"
                                         style={{ backgroundColor: color }}
                                     >
                                         {niche.color === color && (
@@ -189,7 +189,7 @@ export const FloatingNicheItem: React.FC<FloatingNicheItemProps> = ({
                         onBlur={handleSaveName}
                         onKeyDown={handleKeyDown}
                         onClick={(e) => e.stopPropagation()}
-                        className="bg-transparent border-b border-white/40 outline-none text-white w-full"
+                        className="bg-transparent border-b border-text-primary/40 outline-none text-text-primary w-full"
                     />
                 ) : (
                     <span className="truncate">{niche.name}</span>
@@ -214,7 +214,7 @@ export const FloatingNicheItem: React.FC<FloatingNicheItemProps> = ({
                         className={`
                             p-1 rounded ml-1 transition-opacity
                             ${isInteracting ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
-                            ${isActive ? 'bg-white/10' : 'hover:bg-white/10'}
+                            ${isActive ? 'bg-hover-bg' : 'hover:bg-hover-bg'}
                         `}
                     >
                         <MoreVertical size={12} />

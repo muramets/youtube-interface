@@ -52,7 +52,7 @@ export const VideoNode = memo(({
 
     return (
         <div
-            className={`absolute cursor-pointer group flex flex-col items-center will-change-transform ${isHighlighted ? 'drop-shadow-[0_8px_30px_rgba(255,255,255,0.15)]' : ''}`}
+            className={`absolute cursor-pointer group flex flex-col items-center will-change-transform`}
             style={{
                 left: x,
                 top: y,
@@ -60,7 +60,7 @@ export const VideoNode = memo(({
                 transform: `translate(-50%, -50%) ${isHighlighted ? 'scale(1.25)' : ''}`,
                 // Elevated z-index when highlighted or was recently hovered
                 zIndex: isHighlighted || isElevated ? 1000 : 10,
-                filter: isHighlighted ? 'brightness(1.1)' : 'brightness(1)',
+                filter: isHighlighted ? 'brightness(1.1) drop-shadow(0 8px 30px rgba(var(--dot-glow-rgb), 0.15))' : 'brightness(1)',
                 transition: 'transform 200ms ease-out, filter 200ms ease-out, box-shadow 200ms ease-out',
             }}
             onMouseEnter={(e) => onMouseEnter(e, video)}
@@ -72,7 +72,7 @@ export const VideoNode = memo(({
             }}
         >
             <div
-                className={`overflow-hidden shadow-lg bg-black/50 w-full ${isHighlighted ? 'shadow-2xl shadow-white/20' : 'group-hover:shadow-xl'}`}
+                className={`overflow-hidden shadow-lg bg-black/50 w-full ${isHighlighted ? 'shadow-2xl' : 'group-hover:shadow-xl'}`}
                 style={{
                     height,
                     borderRadius: `${borderRadius}px`,
@@ -82,8 +82,10 @@ export const VideoNode = memo(({
                     transition: 'box-shadow 200ms ease-out',
                     // Premium ring only for active state (on top of hover glow)
                     boxShadow: isActive
-                        ? '0 0 0 3px rgba(255,255,255,0.95), 0 0 30px rgba(255,255,255,0.4)'
-                        : undefined,
+                        ? '0 0 0 3px rgba(var(--dot-glow-rgb), 0.95), 0 0 30px rgba(var(--dot-glow-rgb), 0.4)'
+                        : isHighlighted
+                            ? '0 4px 20px rgba(var(--dot-glow-rgb), 0.2)'
+                            : undefined,
                 }}
             />
             {showLabel && (

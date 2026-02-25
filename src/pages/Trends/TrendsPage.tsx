@@ -101,9 +101,6 @@ export const TrendsPage: React.FC = () => {
     // Generate Filter Hash for Smart Auto-Updates
     // This allows us to distinguish between "Filter/Niche Switch" (Auto-Update) 
     // and "Global Visibility Toggle" (Manual Update)
-    // Generate Filter Hash for Smart Auto-Updates
-    // This allows us to distinguish between "Filter/Niche Switch" (Auto-Update) 
-    // and "Global Visibility Toggle" (Manual Update)
     const filterHash = useMemo(() => {
         const nicheKey = activeNicheIds.sort().join(',');
         const otherFiltersKey = trendsFilters

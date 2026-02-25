@@ -71,14 +71,14 @@ export const FloatingBar: React.FC<FloatingBarProps> = ({
                 }
             }}
         >
-            <div className="flex items-center gap-3 pr-3 border-r border-white/10">
+            <div className="flex items-center gap-3 pr-3 border-r border-[var(--floating-bar-border)]">
                 <span className="text-sm font-medium text-text-primary whitespace-nowrap max-w-[150px] truncate">
                     {title}
                 </span>
                 <button
                     onClick={onClose}
                     onMouseDown={(e) => e.stopPropagation()}
-                    className="text-text-secondary hover:text-white transition-colors"
+                    className="text-text-secondary hover:text-text-primary transition-colors"
                 >
                     <X size={16} />
                 </button>
