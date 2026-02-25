@@ -17,6 +17,7 @@ const TYPE_COLORS: Record<string, string> = {
     'traffic-source': 'rgba(34, 197, 94, 0.30)',     // green
     'sticky-note': 'rgba(250, 204, 21, 0.35)',    // yellow
     'suggested-traffic': 'rgba(168, 85, 247, 0.30)',    // purple
+    'image': 'rgba(6, 182, 212, 0.30)',              // cyan
 };
 
 /** Fallback height when parent doesn't provide one (auto-height nodes) */
@@ -25,6 +26,7 @@ const TYPE_HEIGHTS: Record<string, number> = {
     'traffic-source': TRAFFIC_NODE_HEIGHT_ESTIMATE,
     'sticky-note': STICKY_NOTE_HEIGHT_ESTIMATE,
     'suggested-traffic': TRAFFIC_NODE_HEIGHT_ESTIMATE,
+    'image': 200,
 };
 
 interface SimplifiedNodeProps {

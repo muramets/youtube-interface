@@ -81,6 +81,8 @@ export interface VideoNote {
     text: string;
     timestamp: number;
     userId?: string;
+    /** Origin of this note: manual entry or saved from AI chat */
+    source?: 'manual' | 'ai-chat';
 }
 
 export interface CoverVersion {

@@ -14,7 +14,14 @@ interface ImageNodeProps {
 }
 
 const ImageNodeInner: React.FC<ImageNodeProps> = ({ data, nodeId }) => {
-    const [isLoaded, setIsLoaded] = useState(false);
+    // Check browser cache synchronously on mount — avoids 1-frame opacity flash
+    // when transitioning from medium LOD (image already rendered & cached).
+    const [isLoaded, setIsLoaded] = useState(() => {
+        if (!data.downloadUrl) return false;
+        const img = new Image();
+        img.src = data.downloadUrl;
+        return img.complete;
+    });
     const resizeNode = useCanvasStore((s) => s.resizeNode);
 
     const handleLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {

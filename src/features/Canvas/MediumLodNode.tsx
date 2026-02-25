@@ -7,7 +7,7 @@
 import React from 'react';
 import type { CanvasNode } from '../../core/types/canvas';
 import type { VideoCardContext, TrafficSourceCardData } from '../../core/types/appContext';
-import type { StickyNoteData } from '../../core/types/canvas';
+import type { StickyNoteData, ImageNodeData } from '../../core/types/canvas';
 
 interface MediumLodNodeProps {
     node: CanvasNode;
@@ -142,11 +142,36 @@ const StickyMedium: React.FC<{ data: StickyNoteData }> = ({ data }) => (
     </div>
 );
 
+/* ── Image ── */
+const ImageMedium: React.FC<{ data: ImageNodeData }> = ({ data }) => (
+    <div
+        style={{
+            width: '100%',
+            height: '100%',
+            borderRadius: 8,
+            overflow: 'hidden',
+            background: 'var(--bg-secondary)',
+        }}
+    >
+        {data.downloadUrl ? (
+            <img
+                src={data.downloadUrl}
+                alt=""
+                draggable={false}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            />
+        ) : (
+            <span className="shimmer-overlay" style={{ borderRadius: 8 }} />
+        )}
+    </div>
+);
+
 /* ── Main component ── */
 const MediumLodNode: React.FC<MediumLodNodeProps> = ({ node }) => {
     if (node.type === 'video-card') return <VideoMedium data={node.data as VideoCardContext} />;
     if (node.type === 'traffic-source') return <TrafficMedium data={node.data as TrafficSourceCardData} />;
     if (node.type === 'sticky-note') return <StickyMedium data={node.data as StickyNoteData} />;
+    if (node.type === 'image') return <ImageMedium data={node.data as ImageNodeData} />;
     return null;
 };
 

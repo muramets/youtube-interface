@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { MoreVertical, Info, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
+import { MoreVertical, Info, Trash2, AlertTriangle, Loader2, MessageSquareText, Sparkles } from 'lucide-react';
 import { type VideoDetails } from '../../core/utils/youtubeApi';
 import { VideoService } from '../../core/services/videoService';
 import { formatDuration, formatViewCount } from '../../core/utils/formatUtils';
@@ -501,10 +501,23 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
             </div>
           )}
 
-          {/* Duration Badge */}
-          {displayVideo.duration && (
-            <div className="absolute bottom-1.5 right-1.5 bg-black/80 px-1.5 py-0.5 rounded text-xs font-medium text-white">
-              {formatDuration(displayVideo.duration)}
+          {/* Duration + Notes Badges (bottom-right) */}
+          {(displayVideo.duration || (video.notes && video.notes.length > 0)) && (
+            <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 z-10">
+              {video.notes && video.notes.length > 0 && (() => {
+                const hasAiNotes = video.notes!.some(n => n.source === 'ai-chat');
+                return (
+                  <div className="bg-black/60 px-1.5 py-0.5 rounded text-[10px] font-semibold text-white/70 flex items-center gap-1 transition-colors duration-150 hover:text-text-primary hover:bg-black/80">
+                    {hasAiNotes ? <Sparkles size={10} /> : <MessageSquareText size={10} />}
+                    {video.notes!.length}
+                  </div>
+                );
+              })()}
+              {displayVideo.duration && (
+                <div className="bg-black/80 px-1.5 py-0.5 rounded text-xs font-medium text-white">
+                  {formatDuration(displayVideo.duration)}
+                </div>
+              )}
             </div>
           )}
 
