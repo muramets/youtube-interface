@@ -8,6 +8,14 @@ import { TRAFFIC_NODE_WIDTH, IMAGE_NODE_WIDTH, STICKY_NOTE_HEIGHT_ESTIMATE, NODE
 import type { CanvasSlice, CanvasState } from '../types';
 import { deleteCanvasImage } from '../../../services/storageService';
 
+// Default widths per node type (height=0 means auto-sized by content)
+const DEFAULT_NODE_WIDTHS: Partial<Record<CanvasNode['type'], number>> = {
+    'traffic-source': TRAFFIC_NODE_WIDTH,
+    'sticky-note': TRAFFIC_NODE_WIDTH,
+    'video-card': TRAFFIC_NODE_WIDTH,
+    'image': IMAGE_NODE_WIDTH,
+};
+
 // ---------------------------------------------------------------------------
 // Node factory — consolidates type mapping and default sizes for addNode/addNodeAt
 // ---------------------------------------------------------------------------
@@ -32,9 +40,7 @@ export function createCanvasNode(
         // Traffic-source nodes are auto-positioned; skip the pending glow
         isPlaced: position !== null ? true : (nodeType === 'traffic-source' ? true : undefined),
         zIndex: maxZ + 1,
-        ...(nodeType === 'traffic-source' ? { size: { w: TRAFFIC_NODE_WIDTH, h: 0 } } : {}),
-        ...(nodeType === 'sticky-note' ? { size: { w: TRAFFIC_NODE_WIDTH, h: 0 } } : {}),
-        ...(nodeType === 'image' ? { size: { w: IMAGE_NODE_WIDTH, h: 0 } } : {}),
+        ...(DEFAULT_NODE_WIDTHS[nodeType] ? { size: { w: DEFAULT_NODE_WIDTHS[nodeType]!, h: 0 } } : {}),
         createdAt: Timestamp.now(),
     };
 }
@@ -88,7 +94,9 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
         get()._markDirty(id);
         set((s) => ({
             nodes: s.nodes.map((n) =>
-                n.id === id ? { ...n, data: { ...n.data, ...partialData } as CanvasNodeData } : n
+                n.id === id
+                    ? { ...n, data: { ...n.data, ...partialData } as CanvasNodeData, updatedAt: Timestamp.now() }
+                    : n
             ),
         }));
         get()._save();

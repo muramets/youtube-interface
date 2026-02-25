@@ -77,6 +77,8 @@ export interface CanvasState {
     pendingInsightReveal: { nodeId: string; category: InsightCategory } | null;
     /** Edge ID highlighted via Cmd+Click — connected nodes stay bright, others dim */
     highlightedEdgeId: string | null;
+    /** Node ID currently in text-editing mode — wrapper expands height to fit content */
+    editingNodeId: string | null;
 
     // Selection
     selectedNodeIds: Set<string>;
@@ -95,6 +97,8 @@ export interface CanvasState {
     /** Highlight an edge and dim unrelated nodes (Cmd+Click) */
     highlightEdge: (edgeId: string) => void;
     clearHighlightedEdge: () => void;
+    /** Set the node currently being text-edited (null = no editing) */
+    setEditingNodeId: (id: string | null) => void;
 
     // Nodes
     addNode: (data: CanvasNodeData) => void;

@@ -9,6 +9,7 @@
 import React, { useRef, useCallback, useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import TurndownService from 'turndown';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { StickyNoteData, NoteColor } from '../../core/types/canvas';
@@ -34,21 +35,31 @@ const NOTE_COLORS: Record<NoteColor, { bg: string; shadow: string; text: string 
 
 const COLOR_OPTIONS: NoteColor[] = ['yellow', 'pink', 'red', 'blue', 'green', 'neutral'];
 
-/** Compact mode fixed height (matches traffic-source node) */
-const COMPACT_HEIGHT = 100;
-
 /** Padding above (tape strip) + below content */
 const CONTENT_PAD_TOP = 28;
 const CONTENT_PAD_BOTTOM = 14;
-const SCROLL_AREA_HEIGHT = COMPACT_HEIGHT - CONTENT_PAD_TOP - CONTENT_PAD_BOTTOM;
 
 interface StickyNoteNodeProps {
     data: StickyNoteData;
     nodeId: string;
 }
 
+/** Format date as '25 FEB' (current year) or '25 FEB 2025' (other years) */
+function formatNoteDate(date: Date): string {
+    const day = date.getDate();
+    const month = date.toLocaleString('en', { month: 'short' }).toUpperCase();
+    const year = date.getFullYear();
+    if (year === new Date().getFullYear()) return `${day} ${month}`;
+    return `${day} ${month} ${year}`;
+}
+
 const StickyNoteNodeInner: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) => {
     const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+    const setEditingNodeId = useCanvasStore((s) => s.setEditingNodeId);
+    const updatedAt = useCanvasStore((s) => {
+        const node = s.nodes.find((n) => n.id === nodeId);
+        return node?.updatedAt ?? node?.createdAt;
+    });
     const [isEditing, setIsEditing] = useState(false);
     const [hovered, setHovered] = useState(false);
     const [isOverflowing, setIsOverflowing] = useState(false);
@@ -101,27 +112,29 @@ const StickyNoteNodeInner: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) =>
 
     const handleBlur = useCallback(() => {
         setIsEditing(false);
+        setEditingNodeId(null);
         const text = editRef.current?.value ?? '';
         if (text !== data.content) {
             updateNodeData(nodeId, { content: text });
         }
-    }, [nodeId, data.content, updateNodeData]);
+    }, [nodeId, data.content, updateNodeData, setEditingNodeId]);
 
     const handleDoubleClick = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
+        // Already editing — let native double-click (word select) work undisturbed
+        if (isEditing) return;
         setIsEditing(true);
+        setEditingNodeId(nodeId);
         setTimeout(() => {
             const el = editRef.current;
             if (!el) return;
             el.focus();
             el.setSelectionRange(el.value.length, el.value.length);
-            // Auto-resize textarea in expanded mode
-            if (isExpanded) {
-                el.style.height = 'auto';
-                el.style.height = el.scrollHeight + 'px';
-            }
+            // Auto-resize textarea to fit content immediately upon entering edit mode
+            el.style.height = 'auto';
+            el.style.height = el.scrollHeight + 'px';
         }, 0);
-    }, [isExpanded]);
+    }, [isExpanded, isEditing]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         e.stopPropagation();
@@ -163,11 +176,14 @@ const StickyNoteNodeInner: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) =>
             ref={rootRef}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
+            onMouseDown={(e) => { if (isEditing) e.stopPropagation(); }}
             onDoubleClick={handleDoubleClick}
             style={{
                 position: 'relative',
+                display: 'flex',
+                flexDirection: 'column',
+                flexGrow: 1,
                 width: '100%',
-                minHeight: isExpanded ? COMPACT_HEIGHT : undefined,
                 height: isExpanded ? 'auto' : '100%',
                 background: colors.bg,
                 borderRadius: 2,
@@ -200,8 +216,12 @@ const StickyNoteNodeInner: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) =>
                     ref={scrollRef}
                     className="sticky-note-scroll"
                     style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        flexGrow: 1,
                         padding: `${CONTENT_PAD_TOP}px 14px ${CONTENT_PAD_BOTTOM}px`,
-                        maxHeight: isExpanded ? undefined : COMPACT_HEIGHT,
+                        height: isExpanded ? 'auto' : '100%',
+                        boxSizing: 'border-box',
                         overflowY: isExpanded ? 'visible' : 'auto',
                         overflowX: 'hidden',
                     }}
@@ -215,7 +235,7 @@ const StickyNoteNodeInner: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) =>
                         userSelect: 'text',
                     }}>
                         {data.content ? (
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
                                 {data.content}
                             </ReactMarkdown>
                         ) : null}
@@ -226,6 +246,9 @@ const StickyNoteNodeInner: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) =>
             {/* === Edit mode: textarea === */}
             {isEditing && (
                 <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flexGrow: 1,
                     padding: `${CONTENT_PAD_TOP}px 14px ${CONTENT_PAD_BOTTOM}px`,
                     height: isExpanded ? 'auto' : '100%',
                     boxSizing: 'border-box',
@@ -238,15 +261,15 @@ const StickyNoteNodeInner: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) =>
                         onKeyDown={handleKeyDown}
                         onPaste={handlePaste}
                         onInput={(e) => {
-                            if (isExpanded) {
-                                const ta = e.currentTarget;
-                                ta.style.height = 'auto';
-                                ta.style.height = ta.scrollHeight + 'px';
-                            }
+                            const ta = e.currentTarget;
+                            ta.style.height = 'auto';
+                            ta.style.height = ta.scrollHeight + 'px';
                         }}
                         style={{
+                            flexGrow: 1,
                             width: '100%',
-                            height: isExpanded ? 'auto' : `${SCROLL_AREA_HEIGHT}px`,
+                            // When editing, the textarea should naturally wrap and dictate height
+                            height: 'auto',
                             minHeight: 20,
                             resize: 'none',
                             border: 'none',
@@ -327,6 +350,24 @@ const StickyNoteNodeInner: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) =>
                         : <ChevronDown size={12} color={colors.text} strokeWidth={2.5} />
                     }
                 </button>
+            )}
+
+            {/* Timestamp — bottom-left, visible on hover */}
+            {hovered && !isEditing && updatedAt && (
+                <div style={{
+                    position: 'absolute',
+                    bottom: 6,
+                    left: 10,
+                    fontSize: 9,
+                    color: colors.text,
+                    opacity: 0.4,
+                    pointerEvents: 'none',
+                    userSelect: 'none',
+                    whiteSpace: 'nowrap',
+                    zIndex: 5,
+                }}>
+                    {formatNoteDate(updatedAt.toDate())}
+                </div>
             )}
 
             {/* Color picker dots — pinned to root bottom-right */}

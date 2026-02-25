@@ -30,9 +30,6 @@ import { debug } from '../../core/utils/debug';
 import { CanvasPageHeader } from './CanvasPageHeader';
 import './Canvas.css';
 
-// --- Module-level constants ---
-const STICKY_NOTE_W = 360;
-const STICKY_NOTE_H = 100;
 
 // --- Two-level LOD thresholds with hysteresis ±0.03 ---
 const LOD_FULL_UP = 0.53;  // zoom-in: switch TO full
@@ -158,11 +155,11 @@ export const CanvasOverlay: React.FC = () => {
         ids.forEach(markPlaced);
     }, [setSelectedNodeIds, markPlaced]);
 
-    // Double-click on empty canvas → create sticky note centered on cursor
+    // Double-click on empty canvas → create sticky note with top-left at cursor
     const handleCanvasDblClick = useCallback((worldPos: { x: number; y: number }) => {
         addNodeAt(
             { type: 'sticky-note', content: '', color: 'yellow' },
-            { x: worldPos.x - STICKY_NOTE_W / 2, y: worldPos.y - STICKY_NOTE_H / 2 },
+            worldPos,
         );
     }, [addNodeAt]);
 

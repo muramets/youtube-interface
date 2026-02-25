@@ -198,6 +198,9 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
     const isSticky = node.type === 'sticky-note';
     const isTrafficSource = node.type === 'traffic-source';
 
+    // Subscribe to editing state — auto-expand height when this node is being edited
+    const isEditingThis = useCanvasStore((s) => isSticky && s.editingNodeId === node.id);
+
     const makeResizeStart = useCallback((mode: 'corner' | 'right' | 'bottom') =>
         (e: React.MouseEvent) => {
             e.stopPropagation();
@@ -237,13 +240,17 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
     if (!node.position) return null;
 
     const nodeWidth = node.size?.w ?? NODE_WIDTH;
-    // In expanded sticky mode, let height be auto (content-driven).
+    // In expanded sticky mode or edit mode, let height be auto (content-driven).
     // In compact sticky mode, use explicit height or fallback to 100px so overflow clips.
-    const nodeHeight = isStickyExpanded
-        ? undefined
-        : isSticky
-            ? (node.size?.h && node.size.h > 0) ? node.size.h : 100
-            : (node.size?.h && node.size.h > 0) ? node.size.h : undefined;
+    const userHeight = isSticky
+        ? (node.size?.h && node.size.h > 0) ? node.size.h : 100
+        : (node.size?.h && node.size.h > 0) ? node.size.h : undefined;
+    const nodeHeight = (isStickyExpanded || isEditingThis) ? undefined : userHeight;
+    const nodeMinHeight = isEditingThis ? userHeight : undefined;
+
+    if (isSticky && isEditingThis) {
+        console.log(`[CanvasNodeWrapper] Sticky Edit Mode (${node.id}): userHeight=${userHeight}, nodeHeight=${nodeHeight}, minHeight=${nodeMinHeight}, isExpanded=${isStickyExpanded}`);
+    }
 
     return (
         <>
@@ -256,10 +263,13 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
                 className={`canvas-node absolute ${!node.isPlaced ? 'canvas-node-pending' : ''} ${isResizing ? 'is-resizing' : ''}`}
                 data-node-id={node.id}
                 style={{
+                    display: 'flex',
+                    flexDirection: 'column',
                     left: node.position.x,
                     top: node.position.y,
                     width: nodeWidth,
                     height: nodeHeight,
+                    minHeight: nodeMinHeight,
                     zIndex: node.zIndex,
                     cursor: isDragging ? 'grabbing' : 'grab',
                     // Selection ring

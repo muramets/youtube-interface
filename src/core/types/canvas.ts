@@ -68,6 +68,8 @@ export interface CanvasNode {
     /** True once the user has manually dragged this node. Unplaced nodes show a glow. */
     isPlaced?: boolean;
     createdAt: Timestamp;
+    /** Last edit timestamp (set by updateNodeData for sticky notes) */
+    updatedAt?: Timestamp;
 }
 
 // --- Viewport ---

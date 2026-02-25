@@ -458,15 +458,25 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
             return;
         }
 
-        // --- Priority 3: Streaming just ended — collapse spacer, preserve position ---
+        // --- Priority 3: Streaming just ended — shrink spacer, preserve scroll position ---
+        // The spacer was expanded in P1 to pin the user message at the top.
+        // Collapsing it to 0 instantly would clamp scrollTop and cause a jump.
+        // Instead, compute the minimum spacer height that keeps the current
+        // scrollTop valid, then let the spacer fully collapse on next user scroll.
         if (streamingJustEnded) {
-            debug.scroll('P3: streaming ended, collapsing spacer, intent → idle');
-            setSpacer(0);
+            const currentScroll = container.scrollTop;
+            const contentH = container.scrollHeight - (spacerRef.current?.offsetHeight ?? 0);
+            const neededScrollH = currentScroll + container.clientHeight;
+            const neededSpacer = Math.max(0, neededScrollH - contentH);
+            debug.scroll(`P3: streaming ended, spacer ${spacerRef.current?.offsetHeight ?? 0}→${neededSpacer}, preserving scrollTop=${currentScroll}`);
+            setSpacer(neededSpacer);
             intentRef.current = 'idle';
             return;
         }
 
-        // --- Priority 4: Non-streaming new messages (history loaded, AI response persisted) ---
+        // --- Priority 4: Initial history load — scroll to bottom ---
+        // Non-initial messages (e.g. AI response persisted after streaming) do NOT
+        // auto-scroll — the user decides when to navigate to the end.
         if (newCount > prevCount && intentRef.current === 'idle') {
             const isInitialLoad = prevCount === 0;
             debug.scroll(`P4: new messages, isInitialLoad=${isInitialLoad}`);
@@ -480,11 +490,6 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                         container.scrollTop = target;
                         debug.scroll(`P4 (instant): scrollTop after set=${container.scrollTop}`);
                     });
-                });
-            } else {
-                debug.scroll('P4 (smooth): scrollTo bottom');
-                programmaticScroll(() => {
-                    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
                 });
             }
         }
@@ -513,6 +518,15 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
         if (distanceFromBottom <= 80 && intentRef.current === 'away') {
             debug.scroll(`handleScroll: user scrolled back near bottom, intent away → idle`);
             intentRef.current = 'idle';
+        }
+
+        // Lazy spacer cleanup: P3 leaves a residual spacer to preserve scroll
+        // position after streaming ends. Once the user scrolls, collapse it —
+        // by now the AI response content has filled the space.
+        const spacerH = spacerRef.current?.offsetHeight ?? 0;
+        if (spacerH > 0 && intentRef.current === 'idle') {
+            debug.scroll(`handleScroll: collapsing residual spacer (${spacerH}px)`);
+            setSpacer(0);
         }
     }, []);
 

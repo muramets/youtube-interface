@@ -14,6 +14,7 @@ import TurndownService from 'turndown';
 import { SaveTargetPopover } from './SaveTargetPopover';
 import type { SaveTarget } from './SaveTargetPopover';
 import { useCanvasStore } from '../../../core/stores/canvas/canvasStore';
+import { computeNextNotePosition } from '../../Canvas/utils/notePlacement';
 import { useVideos } from '../../../core/hooks/useVideos';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
@@ -58,7 +59,19 @@ interface Snippet {
 
 interface PillPosition {
     top: number;
+    bottom: number;
     left: number;
+}
+
+/** Pill height estimate (py-1.5*2 + text + icon ≈ 28px) + gap */
+const PILL_HEIGHT = 28;
+const PILL_GAP = 8;
+
+/** Computed pill position — used for both pill button and popover anchor */
+interface PillAnchor {
+    top: number;
+    left: number;
+    transform: string;
 }
 
 // --- CSS Highlight API helpers ---
@@ -108,6 +121,8 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
 
     const canvasPages = useCanvasStore((s) => s.pages);
     const addNodeAt = useCanvasStore((s) => s.addNodeAt);
+    const canvasNodes = useCanvasStore((s) => s.nodes);
+    const canvasNodeSizes = useCanvasStore((s) => s.nodeSizes);
     const canvasSwitchPage = useCanvasStore((s) => s.switchPage);
     const subscribeMeta = useCanvasStore((s) => s.subscribeMeta);
 
@@ -185,7 +200,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
                     return;
                 }
 
-                setPillPos({ top: rect.top, left: rect.left + rect.width / 2 });
+                setPillPos({ top: rect.top, bottom: rect.bottom, left: rect.left + rect.width / 2 });
 
                 if (isAppend) {
                     setSnippets((prev) => {
@@ -236,7 +251,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
                     try {
                         const rect = lastSnippet.range.getBoundingClientRect();
                         if (rect.width > 0 || rect.height > 0) {
-                            setPillPos({ top: rect.top, left: rect.left + rect.width / 2 });
+                            setPillPos({ top: rect.top, bottom: rect.bottom, left: rect.left + rect.width / 2 });
                         }
                     } catch {
                         // Range may have been invalidated
@@ -350,9 +365,10 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
 
         try {
             canvasSwitchPage(pageId);
+            const position = computeNextNotePosition(canvasNodes, canvasNodeSizes);
             addNodeAt(
                 { type: 'sticky-note', content: combinedText, color: 'blue' },
-                { x: 100, y: 100 },
+                position,
             );
 
             const page = canvasPages.find((p) => p.id === pageId);
@@ -361,7 +377,39 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
             setToast({ message: 'Failed to save to canvas', type: 'error' });
         }
         clearState();
-    }, [combinedText, canvasSwitchPage, addNodeAt, canvasPages, clearState]);
+    }, [combinedText, canvasSwitchPage, canvasNodes, canvasNodeSizes, addNodeAt, canvasPages, clearState]);
+
+    // --- Smart pill positioning ---
+    // Pill appears above selection by default.
+    // If selection top is above visible chat area → pill appears below selection.
+    // Always clamped within chat panel bounds.
+    const computePillAnchor = useCallback((): PillAnchor | null => {
+        if (!pillPos) return null;
+        const container = scrollContainerRef.current;
+        const containerRect = container?.getBoundingClientRect();
+
+        // Default: above selection
+        let top = pillPos.top - PILL_HEIGHT - PILL_GAP;
+        const left = pillPos.left;
+
+        if (containerRect) {
+            const visibleTop = containerRect.top;
+            const visibleBottom = containerRect.bottom;
+
+            // If selection top is above visible area → place below selection
+            if (pillPos.top < visibleTop) {
+                top = pillPos.bottom + PILL_GAP;
+            }
+
+            // Clamp vertically within chat panel
+            top = Math.max(visibleTop + PILL_GAP, Math.min(top, visibleBottom - PILL_HEIGHT - PILL_GAP));
+        }
+
+        return { top, left, transform: 'translateX(-50%)' };
+    }, [pillPos, scrollContainerRef]);
+
+    // Compute once per render, reuse for pill and popover
+    const pillAnchor = computePillAnchor();
 
     return (
         <>
@@ -371,11 +419,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
                     className="animate-fade-in fixed flex items-center gap-1.5 px-3 py-1.5 bg-card-bg border border-border rounded-full text-text-primary text-xs font-semibold cursor-pointer shadow-xl z-toast whitespace-nowrap transition-colors hover:brightness-125"
                     onMouseDown={handlePillMouseDown}
                     onClick={handlePillClick}
-                    style={{
-                        top: pillPos!.top - 36,
-                        left: pillPos!.left,
-                        transform: 'translateX(-50%)',
-                    }}
+                    style={pillAnchor ?? undefined}
                 >
                     <Pin size={13} />
                     Save
@@ -386,7 +430,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
             {/* Save target popover */}
             {isActive && showPopover && (
                 <SaveTargetPopover
-                    anchorRect={{ top: pillPos!.top - 36, left: pillPos!.left }}
+                    anchorRect={pillAnchor!}
                     contextVideos={contextVideos}
                     canvasPages={canvasPageTargets}
                     onSaveToVideo={handleSaveToVideo}

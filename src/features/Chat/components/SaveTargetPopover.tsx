@@ -1,6 +1,7 @@
 // =============================================================================
 // CHAT: SaveTargetPopover — compact dropdown for choosing save destination.
 // Two sections: "Save to Video" (from conversation context) + "Save to Canvas".
+// Smart positioning: auto-flips above anchor when not enough space below.
 // Pure UI — receives callbacks for save actions.
 // =============================================================================
 
@@ -34,6 +35,10 @@ interface SaveTargetPopoverProps {
     onClose: () => void;
 }
 
+const POPOVER_WIDTH = 260;
+const POPOVER_MAX_HEIGHT = 340;
+const VIEWPORT_PADDING = 12;
+
 export const SaveTargetPopover: React.FC<SaveTargetPopoverProps> = ({
     anchorRect,
     contextVideos,
@@ -44,6 +49,62 @@ export const SaveTargetPopover: React.FC<SaveTargetPopoverProps> = ({
 }) => {
     const popoverRef = useRef<HTMLDivElement>(null);
     const [savedId, setSavedId] = useState<string | null>(null);
+
+    // --- Smart positioning: measure after mount, flip if needed ---
+    const [style, setStyle] = useState<React.CSSProperties>({
+        top: anchorRect.top,
+        left: anchorRect.left,
+        transform: 'translateX(-50%)',
+        width: POPOVER_WIDTH,
+        maxHeight: POPOVER_MAX_HEIGHT,
+        opacity: 0, // Hidden until positioned
+    });
+
+    useEffect(() => {
+        // Wait one frame for the popover to mount and measure its height
+        requestAnimationFrame(() => {
+            const el = popoverRef.current;
+            if (!el) return;
+
+            const popoverH = el.scrollHeight;
+            const viewportH = window.innerHeight;
+            const viewportW = window.innerWidth;
+
+            const spaceBelow = viewportH - anchorRect.top - VIEWPORT_PADDING;
+            const spaceAbove = anchorRect.top - VIEWPORT_PADDING;
+
+            let top: number;
+            let maxH: number;
+
+            if (spaceBelow >= popoverH || spaceBelow >= spaceAbove) {
+                // Enough space below, or below is better than above → render below
+                top = anchorRect.top;
+                maxH = Math.min(POPOVER_MAX_HEIGHT, spaceBelow);
+            } else {
+                // Not enough space below, more space above → flip upward
+                maxH = Math.min(POPOVER_MAX_HEIGHT, spaceAbove);
+                top = anchorRect.top - Math.min(popoverH, maxH);
+            }
+
+            // Horizontal clamp: keep popover within viewport
+            const halfW = POPOVER_WIDTH / 2;
+            let left = anchorRect.left;
+            if (left - halfW < VIEWPORT_PADDING) {
+                left = halfW + VIEWPORT_PADDING;
+            } else if (left + halfW > viewportW - VIEWPORT_PADDING) {
+                left = viewportW - halfW - VIEWPORT_PADDING;
+            }
+
+            setStyle({
+                top,
+                left,
+                transform: 'translateX(-50%)',
+                width: POPOVER_WIDTH,
+                maxHeight: maxH,
+                opacity: 1,
+            });
+        });
+    }, [anchorRect.top, anchorRect.left]);
 
     // Close on outside click
     useEffect(() => {
@@ -82,13 +143,7 @@ export const SaveTargetPopover: React.FC<SaveTargetPopoverProps> = ({
         <div
             ref={popoverRef}
             className="animate-fade-in fixed bg-card-bg backdrop-blur-md border border-border rounded-xl shadow-2xl z-toast overflow-hidden flex flex-col"
-            style={{
-                top: anchorRect.top,
-                left: anchorRect.left,
-                transform: 'translateX(-50%)',
-                width: 260,
-                maxHeight: 340,
-            }}
+            style={style}
         >
             {/* --- Save to Video --- */}
             {hasVideos && (
