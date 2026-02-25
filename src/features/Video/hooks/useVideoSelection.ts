@@ -43,7 +43,9 @@ export const useVideoSelection = (persistKey?: string) => {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape' && selectedIds.size > 0) {
-                // Prevent default behavior if needed, but usually just clearing is enough
+                // Stop other keydown listeners (e.g. AudioPlayer close) from
+                // consuming this same Escape — selection clear takes priority.
+                e.stopImmediatePropagation();
                 clearSelection();
             }
         };
