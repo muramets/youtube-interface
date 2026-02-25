@@ -38,7 +38,7 @@ const HeaderCell: React.FC<HeaderCellProps> = ({ label, sortKey, sortConfig, onS
 
     return (
         <th
-            className={`py-4 px-4 text-xs font-medium text-text-secondary uppercase tracking-wider cursor-pointer hover:bg-white/5 transition-colors select-none ${className}`}
+            className={`py-4 px-4 text-xs font-medium text-text-secondary uppercase tracking-wider cursor-pointer hover:text-text-primary transition-colors select-none ${className}`}
             onClick={() => onSort(sortKey)}
         >
             <div className={`flex items-center ${align === 'right' ? 'justify-end' : 'justify-start'}`}>
@@ -154,7 +154,7 @@ export const TrendsTable = React.memo<TrendsTableProps>(({
                 <tbody className="divide-y divide-border">
                     {/* Totals Row */}
                     {!isLoading && totals && rows.length > 0 && (
-                        <tr className="bg-white/5 font-semibold">
+                        <tr className="bg-bg-secondary/50 font-semibold">
                             <td className="py-4 px-6 text-sm text-text-primary" colSpan={mode === 'videos' ? 3 : 2}>
                                 Total
                             </td>
@@ -177,7 +177,7 @@ export const TrendsTable = React.memo<TrendsTableProps>(({
                     {mode === 'channels' ? (
                         // CHANNEL ROWS
                         (rows as TrendChannelRow[]).map((row) => (
-                            <tr key={row.channel.id} className="hover:bg-white/5 transition-colors group cursor-pointer" onClick={() => onChannelClick?.(row.channel.id)}>
+                            <tr key={row.channel.id} className="hover:bg-hover-bg transition-colors group cursor-pointer" onClick={() => onChannelClick?.(row.channel.id)}>
                                 <td className="py-3 px-6">
                                     <div className="flex items-center gap-4">
                                         <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-bg-primary border border-border">
@@ -187,7 +187,7 @@ export const TrendsTable = React.memo<TrendsTableProps>(({
                                                 className="w-full h-full object-cover"
                                             />
                                         </div>
-                                        <div className="font-medium text-text-primary group-hover:text-white transition-colors">
+                                        <div className="font-medium text-text-primary transition-colors">
                                             {row.channel.title}
                                         </div>
                                     </div>

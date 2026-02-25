@@ -32,6 +32,8 @@ export const useTrendsSidebar = () => {
     const isOnTrendsPage = location.pathname === '/trends';
 
     const handleTrendsClick = () => {
+        // Clear "Applied from All Channels" when navigating via sidebar
+        useTrendStore.getState().setIsAppliedFromAllChannels(false);
         // Save current filters before switching
         const store = useTrendStore.getState();
         const saveKey = store.selectedChannelId || '__global__';
@@ -61,7 +63,8 @@ export const useTrendsSidebar = () => {
      * TRASH is ONLY accessible via clicking "Untracked" niche.
      */
     const handleChannelClick = (channelId: string) => {
-        // Step 1: Save current state before switching
+        // Clear "Applied from All Channels" when navigating via sidebar
+        useTrendStore.getState().setIsAppliedFromAllChannels(false);
         const currentNicheFilter = trendsFilters.find(f => f.type === 'niche');
         const isUnassigned = currentNicheFilter && (currentNicheFilter.value as string[]).includes('UNASSIGNED');
 

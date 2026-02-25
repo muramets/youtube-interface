@@ -13,9 +13,12 @@ export type TrendsFilterValue =
     | PercentileGroup[]     // percentile
     | string[];             // niche IDs
 
+/** Canonical filter type — single source of truth for all filter UIs */
+export type TrendsFilterType = 'date' | 'views' | 'percentile' | 'niche';
+
 export interface TrendsFilterItem {
     id: string;
-    type: 'date' | 'views' | 'percentile' | 'niche';
+    type: TrendsFilterType;
     operator: FilterOperator;
     value: TrendsFilterValue;
     label: string;
@@ -88,6 +91,8 @@ interface TrendStore {
     isAddChannelModalOpen: boolean;
     isLoadingChannels: boolean; // Loading state for channels list
     trendsFilters: TrendsFilterItem[]; // Filters for trends page
+    /** true when current filters were applied from All Channels drill-down */
+    isAppliedFromAllChannels: boolean;
     isDragging: boolean;
     visualScale: number;
     draggedBaseSize: number | null;
@@ -116,6 +121,7 @@ interface TrendStore {
     setTrendsFilters: (filters: TrendsFilterItem[]) => void;
     setChannelRootFilters: (channelId: string, filters: TrendsFilterItem[]) => void;
     setNicheFilters: (nicheId: string, filters: TrendsFilterItem[]) => void;
+    setIsAppliedFromAllChannels: (value: boolean) => void;
     setIsDragging: (isDragging: boolean) => void;
     setVisualScale: (scale: number) => void;
     setDraggedBaseSize: (size: number | null) => void;
@@ -169,6 +175,7 @@ export const useTrendStore = create<TrendStore>()(
             isAddChannelModalOpen: false,
             isLoadingChannels: true, // Start as loading
             trendsFilters: [],
+            isAppliedFromAllChannels: false,
             isDragging: false,
             visualScale: 1,
             draggedBaseSize: null,
@@ -233,6 +240,11 @@ export const useTrendStore = create<TrendStore>()(
             addTrendsFilter: (filter) => set((state) => {
                 const newFilters = [...state.trendsFilters, { ...filter, id: crypto.randomUUID() }];
 
+                // Skip auto-sync when filters are inherited from All Channels
+                if (state.isAppliedFromAllChannels) {
+                    return { trendsFilters: newFilters };
+                }
+
                 let newRootFilters = state.channelRootFilters;
                 const nicheFilter = newFilters.find(f => f.type === 'niche');
                 const isRealNiche = nicheFilter && !(nicheFilter.value as string[]).includes('UNASSIGNED');
@@ -254,6 +266,11 @@ export const useTrendStore = create<TrendStore>()(
             removeTrendsFilter: (id) => set((state) => {
                 const newFilters = state.trendsFilters.filter((f) => f.id !== id);
 
+                // Skip auto-sync when filters are inherited from All Channels
+                if (state.isAppliedFromAllChannels) {
+                    return { trendsFilters: newFilters };
+                }
+
                 let newRootFilters = state.channelRootFilters;
                 const nicheFilter = newFilters.find(f => f.type === 'niche');
                 const isRealNiche = nicheFilter && !(nicheFilter.value as string[]).includes('UNASSIGNED');
@@ -273,6 +290,11 @@ export const useTrendStore = create<TrendStore>()(
              * Always syncs to channelRootFilters (empty = no niche = ROOT state).
              */
             clearTrendsFilters: () => set((state) => {
+                // Skip auto-sync when filters are inherited from All Channels
+                if (state.isAppliedFromAllChannels) {
+                    return { trendsFilters: [] };
+                }
+
                 let newRootFilters = state.channelRootFilters;
                 if (state.selectedChannelId) {
                     newRootFilters = {
@@ -288,6 +310,11 @@ export const useTrendStore = create<TrendStore>()(
              * AUTO-SYNC: Same rules as addTrendsFilter.
              */
             setTrendsFilters: (filters) => set((state) => {
+                // Skip auto-sync when filters are inherited from All Channels
+                if (state.isAppliedFromAllChannels) {
+                    return { trendsFilters: filters };
+                }
+
                 let newRootFilters = state.channelRootFilters;
                 const nicheFilter = filters.find(f => f.type === 'niche');
                 const isRealNiche = nicheFilter && !(nicheFilter.value as string[]).includes('UNASSIGNED');
@@ -323,6 +350,7 @@ export const useTrendStore = create<TrendStore>()(
                     [nicheId]: filters
                 }
             })),
+            setIsAppliedFromAllChannels: (value) => set({ isAppliedFromAllChannels: value }),
             setIsDragging: (isDragging) => set({ isDragging }),
             setVisualScale: (visualScale) => set({ visualScale }),
             setDraggedBaseSize: (draggedBaseSize) => set({ draggedBaseSize }),
@@ -642,6 +670,7 @@ export const useTrendStore = create<TrendStore>()(
                 channelRootFilters: state.channelRootFilters,
                 nicheFilters: state.nicheFilters,
                 trendsFilters: state.trendsFilters,
+                isAppliedFromAllChannels: state.isAppliedFromAllChannels,
                 // hiddenVideos: state.hiddenVideos, // Moved to Firestore
                 filterMode: state.filterMode,
                 userId: state.userId

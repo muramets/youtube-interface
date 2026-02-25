@@ -147,7 +147,7 @@ export const FilterInputNiche: React.FC<FilterInputNicheProps> = ({
             style={{ width: fixedWidth ? `${fixedWidth}px` : 'auto', minWidth: '200px' }}
         >
             {/* Search Input Header */}
-            <div className="px-3 py-2 border-b border-border sticky top-0 bg-[#1F1F1F] z-10 flex items-center gap-2">
+            <div className="px-3 py-2 border-b border-border sticky top-0 bg-bg-secondary z-10 flex items-center gap-2">
                 <div className="relative flex-1">
                     <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-text-tertiary" />
                     <input

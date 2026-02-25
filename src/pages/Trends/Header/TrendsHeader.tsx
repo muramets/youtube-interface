@@ -25,6 +25,9 @@ interface TrendsHeaderProps {
     filteredVideos: TrendVideo[];
     isInsideChannel?: boolean;
     onBackToChannels?: () => void;
+    isAppliedFromAllChannels?: boolean;
+    onSaveForChannel?: () => void;
+    onClearApplied?: () => void;
 }
 
 export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
@@ -41,7 +44,10 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
     onViewModeChange,
     filteredVideos,
     isInsideChannel = false,
-    onBackToChannels
+    onBackToChannels,
+    isAppliedFromAllChannels = false,
+    onSaveForChannel,
+    onClearApplied
 }) => {
     const { handleSync, isSyncing, canSync, syncTooltip } = useTrendsSync();
 
@@ -66,7 +72,11 @@ export const TrendsHeader: React.FC<TrendsHeaderProps> = ({
                         title
                     )}
                 </h1>
-                <TrendsFilterChips />
+                <TrendsFilterChips
+                    isAppliedFromAllChannels={isAppliedFromAllChannels}
+                    onSaveForChannel={onSaveForChannel}
+                    onClearApplied={onClearApplied}
+                />
             </div>
 
             <div className="flex items-center gap-6">

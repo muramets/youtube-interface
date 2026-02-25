@@ -582,12 +582,12 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                     <div
                         ref={tooltipRef}
                         className={`
-                            text-white text-[11px] leading-relaxed
+                            text-text-primary text-[11px] leading-relaxed
                             transition-all ease-out
                             ${sizeMode === 'fixed' ? 'w-full h-full' : ''}
                             ${variant === 'glass'
-                                ? 'bg-[#1a1a1a]/90 backdrop-blur-xl rounded-xl shadow-2xl border border-white/10'
-                                : 'bg-[#1F1F1F] rounded-lg shadow-xl'
+                                ? 'bg-bg-primary/90 backdrop-blur-xl rounded-xl shadow-2xl border border-border'
+                                : 'bg-bg-secondary rounded-lg shadow-xl'
                             }
                             ${noAnimation ? 'duration-0' : 'duration-200'}
                             ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}

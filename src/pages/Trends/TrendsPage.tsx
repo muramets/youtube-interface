@@ -15,7 +15,7 @@ import { useChannelStore } from '../../core/stores/channelStore';
 export const TrendsPage: React.FC = () => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { channels, selectedChannelId, setSelectedChannelId, timelineConfig, setTimelineConfig, trendsFilters, setTrendsFilters, filterMode, videos, hiddenVideos, isLoadingChannels } = useTrendStore();
+    const { channels, selectedChannelId, setSelectedChannelId, timelineConfig, setTimelineConfig, trendsFilters, setTrendsFilters, filterMode, videos, hiddenVideos, isLoadingChannels, isAppliedFromAllChannels } = useTrendStore();
     const [isLoadingLocal, setIsLoadingLocal] = useState(true);
     const [viewMode, setViewMode] = useState<'timeline' | 'table'>('timeline');
 
@@ -144,18 +144,32 @@ export const TrendsPage: React.FC = () => {
         handleVideoClick(video, position.x, position.y, true);
     }, [handleVideoClick]);
 
-    // Handle channel click in table view → navigate to that channel's videos
+    // Handle channel click in table view → navigate to that channel with current filters
     const handleChannelClick = useCallback((channelId: string) => {
-        // Save current filters before switching (global or channel)
         const store = useTrendStore.getState();
-        const saveKey = store.selectedChannelId || '__global__';
-        store.setChannelRootFilters(saveKey, store.trendsFilters);
-
+        // Save All Channels filters before switching
+        store.setChannelRootFilters('__global__', store.trendsFilters);
+        // Strip niche filters (niches are per-channel, not transferable)
+        const transferrable = store.trendsFilters.filter(f => f.type !== 'niche');
         setSelectedChannelId(channelId);
-        // Restore root filters for the target channel
-        const rootFilters = useTrendStore.getState().channelRootFilters[channelId];
-        setTrendsFilters(rootFilters?.length > 0 ? rootFilters : []);
+        setTrendsFilters(transferrable);
+        store.setIsAppliedFromAllChannels(transferrable.length > 0);
     }, [setSelectedChannelId, setTrendsFilters]);
+
+    // Save propagated filters as channel's own filters
+    const handleSaveForChannel = useCallback(() => {
+        const store = useTrendStore.getState();
+        if (store.selectedChannelId) {
+            store.setChannelRootFilters(store.selectedChannelId, store.trendsFilters);
+        }
+        store.setIsAppliedFromAllChannels(false);
+    }, []);
+
+    // Clear all propagated filters
+    const handleClearApplied = useCallback(() => {
+        setTrendsFilters([]);
+        useTrendStore.getState().setIsAppliedFromAllChannels(false);
+    }, [setTrendsFilters]);
 
     // Handle back to all channels from breadcrumb
     const handleBackToChannels = useCallback(() => {
@@ -211,6 +225,9 @@ export const TrendsPage: React.FC = () => {
                 filteredVideos={filteredVideos}
                 isInsideChannel={!!selectedChannelId}
                 onBackToChannels={handleBackToChannels}
+                isAppliedFromAllChannels={isAppliedFromAllChannels}
+                onSaveForChannel={handleSaveForChannel}
+                onClearApplied={handleClearApplied}
             />
 
             {viewMode === 'timeline' ? (

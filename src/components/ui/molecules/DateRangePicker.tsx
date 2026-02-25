@@ -142,25 +142,25 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
     const year = currentDate.getFullYear();
 
     return (
-        <div className="p-4 w-[280px] bg-[#1F1F1F]">
+        <div className="p-4 w-[280px] bg-bg-secondary">
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
                 <button
                     onClick={() => showYearSwitcher && setView(view === 'calendar' ? 'years' : 'calendar')}
-                    className={`flex items-center gap-2 text-sm font-bold text-white transition-colors rounded px-2 py-1 -ml-2 ${showYearSwitcher ? 'hover:bg-[#333333] cursor-pointer' : 'cursor-default'}`}
+                    className={`flex items-center gap-2 text-sm font-bold text-text-primary transition-colors rounded px-2 py-1 -ml-2 ${showYearSwitcher ? 'hover:bg-hover-bg cursor-pointer' : 'cursor-default'}`}
                 >
                     <span>{monthName} {year}</span>
                     {showYearSwitcher && (
-                        <CalendarIcon size={14} className={`text-[#AAAAAA] transition-transform ${view === 'years' ? 'rotate-180' : ''}`} />
+                        <CalendarIcon size={14} className={`text-text-tertiary transition-transform ${view === 'years' ? 'rotate-180' : ''}`} />
                     )}
                 </button>
 
                 {view === 'calendar' && (
                     <div className="flex gap-2">
-                        <button onClick={prevMonth} className="p-1 hover:bg-[#333333] rounded-full text-white transition-colors">
+                        <button onClick={prevMonth} className="p-1 hover:bg-hover-bg rounded-full text-text-primary transition-colors">
                             <ChevronLeft size={16} />
                         </button>
-                        <button onClick={nextMonth} className="p-1 hover:bg-[#333333] rounded-full text-white transition-colors">
+                        <button onClick={nextMonth} className="p-1 hover:bg-hover-bg rounded-full text-text-primary transition-colors">
                             <ChevronRight size={16} />
                         </button>
                     </div>
@@ -176,8 +176,8 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
                             className={`
                                 py-2 px-1 rounded-lg text-sm font-medium transition-colors
                                 ${y === year
-                                    ? 'bg-[#333333] text-white border border-[#444444]'
-                                    : 'text-[#AAAAAA] hover:bg-[#2A2A2A] hover:text-white'
+                                    ? 'bg-hover-bg text-text-primary border border-border'
+                                    : 'text-text-secondary hover:bg-hover-bg hover:text-text-primary'
                                 }
                             `}
                         >
@@ -188,7 +188,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
             ) : (
                 <div className="grid grid-cols-7 gap-y-2 mb-4">
                     {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
-                        <div key={i} className="text-center text-xs text-[#AAAAAA] font-medium">{d}</div>
+                        <div key={i} className="text-center text-xs text-text-tertiary font-medium">{d}</div>
                     ))}
 
                     {Array.from({ length: firstDay }).map((_, i) => (
@@ -203,15 +203,15 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
                         const inRange = selected && !rangeStart && !rangeEnd;
 
                         return (
-                            <div key={day} className={`flex items-center justify-center w-full h-8 ${inRange ? 'bg-[#333333]' : ''} ${rangeStart && selectionEnd ? 'bg-gradient-to-r from-transparent to-[#333333] from-50%' : ''} ${rangeEnd && selectionStart ? 'bg-gradient-to-l from-transparent to-[#333333] from-50%' : ''}`}>
+                            <div key={day} className={`flex items-center justify-center w-full h-8 ${inRange ? 'bg-hover-bg' : ''} ${rangeStart && selectionEnd ? 'bg-gradient-to-r from-transparent to-hover-bg from-50%' : ''} ${rangeEnd && selectionStart ? 'bg-gradient-to-l from-transparent to-hover-bg from-50%' : ''}`}>
                                 <button
                                     onClick={() => handleDateClick(day)}
                                     className={`
                                         h-8 w-8 text-sm flex items-center justify-center relative transition-colors z-10
-                                        ${rangeStart ? 'bg-white text-black font-bold rounded-full' : ''}
-                                        ${rangeEnd ? 'bg-white text-black font-bold rounded-full' : ''}
-                                        ${!selected ? 'text-white hover:bg-[#333333] rounded-full' : ''}
-                                        ${inRange ? 'bg-[#333333] text-white rounded-none w-full h-full' : ''}
+                                        ${rangeStart ? 'bg-text-primary text-bg-primary font-bold rounded-full' : ''}
+                                        ${rangeEnd ? 'bg-text-primary text-bg-primary font-bold rounded-full' : ''}
+                                        ${!selected ? 'text-text-primary hover:bg-hover-bg rounded-full' : ''}
+                                        ${inRange ? 'bg-hover-bg text-text-primary rounded-none w-full h-full' : ''}
                                     `}
                                 >
                                     {day}
@@ -222,17 +222,17 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
                 </div>
             )}
 
-            <div className="flex justify-end pt-2 border-t border-[#333333] gap-2">
+            <div className="flex justify-end pt-2 border-t border-border gap-2">
                 <button
                     onClick={onClose}
-                    className="px-4 py-2 text-sm text-[#AAAAAA] font-medium hover:text-white transition-colors"
+                    className="px-4 py-2 text-sm text-text-secondary font-medium hover:text-text-primary transition-colors"
                 >
                     Cancel
                 </button>
                 <button
                     onClick={selectionStart ? handleApply : handleRemove}
                     disabled={!selectionStart && !onRemove}
-                    className="bg-[#333333] text-white font-medium px-4 py-2 rounded-full text-sm hover:bg-[#444444] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-hover-bg text-text-primary font-medium px-4 py-2 rounded-full text-sm hover:bg-border transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {!selectionStart && onRemove ? 'Remove' : 'Apply'}
                 </button>

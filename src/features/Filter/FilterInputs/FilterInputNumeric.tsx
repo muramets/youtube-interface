@@ -80,7 +80,7 @@ export const FilterInputNumeric: React.FC<FilterInputNumericProps> = ({
     const isRemoveAction = value === '' && onRemove && !isHideZero && !initialIsHideZero;
 
     return (
-        <div className="p-3 w-full bg-[#1F1F1F]">
+        <div className="p-3 w-full bg-bg-secondary">
             {/* Horizontal Layout with Fixed Parent Width */}
             <div className="flex items-center gap-2 mb-2 w-full">
                 {/* Operator - Compact 70px */}
@@ -119,7 +119,7 @@ export const FilterInputNumeric: React.FC<FilterInputNumericProps> = ({
                     {/* Range Separator & Input 2 */}
                     {operator === 'between' && (
                         <>
-                            <div className="text-[#AAAAAA] flex-shrink-0">-</div>
+                            <div className="text-text-tertiary flex-shrink-0">-</div>
                             <div className="w-[70px] flex-shrink-0">
                                 {isDuration ? (
                                     <SmartDurationInput
@@ -144,7 +144,7 @@ export const FilterInputNumeric: React.FC<FilterInputNumericProps> = ({
 
             {showHideZeroOption && (
                 <>
-                    <div className="h-px bg-[#333333] w-full my-3" />
+                    <div className="h-px bg-border w-full my-3" />
                     <div className="mb-3 px-1 flex items-center">
                         <Checkbox
                             checked={isHideZero}
@@ -169,7 +169,7 @@ export const FilterInputNumeric: React.FC<FilterInputNumericProps> = ({
                         (!hasValidNumeric && !showHideZeroOption && !isRemoveAction) ||
                         (!hasValidNumeric && showHideZeroOption && !isHideZero && !initialIsHideZero && !isRemoveAction)
                     }
-                    className="bg-[#333333] text-white font-medium px-4 py-2 rounded-full text-sm hover:bg-[#444444] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-hover-bg text-text-primary font-medium px-4 py-2 rounded-full text-sm hover:bg-border transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {isRemoveAction ? 'Remove' : 'Apply'}
                 </button>

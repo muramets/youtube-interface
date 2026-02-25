@@ -43,7 +43,7 @@ export const TrendsVideoRow = memo<TrendsVideoRowProps>(({
         <tr
             className={`
             transition-colors group
-            ${isSelected ? 'bg-white/10 hover:bg-white/15' : 'hover:bg-white/5'}
+            ${isSelected ? 'bg-accent/10 hover:bg-accent/15' : 'hover:bg-hover-bg'}
         `}
             onClick={(e) => {
                 // Row click selection
@@ -77,7 +77,7 @@ export const TrendsVideoRow = memo<TrendsVideoRowProps>(({
                     </div>
                     <div className="min-w-0 pt-0.5 flex flex-col gap-1">
                         <div className="flex items-start gap-2">
-                            <div className="font-medium text-text-primary text-sm line-clamp-2 leading-tight group-hover:text-white transition-colors">
+                            <div className="font-medium text-text-primary text-sm line-clamp-2 leading-tight transition-colors">
                                 {video.title}
                             </div>
                             {/* Info Icon - Visible on Group Hover */}
@@ -104,7 +104,7 @@ export const TrendsVideoRow = memo<TrendsVideoRowProps>(({
                                     enterDelay={500}
                                     triggerClassName="flex items-center justify-center"
                                 >
-                                    <div className="text-text-secondary hover:text-white cursor-help p-1 -m-1">
+                                    <div className="text-text-secondary hover:text-text-primary cursor-help p-1 -m-1">
                                         <Info size={14} />
                                     </div>
                                 </PortalTooltip>

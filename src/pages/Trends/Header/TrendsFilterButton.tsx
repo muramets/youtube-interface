@@ -1,14 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Filter, ChevronRight, X, Calendar, Eye, ChevronLeft, BarChart3, Layers } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import { useTrendStore, type PercentileGroup } from '../../../core/stores/trends/trendStore';
-import { FilterInputDate } from '../../../features/Filter/FilterInputs/FilterInputDate';
+import { useTrendStore, type PercentileGroup, type TrendsFilterType } from '../../../core/stores/trends/trendStore';
+import { DateRangePicker } from '../../../components/ui/molecules/DateRangePicker';
 import { FilterInputNumeric } from '../../../features/Filter/FilterInputs/FilterInputNumeric';
 import { FilterInputPercentile } from '../../../features/Filter/FilterInputs/FilterInputPercentile';
 import type { FilterOperator } from '../../../core/stores/filterStore';
 import { FilterInputNiche } from './FilterInputNiche';
-
-type TrendsFilterType = 'date' | 'views' | 'percentile' | 'niche';
 
 interface TrendsFilterButtonProps {
     availableMinDate?: number;
@@ -66,14 +64,16 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
             }
         };
 
+        const handleResize = () => setIsOpen(false);
+
         if (isOpen) {
             document.addEventListener('mousedown', handleClickOutside);
-            window.addEventListener('resize', () => setIsOpen(false));
+            window.addEventListener('resize', handleResize);
         }
 
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
-            window.removeEventListener('resize', () => setIsOpen(false));
+            window.removeEventListener('resize', handleResize);
         };
     }, [isOpen]);
 
@@ -112,7 +112,7 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
             {isOpen && position && createPortal(
                 <div
                     ref={dropdownRef}
-                    className="fixed z-dropdown bg-[#1F1F1F] rounded-xl shadow-2xl overflow-hidden animate-scale-in flex flex-col"
+                    className="fixed z-dropdown bg-bg-secondary rounded-xl shadow-2xl overflow-hidden animate-scale-in flex flex-col border border-border"
                     style={{
                         top: position.top,
                         right: position.right,
@@ -121,17 +121,17 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
                 >
                     {/* Header for Submenus */}
                     {activeView !== 'main' && (
-                        <div className="flex items-center justify-between px-2 py-2 border-b border-[#333333]">
+                        <div className="flex items-center justify-between px-2 py-2 border-b border-border">
                             <button
                                 onClick={() => setActiveView('main')}
-                                className="p-2 hover:bg-[#333333] rounded-full text-text-secondary hover:text-text-primary transition-colors"
+                                className="p-2 hover:bg-hover-bg rounded-full text-text-secondary hover:text-text-primary transition-colors"
                             >
                                 <ChevronLeft size={20} />
                             </button>
                             <span className="text-sm font-bold text-text-primary">{getTitleForView(activeView)}</span>
                             <button
                                 onClick={() => setIsOpen(false)}
-                                className="p-2 hover:bg-[#333333] rounded-full text-text-secondary hover:text-text-primary transition-colors"
+                                className="p-2 hover:bg-hover-bg rounded-full text-text-secondary hover:text-text-primary transition-colors"
                             >
                                 <X size={20} />
                             </button>
@@ -142,15 +142,15 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
                     <div className="flex flex-col">
                         {activeView === 'main' ? (
                             <div className="py-2">
-                                <div className="px-4 py-3 mb-1 border-b border-[#2a2a2a]">
+                                <div className="px-4 py-3 mb-1 border-b border-border">
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-[11px] font-medium text-text-tertiary uppercase tracking-wider">Context</span>
                                     </div>
                                     {/* Segmented Toggle - Disabled in Trash Mode */}
-                                    <div className={`relative flex bg-[#1a1a1a] rounded-lg p-0.5 ${isTrashMode ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                    <div className={`relative flex bg-bg-primary rounded-lg p-0.5 ${isTrashMode ? 'opacity-50 cursor-not-allowed' : ''}`}>
                                         {/* Sliding Indicator */}
                                         <div
-                                            className="absolute top-0.5 bottom-0.5 w-[calc(50%-2px)] bg-gradient-to-r from-[#2d2d2d] to-[#333333] rounded-md shadow-sm transition-all duration-200 ease-out"
+                                            className="absolute top-0.5 bottom-0.5 w-[calc(50%-2px)] bg-hover-bg rounded-md shadow-sm transition-all duration-200 ease-out"
                                             style={{ left: filterMode === 'global' ? '2px' : 'calc(50% + 0px)' }}
                                         />
                                         <button
@@ -188,7 +188,7 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
                                     <button
                                         key={type}
                                         onClick={() => setActiveView(type)}
-                                        className="w-full text-left px-4 py-3 text-sm font-medium flex items-center justify-between gap-8 transition-colors border-none cursor-pointer text-text-primary hover:bg-[#161616] bg-transparent"
+                                        className="w-full text-left px-4 py-3 text-sm font-medium flex items-center justify-between gap-8 transition-colors border-none cursor-pointer text-text-primary hover:bg-hover-bg bg-transparent"
                                     >
                                         <div className="flex items-center gap-3">
                                             <Icon size={18} className="text-text-secondary" />
@@ -214,24 +214,11 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
                                             initialValue={numVal}
                                             initialMaxValue={maxVal}
                                             onApply={(op, val, max) => {
-                                                // Check for removal (empty/invalid) - though FilterInputNumeric handles validation, 
-                                                // we might want to allow explicit clearing if value is empty?
-                                                // Actually FilterInputNumeric controls validation.
-                                                // Let's modify FilterInputNumeric to allow passing undefined to signal removal?
-                                                // Start with simple add/replace.
-
-                                                // Remove existing first
                                                 if (existingFilter) {
                                                     removeTrendsFilter(existingFilter.id);
                                                 }
 
-                                                // If we have valid value (FilterInputNumeric enforces valid numbers before calling onApply), add it.
-                                                // Wait, we need a way to clear. 
-                                                // Let's rely on FilterInputNumeric sending us data.
-
                                                 const opLabel = op === 'between' ? `${val}-${max}` : `${op === 'gte' ? '>=' : op === 'lte' ? '<=' : op === 'gt' ? '>' : op === 'lt' ? '<' : '='} ${val}`;
-
-                                                // Explicitly cast the value to TrendsFilterValue to match the union type
                                                 const finalValue: import('../../../core/stores/trends/trendStore').TrendsFilterValue = op === 'between' ? [val, max!] : val;
                                                 handleAddFilter('views', op, finalValue, `Views ${opLabel}`);
                                             }}
@@ -253,12 +240,12 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
                                         : [undefined, undefined];
 
                                     return (
-                                        <FilterInputDate
+                                        <DateRangePicker
                                             availableMinDate={availableMinDate}
                                             availableMaxDate={availableMaxDate}
                                             initialStartDate={startVal}
                                             initialEndDate={endVal}
-                                            onApply={(start, end) => {
+                                            onApply={(start: number, end: number) => {
                                                 if (existingFilter) {
                                                     removeTrendsFilter(existingFilter.id);
                                                 }
@@ -327,15 +314,8 @@ export const TrendsFilterButton: React.FC<TrendsFilterButtonProps> = ({ availabl
                                                     label
                                                 });
                                             }
-                                            // If selectedIds is empty, we effectively removed the filter above.
-                                            // We usually close the dropdown if we applied something?
-                                            // But for multi-select (niche), maybe keeping it open is better?
-                                            // FilterInputPercentile closes on apply.
-                                            // FilterInputNiche calls onApply on every toggle.
-                                            // We probably want to keep it open until user manually closes header?
-                                            // But this function is inside `onApply`.
-                                            // Wait, if FilterInputNiche calls onApply on every toggle, then we shouldn't close it here.
-                                            // We rely on the generic close button in header.
+                                            // Niche filter uses live-toggle (onApply fires on each change)
+                                            // so we don't close the dropdown here — user closes via header X button
                                         }}
                                     />
                                 )}
