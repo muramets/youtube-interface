@@ -14,7 +14,8 @@ import { DEFAULT_AI_SETTINGS } from '../types/chat';
 import { ChatService, MESSAGE_PAGE_SIZE, CONVERSATION_PAGE_SIZE } from '../services/chatService';
 import { AiService } from '../services/aiService';
 import type { ReadyAttachment } from '../types/chatAttachment';
-import type { AppContextItem, VideoCardContext, SuggestedTrafficContext } from '../types/appContext';
+import type { AppContextItem, VideoCardContext, SuggestedTrafficContext, CanvasSelectionContext, VideoContextNode, TrafficSourceContextNode, StickyNoteContextNode, ImageContextNode } from '../types/appContext';
+import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../types/appContext';
 import { useAppContextStore } from './appContextStore';
 import { Timestamp } from 'firebase/firestore';
 import { debug } from '../utils/debug';
@@ -29,6 +30,8 @@ import {
     TRAFFIC_SOURCE_HEADER,
     TRAFFIC_SUGGESTED_HEADER,
     TRAFFIC_SNAPSHOT_CONTEXT,
+    CANVAS_CONTEXT_HEADER,
+    CANVAS_CONTEXT_PREAMBLE,
 } from '../config/prompts';
 
 interface ChatState {
@@ -240,6 +243,82 @@ function formatSuggestedTrafficContext(ctx: SuggestedTrafficContext): string {
     return lines.join('\n');
 }
 
+/** Format canvas selection context — grouped nodes from the visual canvas board. */
+function formatCanvasContext(ctx: CanvasSelectionContext): string {
+    const lines = [CANVAS_CONTEXT_HEADER, '', CANVAS_CONTEXT_PREAMBLE, ''];
+
+    const videos = ctx.nodes.filter((n): n is VideoContextNode => n.nodeType === 'video');
+    const trafficSources = ctx.nodes.filter((n): n is TrafficSourceContextNode => n.nodeType === 'traffic-source');
+    const notes = ctx.nodes.filter((n): n is StickyNoteContextNode => n.nodeType === 'sticky-note');
+    const images = ctx.nodes.filter((n): n is ImageContextNode => n.nodeType === 'image');
+
+    // Videos
+    if (videos.length > 0) {
+        lines.push('### Videos');
+        lines.push('');
+        videos.forEach((v, i) => {
+            const header = v.channelTitle
+                ? `Video ${i + 1} (Channel: ${v.channelTitle})`
+                : `Video ${i + 1}`;
+            lines.push(`#### ${header}`);
+            lines.push(`- **Title:** ${v.title || '(untitled)'}`);
+            if (v.ownership) {
+                const label = v.ownership === 'own-draft' ? 'Your draft' : v.ownership === 'own-published' ? 'Your published video' : 'Competitor / reference';
+                lines.push(`- **Type:** ${label}`);
+            }
+            if (v.viewCount) lines.push(`- **Views:** ${v.viewCount}`);
+            if (v.publishedAt) lines.push(`- **Published:** ${v.publishedAt}`);
+            if (v.duration) lines.push(`- **Duration:** ${v.duration}`);
+            lines.push(`- **Description:** ${v.description || '(no description)'}`);
+            lines.push(`- **Tags:** ${v.tags && v.tags.length > 0 ? v.tags.join(', ') : '(no tags)'}`);
+            lines.push('');
+        });
+    }
+
+    // Traffic sources
+    if (trafficSources.length > 0) {
+        lines.push('### Traffic Source Cards');
+        lines.push('');
+        trafficSources.forEach((t, i) => {
+            lines.push(`#### Traffic Source ${i + 1}: "${t.title || '(untitled)'}"`);
+            if (t.impressions != null) lines.push(`- **Impressions:** ${t.impressions.toLocaleString()}`);
+            if (t.ctr != null) lines.push(`- **CTR:** ${(t.ctr * 100).toFixed(1)}%`);
+            if (t.views != null) lines.push(`- **Views:** ${t.views.toLocaleString()}`);
+            if (t.avgViewDuration) lines.push(`- **Avg View Duration:** ${t.avgViewDuration}`);
+            if (t.watchTimeHours != null) lines.push(`- **Watch Time:** ${t.watchTimeHours.toFixed(1)}h`);
+            if (t.channelTitle) lines.push(`- **Channel:** ${t.channelTitle}`);
+            if (t.trafficType) lines.push(`- **Traffic Type:** ${t.trafficType}`);
+            if (t.viewerType) lines.push(`- **Viewer Type:** ${t.viewerType}`);
+            if (t.niche) lines.push(`- **Niche:** ${t.niche}`);
+            if (t.sourceVideoTitle) lines.push(`- **Source Video:** ${t.sourceVideoTitle}`);
+            lines.push('');
+        });
+    }
+
+    // Sticky notes
+    if (notes.length > 0) {
+        lines.push("### User's Notes");
+        lines.push('');
+        notes.forEach((n, i) => {
+            lines.push(`#### Note ${i + 1}`);
+            lines.push(n.content || '');
+            lines.push('');
+        });
+    }
+
+    // Images (just mention they're attached visually — actual images go via thumbnailUrls)
+    if (images.length > 0) {
+        lines.push('### Attached Images');
+        lines.push('');
+        images.forEach((img, i) => {
+            lines.push(`- Image ${i + 1}${img.alt ? `: ${img.alt}` : ''} (attached as visual input)`);
+        });
+        lines.push('');
+    }
+
+    return lines.join('\n');
+}
+
 /** Build system prompt: language + style + global + project-level + app context. */
 function buildSystemPrompt(
     aiSettings: AiAssistantSettings,
@@ -272,13 +351,17 @@ function buildSystemPrompt(
 
     // App context (video cards, etc.)
     if (appContext && appContext.length > 0) {
-        const videoCards = appContext.filter((c): c is VideoCardContext => c.type === 'video-card');
+        const videoCards = getVideoCards(appContext);
         if (videoCards.length > 0) {
             prompts.push(formatVideoContext(videoCards));
         }
-        const trafficContexts = appContext.filter((c): c is SuggestedTrafficContext => c.type === 'suggested-traffic');
+        const trafficContexts = getTrafficContexts(appContext);
         if (trafficContexts.length > 0) {
             trafficContexts.forEach(tc => prompts.push(formatSuggestedTrafficContext(tc)));
+        }
+        const canvasContexts = getCanvasContexts(appContext);
+        if (canvasContexts.length > 0) {
+            canvasContexts.forEach(cc => prompts.push(formatCanvasContext(cc)));
         }
     }
 
@@ -653,16 +736,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const thumbnailUrls: string[] = [];
             if (appContext) {
                 // Video cards
-                appContext
-                    .filter((c): c is VideoCardContext => c.type === 'video-card')
+                getVideoCards(appContext)
                     .forEach(c => { if (c.thumbnailUrl) thumbnailUrls.push(c.thumbnailUrl); });
                 // Suggested traffic: source video + suggested videos
-                appContext
-                    .filter((c): c is SuggestedTrafficContext => c.type === 'suggested-traffic')
+                getTrafficContexts(appContext)
                     .forEach(tc => {
                         if (tc.sourceVideo.thumbnailUrl) thumbnailUrls.push(tc.sourceVideo.thumbnailUrl);
                         tc.suggestedVideos.forEach(sv => {
                             if (sv.thumbnailUrl) thumbnailUrls.push(sv.thumbnailUrl);
+                        });
+                    });
+                // Canvas selection: video thumbnails + image downloadUrls
+                getCanvasContexts(appContext)
+                    .forEach(cc => {
+                        cc.nodes.forEach(node => {
+                            if (node.nodeType === 'video' || node.nodeType === 'traffic-source') {
+                                if (node.thumbnailUrl) thumbnailUrls.push(node.thumbnailUrl);
+                            }
+                            if (node.nodeType === 'image') {
+                                if (node.imageUrl) thumbnailUrls.push(node.imageUrl);
+                            }
                         });
                     });
             }
@@ -701,6 +794,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
                         });
                     } else if (item.type === 'video-card') {
                         debug.chat(`Video Card [${item.ownership}]:`, item.title);
+                    } else if (item.type === 'canvas-selection') {
+                        debug.chat('Type:', 'canvas-selection');
+                        debug.chat('Nodes:', item.nodes.length);
+                        item.nodes.forEach((node, i) => {
+                            const label = node.nodeType === 'video'
+                                ? `[Video] ${node.title}`
+                                : node.nodeType === 'traffic-source'
+                                    ? `[Traffic] ${node.title}`
+                                    : node.nodeType === 'sticky-note'
+                                        ? `[Note] ${(node.content || '').slice(0, 60)}…`
+                                        : `[Image] ${node.alt || 'image'}`;
+                            debug.chat(`  [${i + 1}] ${label}`);
+                        });
                     }
                 });
                 debug.chatGroup.end();

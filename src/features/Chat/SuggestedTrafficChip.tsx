@@ -26,10 +26,10 @@ export const SuggestedTrafficChip: React.FC<SuggestedTrafficChipProps> = React.m
     return (
         <div
             className={`
-                group/chip flex flex-col rounded-lg border overflow-hidden transition-all duration-200 relative
+                group/chip flex flex-col rounded-lg overflow-hidden transition-all duration-200 relative
                 ${compact
-                    ? 'border-white/[0.08] bg-white/[0.04] w-[180px]'
-                    : 'border-white/[0.1] bg-white/[0.05] w-[200px] hover:border-emerald-500/30 hover:bg-emerald-500/[0.06]'
+                    ? 'bg-white/[0.04] w-[180px]'
+                    : 'bg-white/[0.05] w-[200px] hover:bg-emerald-500/[0.06]'
                 }
             `}
         >

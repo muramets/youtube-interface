@@ -44,7 +44,7 @@ SyntaxHighlighter.registerLanguage('html', markup);
 SyntaxHighlighter.registerLanguage('xml', markup);
 SyntaxHighlighter.registerLanguage('svg', markup);
 import type { ChatMessage } from '../../core/types/chat';
-import type { VideoCardContext, SuggestedTrafficContext } from '../../core/types/appContext';
+import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../core/types/appContext';
 import type { ModelPricing } from '../../../shared/models';
 import { estimateCostEur } from '../../../shared/models';
 import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, Zap, MessageCircle, Pencil } from 'lucide-react';
@@ -54,6 +54,7 @@ import { formatRelativeTime, STATIC_AGE } from './formatRelativeTime';
 import { MessageErrorBoundary } from './components/ChatBoundaries';
 import { VideoCardChip } from './VideoCardChip';
 import { SuggestedTrafficChip } from './SuggestedTrafficChip';
+import { CanvasSelectionChip } from './CanvasSelectionChip';
 import { debug } from '../../core/utils/debug';
 import { SelectionToolbar } from './components/SelectionToolbar';
 
@@ -237,16 +238,15 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
             {/* Video card context */}
             {msg.appContext && msg.appContext.length > 0 && (
                 <div className="flex flex-wrap gap-1 mb-1.5">
-                    {msg.appContext
-                        .filter((c): c is VideoCardContext => c.type === 'video-card')
-                        .map(v => (
-                            <VideoCardChip key={v.videoId} video={v} compact />
-                        ))}
-                    {msg.appContext
-                        .filter((c): c is SuggestedTrafficContext => c.type === 'suggested-traffic')
-                        .map(tc => (
-                            <SuggestedTrafficChip key={tc.sourceVideo.videoId} context={tc} compact />
-                        ))}
+                    {getVideoCards(msg.appContext).map(v => (
+                        <VideoCardChip key={v.videoId} video={v} compact />
+                    ))}
+                    {getTrafficContexts(msg.appContext).map(tc => (
+                        <SuggestedTrafficChip key={tc.sourceVideo.videoId} context={tc} compact />
+                    ))}
+                    {getCanvasContexts(msg.appContext).map((cc, i) => (
+                        <CanvasSelectionChip key={`canvas-${i}`} context={cc} compact />
+                    ))}
                 </div>
             )}
 
@@ -528,7 +528,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
             debug.scroll(`handleScroll: collapsing residual spacer (${spacerH}px)`);
             setSpacer(0);
         }
-    }, []);
+    }, [setSpacer]);
 
     // Auto-scroll when container height shrinks (e.g. context chips appear in ChatInput)
     useEffect(() => {

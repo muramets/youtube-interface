@@ -23,7 +23,7 @@ export function useCanvasKeyboard(
         // Skip canvas shortcuts when editing text (sticky note contentEditable, rename input)
         const active = document.activeElement;
         const isEditing = active instanceof HTMLElement &&
-            (active.isContentEditable || active.tagName === 'INPUT');
+            (active.isContentEditable || active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
         const mod = e.metaKey || e.ctrlKey;
 
         if (e.key === 'Escape') {
@@ -141,7 +141,7 @@ export function useCanvasKeyboard(
     const handlePaste = useCallback((e: ClipboardEvent) => {
         const active = document.activeElement;
         const isEditing = active instanceof HTMLElement &&
-            (active.isContentEditable || active.tagName === 'INPUT');
+            (active.isContentEditable || active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
         if (isEditing) return; // let native paste handle text in contentEditable
 
         const items = e.clipboardData?.items;

@@ -125,5 +125,75 @@ export interface TrafficSourceCardData {
     insights?: Partial<Record<import('./canvas').InsightCategory, import('./canvas').NodeInsight>>;
 }
 
+/**
+ * Canvas context nodes — discriminated union by `nodeType`.
+ * Each variant has only the fields relevant to that node type.
+ */
+export interface VideoContextNode {
+    nodeType: 'video';
+    videoId: string;
+    title: string;
+    description: string;
+    tags: string[];
+    thumbnailUrl: string;
+    channelTitle?: string;
+    viewCount?: string;
+    publishedAt?: string;
+    duration?: string;
+    ownership: 'own-draft' | 'own-published' | 'competitor';
+}
+
+export interface TrafficSourceContextNode {
+    nodeType: 'traffic-source';
+    videoId?: string;
+    title: string;
+    thumbnailUrl?: string;
+    channelTitle?: string;
+    impressions?: number;
+    ctr?: number;
+    views?: number;
+    avgViewDuration?: string;
+    watchTimeHours?: number;
+    trafficType?: string;
+    viewerType?: string;
+    niche?: string;
+    sourceVideoTitle?: string;
+}
+
+export interface StickyNoteContextNode {
+    nodeType: 'sticky-note';
+    content: string;
+    noteColor: string;
+}
+
+export interface ImageContextNode {
+    nodeType: 'image';
+    imageUrl: string;
+    alt?: string;
+}
+
+export type CanvasContextNode = VideoContextNode | TrafficSourceContextNode | StickyNoteContextNode | ImageContextNode;
+
+/**
+ * Canvas selection context — all selected nodes grouped as a single context item.
+ * The AI receives them as a related group that the user wants to discuss together.
+ */
+export interface CanvasSelectionContext {
+    type: 'canvas-selection';
+    /** All selected nodes, grouped for unified AI context */
+    nodes: CanvasContextNode[];
+}
+
 /** Discriminated union — extend with `|` for new context types. */
-export type AppContextItem = VideoCardContext | SuggestedTrafficContext | TrafficSourceCardData;
+export type AppContextItem = VideoCardContext | SuggestedTrafficContext | TrafficSourceCardData | CanvasSelectionContext;
+
+// --- Type-safe filter helpers (DRY: single source for type predicates) ---
+
+export const getVideoCards = (items: AppContextItem[]) =>
+    items.filter((c): c is VideoCardContext => c.type === 'video-card');
+
+export const getTrafficContexts = (items: AppContextItem[]) =>
+    items.filter((c): c is SuggestedTrafficContext => c.type === 'suggested-traffic');
+
+export const getCanvasContexts = (items: AppContextItem[]) =>
+    items.filter((c): c is CanvasSelectionContext => c.type === 'canvas-selection');

@@ -67,6 +67,20 @@ export const TRAFFIC_SUGGESTED_HEADER = '### Selected Suggested Videos (YouTube 
 export const TRAFFIC_SNAPSHOT_CONTEXT = 'This data is from a CSV export of "Suggested Traffic" from YouTube Studio — it shows which other videos YouTube recommends your video alongside.';
 
 // -----------------------------------------------------------------------------
+// Canvas Selection Context — Section headers (chatStore.ts → formatCanvasContext)
+// Shown when user selects nodes on the canvas board.
+// -----------------------------------------------------------------------------
+
+/** Top-level header for canvas selection context. */
+export const CANVAS_CONTEXT_HEADER = '## Canvas Board Selection';
+
+/** Preamble explaining what the canvas selection is. */
+export const CANVAS_CONTEXT_PREAMBLE =
+    'The user has selected the following items from their visual canvas board. ' +
+    'These may include videos, traffic analysis cards, personal notes, and images. ' +
+    'The items are grouped together because the user considers them related.';
+
+// -----------------------------------------------------------------------------
 // Conversation Memory — Summary generation (gemini.ts → generateSummary)
 // Used when conversation exceeds context window and older messages get summarized.
 //

@@ -57,10 +57,27 @@ interface Snippet {
     range: Range; // Cloned live range for CSS Highlight API
 }
 
-interface PillPosition {
-    top: number;
-    bottom: number;
-    left: number;
+/** Compute the floating pill's position relative to the chat container, clamped within visible bounds */
+function computePillAnchor(rect: DOMRect, container: HTMLElement | null): PillAnchor | null {
+    if (!container || !rect) return null;
+    const containerRect = container.getBoundingClientRect();
+
+    // Default: above selection
+    let top = rect.top - PILL_HEIGHT - PILL_GAP;
+    const left = rect.left + rect.width / 2;
+
+    const visibleTop = containerRect.top;
+    const visibleBottom = containerRect.bottom;
+
+    // If selection top is above visible area → place below selection
+    if (rect.top < visibleTop) {
+        top = rect.bottom + PILL_GAP;
+    }
+
+    // Clamp vertically within chat panel
+    top = Math.max(visibleTop + PILL_GAP, Math.min(top, visibleBottom - PILL_HEIGHT - PILL_GAP));
+
+    return { top, left, transform: 'translateX(-50%)' };
 }
 
 /** Pill height estimate (py-1.5*2 + text + icon ≈ 28px) + gap */
@@ -113,7 +130,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
     const navigate = useNavigate();
 
     const [snippets, setSnippets] = useState<Snippet[]>([]);
-    const [pillPos, setPillPos] = useState<PillPosition | null>(null);
+    const [pillAnchor, setPillAnchor] = useState<PillAnchor | null>(null);
     const [showPopover, setShowPopover] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error'; videoId?: string } | null>(null);
     const suppressNextMouseUp = useRef(false);
@@ -149,7 +166,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
     // --- State reset helper (declared before useEffects that reference it) ---
     const clearState = useCallback(() => {
         setSnippets([]);
-        setPillPos(null);
+        setPillAnchor(null);
         setShowPopover(false);
         syncHighlights([]);
     }, []);
@@ -200,7 +217,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
                     return;
                 }
 
-                setPillPos({ top: rect.top, bottom: rect.bottom, left: rect.left + rect.width / 2 });
+                setPillAnchor(computePillAnchor(rect, scrollContainerRef.current));
 
                 if (isAppend) {
                     setSnippets((prev) => {
@@ -221,7 +238,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
 
         document.addEventListener('mouseup', handleMouseUp);
         return () => document.removeEventListener('mouseup', handleMouseUp);
-    }, [showPopover, clearState]);
+    }, [showPopover, clearState, scrollContainerRef]);
 
     // --- Scroll: hide pill, reposition after scroll ends ---
     const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -235,7 +252,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
         const handleScroll = () => {
             if (showPopover) {
                 setSnippets([]);
-                setPillPos(null);
+                setPillAnchor(null);
                 setShowPopover(false);
                 syncHighlights([]);
                 return;
@@ -251,7 +268,7 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
                     try {
                         const rect = lastSnippet.range.getBoundingClientRect();
                         if (rect.width > 0 || rect.height > 0) {
-                            setPillPos({ top: rect.top, bottom: rect.bottom, left: rect.left + rect.width / 2 });
+                            setPillAnchor(computePillAnchor(rect, chatContainer));
                         }
                     } catch {
                         // Range may have been invalidated
@@ -281,9 +298,9 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
         setShowPopover(true);
     }, []);
 
-    // --- Derived data ---
-    const isActive = snippets.length > 0 && pillPos !== null;
-    const combinedText = snippets.map((s) => s.text).join('\n\n---\n\n');
+    // --- UI state variables ---
+    const isActive = snippets.length > 0 && pillAnchor !== null;
+    const combinedText = snippets.map((s) => s.text).join('\n\n');
 
     // Stable mapping for popover (avoids re-creating array on every render)
     const canvasPageTargets = React.useMemo(
@@ -379,37 +396,8 @@ export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ messages, sc
         clearState();
     }, [combinedText, canvasSwitchPage, canvasNodes, canvasNodeSizes, addNodeAt, canvasPages, clearState]);
 
-    // --- Smart pill positioning ---
-    // Pill appears above selection by default.
-    // If selection top is above visible chat area → pill appears below selection.
-    // Always clamped within chat panel bounds.
-    const computePillAnchor = useCallback((): PillAnchor | null => {
-        if (!pillPos) return null;
-        const container = scrollContainerRef.current;
-        const containerRect = container?.getBoundingClientRect();
-
-        // Default: above selection
-        let top = pillPos.top - PILL_HEIGHT - PILL_GAP;
-        const left = pillPos.left;
-
-        if (containerRect) {
-            const visibleTop = containerRect.top;
-            const visibleBottom = containerRect.bottom;
-
-            // If selection top is above visible area → place below selection
-            if (pillPos.top < visibleTop) {
-                top = pillPos.bottom + PILL_GAP;
-            }
-
-            // Clamp vertically within chat panel
-            top = Math.max(visibleTop + PILL_GAP, Math.min(top, visibleBottom - PILL_HEIGHT - PILL_GAP));
-        }
-
-        return { top, left, transform: 'translateX(-50%)' };
-    }, [pillPos, scrollContainerRef]);
-
-    // Compute once per render, reuse for pill and popover
-    const pillAnchor = computePillAnchor();
+    // Hide UI when scrolling OR when active component resets layout
+    // (This ensures smooth UI transitions without flicker)
 
     return (
         <>

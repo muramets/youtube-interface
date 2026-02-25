@@ -110,6 +110,58 @@
     overflow-anchor: auto;
 }
 
+/* --- Context accordion (ChatInput) - uses design tokens for consistency --- */
+
+.context-accordion {
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: var(--video-edit-bg);
+    transition: border-color 150ms ease;
+}
+
+.context-accordion-header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.625rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: color 150ms ease;
+}
+
+.context-accordion-header:hover {
+    color: var(--text-primary);
+}
+
+.context-accordion-clear {
+    padding: 2px;
+    background: transparent;
+    border: none;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: color 150ms ease;
+}
+
+.context-accordion-clear:hover {
+    color: var(--danger-hover);
+}
+
+/* --- Canvas note chip: color-tinted hover using per-chip --note-tint --- */
+
+.canvas-note-chip {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.canvas-note-chip:hover {
+    background: color-mix(in srgb, var(--note-tint) 15%, transparent);
+}
+
 /* --- Scrollbar styling (pseudo-elements) --- */
 
 .chat-messages::-webkit-scrollbar,

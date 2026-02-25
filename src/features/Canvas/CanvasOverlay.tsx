@@ -11,6 +11,7 @@ import { useCanvasSync } from './hooks/useCanvasSync';
 import { useCanvasPlacement } from './hooks/useCanvasPlacement';
 import { useCanvasKeyboard } from './hooks/useCanvasKeyboard';
 import { useCanvasNicheSync } from './hooks/useCanvasNicheSync';
+import { useCanvasContextBridge } from './hooks/useCanvasContextBridge';
 import { CanvasFloatingBar } from './CanvasFloatingBar';
 import { CanvasToolbar } from './CanvasToolbar';
 import { CanvasBoard, type CanvasBoardHandle } from './CanvasBoard';
@@ -104,6 +105,7 @@ export const CanvasOverlay: React.FC = () => {
     useCanvasPlacement(isOpen, boardRef);
     useCanvasKeyboard(isOpen, boardRef);
     useCanvasNicheSync(isOpen);
+    useCanvasContextBridge(isOpen);
 
     // Sync liveZoom and cullingViewport when viewport changes externally
     React.useEffect(() => {

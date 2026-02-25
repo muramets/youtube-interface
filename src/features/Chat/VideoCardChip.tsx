@@ -47,10 +47,10 @@ export const VideoCardChip: React.FC<VideoCardChipProps> = React.memo(({ video, 
     return (
         <div
             className={`
-                group/chip flex flex-col rounded-lg border overflow-hidden transition-all duration-200 relative
+                group/chip flex flex-col rounded-lg overflow-hidden transition-all duration-200 relative
                 ${compact
-                    ? 'border-white/[0.08] bg-white/[0.04] w-[140px]'
-                    : 'border-white/[0.1] bg-white/[0.05] w-[160px] hover:border-purple-500/30 hover:bg-purple-500/[0.06]'
+                    ? 'bg-white/[0.04] w-[140px]'
+                    : 'bg-white/[0.05] w-[160px] hover:bg-purple-500/[0.06]'
                 }
             `}
             onPointerEnter={handlePointerEnter}

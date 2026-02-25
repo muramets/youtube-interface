@@ -62,6 +62,7 @@
    --primary-button-hover: #0056b3;
    --primary-button-text: #ffffff;
    --danger-color: #cc0000;
+   --danger-hover: #f87171;
 
    /* ---------------------------------------------------------------------------
      Component: Modals
@@ -172,6 +173,7 @@
    --border-rgb: 63, 63, 63;
    --hover: #3f3f3f;
    --hover-bg: #3f3f3f;
+   --danger-hover: #f87171;
 
    /* ---------------------------------------------------------------------------
      Component: Modals

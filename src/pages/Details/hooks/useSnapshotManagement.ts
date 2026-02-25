@@ -217,7 +217,7 @@ export const useSnapshotManagement = ({
             return;
         }
 
-        // RESTORE_VERSION with skip: create snapshot from current data first
+        // RESTORE_VERSION with skip: restore without saving current traffic as snapshot
         if (!user?.uid || !currentChannel?.id || !snapshotRequest.versionToRestore) {
             snapshotRequest.resolveCallback?.(null);
             closeSnapshotModal();
@@ -225,24 +225,12 @@ export const useSnapshotManagement = ({
         }
 
         try {
-            const currentData = trafficState.trafficData;
-            // First save current state as a snapshot before restoring
-            // Create snapshot and get ID
-            const newSnapshotId = await TrafficService.createVersionSnapshot(
-                user.uid,
-                currentChannel.id,
-                video.id,
-                versions.activeVersion as number,
-                currentData?.sources || [],
-                currentData?.totalRow
-            );
-
-            if (newSnapshotId) {
-                await performRestore(newSnapshotId);
-            }
+            // Skip snapshot creation — user explicitly chose not to save.
+            // performRestore handles '' → null via `snapshotId || null`.
+            await performRestore('');
         } catch (err) {
-            console.error('Failed to create snapshot:', err);
-            showToast('Failed to create snapshot', 'error');
+            console.error('Failed to restore version:', err);
+            showToast('Failed to restore version', 'error');
         }
     }, [user, currentChannel, video.id, versions, trafficState, snapshotRequest, showToast, closeSnapshotModal, performRestore]);
 
