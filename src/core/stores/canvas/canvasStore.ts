@@ -234,15 +234,36 @@ export const useCanvasStore = create<CanvasState>((...a) => {
         setContext: (userId, channelId) => {
             const { userId: prev, channelId: prevCh } = get();
             if (userId !== prev || channelId !== prevCh) {
-                // Clear pending timers to prevent stale writes to old context
-                if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+                // Flush any pending save to the OLD channel BEFORE changing context.
+                // This prevents stale nodes from being written to the new channel's Firestore path.
+                if (saveTimer) {
+                    clearTimeout(saveTimer);
+                    saveTimer = null;
+                    // Only flush if we had a valid previous context
+                    if (prev && prevCh && _hasSyncedOnce) {
+                        const { nodes, edges, viewport, activePageId } = get();
+                        if (activePageId) {
+                            const ref = doc(db, canvasPageDocPath(prev, prevCh, activePageId));
+                            setDoc(ref, {
+                                nodes: stripUndefined(nodes),
+                                edges: stripUndefined(edges),
+                                viewport,
+                                updatedAt: serverTimestamp(),
+                            }, { merge: true }).catch((err) =>
+                                console.error('[canvasStore] pre-switch flush failed:', err)
+                            );
+                        }
+                    }
+                }
                 if (metaSaveTimer) { clearTimeout(metaSaveTimer); metaSaveTimer = null; }
                 _hasSyncedOnce = false;
                 _dirtyNodeIds.clear();
                 _deletedNodeIds.clear();
                 set({
                     userId, channelId, hasSynced: false,
-                    pages: [], activePageId: null, clipboard: null,
+                    pages: [], activePageId: null, // intentionally not clearing clipboard
+                    nodes: [], edges: [], viewport: DEFAULT_VIEWPORT,
+                    selectedNodeIds: new Set(), nodeSizes: {},
                     _undoStack: [], _redoStack: [], canUndo: false, canRedo: false,
                 });
             }
@@ -446,14 +467,14 @@ export const useCanvasStore = create<CanvasState>((...a) => {
 
         // --- Clipboard ---
         copySelected: () => {
-            const { selectedNodeIds, nodes, edges, activePageId } = get();
-            if (selectedNodeIds.size === 0 || !activePageId) return;
+            const { selectedNodeIds, nodes, edges, activePageId, channelId } = get();
+            if (selectedNodeIds.size === 0 || !activePageId || !channelId) return;
             const copiedNodes = nodes.filter((n) => selectedNodeIds.has(n.id));
             const copiedEdges = edges.filter(
                 (e) => selectedNodeIds.has(e.sourceNodeId) && selectedNodeIds.has(e.targetNodeId)
             );
-            set({ clipboard: { nodes: copiedNodes, edges: copiedEdges, sourcePageId: activePageId } });
-            debug.canvas('📋 Copied', copiedNodes.length, 'nodes from page', activePageId);
+            set({ clipboard: { nodes: copiedNodes, edges: copiedEdges, sourcePageId: activePageId, sourceChannelId: channelId } });
+            debug.canvas('📋 Copied', copiedNodes.length, 'nodes from page', activePageId, 'in channel', channelId);
         },
 
         pasteClipboard: (viewportCenter) => {
@@ -472,8 +493,8 @@ export const useCanvasStore = create<CanvasState>((...a) => {
             get()._pushUndo();
             _pasteNodes(get, set, clipboard, viewportCenter);
 
-            // If source page is the same, the nodes are now duplicated — delete originals
-            if (clipboard.sourcePageId === activePageId) {
+            // If source page AND channel are the same, the nodes are now duplicated — delete originals
+            if (clipboard.sourcePageId === activePageId && clipboard.sourceChannelId === channelId) {
                 const originalIds = clipboard.nodes.map((n) => n.id);
                 const idSet = new Set(originalIds);
                 set((s) => ({
@@ -483,8 +504,10 @@ export const useCanvasStore = create<CanvasState>((...a) => {
                 get()._markDeleted(originalIds);
                 get()._save();
             } else {
-                // Cross-page move: read source doc, remove originals, write back
-                const srcRef = doc(db, canvasPageDocPath(userId, channelId, clipboard.sourcePageId));
+                // Cross-page or Cross-channel move: read source doc, remove originals, write back
+                // Fallback to current channelId if sourceChannelId is missing from older clipboard state
+                const srcChannel = clipboard.sourceChannelId || channelId;
+                const srcRef = doc(db, canvasPageDocPath(userId, srcChannel, clipboard.sourcePageId));
                 getDoc(srcRef).then((snap) => {
                     if (!snap.exists()) return;
                     const data = snap.data();

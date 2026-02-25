@@ -56,7 +56,7 @@ export interface CanvasState {
     nodeSizes: Record<string, number>;
 
     // Clipboard (in-memory, survives page switches)
-    clipboard: { nodes: CanvasNode[]; edges: CanvasEdge[]; sourcePageId: string } | null;
+    clipboard: { nodes: CanvasNode[]; edges: CanvasEdge[]; sourcePageId: string; sourceChannelId?: string } | null;
 
     // Undo/Redo (per-page, max 50 levels)
     _undoStack: CanvasSnapshot[];

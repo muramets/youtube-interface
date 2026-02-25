@@ -42,6 +42,11 @@ export const TrendsPage: React.FC = () => {
     // Derived loading state for UI
     const isLoading = isLoadingLocal;
 
+    // Clear selection when changing channels to avoid "ghost" cross-channel selection leaks
+    useEffect(() => {
+        clearSelection();
+    }, [selectedChannelId, clearSelection]);
+
 
     // Calculate Global Percentile Map
     const globalPercentileMap = useMemo(() => {

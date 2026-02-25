@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Check, Home, Trash2, RotateCcw, Download, Image as ImageIcon, LayoutGrid } from 'lucide-react';
+import { Check, Home, Trash2, RotateCcw, Download, Image as ImageIcon } from 'lucide-react';
 import { downloadImagesAsZip, downloadImageDirect } from '../../../core/utils/zipUtils';
 import type { TrendVideo } from '../../../core/types/trends';
 import { useAuth } from '../../../core/hooks/useAuth';
@@ -15,6 +15,8 @@ import { useCanvasStore } from '../../../core/stores/canvas/canvasStore';
 import { ConfirmationModal } from '../../../components/ui/organisms/ConfirmationModal';
 import { FloatingBar } from '@/components/ui/organisms/FloatingBar';
 import { exportTrendsVideoCsv, downloadCsv, generateTrendsExportFilename } from '../utils/exportTrendsVideoCsv';
+
+import { CanvasPageSelector } from '../../../features/Canvas/components/CanvasPageSelector';
 
 interface TrendsFloatingBarProps {
     videos: TrendVideo[];
@@ -33,13 +35,12 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
 }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
+    const { showToast } = useUIStore();
     const { channels, niches, videoNicheAssignments, hideVideos, restoreVideos, trendsFilters } = useTrendStore();
     const { videos: homeVideos } = useVideos(user?.uid || '', currentChannel?.id || '');
-    const { showToast } = useUIStore();
-    const addNode = useCanvasStore((s) => s.addNode);
 
     // State to coordinate which menu is open (mutually exclusive)
-    const [activeMenu, setActiveMenu] = useState<'niche' | 'playlist' | null>(null);
+    const [activeMenu, setActiveMenu] = useState<'niche' | 'playlist' | 'canvas' | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
 
     // Trash / Restore State
@@ -264,6 +265,20 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
         }
     };
 
+    const handleAddToCanvas = (pageId: string, pageTitle: string) => {
+        const dataArr = videos.map(v => trendVideoToVideoCardContext(v, currentChannel?.name));
+        useCanvasStore.getState().addNodeToPage(dataArr, pageId);
+
+        showToast(
+            videos.length === 1 ? `Added to "${pageTitle}" — click to open` : `${videos.length} videos added to "${pageTitle}" — click to open`,
+            'success',
+            'Open',
+            () => useCanvasStore.getState().setOpen(true),
+        );
+        setActiveMenu(null);
+        onClose();
+    };
+
     const title = isMultiSelect ? `${videos.length} selected` : videos[0]?.title;
 
     return (
@@ -313,23 +328,12 @@ export const TrendsFloatingBar: React.FC<TrendsFloatingBarProps> = ({
                         />
 
                         {/* Add to Canvas */}
-                        <button
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={() => {
-                                videos.forEach((v) => addNode(trendVideoToVideoCardContext(v, currentChannel?.name)));
-                                showToast(
-                                    videos.length === 1 ? 'Added to Canvas — click to open' : `${videos.length} videos added to Canvas — click to open`,
-                                    'success',
-                                    'Open',
-                                    () => useCanvasStore.getState().setOpen(true),
-                                );
-                                onClose();
-                            }}
-                            className="p-1.5 rounded-full transition-all text-text-secondary hover:text-white hover:bg-white/10"
-                            title="Add to Canvas"
-                        >
-                            <LayoutGrid size={16} />
-                        </button>
+                        <CanvasPageSelector
+                            isOpen={activeMenu === 'canvas'}
+                            openAbove={openAbove}
+                            onToggle={() => setActiveMenu(activeMenu === 'canvas' ? null : 'canvas')}
+                            onSelectPage={handleAddToCanvas}
+                        />
 
                         {/* Export CSV & Images (Two-State Button) */}
                         <div className="relative group">

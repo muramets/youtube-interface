@@ -5,7 +5,7 @@
 // =============================================================================
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { Layers, Plus, Check } from 'lucide-react';
+import { LayoutGrid, Plus, Check } from 'lucide-react';
 import { FloatingDropdownPortal } from '../../../components/ui/atoms/FloatingDropdownPortal';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import { useCanvasStore, canvasPageDocPath } from '../../../core/stores/canvas/canvasStore';
@@ -185,7 +185,7 @@ export const CanvasPageSelector: React.FC<CanvasPageSelectorProps> = ({
                     className={`p-1.5 rounded-full transition-colors duration-150 ${isOpen ? 'bg-white text-black' : buttonClassName
                         }`}
                 >
-                    <Layers size={16} />
+                    <LayoutGrid size={16} />
                 </button>
             </PortalTooltip>
 
