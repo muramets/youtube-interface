@@ -7,7 +7,7 @@ import { CanvasPageSelector } from '../../Canvas/components/CanvasPageSelector';
 interface VideoSelectionFloatingBarProps {
     selectedIds: Set<string>;
     onClearSelection: () => void;
-    onDelete: (ids: string[]) => void;
+    onDelete?: (ids: string[]) => void;
     isDeleting?: boolean;
     onAddToHome?: (ids: string[]) => void;
     onAddToCanvas?: (ids: string[], pageId: string, pageTitle: string) => void;
@@ -70,16 +70,20 @@ export const VideoSelectionFloatingBar: React.FC<VideoSelectionFloatingBarProps>
                             />
                         )}
 
-                        <div className="w-px h-6 bg-white/10 mx-1" />
+                        {onDelete && (
+                            <>
+                                <div className="w-px h-6 bg-white/10 mx-1" />
 
-                        <button
-                            onClick={() => onDelete(Array.from(selectedIds))}
-                            disabled={isDeleting}
-                            className="p-2 hover:bg-red-500/10 text-red-500 rounded-full transition-colors disabled:opacity-50 border-none cursor-pointer flex items-center justify-center"
-                            title="Delete"
-                        >
-                            <Trash2 size={20} />
-                        </button>
+                                <button
+                                    onClick={() => onDelete(Array.from(selectedIds))}
+                                    disabled={isDeleting}
+                                    className="p-2 hover:bg-red-500/10 text-red-500 rounded-full transition-colors disabled:opacity-50 border-none cursor-pointer flex items-center justify-center"
+                                    title="Delete"
+                                >
+                                    <Trash2 size={20} />
+                                </button>
+                            </>
+                        )}
                     </>
                 )}
             </FloatingBar>

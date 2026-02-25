@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useSmartPosition } from '@/pages/Trends/Timeline/hooks/useSmartPosition';
 import { useMusicStore } from '@/core/stores/musicStore';
+import { useUIStore } from '@/core/stores/uiStore';
 
 interface FloatingBarProps {
     title: string;
@@ -27,6 +28,11 @@ export const FloatingBar: React.FC<FloatingBarProps> = ({
     // Match ZoomControls offset: shift up when audio player is visible
     const hasAudioPlayer = !!useMusicStore((s) => s.playingTrackId);
 
+    // Sidebar-aware centering: offset left edge so bar centers in content area
+    const isSidebarExpanded = useUIStore(s => s.isSidebarExpanded);
+    const sidebarWidth = useUIStore(s => s.sidebarWidth);
+    const sidebarOffset = isSidebarExpanded ? sidebarWidth : 72;
+
     // Smart Positioning
     const { coords } = useSmartPosition({
         targetPos: position,
@@ -40,13 +46,13 @@ export const FloatingBar: React.FC<FloatingBarProps> = ({
 
     const style: React.CSSProperties = shouldDock
         ? {
-            left: 0,
+            left: sidebarOffset,
             right: 0,
             bottom: hasAudioPlayer ? '88px' : '32px',
             margin: '0 auto',
             width: 'fit-content',
             position: dockingStrategy,
-            transition: 'bottom 300ms ease',
+            transition: 'bottom 300ms ease, left 300ms ease',
         }
         : {
             left: coords.x,

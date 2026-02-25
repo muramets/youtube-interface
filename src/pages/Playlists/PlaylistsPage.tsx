@@ -34,6 +34,12 @@ import { usePlaylistDnD } from '../../features/Playlists/hooks/usePlaylistDnD';
 import { PlaylistGroup } from '../../features/Playlists/components/PlaylistGroup';
 import { GroupSettingsModal } from '../../features/Playlists/modals/GroupSettingsModal';
 
+// Cross-playlist selection
+import { useVideoSelectionStore, selectTotalCount, selectAllSelectedIds } from '../../core/stores/videoSelectionStore';
+import { VideoSelectionFloatingBar } from '../../features/Video/components/VideoSelectionFloatingBar';
+import { useSelectionContextBridge } from '../../features/Video/hooks/useSelectionContextBridge';
+import { useAddToCanvas } from '../../features/Video/hooks/useAddToCanvas';
+
 // using Always ensures that when we mutate the DOM (Live Pattern), dnd-kit
 // immediately remeasures the containers, preventing stale transforms/flying cards.
 const DND_MEASURING_CONFIG = {
@@ -68,6 +74,27 @@ export const PlaylistsPage: React.FC = () => {
         loadPageState('playlists-list');
         return () => savePageState('playlists-list');
     }, [loadPageState, savePageState]);
+
+    // ── Cross-playlist selection ─────────────────────────────────────
+    const totalSelected = useVideoSelectionStore(selectTotalCount);
+    const allSelectedIds = useVideoSelectionStore(selectAllSelectedIds);
+    const clearAll = useVideoSelectionStore(s => s.clearAll);
+    useSelectionContextBridge();
+
+    // Escape clears all selections
+    React.useEffect(() => {
+        if (totalSelected === 0) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                e.stopImmediatePropagation();
+                clearAll();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [totalSelected, clearAll]);
+
+    const handleAddToCanvas = useAddToCanvas();
 
     // UI State
     const [editingPlaylist, setEditingPlaylist] = useState<Playlist | null>(null);
@@ -368,6 +395,13 @@ export const PlaylistsPage: React.FC = () => {
                     onDelete={groupModalState.groupName ? handleGroupDelete : undefined}
                 />
             </div>
+
+            {/* Cross-playlist floating action bar */}
+            <VideoSelectionFloatingBar
+                selectedIds={allSelectedIds}
+                onClearSelection={clearAll}
+                onAddToCanvas={handleAddToCanvas}
+            />
         </div>
     );
 };

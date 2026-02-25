@@ -1,65 +1,57 @@
-import { useState, useCallback, useEffect } from 'react';
-
-/** Module-level cache: survives unmount, cleared on full page refresh. */
-const selectionCache = new Map<string, Set<string>>();
+import { useCallback, useEffect, useMemo } from 'react';
+import { useVideoSelectionStore, selectScope, selectTotalCount } from '../../../core/stores/videoSelectionStore';
 
 /**
- * @param persistKey  Optional key (e.g. playlist ID) to persist selection
- *                    across mount/unmount cycles. Without it, selection resets
- *                    on unmount (original behavior).
+ * Hook for video selection within a scoped context (e.g. a playlist).
+ *
+ * @param persistKey  Scope key (e.g. playlist ID). Selections are stored
+ *                    globally in `videoSelectionStore` under `playlist:{key}`.
+ *                    Without it a transient "anonymous" scope is used.
  */
 export const useVideoSelection = (persistKey?: string) => {
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(
-        () => (persistKey ? selectionCache.get(persistKey) ?? new Set() : new Set()),
+    const scope = persistKey ? `playlist:${persistKey}` : '__anonymous__';
+
+    const selectedIds = useVideoSelectionStore(selectScope(scope));
+    const toggleSelection = useVideoSelectionStore(s => s.toggleSelection);
+    const clearScopeFn = useVideoSelectionStore(s => s.clearScope);
+
+    const handleToggle = useCallback(
+        (id: string) => toggleSelection(scope, id),
+        [scope, toggleSelection],
     );
 
-    // Sync changes back to cache
+    const clearSelection = useCallback(
+        () => clearScopeFn(scope),
+        [scope, clearScopeFn],
+    );
+
+    // Handle Escape key to clear ALL selections (cross-playlist)
+    const clearAllFn = useVideoSelectionStore(s => s.clearAll);
+    const globalTotalCount = useVideoSelectionStore(selectTotalCount);
+
     useEffect(() => {
-        if (!persistKey) return;
-        if (selectedIds.size > 0) {
-            selectionCache.set(persistKey, selectedIds);
-        } else {
-            selectionCache.delete(persistKey);
-        }
-    }, [persistKey, selectedIds]);
-
-    const toggleSelection = useCallback((id: string) => {
-        setSelectedIds(prev => {
-            const next = new Set(prev);
-            if (next.has(id)) {
-                next.delete(id);
-            } else {
-                next.add(id);
-            }
-            return next;
-        });
-    }, []);
-
-    const clearSelection = useCallback(() => {
-        setSelectedIds(new Set());
-    }, []);
-
-    // Handle Escape key to clear selection
-    useEffect(() => {
+        if (globalTotalCount === 0) return;
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && selectedIds.size > 0) {
+            if (e.key === 'Escape') {
                 // Stop other keydown listeners (e.g. AudioPlayer close) from
                 // consuming this same Escape — selection clear takes priority.
                 e.stopImmediatePropagation();
-                clearSelection();
+                clearAllFn();
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [selectedIds.size, clearSelection]);
+    }, [globalTotalCount, clearAllFn]);
 
-    return {
+    const count = selectedIds.size;
+
+    return useMemo(() => ({
         selectedIds,
-        toggleSelection,
+        toggleSelection: handleToggle,
         clearSelection,
-        count: selectedIds.size,
-        hasSelection: selectedIds.size > 0,
-        isSelectionMode: selectedIds.size > 0
-    };
+        count,
+        hasSelection: count > 0,
+        isSelectionMode: count > 0,
+    }), [selectedIds, handleToggle, clearSelection, count]);
 };

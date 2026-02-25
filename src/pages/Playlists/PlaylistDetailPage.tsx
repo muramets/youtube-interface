@@ -23,10 +23,9 @@ import { ConfirmationModal } from '../../components/ui/organisms/ConfirmationMod
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { useVideoSelection } from '../../features/Video/hooks/useVideoSelection';
 import { VideoSelectionFloatingBar } from '../../features/Video/components/VideoSelectionFloatingBar';
-import { useAppContextStore } from '../../core/stores/appContextStore';
-import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
-import { useUIStore } from '../../core/stores/uiStore';
-import { videoToCardContext } from '../../core/utils/videoAdapters';
+import { useSelectionContextBridge } from '../../features/Video/hooks/useSelectionContextBridge';
+import { useAddToCanvas } from '../../features/Video/hooks/useAddToCanvas';
+import { useVideoSelectionStore, selectAllSelectedIds } from '../../core/stores/videoSelectionStore';
 
 // Format number with K/M suffix
 const formatDelta = (value: number | null): string | null => {
@@ -379,49 +378,24 @@ export const PlaylistDetailPage: React.FC = () => {
         return playlistVideos.filter(v => selectedIds.has(v.id));
     }, [playlistVideos, selectedIds, selectedCount]);
 
-    // Bridge: sync selected videos → appContextStore for AI chat
-    const setContextItems = useAppContextStore(s => s.setItems);
-    const clearContextItems = useAppContextStore(s => s.clearItems);
-    const addNodeToPage = useCanvasStore(s => s.addNodeToPage);
-    const { showToast } = useUIStore();
+    // Bridge: sync all globally-selected videos → appContextStore for AI chat
+    useSelectionContextBridge();
 
-    React.useEffect(() => {
-        if (selectedVideos.length === 0) {
-            clearContextItems();
-            return;
+    // Global selection state for floating bar (shows accumulated cross-playlist count)
+    const allSelectedIds = useVideoSelectionStore(selectAllSelectedIds);
+    const clearAll = useVideoSelectionStore(s => s.clearAll);
+
+    // Delete/Home are only safe when ALL selected videos belong to the current playlist
+    const allFromCurrentPlaylist = React.useMemo(() => {
+        if (allSelectedIds.size === 0 || !playlist) return false;
+        const playlistSet = new Set(playlist.videoIds);
+        for (const id of allSelectedIds) {
+            if (!playlistSet.has(id)) return false;
         }
-        const contextItems = selectedVideos.map(v => videoToCardContext(v, currentChannel?.name));
-        setContextItems(contextItems);
-    }, [selectedVideos, setContextItems, clearContextItems, currentChannel?.name]);
+        return true;
+    }, [allSelectedIds, playlist]);
 
-    // Cleanup on unmount — clear context when leaving the page
-    React.useEffect(() => {
-        return () => clearContextItems();
-    }, [clearContextItems]);
-
-    const handleAddToCanvas = React.useCallback((ids: string[], pageId: string, pageTitle: string) => {
-        const videosToAdd = playlistVideos.filter(v => ids.includes(v.id))
-            .sort((a, b) => {
-                const da = a.mergedVideoData?.publishedAt || a.publishedAt || '';
-                const db = b.mergedVideoData?.publishedAt || b.publishedAt || '';
-                return da < db ? -1 : da > db ? 1 : 0;
-            });
-        const dataArr = videosToAdd.map(v => videoToCardContext(v, currentChannel?.name));
-        addNodeToPage(dataArr, pageId);
-        showToast(
-            videosToAdd.length === 1
-                ? `Added to ${pageTitle} — click to open`
-                : `${videosToAdd.length} videos added to ${pageTitle} — click to open`,
-            'success',
-            'Open',
-            () => {
-                const store = useCanvasStore.getState();
-                if (store.activePageId !== pageId) store.switchPage(pageId);
-                store.setOpen(true);
-            },
-        );
-        clearSelection();
-    }, [playlistVideos, currentChannel?.name, addNodeToPage, showToast, clearSelection]);
+    const handleAddToCanvas = useAddToCanvas();
 
     const videosToExport = selectedCount > 0 ? selectedVideos : playlistVideos;
 
@@ -705,10 +679,10 @@ export const PlaylistDetailPage: React.FC = () => {
 
                 {/* Floating Action Bar */}
                 <VideoSelectionFloatingBar
-                    selectedIds={selectedIds}
-                    onClearSelection={clearSelection}
+                    selectedIds={allSelectedIds}
+                    onClearSelection={clearAll}
                     onAddToCanvas={handleAddToCanvas}
-                    onDelete={async (ids) => {
+                    onDelete={allFromCurrentPlaylist ? async (ids) => {
                         if (playlist) {
                             // Detect orphan videos BEFORE removing from playlist
                             const orphanIds = ids.filter(vid => {
@@ -723,13 +697,13 @@ export const PlaylistDetailPage: React.FC = () => {
                             }
                             clearSelection();
                         }
-                    }}
-                    onAddToHome={async (ids) => {
+                    } : undefined}
+                    onAddToHome={allFromCurrentPlaylist ? async (ids) => {
                         await Promise.all(ids.map(id =>
                             updateVideo({ videoId: id, updates: { isPlaylistOnly: false, addedToHomeAt: Date.now() } })
                         ));
-                        clearSelection();
-                    }}
+                        clearAll();
+                    } : undefined}
                 />
 
                 {playlistVideos.length === 0 && (
