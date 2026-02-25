@@ -55,6 +55,7 @@ import { MessageErrorBoundary } from './components/ChatBoundaries';
 import { VideoCardChip } from './VideoCardChip';
 import { SuggestedTrafficChip } from './SuggestedTrafficChip';
 import { debug } from '../../core/utils/debug';
+import { SelectionToolbar } from './components/SelectionToolbar';
 
 
 // --- Code Block with Copy + Language Label ---
@@ -232,7 +233,7 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
     }, [msg.createdAt]);
 
     return (
-        <div ref={itemRef} className={`chat-message flex flex-col max-w-[85%] ${skipAnimation ? '' : 'animate-message-in'} ${msg.role === 'user' ? 'self-end' : 'self-start'}`}>
+        <div ref={itemRef} data-message-id={msg.id} data-message-role={msg.role} className={`chat-message flex flex-col max-w-[85%] ${skipAnimation ? '' : 'animate-message-in'} ${msg.role === 'user' ? 'self-end' : 'self-start'}`}>
             {/* Video card context */}
             {msg.appContext && msg.appContext.length > 0 && (
                 <div className="flex flex-wrap gap-1 mb-1.5">
@@ -630,6 +631,9 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                     </button>
                 )
             }
-        </div >
+
+            {/* Selection toolbar for Save to Video/Canvas */}
+            <SelectionToolbar messages={messages} scrollContainerRef={containerRef} />
+        </div>
     );
 };

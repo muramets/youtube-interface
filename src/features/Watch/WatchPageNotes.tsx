@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Trash2, Send, Pencil } from 'lucide-react';
+import { Trash2, Send, Pencil, Sparkles } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import type { VideoDetails, VideoNote } from '../../core/utils/youtubeApi';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useVideos } from '../../core/hooks/useVideos';
@@ -121,7 +122,7 @@ export const WatchPageNotes: React.FC<WatchPageNotesProps> = ({ video }) => {
                     </div>
                 ) : (
                     [...(video.notes)].sort((a, b) => b.timestamp - a.timestamp).map((note) => (
-                        <div key={note.id} className="flex gap-4 group animate-fade-in items-start">
+                        <div key={note.id} className={`flex gap-4 group animate-fade-in items-start ${note.source === 'ai-chat' ? 'pl-2 border-l-2 border-blue-500/40' : ''}`}>
                             <div className="w-10 h-10 rounded-full bg-bg-secondary flex-shrink-0 overflow-hidden mt-1">
                                 {currentChannel?.avatar ? (
                                     <img src={currentChannel.avatar} alt="User" className="w-full h-full object-cover" />
@@ -139,6 +140,12 @@ export const WatchPageNotes: React.FC<WatchPageNotesProps> = ({ video }) => {
                                     <span className="text-xs text-text-secondary">
                                         {new Date(note.timestamp).toLocaleDateString()} • {new Date(note.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </span>
+                                    {note.source === 'ai-chat' && (
+                                        <span className="text-[10px] font-semibold text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                                            <Sparkles size={9} />
+                                            AI Chat
+                                        </span>
+                                    )}
                                 </div>
 
                                 {editingNoteId === note.id ? (
@@ -166,9 +173,15 @@ export const WatchPageNotes: React.FC<WatchPageNotesProps> = ({ video }) => {
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="text-sm text-text-primary whitespace-pre-wrap">
-                                        {note.text}
-                                    </div>
+                                    note.source === 'ai-chat' ? (
+                                        <div className="text-sm text-text-primary chat-message-bubble">
+                                            <ReactMarkdown>{note.text}</ReactMarkdown>
+                                        </div>
+                                    ) : (
+                                        <div className="text-sm text-text-primary whitespace-pre-wrap">
+                                            {note.text}
+                                        </div>
+                                    )
                                 )}
                             </div>
 

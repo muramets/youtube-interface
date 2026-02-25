@@ -290,3 +290,10 @@
 .group\/msg:hover button {
     opacity: 1;
 }
+
+/* --- Multi-selection highlight (CSS Highlight API) --- */
+
+::highlight(chat-save-selection) {
+    background-color: rgba(99, 130, 246, 0.25);
+    color: inherit;
+}
