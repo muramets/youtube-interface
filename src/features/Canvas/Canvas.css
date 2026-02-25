@@ -177,10 +177,23 @@
 .sticky-note-prose ol {
     margin: 3px 0;
     padding-left: 18px;
+    list-style-position: inside;
+}
+
+.sticky-note-prose ul {
+    list-style-type: disc;
+}
+
+.sticky-note-prose ol {
+    list-style-type: decimal;
 }
 
 .sticky-note-prose li {
     margin: 1px 0;
+}
+
+.sticky-note-prose li>p {
+    display: inline;
 }
 
 .sticky-note-prose strong {

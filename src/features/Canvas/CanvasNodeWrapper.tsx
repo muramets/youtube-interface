@@ -248,10 +248,6 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
     const nodeHeight = (isStickyExpanded || isEditingThis) ? undefined : userHeight;
     const nodeMinHeight = isEditingThis ? userHeight : undefined;
 
-    if (isSticky && isEditingThis) {
-        console.log(`[CanvasNodeWrapper] Sticky Edit Mode (${node.id}): userHeight=${userHeight}, nodeHeight=${nodeHeight}, minHeight=${nodeMinHeight}, isExpanded=${isStickyExpanded}`);
-    }
-
     return (
         <>
             {(isDragging || isResizing) && (

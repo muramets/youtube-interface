@@ -2,25 +2,19 @@
 // CANVAS: StickyNoteNode — skeuomorphic sticky note with editable content.
 // Compact mode (default): fixed height, scrollable content.
 // Expanded mode: auto-height showing all content.
-// Markdown rendering in view mode (same as chat messages).
-// Color picker on hover, raw text textarea in edit mode.
+// Markdown rendering in view mode via ReactMarkdown.
+// TipTap WYSIWYG editor in edit mode (double-click to enter).
+// Color picker on hover.
 // =============================================================================
 
 import React, { useRef, useCallback, useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
-import TurndownService from 'turndown';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import type { StickyNoteData, NoteColor } from '../../core/types/canvas';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
-
-// Shared Turndown instance for HTML → Markdown conversion on paste
-const turndown = new TurndownService({
-    headingStyle: 'atx',
-    codeBlockStyle: 'fenced',
-    bulletListMarker: '-',
-});
+import { StickyNoteEditor } from './StickyNoteEditor/StickyNoteEditor';
 
 // --- Color palette ---
 
@@ -64,7 +58,6 @@ const StickyNoteNodeInner: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) =>
     const [hovered, setHovered] = useState(false);
     const [isOverflowing, setIsOverflowing] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
-    const editRef = useRef<HTMLTextAreaElement>(null);
     const rootRef = useRef<HTMLDivElement>(null);
 
     const colors = NOTE_COLORS[data.color] || NOTE_COLORS.yellow;
@@ -97,69 +90,26 @@ const StickyNoteNodeInner: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) =>
         return () => el.removeEventListener('wheel', stop);
     }, [isEditing, isExpanded]);
 
-    // Also stop wheel on textarea in edit mode
-    useEffect(() => {
-        const el = editRef.current;
-        if (!el || !isEditing) return;
-        const stop = (e: WheelEvent) => {
-            if (el.scrollHeight > el.clientHeight) {
-                e.stopPropagation();
-            }
-        };
-        el.addEventListener('wheel', stop, { passive: true });
-        return () => el.removeEventListener('wheel', stop);
-    }, [isEditing]);
-
     const handleBlur = useCallback(() => {
         setIsEditing(false);
         setEditingNodeId(null);
-        const text = editRef.current?.value ?? '';
-        if (text !== data.content) {
-            updateNodeData(nodeId, { content: text });
-        }
-    }, [nodeId, data.content, updateNodeData, setEditingNodeId]);
+    }, [setEditingNodeId]);
+
+    // Real-time Markdown sync from TipTap editor
+    // No guard against identical content — useMarkdownSync already deduplicates
+    const handleEditorChange = useCallback((markdown: string) => {
+        updateNodeData(nodeId, { content: markdown });
+    }, [nodeId, updateNodeData]);
 
     const handleDoubleClick = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
-        // Already editing — let native double-click (word select) work undisturbed
         if (isEditing) return;
         setIsEditing(true);
         setEditingNodeId(nodeId);
-        setTimeout(() => {
-            const el = editRef.current;
-            if (!el) return;
-            el.focus();
-            el.setSelectionRange(el.value.length, el.value.length);
-            // Auto-resize textarea to fit content immediately upon entering edit mode
-            el.style.height = 'auto';
-            el.style.height = el.scrollHeight + 'px';
-        }, 0);
-    }, [isExpanded, isEditing]);
+    }, [isEditing, nodeId, setEditingNodeId]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         e.stopPropagation();
-        if (e.key === 'Escape') {
-            editRef.current?.blur();
-        }
-    }, []);
-
-    // Paste handler: convert HTML clipboard → markdown
-    const handlePaste = useCallback((e: React.ClipboardEvent) => {
-        const html = e.clipboardData.getData('text/html');
-        if (!html) return;
-
-        e.preventDefault();
-        const md = turndown.turndown(html).trim();
-        const ta = editRef.current;
-        if (!ta) return;
-
-        const start = ta.selectionStart;
-        const end = ta.selectionEnd;
-        const before = ta.value.slice(0, start);
-        const after = ta.value.slice(end);
-        ta.value = before + md + after;
-        const newPos = start + md.length;
-        ta.setSelectionRange(newPos, newPos);
     }, []);
 
     const handleColorChange = useCallback((color: NoteColor) => {
@@ -243,48 +193,23 @@ const StickyNoteNodeInner: React.FC<StickyNoteNodeProps> = ({ data, nodeId }) =>
                 </div>
             )}
 
-            {/* === Edit mode: textarea === */}
+            {/* === Edit mode: TipTap WYSIWYG editor === */}
             {isEditing && (
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    flexGrow: 1,
-                    padding: `${CONTENT_PAD_TOP}px 14px ${CONTENT_PAD_BOTTOM}px`,
-                    height: isExpanded ? 'auto' : '100%',
-                    boxSizing: 'border-box',
-                }}>
-                    <textarea
-                        ref={editRef}
-                        className="sticky-note-textarea"
-                        defaultValue={data.content || ''}
+                <div
+                    onKeyDown={handleKeyDown}
+                    style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        flexGrow: 1,
+                        padding: `${CONTENT_PAD_TOP}px 14px ${CONTENT_PAD_BOTTOM}px`,
+                        boxSizing: 'border-box',
+                    }}
+                >
+                    <StickyNoteEditor
+                        value={data.content || ''}
+                        onChange={handleEditorChange}
                         onBlur={handleBlur}
-                        onKeyDown={handleKeyDown}
-                        onPaste={handlePaste}
-                        onInput={(e) => {
-                            const ta = e.currentTarget;
-                            ta.style.height = 'auto';
-                            ta.style.height = ta.scrollHeight + 'px';
-                        }}
-                        style={{
-                            flexGrow: 1,
-                            width: '100%',
-                            // When editing, the textarea should naturally wrap and dictate height
-                            height: 'auto',
-                            minHeight: 20,
-                            resize: 'none',
-                            border: 'none',
-                            outline: 'none',
-                            background: 'transparent',
-                            color: colors.text,
-                            fontSize: 13,
-                            lineHeight: 1.5,
-                            fontFamily: 'monospace',
-                            wordBreak: 'break-word',
-                            whiteSpace: 'pre-wrap',
-                            padding: 0,
-                            margin: 0,
-                            overflow: isExpanded ? 'hidden' : 'auto',
-                        }}
+                        textColor={colors.text}
                     />
                 </div>
             )}
