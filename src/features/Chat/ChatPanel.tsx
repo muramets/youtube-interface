@@ -2,7 +2,7 @@
 // AI CHAT: Main Chat Panel — Orchestrator
 // =============================================================================
 
-import React, { useEffect, useCallback, useRef } from 'react';
+import React, { useEffect, useCallback, useRef, useMemo } from 'react';
 import { ChevronUp } from 'lucide-react';
 import { ConfirmationModal } from '../../components/ui/organisms/ConfirmationModal';
 import { useChatStore } from '../../core/stores/chatStore';
@@ -20,6 +20,7 @@ import { ChatMessageList } from './ChatMessageList';
 import { ChatInput } from './ChatInput';
 import { ChatHeader } from './components/ChatHeader';
 import { ChatContextBar } from './components/ChatContextBar';
+import { PersistedContextBar } from './components/PersistedContextBar';
 import { ChatErrorBanner } from './components/ChatErrorBanner';
 import { ProjectList } from './components/ProjectList';
 import { ProjectSettings } from './components/ProjectSettings';
@@ -74,6 +75,8 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
     const stopGeneration = useChatStore(s => s.stopGeneration);
     const setConversationModel = useChatStore(s => s.setConversationModel);
     const setPendingModel = useChatStore(s => s.setPendingModel);
+    const clearPersistedContext = useChatStore(s => s.clearPersistedContext);
+    const updatePersistedContext = useChatStore(s => s.updatePersistedContext);
     const pendingModel = useChatStore(s => s.pendingModel);
     const editingMessage = useChatStore(s => s.editingMessage);
     const setEditingMessage = useChatStore(s => s.setEditingMessage);
@@ -105,6 +108,12 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
     });
 
     // --- Set context once (userId + channelId) ---
+
+    const activePersistedContext = useMemo(() => {
+        if (view !== 'chat' || !activeConversationId) return [];
+        return conversations.find(c => c.id === activeConversationId)?.persistedContext ?? [];
+    }, [view, activeConversationId, conversations]);
+
     useEffect(() => {
         setContext(userId, channelId);
     }, [userId, channelId, setContext]);
@@ -198,6 +207,14 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
                     contextUsed={contextUsed}
                     isContextFull={isContextFull}
                 />
+
+                {activePersistedContext.length > 0 && activeConversationId && (
+                    <PersistedContextBar
+                        items={activePersistedContext}
+                        onRemoveItem={(updatedItems) => updatePersistedContext(activeConversationId, updatedItems)}
+                        onClear={() => clearPersistedContext(activeConversationId)}
+                    />
+                )}
 
                 <ChatErrorBanner
                     error={error}

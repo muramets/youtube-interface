@@ -18,8 +18,8 @@ export interface VideoCardContext {
     /** YouTube video ID for published own-channel videos (used for mini player) */
     publishedVideoId?: string;
     title: string;
-    description: string;
-    tags: string[];
+    description?: string;
+    tags?: string[];
     thumbnailUrl: string; // YouTube CDN URL (public, fetchable server-side)
     channelTitle?: string; // Channel name (for competitor videos)
     viewCount?: string;
@@ -197,3 +197,20 @@ export const getTrafficContexts = (items: AppContextItem[]) =>
 
 export const getCanvasContexts = (items: AppContextItem[]) =>
     items.filter((c): c is CanvasSelectionContext => c.type === 'canvas-selection');
+
+// --- Stable identity key (for comparison instead of reference equality) ---
+
+/** Returns a stable string key for any AppContextItem, usable for equality checks. */
+export function getContextItemKey(item: AppContextItem): string {
+    switch (item.type) {
+        case 'video-card':
+            return `vc:${item.videoId}`;
+        case 'suggested-traffic':
+            return `st:${item.sourceVideo.videoId}`;
+        case 'traffic-source':
+            return `ts:${item.videoId}`;
+        case 'canvas-selection':
+            // Canvas groups have no stable ID — use sorted node keys as fingerprint
+            return `cs:${item.nodes.map(n => n.nodeType === 'video' || n.nodeType === 'traffic-source' ? n.videoId : n.nodeType).join(',')}`;
+    }
+}

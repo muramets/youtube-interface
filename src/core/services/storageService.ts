@@ -125,6 +125,15 @@ export const deleteCanvasImage = async (storagePath: string): Promise<void> => {
     }
 };
 
+/**
+ * Refresh a canvas image download URL from a storage path.
+ * Used when stored download URL has an expired/revoked token (403).
+ */
+export const refreshCanvasImageUrl = async (storagePath: string): Promise<string> => {
+    const storageRef = ref(storage, storagePath);
+    return getDownloadURL(storageRef);
+};
+
 // ============================================================================
 // CHAT ATTACHMENT STORAGE
 // ============================================================================

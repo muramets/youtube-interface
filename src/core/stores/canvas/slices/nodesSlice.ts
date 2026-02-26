@@ -88,6 +88,7 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
         const newNode = createCanvasNode(data, position, get().nodes);
         set((s) => ({ nodes: [...s.nodes, newNode] }));
         get()._save();
+        return newNode.id;
     },
 
     updateNodeData: (id, partialData) => {

@@ -39,6 +39,9 @@ export function useCanvasKeyboard(
             } else {
                 setOpen(false);
             }
+            // Stop propagation to window — prevents useVideoSelection's global
+            // Escape handler from clearing video selections on the same keypress.
+            e.stopPropagation();
         }
 
         // Delete / Backspace → remove selected nodes

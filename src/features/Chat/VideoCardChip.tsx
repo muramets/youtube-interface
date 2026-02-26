@@ -22,9 +22,13 @@ interface VideoCardChipProps {
     onRemove?: () => void;
     /** Compact mode for message history (smaller, no remove button) */
     compact?: boolean;
+    /** 1-based index shown as "#N" to match Gemini's numbering */
+    index?: number;
+    /** Short prefix for the badge, e.g. 'D' for Draft, 'P' for Published, 'C' for Competitor */
+    badgePrefix?: string;
 }
 
-export const VideoCardChip: React.FC<VideoCardChipProps> = React.memo(({ video, onRemove, compact }) => {
+export const VideoCardChip: React.FC<VideoCardChipProps> = React.memo(({ video, onRemove, compact, index, badgePrefix }) => {
     const formattedDate = video.publishedAt
         ? new Date(video.publishedAt).toLocaleDateString()
         : undefined;
@@ -77,6 +81,11 @@ export const VideoCardChip: React.FC<VideoCardChipProps> = React.memo(({ video, 
                     />
                 ) : (
                     <div className="w-full h-full bg-gradient-to-br from-[#1a1a2e] to-[#0f3460]" />
+                )}
+                {index != null && (
+                    <div className={`absolute top-1 left-1 bg-black/70 rounded text-white/90 font-semibold leading-none ${compact ? 'px-1 py-[2px] text-[8px]' : 'px-1 py-[2px] text-[9px]'}`}>
+                        {badgePrefix ? `${badgePrefix}#${index}` : `#${index}`}
+                    </div>
                 )}
                 {video.duration && (
                     <div className={`absolute bottom-1 right-1 bg-black/80 rounded text-white font-medium leading-none ${compact ? 'px-1 py-[2px] text-[8px]' : 'px-1 py-[2px] text-[9px]'}`}>

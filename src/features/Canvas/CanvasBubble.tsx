@@ -10,7 +10,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 import { useFloatingBottomOffset } from '../../core/hooks/useFloatingBottomOffset';
 import { useAuth } from '../../core/hooks/useAuth';
-import { useAppContextStore } from '../../core/stores/appContextStore';
+import { useAppContextStore, selectAllItems } from '../../core/stores/appContextStore';
 import { useUIStore } from '../../core/stores/uiStore';
 import './Canvas.css';
 
@@ -54,7 +54,8 @@ export const CanvasBubble: React.FC = () => {
         e.preventDefault();
     };
 
-    const { items: contextItems, consumeItems } = useAppContextStore();
+    const contextItems = useAppContextStore(useShallow(selectAllItems));
+    const consumeAll = useAppContextStore(s => s.consumeAll);
 
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
@@ -64,7 +65,7 @@ export const CanvasBubble: React.FC = () => {
         // If there are context items being dragged, add them as pending nodes
         if (contextItems.length > 0) {
             contextItems.forEach((item) => addNode(item));
-            consumeItems();
+            consumeAll();
             showToast('Added to Canvas', 'success');
         }
     };

@@ -2,18 +2,15 @@
 // AI CHAT: Chat Input Component
 // =============================================================================
 
-import React, { useState, useRef, useCallback, useMemo, useLayoutEffect } from 'react';
-import { Plus, Send, X, FileAudio, FileVideo, File, Image, Square, Loader2, Check, AlertCircle, ChevronUp, Pencil, Link, Unlink, Paperclip } from 'lucide-react';
+import React, { useState, useRef, useCallback, useLayoutEffect } from 'react';
+import { Plus, Send, X, FileAudio, FileVideo, File, Image, Square, Loader2, Check, AlertCircle, ChevronUp, Pencil, Link, Unlink } from 'lucide-react';
 import { MODEL_REGISTRY } from '../../core/types/chat';
 import { getAttachmentType } from '../../core/services/aiService';
 import type { StagedFile, ReadyAttachment } from '../../core/types/chatAttachment';
 import { useChatStore } from '../../core/stores/chatStore';
-import { useAppContextStore } from '../../core/stores/appContextStore';
-import type { VideoCardContext } from '../../core/types/appContext';
-import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../core/types/appContext';
-import { VideoCardChip } from './VideoCardChip';
-import { SuggestedTrafficChip } from './SuggestedTrafficChip';
-import { CanvasSelectionChip } from './CanvasSelectionChip';
+import { useShallow } from 'zustand/react/shallow';
+import { useAppContextStore, selectAllItems } from '../../core/stores/appContextStore';
+import { ContextAccordion } from './components/ContextAccordion';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 
@@ -66,25 +63,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     editingMessage, onCancelEdit, onEditSend,
 }) => {
     const isStreaming = useChatStore(s => s.isStreaming);
-    const contextItems = useAppContextStore(s => s.items);
-    const setContextItems = useAppContextStore(s => s.setItems);
-    const videoContextItems = useMemo(() => getVideoCards(contextItems), [contextItems]);
-    const trafficContextItems = useMemo(() => getTrafficContexts(contextItems), [contextItems]);
-    const canvasContextItems = useMemo(() => getCanvasContexts(contextItems), [contextItems]);
+    const contextItems = useAppContextStore(useShallow(selectAllItems));
+    const removeContextItem = useAppContextStore(s => s.removeItem);
+    const clearAllContext = useAppContextStore(s => s.clearAll);
     const isCanvasOpen = useCanvasStore((s) => s.isOpen);
-    const contextSummary = useMemo(() => {
-        const totalItems = videoContextItems.length + trafficContextItems.length +
-            canvasContextItems.reduce((sum, cc) => sum + cc.nodes.length, 0);
-        const parts: string[] = [];
-        if (videoContextItems.length > 0) parts.push(`${videoContextItems.length} video${videoContextItems.length > 1 ? 's' : ''}`);
-        if (trafficContextItems.length > 0) parts.push(`${trafficContextItems.length} traffic`);
-        const canvasNodeCount = canvasContextItems.reduce((sum, cc) => sum + cc.nodes.length, 0);
-        if (canvasNodeCount > 0) parts.push(`${canvasNodeCount} canvas`);
-        return `${totalItems} item${totalItems > 1 ? 's' : ''} · ${parts.join(', ')}`;
-    }, [videoContextItems, trafficContextItems, canvasContextItems]);
     const [text, setText] = useState('');
     const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
-    const [isContextExpanded, setIsContextExpanded] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const modelMenuRef = useRef<HTMLDivElement>(null);
@@ -117,9 +101,6 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }
     }, [editingMessage]);
 
-    const handleRemoveVideoContext = useCallback((videoId: string) => {
-        setContextItems(contextItems.filter(c => c.type !== 'video-card' || (c as VideoCardContext).videoId !== videoId));
-    }, [contextItems, setContextItems]);
 
     const handleSend = useCallback(() => {
         const trimmed = text.trim();
@@ -205,68 +186,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 </div>
             )}
             {/* Context chips — collapsible accordion */}
-            {(videoContextItems.length > 0 || trafficContextItems.length > 0 || canvasContextItems.length > 0) && (
+            {contextItems.length > 0 && (
                 <div className="mb-2">
-                    {/* Accordion container — unified border wraps header + content when expanded */}
-                    <div className="context-accordion">
-                        <button
-                            className="context-accordion-header"
-                            onClick={() => setIsContextExpanded(v => !v)}
-                            type="button"
-                        >
-                            <Paperclip size={12} className="interactive-text shrink-0" />
-                            <span className="flex-1 text-left truncate">{contextSummary}</span>
-                            <span
-                                role="button"
-                                tabIndex={0}
-                                className="context-accordion-clear"
-                                onClick={(e) => { e.stopPropagation(); setContextItems([]); }}
-                                onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); setContextItems([]); } }}
-                            >
-                                <X size={12} />
-                            </span>
-                            <ChevronUp size={12} className={`interactive-text shrink-0 transition-transform duration-150 ${isContextExpanded ? 'rotate-180' : ''}`} />
-                        </button>
-
-                        {/* Expanded content — inside the same container */}
-                        {isContextExpanded && (
-                            <div className="px-2.5 pb-2 max-h-[40vh] overflow-y-auto scrollbar-compact">
-                                {videoContextItems.length > 0 && (
-                                    <div className="flex flex-wrap gap-1.5 mb-2">
-                                        {videoContextItems.map(v => (
-                                            <VideoCardChip
-                                                key={v.videoId}
-                                                video={v}
-                                                onRemove={() => handleRemoveVideoContext(v.videoId)}
-                                            />
-                                        ))}
-                                    </div>
-                                )}
-                                {trafficContextItems.length > 0 && (
-                                    <div className="flex flex-wrap gap-1.5 mb-2">
-                                        {trafficContextItems.map((tc, i) => (
-                                            <SuggestedTrafficChip
-                                                key={`traffic-${i}`}
-                                                context={tc}
-                                                onRemove={() => setContextItems(contextItems.filter(c => c !== tc))}
-                                            />
-                                        ))}
-                                    </div>
-                                )}
-                                {canvasContextItems.length > 0 && (
-                                    <div className="flex flex-col gap-1.5 mb-2">
-                                        {canvasContextItems.map((cc, i) => (
-                                            <CanvasSelectionChip
-                                                key={`canvas-${i}`}
-                                                context={cc}
-                                                onRemove={() => setContextItems(contextItems.filter(c => c !== cc))}
-                                            />
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                    <ContextAccordion
+                        items={contextItems}
+                        onRemoveItem={(item) => removeContextItem(i => i === item)}
+                        onClearAll={() => clearAllContext()}
+                        defaultExpanded
+                    />
                 </div>
             )}
             {stagedFiles.length > 0 && (

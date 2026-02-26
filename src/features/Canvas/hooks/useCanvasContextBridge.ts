@@ -3,11 +3,10 @@
 // =============================================================================
 //
 // When canvas is open and nodes are selected, this bridge maps selected nodes
-// into a grouped CanvasSelectionContext and pushes it to appContextStore.
+// into a grouped CanvasSelectionContext and pushes it to the 'canvas' slot.
 // The chat assistant reads this to enrich its prompts.
 //
-// Priority: When active, this bridge takes precedence over the playlist
-// selection bridge (useSelectionContextBridge).
+// Each bridge writes to its own slot — no priority coordination needed.
 // =============================================================================
 
 import { useEffect, useRef } from 'react';
@@ -18,6 +17,7 @@ import type { CanvasContextNode, VideoContextNode, TrafficSourceContextNode, Sti
 import type { CanvasNode } from '../../../core/types/canvas';
 import type { VideoCardContext, TrafficSourceCardData } from '../../../core/types/appContext';
 import type { StickyNoteData, ImageNodeData } from '../../../core/types/canvas';
+import { debug } from '../../../core/utils/debug';
 
 /**
  * Maps a CanvasNode to a CanvasContextNode for AI context.
@@ -93,10 +93,10 @@ function mapNodeToContext(node: CanvasNode): CanvasContextNode | null {
 }
 
 /**
- * Sync selected canvas nodes → appContextStore (accumulative).
+ * Sync selected canvas nodes → appContextStore 'canvas' slot (accumulative).
  *
  * When selection becomes non-empty, a NEW canvas-selection group is appended
- * to the existing context items. When selection is cleared, context stays —
+ * within the canvas slot. When selection is cleared, context stays —
  * the user removes groups manually via the ✕ button in the chat input.
  *
  * Only active when `isOpen` is true (canvas overlay is visible).
@@ -104,7 +104,7 @@ function mapNodeToContext(node: CanvasNode): CanvasContextNode | null {
 export function useCanvasContextBridge(isOpen: boolean): void {
     const selectedNodeIds = useCanvasStore((s) => s.selectedNodeIds);
     const nodes = useCanvasStore((s) => s.nodes);
-    const setItems = useAppContextStore((s) => s.setItems);
+    const setSlot = useAppContextStore((s) => s.setSlot);
     const chatIsOpen = useChatStore((s) => s.isOpen);
     const contextBridgePaused = useCanvasStore((s) => s.contextBridgePaused);
 
@@ -119,7 +119,10 @@ export function useCanvasContextBridge(isOpen: boolean): void {
         }
         prevChatOpenRef.current = chatIsOpen;
 
-        if (!isOpen || !chatIsOpen || contextBridgePaused) return;
+        if (!isOpen || !chatIsOpen || contextBridgePaused) {
+            debug.context(`🎨 CanvasBridge: skipped (isOpen=${isOpen}, chatIsOpen=${chatIsOpen}, paused=${contextBridgePaused})`);
+            return;
+        }
 
         // Only act on transitions from empty → non-empty or changed non-empty selection
         const prevIds = prevSelectionRef.current;
@@ -142,8 +145,9 @@ export function useCanvasContextBridge(isOpen: boolean): void {
 
         if (contextNodes.length === 0) return;
 
-        // Imperative read: avoids items in deps → no feedback loop
-        const currentItems = useAppContextStore.getState().items;
-        setItems([...currentItems, { type: 'canvas-selection', nodes: contextNodes }]);
-    }, [isOpen, chatIsOpen, contextBridgePaused, selectedNodeIds, nodes, setItems]);
+        // Imperative read from own slot: avoids deps → no feedback loop
+        const currentCanvasItems = useAppContextStore.getState().slots.canvas;
+        debug.context(`🎨 CanvasBridge: appending ${contextNodes.length} nodes (${contextNodes.map(n => n.nodeType).join(', ')}), ${currentCanvasItems.length} existing groups`);
+        setSlot('canvas', [...currentCanvasItems, { type: 'canvas-selection', nodes: contextNodes }]);
+    }, [isOpen, chatIsOpen, contextBridgePaused, selectedNodeIds, nodes, setSlot]);
 }

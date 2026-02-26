@@ -8,6 +8,7 @@ import { verifyAuthToken, verifyChannelAccess } from "../shared/auth.js";
 import { logAiUsage, MAX_TEXT_LENGTH } from "./helpers.js";
 import { ALLOWED_MODEL_IDS, DEFAULT_MODEL_ID } from "../config/models.js";
 import type { AiChatRequest } from "../types.js";
+import type { ThumbnailCache } from "../services/gemini.js";
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
@@ -78,6 +79,15 @@ export const aiChat = onRequest(
         res.flushHeaders();
 
         const convPath = `users/${userId}/channels/${body.channelId}/chatConversations/${body.conversationId}`;
+        const requestStart = Date.now();
+
+        // --- Production logging: request context ---
+        const ctx = body.contextMeta;
+        console.info(`[aiChat] ── Request ── conv=${body.conversationId} model=${model}` +
+            ` systemPrompt=${body.systemPrompt?.length ?? 0}chars` +
+            ` context=${ctx ? `${ctx.totalItems ?? 0} items (${ctx.videoCards ?? 0} video, ${ctx.trafficSources ?? 0} traffic, ${ctx.canvasNodes ?? 0} canvas)` : 'none'}` +
+            ` attachments=${body.attachments?.length ?? 0} thumbnails=${body.thumbnailUrls?.length ?? 0}` +
+            ` textLen=${body.text.length}`);
 
         try {
             // Read conversation history from Firestore
@@ -107,7 +117,7 @@ export const aiChat = onRequest(
                 existingSummarizedUpTo: convData?.summarizedUpTo,
             });
 
-            const { text: responseText, tokenUsage } = await streamChat({
+            const { text: responseText, tokenUsage, updatedThumbnailCache } = await streamChat({
                 apiKey,
                 model,
                 systemPrompt: body.systemPrompt,
@@ -115,6 +125,7 @@ export const aiChat = onRequest(
                 text: body.text,
                 attachments: body.attachments,
                 thumbnailUrls: body.thumbnailUrls,
+                thumbnailCache: convData?.thumbnailCache as ThumbnailCache | undefined,
                 onChunk: (fullText) => {
                     res.write(`data: ${JSON.stringify({ type: "chunk", text: fullText })}\n\n`);
                 },
@@ -141,6 +152,16 @@ export const aiChat = onRequest(
                 },
             });
 
+            // --- Production logging: response metrics ---
+            const durationMs = Date.now() - requestStart;
+            const contextLimit = 1_000_000; // default Gemini context window
+            const contextPercent = tokenUsage ? ((tokenUsage.promptTokens / contextLimit) * 100).toFixed(1) : '?';
+            console.info(`[aiChat] ── Response ── conv=${body.conversationId}` +
+                ` prompt=${tokenUsage?.promptTokens ?? '?'} completion=${tokenUsage?.completionTokens ?? '?'} total=${tokenUsage?.totalTokens ?? '?'}` +
+                ` context=${contextPercent}%` +
+                ` historyLen=${allMessages.length} usedSummary=${memory.usedSummary} newSummary=${!!memory.newSummary}` +
+                ` duration=${durationMs}ms`);
+
             // Final event with complete response + token usage + summary status
             res.write(
                 `data: ${JSON.stringify({
@@ -161,6 +182,11 @@ export const aiChat = onRequest(
             if (memory.newSummary && memory.summarizedUpTo) {
                 convUpdate.summary = memory.newSummary;
                 convUpdate.summarizedUpTo = memory.summarizedUpTo;
+            }
+            // Persist updated thumbnail cache (fire-and-forget)
+            if (updatedThumbnailCache) {
+                convUpdate.thumbnailCache = updatedThumbnailCache;
+                console.info(`[aiChat] Persisting thumbnail cache: ${Object.keys(updatedThumbnailCache).length} entries`);
             }
             afterTasks.push(
                 db.doc(convPath).update(convUpdate)

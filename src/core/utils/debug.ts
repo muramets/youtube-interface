@@ -24,6 +24,7 @@ export const DEBUG_ENABLED = {
     traffic: false,      // Traffic tab: unenriched calculation, repair flows
     trends: false,        // Trends table: snapshot loading, delta calculations
     canvas: false,       // Canvas: node re-renders, drag frame timing, memo hits
+    context: true,       // App context: slot mutations, bridge pushes, consume/clear
 } as const;
 
 type DebugCategory = keyof typeof DEBUG_ENABLED;
@@ -89,12 +90,14 @@ export const debug = {
     traffic: createLogger('traffic'),
     trends: createLogger('trends'),
     canvas: createLogger('canvas'),
+    context: createLogger('context'),
 
     // Grouped logging for complex debugging sessions
     tooltipGroup: createGroupLogger('tooltip'),
     chatGroup: createGroupLogger('chat'),
     trendsGroup: createGroupLogger('trends'),
     canvasGroup: createGroupLogger('canvas'),
+    contextGroup: createGroupLogger('context'),
 
     /**
      * Performance measurement helper.

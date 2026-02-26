@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useVideoSelectionStore, selectScope, selectTotalCount } from '../../../core/stores/videoSelectionStore';
+import { useCanvasStore } from '../../../core/stores/canvas/canvasStore';
 
 /**
  * Hook for video selection within a scoped context (e.g. a playlist).
@@ -33,6 +34,10 @@ export const useVideoSelection = (persistKey?: string) => {
         if (globalTotalCount === 0) return;
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
+                // When canvas overlay is open, Escape should close the canvas —
+                // not clear video selections. Canvas has its own Escape handler.
+                if (useCanvasStore.getState().isOpen) return;
+
                 // Stop other keydown listeners (e.g. AudioPlayer close) from
                 // consuming this same Escape — selection clear takes priority.
                 e.stopImmediatePropagation();

@@ -103,6 +103,13 @@ export interface AiChatRequest {
     systemPrompt?: string;
     attachments?: Array<{ geminiFileUri: string; mimeType: string }>;
     thumbnailUrls?: string[];
+    /** Lightweight metadata about attached context items — for server-side logging only */
+    contextMeta?: {
+        videoCards?: number;
+        trafficSources?: number;
+        canvasNodes?: number;
+        totalItems?: number;
+    };
 }
 
 export interface GeminiUploadRequest {

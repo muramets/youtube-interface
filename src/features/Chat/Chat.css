@@ -113,10 +113,8 @@
 /* --- Context accordion (ChatInput) - uses design tokens for consistency --- */
 
 .context-accordion {
-    border: 1px solid var(--border);
     border-radius: 0.5rem;
     background: var(--video-edit-bg);
-    transition: border-color 150ms ease;
 }
 
 .context-accordion-header {
@@ -278,6 +276,24 @@
 
 .chat-message-bubble a:hover {
     text-decoration: underline;
+}
+
+/* Video reference — inline @mention */
+.chat-message-bubble .video-reference-highlight,
+.chat-message-bubble a:has(.video-reference-highlight) {
+    color: var(--reference-highlight) !important;
+    text-decoration: none !important;
+    cursor: default;
+    transition: color 150ms ease;
+}
+
+.chat-message-bubble .video-reference-highlight:hover {
+    color: var(--reference-highlight) !important;
+    filter: brightness(1.2);
+}
+
+.chat-message-bubble a:has(.video-reference-highlight):hover {
+    text-decoration: none !important;
 }
 
 .chat-message-bubble blockquote {

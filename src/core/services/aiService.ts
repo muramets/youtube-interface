@@ -94,6 +94,7 @@ export const AiService = {
         text: string;
         attachments?: Array<{ geminiFileUri: string; mimeType: string }>;
         thumbnailUrls?: string[];
+        contextMeta?: { videoCards?: number; trafficSources?: number; canvasNodes?: number; totalItems?: number };
         onStream?: (chunk: string) => void;
         signal?: AbortSignal;
     }): Promise<AiSendResult> {
@@ -105,6 +106,7 @@ export const AiService = {
             text: opts.text,
             attachments: opts.attachments,
             thumbnailUrls: opts.thumbnailUrls,
+            contextMeta: opts.contextMeta,
             onStream: opts.onStream || (() => { }),
             signal: opts.signal,
         });

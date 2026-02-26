@@ -170,7 +170,7 @@ export const ChatService = {
         userId: string,
         channelId: string,
         conversationId: string,
-        updates: Partial<Pick<ChatConversation, 'title' | 'projectId' | 'model'>>
+        updates: Partial<Pick<ChatConversation, 'title' | 'projectId' | 'model' | 'persistedContext'>>
     ) {
         await updateDocument(conversationsPath(userId, channelId), conversationId, {
             ...updates,
@@ -181,6 +181,12 @@ export const ChatService = {
     async clearLastError(userId: string, channelId: string, conversationId: string) {
         await updateDocument(conversationsPath(userId, channelId), conversationId, {
             lastError: deleteField(),
+        });
+    },
+
+    async clearPersistedContext(userId: string, channelId: string, conversationId: string) {
+        await updateDocument(conversationsPath(userId, channelId), conversationId, {
+            persistedContext: deleteField(),
         });
     },
 

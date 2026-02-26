@@ -15,6 +15,7 @@ interface StreamChatOpts {
     text: string;
     attachments?: Array<{ geminiFileUri: string; mimeType: string }>;
     thumbnailUrls?: string[];
+    contextMeta?: { videoCards?: number; trafficSources?: number; canvasNodes?: number; totalItems?: number };
     onStream: (fullText: string) => void;
     signal?: AbortSignal;
 }
@@ -57,6 +58,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult
         text,
         attachments,
         thumbnailUrls,
+        contextMeta,
         onStream,
         signal,
     } = opts;
@@ -75,6 +77,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult
         systemPrompt: systemPrompt || undefined,
         attachments,
         thumbnailUrls,
+        contextMeta,
     };
 
     // --- Fetch with automatic retry for transient failures ---

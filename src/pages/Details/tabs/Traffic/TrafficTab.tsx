@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { debug } from '../../../../core/utils/debug';
 import { TrafficTable } from './components/TrafficTable';
 import type { TrafficSortConfig, TrafficSortKey } from '../../../../core/types/traffic';
 import { TrafficHeader } from './components/TrafficHeader';
@@ -549,12 +550,12 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     // BRIDGE: Sync selected traffic videos → appContextStore for AI chat
     // Same pattern as PlaylistDetailPage — reactive useEffect
     // -------------------------------------------------------------------------
-    const setContextItems = useAppContextStore(s => s.setItems);
-    const clearContextItems = useAppContextStore(s => s.clearItems);
+    const setSlot = useAppContextStore(s => s.setSlot);
+    const clearSlot = useAppContextStore(s => s.clearSlot);
 
     useEffect(() => {
         if (selectedIds.size === 0) {
-            clearContextItems();
+            clearSlot('traffic');
             return;
         }
 
@@ -615,13 +616,17 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             suggestedVideos,
         };
 
-        setContextItems([context]);
-    }, [selectedIds, filteredSources, allVideos, allAssignments, allNiches, trafficEdges, viewerEdges, _video, setContextItems, clearContextItems, trafficData?.snapshots, effectiveSnapshotId]);
+        debug.context(`🚏 TrafficBridge: ${selectedIds.size} selected, ${suggestedVideos.length} enriched`);
+        setSlot('traffic', [context]);
+    }, [selectedIds, filteredSources, allVideos, allAssignments, allNiches, trafficEdges, viewerEdges, _video, setSlot, clearSlot, trafficData?.snapshots, effectiveSnapshotId]);
 
     // Cleanup on unmount — clear context when leaving the Traffic tab
     useEffect(() => {
-        return () => clearContextItems();
-    }, [clearContextItems]);
+        return () => {
+            debug.context('🚏 TrafficBridge: unmount → clearSlot(traffic)');
+            clearSlot('traffic');
+        };
+    }, [clearSlot]);
 
     // OPTIMIZATION: Memoize array props to prevent TrafficTable re-renders.
     // Without memoization, `|| []` creates a new array reference each render.

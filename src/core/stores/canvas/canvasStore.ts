@@ -323,21 +323,17 @@ export const useCanvasStore = create<CanvasState>((...a) => {
             if (!userId || !channelId || !activePageId) return;
 
             // 1. Create placeholder node immediately (optimistic UI)
-            // Note: addNodeAt pushes undo internally — no extra push needed
+            // addNodeAt returns the new node's ID — no fragile "grab last" pattern
             const placeholderData = { type: 'image' as const, downloadUrl: '', storagePath: '' };
-            get().addNodeAt(placeholderData, viewportCenter);
-
-            // The node was added by addNodeAt with its own ID — grab the last one
-            const addedNode = get().nodes[get().nodes.length - 1];
-            const realId = addedNode.id;
+            const nodeId = get().addNodeAt(placeholderData, viewportCenter);
 
             // 2. Upload in background, then update node data with real URL
-            uploadCanvasImage(userId, channelId, activePageId, realId, blob)
+            uploadCanvasImage(userId, channelId, activePageId, nodeId, blob)
                 .then(({ storagePath, downloadUrl }) => {
-                    get()._markDirty(realId);
+                    get()._markDirty(nodeId);
                     set((s) => ({
                         nodes: s.nodes.map((n) =>
-                            n.id === realId
+                            n.id === nodeId
                                 ? { ...n, data: { ...n.data, downloadUrl, storagePath } }
                                 : n
                         ),
@@ -349,7 +345,7 @@ export const useCanvasStore = create<CanvasState>((...a) => {
                     console.error('[Canvas] Image upload failed:', err);
                     // Remove the placeholder node on failure
                     set((s) => ({
-                        nodes: s.nodes.filter((n) => n.id !== realId),
+                        nodes: s.nodes.filter((n) => n.id !== nodeId),
                     }));
                     get()._save();
                 });

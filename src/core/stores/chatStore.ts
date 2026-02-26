@@ -16,7 +16,9 @@ import { AiService } from '../services/aiService';
 import type { ReadyAttachment } from '../types/chatAttachment';
 import type { AppContextItem, VideoCardContext, SuggestedTrafficContext, CanvasSelectionContext, VideoContextNode, TrafficSourceContextNode, StickyNoteContextNode, ImageContextNode } from '../types/appContext';
 import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../types/appContext';
-import { useAppContextStore } from './appContextStore';
+import { OWNERSHIP_CONFIG } from '../../features/Chat/utils/referencePatterns';
+import { useAppContextStore, selectAllItems } from './appContextStore';
+import { buildReferenceMap } from '../utils/buildReferenceMap';
 import { Timestamp } from 'firebase/firestore';
 import { debug } from '../utils/debug';
 import {
@@ -91,6 +93,8 @@ interface ChatState {
     moveConversation: (conversationId: string, projectId: string | null) => Promise<void>;
     setConversationModel: (conversationId: string, model: string) => Promise<void>;
     setPendingModel: (model: string | null) => void;
+    clearPersistedContext: (conversationId: string) => Promise<void>;
+    updatePersistedContext: (conversationId: string, items: AppContextItem[]) => Promise<void>;
 
     // Actions — AI
     sendMessage: (text: string, attachments?: ReadyAttachment[], conversationId?: string) => Promise<void>;
@@ -142,8 +146,15 @@ function resolveModel(
 }
 
 /** Format video card context items as Markdown for the system prompt, grouped by ownership. */
-function formatVideoContext(items: VideoCardContext[]): string {
+function formatVideoContext(items: VideoCardContext[], refMap: Map<string, VideoCardContext>): string {
     const lines: string[] = [];
+
+    // Build reverse lookup: videoId → reference index
+    const videoIndexMap = new Map<string, number>();
+    for (const [key, video] of refMap) {
+        const match = key.match(/-(\d+)$/);
+        if (match) videoIndexMap.set(video.videoId, parseInt(match[1]));
+    }
 
     // Preamble — explain field semantics
     lines.push(VIDEO_CONTEXT_PREAMBLE);
@@ -157,19 +168,19 @@ function formatVideoContext(items: VideoCardContext[]): string {
     if (drafts.length > 0) {
         lines.push(VIDEO_SECTION_DRAFT);
         lines.push('');
-        drafts.forEach((v, i) => formatSingleVideo(lines, v, i + 1));
+        drafts.forEach(v => formatSingleVideo(lines, v, videoIndexMap.get(v.videoId) ?? 0));
     }
 
     if (published.length > 0) {
         lines.push(VIDEO_SECTION_PUBLISHED);
         lines.push('');
-        published.forEach((v, i) => formatSingleVideo(lines, v, i + 1));
+        published.forEach(v => formatSingleVideo(lines, v, videoIndexMap.get(v.videoId) ?? 0));
     }
 
     if (competitors.length > 0) {
         lines.push(VIDEO_SECTION_COMPETITOR);
         lines.push('');
-        competitors.forEach((v, i) => formatSingleVideo(lines, v, i + 1));
+        competitors.forEach(v => formatSingleVideo(lines, v, videoIndexMap.get(v.videoId) ?? 0));
     }
 
     return lines.join('\n');
@@ -177,16 +188,17 @@ function formatVideoContext(items: VideoCardContext[]): string {
 
 /** Format a single video's metadata into prompt lines. */
 function formatSingleVideo(lines: string[], v: VideoCardContext, index: number): void {
+    const prefix = OWNERSHIP_CONFIG[v.ownership ?? '']?.label || 'Video';
     const header = v.channelTitle
-        ? `Video ${index} (Channel: ${v.channelTitle})`
-        : `Video ${index}`;
+        ? `${prefix} #${index} (Channel: ${v.channelTitle})`
+        : `${prefix} #${index}`;
     lines.push(`#### ${header}`);
     lines.push(`- **Title:** ${v.title}`);
     if (v.viewCount) lines.push(`- **Views:** ${v.viewCount}`);
     if (v.publishedAt) lines.push(`- **Published:** ${v.publishedAt}`);
     if (v.duration) lines.push(`- **Duration:** ${v.duration}`);
     lines.push(`- **Description:** ${v.description || '(no description)'}`);
-    lines.push(`- **Tags:** ${v.tags.length > 0 ? v.tags.join(', ') : '(no tags)'}`);
+    lines.push(`- **Tags:** ${v.tags && v.tags.length > 0 ? v.tags.join(', ') : '(no tags)'}`);
     lines.push('');
 }
 
@@ -244,8 +256,15 @@ function formatSuggestedTrafficContext(ctx: SuggestedTrafficContext): string {
 }
 
 /** Format canvas selection context — grouped nodes from the visual canvas board. */
-function formatCanvasContext(ctx: CanvasSelectionContext): string {
+function formatCanvasContext(ctx: CanvasSelectionContext, refMap: Map<string, VideoCardContext>): string {
     const lines = [CANVAS_CONTEXT_HEADER, '', CANVAS_CONTEXT_PREAMBLE, ''];
+
+    // Build reverse lookup: videoId → reference index
+    const videoIndexMap = new Map<string, number>();
+    for (const [key, video] of refMap) {
+        const match = key.match(/-(\d+)$/);
+        if (match) videoIndexMap.set(video.videoId, parseInt(match[1]));
+    }
 
     const videos = ctx.nodes.filter((n): n is VideoContextNode => n.nodeType === 'video');
     const trafficSources = ctx.nodes.filter((n): n is TrafficSourceContextNode => n.nodeType === 'traffic-source');
@@ -256,10 +275,11 @@ function formatCanvasContext(ctx: CanvasSelectionContext): string {
     if (videos.length > 0) {
         lines.push('### Videos');
         lines.push('');
-        videos.forEach((v, i) => {
+        videos.forEach(v => {
+            const num = videoIndexMap.get(v.videoId) ?? 0;
             const header = v.channelTitle
-                ? `Video ${i + 1} (Channel: ${v.channelTitle})`
-                : `Video ${i + 1}`;
+                ? `Video ${num} (Channel: ${v.channelTitle})`
+                : `Video ${num}`;
             lines.push(`#### ${header}`);
             lines.push(`- **Title:** ${v.title || '(untitled)'}`);
             if (v.ownership) {
@@ -351,9 +371,12 @@ function buildSystemPrompt(
 
     // App context (video cards, etc.)
     if (appContext && appContext.length > 0) {
+        // Build reference map once — single source of truth for numbering
+        const refMap = buildReferenceMap(appContext);
+
         const videoCards = getVideoCards(appContext);
         if (videoCards.length > 0) {
-            prompts.push(formatVideoContext(videoCards));
+            prompts.push(formatVideoContext(videoCards, refMap));
         }
         const trafficContexts = getTrafficContexts(appContext);
         if (trafficContexts.length > 0) {
@@ -361,7 +384,9 @@ function buildSystemPrompt(
         }
         const canvasContexts = getCanvasContexts(appContext);
         if (canvasContexts.length > 0) {
-            canvasContexts.forEach(cc => prompts.push(formatCanvasContext(cc)));
+            canvasContexts.forEach(cc => {
+                prompts.push(formatCanvasContext(cc, refMap));
+            });
         }
     }
 
@@ -394,6 +419,7 @@ async function streamAiResponse(
     model: string, systemPrompt: string | undefined,
     text: string, attachments: ReadyAttachment[] | undefined,
     thumbnailUrls: string[] | undefined,
+    contextMeta: { videoCards?: number; trafficSources?: number; canvasNodes?: number; totalItems?: number } | undefined,
     set: (partial: Partial<ChatState>) => void,
     signal?: AbortSignal,
 ): Promise<{ text: string; tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
@@ -405,6 +431,7 @@ async function streamAiResponse(
         text,
         attachments: attachments?.map(a => ({ geminiFileUri: a.geminiFileUri!, mimeType: a.mimeType })),
         thumbnailUrls,
+        contextMeta,
         onStream: (chunk) => set({ streamingText: chunk }),
         signal,
     });
@@ -645,6 +672,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return conversation;
     },
 
+    clearPersistedContext: async (conversationId) => {
+        const { userId, channelId } = requireContext(get);
+        await ChatService.clearPersistedContext(userId, channelId, conversationId);
+    },
+
+    updatePersistedContext: async (conversationId, items) => {
+        const { userId, channelId } = requireContext(get);
+        await ChatService.updateConversation(userId, channelId, conversationId, { persistedContext: items });
+    },
+
     deleteConversation: async (conversationId) => {
         const { userId, channelId } = requireContext(get);
         await ChatService.deleteConversation(userId, channelId, conversationId);
@@ -729,40 +766,70 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
 
             // Snapshot app context at send time
-            const contextItems = useAppContextStore.getState().items;
+            const contextItems = selectAllItems(useAppContextStore.getState());
             const appContext = contextItems.length > 0 ? contextItems : undefined;
 
-            // Extract thumbnail URLs for server-side fetch
-            const thumbnailUrls: string[] = [];
+            // Merge with existing persistent context from this conversation
+            const existingConv = get().conversations.find(c => c.id === convId);
+            const existingPersisted = existingConv?.persistedContext ?? [];
+            const mergedContext: AppContextItem[] = [...existingPersisted];
             if (appContext) {
+                for (const item of appContext) {
+                    // Deduplicate by type + identifying key
+                    const isDuplicate = mergedContext.some(existing => {
+                        if (existing.type !== item.type) return false;
+                        if (item.type === 'video-card' && existing.type === 'video-card')
+                            return item.videoId === existing.videoId;
+                        if (item.type === 'suggested-traffic' && existing.type === 'suggested-traffic')
+                            return item.sourceVideo.videoId === existing.sourceVideo.videoId;
+                        return false; // canvas-selection: always add as new group
+                    });
+                    if (!isDuplicate) mergedContext.push(item);
+                }
+            }
+            const persistedContext = mergedContext.length > 0 ? mergedContext : undefined;
+
+            // Persist merged context to conversation doc (fire-and-forget, errors logged)
+            if (persistedContext && appContext) {
+                ChatService.updateConversation(userId, channelId, convId, { persistedContext })
+                    .catch(err => debug.chat('⚠️ Failed to persist context:', err));
+            }
+
+            // Extract thumbnail URLs from PERSISTED context (all accumulated)
+            // so Gemini can visually compare covers across the entire conversation.
+            const thumbnailUrlsRaw: string[] = [];
+            const thumbnailSource = persistedContext ?? appContext;
+            if (thumbnailSource) {
                 // Video cards
-                getVideoCards(appContext)
-                    .forEach(c => { if (c.thumbnailUrl) thumbnailUrls.push(c.thumbnailUrl); });
+                getVideoCards(thumbnailSource)
+                    .forEach(c => { if (c.thumbnailUrl) thumbnailUrlsRaw.push(c.thumbnailUrl); });
                 // Suggested traffic: source video + suggested videos
-                getTrafficContexts(appContext)
+                getTrafficContexts(thumbnailSource)
                     .forEach(tc => {
-                        if (tc.sourceVideo.thumbnailUrl) thumbnailUrls.push(tc.sourceVideo.thumbnailUrl);
+                        if (tc.sourceVideo.thumbnailUrl) thumbnailUrlsRaw.push(tc.sourceVideo.thumbnailUrl);
                         tc.suggestedVideos.forEach(sv => {
-                            if (sv.thumbnailUrl) thumbnailUrls.push(sv.thumbnailUrl);
+                            if (sv.thumbnailUrl) thumbnailUrlsRaw.push(sv.thumbnailUrl);
                         });
                     });
                 // Canvas selection: video thumbnails + image downloadUrls
-                getCanvasContexts(appContext)
+                getCanvasContexts(thumbnailSource)
                     .forEach(cc => {
                         cc.nodes.forEach(node => {
                             if (node.nodeType === 'video' || node.nodeType === 'traffic-source') {
-                                if (node.thumbnailUrl) thumbnailUrls.push(node.thumbnailUrl);
+                                if (node.thumbnailUrl) thumbnailUrlsRaw.push(node.thumbnailUrl);
                             }
                             if (node.nodeType === 'image') {
-                                if (node.imageUrl) thumbnailUrls.push(node.imageUrl);
+                                if (node.imageUrl) thumbnailUrlsRaw.push(node.imageUrl);
                             }
                         });
                     });
             }
+            // Deduplicate — same video can appear in multiple context sources
+            const thumbnailUrls = [...new Set(thumbnailUrlsRaw)];
 
             // 1. Optimistic UI + persist user message
             // Clear consumed context from input (snapshot already captured above)
-            if (appContext) useAppContextStore.getState().consumeItems();
+            if (appContext) useAppContextStore.getState().consumeAll();
             await persistUserMessage(userId, channelId, convId, text, attachments, appContext, messages, set);
 
             // Now safe to set activeConversationId — optimistic message is already in state
@@ -770,10 +837,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 set({ activeConversationId: convId });
             }
 
-            // 2. Resolve config
+            // 2. Resolve config — use PERSISTED context (full history) for systemPrompt
             const activeConv = get().conversations.find(c => c.id === convId);
             const model = resolveModel(aiSettings, projects, activeProjectId, activeConv?.model, get().pendingModel);
-            const systemPrompt = buildSystemPrompt(aiSettings, projects, activeProjectId, appContext);
+            const systemPrompt = buildSystemPrompt(aiSettings, projects, activeProjectId, persistedContext);
 
             // Debug: log what's being sent to Gemini
             debug.chatGroup.start('🤖 Sending to Gemini');
@@ -814,13 +881,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
             debug.chat('Thumbnails:', thumbnailUrls.length, 'URLs');
             debug.chatGroup.end();
 
+            // Build contextMeta for production CF logging
+            const contextMeta = persistedContext ? {
+                videoCards: getVideoCards(persistedContext).length,
+                trafficSources: getTrafficContexts(persistedContext).length,
+                canvasNodes: getCanvasContexts(persistedContext).reduce((sum, cc) => sum + cc.nodes.length, 0),
+                totalItems: persistedContext.length,
+            } : undefined;
+
             // 3. Stream AI response (nonce-guarded: only update UI if this stream is still current)
             const scopedSet = (partial: Partial<ChatState>) => {
                 if (streamingNonce === myNonce) set(partial);
             };
             const { text: responseText, tokenUsage } = await streamAiResponse(
                 channelId, convId, model, systemPrompt,
-                text, attachments, thumbnailUrls, scopedSet, myAbortController.signal,
+                text, attachments, thumbnailUrls, contextMeta, scopedSet, myAbortController.signal,
             );
 
             // 4. Clear streaming UI BEFORE persisting — Firestore's latency compensation

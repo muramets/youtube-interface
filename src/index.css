@@ -49,6 +49,8 @@
    --text-secondary: #606060;
    --text-tertiary: #909090;
    --accent: #3b82f6;
+   --reference-highlight: #818cf8;
+   /* indigo-400 — inline @mention text */
    --border: #e5e5e5;
    --border-rgb: 229, 229, 229;
    --hover: #f2f2f2;
@@ -169,6 +171,8 @@
    --text-secondary: #aaaaaa;
    --text-tertiary: #666666;
    --accent: #3b82f6;
+   --reference-highlight: #a5b4fc;
+   /* indigo-300 — inline @mention text */
    --border: #3f3f3f;
    --border-rgb: 63, 63, 63;
    --hover: #3f3f3f;

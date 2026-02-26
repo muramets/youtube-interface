@@ -11,6 +11,7 @@ import { useSelectionState } from './Timeline/hooks/useSelectionState';
 import type { TrendVideo } from '../../core/types/trends';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
+import { useTrendsContextBridge } from './hooks/useTrendsContextBridge';
 
 export const TrendsPage: React.FC = () => {
     const { user } = useAuth();
@@ -74,6 +75,9 @@ export const TrendsPage: React.FC = () => {
         selectedChannelId,
         globalPercentileMap
     });
+
+    // Bridge: sync selected competitor videos → appContextStore for AI chat
+    useTrendsContextBridge(selectionState.selectedIds, filteredVideos);
 
     // All videos without hidden (global context for the current channel/view)
     const allVideos = useMemo(() => {

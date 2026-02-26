@@ -5,37 +5,26 @@ import { useVideos } from '../../../core/hooks/useVideos';
 import { useAuth } from '../../../core/hooks/useAuth';
 import { useChannelStore } from '../../../core/stores/channelStore';
 import { videoToCardContext } from '../../../core/utils/videoAdapters';
-import { useCanvasStore } from '../../../core/stores/canvas/canvasStore';
+import { debug } from '../../../core/utils/debug';
 
 /**
- * Shared bridge: syncs ALL globally-selected videos → appContextStore
+ * Shared bridge: syncs ALL globally-selected videos → appContextStore 'playlist' slot
  * so the chat assistant always sees the current selection as context.
  *
  * Call this hook from any page that should keep the context bridge alive
- * (PlaylistDetailPage, PlaylistsPage, etc.).
+ * (PlaylistDetailPage, PlaylistsPage, HomePage, etc.).
  *
- * Priority: When canvas overlay is open, canvas bridge takes precedence
- * and this bridge yields (clears its items and exits early).
+ * Each bridge writes to its own slot — no priority coordination needed.
  */
 export const useSelectionContextBridge = () => {
     const selections = useVideoSelectionStore(s => s.selections);
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
     const { videos } = useVideos(user?.uid || '', currentChannel?.id || '');
-    const setContextItems = useAppContextStore(s => s.setItems);
-    const clearContextItems = useAppContextStore(s => s.clearItems);
-    const canvasIsOpen = useCanvasStore(s => s.isOpen);
+    const setSlot = useAppContextStore(s => s.setSlot);
+    const clearSlot = useAppContextStore(s => s.clearSlot);
 
     useEffect(() => {
-        // Canvas bridge takes priority when canvas is open
-        if (canvasIsOpen) {
-            // Only remove playlist items (video-card), preserve canvas-selection context
-            const currentItems = useAppContextStore.getState().items;
-            const nonPlaylistItems = currentItems.filter(c => c.type !== 'video-card');
-            setContextItems(nonPlaylistItems);
-            return;
-        }
-
         // Collect all selected IDs across every scope
         const allIds = new Set<string>();
         for (const ids of Object.values(selections)) {
@@ -43,14 +32,15 @@ export const useSelectionContextBridge = () => {
         }
 
         if (allIds.size === 0) {
-            clearContextItems();
+            clearSlot('playlist');
             return;
         }
 
         const selectedVideos = videos.filter(v => allIds.has(v.id));
+        debug.context(`🔗 SelectionBridge: ${allIds.size} selected IDs, ${selectedVideos.length} matched in videos[] (${videos.length} total)`);
         const contextItems = selectedVideos.map(v =>
             videoToCardContext(v, currentChannel?.name),
         );
-        setContextItems(contextItems);
-    }, [selections, videos, currentChannel?.name, setContextItems, clearContextItems, canvasIsOpen]);
+        setSlot('playlist', contextItems);
+    }, [selections, videos, currentChannel?.name, setSlot, clearSlot]);
 };

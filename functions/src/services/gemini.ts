@@ -46,6 +46,7 @@ export interface StreamChatOpts {
     text: string;
     attachments?: Array<{ geminiFileUri: string; mimeType: string }>;
     thumbnailUrls?: string[];
+    thumbnailCache?: ThumbnailCache;
     onChunk: (fullText: string) => void;
     signal?: AbortSignal;
     /** Callback to persist re-uploaded Gemini URIs back to Firestore */
@@ -163,41 +164,102 @@ async function buildHistory(
 }
 
 /**
- * Upload thumbnail URLs to the Gemini Files API and return fileData Parts.
- * Uses the Files API (not inlineData) for compatibility with all models including
- * Gemini 3 Pro Preview, which hangs silently on inline Base64 images.
- * Runs in parallel with graceful error handling (skips failed uploads).
+ * Cached entry for a thumbnail uploaded to Gemini Files API.
+ * Files live on Google's servers for 48h — we use 47h TTL for safety.
  */
-async function fetchThumbnailParts(apiKey: string, urls: string[]): Promise<Part[]> {
-    console.log(`[thumbnails] Uploading ${urls.length} thumbnail(s) via Files API:`, urls);
-    const results = await Promise.allSettled(
-        urls.map(async (url) => {
-            const response = await fetch(url);
-            if (!response.ok) {
-                console.error(`[thumbnails] FAIL ${url} → HTTP ${response.status}`);
-                throw new Error(`HTTP ${response.status}`);
-            }
-            const buffer = await response.arrayBuffer();
-            const mimeType = response.headers.get('content-type') || 'image/jpeg';
-            const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
-            console.log(`[thumbnails] Uploading ${Math.round(buffer.byteLength / 1024)}KB (${mimeType}) to Gemini Files API...`);
-            const { uri } = await uploadToGemini(apiKey, blob, mimeType, 'thumbnail');
-            console.log(`[thumbnails] OK ${url} → fileUri: ${uri}`);
-            return {
-                fileData: { fileUri: uri, mimeType },
-            } as Part;
-        })
-    );
-    const parts = results
-        .filter((r): r is PromiseFulfilledResult<Part> => r.status === 'fulfilled')
-        .map(r => r.value);
-    const failed = results.filter(r => r.status === 'rejected');
-    if (failed.length > 0) {
-        console.warn(`[thumbnails] ${failed.length}/${urls.length} failed:`,
-            failed.map(r => (r as PromiseRejectedResult).reason?.message));
+export interface ThumbnailCacheEntry {
+    fileUri: string;
+    mimeType: string;
+    uploadedAt: number; // epoch ms
+}
+
+export type ThumbnailCache = Record<string, ThumbnailCacheEntry>;
+
+const THUMBNAIL_TTL_MS = 47 * 60 * 60 * 1000; // 47h (1h safety margin before 48h expiry)
+
+/**
+ * Upload thumbnail URLs to the Gemini Files API and return fileData Parts.
+ * Reuses cached fileUris when available (< 47h old), only uploading new/expired ones.
+ * Returns both the Parts array AND the updated cache for persistence.
+ */
+async function fetchThumbnailParts(
+    apiKey: string,
+    urls: string[],
+    cache?: ThumbnailCache,
+): Promise<{ parts: Part[]; updatedCache: ThumbnailCache }> {
+    const now = Date.now();
+    const updatedCache: ThumbnailCache = { ...(cache ?? {}) };
+
+    // Classify each URL as cached (reusable) or needs upload
+    const cacheHits: string[] = [];
+    const cacheExpired: string[] = [];
+    const cacheMisses: string[] = [];
+
+    for (const url of urls) {
+        const entry = cache?.[url];
+        if (entry && (now - entry.uploadedAt) < THUMBNAIL_TTL_MS) {
+            cacheHits.push(url);
+        } else if (entry) {
+            cacheExpired.push(url);
+        } else {
+            cacheMisses.push(url);
+        }
     }
-    console.log(`[thumbnails] Sending ${parts.length} fileData part(s) to Gemini`);
-    return parts;
+
+    console.info(`[thumbnails] ${urls.length} URLs — ${cacheHits.length} cached, ${cacheExpired.length} expired, ${cacheMisses.length} new`);
+
+    const needsUpload = [...cacheExpired, ...cacheMisses];
+
+    // Upload new/expired thumbnails in parallel
+    if (needsUpload.length > 0) {
+        console.info(`[thumbnails] Uploading ${needsUpload.length} thumbnail(s) via Files API`);
+        const results = await Promise.allSettled(
+            needsUpload.map(async (url) => {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    console.error(`[thumbnails] ❌ Fetch failed: ${url} → HTTP ${response.status}`);
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const buffer = await response.arrayBuffer();
+                const mimeType = response.headers.get('content-type') || 'image/jpeg';
+                const sizeKb = Math.round(buffer.byteLength / 1024);
+                console.info(`[thumbnails] Uploading ${sizeKb}KB (${mimeType}) to Files API…`);
+                const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
+                const { uri } = await uploadToGemini(apiKey, blob, mimeType, 'thumbnail');
+                console.info(`[thumbnails] ✅ Uploaded: ${url.slice(0, 60)}… → ${uri}`);
+
+                // Update cache
+                updatedCache[url] = { fileUri: uri, mimeType, uploadedAt: now };
+                return { url, uri, mimeType };
+            })
+        );
+        const failed = results.filter(r => r.status === 'rejected');
+        if (failed.length > 0) {
+            console.warn(`[thumbnails] ⚠️ ${failed.length}/${needsUpload.length} uploads failed:`,
+                failed.map(r => (r as PromiseRejectedResult).reason?.message));
+        }
+    }
+
+    // Build Parts from cache (all URLs should now be cached)
+    const parts: Part[] = [];
+    for (const url of urls) {
+        const entry = updatedCache[url];
+        if (entry) {
+            parts.push({ fileData: { fileUri: entry.fileUri, mimeType: entry.mimeType } } as Part);
+        } else {
+            console.warn(`[thumbnails] ⚠️ No cached entry for ${url.slice(0, 60)}… — skipping`);
+        }
+    }
+
+    // Prune expired entries not in current URLs (housekeeping)
+    for (const key of Object.keys(updatedCache)) {
+        if ((now - updatedCache[key].uploadedAt) >= THUMBNAIL_TTL_MS && !urls.includes(key)) {
+            delete updatedCache[key];
+        }
+    }
+
+    console.info(`[thumbnails] Result: ${parts.length} fileData part(s), cache size: ${Object.keys(updatedCache).length}`);
+    return { parts, updatedCache };
 }
 
 function buildUserParts(
@@ -238,7 +300,7 @@ const STREAM_INACTIVITY_TIMEOUT_MS = 90_000;
 
 export async function streamChat(
     opts: StreamChatOpts
-): Promise<{ text: string; tokenUsage?: TokenUsage }> {
+): Promise<{ text: string; tokenUsage?: TokenUsage; updatedThumbnailCache?: ThumbnailCache }> {
     const {
         apiKey,
         model,
@@ -247,6 +309,7 @@ export async function streamChat(
         text,
         attachments,
         thumbnailUrls,
+        thumbnailCache,
         onChunk,
         signal,
         onAttachmentUpdate,
@@ -260,10 +323,14 @@ export async function streamChat(
     const t1 = Date.now();
     console.log(`[streamChat] buildHistory: ${t1 - t0}ms — ${historyContents.length} content entries`);
 
-    // Upload thumbnail images to Files API in parallel (graceful degradation)
-    const thumbnailParts = thumbnailUrls && thumbnailUrls.length > 0
-        ? await fetchThumbnailParts(apiKey, thumbnailUrls)
-        : undefined;
+    // Upload thumbnail images to Files API with caching (graceful degradation)
+    let thumbnailParts: Part[] | undefined;
+    let updatedThumbnailCache: ThumbnailCache | undefined;
+    if (thumbnailUrls && thumbnailUrls.length > 0) {
+        const result = await fetchThumbnailParts(apiKey, thumbnailUrls, thumbnailCache);
+        thumbnailParts = result.parts;
+        updatedThumbnailCache = result.updatedCache;
+    }
     const t2 = Date.now();
     console.log(`[streamChat] fetchThumbnails (Files API): ${t2 - t1}ms — ${thumbnailParts?.length ?? 0} parts`);
 
@@ -357,7 +424,7 @@ export async function streamChat(
         const tEnd = Date.now();
         console.log(`[streamChat] ✅ Done — ${chunkCount} chunks, ${fullText.length} chars, ${tEnd - t0}ms total`);
         if (tokenUsage) console.log(`[streamChat] Tokens: prompt=${tokenUsage.promptTokens}, completion=${tokenUsage.completionTokens}, total=${tokenUsage.totalTokens}`);
-        return { text: fullText, tokenUsage };
+        return { text: fullText, tokenUsage, updatedThumbnailCache };
     } catch (err) {
         // Map AbortError caused by our timeout to GeminiTimeoutError
         if (

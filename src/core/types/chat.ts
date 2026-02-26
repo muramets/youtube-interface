@@ -24,6 +24,7 @@ export interface ChatConversation {
     model?: string;              // per-conversation model override
     summary?: string;           // cached conversation summary
     summarizedUpTo?: string;    // ID of last message included in summary
+    persistedContext?: AppContextItem[]; // Video/traffic/canvas context attached for the lifetime of this conversation
     lastError?: {               // explicit failure signal for recovery (server or client)
         messageId?: string;       // present for server-side failures
         error: string;

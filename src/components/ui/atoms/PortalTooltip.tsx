@@ -87,6 +87,8 @@ interface PortalTooltipProps {
     noAnimation?: boolean;
     /** Native title attribute for trigger element */
     title?: string;
+    /** Render trigger as inline <span> instead of block <div> (for use inside <p>) */
+    inline?: boolean;
     /** @deprecated Use sizeMode instead */
     estimatedHeight?: number;
     /** @deprecated Use sizeMode='fixed' instead */
@@ -144,6 +146,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
     fixedWidth,
     disabled,
     maxWidth,
+    inline,
 }) => {
     // =========================================================================
     // STATE
@@ -548,8 +551,10 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
     // RENDER
     // =========================================================================
 
+    const Trigger = inline ? 'span' : 'div';
+
     return (
-        <div
+        <Trigger
             ref={triggerRef}
             onPointerEnter={handleMouseEnter}
             onPointerLeave={handleMouseLeave}
@@ -622,6 +627,6 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                 </div>,
                 document.body
             )}
-        </div>
+        </Trigger>
     );
 };

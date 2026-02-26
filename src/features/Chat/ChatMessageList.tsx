@@ -2,7 +2,7 @@
 // AI CHAT: Message List Component
 // =============================================================================
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -45,11 +45,15 @@ SyntaxHighlighter.registerLanguage('xml', markup);
 SyntaxHighlighter.registerLanguage('svg', markup);
 import type { ChatMessage } from '../../core/types/chat';
 import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../core/types/appContext';
+import type { VideoCardContext } from '../../core/types/appContext';
+import { buildReferenceMap } from '../../core/utils/buildReferenceMap';
 import type { ModelPricing } from '../../../shared/models';
 import { estimateCostEur } from '../../../shared/models';
 import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, Zap, MessageCircle, Pencil } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 import { useChatStore } from '../../core/stores/chatStore';
+import { injectVideoReferenceLinks, parseReferenceHref, parseReferenceText } from './utils/videoReferenceUtils';
+import { VideoReferenceTooltip } from './components/VideoReferenceTooltip';
 import { formatRelativeTime, STATIC_AGE } from './formatRelativeTime';
 import { MessageErrorBoundary } from './components/ChatBoundaries';
 import { VideoCardChip } from './VideoCardChip';
@@ -106,26 +110,59 @@ interface ChatMessageListProps {
     modelPricing?: ModelPricing;
 }
 
-const MarkdownMessage: React.FC<{ text: string }> = React.memo(({ text }) => (
-    <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-            code({ className, children, ...props }) {
-                const match = /language-(\w+)/.exec(className || '');
-                const codeString = String(children);
-                if (match) {
-                    return <CodeBlock language={match[1]}>{codeString}</CodeBlock>;
-                }
-                return <code {...props}>{children}</code>;
-            },
-            a({ href, children, ...props }) {
-                return <a href={href} target="_blank" rel="noreferrer" {...props}>{children}</a>;
-            },
-        }}
-    >
-        {text}
-    </ReactMarkdown>
-));
+const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoCardContext> }> = React.memo(({ text, videoMap }) => {
+    const hasVideos = videoMap && videoMap.size > 0;
+    const processedText = hasVideos
+        ? injectVideoReferenceLinks(text)
+        : text;
+
+    return (
+        <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            // Preserve custom *-ref:// URI schemes for video/image references.
+            // Default sanitizer strips non-standard protocols — this whitelists ours.
+            urlTransform={(url) => {
+                if (/^(?:video|draft|published|competitor|image)-ref:\/\//.test(url)) return url;
+                return url; // pass through all other URLs unchanged
+            }}
+            components={{
+                code({ className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || '');
+                    const codeString = String(children);
+                    if (match) {
+                        return <CodeBlock language={match[1]}>{codeString}</CodeBlock>;
+                    }
+                    return <code {...props}>{children}</code>;
+                },
+                a({ href, children, ...props }) {
+                    const childText = String(children);
+                    // Primary path: parse the structured *-ref:// href
+                    if (href && videoMap) {
+                        const ref = parseReferenceHref(href);
+                        if (ref) {
+                            const key = `${ref.type}-${ref.index}`;
+                            const video = videoMap.get(key) ?? null;
+                            return <VideoReferenceTooltip label={childText} video={video} />;
+                        }
+                    }
+                    // Defense-in-depth: Gemini may write [Video 3]() with empty href,
+                    // or standalone [№4]() from contextual catch-up injection.
+                    if (videoMap && videoMap.size > 0 && (!href || href === '')) {
+                        const ref = parseReferenceText(childText);
+                        if (ref) {
+                            const key = `${ref.type}-${ref.index}`;
+                            const video = videoMap.get(key) ?? null;
+                            return <VideoReferenceTooltip label={childText} video={video} />;
+                        }
+                    }
+                    return <a href={href} target="_blank" rel="noreferrer" {...props}>{children}</a>;
+                },
+            }}
+        >
+            {processedText}
+        </ReactMarkdown>
+    );
+});
 MarkdownMessage.displayName = 'MarkdownMessage';
 
 // --- Copy Button ---
@@ -202,9 +239,10 @@ interface MessageItemProps {
     isStreaming?: boolean;
     onRetry?: () => void;
     onEdit?: (msg: ChatMessage) => void;
+    videoMap?: Map<string, VideoCardContext>;
 }
 
-const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing, skipAnimation, isFailed, isStreaming, onRetry, onEdit }) => {
+const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing, skipAnimation, isFailed, isStreaming, onRetry, onEdit, videoMap }) => {
     const itemRef = useRef<HTMLDivElement>(null);
     const isVisibleRef = useRef(false);
     const [timestamp, setTimestamp] = useState(() => formatRelativeTime(msg.createdAt));
@@ -280,7 +318,7 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
             )}
 
             <div className={`${msg.role === 'user' ? MSG_BUBBLE_USER : MSG_BUBBLE_MODEL} ${isFailed ? 'border border-red-500/40' : ''}`}>
-                {msg.role === 'model' ? <MarkdownMessage text={msg.text} /> : msg.text}
+                {msg.role === 'model' ? <MarkdownMessage text={msg.text} videoMap={videoMap} /> : msg.text}
             </div>
 
             {/* Failed message indicator */}
@@ -335,6 +373,18 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 }) => {
     const streamingText = useChatStore(s => s.streamingText);
     const isStreaming = useChatStore(s => s.isStreaming);
+
+    // Build video lookup from persisted context for inline reference tooltips.
+    // Keyed by "{type}-{index}" to match reference URIs (e.g. "video-3", "draft-1").
+    const activeConversationId = useChatStore(s => s.activeConversationId);
+    const conversations = useChatStore(s => s.conversations);
+    const referenceVideoMap = useMemo<Map<string, VideoCardContext>>(() => {
+        const conv = conversations.find(c => c.id === activeConversationId);
+        const ctx = conv?.persistedContext;
+        if (!ctx || ctx.length === 0) return new Map();
+        return buildReferenceMap(ctx);
+    }, [activeConversationId, conversations]);
+
     const containerRef = useRef<HTMLDivElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
     const pinAnchorRef = useRef<HTMLDivElement>(null);
@@ -606,6 +656,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                         isStreaming={isStreaming}
                         onRetry={retryLastMessage}
                         onEdit={setEditingMessage}
+                        videoMap={referenceVideoMap}
                     />
                 </MessageErrorBoundary>
             ))}
@@ -619,7 +670,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                     <div className={MSG_BUBBLE_MODEL}>
                         {streamingText ? (
                             <div className="animate-fade-in">
-                                {debouncedStreamingText ? <MarkdownMessage text={debouncedStreamingText} /> : <span className="whitespace-pre-wrap">{streamingText}</span>}
+                                {debouncedStreamingText ? <MarkdownMessage text={debouncedStreamingText} videoMap={referenceVideoMap} /> : <span className="whitespace-pre-wrap">{streamingText}</span>}
                             </div>
                         ) : (
                             <span className="inline-flex items-center gap-[3px] align-middle">

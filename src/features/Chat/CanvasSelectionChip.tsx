@@ -17,6 +17,8 @@ interface CanvasSelectionChipProps {
     context: CanvasSelectionContext;
     onRemove?: () => void;
     compact?: boolean;
+    /** Cumulative offset for video numbering across multiple canvas selections */
+    videoStartIndex?: number;
 }
 
 /** Map a canvas video/traffic-source node to VideoCardContext for chip rendering. */
@@ -63,7 +65,7 @@ const NOTE_DOT_COLORS: Record<string, string> = {
     neutral: '#9CA3AF',
 };
 
-export const CanvasSelectionChip: React.FC<CanvasSelectionChipProps> = React.memo(({ context, onRemove, compact }) => {
+export const CanvasSelectionChip: React.FC<CanvasSelectionChipProps> = React.memo(({ context, onRemove, compact, videoStartIndex }) => {
     const videos = context.nodes.filter((n): n is VideoContextNode | TrafficSourceContextNode => n.nodeType === 'video' || n.nodeType === 'traffic-source');
     const notes = context.nodes.filter((n): n is StickyNoteContextNode => n.nodeType === 'sticky-note');
     const images = context.nodes.filter((n): n is ImageContextNode => n.nodeType === 'image');
@@ -73,10 +75,11 @@ export const CanvasSelectionChip: React.FC<CanvasSelectionChipProps> = React.mem
             {/* Video / traffic-source chips — reuse VideoCardChip */}
             {videos.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
-                    {videos.map((v) => (
+                    {videos.map((v, i) => (
                         <VideoCardChip
                             key={v.videoId || v.title}
                             video={toVideoCardContext(v)}
+                            index={videoStartIndex != null ? videoStartIndex + i + 1 : undefined}
                         />
                     ))}
                 </div>

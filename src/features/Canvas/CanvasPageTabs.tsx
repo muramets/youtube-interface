@@ -107,7 +107,7 @@ export const CanvasPageTabs: React.FC<CanvasPageTabsProps> = ({
     useEffect(() => {
         if (!contextMenu) return;
         const close = () => setContextMenu(null);
-        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopImmediatePropagation(); close(); } };
         // Delay listener registration to avoid catching the same event that opened the menu
         const timerId = setTimeout(() => {
             window.addEventListener('click', close);

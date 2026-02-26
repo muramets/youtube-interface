@@ -6,6 +6,7 @@ import { useChannelStore } from '../../core/stores/channelStore';
 import { useVideos } from '../../core/hooks/useVideos';
 import { usePlaylists } from '../../core/hooks/usePlaylists';
 import { useVideoSelection } from '../../features/Video/hooks/useVideoSelection';
+import { useSelectionContextBridge } from '../../features/Video/hooks/useSelectionContextBridge';
 import { VideoSelectionFloatingBar } from '../../features/Video/components/VideoSelectionFloatingBar';
 import { useFilterStore } from '../../core/stores/filterStore';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
@@ -33,6 +34,9 @@ export const HomePage: React.FC = () => {
         clearSelection,
         isSelectionMode
     } = useVideoSelection();
+
+    // Bridge: sync all globally-selected videos → appContextStore for AI chat
+    useSelectionContextBridge();
 
     const handleBulkDelete = async (ids: string[]) => {
         if (!user || !currentChannel) return;
