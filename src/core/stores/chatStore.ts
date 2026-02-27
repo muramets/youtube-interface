@@ -132,6 +132,40 @@ function resolveModel(
     return project?.model || aiSettings.defaultModel;
 }
 
+/**
+ * Merge incoming context items into an existing set, deduplicating by type + key.
+ * Pure function — used by both sendMessage (append new) and editMessage (rebuild).
+ */
+function mergeContextItems(
+    existing: AppContextItem[],
+    incoming: AppContextItem[],
+): AppContextItem[] {
+    const result = [...existing];
+    for (const item of incoming) {
+        const isDuplicate = result.some(e => {
+            if (e.type !== item.type) return false;
+            if (item.type === 'video-card' && e.type === 'video-card')
+                return item.videoId === e.videoId;
+            if (item.type === 'suggested-traffic' && e.type === 'suggested-traffic')
+                return item.sourceVideo.videoId === e.sourceVideo.videoId;
+            return false; // canvas-selection: always add as new group
+        });
+        if (!isDuplicate) result.push(item);
+    }
+    return result;
+}
+
+/** Rebuild persistedContext from surviving messages' appContext fields. */
+function rebuildPersistedContext(survivingMessages: ChatMessage[]): AppContextItem[] {
+    let result: AppContextItem[] = [];
+    for (const msg of survivingMessages) {
+        if (msg.appContext && msg.appContext.length > 0) {
+            result = mergeContextItems(result, msg.appContext);
+        }
+    }
+    return result;
+}
+
 /** Optimistic UI + Firestore persist for user message. */
 async function persistUserMessage(
     userId: string, channelId: string, convId: string,
@@ -466,15 +500,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         // 1. Optimistic: remove the edited message + everything after it from local state
         const editIdx = messages.findIndex(m => m.id === editingMessage.id);
-        if (editIdx !== -1) {
-            set({ messages: messages.slice(0, editIdx) });
-        }
+        const survivingMessages = editIdx > 0 ? messages.slice(0, editIdx) : [];
+        set({ messages: survivingMessages, editingMessage: null });
 
-        // 2. Clear editing state
-        set({ editingMessage: null });
+        // 2. Rebuild persistedContext from surviving messages only (prevent ghost context)
+        const rebuiltContext = rebuildPersistedContext(survivingMessages);
 
-        // 3. Delete from Firestore: the edited message + all subsequent messages
-        await ChatService.deleteMessagesFrom(userId, channelId, activeConversationId, editingMessage.createdAt);
+        // 3. Delete messages + reset context/summary in parallel
+        await Promise.all([
+            ChatService.deleteMessagesFrom(userId, channelId, activeConversationId, editingMessage.createdAt),
+            ChatService.resetForEdit(userId, channelId, activeConversationId, rebuiltContext),
+        ]);
 
         // 4. Send the new version (reuses full sendMessage flow: persist + stream AI)
         await get().sendMessage(newText, attachments);
@@ -519,21 +555,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
             // Merge with existing persistent context from this conversation
             const existingConv = get().conversations.find(c => c.id === convId);
             const existingPersisted = existingConv?.persistedContext ?? [];
-            const mergedContext: AppContextItem[] = [...existingPersisted];
-            if (appContext) {
-                for (const item of appContext) {
-                    // Deduplicate by type + identifying key
-                    const isDuplicate = mergedContext.some(existing => {
-                        if (existing.type !== item.type) return false;
-                        if (item.type === 'video-card' && existing.type === 'video-card')
-                            return item.videoId === existing.videoId;
-                        if (item.type === 'suggested-traffic' && existing.type === 'suggested-traffic')
-                            return item.sourceVideo.videoId === existing.sourceVideo.videoId;
-                        return false; // canvas-selection: always add as new group
-                    });
-                    if (!isDuplicate) mergedContext.push(item);
-                }
-            }
+            const mergedContext = appContext
+                ? mergeContextItems(existingPersisted, appContext)
+                : existingPersisted;
             const persistedContext = mergedContext.length > 0 ? mergedContext : undefined;
 
             // Persist merged context to conversation doc (fire-and-forget, errors logged).

@@ -232,7 +232,7 @@ export const useSnapshotManagement = ({
             console.error('Failed to restore version:', err);
             showToast('Failed to restore version', 'error');
         }
-    }, [user, currentChannel, video.id, versions, trafficState, snapshotRequest, showToast, closeSnapshotModal, performRestore]);
+    }, [user, currentChannel, video.id, trafficState, snapshotRequest, showToast, closeSnapshotModal, performRestore]);
 
     /**
      * Обработчик клика на снапшот в sidebar

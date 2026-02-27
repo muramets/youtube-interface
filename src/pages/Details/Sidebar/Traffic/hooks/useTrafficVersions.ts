@@ -240,10 +240,13 @@ export const useTrafficVersions = ({
                 // Multiple periods (Restored or Coalesced)
                 coalescedPeriods.forEach((period: { startDate: number; endDate: number | null }, index: number) => {
                     const versionSnapshots = getVirtualVersionSnapshots(v.versionNumber, period.startDate, period.endDate, index === 0);
-                    const isActive = !period.endDate;
+                    const isPeriodOpen = !period.endDate;
+                    const isVersionActive = v.versionNumber === activeVersion;
+                    const isLastPeriod = index === coalescedPeriods.length - 1;
 
-                    // GHOST FILTER REFINED
-                    if (!isActive && versionSnapshots.length === 0) return;
+                    // GHOST FILTER: Hide if period is closed AND version is not active AND no snapshots.
+                    // The active version's last period is ALWAYS visible (even if endDate is stale).
+                    if (!isPeriodOpen && !(isVersionActive && isLastPeriod) && versionSnapshots.length === 0) return;
 
                     // Restoration count: newest is at index 0
                     const rIndex = (v.activePeriods!.length - 1) - index; // This index might be approximated if we merged
@@ -254,13 +257,16 @@ export const useTrafficVersions = ({
                         ? `Active: ${startStr} – ${endStr}`
                         : `Active since ${startStr}`;
 
-                    // Respect true end date from data
+                    // For the active version's last period, force open-ended
+                    // so getVirtualVersionSnapshots accepts all future snapshots.
+                    const effectivePeriodEnd = (isVersionActive && isLastPeriod) ? null : period.endDate;
+
                     virtualList.push({
                         original: v,
                         displayVersion: v.versionNumber,
                         effectiveDate: period.startDate as number,
                         periodStart: period.startDate as number,
-                        periodEnd: period.endDate,
+                        periodEnd: effectivePeriodEnd,
                         isRestored: rIndex > 0, // Simplified: if we have multiple periods remaining, older ones are 'restored'
                         restorationIndex: rIndex > 0 ? rIndex : undefined,
                         arrayIndex: index,

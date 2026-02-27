@@ -393,7 +393,7 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
 
             positionRafRef.current = null;
         });
-    }, [sizeMode]);
+    }, [sizeMode, maxWidth]);
 
 
     // =========================================================================

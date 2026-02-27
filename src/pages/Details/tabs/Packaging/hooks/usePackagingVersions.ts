@@ -338,15 +338,31 @@ export const usePackagingVersions = ({
         ? Math.max(...initialHistory.map(v => v.revision || 0))
         : 0;
 
+    // Sanitize initial history: ensure active version has an open period.
+    // Same logic as SYNC_FROM_PROPS — without this, the first render uses raw
+    // Firestore data where the active version's periods may all be closed,
+    // and the useEffect skip logic may prevent SYNC_FROM_PROPS from correcting it.
+    const sanitizedInitialHistory = initialHistory.map(v => {
+        if (v.versionNumber !== initialActive) {
+            return closeAllPeriods(v);
+        }
+        const withPeriods = ensureActivePeriods(v);
+        const hasOpen = withPeriods.activePeriods!.some(p => !p.endDate);
+        if (!hasOpen) {
+            return addNewActivePeriod(withPeriods);
+        }
+        return withPeriods;
+    });
+
     // Single reducer for atomic state management
     const [state, dispatch] = useReducer(versionsReducer, {
-        packagingHistory: initialHistory,
+        packagingHistory: sanitizedInitialHistory,
         currentVersionNumber: initialCurrentVersion,
         hasDraft: initialIsDraft,
         activeVersion: initialActive,
         viewingVersion: initialActive,
         viewingPeriodIndex: 0,
-        navSortedVersions: computeNavSorted(initialHistory, initialActive),
+        navSortedVersions: computeNavSorted(sanitizedInitialHistory, initialActive),
         packagingRevision: initialRevision
     });
 

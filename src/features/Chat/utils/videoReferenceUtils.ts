@@ -49,7 +49,7 @@ export function injectVideoReferenceLinks(text: string): string {
     const savedLinks: string[] = [];
     result = result.replace(/\[[^\]]+\]\([^)]*-ref:\/\/\d+\)/g, (match) => {
         savedLinks.push(match);
-        return `\x00REF${savedLinks.length - 1}\x00`;
+        return `\uFFF0REF${savedLinks.length - 1}\uFFF0`;
     });
 
     // Pass 2: Contextual catch-up — orphaned №N / #N near an already-injected ref.
@@ -85,7 +85,7 @@ export function injectVideoReferenceLinks(text: string): string {
     }
 
     // Restore protected links
-    result = result.replace(/\x00REF(\d+)\x00/g, (_m, idx) => savedLinks[parseInt(idx)]);
+    result = result.replace(/\uFFF0REF(\d+)\uFFF0/g, (_m, idx) => savedLinks[parseInt(idx)]);
 
     return result;
 }

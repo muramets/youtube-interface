@@ -24,6 +24,7 @@ import type {
     ConversationMemory,
 } from '../types/chat';
 import { DEFAULT_AI_SETTINGS } from '../types/chat';
+import type { AppContextItem } from '../types/appContext';
 
 // --- Path Helpers ---
 
@@ -191,6 +192,19 @@ export const ChatService = {
     async clearPersistedContext(userId: string, channelId: string, conversationId: string) {
         await updateDocument(conversationsPath(userId, channelId), conversationId, {
             persistedContext: deleteField(),
+        });
+    },
+
+    /** Reset conversation state after message edit: rebuild context + invalidate stale summary. */
+    async resetForEdit(
+        userId: string, channelId: string, conversationId: string,
+        rebuiltContext: AppContextItem[],
+    ) {
+        await updateDocument(conversationsPath(userId, channelId), conversationId, {
+            persistedContext: rebuiltContext.length > 0 ? rebuiltContext : deleteField(),
+            summary: deleteField(),
+            summarizedUpTo: deleteField(),
+            updatedAt: Timestamp.now(),
         });
     },
 
