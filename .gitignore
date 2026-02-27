@@ -10,7 +10,22 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+dev-dist
 *.local
+.env*
+
+# Build / deploy artifacts
+cloud-run/**/node_modules
+cloud-run/**/package-lock.json
+
+# Test data
+data_examples/
+
+# Scratch / debug scripts
+test-script*
+test-store*
+check_exports*
+TagTab_prev*
 
 # Editor directories and files
 .vscode/*
