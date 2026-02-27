@@ -26,9 +26,19 @@ const EMPTY_SLOTS: Record<ContextSource, AppContextItem[]> = {
     trends: [],
 };
 
+const EMPTY_TIMESTAMPS: Record<ContextSource, number> = {
+    playlist: 0,
+    traffic: 0,
+    canvas: 0,
+    trends: 0,
+};
+
 interface AppContextState {
     /** Per-source context slots. Each bridge writes to its own slot only. */
     slots: Record<ContextSource, AppContextItem[]>;
+
+    /** Epoch ms when each slot first received data (for chronological ordering). */
+    slotTimestamps: Record<ContextSource, number>;
 
     /** When true, all context bridges skip updates (global pause). */
     isBridgePaused: boolean;
@@ -61,51 +71,63 @@ interface AppContextState {
  * Usage imperatively:
  *   const items = selectAllItems(useAppContextStore.getState());
  */
-export const selectAllItems = (s: AppContextState): AppContextItem[] => [
-    ...s.slots.playlist,
-    ...s.slots.traffic,
-    ...s.slots.canvas,
-    ...s.slots.trends,
-];
+export const selectAllItems = (s: AppContextState): AppContextItem[] => {
+    // Sort slots by first-touched time so newest groups appear last
+    const order = (Object.keys(s.slots) as ContextSource[])
+        .filter((k) => s.slots[k].length > 0)
+        .sort((a, b) => (s.slotTimestamps[a] || 0) - (s.slotTimestamps[b] || 0));
+    return order.flatMap((k) => s.slots[k]);
+};
 
 export const useAppContextStore = create<AppContextState>((set) => ({
     slots: { ...EMPTY_SLOTS },
+    slotTimestamps: { ...EMPTY_TIMESTAMPS },
     isBridgePaused: false,
 
     setSlot: (source, items) => set((s) => {
+        // Record first-touch timestamp for chronological ordering
+        const ts = s.slotTimestamps[source] || Date.now();
         debug.context(`📥 setSlot('${source}')`, items.length, 'items', items.map(i => i.type));
-        return { slots: { ...s.slots, [source]: items } };
+        return {
+            slots: { ...s.slots, [source]: items },
+            slotTimestamps: { ...s.slotTimestamps, [source]: ts },
+        };
     }),
 
     clearSlot: (source) => set((s) => {
         if (s.slots[source].length === 0) return s; // already empty — skip re-render
         debug.context(`🗑️ clearSlot('${source}')`, s.slots[source].length, '→ 0');
-        return { slots: { ...s.slots, [source]: [] } };
+        return {
+            slots: { ...s.slots, [source]: [] },
+            slotTimestamps: { ...s.slotTimestamps, [source]: 0 },
+        };
     }),
 
     clearAll: () => {
         debug.context('🗑️ clearAll — all slots emptied');
-        return set({ slots: { ...EMPTY_SLOTS } });
+        return set({ slots: { ...EMPTY_SLOTS }, slotTimestamps: { ...EMPTY_TIMESTAMPS } });
     },
 
     consumeAll: () => {
         const total = Object.values(useAppContextStore.getState().slots).reduce((sum, arr) => sum + arr.length, 0);
         debug.context(`🔄 consumeAll — ${total} items consumed`);
-        return set({ slots: { ...EMPTY_SLOTS } });
+        return set({ slots: { ...EMPTY_SLOTS }, slotTimestamps: { ...EMPTY_TIMESTAMPS } });
     },
 
     removeItem: (predicate) => set((s) => {
         const newSlots = { ...s.slots };
+        const newTs = { ...s.slotTimestamps };
         let changed = false;
         for (const key of Object.keys(newSlots) as ContextSource[]) {
             const filtered = newSlots[key].filter((item) => !predicate(item));
             if (filtered.length !== newSlots[key].length) {
                 debug.context(`🗑️ removeItem — removed ${newSlots[key].length - filtered.length} from '${key}'`);
                 newSlots[key] = filtered;
+                if (filtered.length === 0) newTs[key] = 0; // reset timestamp when slot emptied
                 changed = true;
             }
         }
-        return changed ? { slots: newSlots } : s;
+        return changed ? { slots: newSlots, slotTimestamps: newTs } : s;
     }),
 
     toggleBridgePause: () => set((s) => {

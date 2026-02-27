@@ -6,7 +6,7 @@
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Paperclip, X, ChevronUp } from 'lucide-react';
-import type { AppContextItem, VideoCardContext } from '../../../core/types/appContext';
+import type { AppContextItem, VideoCardContext, SuggestedTrafficContext, CanvasSelectionContext } from '../../../core/types/appContext';
 import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../../core/types/appContext';
 import { buildVideoBadgeMap } from '../../../core/utils/buildReferenceMap';
 import { VideoCardChip } from '../VideoCardChip';
@@ -97,54 +97,77 @@ export const ContextAccordion: React.FC<ContextAccordionProps> = ({
 
             {isExpanded && (
                 <div ref={scrollRef} className="px-2.5 pb-2 max-h-[40vh] overflow-y-auto scrollbar-compact">
-                    {videoItems.length > 0 && (() => {
+                    {(() => {
                         const badgeMap = buildVideoBadgeMap(items);
-                        return (
-                            <div className="flex flex-wrap gap-1.5 mb-2">
-                                {videoItems.map(v => {
-                                    const badge = badgeMap.get(v.videoId);
-                                    return (
-                                        <VideoCardChip
-                                            key={v.videoId}
-                                            video={v}
-                                            onRemove={() => handleRemoveVideo(v.videoId)}
-                                            index={badge?.index ?? 1}
-                                            badgePrefix={badge?.prefix}
-                                        />
-                                    );
-                                })}
-                            </div>
-                        );
-                    })()}
-                    {trafficItems.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mb-2">
-                            {trafficItems.map((tc, i) => (
-                                <SuggestedTrafficChip
-                                    key={`traffic-${i}`}
-                                    context={tc}
-                                    onRemove={() => onRemoveItem(tc)}
-                                />
-                            ))}
-                        </div>
-                    )}
-                    {canvasItems.length > 0 && (
-                        <div className="flex flex-col gap-1.5 mb-2">
-                            {canvasItems.map((cc, i) => {
-                                // Cumulative video count from previous canvas items
-                                const videoOffset = canvasItems.slice(0, i).reduce(
-                                    (sum, prev) => sum + prev.nodes.filter(n => n.nodeType === 'video' || n.nodeType === 'traffic-source').length, 0
-                                );
+                        // Cumulative canvas video counter across all canvas groups
+                        let canvasVideoOffset = 0;
+
+                        // Group contiguous items of the same type for visual cohesion,
+                        // but preserve the chronological order from selectAllItems.
+                        const groups: { type: string; items: AppContextItem[] }[] = [];
+                        for (const item of items) {
+                            const last = groups[groups.length - 1];
+                            if (last && last.type === item.type) {
+                                last.items.push(item);
+                            } else {
+                                groups.push({ type: item.type, items: [item] });
+                            }
+                        }
+
+                        return groups.map((group, gi) => {
+                            if (group.type === 'video-card') {
                                 return (
-                                    <CanvasSelectionChip
-                                        key={`canvas-${i}`}
-                                        context={cc}
-                                        onRemove={() => onRemoveItem(cc)}
-                                        videoStartIndex={videoOffset}
-                                    />
+                                    <div key={`g-${gi}`} className="flex flex-wrap gap-1.5 mb-2">
+                                        {(group.items as VideoCardContext[]).map(v => {
+                                            const badge = badgeMap.get(v.videoId);
+                                            return (
+                                                <VideoCardChip
+                                                    key={v.videoId}
+                                                    video={v}
+                                                    onRemove={() => handleRemoveVideo(v.videoId)}
+                                                    index={badge?.index ?? 1}
+                                                    badgePrefix={badge?.prefix}
+                                                />
+                                            );
+                                        })}
+                                    </div>
                                 );
-                            })}
-                        </div>
-                    )}
+                            }
+                            if (group.type === 'suggested-traffic') {
+                                return (
+                                    <div key={`g-${gi}`} className="flex flex-wrap gap-1.5 mb-2">
+                                        {group.items.map((tc, i) => (
+                                            <SuggestedTrafficChip
+                                                key={`traffic-${gi}-${i}`}
+                                                context={tc as SuggestedTrafficContext}
+                                                onRemove={() => onRemoveItem(tc)}
+                                            />
+                                        ))}
+                                    </div>
+                                );
+                            }
+                            if (group.type === 'canvas-selection') {
+                                return (
+                                    <div key={`g-${gi}`} className="flex flex-col gap-1.5 mb-2">
+                                        {group.items.map((cc, i) => {
+                                            const ctx = cc as CanvasSelectionContext;
+                                            const offset = canvasVideoOffset;
+                                            canvasVideoOffset += ctx.nodes.filter(n => n.nodeType === 'video' || n.nodeType === 'traffic-source').length;
+                                            return (
+                                                <CanvasSelectionChip
+                                                    key={`canvas-${gi}-${i}`}
+                                                    context={ctx}
+                                                    onRemove={() => onRemoveItem(cc)}
+                                                    videoStartIndex={offset}
+                                                />
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            }
+                            return null;
+                        });
+                    })()}
                 </div>
             )}
         </div>

@@ -92,6 +92,16 @@ function mapNodeToContext(node: CanvasNode): CanvasContextNode | null {
     }
 }
 
+/** Derive a stable identity key for dedup — same node type + same data = same key. */
+function getNodeKey(node: CanvasContextNode): string {
+    switch (node.nodeType) {
+        case 'video': return `video:${node.videoId}`;
+        case 'traffic-source': return `traffic:${node.videoId}`;
+        case 'sticky-note': return `sticky:${node.content}`;
+        case 'image': return `image:${node.imageUrl}`;
+    }
+}
+
 /**
  * Sync selected canvas nodes → appContextStore 'canvas' slot (accumulative).
  *
@@ -145,9 +155,18 @@ export function useCanvasContextBridge(isOpen: boolean): void {
 
         if (contextNodes.length === 0) return;
 
-        // Imperative read from own slot: avoids deps → no feedback loop
+        // Merge into a single flat group with dedup by node identity
         const currentCanvasItems = useAppContextStore.getState().slots.canvas;
-        debug.context(`🎨 CanvasBridge: appending ${contextNodes.length} nodes (${contextNodes.map(n => n.nodeType).join(', ')}), ${currentCanvasItems.length} existing groups`);
-        setSlot('canvas', [...currentCanvasItems, { type: 'canvas-selection', nodes: contextNodes }]);
+        const existingNodes = currentCanvasItems.flatMap(
+            (item) => item.type === 'canvas-selection' ? item.nodes : [],
+        );
+        const existingKeys = new Set(existingNodes.map(getNodeKey));
+        const newNodes = contextNodes.filter((n) => !existingKeys.has(getNodeKey(n)));
+
+        if (newNodes.length === 0) return; // all already in context
+
+        const merged = [...existingNodes, ...newNodes];
+        debug.context(`🎨 CanvasBridge: ${newNodes.length} new nodes (${merged.length} total)`);
+        setSlot('canvas', [{ type: 'canvas-selection', nodes: merged }]);
     }, [isOpen, chatIsOpen, isBridgePaused, selectedNodeIds, nodes, setSlot]);
 }
