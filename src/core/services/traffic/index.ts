@@ -16,9 +16,9 @@ export const TrafficService = {
     sanitizeData: TrafficDataService.sanitize,
 
     // TrafficSnapshotService methods
-    createVersionSnapshot: TrafficSnapshotService.create,
+    createVersionSnapshot: TrafficSnapshotService.create.bind(TrafficSnapshotService),
     getVersionSources: TrafficSnapshotService.getVersionSources,
-    deleteSnapshot: TrafficSnapshotService.delete,
+    deleteSnapshot: TrafficSnapshotService.delete.bind(TrafficSnapshotService),
     updateSnapshotMetadata: TrafficSnapshotService.updateMetadata,
 
     // TrafficDeltaService methods

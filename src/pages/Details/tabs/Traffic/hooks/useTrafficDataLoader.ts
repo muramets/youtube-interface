@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { TrafficData, TrafficSource, TrafficSnapshot, TrafficGroup } from '../../../../../core/types/traffic';
-import type { PackagingVersion, ActivePeriod } from '../../../../../core/types/versioning';
 import { TrafficService } from '../../../../../core/services/traffic';
 import { loadSnapshotSources } from '../utils/snapshotLoader';
 import { logger } from '../../../../../core/utils/logger';
@@ -8,11 +7,8 @@ import { logger } from '../../../../../core/utils/logger';
 interface UseTrafficDataLoaderProps {
     trafficData: TrafficData | null;
     viewingVersion?: number | 'draft';
-    viewingPeriodIndex?: number;
-    activeVersion: number;
     viewMode: 'cumulative' | 'delta';
     selectedSnapshot?: string | null;
-    packagingHistory: PackagingVersion[];
     groups?: TrafficGroup[];
 }
 
@@ -35,15 +31,16 @@ export interface DeltaContext {
 
 /**
  * Hook for loading and displaying traffic data.
+ * 
+ * Simplified loading priorities:
+ * 1. Specific snapshot selected → load that snapshot's CSV
+ * 2. Version selected → load latest snapshot for that version
  */
 export const useTrafficDataLoader = ({
     trafficData,
     viewingVersion,
-    viewingPeriodIndex,
-    activeVersion,
     viewMode,
     selectedSnapshot,
-    packagingHistory = [],
     groups = []
 }: UseTrafficDataLoaderProps) => {
     const [displayedSources, _setDisplayedSources] = useState<TrafficSource[]>([]);
@@ -65,15 +62,14 @@ export const useTrafficDataLoader = ({
     const lastLoadedKeyRef = useRef<string | null>(null);
     const lastLoadContextRef = useRef<{ snapshotId?: string | null; viewMode?: string, versionKey?: string } | null>(null);
 
-    // Synchronous load-pending detection: computed DURING render, before effect fires.
-    // This bridges the gap between synchronous input changes and async effect execution.
-    const currentLoadKey = `${selectedSnapshot || ''}-${viewingVersion}-${viewingPeriodIndex}-${viewMode}-${trafficData?.lastUpdated}-${trafficData?.snapshots?.length}`;
+    // Synchronous load-pending detection
+    const currentLoadKey = `${selectedSnapshot || ''}-${viewingVersion}-${viewMode}-${trafficData?.lastUpdated}-${trafficData?.snapshots?.length}`;
     const isLoadPending = currentLoadKey !== lastLoadedKeyRef.current;
 
     // Context for Delta Mode (Previous -> Current)
     const [deltaContext, setDeltaContext] = useState<DeltaContext | undefined>(undefined);
 
-    // Business Logic: Identify Trash videos - Memoized to prevent infinite loops
+    // Business Logic: Identify Trash videos
     const trashGroup = useMemo(() => groups.find(g => g.name.trim().toLowerCase() === 'trash'), [groups]);
     const trashVideoIds = useMemo(() => new Set(trashGroup?.videoIds || []), [trashGroup?.videoIds]);
 
@@ -89,7 +85,7 @@ export const useTrafficDataLoader = ({
         });
 
         return { impressions: trashImpressions, views: trashViews };
-    }, [trashVideoIds]); // Now stable due to useMemo above
+    }, [trashVideoIds]);
 
     const retry = useCallback(() => {
         logger.info('User initiated retry for traffic data loading', { component: 'useTrafficDataLoader' });
@@ -101,21 +97,16 @@ export const useTrafficDataLoader = ({
 
     useEffect(() => {
         const loadData = async () => {
-            const loadKey = `${selectedSnapshot || ''}-${viewingVersion}-${viewingPeriodIndex}-${viewMode}-${trafficData?.lastUpdated}-${trafficData?.snapshots?.length}`;
+            const loadKey = `${selectedSnapshot || ''}-${viewingVersion}-${viewMode}-${trafficData?.lastUpdated}-${trafficData?.snapshots?.length}`;
 
             if (loadKey === lastLoadedKeyRef.current && displayedSources.length > 0) {
-                // IMPORTANT: If groups changed but loadKey didn't (size same), we still might need to recalculate trashMetrics
-                // because calculateTrashMetrics depends on trashVideoIds closure.
-                // But usually size changes when assignments change for Trash.
                 return;
             }
 
-            // Determine if this is a "soft update" (only trash metrics/context changed)
-            // or a "hard update" (snapshot switched, version switched, etc.)
             const currentContext = {
                 snapshotId: selectedSnapshot,
                 viewMode,
-                versionKey: `${viewingVersion}-${viewingPeriodIndex}`
+                versionKey: `${viewingVersion}`
             };
 
             const isSoftUpdate = lastLoadContextRef.current &&
@@ -153,7 +144,6 @@ export const useTrafficDataLoader = ({
                                 setDeltaContext(undefined);
                             }
                         } else {
-                            // Cumulative mode
                             const { sources: currentSources, totalRow: currentTotal } = await loadSnapshotSources(snapshot);
                             setDisplayedSources(currentSources);
                             setActualTotalRow(currentTotal || trafficData.totalRow);
@@ -179,139 +169,67 @@ export const useTrafficDataLoader = ({
                 return;
             }
 
-            // Priority 2: Active version
-            if (viewingVersion === 'draft' || viewingVersion === activeVersion) {
-                const versionSnapshots = (trafficData.snapshots || []).filter(
-                    (s: TrafficSnapshot) => s.version === viewingVersion
-                );
+            // Priority 2: Version view — load latest snapshot for this version
+            const versionSnapshots = (trafficData.snapshots || [])
+                .filter((s: TrafficSnapshot) => s.version === viewingVersion)
+                .sort((a, b) => b.timestamp - a.timestamp);
 
-                if (versionSnapshots.length > 0) {
-                    if (!isSoftUpdate) setIsLoadingSnapshot(true);
-                    try {
-                        const versionData = packagingHistory.find(v => v.versionNumber === viewingVersion);
-                        let targetPeriodIndex = viewingPeriodIndex;
+            if (versionSnapshots.length > 0) {
+                if (!isSoftUpdate) setIsLoadingSnapshot(true);
+                try {
+                    const latestSnap = versionSnapshots[0];
 
-                        if (targetPeriodIndex === undefined && versionData?.activePeriods) {
-                            const openPeriodIndex = versionData.activePeriods.findIndex((p: ActivePeriod) => !p.endDate);
-                            targetPeriodIndex = openPeriodIndex !== -1 ? openPeriodIndex : 0;
-                        }
-
-                        const finalIndex = targetPeriodIndex ?? 0;
-                        const period = versionData?.activePeriods?.[finalIndex];
-                        const periodStart = period?.startDate ?? Date.now();
-                        const periodEnd = (finalIndex === 0) ? null : period?.endDate;
-
-                        const periodSnapshots = versionSnapshots.filter(s =>
-                            s.timestamp >= periodStart && (!periodEnd || s.timestamp <= periodEnd)
-                        ).sort((a, b) => b.timestamp - a.timestamp);
-
-                        if (viewMode === 'delta' && periodSnapshots.length > 0) {
-                            const latestSnap = periodSnapshots[0];
-                            const result = await loadDeltaParallel(latestSnap, trafficData.snapshots || []);
-                            if (result) {
-                                setDisplayedSources(result.sources);
-                                setActualTotalRow(result.totalRow);
-                                setDeltaContext(result.deltaContext);
-                            } else {
-                                setDisplayedSources([]);
-                                setActualTotalRow(undefined);
-                                setDeltaContext(undefined);
-                            }
+                    if (viewMode === 'delta') {
+                        const result = await loadDeltaParallel(latestSnap, trafficData.snapshots || []);
+                        if (result) {
+                            setDisplayedSources(result.sources);
+                            setActualTotalRow(result.totalRow);
+                            setDeltaContext(result.deltaContext);
                         } else {
-                            const { sources, totalRow: currentTotal } = await TrafficService.getVersionSources(
-                                viewingVersion as number,
-                                trafficData.snapshots || [],
-                                periodStart,
-                                periodEnd
-                            );
-
-                            // setTrashMetrics removed here
-                            setDisplayedSources(sources);
-                            setActualTotalRow(currentTotal || trafficData.totalRow);
+                            setDisplayedSources([]);
+                            setActualTotalRow(undefined);
                             setDeltaContext(undefined);
                         }
-                        lastLoadedKeyRef.current = loadKey;
-                        lastLoadContextRef.current = currentContext;
-                    } catch (err) {
-                        logger.error('Failed to load active version sources', { component: 'useTrafficDataLoader', error: err, viewingVersion });
-                        setError(err instanceof Error ? err : new Error('Unknown error loading active version'));
-                        setDisplayedSources(trafficData.sources || []);
-                        setActualTotalRow(trafficData.totalRow);
-                    } finally {
-                        if (!isSoftUpdate) setIsLoadingSnapshot(false);
-                    }
-                    return;
-                }
-            }
-
-            // Priority 3: Historical Version
-            if (!isSoftUpdate) setIsLoadingSnapshot(true);
-            try {
-                const versionData = packagingHistory.find(v => v.versionNumber === viewingVersion);
-                const finalIndex = viewingPeriodIndex || 0;
-                const period = versionData?.activePeriods?.[finalIndex];
-                const periodStart = period?.startDate;
-                const periodEnd = (finalIndex === 0) ? null : period?.endDate;
-
-                const versionSnapshots = (trafficData.snapshots || []).filter(
-                    (s: TrafficSnapshot) => s.version === viewingVersion
-                );
-
-                const periodSnapshots = versionSnapshots.filter(s =>
-                    (periodStart === undefined || s.timestamp >= periodStart) &&
-                    (!periodEnd || s.timestamp <= periodEnd)
-                ).sort((a, b) => b.timestamp - a.timestamp);
-
-                if (viewMode === 'delta' && periodSnapshots.length > 0) {
-                    const latestSnap = periodSnapshots[0];
-                    const result = await loadDeltaParallel(latestSnap, trafficData.snapshots || []);
-                    if (result) {
-                        setDisplayedSources(result.sources);
-                        setActualTotalRow(result.totalRow);
-                        setDeltaContext(result.deltaContext);
                     } else {
-                        setDisplayedSources([]);
-                        setActualTotalRow(undefined);
+                        const { sources, totalRow: currentTotal } = await TrafficService.getVersionSources(
+                            viewingVersion as number,
+                            trafficData.snapshots || []
+                        );
+                        setDisplayedSources(sources);
+                        setActualTotalRow(currentTotal || trafficData.totalRow);
                         setDeltaContext(undefined);
                     }
-                } else {
-                    const { sources, totalRow: currentTotal } = await TrafficService.getVersionSources(
-                        viewingVersion as number,
-                        trafficData.snapshots || [],
-                        periodStart,
-                        periodEnd
-                    );
-
-                    // setTrashMetrics removed here
-                    setDisplayedSources(sources);
-                    setActualTotalRow(currentTotal || trafficData.totalRow);
-                    setDeltaContext(undefined);
+                    lastLoadedKeyRef.current = loadKey;
+                    lastLoadContextRef.current = currentContext;
+                } catch (err) {
+                    logger.error('Failed to load version sources', { component: 'useTrafficDataLoader', error: err, viewingVersion });
+                    setError(err instanceof Error ? err : new Error('Unknown error loading version'));
+                    setDisplayedSources(trafficData.sources || []);
+                    setActualTotalRow(trafficData.totalRow);
+                } finally {
+                    if (!isSoftUpdate) setIsLoadingSnapshot(false);
                 }
-                lastLoadedKeyRef.current = loadKey;
-                lastLoadContextRef.current = currentContext;
-            } catch (err) {
-                logger.error('Failed to load historical version sources', { component: 'useTrafficDataLoader', error: err, viewingVersion });
-                setError(err instanceof Error ? err : new Error('Unknown error loading historical version'));
-                setDisplayedSources([]);
-                setActualTotalRow(undefined);
-            } finally {
-                if (!isSoftUpdate) setIsLoadingSnapshot(false);
+                return;
             }
+
+            // Fallback: no snapshots for this version
+            setDisplayedSources([]);
+            setActualTotalRow(undefined);
+            setDeltaContext(undefined);
+            lastLoadedKeyRef.current = loadKey;
+            lastLoadContextRef.current = currentContext;
         };
 
         loadData();
     }, [
         selectedSnapshot,
         viewingVersion,
-        viewingPeriodIndex,
         viewMode,
-        activeVersion,
         retryCount,
         trafficData?.lastUpdated,
         trafficData?.snapshots,
         trafficData?.sources,
         trafficData?.totalRow,
-        packagingHistory,
         displayedSources.length,
         setDisplayedSources
     ]);
@@ -354,8 +272,6 @@ const findPreviousSnapshot = (
 
 /**
  * Helper function to calculate delta between snapshots.
- * Accepts pre-loaded sources for both current and previous snapshots
- * to enable parallel loading by the caller.
  */
 const calculateSnapshotDelta = (
     currentSources: TrafficSource[],
@@ -402,9 +318,7 @@ const calculateSnapshotDelta = (
     let totalRow: TrafficSource | undefined = currentTotal;
     let deltaContext: DeltaContext | undefined = undefined;
 
-    // Ensure we have both totals to calculate context
     if (currentTotal && prevTotal) {
-        // Calculate Total Delta
         const viewsDelta = Math.max(0, currentTotal.views - prevTotal.views);
         const impressionsDelta = Math.max(0, (currentTotal.impressions || 0) - (prevTotal.impressions || 0));
         const watchTimeDelta = Math.max(0, (currentTotal.watchTimeHours || 0) - (prevTotal.watchTimeHours || 0));
@@ -418,7 +332,6 @@ const calculateSnapshotDelta = (
             ctr: parseFloat(ctrDelta.toFixed(2))
         };
 
-        // Populate Delta Context for Tooltip
         deltaContext = {
             impressions: {
                 previous: prevTotal.impressions || 0,
@@ -432,7 +345,6 @@ const calculateSnapshotDelta = (
             }
         };
     } else {
-        // Explicitly signal that we cannot calculate context due to missing Total row
         deltaContext = {
             isIncomplete: true
         };
@@ -465,16 +377,14 @@ const buildCachedPrevTotal = (prevSnapshot: TrafficSnapshot): TrafficSource | un
 
 /**
  * Load current + previous snapshot sources in parallel for delta mode.
- * Returns ready-to-use delta result.
  */
 const loadDeltaParallel = async (
     currentSnapshot: TrafficSnapshot,
     allSnapshots: TrafficSnapshot[]
 ): Promise<{ sources: TrafficSource[], totalRow?: TrafficSource, deltaContext?: DeltaContext } | null> => {
     const prevSnapshot = findPreviousSnapshot(currentSnapshot.id, allSnapshots);
-    if (!prevSnapshot) return null; // No previous = no delta
+    if (!prevSnapshot) return null;
 
-    // Load both CSVs in parallel
     const [currentResult, prevResult] = await Promise.all([
         loadSnapshotSources(currentSnapshot),
         loadSnapshotSources(prevSnapshot)
@@ -482,7 +392,6 @@ const loadDeltaParallel = async (
 
     if (currentResult.sources.length === 0) return null;
 
-    // Use cached summary for prevTotal if available, otherwise use parsed CSV totalRow
     const prevTotal = buildCachedPrevTotal(prevSnapshot) ?? prevResult.totalRow;
 
     return calculateSnapshotDelta(
@@ -492,4 +401,3 @@ const loadDeltaParallel = async (
         prevTotal
     );
 };
-

@@ -20,7 +20,6 @@ interface DetailsSidebarProps {
     versions: PackagingVersion[];
     viewingVersion: number | 'draft';
     activeVersion: number | 'draft';  // The version currently used by the video
-    viewingPeriodIndex?: number;
     hasDraft: boolean;
     onVersionClick: (versionNumber: number | 'draft', periodIndex?: number) => void;
     onDeleteVersion: (versionNumber: number, versionLabel?: string) => void;
@@ -31,6 +30,7 @@ interface DetailsSidebarProps {
     onSnapshotClick: (snapshotId: string) => void;
     onDeleteSnapshot?: (snapshotId: string) => void;
     onUpdateSnapshotMetadata?: (snapshotId: string, metadata: { label?: string; activeDate?: { start: number; end: number } | null }) => void;
+    onReassignVersion?: (snapshotId: string, newVersion: number) => void;
     // Niche Data (Calculated in Layout)
     groups: TrafficGroup[];
     displayedSources: TrafficSource[];
@@ -55,7 +55,6 @@ export const DetailsSidebar = React.memo<DetailsSidebarProps>(({
     versions,
     viewingVersion,
     activeVersion,
-    viewingPeriodIndex,
     hasDraft,
     onVersionClick,
     onDeleteVersion,
@@ -65,6 +64,7 @@ export const DetailsSidebar = React.memo<DetailsSidebarProps>(({
     onSnapshotClick,
     onDeleteSnapshot,
     onUpdateSnapshotMetadata,
+    onReassignVersion,
     groups,
     displayedSources,
     onAddFilter,
@@ -183,13 +183,12 @@ export const DetailsSidebar = React.memo<DetailsSidebarProps>(({
                         groups={groups}
                         displayedSources={displayedSources}
                         viewingVersion={viewingVersion}
-                        viewingPeriodIndex={viewingPeriodIndex}
                         activeVersion={activeVersion}
                         selectedSnapshot={selectedSnapshot}
-                        isVideoPublished={!!video.publishedVideoId}
-                        onVersionClick={(v: number | 'draft', p?: number) => {
+                        publishDate={video.publishedAt ? new Date(video.publishedAt).getTime() : undefined}
+                        onVersionClick={(v: number | 'draft') => {
                             onTabChange('traffic');
-                            onVersionClick(v, p);
+                            onVersionClick(v);
                         }}
                         onSnapshotClick={(snapshotId) => {
                             onTabChange('traffic');
@@ -197,6 +196,7 @@ export const DetailsSidebar = React.memo<DetailsSidebarProps>(({
                         }}
                         onDeleteSnapshot={onDeleteSnapshot}
                         onUpdateSnapshotMetadata={onUpdateSnapshotMetadata}
+                        onReassignVersion={onReassignVersion}
                         isActive={activeTab === 'traffic'}
                         isExpanded={expandedSection === 'traffic'}
                         onToggle={() => handleToggleSection('traffic')}

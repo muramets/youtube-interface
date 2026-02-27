@@ -14,17 +14,17 @@ import { ConfirmationModal } from '../../../../components/ui/organisms/Confirmat
 interface TrafficNavProps {
     versions: PackagingVersion[];
     snapshots: TrafficSnapshot[];
-    groups: TrafficGroup[]; // NEW: For niche calculation
-    displayedSources: TrafficSource[]; // NEW: Current data for stats
+    groups: TrafficGroup[]; // For niche calculation
+    displayedSources: TrafficSource[]; // Current data for stats
     viewingVersion: number | 'draft';
-    viewingPeriodIndex?: number;
     activeVersion: number | 'draft';
     selectedSnapshot: string | null;
-    isVideoPublished: boolean; // Whether the video has a publishedVideoId
-    onVersionClick: (versionNumber: number | 'draft', periodIndex?: number) => void;
+    publishDate?: number;
+    onVersionClick: (versionNumber: number | 'draft') => void;
     onSnapshotClick: (snapshotId: string) => void;
     onDeleteSnapshot?: (snapshotId: string) => void;
     onUpdateSnapshotMetadata?: (snapshotId: string, metadata: { label?: string; activeDate?: { start: number; end: number } | null }) => void;
+    onReassignVersion?: (snapshotId: string, newVersion: number) => void;
     onSelect: () => void;
     isActive: boolean;
     isExpanded: boolean;
@@ -34,14 +34,12 @@ interface TrafficNavProps {
 }
 
 /**
- * BUSINESS LOGIC: Traffic Navigation with 3-Level Hierarchy
+ * Traffic Navigation with 3-Level Hierarchy
  * 
- * Structure matches PackagingNav for consistency:
- * - Level 1: "Suggested Traffic" header with chevron toggle (via SidebarNavHeader)
- * - Level 2: Versions (via SidebarVersionItem)
- * - Level 3: Snapshots (custom sub-items via SidebarSnapshotItem)
- * 
- * Active version is auto-expanded to show snapshots.
+ * Structure:
+ * - Level 1: "Suggested Traffic" header
+ * - Level 2: Versions (grouped by snapshot.version)
+ * - Level 3: Snapshots (sorted by timestamp, latest first)
  */
 export const TrafficNav: React.FC<TrafficNavProps> = ({
     versions,
@@ -49,14 +47,14 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
     groups,
     displayedSources,
     viewingVersion,
-    viewingPeriodIndex,
     activeVersion,
     selectedSnapshot,
-    isVideoPublished,
+    publishDate,
     onVersionClick,
     onSnapshotClick,
     onDeleteSnapshot,
     onUpdateSnapshotMetadata,
+    onReassignVersion,
     onSelect,
     isActive,
     isExpanded,
@@ -64,17 +62,14 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
     onNicheClick,
     activeNicheId
 }) => {
-    // Main expand/collapse state (managed by parent)
-
     // Track which versions have their snapshots expanded
-    // Stores strings to support composite keys "vNum-index"
     const [expandedVersions, setExpandedVersions] = useState<Set<string>>(
-        new Set([`${activeVersion}-0`])
+        new Set([`${activeVersion}`])
     );
 
-    // Auto-expand the active version when activeVersion changes (e.g. draft → v.1)
+    // Auto-expand the active version when activeVersion changes
     React.useEffect(() => {
-        const key = `${activeVersion}-0`;
+        const key = `${activeVersion}`;
         setExpandedVersions(prev => {
             if (prev.has(key)) return prev;
             const next = new Set(prev);
@@ -95,33 +90,24 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
         snapshotId: string | null;
     }>({ isOpen: false, snapshotId: null });
 
-    // Optimistic deletion: locally hidden snapshots (instant visual removal)
-    const [hiddenSnapshotIds, setHiddenSnapshotIds] = useState<Set<string>>(new Set());
-
     // Metadata editing state
     const [renamingSnapshotId, setRenamingSnapshotId] = useState<string | null>(null);
     const [activeDateSnapshotId, setActiveDateSnapshotId] = useState<string | null>(null);
 
-
     // Calculate Niche Stats for the SELECTED snapshot
-    // We rely on displayedSources being the source of truth (already filtered by view mode)
     const selectedSnapshotNicheStats = useMemo(() => {
         if (!selectedSnapshot || !groups || !displayedSources) return { stats: {}, metricType: 'impressions' as const };
 
         const stats: Record<string, number> = {};
 
-        // Check if we have valid impressions in the dataset
         const hasImpressions = displayedSources.some(s => (s.impressions || 0) > 0);
         const metricType = hasImpressions ? 'impressions' as const : 'views' as const;
 
         displayedSources.forEach(source => {
             if (!source.videoId) return;
 
-            // Find which groups this video belongs to
             const videoGroups = groups.filter(g => g.videoIds.includes(source.videoId!));
-
             videoGroups.forEach(g => {
-                // FALLBACK LOGIC: If we determined we are using views, use views. Otherwise use impressions.
                 const weight = metricType === 'views' ? (source.views || 0) : (source.impressions || 0);
                 stats[g.id] = (stats[g.id] || 0) + weight;
             });
@@ -130,7 +116,7 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
         return { stats, metricType };
     }, [selectedSnapshot, groups, displayedSources]);
 
-    // Toggle version's snapshots expansion (using composite key)
+    // Toggle version's snapshots expansion
     const toggleVersionSnapshots = (key: string, e: React.MouseEvent) => {
         e.stopPropagation();
         const newExpanded = new Set(expandedVersions);
@@ -142,59 +128,36 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
         setExpandedVersions(newExpanded);
     };
 
-    // Use custom hook for version logic
+    // Use simplified hook for version grouping
     const {
         sortedVersions,
-        getVirtualVersionSnapshots,
         formatSnapshotDate
     } = useTrafficVersions({
         versions,
         snapshots,
         activeVersion,
-        isVideoPublished
+        publishDate
     });
 
     // Determine if there's content to expand
     const hasContent = sortedVersions.length > 0;
 
-    // Effect to auto-expand active version on mount or auto-expand when a snapshot is selected
+    // Auto-expand version containing selected snapshot
     React.useEffect(() => {
-        // 1. If a snapshot is selected, find which version contains it and expand that version
         if (selectedSnapshot) {
-            const itemsToExpand = new Set<string>();
-
-            // Check each sorted version for the selected snapshot
-            sortedVersions.forEach(versionItem => {
-                const snapshotsInVersion = getVirtualVersionSnapshots(
-                    versionItem.displayVersion,
-                    versionItem.periodStart,
-                    versionItem.periodEnd,
-                    true // Don't filter out pre-publication snapshots
-                );
-
-                if (snapshotsInVersion.some(s => s.id === selectedSnapshot)) {
-                    itemsToExpand.add(versionItem.key);
-                }
-            });
-
-            if (itemsToExpand.size > 0) {
+            const versionWithSnapshot = sortedVersions.find(
+                group => group.snapshots.some(s => s.id === selectedSnapshot)
+            );
+            if (versionWithSnapshot) {
                 setExpandedVersions(prev => {
-                    // Only update if we have new items to expand that aren't already expanded
+                    if (prev.has(versionWithSnapshot.key)) return prev;
                     const next = new Set(prev);
-                    let changed = false;
-
-                    itemsToExpand.forEach(key => {
-                        if (!next.has(key)) {
-                            next.add(key);
-                            changed = true;
-                        }
-                    });
-
-                    return changed ? next : prev;
+                    next.add(versionWithSnapshot.key);
+                    return next;
                 });
             }
         }
-    }, [selectedSnapshot, sortedVersions, getVirtualVersionSnapshots]);
+    }, [selectedSnapshot, sortedVersions]);
 
     return (
         <div className="flex flex-col">
@@ -222,30 +185,25 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
             {/* Level 2: Version List (expanded) */}
             {isExpanded && hasContent && (
                 <div className="flex flex-col gap-1 py-1">
-                    {/* Saved versions */}
-                    {sortedVersions.map((item) => {
-                        const versionSnapshots = getVirtualVersionSnapshots(item.displayVersion, item.periodStart, item.periodEnd, item.arrayIndex === 0)
-                            .filter(s => !hiddenSnapshotIds.has(s.id));
-                        const isVersionExpanded = expandedVersions.has(item.key);
+                    {sortedVersions.map((group) => {
+                        const versionSnapshots = group.snapshots;
+                        const isVersionExpanded = expandedVersions.has(group.key);
                         const hasSnapshots = versionSnapshots.length > 0;
 
-                        // Check if packaging was deleted (item flag or any snapshot has isPackagingDeleted flag)
+                        // Check if packaging was deleted
                         const deletedSnapshotCount = versionSnapshots.filter(s => s.isPackagingDeleted).length;
-                        const isPackagingDeleted = item.isDeleted || deletedSnapshotCount > 0;
+                        const isPackagingDeleted = group.isDeleted || deletedSnapshotCount > 0;
                         const packagingData = versionSnapshots.find(s => s.isPackagingDeleted)?.packagingSnapshot;
 
-                        // Restoration Label
-                        const displayLabel = item.restorationIndex
-                            ? `v.${item.displayVersion}`
-                            : `v.${item.displayVersion}`;
+                        const displayLabel = `v.${group.versionNumber}`;
 
                         return (
-                            <div key={item.key}>
+                            <div key={group.key}>
                                 {/* Version Row with Chevron */}
                                 <div>
                                     {isPackagingDeleted && packagingData ? (
                                         <PortalTooltip
-                                            content={<PackagingSnapshotTooltip version={item.displayVersion} data={packagingData} />}
+                                            content={<PackagingSnapshotTooltip version={group.versionNumber} data={packagingData} />}
                                             variant="glass"
                                             side="right"
                                             align="center"
@@ -255,17 +213,13 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                                 <SidebarVersionItem
                                                     label={displayLabel}
                                                     isDeleted={true}
-                                                    isViewing={viewingVersion === item.displayVersion && viewingPeriodIndex === item.arrayIndex && !selectedSnapshot}
-                                                    isVideoActive={activeVersion === item.displayVersion && !item.periodEnd}
-                                                    onClick={() => onVersionClick(item.displayVersion, item.arrayIndex)}
+                                                    isViewing={viewingVersion === group.versionNumber && !selectedSnapshot}
+                                                    isVideoActive={group.isActive}
+                                                    onClick={() => onVersionClick(group.versionNumber)}
                                                     isParentOfSelected={selectedSnapshot !== null && versionSnapshots.some(s => s.id === selectedSnapshot)}
-                                                    restorationIndex={item.showRestored ? item.restorationIndex : undefined}
-                                                    periodStart={item.periodStart}
-                                                    periodEnd={item.periodEnd}
-                                                    truncatePeriodBadge={true}
                                                     action={hasSnapshots && (
                                                         <button
-                                                            onClick={(e) => toggleVersionSnapshots(item.key, e)}
+                                                            onClick={(e) => toggleVersionSnapshots(group.key, e)}
                                                             className="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
                                                         >
                                                             {isVersionExpanded ? (
@@ -282,17 +236,13 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                         <SidebarVersionItem
                                             label={displayLabel}
                                             isDeleted={isPackagingDeleted}
-                                            isViewing={viewingVersion === item.displayVersion && viewingPeriodIndex === item.arrayIndex && !selectedSnapshot}
-                                            isVideoActive={activeVersion === item.displayVersion && !item.periodEnd}
-                                            onClick={() => onVersionClick(item.displayVersion, item.arrayIndex)}
+                                            isViewing={viewingVersion === group.versionNumber && !selectedSnapshot}
+                                            isVideoActive={group.isActive}
+                                            onClick={() => onVersionClick(group.versionNumber)}
                                             isParentOfSelected={selectedSnapshot !== null && versionSnapshots.some(s => s.id === selectedSnapshot)}
-                                            restorationIndex={item.showRestored ? item.restorationIndex : undefined}
-                                            periodStart={item.periodStart}
-                                            periodEnd={item.periodEnd}
-                                            truncatePeriodBadge={true}
                                             action={hasSnapshots && (
                                                 <button
-                                                    onClick={(e) => toggleVersionSnapshots(item.key, e)}
+                                                    onClick={(e) => toggleVersionSnapshots(group.key, e)}
                                                     className="p-1 text-text-secondary hover:text-text-primary transition-colors rounded"
                                                 >
                                                     {isVersionExpanded ? (
@@ -325,7 +275,6 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                                                         tooltip={tooltip}
                                                         isSelected={isSnapshotSelected}
                                                         isLatest={isLatest}
-                                                        canDelete={!!onDeleteSnapshot}
                                                         onClick={() => onSnapshotClick(snapshot.id)}
                                                         menuOpenSnapshotId={menuState.snapshotId}
                                                         onMenuTrigger={(e, id) => {
@@ -373,6 +322,8 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                 position={menuState.position}
                 isLatest={menuState.snapshotId ? menuState.snapshotId === snapshots.reduce((latest, s) => s.timestamp > (latest?.timestamp || 0) ? s : latest, snapshots[0])?.id : false}
                 canDelete={!!onDeleteSnapshot}
+                availableVersions={versions.map(v => v.versionNumber)}
+                currentVersion={menuState.snapshotId ? (snapshots.find(s => s.id === menuState.snapshotId)?.version ?? 0) : 0}
                 onDelete={() => {
                     if (menuState.snapshotId) {
                         setDeleteConfirmation({ isOpen: true, snapshotId: menuState.snapshotId });
@@ -388,6 +339,11 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                         setActiveDateSnapshotId(menuState.snapshotId);
                     }
                 }}
+                onMoveToVersion={onReassignVersion ? (newVersion) => {
+                    if (menuState.snapshotId) {
+                        onReassignVersion(menuState.snapshotId, newVersion);
+                    }
+                } : undefined}
             />
 
             {/* Delete Confirmation Modal */}
@@ -396,12 +352,6 @@ export const TrafficNav: React.FC<TrafficNavProps> = ({
                 onClose={() => setDeleteConfirmation({ isOpen: false, snapshotId: null })}
                 onConfirm={() => {
                     if (deleteConfirmation.snapshotId && onDeleteSnapshot) {
-                        // Instantly hide snapshot in sidebar (same render frame)
-                        setHiddenSnapshotIds(prev => {
-                            const next = new Set(prev);
-                            next.add(deleteConfirmation.snapshotId!);
-                            return next;
-                        });
                         onDeleteSnapshot(deleteConfirmation.snapshotId);
                     }
                     setDeleteConfirmation({ isOpen: false, snapshotId: null });

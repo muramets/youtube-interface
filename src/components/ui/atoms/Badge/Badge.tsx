@@ -99,7 +99,7 @@ const variantStyles: Record<BadgeVariant, string> = {
      * NEUTRAL — Серый
      * Используй для обычных меток без особого акцента
      */
-    neutral: 'bg-text-secondary/20 text-text-secondary',
+    neutral: 'bg-gray-500/20 text-text-secondary',
 };
 
 // -----------------------------------------------------------------------------

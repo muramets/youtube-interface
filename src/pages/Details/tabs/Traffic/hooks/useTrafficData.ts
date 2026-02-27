@@ -2,12 +2,14 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { TrafficService } from '../../../../../core/services/traffic';
 import { useUIStore } from '../../../../../core/stores/uiStore';
 import type { TrafficData, TrafficSource } from '../../../../../core/types/traffic';
+import type { PackagingVersion } from '../../../../../core/types/versioning';
 import type { VideoDetails } from '../../../../../core/utils/youtubeApi';
 
 interface UseTrafficDataProps {
     userId: string;
     channelId: string;
     video: VideoDetails;
+    packagingHistory?: PackagingVersion[];
 }
 
 // Export the hook state interface for use in other components/hooks
@@ -16,14 +18,14 @@ export interface TrafficHookState {
     isLoading: boolean;
     isSaving: boolean;
     error: string | null;
-    handleCsvUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<string | null>;
+    handleCsvUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File, targetVersion?: number) => Promise<string | null>;
     handleDeleteSnapshot: (snapshotId: string) => Promise<void>;
     saveData: (newData: TrafficData) => Promise<void>;
     updateLocalData: (newData: TrafficData) => void;
     refetch: () => Promise<void>;
 }
 
-export const useTrafficData = ({ userId, channelId, video }: UseTrafficDataProps): TrafficHookState => {
+export const useTrafficData = ({ userId, channelId, video, packagingHistory = [] }: UseTrafficDataProps): TrafficHookState => {
     const [data, setData] = useState<TrafficData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -69,11 +71,21 @@ export const useTrafficData = ({ userId, channelId, video }: UseTrafficDataProps
     }, [userId, channelId, video.id]);
 
     // Action: Handle New CSV Upload
-    const handleCsvUpload = useCallback(async (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => {
+    const handleCsvUpload = useCallback(async (sources: TrafficSource[], totalRow?: TrafficSource, file?: File, targetVersion?: number) => {
         if (!userId || !video.id) return null;
         setIsSaving(true);
         try {
-            const effectiveVersion = video.activeVersion === 'draft' ? 1 : (video.activeVersion || 1);
+            // Use explicit target version if provided, otherwise attach to latest
+            const version = targetVersion ?? (
+                packagingHistory.length > 0
+                    ? Math.max(...packagingHistory.map(v => v.versionNumber))
+                    : 1
+            );
+
+            // Calculate publishDate for activeDate auto-calculation
+            const publishDate = video.publishedAt
+                ? new Date(video.publishedAt).getTime()
+                : undefined;
 
             // 1. Create the snapshot (Hybrid Approach)
             // This will also update the main traffic document's snapshots array
@@ -81,14 +93,14 @@ export const useTrafficData = ({ userId, channelId, video }: UseTrafficDataProps
                 userId,
                 channelId,
                 video.id,
-                effectiveVersion as number,
+                version,
                 sources,
                 totalRow,
-                file
+                file,
+                publishDate
             );
 
             // 2. Refetch to get the updated sources and snapshots from Firestore
-            // This is now clean as createVersionSnapshot handles updating the main sources
             const updatedData = await TrafficService.fetchTrafficData(userId, channelId, video.id);
             if (updatedData) {
                 setData(updatedData);
@@ -105,7 +117,7 @@ export const useTrafficData = ({ userId, channelId, video }: UseTrafficDataProps
         } finally {
             setIsSaving(false);
         }
-    }, [userId, channelId, video.id, video.activeVersion, showToast]);
+    }, [userId, channelId, video.id, video.publishedAt, packagingHistory, showToast]);
 
     // Action: Delete Snapshot
     const handleDeleteSnapshot = useCallback(async (snapshotId: string) => {

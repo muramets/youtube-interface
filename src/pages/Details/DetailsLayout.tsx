@@ -148,7 +148,8 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
     const trafficState = useTrafficData({
         userId: user?.uid || '',
         channelId: currentChannel?.id || '',
-        video
+        video,
+        packagingHistory: stablePackagingHistory
     });
 
     // Niche Data (Live from Store)
@@ -246,11 +247,8 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
     const trafficLoader = useTrafficDataLoader({
         trafficData: memoizedTrafficData,
         viewingVersion: versions.viewingVersion,
-        viewingPeriodIndex: versions.viewingPeriodIndex,
-        activeVersion: typeof versions.activeVersion === 'number' ? versions.activeVersion : 0,
         viewMode: trafficViewMode,
         selectedSnapshot,
-        packagingHistory: memoizedPackagingHistory,
         groups: groups
     });
 
@@ -535,6 +533,41 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
         }
     }, []);
 
+    // Handler: Reassign snapshot to a different version
+    const handleReassignVersion = useCallback(async (snapshotId: string, newVersion: number) => {
+        const currentUser = userRef.current;
+        const currentChan = currentChannelRef.current;
+        const currentVideoId = videoIdRef.current;
+        const currentTrafficState = trafficStateRef.current;
+        if (!currentUser?.uid || !currentChan?.id || !currentVideoId) return;
+
+        // Optimistic local update — instant UI feedback
+        if (currentTrafficState.trafficData) {
+            const updatedSnapshots = currentTrafficState.trafficData.snapshots.map(s =>
+                s.id === snapshotId ? { ...s, version: newVersion } : s
+            );
+            currentTrafficState.updateLocalData({
+                ...currentTrafficState.trafficData,
+                snapshots: updatedSnapshots
+            });
+        }
+
+        // Persist to Firestore
+        try {
+            await TrafficSnapshotService.updateMetadata(
+                currentUser.uid,
+                currentChan.id,
+                currentVideoId,
+                snapshotId,
+                { version: newVersion }
+            );
+        } catch (error) {
+            console.error('Failed to reassign snapshot version:', error);
+            // Rollback on error
+            currentTrafficState.refetch();
+        }
+    }, []);
+
 
     // State to track the "previous" niche filter for restoration on "Back" navigation
     const previousNicheFilterRef = React.useRef<import('../../core/types/traffic').TrafficFilter | null>(null);
@@ -661,7 +694,6 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
                     versions={versions.navSortedVersions}
                     viewingVersion={versions.viewingVersion}
                     activeVersion={versions.activeVersion}
-                    viewingPeriodIndex={versions.viewingPeriodIndex}
                     hasDraft={versions.hasDraft}
                     onVersionClick={versionMgmt.handleVersionClick}
                     onDeleteVersion={versionMgmt.handleDeleteVersion}
@@ -671,6 +703,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
                     onSnapshotClick={handleSnapshotClickWrapped}
                     onDeleteSnapshot={snapshotMgmt.handleDeleteSnapshot}
                     onUpdateSnapshotMetadata={handleUpdateSnapshotMetadata}
+                    onReassignVersion={handleReassignVersion}
                     activeTab={activeTab}
                     onTabChange={handleTabChange}
                     // NEW: Pass live calculated groups (niches)
@@ -715,6 +748,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
                             isSaving={trafficState.isSaving}
                             handleCsvUpload={trafficState.handleCsvUpload}
                             onSnapshotClick={snapshotMgmt.handleSnapshotClick}
+                            onSwitchToVersion={versions.switchToVersion}
                             packagingHistory={memoizedPackagingHistory}
                             // Lifted props
                             displayedSources={trafficLoader.displayedSources}

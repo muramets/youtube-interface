@@ -22,7 +22,8 @@ export const TrafficSnapshotService = {
         version: number,
         sources: TrafficSource[],
         totalRow?: TrafficSource,
-        csvFile?: File
+        csvFile?: File,
+        publishDate?: number
     ): Promise<string> {
         const currentData = await TrafficDataService.fetch(userId, channelId, videoId);
         const timestamp = Date.now();
@@ -82,8 +83,12 @@ export const TrafficSnapshotService = {
                 // Cache totalRow metrics for delta calculations
                 totalImpressions: totalRow?.impressions,
                 totalCtr: totalRow?.ctr
-            }
-            // LEGACY REMOVED: No longer saving sources/totalRow to Firestore
+            },
+
+            // Auto-calculate active period:
+            // start = previous snapshot's timestamp (any version) OR publishDate OR this timestamp
+            // end = this snapshot's timestamp
+            activeDate: this.calculateActiveDate(timestamp, currentData?.snapshots || [], publishDate),
         };
 
         const updated: TrafficData = {
@@ -362,7 +367,7 @@ export const TrafficSnapshotService = {
         channelId: string,
         videoId: string,
         snapshotId: string,
-        metadata: { label?: string; activeDate?: { start: number; end: number } | null }
+        metadata: { label?: string; activeDate?: { start: number; end: number } | null; version?: number }
     ): Promise<void> {
         const currentData = await TrafficDataService.fetch(userId, channelId, videoId);
         if (!currentData) throw new Error('DATA_NOT_FOUND');
@@ -388,6 +393,9 @@ export const TrafficSnapshotService = {
                 delete updatedSnapshot.activeDate;
             }
         }
+        if (metadata.version !== undefined) {
+            updatedSnapshot.version = metadata.version;
+        }
 
         const newSnapshots = [...currentData.snapshots];
         newSnapshots[snapshotIndex] = updatedSnapshot;
@@ -402,6 +410,49 @@ export const TrafficSnapshotService = {
             snapshotId,
             hasLabel: !!updatedSnapshot.label,
             hasActiveDate: !!updatedSnapshot.activeDate
+        });
+    },
+
+    /**
+     * Auto-calculate activeDate for a new snapshot.
+     * start = previous snapshot's timestamp OR publishDate OR this snapshot's timestamp
+     * end = this snapshot's timestamp
+     */
+    calculateActiveDate(
+        timestamp: number,
+        existingSnapshots: TrafficSnapshot[],
+        publishDate?: number
+    ): { start: number; end: number } {
+        // Find the most recent snapshot before this one (any version)
+        const prevSnapshot = existingSnapshots
+            .filter(s => s.timestamp < timestamp)
+            .sort((a, b) => b.timestamp - a.timestamp)[0];
+
+        const start = prevSnapshot?.timestamp ?? publishDate ?? timestamp;
+        return { start, end: timestamp };
+    },
+
+    /**
+     * Backfill activeDate for existing snapshots that don't have it.
+     * Called lazily on first render. Calculates within each version group.
+     */
+    backfillActiveDates(
+        snapshots: TrafficSnapshot[],
+        publishDate?: number
+    ): TrafficSnapshot[] {
+        if (snapshots.every(s => s.activeDate)) return snapshots; // All filled
+
+        const sorted = [...snapshots].sort((a, b) => a.timestamp - b.timestamp);
+        return sorted.map((snap, idx) => {
+            if (snap.activeDate) return snap;
+
+            const prevSnapshot = sorted
+                .slice(0, idx)
+                .filter(s => s.timestamp < snap.timestamp)
+                .pop();
+
+            const start = prevSnapshot?.timestamp ?? publishDate ?? snap.timestamp;
+            return { ...snap, activeDate: { start, end: snap.timestamp } };
         });
     }
 };

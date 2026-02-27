@@ -108,6 +108,7 @@
    --button-secondary-bg: #F2F2F2;
    --button-secondary-hover: #E5E5E5;
    --button-secondary-text: #030303;
+   --split-button-divider: #d4d4d4;
    --tag-bg: #e5e5e5;
    --tag-hover: #d4d4d4;
 
@@ -221,6 +222,7 @@
    --button-secondary-bg: #3E3E3E;
    --button-secondary-hover: #535353;
    --button-secondary-text: #FFFFFF;
+   --split-button-divider: #555555;
    --tag-bg: #3E3E3E;
    --tag-hover: #0D0D0D;
 

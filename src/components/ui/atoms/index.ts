@@ -12,6 +12,9 @@
 export { Button } from './Button/Button';
 export type { ButtonProps, ButtonVariant, ButtonSize } from './Button/Button';
 
+export { SplitButton } from './SplitButton/SplitButton';
+export type { SplitButtonProps, SplitButtonVariant, SplitButtonSize } from './SplitButton/SplitButton';
+
 export { Badge } from './Badge/Badge';
 export type { BadgeProps, BadgeVariant } from './Badge/Badge';
 

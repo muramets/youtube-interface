@@ -53,8 +53,9 @@ interface TrafficTabProps {
     trafficData: import('../../../../core/types/traffic').TrafficData | null;
     isLoadingData: boolean;
     isSaving: boolean;
-    handleCsvUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File) => Promise<string | null>;
+    handleCsvUpload: (sources: TrafficSource[], totalRow?: TrafficSource, file?: File, targetVersion?: number) => Promise<string | null>;
     onSnapshotClick?: (id: string) => void;
+    onSwitchToVersion?: (version: number) => void;
     packagingHistory?: import('../../../../core/types/versioning').PackagingVersion[]; // Passed to resolve version aliases
     // Lifted Props
     displayedSources: TrafficSource[];
@@ -89,6 +90,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     isLoadingData: isLoading,
     handleCsvUpload,
     onSnapshotClick,
+    onSwitchToVersion,
     packagingHistory = [],
     // Lifted props
     displayedSources,
@@ -126,6 +128,23 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
         totalRow?: TrafficSource,
         file?: File
     } | null>(null);
+
+    // Version-targeted upload state — default to active version (shown in sidebar)
+    const [uploadTargetVersion, setUploadTargetVersion] = useState<number>(activeVersion);
+
+    // Compute available versions for SplitButton dropdown
+    const availableVersions = React.useMemo(() => {
+        if (packagingHistory.length === 0) return [];
+        return [...packagingHistory]
+            .sort((a, b) => b.versionNumber - a.versionNumber)
+            .map(v => ({
+                versionNumber: v.versionNumber,
+                label: `v.${v.versionNumber}`,
+                isActive: v.versionNumber === activeVersion,
+                periodStart: v.startDate,
+                periodEnd: v.endDate
+            }));
+    }, [packagingHistory, activeVersion]);
 
     // Initial Auth & API Key
     const { user } = useAuth();
@@ -845,14 +864,18 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             }
 
             // Upload the patched sources and potentially regenerated file
-            const newSnapshotId = await handleCsvUpload(patchedSources, totalRow, finalFile);
+            const newSnapshotId = await handleCsvUpload(patchedSources, totalRow, finalFile, uploadTargetVersion);
             if (newSnapshotId && onSnapshotClick) {
                 onSnapshotClick(newSnapshotId);
+            }
+            // Auto-switch to uploaded version if different from current view
+            if (typeof viewingVersion === 'number' && uploadTargetVersion !== viewingVersion && onSwitchToVersion) {
+                onSwitchToVersion(uploadTargetVersion);
             }
         } catch (error) {
             console.error('Upload failed:', error);
         }
-    }, [handleCsvUpload, onSnapshotClick, allVideos]);
+    }, [handleCsvUpload, onSnapshotClick, allVideos, uploadTargetVersion, viewingVersion, onSwitchToVersion]);
 
     // Handler for Syncing Pending Upload
     const handleConfirmPendingSync = async () => {
@@ -925,7 +948,6 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     // Derived UI State
     const isViewingOldVersion = viewingVersion && viewingVersion !== activeVersion;
     const headerTitle = 'Suggested Traffic';
-    const isEmpty = displayedSources.length === 0;
 
     // OPTIMIZATION: Memoize FloatingBar props to prevent re-renders from affecting TrafficTable.
     // These are stable references that only change when selection or data actually changes.
@@ -1117,7 +1139,8 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
 
     // Show actions if: data exists OR (empty but has snapshots - could be delta mode)
-    const shouldShowActions = !isEmpty || hasExistingSnapshot;
+    const isEmpty = displayedSources.length === 0;
+    const shouldShowActions = !isEmpty || hasExistingSnapshot; // Table controls only when data exists
 
     return (
         <div className="flex-1 flex flex-col min-h-0">
@@ -1135,6 +1158,9 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 isLoading={isLoading}
                 hasExistingSnapshot={hasExistingSnapshot}
                 onUpload={handleUploadWithErrorTracking}
+                availableVersions={availableVersions}
+                targetVersion={uploadTargetVersion}
+                onTargetVersionChange={setUploadTargetVersion}
                 isScrolled={isScrolled}
                 filters={filters}
                 onAddFilter={addFilter}
