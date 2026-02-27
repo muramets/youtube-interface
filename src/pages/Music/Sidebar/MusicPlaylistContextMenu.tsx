@@ -53,6 +53,7 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
     const [showNewGroupInput, setShowNewGroupInput] = useState(false);
     const newGroupInputRef = useRef<HTMLInputElement>(null);
     const submenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const moveToGroupRef = useRef<HTMLDivElement>(null);
 
     const clearSubmenuTimer = useCallback(() => {
         if (submenuTimerRef.current) {
@@ -145,6 +146,7 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
                 {canEdit && (
                     <div
                         className="relative"
+                        ref={moveToGroupRef}
                         onMouseEnter={() => { clearSubmenuTimer(); setShowGroupSubmenu(true); }}
                         onMouseLeave={startSubmenuCloseTimer}
                     >
@@ -156,10 +158,14 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
                             <span className="text-text-tertiary">›</span>
                         </button>
 
-                        {/* Submenu */}
-                        {showGroupSubmenu && (
+                        {/* Submenu — portal to escape parent stacking context for backdrop-blur */}
+                        {showGroupSubmenu && moveToGroupRef.current && createPortal(
                             <div
-                                className="absolute left-full top-0 bg-bg-secondary/95 backdrop-blur-md border border-black/10 dark:border-white/10 rounded-lg py-1 shadow-xl min-w-[140px] animate-fade-in"
+                                className="fixed z-popover bg-bg-secondary/95 backdrop-blur-md border border-black/10 dark:border-white/10 rounded-lg py-1 shadow-xl min-w-[140px] animate-fade-in"
+                                style={{
+                                    left: moveToGroupRef.current.getBoundingClientRect().right + 4,
+                                    top: moveToGroupRef.current.getBoundingClientRect().top,
+                                }}
                                 onMouseEnter={clearSubmenuTimer}
                                 onMouseLeave={startSubmenuCloseTimer}
                             >
@@ -213,7 +219,8 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
                                         <FolderPlus size={10} /> New group
                                     </button>
                                 )}
-                            </div>
+                            </div>,
+                            document.body
                         )}
                     </div>
                 )}

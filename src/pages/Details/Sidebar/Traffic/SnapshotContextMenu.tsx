@@ -43,6 +43,7 @@ export const SnapshotContextMenu: React.FC<SnapshotContextMenuProps> = ({
 }) => {
     const [showVersionSubmenu, setShowVersionSubmenu] = useState(false);
     const submenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const moveToVersionRef = useRef<HTMLDivElement>(null);
 
     const clearSubmenuTimer = useCallback(() => {
         if (submenuTimerRef.current) {
@@ -119,6 +120,7 @@ export const SnapshotContextMenu: React.FC<SnapshotContextMenuProps> = ({
                 {onMoveToVersion && sortedVersions.length > 1 && (
                     <div
                         className="relative"
+                        ref={moveToVersionRef}
                         onMouseEnter={() => { clearSubmenuTimer(); setShowVersionSubmenu(true); }}
                         onMouseLeave={startSubmenuCloseTimer}
                     >
@@ -130,10 +132,14 @@ export const SnapshotContextMenu: React.FC<SnapshotContextMenuProps> = ({
                             <span className="text-text-tertiary">›</span>
                         </button>
 
-                        {/* Submenu */}
-                        {showVersionSubmenu && (
+                        {/* Submenu — portal to escape parent stacking context for backdrop-blur */}
+                        {showVersionSubmenu && moveToVersionRef.current && createPortal(
                             <div
-                                className="absolute left-full top-0 bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl min-w-[100px] animate-fade-in"
+                                className="fixed z-popover bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl min-w-[100px] animate-fade-in"
+                                style={{
+                                    left: moveToVersionRef.current.getBoundingClientRect().right + 4,
+                                    top: moveToVersionRef.current.getBoundingClientRect().top,
+                                }}
                                 onMouseEnter={clearSubmenuTimer}
                                 onMouseLeave={startSubmenuCloseTimer}
                             >
@@ -149,8 +155,8 @@ export const SnapshotContextMenu: React.FC<SnapshotContextMenuProps> = ({
                                         }}
                                         disabled={v === currentVersion}
                                         className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center gap-2 ${v === currentVersion
-                                                ? 'text-indigo-400 cursor-default'
-                                                : 'text-text-secondary hover:text-white hover:bg-white/5 cursor-pointer'
+                                            ? 'text-indigo-400 cursor-default'
+                                            : 'text-text-secondary hover:text-white hover:bg-white/5 cursor-pointer'
                                             }`}
                                     >
                                         v.{v}
@@ -159,7 +165,8 @@ export const SnapshotContextMenu: React.FC<SnapshotContextMenuProps> = ({
                                         )}
                                     </button>
                                 ))}
-                            </div>
+                            </div>,
+                            document.body
                         )}
                     </div>
                 )}
