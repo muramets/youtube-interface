@@ -30,10 +30,13 @@ interface AppContextState {
     /** Per-source context slots. Each bridge writes to its own slot only. */
     slots: Record<ContextSource, AppContextItem[]>;
 
+    /** When true, all context bridges skip updates (global pause). */
+    isBridgePaused: boolean;
+
     /** Replace all items in a single slot (used when selection changes). */
     setSlot: (source: ContextSource, items: AppContextItem[]) => void;
 
-    /** Clear a single slot (used on page unmount / selection clear). */
+    /** Clear a single slot (explicit removal from chat input ✕ button). */
     clearSlot: (source: ContextSource) => void;
 
     /** Clear all slots (used when chat input clears all context). */
@@ -44,6 +47,9 @@ interface AppContextState {
 
     /** Remove a specific item from whatever slot it belongs to. */
     removeItem: (predicate: (item: AppContextItem) => boolean) => void;
+
+    /** Toggle global bridge pause (link/unlink selection from chat). */
+    toggleBridgePause: () => void;
 }
 
 /**
@@ -64,7 +70,7 @@ export const selectAllItems = (s: AppContextState): AppContextItem[] => [
 
 export const useAppContextStore = create<AppContextState>((set) => ({
     slots: { ...EMPTY_SLOTS },
-
+    isBridgePaused: false,
 
     setSlot: (source, items) => set((s) => {
         debug.context(`📥 setSlot('${source}')`, items.length, 'items', items.map(i => i.type));
@@ -100,5 +106,11 @@ export const useAppContextStore = create<AppContextState>((set) => ({
             }
         }
         return changed ? { slots: newSlots } : s;
+    }),
+
+    toggleBridgePause: () => set((s) => {
+        const next = !s.isBridgePaused;
+        debug.context(`${next ? '⏸️' : '▶️'} Bridge ${next ? 'paused' : 'resumed'}`);
+        return { isBridgePaused: next };
     }),
 }));

@@ -548,16 +548,16 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
     // -------------------------------------------------------------------------
     // BRIDGE: Sync selected traffic videos → appContextStore for AI chat
-    // Same pattern as PlaylistDetailPage — reactive useEffect
+    // Sticky: deselect = no-op. Only explicit ✕ clears. Respects isBridgePaused.
     // -------------------------------------------------------------------------
     const setSlot = useAppContextStore(s => s.setSlot);
-    const clearSlot = useAppContextStore(s => s.clearSlot);
+    const isBridgePaused = useAppContextStore(s => s.isBridgePaused);
 
     useEffect(() => {
-        if (selectedIds.size === 0) {
-            clearSlot('traffic');
-            return;
-        }
+        if (isBridgePaused) return;
+
+        // Sticky: deselect = no-op, context stays
+        if (selectedIds.size === 0) return;
 
         // Build enriched suggested video items from selected rows
         const selectedSources = filteredSources.filter(s => s.videoId && selectedIds.has(s.videoId));
@@ -596,6 +596,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
         const context: SuggestedTrafficContext = {
             type: 'suggested-traffic',
+            snapshotId: effectiveSnapshotId ?? undefined,
             // Snapshot metadata for AI context
             snapshotDate: (() => {
                 const snap = trafficData?.snapshots?.find(s => s.id === effectiveSnapshotId);
@@ -616,17 +617,17 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             suggestedVideos,
         };
 
-        debug.context(`🚏 TrafficBridge: ${selectedIds.size} selected, ${suggestedVideos.length} enriched`);
-        setSlot('traffic', [context]);
-    }, [selectedIds, filteredSources, allVideos, allAssignments, allNiches, trafficEdges, viewerEdges, _video, setSlot, clearSlot, trafficData?.snapshots, effectiveSnapshotId]);
+        // Accumulative: replace same source+snapshot combo, keep others
+        const existing = useAppContextStore.getState().slots.traffic;
+        const filtered = existing.filter(item =>
+            item.type !== 'suggested-traffic' ||
+            item.sourceVideo.videoId !== _video.id ||
+            item.snapshotId !== (effectiveSnapshotId ?? undefined)
+        );
 
-    // Cleanup on unmount — clear context when leaving the Traffic tab
-    useEffect(() => {
-        return () => {
-            debug.context('🚏 TrafficBridge: unmount → clearSlot(traffic)');
-            clearSlot('traffic');
-        };
-    }, [clearSlot]);
+        debug.context(`🚏 TrafficBridge: ${selectedIds.size} selected, ${suggestedVideos.length} enriched (${filtered.length} existing kept)`);
+        setSlot('traffic', [...filtered, context]);
+    }, [selectedIds, filteredSources, allVideos, allAssignments, allNiches, trafficEdges, viewerEdges, _video, setSlot, isBridgePaused, trafficData?.snapshots, effectiveSnapshotId]);
 
     // OPTIMIZATION: Memoize array props to prevent TrafficTable re-renders.
     // Without memoization, `|| []` creates a new array reference each render.

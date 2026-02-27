@@ -12,7 +12,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useAppContextStore, selectAllItems } from '../../core/stores/appContextStore';
 import { ContextAccordion } from './components/ContextAccordion';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
-import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
+
 
 interface ChatInputProps {
     onSend: (text: string, attachments?: ReadyAttachment[]) => void;
@@ -35,13 +35,13 @@ interface ChatInputProps {
 
 
 
-/** Small toggle button for pausing/resuming canvas context collection */
-const CanvasContextToggle: React.FC = () => {
-    const paused = useCanvasStore((s) => s.contextBridgePaused);
-    const toggle = useCanvasStore((s) => s.toggleContextBridge);
+/** Small toggle button for pausing/resuming context collection (global) */
+const ContextBridgeToggle: React.FC = () => {
+    const paused = useAppContextStore((s) => s.isBridgePaused);
+    const toggle = useAppContextStore((s) => s.toggleBridgePause);
 
     return (
-        <PortalTooltip content={paused ? 'Canvas context paused' : 'Canvas context active'}>
+        <PortalTooltip content={paused ? 'Context link paused' : 'Context link active'}>
             <button
                 className={`shrink-0 w-7 h-7 rounded-md flex items-center justify-center cursor-pointer transition-colors duration-100 bg-transparent border-none ${paused
                     ? 'text-amber-400/70 hover:text-amber-300 hover:bg-amber-500/10'
@@ -66,7 +66,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const contextItems = useAppContextStore(useShallow(selectAllItems));
     const removeContextItem = useAppContextStore(s => s.removeItem);
     const clearAllContext = useAppContextStore(s => s.clearAll);
-    const isCanvasOpen = useCanvasStore((s) => s.isOpen);
+
     const [text, setText] = useState('');
     const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -339,10 +339,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     {/* Spacer */}
                     <div className="flex-1" />
 
-                    {/* Canvas context bridge toggle — only when canvas is open */}
-                    {isCanvasOpen && (
-                        <CanvasContextToggle />
-                    )}
+                    {/* Global context bridge toggle — pause/resume all bridges */}
+                    <ContextBridgeToggle />
 
                     {/* Memorize toggle */}
                     {!editingMessage && activeConversationId && messages.length > 0 && (

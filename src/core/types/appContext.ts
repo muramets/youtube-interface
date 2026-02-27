@@ -36,6 +36,8 @@ export interface VideoCardContext {
  */
 export interface SuggestedTrafficContext {
     type: 'suggested-traffic';
+    /** Snapshot ID for dedup — same source video + different snapshots are kept separately */
+    snapshotId?: string;
     /** When this CSV snapshot was uploaded (formatted date string) */
     snapshotDate?: string;
     /** User-defined label for this snapshot, e.g. "Before title change" */

@@ -140,7 +140,8 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
                         </>
                     ) : (
                         <>
-                            <div className="prose prose-sm prose-invert max-w-none text-text-secondary
+                            <div
+                                className="prose prose-sm prose-invert max-w-none text-text-secondary cursor-pointer
                                 [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-text-primary [&_h1]:mt-0 [&_h1]:mb-2
                                 [&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:text-text-primary [&_h2]:mt-3 [&_h2]:mb-1.5
                                 [&_h3]:text-xs [&_h3]:font-semibold [&_h3]:text-text-primary [&_h3]:mt-2 [&_h3]:mb-1
@@ -150,7 +151,16 @@ export const MemoryCheckpoint: React.FC<MemoryCheckpointProps> = ({ memory, onUp
                                 [&_li]:my-0.5
                                 [&_strong]:text-text-primary [&_strong]:font-semibold
                                 [&_a]:underline
-                            ">
+                            "
+                                onDoubleClick={() => {
+                                    setIsEditing(true);
+                                    requestAnimationFrame(() => {
+                                        requestAnimationFrame(() => {
+                                            rootRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' });
+                                        });
+                                    });
+                                }}
+                            >
                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                     {memory.content}
                                 </ReactMarkdown>

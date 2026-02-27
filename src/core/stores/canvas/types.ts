@@ -79,8 +79,6 @@ export interface CanvasState {
     highlightedEdgeId: string | null;
     /** Node ID currently in text-editing mode — wrapper expands height to fit content */
     editingNodeId: string | null;
-    /** When true, canvas selections are NOT pushed to chat context */
-    contextBridgePaused: boolean;
 
     // Selection
     selectedNodeIds: Set<string>;
@@ -90,7 +88,6 @@ export interface CanvasState {
 
     // Actions: UI
     toggleOpen: () => void;
-    toggleContextBridge: () => void;
     setOpen: (open: boolean) => void;
     setLastCanvasWorldPos: (pos: { x: number; y: number }) => void;
     setLastHoveredNodeId: (id: string | null) => void;

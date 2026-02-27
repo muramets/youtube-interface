@@ -230,8 +230,8 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                 </div>
 
                 {memories.length === 0 ? (
-                    <p className={`text-sm ${theme.textSecondary} italic`}>
-                        No memories yet. Use the 🧠 button in chat to memorize conversations.
+                    <p className={`text-sm ${theme.textSecondary} italic inline-flex items-center gap-1`}>
+                        No memories yet. Use the <Brain size={14} className="inline" /> button in chat to memorize conversations.
                     </p>
                 ) : (
                     <div className="space-y-2">

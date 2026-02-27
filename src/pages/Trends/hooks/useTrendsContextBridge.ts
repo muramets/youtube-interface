@@ -3,8 +3,10 @@
 // =============================================================================
 //
 // Maps selected TrendVideo competitor videos to VideoCardContext items
-// and pushes them to the 'trends' slot. Each bridge writes to its own slot —
-// no priority coordination needed.
+// and pushes them to the 'trends' slot.
+//
+// Sticky behavior: deselecting does NOT remove context. Only explicit removal
+// via the ✕ button in chat input clears items. Respects global `isBridgePaused`.
 // =============================================================================
 
 import { useEffect } from 'react';
@@ -41,23 +43,26 @@ export function useTrendsContextBridge(
     videos: TrendVideo[],
 ): void {
     const setSlot = useAppContextStore(s => s.setSlot);
-    const clearSlot = useAppContextStore(s => s.clearSlot);
+    const isBridgePaused = useAppContextStore(s => s.isBridgePaused);
 
     useEffect(() => {
-        if (selectedIds.size === 0) {
-            clearSlot('trends');
-            return;
-        }
+        if (isBridgePaused) return;
 
-        const items = videos
+        // Sticky: deselect = no-op, context stays
+        if (selectedIds.size === 0) return;
+
+        const newItems = videos
             .filter(v => selectedIds.has(v.id))
             .map(trendVideoToCardContext);
-        debug.context(`📊 TrendsBridge: ${selectedIds.size} selected, ${items.length} mapped`);
-        setSlot('trends', items);
-    }, [selectedIds, videos, setSlot, clearSlot]);
 
-    // Cleanup on unmount — clear context when leaving Trends page
-    useEffect(() => {
-        return () => clearSlot('trends');
-    }, [clearSlot]);
+        // Dedup: merge with existing slot items by videoId
+        const existing = useAppContextStore.getState().slots.trends;
+        const existingIds = new Set(existing.map(i => i.type === 'video-card' ? i.videoId : ''));
+        const toAdd = newItems.filter(i => !existingIds.has(i.videoId));
+
+        if (toAdd.length > 0) {
+            debug.context(`📊 TrendsBridge: adding ${toAdd.length} new items (${existing.length} existing)`);
+            setSlot('trends', [...existing, ...toAdd]);
+        }
+    }, [selectedIds, videos, setSlot, isBridgePaused]);
 }

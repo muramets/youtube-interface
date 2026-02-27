@@ -4,9 +4,9 @@
 //
 // When canvas is open and nodes are selected, this bridge maps selected nodes
 // into a grouped CanvasSelectionContext and pushes it to the 'canvas' slot.
-// The chat assistant reads this to enrich its prompts.
 //
-// Each bridge writes to its own slot — no priority coordination needed.
+// Sticky behavior: deselecting does NOT remove context. Only explicit removal
+// via the ✕ button in chat input clears items. Respects global `isBridgePaused`.
 // =============================================================================
 
 import { useEffect, useRef } from 'react';
@@ -106,7 +106,7 @@ export function useCanvasContextBridge(isOpen: boolean): void {
     const nodes = useCanvasStore((s) => s.nodes);
     const setSlot = useAppContextStore((s) => s.setSlot);
     const chatIsOpen = useChatStore((s) => s.isOpen);
-    const contextBridgePaused = useCanvasStore((s) => s.contextBridgePaused);
+    const isBridgePaused = useAppContextStore((s) => s.isBridgePaused);
 
     // Track the previous selection to detect meaningful changes (new non-empty selection)
     const prevSelectionRef = useRef<Set<string>>(new Set());
@@ -119,8 +119,8 @@ export function useCanvasContextBridge(isOpen: boolean): void {
         }
         prevChatOpenRef.current = chatIsOpen;
 
-        if (!isOpen || !chatIsOpen || contextBridgePaused) {
-            debug.context(`🎨 CanvasBridge: skipped (isOpen=${isOpen}, chatIsOpen=${chatIsOpen}, paused=${contextBridgePaused})`);
+        if (!isOpen || !chatIsOpen || isBridgePaused) {
+            debug.context(`🎨 CanvasBridge: skipped (isOpen=${isOpen}, chatIsOpen=${chatIsOpen}, paused=${isBridgePaused})`);
             return;
         }
 
@@ -149,5 +149,5 @@ export function useCanvasContextBridge(isOpen: boolean): void {
         const currentCanvasItems = useAppContextStore.getState().slots.canvas;
         debug.context(`🎨 CanvasBridge: appending ${contextNodes.length} nodes (${contextNodes.map(n => n.nodeType).join(', ')}), ${currentCanvasItems.length} existing groups`);
         setSlot('canvas', [...currentCanvasItems, { type: 'canvas-selection', nodes: contextNodes }]);
-    }, [isOpen, chatIsOpen, contextBridgePaused, selectedNodeIds, nodes, setSlot]);
+    }, [isOpen, chatIsOpen, isBridgePaused, selectedNodeIds, nodes, setSlot]);
 }

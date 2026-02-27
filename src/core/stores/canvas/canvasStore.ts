@@ -277,13 +277,11 @@ export const useCanvasStore = create<CanvasState>((...a) => {
         clearPendingInsightReveal: () => set({ pendingInsightReveal: null }),
         highlightedEdgeId: null,
         editingNodeId: null,
-        contextBridgePaused: false,
         highlightEdge: (edgeId) => set((s) => ({
             highlightedEdgeId: s.highlightedEdgeId === edgeId ? null : edgeId,
         })),
         clearHighlightedEdge: () => set({ highlightedEdgeId: null }),
         setEditingNodeId: (id) => set({ editingNodeId: id }),
-        toggleContextBridge: () => set((s) => ({ contextBridgePaused: !s.contextBridgePaused })),
 
         // --- Cross-page insert ---
         addNodeToPage: async (dataArr, pageId) => {
