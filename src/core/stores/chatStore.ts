@@ -739,7 +739,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     await ChatService.addMessage(userId, channelId, convId!, {
                         role: 'model',
                         text: partial + '\n\n*(generation stopped)*',
-                        model,
+                        model: resolveModel(aiSettings, projects, activeProjectId, undefined, undefined),
                     });
                 }
             } else {
