@@ -313,17 +313,39 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
                     }
 
                     // Calculate Left position and Horizontal Transform
+                    // Use actual rendered width when available (re-calc after mount),
+                    // fall back to maxWidth estimate on first render.
+                    const tooltipW = tooltipRef.current?.offsetWidth || (maxWidth ?? AUTO_MAX_WIDTH);
 
                     if (effectiveAlign === 'left') {
                         left = anchorLeft;
                         finalTransformX = '0';
+                        // Clamp: tooltip expands rightward from `left`
+                        if (left + tooltipW > viewportWidth - VIEWPORT_EDGE_PADDING) {
+                            left = Math.max(VIEWPORT_EDGE_PADDING, viewportWidth - tooltipW - VIEWPORT_EDGE_PADDING);
+                        }
                     } else if (effectiveAlign === 'right') {
                         left = anchorRight;
                         finalTransformX = '-100%';
+                        // Clamp: tooltip expands leftward from `left` (via -100% transform)
+                        if (left - tooltipW < VIEWPORT_EDGE_PADDING) {
+                            left = Math.min(viewportWidth - VIEWPORT_EDGE_PADDING, tooltipW + VIEWPORT_EDGE_PADDING);
+                        }
                     } else {
-                        // Center
+                        // Center: try to center, but clamp to viewport
+                        const halfW = tooltipW / 2;
                         left = anchorCenter;
-                        finalTransformX = '-50%';
+                        if (left - halfW < VIEWPORT_EDGE_PADDING) {
+                            // Would overflow left — pin to left edge
+                            left = VIEWPORT_EDGE_PADDING;
+                            finalTransformX = '0';
+                        } else if (left + halfW > viewportWidth - VIEWPORT_EDGE_PADDING) {
+                            // Would overflow right — pin to right edge
+                            left = viewportWidth - VIEWPORT_EDGE_PADDING;
+                            finalTransformX = '-100%';
+                        } else {
+                            finalTransformX = '-50%';
+                        }
                     }
 
                     // Vertical positioning
@@ -391,6 +413,9 @@ export const PortalTooltip: React.FC<PortalTooltipProps> = ({
         // Double RAF ensures DOM is ready before triggering animation
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
+                // Re-calc position now that tooltipRef is mounted (real width available)
+                positionRafRef.current = null; // allow re-entry
+                updatePosition();
                 setIsVisible(true);
                 onOpenChange?.(true);
             });

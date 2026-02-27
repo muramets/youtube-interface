@@ -23,12 +23,12 @@ function trendVideoToCardContext(video: TrendVideo): VideoCardContext {
         title: video.title,
         thumbnailUrl: video.thumbnail,
         viewCount: String(video.viewCount),
-        publishedAt: video.publishedAt,
-        duration: video.duration,
-        tags: video.tags,
-        description: video.description,
-        channelTitle: video.channelTitle,
         ownership: 'competitor',
+        ...(video.publishedAt ? { publishedAt: video.publishedAt } : {}),
+        ...(video.duration ? { duration: video.duration } : {}),
+        ...(video.tags ? { tags: video.tags } : {}),
+        ...(video.description ? { description: video.description } : {}),
+        ...(video.channelTitle ? { channelTitle: video.channelTitle } : {}),
     };
 }
 

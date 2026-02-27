@@ -2,16 +2,17 @@
 // buildReferenceMap — Single source of truth for video-to-reference-key mapping.
 //
 // Used by:
-//   - chatStore.ts (system prompt) — to number videos for Gemini
-//   - ChatMessageList.tsx (UI) — to resolve "Video #N" tooltips
+//   - persistentContextLayer.ts (system prompt) — to number videos for Gemini
+//   - ChatMessageList.tsx (UI) — to resolve "Video #N" / "SV N" tooltips
 //
 // Both sides MUST use the same iteration order:
-//   1. Canvas video nodes (sequential: video-1, video-2, ...)
-//   2. Standalone video-cards, grouped by ownership (draft-1, published-1, competitor-1, ...)
+//   1. Canvas video nodes → keyed by ownership (video-N, draft-N, competitor-N)
+//   2. Standalone video-cards → same ownership keys, continuing counters
+//   3. Traffic suggested videos (suggested-1, suggested-2, ...)
 // =============================================================================
 
 import type { AppContextItem, VideoCardContext } from '../types/appContext';
-import { getCanvasContexts, getVideoCards } from '../types/appContext';
+import { getCanvasContexts, getVideoCards, getTrafficContexts } from '../types/appContext';
 import { OWNERSHIP_CONFIG } from '../config/referencePatterns';
 
 export interface VideoReference {
@@ -25,19 +26,26 @@ export interface VideoReference {
  * Builds a Map<referenceKey, VideoCardContext> from context items.
  *
  * Iteration order matches the system prompt numbering exactly:
- * 1. Canvas context nodes (type: video, traffic-source) → keyed as "video-N"
- * 2. Standalone video cards → keyed per ownership group ("draft-N", "published-N", "competitor-N")
+ * 1. Canvas context nodes (type: video, traffic-source) → keyed by ownership
+ * 2. Standalone video cards → same ownership keys, continuing counters
+ * 3. Traffic suggested videos → "suggested-N"
  */
 export function buildReferenceMap(ctx: AppContextItem[]): Map<string, VideoCardContext> {
     const map = new Map<string, VideoCardContext>();
-    let canvasVideoIndex = 0;
+    // Shared counters per refType — canvas and standalone increment the same numbers
+    const counters: Record<string, number> = {};
 
-    // 1. Canvas context — sequential "video-N" keys
+    const nextKey = (ownership: string | undefined): string => {
+        const refType = OWNERSHIP_CONFIG[ownership ?? '']?.refType || 'video';
+        counters[refType] = (counters[refType] || 0) + 1;
+        return `${refType}-${counters[refType]}`;
+    };
+
+    // 1. Canvas context — ownership-based keys (processed first to preserve visual order)
     for (const cc of getCanvasContexts(ctx)) {
         for (const node of cc.nodes) {
             if (node.nodeType === 'video') {
-                canvasVideoIndex++;
-                map.set(`video-${canvasVideoIndex}`, {
+                map.set(nextKey(node.ownership), {
                     type: 'video-card',
                     videoId: node.videoId,
                     title: node.title,
@@ -51,8 +59,7 @@ export function buildReferenceMap(ctx: AppContextItem[]): Map<string, VideoCardC
                     ownership: node.ownership,
                 });
             } else if (node.nodeType === 'traffic-source' && node.title) {
-                canvasVideoIndex++;
-                map.set(`video-${canvasVideoIndex}`, {
+                map.set(nextKey('competitor'), {
                     type: 'video-card',
                     videoId: node.videoId || '',
                     title: node.title,
@@ -65,14 +72,36 @@ export function buildReferenceMap(ctx: AppContextItem[]): Map<string, VideoCardC
         }
     }
 
-    // 2. Standalone video cards — keyed per ownership group
-    const videoCards = getVideoCards(ctx);
-    const groupCounters: Record<string, number> = {};
-    for (const vc of videoCards) {
-        const refType = OWNERSHIP_CONFIG[vc.ownership ?? '']?.refType || 'video';
-        groupCounters[refType] = (groupCounters[refType] || 0) + 1;
-        map.set(`${refType}-${groupCounters[refType]}`, vc);
+    // 2. Standalone video cards — same ownership keys, continuing counters
+    for (const vc of getVideoCards(ctx)) {
+        map.set(nextKey(vc.ownership), vc);
     }
+
+    // 3. Traffic suggested videos — keyed as "suggested-N"
+    let suggestedIndex = 0;
+    for (const tc of getTrafficContexts(ctx)) {
+        for (const sv of tc.suggestedVideos) {
+            suggestedIndex++;
+            map.set(`suggested-${suggestedIndex}`, {
+                type: 'video-card',
+                videoId: sv.videoId,
+                title: sv.title,
+                thumbnailUrl: sv.thumbnailUrl ?? '',
+                channelTitle: sv.channelTitle,
+                viewCount: sv.viewCount,
+                publishedAt: sv.publishedAt,
+                duration: sv.duration,
+                description: sv.description,
+                tags: sv.tags,
+                // NOTE: ownership is 'competitor' because VideoCardContext only allows
+                // 'own-draft' | 'own-published' | 'competitor'. Suggested videos are
+                // third-party content, so 'competitor' is the closest fit. The display
+                // layer uses refType ('suggested') via REF_TYPE_LABELS for correct labels.
+                ownership: 'competitor',
+            });
+        }
+    }
+
 
     return map;
 }
@@ -80,7 +109,7 @@ export function buildReferenceMap(ctx: AppContextItem[]): Map<string, VideoCardC
 export interface VideoBadgeInfo {
     /** 1-based index within its reference group */
     index: number;
-    /** Short badge prefix from OWNERSHIP_CONFIG (e.g. "D", "P", "C") or empty for canvas */
+    /** Short badge prefix from OWNERSHIP_CONFIG (e.g. "D", "C") or empty for published */
     prefix: string;
 }
 

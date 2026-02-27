@@ -36,11 +36,11 @@ function mapNodeToContext(node: CanvasNode): CanvasContextNode | null {
                 description: v.description || '',
                 tags: v.tags || [],
                 thumbnailUrl: v.thumbnailUrl || '',
-                channelTitle: v.channelTitle,
-                viewCount: v.viewCount,
-                publishedAt: v.publishedAt,
-                duration: v.duration,
                 ownership: v.ownership,
+                ...(v.channelTitle ? { channelTitle: v.channelTitle } : {}),
+                ...(v.viewCount ? { viewCount: v.viewCount } : {}),
+                ...(v.publishedAt ? { publishedAt: v.publishedAt } : {}),
+                ...(v.duration ? { duration: v.duration } : {}),
             };
             return result;
         }
@@ -52,7 +52,6 @@ function mapNodeToContext(node: CanvasNode): CanvasContextNode | null {
                 videoId: t.videoId,
                 title: t.title,
                 thumbnailUrl: t.thumbnailUrl,
-                channelTitle: t.channelTitle,
                 impressions: t.impressions,
                 ctr: t.ctr,
                 views: t.views,
@@ -60,8 +59,12 @@ function mapNodeToContext(node: CanvasNode): CanvasContextNode | null {
                 watchTimeHours: t.watchTimeHours,
                 trafficType: t.trafficType,
                 viewerType: t.viewerType,
-                niche: t.niche,
-                sourceVideoTitle: t.sourceVideoTitle,
+                ...(t.channelTitle ? { channelTitle: t.channelTitle } : {}),
+                ...(t.niche ? { niche: t.niche } : {}),
+                ...(t.sourceVideoTitle ? { sourceVideoTitle: t.sourceVideoTitle } : {}),
+                // YouTube API enrichment (carried from canvas node data)
+                ...(t.description ? { description: t.description } : {}),
+                ...(t.tags && t.tags.length > 0 ? { tags: t.tags } : {}),
             };
             return result;
         }
@@ -82,7 +85,7 @@ function mapNodeToContext(node: CanvasNode): CanvasContextNode | null {
             const result: ImageContextNode = {
                 nodeType: 'image',
                 imageUrl: img.downloadUrl || '',
-                alt: img.alt,
+                ...(img.alt ? { alt: img.alt } : {}),
             };
             return result;
         }

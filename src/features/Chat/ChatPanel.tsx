@@ -8,7 +8,7 @@ import { ConfirmationModal } from '../../components/ui/organisms/ConfirmationMod
 import { useChatStore } from '../../core/stores/chatStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useFileAttachments } from './hooks/useFileAttachments';
-import { usePanelGeometry } from './hooks/usePanelGeometry';
+import { usePanelGeometry, TRANSITION_MS } from './hooks/usePanelGeometry';
 import { useChatDragDrop } from './hooks/useChatDragDrop';
 import { useChatDerivedState } from './hooks/useChatDerivedState';
 import { useChatNavigation } from './hooks/useChatNavigation';
@@ -86,7 +86,7 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
     // --- Custom hooks ---
     const conversationIdForUpload = activeConversationId ?? pendingConversationId ?? undefined;
     const { stagedFiles, addFiles, removeFile, clearAll, clearAndCleanup, isAnyUploading } = useFileAttachments(userId ?? undefined, channelId ?? undefined, conversationIdForUpload);
-    const { panelRect, isInteracting, dragTransform, handleDragStart, handleResizeStart } = usePanelGeometry(anchorBottomPx, anchorRightPx);
+    const { panelRect, isInteracting, isMaximized, isTransitioning, dragTransform, handleDragStart, handleResizeStart, toggleMaximize } = usePanelGeometry(anchorBottomPx, anchorRightPx);
     const { isDragOver, handleDragEnter, handleDragLeave, handleDragOver, handleDrop } = useChatDragDrop(addFiles);
 
     const {
@@ -163,8 +163,8 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
                     width: panelRect.width,
                     height: panelRect.height,
                     transform: dragTransform ? `translate(${dragTransform.x}px, ${dragTransform.y}px)` : undefined,
-                    transition: isInteracting ? 'none' : undefined,
-                    willChange: isInteracting ? 'transform' : undefined,
+                    transition: isInteracting ? 'none' : isTransitioning ? `top ${TRANSITION_MS}ms ease, left ${TRANSITION_MS}ms ease, width ${TRANSITION_MS}ms ease, height ${TRANSITION_MS}ms ease` : undefined,
+                    willChange: isInteracting || isTransitioning ? 'transform, width, height, top, left' : undefined,
                     zIndex: isCanvasOpen ? 401 : 400, // z-panel-elevated : z-panel (inline — conditional value)
                 }}
                 onDragEnter={handleDragEnter}
@@ -202,6 +202,8 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
                     }}
                     onClose={onClose ? () => { clearAndCleanup(); onClose(); } : undefined}
                     onDragStart={handleDragStart}
+                    isMaximized={isMaximized}
+                    onToggleMaximize={toggleMaximize}
                 />
 
                 <ChatContextBar

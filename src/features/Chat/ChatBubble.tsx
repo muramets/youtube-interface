@@ -42,7 +42,7 @@ export const ChatBubble: React.FC = () => {
 
             {!isOpen && (
                 <button
-                    className={`chat-bubble fixed w-12 h-12 rounded-full border border-border cursor-pointer flex items-center justify-center bg-bg-secondary/90 backdrop-blur-md shadow-lg text-text-secondary transition-[bottom,right,transform,filter,opacity] duration-300 hover:brightness-125 hover:scale-110 active:scale-95 ${isCanvasOpen ? '' : `${rightClass} ${bottomClass}`}`}
+                    className={`chat-bubble fixed w-12 h-12 rounded-full border border-border cursor-pointer flex items-center justify-center bg-bg-secondary/90 backdrop-blur-md shadow-lg text-text-secondary transition-[bottom,right,transform,filter,opacity] duration-300 hover:brightness-125 hover:scale-110 active:scale-95 ${isCanvasOpen ? '' : `z-fab ${rightClass} ${bottomClass}`}`}
                     style={{
                         opacity: ready ? 1 : 0,
                         pointerEvents: ready ? undefined : 'none',

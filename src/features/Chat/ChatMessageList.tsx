@@ -54,6 +54,7 @@ import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, Zap, Mes
 import { Timestamp } from 'firebase/firestore';
 import { useChatStore } from '../../core/stores/chatStore';
 import { injectVideoReferenceLinks, parseReferenceHref, parseReferenceText } from './utils/videoReferenceUtils';
+import { REFERENCE_PATTERNS } from '../../core/config/referencePatterns';
 import { VideoReferenceTooltip } from './components/VideoReferenceTooltip';
 import { formatRelativeTime, STATIC_AGE } from './formatRelativeTime';
 import { MessageErrorBoundary } from './components/ChatBoundaries';
@@ -63,6 +64,8 @@ import { CanvasSelectionChip } from './CanvasSelectionChip';
 import { debug } from '../../core/utils/debug';
 import { SelectionToolbar } from './components/SelectionToolbar';
 
+/** Dynamic URL scheme whitelist derived from REFERENCE_PATTERNS — stays in sync automatically. */
+const REF_URL_RE = new RegExp(`^(?:${REFERENCE_PATTERNS.map(p => p.type).join('|')})-ref://`);
 
 // --- Code Block with Copy + Language Label ---
 
@@ -123,7 +126,7 @@ const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoCard
             // Preserve custom *-ref:// URI schemes for video/image references.
             // Default sanitizer strips non-standard protocols — this whitelists ours.
             urlTransform={(url) => {
-                if (/^(?:video|draft|published|competitor|image)-ref:\/\//.test(url)) return url;
+                if (REF_URL_RE.test(url)) return url;
                 return url; // pass through all other URLs unchanged
             }}
             components={{
@@ -143,7 +146,7 @@ const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoCard
                         if (ref) {
                             const key = `${ref.type}-${ref.index}`;
                             const video = videoMap.get(key) ?? null;
-                            return <VideoReferenceTooltip label={childText} video={video} />;
+                            return <VideoReferenceTooltip label={childText} video={video} refType={ref.type} />;
                         }
                     }
                     // Defense-in-depth: Gemini may write [Video 3]() with empty href,
@@ -153,7 +156,7 @@ const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoCard
                         if (ref) {
                             const key = `${ref.type}-${ref.index}`;
                             const video = videoMap.get(key) ?? null;
-                            return <VideoReferenceTooltip label={childText} video={video} />;
+                            return <VideoReferenceTooltip label={childText} video={video} refType={ref.type} />;
                         }
                     }
                     return <a href={href} target="_blank" rel="noreferrer" {...props}>{children}</a>;

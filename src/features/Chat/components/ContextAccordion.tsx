@@ -56,10 +56,11 @@ export const ContextAccordion: React.FC<ContextAccordionProps> = ({
 
     const summary = useMemo(() => {
         const canvasNodeCount = canvasItems.reduce((sum, cc) => sum + cc.nodes.length, 0);
-        const totalItems = videoItems.length + trafficItems.length + canvasNodeCount;
+        const trafficVideoCount = trafficItems.reduce((sum, tc) => sum + tc.suggestedVideos.length, 0);
+        const totalItems = videoItems.length + trafficVideoCount + canvasNodeCount;
         const parts: string[] = [];
         if (videoItems.length > 0) parts.push(`${videoItems.length} video${videoItems.length > 1 ? 's' : ''}`);
-        if (trafficItems.length > 0) parts.push(`${trafficItems.length} traffic`);
+        if (trafficVideoCount > 0) parts.push(`${trafficVideoCount} traffic`);
         if (canvasNodeCount > 0) parts.push(`${canvasNodeCount} canvas`);
         return `${totalItems} item${totalItems > 1 ? 's' : ''} · ${parts.join(', ')}`;
     }, [videoItems, trafficItems, canvasItems]);

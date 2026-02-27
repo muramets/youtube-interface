@@ -125,6 +125,11 @@ export interface TrafficSourceCardData {
     viewMode?: 'cumulative' | 'delta';
     /** Per-node insights: packaging, visual, music analysis notes */
     insights?: Partial<Record<import('./canvas').InsightCategory, import('./canvas').NodeInsight>>;
+    // YouTube API enrichment (carried from cache at creation time — not rendered on canvas)
+    description?: string;
+    tags?: string[];
+    viewCount?: string;
+    duration?: string;
 }
 
 /**
@@ -160,6 +165,9 @@ export interface TrafficSourceContextNode {
     viewerType?: string;
     niche?: string;
     sourceVideoTitle?: string;
+    // YouTube API enrichment (resolved at canvas node creation time)
+    description?: string;
+    tags?: string[];
 }
 
 export interface StickyNoteContextNode {

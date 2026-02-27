@@ -567,52 +567,70 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
             const nicheAssignment = allAssignments.find(a => a.videoId === vid);
             const niche = nicheAssignment ? allNiches.find(n => n.id === nicheAssignment.nicheId) : undefined;
 
+            // Resolve YouTube API fields — prefer CSV data, fall back to enrichment cache
+            const thumbnailUrl = s.thumbnail || cachedVideo?.thumbnail;
+            const channelTitle = s.channelTitle || cachedVideo?.channelTitle;
+            const publishedAt = s.publishedAt || cachedVideo?.publishedAt;
+
             return {
                 videoId: vid,
                 title: s.sourceTitle,
-                // CSV metrics
+                // CSV metrics (always present — these are required fields)
                 impressions: s.impressions,
                 ctr: s.ctr,
                 views: s.views,
                 avgViewDuration: s.avgViewDuration,
                 watchTimeHours: s.watchTimeHours,
-                // YouTube API data (from cache)
-                thumbnailUrl: s.thumbnail || cachedVideo?.thumbnail,
-                channelTitle: s.channelTitle || cachedVideo?.channelTitle,
-                publishedAt: s.publishedAt || cachedVideo?.publishedAt,
-                duration: cachedVideo?.duration,
-                description: cachedVideo?.description,
-                tags: cachedVideo?.tags,
-                viewCount: cachedVideo?.viewCount,
-                likeCount: cachedVideo?.likeCount,
-                subscriberCount: cachedVideo?.subscriberCount,
-                // Smart Assistant labels
-                trafficType: trafficEdges[vid]?.type,
-                viewerType: viewerEdges[vid]?.type,
-                niche: niche?.name,
-                nicheProperty: niche?.property,
+                // YouTube API data — conditionally included (absent = not enriched yet)
+                ...(thumbnailUrl ? { thumbnailUrl } : {}),
+                ...(channelTitle ? { channelTitle } : {}),
+                ...(publishedAt ? { publishedAt } : {}),
+                ...(cachedVideo?.duration ? { duration: cachedVideo.duration } : {}),
+                ...(cachedVideo?.description ? { description: cachedVideo.description } : {}),
+                ...(cachedVideo?.tags ? { tags: cachedVideo.tags } : {}),
+                ...(cachedVideo?.viewCount ? { viewCount: cachedVideo.viewCount } : {}),
+                ...(cachedVideo?.likeCount ? { likeCount: cachedVideo.likeCount } : {}),
+                ...(cachedVideo?.subscriberCount ? { subscriberCount: cachedVideo.subscriberCount } : {}),
+                // Smart Assistant labels — conditionally included (absent = not labeled)
+                ...(trafficEdges[vid]?.type ? { trafficType: trafficEdges[vid].type } : {}),
+                ...(viewerEdges[vid]?.type ? { viewerType: viewerEdges[vid].type } : {}),
+                ...(niche?.name ? { niche: niche.name } : {}),
+                ...(niche?.property ? { nicheProperty: niche.property } : {}),
             };
         });
 
+        // Resolve source video YouTube metrics (only for published videos — drafts have no real stats)
+        const sourceViewCount = _video.publishedVideoId
+            ? (_video.mergedVideoData?.viewCount || _video.viewCount)
+            : undefined;
+        const sourcePublishedAt = _video.publishedVideoId
+            ? (_video.mergedVideoData?.publishedAt || _video.publishedAt)
+            : undefined;
+        const sourceDuration = _video.publishedVideoId
+            ? (_video.mergedVideoData?.duration || _video.duration)
+            : undefined;
+
+        // Resolve snapshot metadata
+        const snapshot = trafficData?.snapshots?.find(s => s.id === effectiveSnapshotId);
+
         const context: SuggestedTrafficContext = {
             type: 'suggested-traffic',
-            snapshotId: effectiveSnapshotId ?? undefined,
-            // Snapshot metadata for AI context
-            snapshotDate: (() => {
-                const snap = trafficData?.snapshots?.find(s => s.id === effectiveSnapshotId);
-                return snap ? new Date(snap.timestamp).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : undefined;
-            })(),
-            snapshotLabel: trafficData?.snapshots?.find(s => s.id === effectiveSnapshotId)?.label,
+            ...(effectiveSnapshotId ? { snapshotId: effectiveSnapshotId } : {}),
+            ...(snapshot ? {
+                snapshotDate: new Date(snapshot.timestamp).toLocaleDateString('en-US', {
+                    year: 'numeric', month: 'long', day: 'numeric',
+                }),
+            } : {}),
+            ...(snapshot?.label ? { snapshotLabel: snapshot.label } : {}),
             sourceVideo: {
                 videoId: _video.id,
                 title: _video.title,
                 description: _video.description || '',
                 tags: _video.tags || [],
                 thumbnailUrl: _video.customImage || _video.thumbnail,
-                // Only include YouTube metrics for published videos (drafts have placeholder values)
-                viewCount: _video.publishedVideoId ? (_video.mergedVideoData?.viewCount || _video.viewCount) : undefined,
-                publishedAt: _video.publishedVideoId ? (_video.mergedVideoData?.publishedAt || _video.publishedAt) : undefined,
-                duration: _video.publishedVideoId ? (_video.mergedVideoData?.duration || _video.duration) : undefined,
+                ...(sourceViewCount ? { viewCount: sourceViewCount } : {}),
+                ...(sourcePublishedAt ? { publishedAt: sourcePublishedAt } : {}),
+                ...(sourceDuration ? { duration: sourceDuration } : {}),
             },
             suggestedVideos,
         };
@@ -981,6 +999,11 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                         });
                     })(),
                     viewMode,
+                    // YouTube API enrichment (carried from cache — not rendered on canvas, used by chat bridge)
+                    ...(cachedVideo?.description ? { description: cachedVideo.description } : {}),
+                    ...(cachedVideo?.tags ? { tags: cachedVideo.tags } : {}),
+                    ...(cachedVideo?.viewCount ? { viewCount: cachedVideo.viewCount } : {}),
+                    ...(cachedVideo?.duration ? { duration: cachedVideo.duration } : {}),
                 };
                 return data;
             });

@@ -14,7 +14,8 @@ import React, { useState } from 'react';
 import { AlignLeft, Tag } from 'lucide-react';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import type { VideoCardContext } from '../../../core/types/appContext';
-import { OWNERSHIP_CONFIG } from '../../../core/config/referencePatterns';
+import { OWNERSHIP_CONFIG, REF_TYPE_LABELS } from '../../../core/config/referencePatterns';
+import type { ReferenceType } from '../utils/videoReferenceUtils';
 import { formatDuration, formatViewCount } from '../../../core/utils/formatUtils';
 
 // --- Constants ---
@@ -28,6 +29,8 @@ interface VideoReferenceTooltipProps {
     label: string;
     /** The resolved video data (null = reference not found) */
     video: VideoCardContext | null;
+    /** Reference type from parsed href (e.g. 'video', 'competitor', 'suggested') */
+    refType?: ReferenceType;
 }
 
 // --- Helpers ---
@@ -43,7 +46,7 @@ function formatPublishedDate(raw?: string): string | null {
 
 // --- Component ---
 
-export const VideoReferenceTooltip: React.FC<VideoReferenceTooltipProps> = React.memo(({ label, video }) => {
+export const VideoReferenceTooltip: React.FC<VideoReferenceTooltipProps> = React.memo(({ label, video, refType }) => {
     const [isDescExpanded, setIsDescExpanded] = useState(false);
     const [areTagsExpanded, setAreTagsExpanded] = useState(false);
 
@@ -52,10 +55,19 @@ export const VideoReferenceTooltip: React.FC<VideoReferenceTooltipProps> = React
         return <span>{label}</span>;
     }
 
+    // Defense layer: derive canonical label from REF_TYPE_LABELS (keyed by
+    // reference type, not ownership) so "suggested" always shows "Suggested #N"
+    // even though its ownership is 'competitor'.
+    const numMatch = label.match(/\d+/);
+    const typeLabel = refType ? REF_TYPE_LABELS[refType] : OWNERSHIP_CONFIG[video.ownership]?.label;
+    const displayLabel = numMatch
+        ? `${typeLabel || 'Video'} #${numMatch[0]}`
+        : label;
+
     const publishedDate = formatPublishedDate(video.publishedAt);
-    const ownershipLabel = video.ownership !== 'own-published'
-        ? (OWNERSHIP_CONFIG[video.ownership]?.label ?? null)
-        : null;
+    // Use refType-derived label for the "Type:" metric (not ownership, which is
+    // 'competitor' for both competitor videos AND suggested traffic videos).
+    const ownershipLabel = typeLabel && typeLabel !== 'Video' ? typeLabel : null;
     const hasMetrics = video.viewCount || video.duration || publishedDate || ownershipLabel;
     const visibleTags = areTagsExpanded
         ? (video.tags ?? [])
@@ -99,7 +111,7 @@ export const VideoReferenceTooltip: React.FC<VideoReferenceTooltipProps> = React
                         )}
                         {video.duration && (
                             <span>
-                                <span className="text-white/40">Duration: </span>
+                                <span className="text-white/40">{refType === 'suggested' ? 'Avg View Duration: ' : 'Duration: '}</span>
                                 <span className="font-mono text-white/80">{formatDuration(video.duration)}</span>
                             </span>
                         )}
@@ -194,7 +206,7 @@ export const VideoReferenceTooltip: React.FC<VideoReferenceTooltipProps> = React
             inline
         >
             <span className="video-reference-highlight">
-                @{label}
+                @{displayLabel}
             </span>
         </PortalTooltip>
     );

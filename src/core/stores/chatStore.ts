@@ -20,7 +20,7 @@ import type { AppContextItem } from '../types/appContext';
 import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../types/appContext';
 import { useAppContextStore, selectAllItems } from './appContextStore';
 import { Timestamp } from 'firebase/firestore';
-import { debug } from '../utils/debug';
+import { debug, DEBUG_ENABLED } from '../utils/debug';
 import { buildSystemPrompt } from '../ai/systemPrompt';
 
 interface ChatState {
@@ -536,7 +536,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
             const persistedContext = mergedContext.length > 0 ? mergedContext : undefined;
 
-            // Persist merged context to conversation doc (fire-and-forget, errors logged)
+            // Persist merged context to conversation doc (fire-and-forget, errors logged).
             if (persistedContext && appContext) {
                 ChatService.updateConversation(userId, channelId, convId, { persistedContext })
                     .catch(err => debug.chat('⚠️ Failed to persist context:', err));
@@ -590,116 +590,115 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const systemPrompt = buildSystemPrompt(aiSettings, projects, activeProjectId, persistedContext, memories);
 
             // Debug: log what's being sent to Gemini (layered view)
-            debug.chatGroup.start('🤖 Sending to Gemini');
-            debug.chat('Model:', model);
+            // Uses direct console.group/groupCollapsed (not through wrapper) so Chrome
+            // DevTools renders the expand-triangle correctly.
+            if (import.meta.env.DEV && DEBUG_ENABLED.chat) {
+                console.group('🤖 Sending to Gemini | Model:', model);
 
-            // Settings layer
-            debug.chatGroup.start('⚙️ Settings Layer');
-            debug.chat('Language:', aiSettings.responseLanguage || 'auto');
-            debug.chat('Style:', aiSettings.responseStyle || 'default');
-            debug.chat('Global prompt:', aiSettings.globalSystemPrompt ? `✓ (${aiSettings.globalSystemPrompt.length} chars)` : '—');
-            const activeProject = projects.find(p => p.id === activeProjectId);
-            debug.chat('Project prompt:', activeProject?.systemPrompt ? `✓ (${activeProject.systemPrompt.length} chars)` : '—');
-            debug.chat('Anti-hallucination:', '✓ (5 rules)');
-            debug.chatGroup.end();
+                // Settings layer
+                console.groupCollapsed('⚙️ Settings Layer');
+                console.log('  Language:', aiSettings.responseLanguage || 'auto', '| Style:', aiSettings.responseStyle || 'default');
+                console.log('  Global prompt:', aiSettings.globalSystemPrompt ? `✓ (${aiSettings.globalSystemPrompt.length} chars)` : '—');
+                const activeProject = projects.find(p => p.id === activeProjectId);
+                console.log('  Project prompt:', activeProject?.systemPrompt ? `✓ (${activeProject.systemPrompt.length} chars)` : '—');
+                console.groupEnd();
 
-            // Layer 1: Persistent Context
-            if (persistedContext && persistedContext.length > 0) {
-                const vcCount = getVideoCards(persistedContext).length;
-                const tcCount = getTrafficContexts(persistedContext).length;
-                const ccList = getCanvasContexts(persistedContext);
-                const nodeCount = ccList.reduce((sum, cc) => sum + cc.nodes.length, 0);
-                debug.chatGroup.start(`📎 Layer 1: Persistent Context (${vcCount} videos, ${tcCount} traffic, ${ccList.length} canvas / ${nodeCount} nodes)`);
+                // Layer 1: Persistent Context
+                if (persistedContext && persistedContext.length > 0) {
+                    const vcCount = getVideoCards(persistedContext).length;
+                    const tcCount = getTrafficContexts(persistedContext).length;
+                    const ccList = getCanvasContexts(persistedContext);
+                    const nodeCount = ccList.reduce((sum, cc) => sum + cc.nodes.length, 0);
+                    console.groupCollapsed(`📎 Layer 1: Persistent Context (${vcCount} videos, ${tcCount} traffic, ${ccList.length} canvas / ${nodeCount} nodes)`);
 
-                persistedContext.forEach(item => {
-                    if (item.type === 'video-card') {
-                        const v = item;
-                        debug.chatGroup.start(`🎬 [Video ${v.ownership ?? 'unknown'}] ${v.title}`);
-                        debug.chat(`views: ${v.viewCount ?? '—'} | duration: ${v.duration ?? '—'} | published: ${v.publishedAt ?? '—'}`);
-                        debug.chat(`channel: ${v.channelTitle ?? '—'}`);
-                        debug.chat(`description: ${v.description ? `✓ (${v.description.length} chars)` : '—'}`);
-                        debug.chat(`tags: ${v.tags && v.tags.length > 0 ? `${v.tags.length} [${v.tags.slice(0, 5).join(', ')}${v.tags.length > 5 ? '…' : ''}]` : '—'}`);
-                        debug.chatGroup.end();
+                    let videoIdx = 0;
+                    persistedContext.forEach(item => {
+                        if (item.type === 'video-card') {
+                            const v = item;
+                            videoIdx++;
+                            const ownerLabel = v.ownership === 'own-draft' ? 'Draft' : v.ownership === 'own-published' ? 'Video' : 'Competitor';
+                            console.log(`  #${videoIdx} 🎬 [${ownerLabel}] ${v.title}`);
+                            console.log(`      views: ${v.viewCount ?? '—'} | dur: ${v.duration ?? '—'} | pub: ${v.publishedAt ?? '—'} | ch: ${v.channelTitle ?? '—'}`);
+                            console.log(`      desc: ${v.description ? `✓ (${v.description.length}ch)` : '—'} | tags: ${v.tags && v.tags.length > 0 ? `${v.tags.length} [${v.tags.slice(0, 3).join(', ')}${v.tags.length > 3 ? '…' : ''}]` : '—'}`);
 
-                    } else if (item.type === 'suggested-traffic') {
-                        const sv = item.sourceVideo;
-                        debug.chatGroup.start(`📊 [Traffic] ${sv.title} → ${item.suggestedVideos.length} suggested`);
-                        debug.chat(`snapshot: ${item.snapshotDate ?? '—'} | label: ${item.snapshotLabel ?? '—'}`);
-                        debug.chatGroup.start(`Source video:`);
-                        debug.chat(`views: ${sv.viewCount ?? '—'} | duration: ${sv.duration ?? '—'} | published: ${sv.publishedAt ?? '—'}`);
-                        debug.chat(`description: ${sv.description ? `✓ (${sv.description.length} chars)` : '—'} | tags: ${sv.tags.length > 0 ? sv.tags.length : '—'}`);
-                        debug.chatGroup.end();
-                        item.suggestedVideos.forEach((sg, i) => {
-                            debug.chatGroup.start(`  Suggested ${i + 1}: ${sg.title}`);
-                            debug.chat(`impr: ${sg.impressions.toLocaleString()} | CTR: ${(sg.ctr * 100).toFixed(1)}% | views: ${sg.views.toLocaleString()}`);
-                            debug.chat(`avg duration: ${sg.avgViewDuration} | watch time: ${sg.watchTimeHours.toFixed(1)}h`);
-                            debug.chat(`channel: ${sg.channelTitle ?? '—'} | published: ${sg.publishedAt ?? '—'} | duration: ${sg.duration ?? '—'}`);
-                            debug.chat(`total views: ${sg.viewCount ?? '—'} | likes: ${sg.likeCount ?? '—'} | subs: ${sg.subscriberCount ?? '—'}`);
-                            debug.chat(`traffic: ${sg.trafficType ?? '—'} | viewer: ${sg.viewerType ?? '—'} | niche: ${sg.niche ?? '—'}`);
-                            debug.chat(`description: ${sg.description ? `✓ (${sg.description.length} chars)` : '—'} | tags: ${sg.tags && sg.tags.length > 0 ? sg.tags.length : '—'}`);
-                            debug.chatGroup.end();
-                        });
-                        debug.chatGroup.end();
+                        } else if (item.type === 'suggested-traffic') {
+                            const sv = item.sourceVideo;
+                            console.log(`  📊 [Traffic] ${sv.title} → ${item.suggestedVideos.length} suggested`);
+                            console.log(`      snapshot: ${item.snapshotDate ?? '—'} | label: ${item.snapshotLabel ?? '—'}`);
+                            console.log(`      source: views ${sv.viewCount ?? '—'} | dur: ${sv.duration ?? '—'} | pub: ${sv.publishedAt ?? '—'}`);
+                            item.suggestedVideos.forEach((sg, i) => {
+                                console.log(`      [${i + 1}] ${sg.title}`);
+                                console.log(`          impr: ${sg.impressions.toLocaleString()} | CTR: ${(sg.ctr * 100).toFixed(1)}% | views: ${sg.views.toLocaleString()} | dur: ${sg.avgViewDuration} | watch: ${sg.watchTimeHours.toFixed(1)}h`);
+                                console.log(`          ch: ${sg.channelTitle ?? '—'} | traffic: ${sg.trafficType ?? '—'} | viewer: ${sg.viewerType ?? '—'} | niche: ${sg.niche ?? '—'}`);
+                                console.log(`          desc: ${sg.description ? `✓ (${sg.description.length}ch)` : '—'} | tags: ${sg.tags && sg.tags.length > 0 ? sg.tags.length : '—'}`);
+                            });
 
-                    } else if (item.type === 'canvas-selection') {
-                        debug.chatGroup.start(`🖼️ Canvas (${item.nodes.length} nodes)`);
-                        item.nodes.forEach((node, i) => {
-                            if (node.nodeType === 'video') {
-                                debug.chatGroup.start(`  [${i + 1}] 🎬 [Video] ${node.title}`);
-                                debug.chat(`ownership: ${node.ownership} | channel: ${node.channelTitle ?? '—'}`);
-                                debug.chat(`views: ${node.viewCount ?? '—'} | duration: ${node.duration ?? '—'} | published: ${node.publishedAt ?? '—'}`);
-                                debug.chat(`description: ${node.description ? `✓ (${node.description.length} chars)` : '—'}`);
-                                debug.chat(`tags: ${node.tags && node.tags.length > 0 ? `${node.tags.length} [${node.tags.slice(0, 5).join(', ')}${node.tags.length > 5 ? '…' : ''}]` : '—'}`);
-                                debug.chatGroup.end();
-                            } else if (node.nodeType === 'traffic-source') {
-                                debug.chatGroup.start(`  [${i + 1}] 📊 [Traffic] ${node.title}`);
-                                debug.chat(`impr: ${node.impressions?.toLocaleString() ?? '—'} | CTR: ${node.ctr != null ? (node.ctr * 100).toFixed(1) + '%' : '—'} | views: ${node.views?.toLocaleString() ?? '—'}`);
-                                debug.chat(`avg duration: ${node.avgViewDuration ?? '—'} | watch time: ${node.watchTimeHours != null ? node.watchTimeHours.toFixed(1) + 'h' : '—'}`);
-                                debug.chat(`channel: ${node.channelTitle ?? '—'} | traffic: ${node.trafficType ?? '—'} | viewer: ${node.viewerType ?? '—'} | niche: ${node.niche ?? '—'}`);
-                                debug.chat(`source video: ${node.sourceVideoTitle ?? '—'}`);
-                                debug.chatGroup.end();
-                            } else if (node.nodeType === 'sticky-note') {
-                                debug.chat(`  [${i + 1}] 📝 [Note] ${(node.content || '').slice(0, 80)}${(node.content || '').length > 80 ? '…' : ''}`);
-                            } else if (node.nodeType === 'image') {
-                                debug.chat(`  [${i + 1}] 🖼 [Image] ${node.alt || '(no alt)'}`);
-                            }
-                        });
-                        debug.chatGroup.end();
-                    }
+                        } else if (item.type === 'canvas-selection') {
+                            console.log(`  🖼️ Canvas (${item.nodes.length} nodes)`);
+                            item.nodes.forEach((node, i) => {
+                                if (node.nodeType === 'video') {
+                                    videoIdx++;
+                                    const nodeLabel = node.ownership === 'own-draft' ? 'Draft' : node.ownership === 'own-published' ? 'Video' : 'Competitor';
+                                    console.log(`      [${i + 1}] 🎬 #${videoIdx} [${nodeLabel}] ${node.title}`);
+                                    console.log(`          views: ${node.viewCount ?? '—'} | dur: ${node.duration ?? '—'} | ch: ${node.channelTitle ?? '—'}`);
+                                    console.log(`          desc: ${node.description ? `✓ (${node.description.length}ch)` : '—'} | tags: ${node.tags && node.tags.length > 0 ? `${node.tags.length} [${node.tags.slice(0, 3).join(', ')}${node.tags.length > 3 ? '…' : ''}]` : '—'}`);
+                                } else if (node.nodeType === 'traffic-source') {
+                                    console.log(`      [${i + 1}] 📊 ${node.title} — impr: ${node.impressions?.toLocaleString() ?? '—'} | CTR: ${node.ctr != null ? (node.ctr * 100).toFixed(1) + '%' : '—'} | views: ${node.views?.toLocaleString() ?? '—'}`);
+                                    console.log(`          desc: ${node.description ? `✓ (${node.description.length}ch)` : '—'} | tags: ${node.tags && node.tags.length > 0 ? `${node.tags.length} [${node.tags.slice(0, 3).join(', ')}${node.tags.length > 3 ? '…' : ''}]` : '—'}`);
+                                } else if (node.nodeType === 'sticky-note') {
+                                    console.log(`      [${i + 1}] 📝 ${(node.content || '').slice(0, 80)}${(node.content || '').length > 80 ? '…' : ''}`);
+                                } else if (node.nodeType === 'image') {
+                                    console.log(`      [${i + 1}] 🖼 ${node.alt || '(no alt)'} | url: ${node.imageUrl ? '✓' : '—'}`);
+                                }
+                            });
+                        }
+                    });
+                    console.log('  Thumbnails:', thumbnailUrls.length, 'URLs');
+                    console.groupEnd(); // Layer 1
+                } else {
+                    console.log('📎 Layer 1: Persistent Context — empty');
+                }
+
+                // Layer 2: Per-message context binding
+                const countByType = (ctx: AppContextItem[]) => {
+                    const vc = ctx.filter(c => c.type === 'video-card').length;
+                    const tcItems = ctx.filter(c => c.type === 'suggested-traffic');
+                    const tcVideos = tcItems.reduce((sum, c) => sum + (c.type === 'suggested-traffic' ? c.suggestedVideos.length : 0), 0);
+                    const ccItems = ctx.filter(c => c.type === 'canvas-selection');
+                    const ccNodes = ccItems.reduce((sum, c) => sum + (c.type === 'canvas-selection' ? c.nodes.length : 0), 0);
+                    return [
+                        vc && `${vc} video`,
+                        tcItems.length && `${tcItems.length} traffic / ${tcVideos} videos`,
+                        ccItems.length && `${ccItems.length} canvas / ${ccNodes} nodes`,
+                    ].filter(Boolean).join(', ');
+                };
+                const msgsWithContext = messages.filter(m => m.appContext && m.appContext.length > 0);
+                console.groupCollapsed(`🔗 Layer 2: ${msgsWithContext.length}/${messages.length} messages have appContext`);
+                msgsWithContext.forEach(m => {
+                    const idx = messages.indexOf(m) + 1;
+                    const snippet = m.text.slice(0, 40) + (m.text.length > 40 ? '…' : '');
+                    console.log(`  msg #${idx} (${m.role}): "${snippet}" → ${m.appContext!.length} items (${countByType(m.appContext!)})`);
                 });
-                debug.chatGroup.end();
-            } else {
-                debug.chat('📎 Layer 1: Persistent Context — empty');
+                if (appContext && appContext.length > 0) {
+                    console.log(`  📤 current msg: ${appContext.length} items (${countByType(appContext)})`);
+                } else {
+                    console.log('  📤 current msg: 0 items');
+                }
+                console.groupEnd(); // Layer 2
+
+                // Layer 4: Cross-conversation memory
+                const memTokens = memories.reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0);
+                console.log(`🧠 Layer 4: ${memories.length} memories (~${memTokens} tokens)`);
+
+                // System prompt size summary
+                if (systemPrompt) {
+                    const chars = systemPrompt.length;
+                    const tokens = Math.ceil(chars / 4);
+                    console.log(`📏 System prompt: ~${chars.toLocaleString()} chars (~${tokens.toLocaleString()} tokens)`);
+                }
+
+                console.groupEnd(); // 🤖 Sending to Gemini
             }
-
-            debug.chat('Thumbnails:', thumbnailUrls.length, 'URLs');
-
-            // Layer 2: Per-message context binding (collapsible breakdown)
-            const countByType = (ctx: AppContextItem[]) => {
-                const vc = ctx.filter(c => c.type === 'video-card').length;
-                const tc = ctx.filter(c => c.type === 'suggested-traffic').length;
-                const cc = ctx.filter(c => c.type === 'canvas-selection').length;
-                return [vc && `${vc} video`, tc && `${tc} traffic`, cc && `${cc} canvas`].filter(Boolean).join(', ');
-            };
-            const msgsWithContext = messages.filter(m => m.appContext && m.appContext.length > 0);
-            debug.chatGroup.start(`🔗 Layer 2: ${msgsWithContext.length}/${messages.length} messages have appContext`);
-            msgsWithContext.forEach(m => {
-                const idx = messages.indexOf(m) + 1;
-                const snippet = m.text.slice(0, 40) + (m.text.length > 40 ? '…' : '');
-                debug.chat(`  msg #${idx} (${m.role}): "${snippet}" → ${m.appContext!.length} items (${countByType(m.appContext!)})`);
-            });
-            // Current message being sent
-            if (appContext && appContext.length > 0) {
-                debug.chat(`  📤 current msg: ${appContext.length} items (${countByType(appContext)})`);
-            } else {
-                debug.chat(`  📤 current msg: 0 items`);
-            }
-            debug.chatGroup.end();
-
-            // Layer 4: Cross-conversation memory
-            const memTokens = memories.reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0);
-            debug.chat(`🧠 Layer 4: ${memories.length} memories (~${memTokens} tokens)`);
-            debug.chatGroup.end();
 
             // Build contextMeta for production CF logging
             const contextMeta = persistedContext ? {

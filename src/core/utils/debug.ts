@@ -61,9 +61,10 @@ const createGroupLogger = (category: DebugCategory) => {
     }
 
     return {
-        start: (label: string) => {
+        start: (label: string, expanded?: boolean) => {
             if (DEBUG_ENABLED[category]) {
-                console.group(label);
+                if (expanded) console.group(label);
+                else console.groupCollapsed(label);
             }
         },
         log: (...args: unknown[]) => {

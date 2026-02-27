@@ -149,7 +149,7 @@ function formatSuggestedTrafficContext(ctx: SuggestedTrafficContext): string {
     lines.push(TRAFFIC_SUGGESTED_HEADER);
     lines.push('');
     ctx.suggestedVideos.forEach((v, i) => {
-        lines.push(`#### Suggested Video ${i + 1}: "${v.title}"`);
+        lines.push(`#### Suggested ${i + 1}: "${v.title}"`);
         // Traffic metrics (always available from CSV)
         lines.push(`- **Impressions:** ${v.impressions.toLocaleString()} | **CTR:** ${(v.ctr * 100).toFixed(1)}% | **Views:** ${v.views.toLocaleString()}`);
         lines.push(`- **Avg View Duration:** ${v.avgViewDuration} | **Watch Time:** ${v.watchTimeHours.toFixed(1)}h`);
@@ -188,21 +188,18 @@ function formatCanvasContext(ctx: CanvasSelectionContext, refMap: Map<string, Vi
     const notes = ctx.nodes.filter((n): n is StickyNoteContextNode => n.nodeType === 'sticky-note');
     const images = ctx.nodes.filter((n): n is ImageContextNode => n.nodeType === 'image');
 
-    // Videos
+    // Videos — use ownership-based labels consistent with standalone cards
     if (videos.length > 0) {
         lines.push('### Videos');
         lines.push('');
         videos.forEach(v => {
             const num = videoIndexMap.get(v.videoId) ?? 0;
+            const prefix = OWNERSHIP_CONFIG[v.ownership ?? '']?.label || 'Video';
             const header = v.channelTitle
-                ? `Video ${num} (Channel: ${v.channelTitle})`
-                : `Video ${num}`;
+                ? `${prefix} #${num} (Channel: ${v.channelTitle})`
+                : `${prefix} #${num}`;
             lines.push(`#### ${header}`);
             lines.push(`- **Title:** ${v.title || '(untitled)'}`);
-            if (v.ownership) {
-                const label = v.ownership === 'own-draft' ? 'Your draft' : v.ownership === 'own-published' ? 'Your published video' : 'Competitor / reference';
-                lines.push(`- **Type:** ${label}`);
-            }
             if (v.viewCount) lines.push(`- **Views:** ${v.viewCount}`);
             if (v.publishedAt) lines.push(`- **Published:** ${v.publishedAt}`);
             if (v.duration) lines.push(`- **Duration:** ${v.duration}`);
@@ -228,6 +225,8 @@ function formatCanvasContext(ctx: CanvasSelectionContext, refMap: Map<string, Vi
             if (t.viewerType) lines.push(`- **Viewer Type:** ${t.viewerType}`);
             if (t.niche) lines.push(`- **Niche:** ${t.niche}`);
             if (t.sourceVideoTitle) lines.push(`- **Source Video:** ${t.sourceVideoTitle}`);
+            if (t.description) lines.push(`- **Description:** ${t.description}`);
+            if (t.tags && t.tags.length > 0) lines.push(`- **Tags:** ${t.tags.join(', ')}`);
             lines.push('');
         });
     }

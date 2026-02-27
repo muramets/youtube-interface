@@ -32,7 +32,7 @@ export const ANTI_HALLUCINATION_RULES = [
     '2. **Never fabricate statistics.** If the user asks about metrics not present in the attached context, say so explicitly rather than guessing.',
     '3. **Distinguish between facts and opinions.** When providing analysis based on the attached data, state it as fact. When giving general advice not tied to specific data, explicitly mark it: *"[General insight, not based on your data]"*.',
     '4. **When data is missing**, respond with: "This information is not in the attached context. Please attach the relevant data so I can help."',
-    '5. **Cross-reference by context labels.** Each video has ownership labels (your draft, your published, competitor). Use these to correctly identify whose content is being discussed.',
+    '5. **Cross-reference by context labels.** Each video has ownership labels (your video, your draft, competitor). Use these to correctly identify whose content is being discussed.',
 ].join('\n');
 
 
@@ -49,6 +49,8 @@ export const VIDEO_CONTEXT_PREAMBLE = [
     '- Description: the video\'s YouTube description (may contain hashtags and links).',
     '- Tags: hidden YouTube SEO keywords, set by the creator. NOT the same as #hashtags in the description — separate metadata for search optimization, invisible to viewers.',
     'Only reference this data when relevant to the user\'s question.',
+    '',
+    'When referencing videos, use their exact label: **Video #1**, **Draft #1**, **Competitor Video #1**. Do NOT mix up these labels — each group has its own numbering.',
 ].join('\n');
 
 /** Section header for user's draft videos (custom, not yet published). */
@@ -59,7 +61,7 @@ export const VIDEO_SECTION_DRAFT = [
 
 /** Section header for user's published videos (live on YouTube). */
 export const VIDEO_SECTION_PUBLISHED = [
-    '### Your Published Videos (live on YouTube)',
+    '### Your Videos (live on YouTube)',
     'These are live on YouTube. The user can still update title, description, and tags for optimization.',
 ].join('\n');
 
@@ -81,7 +83,11 @@ export const TRAFFIC_CONTEXT_HEADER = '## Suggested Traffic Analysis Context';
 export const TRAFFIC_SOURCE_HEADER = '### Your Video (Source)';
 
 /** Section header for suggested videos that YouTube shows alongside the user's video. */
-export const TRAFFIC_SUGGESTED_HEADER = '### Selected Suggested Videos (YouTube shows your video alongside these)';
+export const TRAFFIC_SUGGESTED_HEADER = [
+    '### Selected Suggested Videos (YouTube shows your video alongside these)',
+    '',
+    'When referencing these videos in your response, use the format **Suggested 1**, **Suggested 2**, etc. (e.g. "Suggested 7 has high CTR"). Do NOT use "Video N", "Draft N", or "Competitor N" for these — those formats refer to other attached context.',
+].join('\n');
 
 /** Explanation of what the snapshot data represents — gives Gemini domain awareness. */
 export const TRAFFIC_SNAPSHOT_CONTEXT = 'This data is from a CSV export of "Suggested Traffic" from YouTube Studio — it shows which other videos YouTube recommends your video alongside.';

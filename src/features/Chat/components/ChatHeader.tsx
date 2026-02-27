@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { ArrowLeft, Plus, FolderOpen, X, Zap } from 'lucide-react';
+import { ArrowLeft, Plus, FolderOpen, X, Zap, Maximize2, Minimize2 } from 'lucide-react';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 
 interface ChatHeaderProps {
@@ -16,6 +16,8 @@ interface ChatHeaderProps {
     onCreateNew: () => void;
     onClose?: () => void;
     onDragStart?: (e: React.MouseEvent) => void;
+    isMaximized?: boolean;
+    onToggleMaximize?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -32,6 +34,8 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
     onCreateNew,
     onClose,
     onDragStart,
+    isMaximized,
+    onToggleMaximize,
 }) => {
     const showBack = view === 'chat' || (view === 'conversations' && activeProjectId) || editingProjectId;
     const showProjectsBtn = view === 'conversations';
@@ -83,6 +87,12 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                     title={view === 'projects' ? 'New project' : 'New chat'}
                 >
                     <Plus size={18} />
+                </button>
+            )}
+
+            {onToggleMaximize && (
+                <button className={btnClass} onClick={onToggleMaximize} title={isMaximized ? 'Restore' : 'Maximize'}>
+                    {isMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
                 </button>
             )}
 
