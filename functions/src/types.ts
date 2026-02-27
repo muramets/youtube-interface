@@ -132,5 +132,5 @@ export interface AiUsageLog {
     completionTokens: number;
     totalTokens: number;
     timestamp: FirebaseFirestore.FieldValue;
-    type: "chat" | "title";
+    type: "chat" | "title" | "memorize";
 }

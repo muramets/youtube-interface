@@ -63,6 +63,7 @@ export type AiSendResult = {
         totalTokens: number;
     };
     summary?: string;
+    usedSummary?: boolean;
 };
 
 // --- Service (delegates to Cloud Functions) ---

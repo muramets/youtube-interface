@@ -12,7 +12,7 @@ type Part = import("@google/genai").Part;
 let cachedClient: GoogleGenAI | null = null;
 let cachedKey = "";
 
-async function getClient(apiKey: string): Promise<GoogleGenAI> {
+export async function getClient(apiKey: string): Promise<GoogleGenAI> {
     if (cachedClient && cachedKey === apiKey) return cachedClient;
     const { GoogleGenAI } = await import("@google/genai");
     cachedClient = new GoogleGenAI({ apiKey });
@@ -36,6 +36,14 @@ export interface HistoryMessage {
     role: "user" | "model";
     text: string;
     attachments?: ChatAttachment[];
+    /**
+     * Per-message context items attached by the user (Layer 2).
+     * Each item has `type` ('video-card' | 'suggested-traffic' | 'canvas-selection')
+     * plus type-specific fields (title, ownership, nodes, sourceVideo, etc.).
+     * Untyped on server because CF cannot import client-side AppContextItem types.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    appContext?: any[];
 }
 
 export interface StreamChatOpts {
@@ -124,6 +132,8 @@ export async function uploadFromStoragePath(
 
 // --- Build Gemini history ---
 
+import { formatContextLabel } from "./memory.js";
+
 async function buildHistory(
     messages: HistoryMessage[],
     apiKey: string,
@@ -157,7 +167,14 @@ async function buildHistory(
                 }
             }
 
-            parts.push({ text: msg.text });
+            // Layer 2: Prepend context label for user messages with appContext
+            let text = msg.text;
+            if (msg.role === 'user' && msg.appContext && msg.appContext.length > 0) {
+                const label = formatContextLabel(msg.appContext);
+                text = `${label}\n\n${msg.text}`;
+            }
+
+            parts.push({ text });
             return { role: msg.role, parts };
         })
     );
@@ -467,181 +484,8 @@ export async function generateTitle(
     }
 }
 
-// --- Token estimation ---
-
-import { MODEL_CONTEXT_LIMITS } from "../config/models.js";
-
-/** Rough per-token char count: ~4 chars per token for mixed content. */
-const CHARS_PER_TOKEN = 4;
-
-/** Tokens allocated to each file/image attachment in the estimate. */
-const ATTACHMENT_TOKEN_ESTIMATE = 1500;
-
-/** History gets at most 60% of model context; rest is reserved for response + system prompt. */
-const HISTORY_BUDGET_RATIO = 0.6;
-
-/** Minimum # of recent messages to always keep verbatim in the sliding window. */
-const MIN_RECENT_MESSAGES = 10;
-
-function estimateTokens(messages: HistoryMessage[]): number {
-    let total = 0;
-    for (const msg of messages) {
-        total += Math.ceil(msg.text.length / CHARS_PER_TOKEN);
-        if (msg.attachments) {
-            total += msg.attachments.length * ATTACHMENT_TOKEN_ESTIMATE;
-        }
-    }
-    return total;
-}
-
-// --- Summary generation ---
-
-const SUMMARY_SYSTEM_PROMPT = `You are a conversation memory system. Your task is to create a comprehensive, 
-structured summary that will REPLACE the original messages in future AI context.
-
-CRITICAL: Any detail you omit will be permanently lost — the AI will have "amnesia" about it.
-
-You MUST preserve:
-1. ALL specific decisions, choices, and conclusions (with reasoning)
-2. ALL technical details: names, numbers, configurations, code snippets, file paths
-3. Context and motivations behind each decision
-4. Unresolved questions, pending tasks, or open threads
-5. User preferences, communication style, and recurring themes
-6. Chronological flow of how the conversation evolved
-
-Format: Use structured markdown with clear sections and bullet points.
-Length: Be thorough. A longer, complete summary is better than a short one with gaps.`;
-
-export async function generateSummary(
-    apiKey: string,
-    messages: HistoryMessage[],
-    existingSummary: string | undefined,
-    model: string
-): Promise<string> {
-    const ai = await getClient(apiKey);
-
-    let userPrompt: string;
-    if (existingSummary) {
-        // Incremental update — extend existing summary
-        const newMessagesText = messages
-            .map(m => `[${m.role}]: ${m.text}`)
-            .join("\n\n");
-        userPrompt = `Here is the existing conversation summary:\n\n${existingSummary}\n\n---\n\nHere are NEW messages that happened AFTER the summary above:\n\n${newMessagesText}\n\n---\n\nProduce an UPDATED comprehensive summary that integrates both the existing summary and the new messages. Keep all important details from the existing summary and add the new information.`;
-    } else {
-        // First summary — summarize from scratch
-        const conversationText = messages
-            .map(m => `[${m.role}]: ${m.text}`)
-            .join("\n\n");
-        userPrompt = `Summarize the following conversation:\n\n${conversationText}`;
-    }
-
-    const response = await ai.models.generateContent({
-        model,
-        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-        config: {
-            systemInstruction: SUMMARY_SYSTEM_PROMPT,
-        },
-    });
-
-    return response.text?.trim() || existingSummary || "";
-}
-
-// --- Build memory (decides full history vs summary + recent) ---
-
-export interface MemoryResult {
-    /** Messages to pass to Gemini as history. */
-    history: HistoryMessage[];
-    /** If a new summary was generated, return it for caching. */
-    newSummary?: string;
-    /** ID of the last message included in the summary. */
-    summarizedUpTo?: string;
-    /** Whether summary was used (for logging). */
-    usedSummary: boolean;
-}
-
-export async function buildMemory(opts: {
-    apiKey: string;
-    model: string;
-    allMessages: HistoryMessage[];
-    existingSummary?: string;
-    existingSummarizedUpTo?: string;
-}): Promise<MemoryResult> {
-    const { apiKey, model, allMessages, existingSummary, existingSummarizedUpTo } = opts;
-
-    const totalTokens = estimateTokens(allMessages);
-    const budget = (MODEL_CONTEXT_LIMITS[model] || 1_000_000) * HISTORY_BUDGET_RATIO;
-
-    // If everything fits — use full history, no summarization needed
-    if (totalTokens <= budget) {
-        return { history: allMessages, usedSummary: false };
-    }
-
-    // Need truncation: summary + sliding window of recent messages
-    // Figure out which messages are already summarized vs new
-    let summarizedIdx = -1;
-    if (existingSummarizedUpTo) {
-        summarizedIdx = allMessages.findIndex(m => m.id === existingSummarizedUpTo);
-    }
-
-    // Determine sliding window size — keep as many recent messages as budget allows
-    // Reserve ~20% of budget for summary text
-    const recentBudget = budget * 0.8;
-
-    // Walk backwards from end to fill recent window
-    let recentTokens = 0;
-    let windowStart = allMessages.length;
-    for (let i = allMessages.length - 1; i >= 0; i--) {
-        const msgTokens =
-            Math.ceil(allMessages[i].text.length / CHARS_PER_TOKEN) +
-            (allMessages[i].attachments?.length || 0) * ATTACHMENT_TOKEN_ESTIMATE;
-        if (recentTokens + msgTokens > recentBudget && windowStart < allMessages.length - MIN_RECENT_MESSAGES + 1) {
-            break;
-        }
-        recentTokens += msgTokens;
-        windowStart = i;
-    }
-    windowStart = Math.min(windowStart, Math.max(0, allMessages.length - MIN_RECENT_MESSAGES));
-
-    const recentMessages = allMessages.slice(windowStart);
-
-    // Determine messages that need to be summarized (those before the window)
-    const messagesToSummarize = allMessages.slice(0, windowStart);
-
-    // Check if we need a new summary
-    let summary = existingSummary || "";
-    let newSummary: string | undefined;
-    let newSummarizedUpTo: string | undefined;
-
-    if (messagesToSummarize.length > 0) {
-        const lastSummarizedMsg = messagesToSummarize[messagesToSummarize.length - 1];
-
-        // Only regenerate if there are unsummarized messages before the window
-        if (lastSummarizedMsg.id !== existingSummarizedUpTo) {
-            // Find messages that are new since last summary
-            const newMessages = summarizedIdx >= 0
-                ? messagesToSummarize.slice(summarizedIdx + 1)
-                : messagesToSummarize;
-
-            if (newMessages.length > 0) {
-                summary = await generateSummary(apiKey, newMessages, existingSummary, model);
-                newSummary = summary;
-                newSummarizedUpTo = lastSummarizedMsg.id;
-            }
-        }
-    }
-
-    // Inject summary as a synthetic "model" message at the start
-    const summaryMessage: HistoryMessage = {
-        id: "__summary__",
-        role: "model",
-        text: `[Conversation Summary — Earlier Messages]\n\n${summary}`,
-    };
-
-    return {
-        history: [summaryMessage, ...recentMessages],
-        newSummary,
-        summarizedUpTo: newSummarizedUpTo,
-        usedSummary: true,
-    };
-}
+// --- Re-export memory module for backward compatibility ---
+// aiChat.ts dynamically imports { buildMemory, streamChat } from this file
+export { buildMemory } from "./memory.js";
+export type { MemoryResult } from "./memory.js";
 

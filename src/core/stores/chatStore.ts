@@ -9,32 +9,19 @@ import type {
     ChatMessage,
     AiAssistantSettings,
     ChatView,
+    ConversationMemory,
 } from '../types/chat';
 import { DEFAULT_AI_SETTINGS } from '../types/chat';
 import { ChatService, MESSAGE_PAGE_SIZE, CONVERSATION_PAGE_SIZE } from '../services/chatService';
 import { AiService } from '../services/aiService';
+import * as AiProxy from '../services/aiProxyService';
 import type { ReadyAttachment } from '../types/chatAttachment';
-import type { AppContextItem, VideoCardContext, SuggestedTrafficContext, CanvasSelectionContext, VideoContextNode, TrafficSourceContextNode, StickyNoteContextNode, ImageContextNode } from '../types/appContext';
+import type { AppContextItem } from '../types/appContext';
 import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../types/appContext';
-import { OWNERSHIP_CONFIG } from '../../features/Chat/utils/referencePatterns';
 import { useAppContextStore, selectAllItems } from './appContextStore';
-import { buildReferenceMap } from '../utils/buildReferenceMap';
 import { Timestamp } from 'firebase/firestore';
 import { debug } from '../utils/debug';
-import {
-    STYLE_CONCISE,
-    STYLE_DETAILED,
-    VIDEO_CONTEXT_PREAMBLE,
-    VIDEO_SECTION_DRAFT,
-    VIDEO_SECTION_PUBLISHED,
-    VIDEO_SECTION_COMPETITOR,
-    TRAFFIC_CONTEXT_HEADER,
-    TRAFFIC_SOURCE_HEADER,
-    TRAFFIC_SUGGESTED_HEADER,
-    TRAFFIC_SNAPSHOT_CONTEXT,
-    CANVAS_CONTEXT_HEADER,
-    CANVAS_CONTEXT_PREAMBLE,
-} from '../config/prompts';
+import { buildSystemPrompt } from '../ai/systemPrompt';
 
 interface ChatState {
     // Context (set once via setContext)
@@ -46,6 +33,7 @@ interface ChatState {
     conversations: ChatConversation[];
     messages: ChatMessage[];
     aiSettings: AiAssistantSettings;
+    memories: ConversationMemory[];
 
     // UI state
     isOpen: boolean;
@@ -79,6 +67,7 @@ interface ChatState {
     subscribeToConversations: () => () => void;
     subscribeToMessages: (conversationId: string) => () => void;
     subscribeToAiSettings: () => () => void;
+    subscribeToMemories: () => () => void;
     loadOlderMessages: () => Promise<void>;
     loadOlderConversations: () => Promise<void>;
 
@@ -101,6 +90,9 @@ interface ChatState {
     retryLastMessage: () => Promise<void>;
     stopGeneration: () => void;
     saveAiSettings: (settings: Partial<AiAssistantSettings>) => Promise<void>;
+    memorizeConversation: (guidance?: string) => Promise<{ memoryId: string; content: string }>;
+    updateMemory: (memoryId: string, content: string) => Promise<void>;
+    deleteMemory: (memoryId: string) => Promise<void>;
 
     // Actions — Edit
     setEditingMessage: (msg: ChatMessage | null) => void;
@@ -123,13 +115,8 @@ function requireContext(get: () => ChatState): { userId: string; channelId: stri
 }
 
 // =============================================================================
-// Composable message-send steps (pure helpers, individually testable)
+// Pure helpers (individually testable)
 // =============================================================================
-
-const LANGUAGE_NAMES: Record<string, string> = {
-    en: 'English', ru: 'Russian', uk: 'Ukrainian',
-    es: 'Spanish', de: 'German', fr: 'French',
-};
 
 /** Resolve model from pendingModel → conversation → project → global → fallback. */
 function resolveModel(
@@ -143,254 +130,6 @@ function resolveModel(
     if (conversationModel) return conversationModel;
     const project = projects.find(p => p.id === activeProjectId);
     return project?.model || aiSettings.defaultModel;
-}
-
-/** Format video card context items as Markdown for the system prompt, grouped by ownership. */
-function formatVideoContext(items: VideoCardContext[], refMap: Map<string, VideoCardContext>): string {
-    const lines: string[] = [];
-
-    // Build reverse lookup: videoId → reference index
-    const videoIndexMap = new Map<string, number>();
-    for (const [key, video] of refMap) {
-        const match = key.match(/-(\d+)$/);
-        if (match) videoIndexMap.set(video.videoId, parseInt(match[1]));
-    }
-
-    // Preamble — explain field semantics
-    lines.push(VIDEO_CONTEXT_PREAMBLE);
-    lines.push('');
-
-    // Group by ownership
-    const drafts = items.filter(v => v.ownership === 'own-draft');
-    const published = items.filter(v => v.ownership === 'own-published');
-    const competitors = items.filter(v => v.ownership === 'competitor');
-
-    if (drafts.length > 0) {
-        lines.push(VIDEO_SECTION_DRAFT);
-        lines.push('');
-        drafts.forEach(v => formatSingleVideo(lines, v, videoIndexMap.get(v.videoId) ?? 0));
-    }
-
-    if (published.length > 0) {
-        lines.push(VIDEO_SECTION_PUBLISHED);
-        lines.push('');
-        published.forEach(v => formatSingleVideo(lines, v, videoIndexMap.get(v.videoId) ?? 0));
-    }
-
-    if (competitors.length > 0) {
-        lines.push(VIDEO_SECTION_COMPETITOR);
-        lines.push('');
-        competitors.forEach(v => formatSingleVideo(lines, v, videoIndexMap.get(v.videoId) ?? 0));
-    }
-
-    return lines.join('\n');
-}
-
-/** Format a single video's metadata into prompt lines. */
-function formatSingleVideo(lines: string[], v: VideoCardContext, index: number): void {
-    const prefix = OWNERSHIP_CONFIG[v.ownership ?? '']?.label || 'Video';
-    const header = v.channelTitle
-        ? `${prefix} #${index} (Channel: ${v.channelTitle})`
-        : `${prefix} #${index}`;
-    lines.push(`#### ${header}`);
-    lines.push(`- **Title:** ${v.title}`);
-    if (v.viewCount) lines.push(`- **Views:** ${v.viewCount}`);
-    if (v.publishedAt) lines.push(`- **Published:** ${v.publishedAt}`);
-    if (v.duration) lines.push(`- **Duration:** ${v.duration}`);
-    lines.push(`- **Description:** ${v.description || '(no description)'}`);
-    lines.push(`- **Tags:** ${v.tags && v.tags.length > 0 ? v.tags.join(', ') : '(no tags)'}`);
-    lines.push('');
-}
-
-/** Format suggested traffic context — source video + selected suggested videos. */
-function formatSuggestedTrafficContext(ctx: SuggestedTrafficContext): string {
-    const lines = [TRAFFIC_CONTEXT_HEADER, ''];
-
-    // Snapshot context — explain what this data is
-    lines.push(TRAFFIC_SNAPSHOT_CONTEXT);
-    if (ctx.snapshotDate) {
-        lines.push(`**Data exported:** ${ctx.snapshotDate}`);
-    }
-    if (ctx.snapshotLabel) {
-        lines.push(`**User's label for this export:** "${ctx.snapshotLabel}" (subjective name given by the user to this CSV export)`);
-    }
-    lines.push('');
-
-    // Source video (user's video)
-    const sv = ctx.sourceVideo;
-    lines.push(TRAFFIC_SOURCE_HEADER);
-    lines.push(`- **Title:** ${sv.title}`);
-    if (sv.viewCount) lines.push(`- **Views:** ${sv.viewCount}`);
-    if (sv.publishedAt) lines.push(`- **Published:** ${sv.publishedAt}`);
-    if (sv.duration) lines.push(`- **Duration:** ${sv.duration}`);
-    lines.push(`- **Description:** ${sv.description || '(no description)'}`);
-    lines.push(`- **Tags:** ${sv.tags.length > 0 ? sv.tags.join(', ') : '(no tags)'}`);
-
-    lines.push('');
-
-    // Selected suggested videos
-    lines.push(TRAFFIC_SUGGESTED_HEADER);
-    lines.push('');
-    ctx.suggestedVideos.forEach((v, i) => {
-        lines.push(`#### Suggested Video ${i + 1}: "${v.title}"`);
-        // Traffic metrics (always available from CSV)
-        lines.push(`- **Impressions:** ${v.impressions.toLocaleString()} | **CTR:** ${(v.ctr * 100).toFixed(1)}% | **Views:** ${v.views.toLocaleString()}`);
-        lines.push(`- **Avg View Duration:** ${v.avgViewDuration} | **Watch Time:** ${v.watchTimeHours.toFixed(1)}h`);
-        // Enriched metadata (may be unavailable)
-        if (v.channelTitle) lines.push(`- **Channel:** ${v.channelTitle}`);
-        if (v.publishedAt) lines.push(`- **Published:** ${v.publishedAt}`);
-        if (v.duration) lines.push(`- **Duration:** ${v.duration}`);
-        if (v.viewCount) lines.push(`- **Total Views:** ${v.viewCount}`);
-        if (v.likeCount) lines.push(`- **Likes:** ${v.likeCount}`);
-        if (v.subscriberCount) lines.push(`- **Channel Subscribers:** ${v.subscriberCount}`);
-        if (v.trafficType) lines.push(`- **Traffic Type:** ${v.trafficType}`);
-        if (v.viewerType) lines.push(`- **Viewer Type:** ${v.viewerType}`);
-        if (v.niche) lines.push(`- **Niche:** ${v.niche}${v.nicheProperty ? ` (${v.nicheProperty})` : ''}`);
-        lines.push(`- **Description:** ${v.description || '(not enriched)'}`);
-        lines.push(`- **Tags:** ${v.tags && v.tags.length > 0 ? v.tags.join(', ') : '(not enriched)'}`);
-
-        lines.push('');
-    });
-
-    return lines.join('\n');
-}
-
-/** Format canvas selection context — grouped nodes from the visual canvas board. */
-function formatCanvasContext(ctx: CanvasSelectionContext, refMap: Map<string, VideoCardContext>): string {
-    const lines = [CANVAS_CONTEXT_HEADER, '', CANVAS_CONTEXT_PREAMBLE, ''];
-
-    // Build reverse lookup: videoId → reference index
-    const videoIndexMap = new Map<string, number>();
-    for (const [key, video] of refMap) {
-        const match = key.match(/-(\d+)$/);
-        if (match) videoIndexMap.set(video.videoId, parseInt(match[1]));
-    }
-
-    const videos = ctx.nodes.filter((n): n is VideoContextNode => n.nodeType === 'video');
-    const trafficSources = ctx.nodes.filter((n): n is TrafficSourceContextNode => n.nodeType === 'traffic-source');
-    const notes = ctx.nodes.filter((n): n is StickyNoteContextNode => n.nodeType === 'sticky-note');
-    const images = ctx.nodes.filter((n): n is ImageContextNode => n.nodeType === 'image');
-
-    // Videos
-    if (videos.length > 0) {
-        lines.push('### Videos');
-        lines.push('');
-        videos.forEach(v => {
-            const num = videoIndexMap.get(v.videoId) ?? 0;
-            const header = v.channelTitle
-                ? `Video ${num} (Channel: ${v.channelTitle})`
-                : `Video ${num}`;
-            lines.push(`#### ${header}`);
-            lines.push(`- **Title:** ${v.title || '(untitled)'}`);
-            if (v.ownership) {
-                const label = v.ownership === 'own-draft' ? 'Your draft' : v.ownership === 'own-published' ? 'Your published video' : 'Competitor / reference';
-                lines.push(`- **Type:** ${label}`);
-            }
-            if (v.viewCount) lines.push(`- **Views:** ${v.viewCount}`);
-            if (v.publishedAt) lines.push(`- **Published:** ${v.publishedAt}`);
-            if (v.duration) lines.push(`- **Duration:** ${v.duration}`);
-            lines.push(`- **Description:** ${v.description || '(no description)'}`);
-            lines.push(`- **Tags:** ${v.tags && v.tags.length > 0 ? v.tags.join(', ') : '(no tags)'}`);
-            lines.push('');
-        });
-    }
-
-    // Traffic sources
-    if (trafficSources.length > 0) {
-        lines.push('### Traffic Source Cards');
-        lines.push('');
-        trafficSources.forEach((t, i) => {
-            lines.push(`#### Traffic Source ${i + 1}: "${t.title || '(untitled)'}"`);
-            if (t.impressions != null) lines.push(`- **Impressions:** ${t.impressions.toLocaleString()}`);
-            if (t.ctr != null) lines.push(`- **CTR:** ${(t.ctr * 100).toFixed(1)}%`);
-            if (t.views != null) lines.push(`- **Views:** ${t.views.toLocaleString()}`);
-            if (t.avgViewDuration) lines.push(`- **Avg View Duration:** ${t.avgViewDuration}`);
-            if (t.watchTimeHours != null) lines.push(`- **Watch Time:** ${t.watchTimeHours.toFixed(1)}h`);
-            if (t.channelTitle) lines.push(`- **Channel:** ${t.channelTitle}`);
-            if (t.trafficType) lines.push(`- **Traffic Type:** ${t.trafficType}`);
-            if (t.viewerType) lines.push(`- **Viewer Type:** ${t.viewerType}`);
-            if (t.niche) lines.push(`- **Niche:** ${t.niche}`);
-            if (t.sourceVideoTitle) lines.push(`- **Source Video:** ${t.sourceVideoTitle}`);
-            lines.push('');
-        });
-    }
-
-    // Sticky notes
-    if (notes.length > 0) {
-        lines.push("### User's Notes");
-        lines.push('');
-        notes.forEach((n, i) => {
-            lines.push(`#### Note ${i + 1}`);
-            lines.push(n.content || '');
-            lines.push('');
-        });
-    }
-
-    // Images (just mention they're attached visually — actual images go via thumbnailUrls)
-    if (images.length > 0) {
-        lines.push('### Attached Images');
-        lines.push('');
-        images.forEach((img, i) => {
-            lines.push(`- Image ${i + 1}${img.alt ? `: ${img.alt}` : ''} (attached as visual input)`);
-        });
-        lines.push('');
-    }
-
-    return lines.join('\n');
-}
-
-/** Build system prompt: language + style + global + project-level + app context. */
-function buildSystemPrompt(
-    aiSettings: AiAssistantSettings,
-    projects: ChatProject[],
-    activeProjectId: string | null,
-    appContext?: AppContextItem[],
-): string | undefined {
-    const prompts: string[] = [];
-
-    // Current date/time context (LLMs have no built-in clock)
-    prompts.push(`Current date and time: ${new Date().toLocaleString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })}.`);
-
-    // Language instruction
-    if (aiSettings.responseLanguage && aiSettings.responseLanguage !== 'auto') {
-        const name = LANGUAGE_NAMES[aiSettings.responseLanguage] || aiSettings.responseLanguage;
-        prompts.push(`Always respond in ${name}.`);
-    }
-
-    // Style instruction
-    if (aiSettings.responseStyle === 'concise') {
-        prompts.push(STYLE_CONCISE);
-    } else if (aiSettings.responseStyle === 'detailed') {
-        prompts.push(STYLE_DETAILED);
-    }
-
-    // Global + project prompts
-    if (aiSettings.globalSystemPrompt) prompts.push(aiSettings.globalSystemPrompt);
-    const project = projects.find(p => p.id === activeProjectId);
-    if (project?.systemPrompt) prompts.push(project.systemPrompt);
-
-    // App context (video cards, etc.)
-    if (appContext && appContext.length > 0) {
-        // Build reference map once — single source of truth for numbering
-        const refMap = buildReferenceMap(appContext);
-
-        const videoCards = getVideoCards(appContext);
-        if (videoCards.length > 0) {
-            prompts.push(formatVideoContext(videoCards, refMap));
-        }
-        const trafficContexts = getTrafficContexts(appContext);
-        if (trafficContexts.length > 0) {
-            trafficContexts.forEach(tc => prompts.push(formatSuggestedTrafficContext(tc)));
-        }
-        const canvasContexts = getCanvasContexts(appContext);
-        if (canvasContexts.length > 0) {
-            canvasContexts.forEach(cc => {
-                prompts.push(formatCanvasContext(cc, refMap));
-            });
-        }
-    }
-
-    return prompts.length > 0 ? prompts.join('\n\n') : undefined;
 }
 
 /** Optimistic UI + Firestore persist for user message. */
@@ -422,7 +161,7 @@ async function streamAiResponse(
     contextMeta: { videoCards?: number; trafficSources?: number; canvasNodes?: number; totalItems?: number } | undefined,
     set: (partial: Partial<ChatState>) => void,
     signal?: AbortSignal,
-): Promise<{ text: string; tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
+): Promise<{ text: string; tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number }; usedSummary?: boolean }> {
     return AiService.sendMessage({
         channelId,
         conversationId: convId,
@@ -440,9 +179,9 @@ async function streamAiResponse(
 /** Persist model response to Firestore. */
 async function persistAiResponse(
     userId: string, channelId: string, convId: string,
-    responseText: string, tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number },
+    responseText: string, model: string, tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number },
 ): Promise<void> {
-    await ChatService.addMessage(userId, channelId, convId, { role: 'model', text: responseText, tokenUsage });
+    await ChatService.addMessage(userId, channelId, convId, { role: 'model', text: responseText, model, tokenUsage });
 }
 
 /** Auto-generate title for the first exchange (fire-and-forget). */
@@ -465,6 +204,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     conversations: [],
     messages: [],
     aiSettings: DEFAULT_AI_SETTINGS,
+    memories: [],
 
     isOpen: false,
     view: 'conversations',
@@ -577,6 +317,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const { userId, channelId } = requireContext(get);
         return ChatService.subscribeToAiSettings(userId, channelId, (aiSettings) => {
             set({ aiSettings });
+        });
+    },
+
+    subscribeToMemories: () => {
+        const { userId, channelId } = requireContext(get);
+        return ChatService.subscribeToMemories(userId, channelId, (memories) => {
+            set({ memories });
         });
     },
 
@@ -737,7 +484,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     sendMessage: async (text, attachments, conversationId) => {
         const { userId, channelId } = requireContext(get);
-        const { activeConversationId, pendingConversationId, activeProjectId, messages, aiSettings, projects, isStreaming } = get();
+        const { activeConversationId, pendingConversationId, activeProjectId, messages, aiSettings, projects, memories, isStreaming } = get();
         let convId = conversationId || activeConversationId;
 
         if (isStreaming) return;
@@ -840,45 +587,118 @@ export const useChatStore = create<ChatState>((set, get) => ({
             // 2. Resolve config — use PERSISTED context (full history) for systemPrompt
             const activeConv = get().conversations.find(c => c.id === convId);
             const model = resolveModel(aiSettings, projects, activeProjectId, activeConv?.model, get().pendingModel);
-            const systemPrompt = buildSystemPrompt(aiSettings, projects, activeProjectId, persistedContext);
+            const systemPrompt = buildSystemPrompt(aiSettings, projects, activeProjectId, persistedContext, memories);
 
-            // Debug: log what's being sent to Gemini
+            // Debug: log what's being sent to Gemini (layered view)
             debug.chatGroup.start('🤖 Sending to Gemini');
             debug.chat('Model:', model);
-            debug.chat('System Prompt:', systemPrompt);
-            if (appContext) {
-                debug.chatGroup.start('📎 App Context Details');
-                appContext.forEach(item => {
-                    if (item.type === 'suggested-traffic') {
-                        debug.chat('Type:', 'suggested-traffic');
-                        debug.chat('Snapshot Date:', item.snapshotDate ?? '(none)');
-                        debug.chat('Snapshot Label:', item.snapshotLabel ?? '(none)');
-                        debug.chat('Source Video:', item.sourceVideo.title);
-                        debug.chat('Source Video Draft?', !item.sourceVideo.viewCount ? 'Yes (metrics omitted)' : 'No');
-                        debug.chat('Selected Videos:', item.suggestedVideos.length);
-                        item.suggestedVideos.forEach((sv, i) => {
-                            debug.chat(`  [${i + 1}] ${sv.title} — ${sv.views} views, ${sv.impressions} imp`);
+
+            // Settings layer
+            debug.chatGroup.start('⚙️ Settings Layer');
+            debug.chat('Language:', aiSettings.responseLanguage || 'auto');
+            debug.chat('Style:', aiSettings.responseStyle || 'default');
+            debug.chat('Global prompt:', aiSettings.globalSystemPrompt ? `✓ (${aiSettings.globalSystemPrompt.length} chars)` : '—');
+            const activeProject = projects.find(p => p.id === activeProjectId);
+            debug.chat('Project prompt:', activeProject?.systemPrompt ? `✓ (${activeProject.systemPrompt.length} chars)` : '—');
+            debug.chat('Anti-hallucination:', '✓ (5 rules)');
+            debug.chatGroup.end();
+
+            // Layer 1: Persistent Context
+            if (persistedContext && persistedContext.length > 0) {
+                const vcCount = getVideoCards(persistedContext).length;
+                const tcCount = getTrafficContexts(persistedContext).length;
+                const ccList = getCanvasContexts(persistedContext);
+                const nodeCount = ccList.reduce((sum, cc) => sum + cc.nodes.length, 0);
+                debug.chatGroup.start(`📎 Layer 1: Persistent Context (${vcCount} videos, ${tcCount} traffic, ${ccList.length} canvas / ${nodeCount} nodes)`);
+
+                persistedContext.forEach(item => {
+                    if (item.type === 'video-card') {
+                        const v = item;
+                        debug.chatGroup.start(`🎬 [Video ${v.ownership ?? 'unknown'}] ${v.title}`);
+                        debug.chat(`views: ${v.viewCount ?? '—'} | duration: ${v.duration ?? '—'} | published: ${v.publishedAt ?? '—'}`);
+                        debug.chat(`channel: ${v.channelTitle ?? '—'}`);
+                        debug.chat(`description: ${v.description ? `✓ (${v.description.length} chars)` : '—'}`);
+                        debug.chat(`tags: ${v.tags && v.tags.length > 0 ? `${v.tags.length} [${v.tags.slice(0, 5).join(', ')}${v.tags.length > 5 ? '…' : ''}]` : '—'}`);
+                        debug.chatGroup.end();
+
+                    } else if (item.type === 'suggested-traffic') {
+                        const sv = item.sourceVideo;
+                        debug.chatGroup.start(`📊 [Traffic] ${sv.title} → ${item.suggestedVideos.length} suggested`);
+                        debug.chat(`snapshot: ${item.snapshotDate ?? '—'} | label: ${item.snapshotLabel ?? '—'}`);
+                        debug.chatGroup.start(`Source video:`);
+                        debug.chat(`views: ${sv.viewCount ?? '—'} | duration: ${sv.duration ?? '—'} | published: ${sv.publishedAt ?? '—'}`);
+                        debug.chat(`description: ${sv.description ? `✓ (${sv.description.length} chars)` : '—'} | tags: ${sv.tags.length > 0 ? sv.tags.length : '—'}`);
+                        debug.chatGroup.end();
+                        item.suggestedVideos.forEach((sg, i) => {
+                            debug.chatGroup.start(`  Suggested ${i + 1}: ${sg.title}`);
+                            debug.chat(`impr: ${sg.impressions.toLocaleString()} | CTR: ${(sg.ctr * 100).toFixed(1)}% | views: ${sg.views.toLocaleString()}`);
+                            debug.chat(`avg duration: ${sg.avgViewDuration} | watch time: ${sg.watchTimeHours.toFixed(1)}h`);
+                            debug.chat(`channel: ${sg.channelTitle ?? '—'} | published: ${sg.publishedAt ?? '—'} | duration: ${sg.duration ?? '—'}`);
+                            debug.chat(`total views: ${sg.viewCount ?? '—'} | likes: ${sg.likeCount ?? '—'} | subs: ${sg.subscriberCount ?? '—'}`);
+                            debug.chat(`traffic: ${sg.trafficType ?? '—'} | viewer: ${sg.viewerType ?? '—'} | niche: ${sg.niche ?? '—'}`);
+                            debug.chat(`description: ${sg.description ? `✓ (${sg.description.length} chars)` : '—'} | tags: ${sg.tags && sg.tags.length > 0 ? sg.tags.length : '—'}`);
+                            debug.chatGroup.end();
                         });
-                    } else if (item.type === 'video-card') {
-                        debug.chat(`Video Card [${item.ownership}]:`, item.title);
+                        debug.chatGroup.end();
+
                     } else if (item.type === 'canvas-selection') {
-                        debug.chat('Type:', 'canvas-selection');
-                        debug.chat('Nodes:', item.nodes.length);
+                        debug.chatGroup.start(`🖼️ Canvas (${item.nodes.length} nodes)`);
                         item.nodes.forEach((node, i) => {
-                            const label = node.nodeType === 'video'
-                                ? `[Video] ${node.title}`
-                                : node.nodeType === 'traffic-source'
-                                    ? `[Traffic] ${node.title}`
-                                    : node.nodeType === 'sticky-note'
-                                        ? `[Note] ${(node.content || '').slice(0, 60)}…`
-                                        : `[Image] ${node.alt || 'image'}`;
-                            debug.chat(`  [${i + 1}] ${label}`);
+                            if (node.nodeType === 'video') {
+                                debug.chatGroup.start(`  [${i + 1}] 🎬 [Video] ${node.title}`);
+                                debug.chat(`ownership: ${node.ownership} | channel: ${node.channelTitle ?? '—'}`);
+                                debug.chat(`views: ${node.viewCount ?? '—'} | duration: ${node.duration ?? '—'} | published: ${node.publishedAt ?? '—'}`);
+                                debug.chat(`description: ${node.description ? `✓ (${node.description.length} chars)` : '—'}`);
+                                debug.chat(`tags: ${node.tags && node.tags.length > 0 ? `${node.tags.length} [${node.tags.slice(0, 5).join(', ')}${node.tags.length > 5 ? '…' : ''}]` : '—'}`);
+                                debug.chatGroup.end();
+                            } else if (node.nodeType === 'traffic-source') {
+                                debug.chatGroup.start(`  [${i + 1}] 📊 [Traffic] ${node.title}`);
+                                debug.chat(`impr: ${node.impressions?.toLocaleString() ?? '—'} | CTR: ${node.ctr != null ? (node.ctr * 100).toFixed(1) + '%' : '—'} | views: ${node.views?.toLocaleString() ?? '—'}`);
+                                debug.chat(`avg duration: ${node.avgViewDuration ?? '—'} | watch time: ${node.watchTimeHours != null ? node.watchTimeHours.toFixed(1) + 'h' : '—'}`);
+                                debug.chat(`channel: ${node.channelTitle ?? '—'} | traffic: ${node.trafficType ?? '—'} | viewer: ${node.viewerType ?? '—'} | niche: ${node.niche ?? '—'}`);
+                                debug.chat(`source video: ${node.sourceVideoTitle ?? '—'}`);
+                                debug.chatGroup.end();
+                            } else if (node.nodeType === 'sticky-note') {
+                                debug.chat(`  [${i + 1}] 📝 [Note] ${(node.content || '').slice(0, 80)}${(node.content || '').length > 80 ? '…' : ''}`);
+                            } else if (node.nodeType === 'image') {
+                                debug.chat(`  [${i + 1}] 🖼 [Image] ${node.alt || '(no alt)'}`);
+                            }
                         });
+                        debug.chatGroup.end();
                     }
                 });
                 debug.chatGroup.end();
+            } else {
+                debug.chat('📎 Layer 1: Persistent Context — empty');
             }
+
             debug.chat('Thumbnails:', thumbnailUrls.length, 'URLs');
+
+            // Layer 2: Per-message context binding (collapsible breakdown)
+            const countByType = (ctx: AppContextItem[]) => {
+                const vc = ctx.filter(c => c.type === 'video-card').length;
+                const tc = ctx.filter(c => c.type === 'suggested-traffic').length;
+                const cc = ctx.filter(c => c.type === 'canvas-selection').length;
+                return [vc && `${vc} video`, tc && `${tc} traffic`, cc && `${cc} canvas`].filter(Boolean).join(', ');
+            };
+            const msgsWithContext = messages.filter(m => m.appContext && m.appContext.length > 0);
+            debug.chatGroup.start(`🔗 Layer 2: ${msgsWithContext.length}/${messages.length} messages have appContext`);
+            msgsWithContext.forEach(m => {
+                const idx = messages.indexOf(m) + 1;
+                const snippet = m.text.slice(0, 40) + (m.text.length > 40 ? '…' : '');
+                debug.chat(`  msg #${idx} (${m.role}): "${snippet}" → ${m.appContext!.length} items (${countByType(m.appContext!)})`);
+            });
+            // Current message being sent
+            if (appContext && appContext.length > 0) {
+                debug.chat(`  📤 current msg: ${appContext.length} items (${countByType(appContext)})`);
+            } else {
+                debug.chat(`  📤 current msg: 0 items`);
+            }
+            debug.chatGroup.end();
+
+            // Layer 4: Cross-conversation memory
+            const memTokens = memories.reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0);
+            debug.chat(`🧠 Layer 4: ${memories.length} memories (~${memTokens} tokens)`);
             debug.chatGroup.end();
 
             // Build contextMeta for production CF logging
@@ -893,10 +713,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const scopedSet = (partial: Partial<ChatState>) => {
                 if (streamingNonce === myNonce) set(partial);
             };
-            const { text: responseText, tokenUsage } = await streamAiResponse(
+            const { text: responseText, tokenUsage, usedSummary } = await streamAiResponse(
                 channelId, convId, model, systemPrompt,
                 text, attachments, thumbnailUrls, contextMeta, scopedSet, myAbortController.signal,
             );
+
+            // Layer 3: Summarization status
+            debug.chat(`📝 Layer 3: ${usedSummary ? '✓ summary used (older messages were compressed)' : '— full history (no summarization needed)'}`);
 
             // 4. Clear streaming UI BEFORE persisting — Firestore's latency compensation
             // delivers the snapshot immediately, so the model message would appear in the
@@ -904,7 +727,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             if (streamingNonce === myNonce) set({ isStreaming: false, streamingText: '' });
 
             // 5. Persist AI response (subscription fires immediately via latency compensation)
-            await persistAiResponse(userId, channelId, convId, responseText, tokenUsage);
+            await persistAiResponse(userId, channelId, convId, responseText, model, tokenUsage);
 
             // 6. Auto-title (fire-and-forget)
             maybeAutoTitle(userId, channelId, convId, text, model, messages.length === 0);
@@ -916,6 +739,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     await ChatService.addMessage(userId, channelId, convId!, {
                         role: 'model',
                         text: partial + '\n\n*(generation stopped)*',
+                        model,
                     });
                 }
             } else {
@@ -983,5 +807,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
     saveAiSettings: async (settings) => {
         const { userId, channelId } = requireContext(get);
         await ChatService.saveAiSettings(userId, channelId, settings);
+    },
+
+    memorizeConversation: async (guidance?: string) => {
+        const { channelId, activeConversationId, conversations } = get();
+        if (!channelId || !activeConversationId) {
+            throw new Error('No active conversation to memorize');
+        }
+        const conv = conversations.find(c => c.id === activeConversationId);
+        const model = conv?.model || get().aiSettings.defaultModel;
+
+        const result = await AiProxy.concludeConversation(
+            channelId, activeConversationId, guidance, model
+        );
+        return result;
+    },
+
+    updateMemory: async (memoryId: string, content: string) => {
+        const { userId, channelId } = requireContext(get);
+        await ChatService.updateMemory(userId, channelId, memoryId, content);
+    },
+
+    deleteMemory: async (memoryId: string) => {
+        const { userId, channelId } = requireContext(get);
+        await ChatService.deleteMemory(userId, channelId, memoryId);
     },
 }));

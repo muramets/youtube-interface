@@ -17,6 +17,26 @@ export const STYLE_CONCISE = 'Be concise and to the point. Prefer short answers.
 export const STYLE_DETAILED = 'Provide thorough, detailed responses with explanations and examples.';
 
 // -----------------------------------------------------------------------------
+// Anti-Hallucination Rules — grounding instructions for data integrity
+// Injected at the end of Settings Layer, before any context data.
+// -----------------------------------------------------------------------------
+
+/** Rules that force the model to only reference attached data and never invent specifics. */
+export const ANTI_HALLUCINATION_RULES = [
+    '## Data Integrity Rules',
+    '',
+    'You have access to **attached context data** (videos, traffic analytics, canvas notes) provided in this prompt.',
+    'Follow these rules strictly when working with this data:',
+    '',
+    '1. **Only reference data from the attached context.** Do not invent, guess, or recall video titles, channel names, view counts, CTR values, tags, descriptions, or any other specific data from your training.',
+    '2. **Never fabricate statistics.** If the user asks about metrics not present in the attached context, say so explicitly rather than guessing.',
+    '3. **Distinguish between facts and opinions.** When providing analysis based on the attached data, state it as fact. When giving general advice not tied to specific data, explicitly mark it: *"[General insight, not based on your data]"*.',
+    '4. **When data is missing**, respond with: "This information is not in the attached context. Please attach the relevant data so I can help."',
+    '5. **Cross-reference by context labels.** Each video has ownership labels (your draft, your published, competitor). Use these to correctly identify whose content is being discussed.',
+].join('\n');
+
+
+// -----------------------------------------------------------------------------
 // Video Context — Preamble and section headers (chatStore.ts → formatVideoContext)
 // Shown when user selects videos from the playlist page.
 // -----------------------------------------------------------------------------
@@ -81,38 +101,25 @@ export const CANVAS_CONTEXT_PREAMBLE =
     'The items are grouped together because the user considers them related.';
 
 // -----------------------------------------------------------------------------
-// Conversation Memory — Summary generation (gemini.ts → generateSummary)
-// Used when conversation exceeds context window and older messages get summarized.
+// ⚠️ Conversation Memory — Summary generation
 //
-// ⚠️ Server-side duplicate: functions/src/services/gemini.ts also has this prompt.
-//    Cloud Functions have a separate build and cannot import from src/.
-//    If you change this prompt, update it in gemini.ts as well.
+// The summary system prompt lives server-side in functions/src/services/memory.ts
+// (single source of truth). It cannot be shared because Cloud Functions
+// have a separate build and cannot import from src/.
 // -----------------------------------------------------------------------------
 
-export const SUMMARY_SYSTEM_PROMPT = `You are a conversation memory system. Your task is to create a comprehensive, \
-structured summary that will REPLACE the original messages in future AI context.
-
-CRITICAL: Any detail you omit will be permanently lost — the AI will have "amnesia" about it.
-
-You MUST preserve:
-1. ALL specific decisions, choices, and conclusions (with reasoning)
-2. ALL technical details: names, numbers, configurations, code snippets, file paths
-3. Context and motivations behind each decision
-4. Unresolved questions, pending tasks, or open threads
-5. User preferences, communication style, and recurring themes
-6. Chronological flow of how the conversation evolved
-
-Format: Use structured markdown with clear sections and bullet points.
-Length: Be thorough. A longer, complete summary is better than a short one with gaps.`;
-
 // -----------------------------------------------------------------------------
-// Chat Title Generation — (gemini.ts → generateTitle)
-// Generates a short title for new conversations based on the first message.
+// ⚠️ Chat Title Generation
 //
-// ⚠️ Server-side duplicate: functions/src/services/gemini.ts also has this prompt.
-//    If you change this prompt, update it in gemini.ts as well.
+// The title generation prompt lives server-side in functions/src/services/gemini.ts
+// (single source of truth). It cannot be shared because Cloud Functions
+// have a separate build and cannot import from src/.
 // -----------------------------------------------------------------------------
 
-/** Prompt template for generating chat conversation titles. Use with firstMessage interpolation. */
-export const TITLE_GENERATION_PROMPT = (firstMessage: string) =>
-    `Generate a very short title (3-5 words, no quotes) for a chat that starts with this message:\n\n"${firstMessage.slice(0, 200)}"`;
+// -----------------------------------------------------------------------------
+// ⚠️ Memorization (Layer 4: Cross-Conversation Memory)
+//
+// The CONCLUDE_SYSTEM_PROMPT lives server-side in functions/src/services/memory.ts
+// It generates focused summaries when the user clicks "Memorize" in chat.
+// Summaries are stored in Firestore and injected via crossConversationLayer.ts.
+// -----------------------------------------------------------------------------

@@ -5,7 +5,7 @@
 // Patterns are defined in referencePatterns.ts for easy editing.
 // =============================================================================
 
-import { REFERENCE_PATTERNS } from './referencePatterns';
+import { REFERENCE_PATTERNS } from '../../../core/config/referencePatterns';
 
 /** Compiled patterns — built once from the config. */
 const COMPILED_PATTERNS = REFERENCE_PATTERNS.map(({ type, pattern }) => ({

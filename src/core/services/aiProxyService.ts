@@ -28,6 +28,7 @@ interface StreamChatResult {
         totalTokens: number;
     };
     summary?: string;
+    usedSummary?: boolean;
 }
 
 interface GeminiUploadResult {
@@ -189,7 +190,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult
                     if (data.type === 'chunk') {
                         onStream(data.text);
                     } else if (data.type === 'done') {
-                        result = { text: data.text, tokenUsage: data.tokenUsage, summary: data.summary };
+                        result = { text: data.text, tokenUsage: data.tokenUsage, summary: data.summary, usedSummary: data.usedSummary };
                     } else if (data.type === 'error') {
                         throw new SSEDataError(data.error);
                     }
@@ -248,4 +249,21 @@ export async function generateChatTitle(
 
     const result = await callable({ firstMessage, model });
     return result.data.title;
+}
+
+// --- Conclude Conversation (Layer 4 memory) ---
+
+export async function concludeConversation(
+    channelId: string,
+    conversationId: string,
+    guidance?: string,
+    model?: string
+): Promise<{ memoryId: string; content: string }> {
+    const callable = httpsCallable<
+        { channelId: string; conversationId: string; guidance?: string; model?: string },
+        { memoryId: string; content: string }
+    >(functions, 'concludeConversation');
+
+    const result = await callable({ channelId, conversationId, guidance, model });
+    return result.data;
 }

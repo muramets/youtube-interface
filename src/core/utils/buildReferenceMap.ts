@@ -12,7 +12,7 @@
 
 import type { AppContextItem, VideoCardContext } from '../types/appContext';
 import { getCanvasContexts, getVideoCards } from '../types/appContext';
-import { OWNERSHIP_CONFIG } from '../../features/Chat/utils/referencePatterns';
+import { OWNERSHIP_CONFIG } from '../config/referencePatterns';
 
 export interface VideoReference {
     /** Reference key, e.g. "video-1", "draft-2", "competitor-1" */

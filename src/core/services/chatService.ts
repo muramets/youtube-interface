@@ -21,6 +21,7 @@ import type {
     ChatConversation,
     ChatMessage,
     AiAssistantSettings,
+    ConversationMemory,
 } from '../types/chat';
 import { DEFAULT_AI_SETTINGS } from '../types/chat';
 
@@ -37,6 +38,9 @@ const messagesPath = (userId: string, channelId: string, conversationId: string)
 
 const settingsPath = (userId: string, channelId: string) =>
     `users/${userId}/channels/${channelId}/settings`;
+
+const memoriesPath = (userId: string, channelId: string) =>
+    `users/${userId}/channels/${channelId}/conversationMemories`;
 
 export const MESSAGE_PAGE_SIZE = 50;
 export const CONVERSATION_PAGE_SIZE = 30;
@@ -316,5 +320,41 @@ export const ChatService = {
         settings: Partial<AiAssistantSettings>
     ) {
         await setDocument(settingsPath(userId, channelId), 'aiAssistant', settings, true);
+    },
+
+    // Conversation Memories (Layer 4)
+    async loadMemories(userId: string, channelId: string): Promise<ConversationMemory[]> {
+        return fetchCollection<ConversationMemory>(
+            memoriesPath(userId, channelId),
+            [orderBy('createdAt', 'asc')]
+        );
+    },
+
+    subscribeToMemories(
+        userId: string,
+        channelId: string,
+        callback: (memories: ConversationMemory[]) => void
+    ) {
+        return subscribeToCollection<ConversationMemory>(
+            memoriesPath(userId, channelId),
+            callback,
+            [orderBy('createdAt', 'asc')]
+        );
+    },
+
+    async updateMemory(
+        userId: string,
+        channelId: string,
+        memoryId: string,
+        content: string
+    ) {
+        await updateDocument(memoriesPath(userId, channelId), memoryId, {
+            content,
+            updatedAt: Timestamp.now(),
+        });
+    },
+
+    async deleteMemory(userId: string, channelId: string, memoryId: string) {
+        await deleteDocument(memoriesPath(userId, channelId), memoryId);
     },
 };

@@ -2,8 +2,10 @@
 // SETTINGS: AI Assistant Settings View
 // =============================================================================
 
-import React, { useState, useEffect } from 'react';
-import { ChevronDown } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ChevronDown, Brain, Pencil, Trash2, Check, X } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Dropdown } from '../../components/ui/molecules/Dropdown';
 import { SegmentedControl } from '../../components/ui/molecules/SegmentedControl';
 import { useAuth } from '../../core/hooks/useAuth';
@@ -26,17 +28,51 @@ interface AiAssistantSettingsProps {
 export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settings, onChange, theme }) => {
     const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const { setContext, subscribeToAiSettings } = useChatStore();
+    const { setContext, subscribeToAiSettings, subscribeToMemories } = useChatStore();
 
     const userId = user?.uid;
     const channelId = currentChannel?.id;
 
-    // Ensure settings are loaded from Firestore even if ChatPanel hasn't been opened
+    // Ensure settings + memories are loaded from Firestore even if ChatPanel hasn't been opened
     useEffect(() => {
         if (!userId || !channelId) return;
         setContext(userId, channelId);
-        return subscribeToAiSettings();
-    }, [userId, channelId, setContext, subscribeToAiSettings]);
+        const unsub1 = subscribeToAiSettings();
+        const unsub2 = subscribeToMemories();
+        return () => { unsub1(); unsub2(); };
+    }, [userId, channelId, setContext, subscribeToAiSettings, subscribeToMemories]);
+
+    const memories = useChatStore(s => s.memories);
+    const storeUpdateMemory = useChatStore(s => s.updateMemory);
+    const storeDeleteMemory = useChatStore(s => s.deleteMemory);
+    const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
+    const [editText, setEditText] = useState('');
+    const [savingMemoryId, setSavingMemoryId] = useState<string | null>(null);
+
+    const handleEditStart = useCallback((mem: { id: string; content: string }) => {
+        setEditingMemoryId(mem.id);
+        setEditText(mem.content);
+    }, []);
+
+    const handleEditSave = useCallback(async (memoryId: string) => {
+        if (!editText.trim()) return;
+        setSavingMemoryId(memoryId);
+        try {
+            await storeUpdateMemory(memoryId, editText.trim());
+            setEditingMemoryId(null);
+        } finally {
+            setSavingMemoryId(null);
+        }
+    }, [editText, storeUpdateMemory]);
+
+    const handleDelete = useCallback(async (memoryId: string) => {
+        setSavingMemoryId(memoryId);
+        try {
+            await storeDeleteMemory(memoryId);
+        } finally {
+            setSavingMemoryId(null);
+        }
+    }, [storeDeleteMemory]);
 
     const [modelAnchorEl, setModelAnchorEl] = useState<HTMLElement | null>(null);
     const [langAnchorEl, setLangAnchorEl] = useState<HTMLElement | null>(null);
@@ -183,6 +219,132 @@ export const AiAssistantSettings: React.FC<AiAssistantSettingsProps> = ({ settin
                 </p>
             </div>
 
+            {/* AI Memory (Layer 4) */}
+            <div className={`border ${theme.borderColor} rounded-md p-4 space-y-3`}>
+                <div className="flex items-center gap-2 mb-1">
+                    <Brain size={16} className="text-accent" />
+                    <label className={`text-xs ${theme.textSecondary} uppercase tracking-wider font-medium`}>AI Memory</label>
+                    <span className={`text-[10px] ${theme.textSecondary} ml-auto`}>
+                        {memories.length} {memories.length === 1 ? 'memory' : 'memories'}
+                    </span>
+                </div>
+
+                {memories.length === 0 ? (
+                    <p className={`text-sm ${theme.textSecondary} italic`}>
+                        No memories yet. Use the 🧠 button in chat to memorize conversations.
+                    </p>
+                ) : (
+                    <div className="space-y-2">
+                        {memories.map(mem => {
+                            const isEditing = editingMemoryId === mem.id;
+                            const isSaving = savingMemoryId === mem.id;
+                            const date = mem.createdAt?.toDate?.()
+                                ? mem.createdAt.toDate().toISOString().slice(0, 10)
+                                : '';
+
+                            return (
+                                <div
+                                    key={mem.id}
+                                    className="rounded-lg p-3"
+                                    style={{ backgroundColor: 'var(--settings-menu-active)' }}
+                                >
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <span className="text-sm font-medium text-text-primary truncate">
+                                            {mem.conversationTitle}
+                                        </span>
+                                        <span className={`text-[10px] ${theme.textSecondary} ml-2 shrink-0`}>
+                                            {date}
+                                        </span>
+                                    </div>
+
+                                    {isEditing ? (
+                                        <>
+                                            <textarea
+                                                ref={(el) => {
+                                                    if (el) {
+                                                        el.style.height = 'auto';
+                                                        el.style.height = el.scrollHeight + 'px';
+                                                        el.focus();
+                                                    }
+                                                }}
+                                                value={editText}
+                                                onChange={(e) => {
+                                                    setEditText(e.target.value);
+                                                    e.target.style.height = 'auto';
+                                                    e.target.style.height = e.target.scrollHeight + 'px';
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Escape') {
+                                                        e.stopPropagation();
+                                                        setEditingMemoryId(null);
+                                                    }
+                                                }}
+                                                className="w-full bg-transparent text-sm text-text-primary outline-none resize-none border border-border rounded-md p-2 max-h-[300px] overflow-y-auto"
+                                                disabled={isSaving}
+                                            />
+                                            <div className="flex items-center justify-end gap-1.5 mt-2">
+                                                <button
+                                                    className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer hover:text-text-secondary hover:bg-white/[0.05] transition-colors"
+                                                    onClick={() => setEditingMemoryId(null)}
+                                                    disabled={isSaving}
+                                                >
+                                                    <X size={12} /> Cancel
+                                                </button>
+                                                <button
+                                                    className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-transparent border-none cursor-pointer hover:bg-white/[0.05] transition-colors disabled:opacity-50"
+                                                    style={{ color: 'var(--accent)' }}
+                                                    onClick={() => handleEditSave(mem.id)}
+                                                    disabled={isSaving}
+                                                >
+                                                    <Check size={12} /> Save
+                                                </button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="prose prose-sm prose-invert max-w-none text-text-secondary max-h-[300px] overflow-y-auto
+                                                [&_h1]:text-sm [&_h1]:font-semibold [&_h1]:text-text-primary [&_h1]:mt-0 [&_h1]:mb-2
+                                                [&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:text-text-primary [&_h2]:mt-3 [&_h2]:mb-1.5
+                                                [&_h3]:text-xs [&_h3]:font-semibold [&_h3]:text-text-primary [&_h3]:mt-2 [&_h3]:mb-1
+                                                [&_p]:text-sm [&_p]:leading-relaxed [&_p]:my-1.5
+                                                [&_ul]:text-sm [&_ul]:my-1.5 [&_ul]:pl-4
+                                                [&_ol]:text-sm [&_ol]:my-1.5 [&_ol]:pl-4
+                                                [&_li]:my-0.5
+                                                [&_strong]:text-text-primary [&_strong]:font-semibold
+                                                [&_a]:underline
+                                            ">
+                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                    {mem.content}
+                                                </ReactMarkdown>
+                                            </div>
+                                            <div className="flex items-center justify-end gap-1 mt-2">
+                                                <button
+                                                    className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer hover:text-text-secondary hover:bg-white/[0.05] transition-colors"
+                                                    onClick={() => handleEditStart(mem)}
+                                                    disabled={isSaving}
+                                                >
+                                                    <Pencil size={11} /> Edit
+                                                </button>
+                                                <button
+                                                    className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                                                    onClick={() => handleDelete(mem.id)}
+                                                    disabled={isSaving}
+                                                >
+                                                    <Trash2 size={11} /> Delete
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+
+                <p className={`text-xs ${theme.textSecondary}`}>
+                    Memories are injected into every conversation so the AI retains knowledge over time.
+                </p>
+            </div>
 
         </div>
     );

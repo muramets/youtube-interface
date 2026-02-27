@@ -14,7 +14,7 @@ import React, { useState } from 'react';
 import { AlignLeft, Tag } from 'lucide-react';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import type { VideoCardContext } from '../../../core/types/appContext';
-import { OWNERSHIP_CONFIG } from '../utils/referencePatterns';
+import { OWNERSHIP_CONFIG } from '../../../core/config/referencePatterns';
 import { formatDuration, formatViewCount } from '../../../core/utils/formatUtils';
 
 // --- Constants ---

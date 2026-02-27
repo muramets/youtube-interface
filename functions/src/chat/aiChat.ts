@@ -103,6 +103,7 @@ export const aiChat = onRequest(
                     role: data.role as "user" | "model",
                     text: data.text as string,
                     attachments: data.attachments,
+                    appContext: data.appContext,
                 };
             });
             const convData = convDoc.data();

@@ -57,23 +57,24 @@ export function useChatDerivedState(opts: UseChatDerivedStateOpts): UseChatDeriv
     const modelConfig = MODEL_REGISTRY.find(m => m.id === activeModel) ?? MODEL_REGISTRY[0];
     const contextLimit = modelConfig.contextLimit ?? DEFAULT_CONTEXT_LIMIT;
 
-    // Token usage
+    // Token usage (model responses only — user messages don't have tokenUsage)
     const totalTokens = useMemo(() =>
-        messages.reduce((sum, m) => sum + (m.tokenUsage?.totalTokens ?? 0), 0),
+        messages.reduce((sum, m) => m.role === 'model' ? sum + (m.tokenUsage?.totalTokens ?? 0) : sum, 0),
         [messages]
     );
 
-    // Total cost (EUR) across all AI messages
+    // Total cost (EUR) — per-message model pricing for accuracy across model switches
     const totalCostEur = useMemo(() =>
         messages.reduce((sum, m) => {
             if (m.role !== 'model' || !m.tokenUsage) return sum;
+            const msgModelConfig = (m.model && MODEL_REGISTRY.find(r => r.id === m.model)) || modelConfig;
             return sum + estimateCostEur(
-                modelConfig.pricing,
+                msgModelConfig.pricing,
                 m.tokenUsage.promptTokens,
                 m.tokenUsage.completionTokens,
             );
         }, 0),
-        [messages, modelConfig.pricing]
+        [messages, modelConfig]
     );
 
     // Context window tracking

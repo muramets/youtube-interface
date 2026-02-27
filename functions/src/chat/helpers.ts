@@ -16,7 +16,7 @@ export async function logAiUsage(
     conversationId: string,
     model: string,
     tokenUsage: { promptTokens: number; completionTokens: number; totalTokens: number },
-    type: "chat" | "title"
+    type: "chat" | "title" | "memorize"
 ): Promise<void> {
     const log: AiUsageLog = {
         userId,

@@ -49,6 +49,7 @@ import type { VideoCardContext } from '../../core/types/appContext';
 import { buildReferenceMap } from '../../core/utils/buildReferenceMap';
 import type { ModelPricing } from '../../../shared/models';
 import { estimateCostEur } from '../../../shared/models';
+import { MemoryCheckpoint } from './components/MemoryCheckpoint';
 import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, Zap, MessageCircle, Pencil } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 import { useChatStore } from '../../core/stores/chatStore';
@@ -385,6 +386,15 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
         return buildReferenceMap(ctx);
     }, [activeConversationId, conversations]);
 
+    // Layer 4: Memory checkpoints for this conversation
+    const memories = useChatStore(s => s.memories);
+    const updateMemory = useChatStore(s => s.updateMemory);
+    const deleteMemory = useChatStore(s => s.deleteMemory);
+    const conversationMemories = useMemo(() =>
+        memories.filter(m => m.conversationId === activeConversationId),
+        [memories, activeConversationId]
+    );
+
     const containerRef = useRef<HTMLDivElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
     const pinAnchorRef = useRef<HTMLDivElement>(null);
@@ -646,19 +656,56 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 
     return (
         <div className="chat-messages flex-1 min-h-0 overflow-y-auto px-3.5 pt-3.5 pb-1 flex flex-col gap-3" ref={containerRef} onScroll={handleScroll}>
-            {messages.map((msg, idx) => (
-                <MessageErrorBoundary key={msg.id} messageId={msg.id}>
-                    <MessageItem
-                        msg={msg}
-                        modelPricing={modelPricing}
-                        skipAnimation={skipAnimateReconciled || (idx === lastMsgIndex && skipAnimateLastModel)}
-                        isFailed={msg.role === 'user' && failedMessageId === msg.id}
-                        isStreaming={isStreaming}
-                        onRetry={retryLastMessage}
-                        onEdit={setEditingMessage}
-                        videoMap={referenceVideoMap}
-                    />
-                </MessageErrorBoundary>
+            {messages.map((msg, idx) => {
+                // Render memory checkpoints between messages (by timestamp)
+                const checkpointsBefore = conversationMemories.filter(m => {
+                    if (!m.createdAt?.toMillis || !msg.createdAt?.toMillis) return false;
+                    const memTime = m.createdAt.toMillis();
+                    const msgTime = msg.createdAt.toMillis();
+                    const prevTime = idx > 0
+                        ? messages[idx - 1].createdAt?.toMillis() ?? 0
+                        : 0;
+                    return memTime > prevTime && memTime <= msgTime;
+                });
+
+                return (
+                    <React.Fragment key={msg.id}>
+                        {checkpointsBefore.map(mem => (
+                            <MemoryCheckpoint
+                                key={`checkpoint-${mem.id}`}
+                                memory={mem}
+                                onUpdate={updateMemory}
+                                onDelete={deleteMemory}
+                            />
+                        ))}
+                        <MessageErrorBoundary messageId={msg.id}>
+                            <MessageItem
+                                msg={msg}
+                                modelPricing={modelPricing}
+                                skipAnimation={skipAnimateReconciled || (idx === lastMsgIndex && skipAnimateLastModel)}
+                                isFailed={msg.role === 'user' && failedMessageId === msg.id}
+                                isStreaming={isStreaming}
+                                onRetry={retryLastMessage}
+                                onEdit={setEditingMessage}
+                                videoMap={referenceVideoMap}
+                            />
+                        </MessageErrorBoundary>
+                    </React.Fragment>
+                );
+            })}
+
+            {/* Checkpoints after last message */}
+            {conversationMemories.filter(m => {
+                if (!m.createdAt?.toMillis || messages.length === 0) return false;
+                const lastMsg = messages[messages.length - 1];
+                return m.createdAt.toMillis() > (lastMsg.createdAt?.toMillis() ?? 0);
+            }).map(mem => (
+                <MemoryCheckpoint
+                    key={`checkpoint-${mem.id}`}
+                    memory={mem}
+                    onUpdate={updateMemory}
+                    onDelete={deleteMemory}
+                />
             ))}
 
             {/* Pin anchor — invisible sentinel for pin-to-top scroll position */}

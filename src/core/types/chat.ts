@@ -49,12 +49,24 @@ export interface ChatMessage {
     text: string;
     attachments?: ChatAttachment[];
     appContext?: AppContextItem[]; // Video card / page context snapshot at send time
+    model?: string;               // Model used to generate this response (for accurate cost tracking)
     tokenUsage?: {
         promptTokens: number;
         completionTokens: number;
         totalTokens: number;
     };
     createdAt: Timestamp;
+}
+
+/** Layer 4: A saved memory (insight) from a concluded conversation. */
+export interface ConversationMemory {
+    id: string;
+    conversationId: string;
+    conversationTitle: string;
+    content: string;           // generated summary (user-editable)
+    guidance?: string;         // optional user guidance for focus
+    createdAt: Timestamp;
+    updatedAt: Timestamp;
 }
 
 export interface AiAssistantSettings {

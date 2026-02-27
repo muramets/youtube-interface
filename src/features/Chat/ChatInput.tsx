@@ -3,7 +3,7 @@
 // =============================================================================
 
 import React, { useState, useRef, useCallback, useLayoutEffect } from 'react';
-import { Plus, Send, X, FileAudio, FileVideo, File, Image, Square, Loader2, Check, AlertCircle, ChevronUp, Pencil, Link, Unlink } from 'lucide-react';
+import { Plus, Send, X, FileAudio, FileVideo, File, Image, Square, Loader2, Check, AlertCircle, ChevronUp, Pencil, Link, Unlink, Brain } from 'lucide-react';
 import { MODEL_REGISTRY } from '../../core/types/chat';
 import { getAttachmentType } from '../../core/services/aiService';
 import type { StagedFile, ReadyAttachment } from '../../core/types/chatAttachment';
@@ -33,7 +33,7 @@ interface ChatInputProps {
     onEditSend?: (newText: string, attachments?: ReadyAttachment[]) => void;
 }
 
-const MAX_INPUT_HEIGHT = 120;
+
 
 /** Small toggle button for pausing/resuming canvas context collection */
 const CanvasContextToggle: React.FC = () => {
@@ -74,11 +74,17 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const modelMenuRef = useRef<HTMLDivElement>(null);
     const prevEditingRef = useRef(editingMessage);
 
+    // Memorize mode state
+    const [isMemorizing, setIsMemorizing] = useState(false);
+    const [isMemorizeSaving, setIsMemorizeSaving] = useState(false);
+    const memorizeConversation = useChatStore(s => s.memorizeConversation);
+    const activeConversationId = useChatStore(s => s.activeConversationId);
+    const messages = useChatStore(s => s.messages);
+
     // Sync text with editingMessage changes synchronously during render
     // (standard "store previous props" pattern — ref access during render is intentional)
-    // eslint-disable-next-line react-hooks/refs -- reading/writing prevEditingRef.current during render is the documented "previous props" pattern
     if (editingMessage !== prevEditingRef.current) {
-        prevEditingRef.current = editingMessage; // eslint-disable-line react-hooks/refs
+        prevEditingRef.current = editingMessage;
         if (editingMessage) {
             setText(editingMessage.text);
         }
@@ -93,8 +99,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 const el = textareaRef.current;
                 if (el) {
                     el.style.height = 'auto';
-                    el.style.height = Math.min(el.scrollHeight, MAX_INPUT_HEIGHT) + 'px';
-                    el.style.overflowY = el.scrollHeight > MAX_INPUT_HEIGHT ? 'auto' : 'hidden';
+                    el.style.height = Math.min(el.scrollHeight, 80) + 'px';
                     el.focus();
                 }
             });
@@ -124,6 +129,27 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }
     }, [text, stagedFiles, isAnyUploading, onSend, editingMessage, onEditSend]);
 
+    const handleMemorizeSend = useCallback(async () => {
+        setIsMemorizeSaving(true);
+        try {
+            const guidance = text.trim() || undefined;
+            await memorizeConversation(guidance);
+            setIsMemorizing(false);
+            setText('');
+            if (textareaRef.current) textareaRef.current.style.height = 'auto';
+        } catch {
+            // Error will be visible in console; UI stays in memorize mode
+        } finally {
+            setIsMemorizeSaving(false);
+        }
+    }, [text, memorizeConversation]);
+
+    const handleCancelMemorize = useCallback(() => {
+        setIsMemorizing(false);
+        setText('');
+        if (textareaRef.current) textareaRef.current.style.height = 'auto';
+    }, []);
+
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -141,8 +167,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         setText(e.target.value);
         const el = e.target;
         el.style.height = 'auto';
-        el.style.height = Math.min(el.scrollHeight, MAX_INPUT_HEIGHT) + 'px';
-        el.style.overflowY = el.scrollHeight > MAX_INPUT_HEIGHT ? 'auto' : 'hidden';
+        el.style.height = Math.min(el.scrollHeight, 80) + 'px';
     }, []);
 
     const handleFileSelect = useCallback((selectedFiles: FileList | null) => {
@@ -185,6 +210,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     </button>
                 </div>
             )}
+
             {/* Context chips — collapsible accordion */}
             {contextItems.length > 0 && (
                 <div className="mb-2">
@@ -245,18 +271,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             )}
 
             {/* Unified input container */}
-            <div className="border border-border rounded-xl bg-input-bg transition-colors duration-100 focus-within:border-text-tertiary">
+            <div
+                className={`border rounded-xl transition-colors duration-200 ${isMemorizing ? 'border-accent' : 'border-border bg-input-bg focus-within:border-text-tertiary'}`}
+                style={isMemorizing ? { backgroundColor: 'color-mix(in srgb, var(--accent) 15%, var(--input-bg))' } : undefined}
+            >
                 {/* Textarea — top part */}
                 <textarea
                     ref={textareaRef}
-                    className="chat-input-textarea w-full resize-none border-none rounded-t-xl pt-1.5 pb-2 px-3.5 text-[13px] leading-snug max-h-[120px] overflow-hidden bg-transparent text-text-primary outline-none font-[inherit] placeholder:text-text-tertiary caret-text-secondary"
+                    className="chat-input-textarea w-full resize-none border-none rounded-t-xl pt-1.5 pb-2 px-3.5 text-[13px] leading-snug max-h-[80px] overflow-y-auto bg-transparent text-text-primary outline-none font-[inherit] placeholder:text-text-tertiary caret-text-secondary"
                     value={text}
                     onChange={handleTextChange}
                     onKeyDown={handleKeyDown}
                     onPaste={handlePaste}
-                    placeholder="Message…"
+                    placeholder={isMemorizing ? 'Focus: e.g. "remember our thumbnail strategy"...' : 'Message…'}
                     rows={1}
-                    disabled={disabled}
+                    disabled={disabled || isMemorizeSaving}
                 />
 
                 {/* Action bar — bottom part */}
@@ -315,8 +344,33 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         <CanvasContextToggle />
                     )}
 
-                    {/* Send / Stop button */}
-                    {isStreaming ? (
+                    {/* Memorize toggle */}
+                    {!editingMessage && activeConversationId && messages.length > 0 && (
+                        <PortalTooltip content={isMemorizing ? "Cancel memorize" : "Memorize conversation"} enterDelay={1500}>
+                            <button
+                                className={`${actionBtnClass} ${isMemorizing ? '!text-accent !bg-accent/10' : ''}`}
+                                onClick={() => isMemorizing ? handleCancelMemorize() : setIsMemorizing(true)}
+                                disabled={disabled || isStreaming || isMemorizeSaving}
+                            >
+                                <Brain size={15} />
+                            </button>
+                        </PortalTooltip>
+                    )}
+
+                    {/* Send / Stop / Memorize-Submit button */}
+                    {isMemorizing ? (
+                        <button
+                            className={`${actionBtnClass} !text-accent hover:!bg-accent/10`}
+                            onClick={handleMemorizeSend}
+                            disabled={isMemorizeSaving}
+                        >
+                            {isMemorizeSaving ? (
+                                <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                                <Check size={16} />
+                            )}
+                        </button>
+                    ) : isStreaming ? (
                         <button
                             className={`${actionBtnClass} !text-[var(--danger-color,#cc0000)] hover:!bg-red-500/10`}
                             onClick={onStop}

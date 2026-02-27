@@ -69,6 +69,7 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
     const subscribeToConversations = useChatStore(s => s.subscribeToConversations);
     const subscribeToMessages = useChatStore(s => s.subscribeToMessages);
     const subscribeToAiSettings = useChatStore(s => s.subscribeToAiSettings);
+    const subscribeToMemories = useChatStore(s => s.subscribeToMemories);
     const loadOlderMessages = useChatStore(s => s.loadOlderMessages);
     const loadOlderConversations = useChatStore(s => s.loadOlderConversations);
     const retryLastMessage = useChatStore(s => s.retryLastMessage);
@@ -124,8 +125,9 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
         const unsub1 = subscribeToProjects();
         const unsub2 = subscribeToConversations();
         const unsub3 = subscribeToAiSettings();
-        return () => { unsub1(); unsub2(); unsub3(); };
-    }, [userId, channelId, subscribeToProjects, subscribeToConversations, subscribeToAiSettings]);
+        const unsub4 = subscribeToMemories();
+        return () => { unsub1(); unsub2(); unsub3(); unsub4(); };
+    }, [userId, channelId, subscribeToProjects, subscribeToConversations, subscribeToAiSettings, subscribeToMemories]);
 
     useEffect(() => {
         if (!userId || !channelId || !activeConversationId) return;
@@ -186,6 +188,7 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
                     view={view}
                     headerTitle={headerTitle}
                     totalTokens={totalTokens}
+                    contextUsed={contextUsed}
                     totalCostEur={totalCostEur}
                     contextPercent={contextPercent}
                     activeProjectId={activeProjectId}
@@ -279,9 +282,11 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
                         <ChatSummaryBanner
                             summary={conversations.find(c => c.id === activeConversationId)?.summary || ''}
                         />
-                        <ChatListErrorBoundary>
-                            <ChatMessageList messages={messages} modelPricing={modelPricing} />
-                        </ChatListErrorBoundary>
+                        <div className="flex-1 min-h-0 flex flex-col">
+                            <ChatListErrorBoundary>
+                                <ChatMessageList messages={messages} modelPricing={modelPricing} />
+                            </ChatListErrorBoundary>
+                        </div>
                         <ChatInput
                             onSend={handleSend}
                             onStop={stopGeneration}

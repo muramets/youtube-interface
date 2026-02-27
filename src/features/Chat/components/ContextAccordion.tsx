@@ -4,7 +4,7 @@
 // (conversation memory, collapsed by default).
 // =============================================================================
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Paperclip, X, ChevronUp } from 'lucide-react';
 import type { AppContextItem, VideoCardContext } from '../../../core/types/appContext';
 import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../../core/types/appContext';
@@ -37,6 +37,18 @@ export const ContextAccordion: React.FC<ContextAccordionProps> = ({
     invertChevron = false,
 }) => {
     const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const prevCountRef = useRef(items.length);
+
+    // Auto-scroll to bottom when new items are added (not on remove)
+    useEffect(() => {
+        if (items.length > prevCountRef.current && scrollRef.current) {
+            requestAnimationFrame(() => {
+                scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+            });
+        }
+        prevCountRef.current = items.length;
+    }, [items.length]);
 
     const videoItems = useMemo(() => getVideoCards(items), [items]);
     const trafficItems = useMemo(() => getTrafficContexts(items), [items]);
@@ -84,7 +96,7 @@ export const ContextAccordion: React.FC<ContextAccordionProps> = ({
             </button>
 
             {isExpanded && (
-                <div className="px-2.5 pb-2 max-h-[40vh] overflow-y-auto scrollbar-compact">
+                <div ref={scrollRef} className="px-2.5 pb-2 max-h-[40vh] overflow-y-auto scrollbar-compact">
                     {videoItems.length > 0 && (() => {
                         const badgeMap = buildVideoBadgeMap(items);
                         return (
