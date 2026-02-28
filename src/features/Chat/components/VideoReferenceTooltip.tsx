@@ -31,6 +31,9 @@ interface VideoReferenceTooltipProps {
     video: VideoCardContext | null;
     /** Reference type from parsed href (e.g. 'video', 'competitor', 'suggested') */
     refType?: ReferenceType;
+    /** The parsed reference index (e.g. 3 for "Video #3") */
+    index?: number;
+    onBadgeClick?: () => void;
 }
 
 // --- Helpers ---
@@ -46,7 +49,7 @@ function formatPublishedDate(raw?: string): string | null {
 
 // --- Component ---
 
-export const VideoReferenceTooltip: React.FC<VideoReferenceTooltipProps> = React.memo(({ label, video, refType }) => {
+export const VideoReferenceTooltip: React.FC<VideoReferenceTooltipProps> = React.memo(({ label, video, refType, index, onBadgeClick }) => {
     const [isDescExpanded, setIsDescExpanded] = useState(false);
     const [areTagsExpanded, setAreTagsExpanded] = useState(false);
 
@@ -58,11 +61,28 @@ export const VideoReferenceTooltip: React.FC<VideoReferenceTooltipProps> = React
     // Defense layer: derive canonical label from REF_TYPE_LABELS (keyed by
     // reference type, not ownership) so "suggested" always shows "Suggested #N"
     // even though its ownership is 'competitor'.
-    const numMatch = label.match(/\d+/);
     const typeLabel = refType ? REF_TYPE_LABELS[refType] : OWNERSHIP_CONFIG[video.ownership]?.label;
-    const displayLabel = numMatch
-        ? `${typeLabel || 'Video'} #${numMatch[0]}`
-        : label;
+
+    // Adaptive Badge Labels:
+    // If an override changed the type (e.g. from "Video" to "Competitor"), the original `label`
+    // (e.g. "Video #4") will misrepresent the new type. We detect this and reconstruct it.
+    let displayLabel = label.trim();
+    if (refType && index !== undefined && typeLabel) {
+        // e.g. if label is "Video #4" but typeLabel is "Competitor Video", it's a mismatch.
+        // We do a loose check: if the typeLabel isn't present in the original label
+        // (case-insensitive), we rebuild it to avoid confusion.
+        const labelLower = displayLabel.toLowerCase();
+        const typeLower = typeLabel.toLowerCase();
+
+        // Special case: 'video' is generic and might naturally be matched by anything,
+        // but if the TRUE type is 'competitor' and the label only says 'video', we rebuild.
+        if (refType !== 'video' && !labelLower.includes(typeLower)) {
+            // Check original text for a # or № prefix to preserve formatting style if possible,
+            // otherwise default to #
+            const hashStyle = label.match(/[#№]/)?.[0] ?? '#';
+            displayLabel = `${typeLabel} ${hashStyle}${index}`;
+        }
+    }
 
     const publishedDate = formatPublishedDate(video.publishedAt);
     // Use refType-derived label for the "Type:" metric (not ownership, which is
@@ -205,7 +225,15 @@ export const VideoReferenceTooltip: React.FC<VideoReferenceTooltipProps> = React
             triggerClassName="!inline !flex-none"
             inline
         >
-            <span className="video-reference-highlight">
+            <span
+                className={`video-reference-highlight ${onBadgeClick ? 'cursor-pointer hover:bg-white/10' : ''}`}
+                onClick={(e) => {
+                    if (onBadgeClick) {
+                        e.preventDefault();
+                        onBadgeClick();
+                    }
+                }}
+            >
                 @{displayLabel}
             </span>
         </PortalTooltip>

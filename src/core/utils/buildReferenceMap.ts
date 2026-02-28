@@ -111,6 +111,8 @@ export interface VideoBadgeInfo {
     index: number;
     /** Short badge prefix from OWNERSHIP_CONFIG (e.g. "D", "C") or empty for published */
     prefix: string;
+    /** Reference type key matching REFERENCE_PATTERNS (e.g. 'draft', 'competitor', 'video') */
+    refType: string;
 }
 
 /**
@@ -129,6 +131,7 @@ export function buildVideoBadgeMap(ctx: AppContextItem[]): Map<string, VideoBadg
         badgeMap.set(video.videoId, {
             index: parseInt(indexStr),
             prefix: config?.badgePrefix || '',
+            refType,
         });
     }
 

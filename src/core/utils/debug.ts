@@ -19,10 +19,11 @@ export const DEBUG_ENABLED = {
     timeline: false,     // TimelineVideoLayer hover events
     timelineHook: false, // useTimelineTooltip state changes
     dots: false,         // TimelineDotsLayer hover detection
-    chat: true,         // AI chat: system prompt, app context, token usage
+    chat: true,          // AI chat: system prompt, app context, token usage
+    rawChatOutput: false, // Bypass markdown reference injection to view raw Gemini output
     scroll: false,       // ChatMessageList scroll state machine
     traffic: false,      // Traffic tab: unenriched calculation, repair flows
-    trends: false,        // Trends table: snapshot loading, delta calculations
+    trends: false,       // Trends table: snapshot loading, delta calculations
     canvas: false,       // Canvas: node re-renders, drag frame timing, memo hits
     context: true,       // App context: slot mutations, bridge pushes, consume/clear
 } as const;

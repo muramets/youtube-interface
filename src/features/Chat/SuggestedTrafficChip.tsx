@@ -12,9 +12,10 @@ interface SuggestedTrafficChipProps {
     onRemove?: () => void;
     /** Compact mode for message history (smaller, no remove button) */
     compact?: boolean;
+    onSelect?: () => void;
 }
 
-export const SuggestedTrafficChip: React.FC<SuggestedTrafficChipProps> = React.memo(({ context, onRemove, compact }) => {
+export const SuggestedTrafficChip: React.FC<SuggestedTrafficChipProps> = React.memo(({ context, onRemove, compact, onSelect }) => {
     const { sourceVideo, suggestedVideos } = context;
     const count = suggestedVideos.length;
 
@@ -26,12 +27,14 @@ export const SuggestedTrafficChip: React.FC<SuggestedTrafficChipProps> = React.m
     return (
         <div
             className={`
-                group/chip flex flex-col rounded-lg overflow-hidden transition-all duration-200 relative
+                group/chip flex flex-col rounded-lg overflow-hidden transition-all duration-200 relative shrink-0
                 ${compact
                     ? 'bg-white/[0.04] w-[180px]'
                     : 'bg-white/[0.05] w-[200px] hover:bg-emerald-500/[0.06]'
                 }
+                ${onSelect ? 'cursor-pointer ring-1 ring-inset ring-transparent hover:ring-accent-primary hover:bg-white/10' : ''}
             `}
+            onClick={onSelect}
         >
             {/* Remove button */}
             {onRemove && !compact && (

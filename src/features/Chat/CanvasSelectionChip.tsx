@@ -19,6 +19,7 @@ interface CanvasSelectionChipProps {
     compact?: boolean;
     /** Cumulative offset for video numbering across multiple canvas selections */
     videoStartIndex?: number;
+    onSelect?: () => void;
 }
 
 /** Map a canvas video/traffic-source node to VideoCardContext for chip rendering. */
@@ -65,7 +66,7 @@ const NOTE_DOT_COLORS: Record<string, string> = {
     neutral: '#9CA3AF',
 };
 
-export const CanvasSelectionChip: React.FC<CanvasSelectionChipProps> = React.memo(({ context, onRemove, compact, videoStartIndex }) => {
+export const CanvasSelectionChip: React.FC<CanvasSelectionChipProps> = React.memo(({ context, onRemove, compact, videoStartIndex, onSelect }) => {
     const videos = context.nodes.filter((n): n is VideoContextNode | TrafficSourceContextNode => n.nodeType === 'video' || n.nodeType === 'traffic-source');
     const notes = context.nodes.filter((n): n is StickyNoteContextNode => n.nodeType === 'sticky-note');
     const images = context.nodes.filter((n): n is ImageContextNode => n.nodeType === 'image');
@@ -80,6 +81,7 @@ export const CanvasSelectionChip: React.FC<CanvasSelectionChipProps> = React.mem
                             key={v.videoId || v.title}
                             video={toVideoCardContext(v)}
                             index={videoStartIndex != null ? videoStartIndex + i + 1 : undefined}
+                            onSelect={onSelect}
                         />
                     ))}
                 </div>
@@ -89,8 +91,15 @@ export const CanvasSelectionChip: React.FC<CanvasSelectionChipProps> = React.mem
             {notes.map((note, i) => (
                 <div
                     key={`note-${i}`}
-                    className="canvas-note-chip flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-text-secondary max-w-[280px] transition-colors duration-150"
+                    className={`canvas-note-chip flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-text-secondary max-w-[280px] transition-colors duration-150
+                        ${compact
+                            ? 'bg-white/[0.04] w-[180px]'
+                            : 'bg-white/[0.05] w-[200px] hover:bg-emerald-500/[0.06]'
+                        }
+                        ${onSelect ? 'cursor-pointer ring-1 ring-inset ring-transparent hover:ring-accent-primary hover:bg-white/10' : ''}
+                    `}
                     style={{ '--note-tint': NOTE_DOT_COLORS[note.noteColor || 'yellow'] || NOTE_DOT_COLORS.yellow } as React.CSSProperties}
+                    onClick={onSelect}
                 >
                     <div
                         className="w-2 h-2 rounded-full shrink-0"

@@ -55,6 +55,7 @@ export interface ChatMessage {
         completionTokens: number;
         totalTokens: number;
     };
+    overrides?: Record<string, string>; // Tier 3: Manual overrides for hallucinated references (e.g. { "4": "competitor-4" })
     createdAt: Timestamp;
 }
 

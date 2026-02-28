@@ -50,6 +50,7 @@ interface ChatState {
     lastFailedRequest: { text: string; attachments?: ReadyAttachment[]; messageId?: string } | null;
     pendingModel: string | null; // model override for not-yet-created conversations
     editingMessage: ChatMessage | null; // message being edited (user clicks pencil)
+    referenceSelectionMode: { active: boolean; messageId: string | null; originalNum: string | null }; // Tier 3: Manual override selection state
 
     // Actions — Context
     setContext: (userId: string | null, channelId: string | null) => void;
@@ -97,6 +98,11 @@ interface ChatState {
     // Actions — Edit
     setEditingMessage: (msg: ChatMessage | null) => void;
     editMessage: (newText: string, attachments?: ReadyAttachment[]) => Promise<void>;
+
+    // Actions — Tier 3 Override
+    startReferenceSelection: (messageId: string, num: string) => void;
+    cancelReferenceSelection: () => void;
+    saveReferenceOverride: (messageId: string, originalNum: string, newReferenceKey: string) => Promise<void>;
 }
 
 // AbortController lives outside Zustand (non-serializable)
@@ -254,6 +260,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     lastFailedRequest: null,
     pendingModel: null,
     editingMessage: null,
+    referenceSelectionMode: { active: false, messageId: null, originalNum: null },
 
     // --- Context ---
     setContext: (userId, channelId) => set({ userId, channelId }),
@@ -514,6 +521,45 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         // 4. Send the new version (reuses full sendMessage flow: persist + stream AI)
         await get().sendMessage(newText, attachments);
+    },
+
+    // --- Tier 3 Override ---
+
+    startReferenceSelection: (messageId, num) => {
+        set({ referenceSelectionMode: { active: true, messageId, originalNum: num } });
+    },
+
+    cancelReferenceSelection: () => {
+        set({ referenceSelectionMode: { active: false, messageId: null, originalNum: null } });
+    },
+
+    saveReferenceOverride: async (messageId, originalNum, newReferenceKey) => {
+        const { userId, channelId } = requireContext(get);
+        const { activeConversationId, messages } = get();
+        if (!activeConversationId) return;
+
+        // 1. Optimistic UI update
+        const updatedMessages = messages.map(m => {
+            if (m.id === messageId) {
+                return {
+                    ...m,
+                    overrides: { ...(m.overrides || {}), [originalNum]: newReferenceKey }
+                };
+            }
+            return m;
+        });
+
+        set({
+            messages: updatedMessages,
+            referenceSelectionMode: { active: false, messageId: null, originalNum: null }
+        });
+
+        // 2. Persist to Firestore
+        const msgToUpdate = messages.find(m => m.id === messageId);
+        if (msgToUpdate) {
+            const newOverrides = { ...(msgToUpdate.overrides || {}), [originalNum]: newReferenceKey };
+            await ChatService.updateMessage(userId, channelId, activeConversationId, messageId, { overrides: newOverrides });
+        }
     },
 
     // --- AI ---

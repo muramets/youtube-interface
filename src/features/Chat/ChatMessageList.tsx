@@ -54,6 +54,7 @@ import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, Zap, Mes
 import { Timestamp } from 'firebase/firestore';
 import { useChatStore } from '../../core/stores/chatStore';
 import { injectVideoReferenceLinks, parseReferenceHref, parseReferenceText } from './utils/videoReferenceUtils';
+import type { ReferenceType } from './utils/videoReferenceUtils';
 import { REFERENCE_PATTERNS } from '../../core/config/referencePatterns';
 import { VideoReferenceTooltip } from './components/VideoReferenceTooltip';
 import { formatRelativeTime, STATIC_AGE } from './formatRelativeTime';
@@ -61,7 +62,7 @@ import { MessageErrorBoundary } from './components/ChatBoundaries';
 import { VideoCardChip } from './VideoCardChip';
 import { SuggestedTrafficChip } from './SuggestedTrafficChip';
 import { CanvasSelectionChip } from './CanvasSelectionChip';
-import { debug } from '../../core/utils/debug';
+import { debug, DEBUG_ENABLED } from '../../core/utils/debug';
 import { SelectionToolbar } from './components/SelectionToolbar';
 
 /** Dynamic URL scheme whitelist derived from REFERENCE_PATTERNS — stays in sync automatically. */
@@ -114,11 +115,12 @@ interface ChatMessageListProps {
     modelPricing?: ModelPricing;
 }
 
-const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoCardContext> }> = React.memo(({ text, videoMap }) => {
+const MarkdownMessage: React.FC<{ text: string; msgId: string; videoMap?: Map<string, VideoCardContext>; overrides?: Record<string, string> }> = React.memo(({ text, msgId, videoMap, overrides }) => {
     const hasVideos = videoMap && videoMap.size > 0;
-    const processedText = hasVideos
-        ? injectVideoReferenceLinks(text)
+    const processedText = hasVideos && !DEBUG_ENABLED.rawChatOutput
+        ? injectVideoReferenceLinks(text, videoMap, overrides)
         : text;
+
 
     return (
         <ReactMarkdown
@@ -140,24 +142,27 @@ const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoCard
                 },
                 a({ href, children, ...props }) {
                     const childText = String(children);
+
+                    // Shared renderer for both primary and defense-in-depth paths (DRY).
+                    const renderBadge = (ref: { type: ReferenceType; index: number }) => {
+                        const key = `${ref.type}-${ref.index}`;
+                        const video = videoMap!.get(key) ?? null;
+                        const handleBadgeClick = () => {
+                            useChatStore.getState().startReferenceSelection(msgId, String(ref.index));
+                        };
+                        return <VideoReferenceTooltip label={childText} video={video} refType={ref.type} index={ref.index} onBadgeClick={handleBadgeClick} />;
+                    };
+
                     // Primary path: parse the structured *-ref:// href
                     if (href && videoMap) {
                         const ref = parseReferenceHref(href);
-                        if (ref) {
-                            const key = `${ref.type}-${ref.index}`;
-                            const video = videoMap.get(key) ?? null;
-                            return <VideoReferenceTooltip label={childText} video={video} refType={ref.type} />;
-                        }
+                        if (ref) return renderBadge(ref);
                     }
                     // Defense-in-depth: Gemini may write [Video 3]() with empty href,
                     // or standalone [№4]() from contextual catch-up injection.
                     if (videoMap && videoMap.size > 0 && (!href || href === '')) {
                         const ref = parseReferenceText(childText);
-                        if (ref) {
-                            const key = `${ref.type}-${ref.index}`;
-                            const video = videoMap.get(key) ?? null;
-                            return <VideoReferenceTooltip label={childText} video={video} refType={ref.type} />;
-                        }
+                        if (ref) return renderBadge(ref);
                     }
                     return <a href={href} target="_blank" rel="noreferrer" {...props}>{children}</a>;
                 },
@@ -322,7 +327,7 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
             )}
 
             <div className={`${msg.role === 'user' ? MSG_BUBBLE_USER : MSG_BUBBLE_MODEL} ${isFailed ? 'border border-red-500/40' : ''}`}>
-                {msg.role === 'model' ? <MarkdownMessage text={msg.text} videoMap={videoMap} /> : msg.text}
+                {msg.role === 'model' ? <MarkdownMessage text={msg.text} msgId={msg.id} videoMap={videoMap} overrides={msg.overrides} /> : msg.text}
             </div>
 
             {/* Failed message indicator */}
@@ -720,7 +725,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                     <div className={MSG_BUBBLE_MODEL}>
                         {streamingText ? (
                             <div className="animate-fade-in">
-                                {debouncedStreamingText ? <MarkdownMessage text={debouncedStreamingText} videoMap={referenceVideoMap} /> : <span className="whitespace-pre-wrap">{streamingText}</span>}
+                                {debouncedStreamingText ? <MarkdownMessage text={debouncedStreamingText} msgId="streaming-temp-id" videoMap={referenceVideoMap} /> : <span className="whitespace-pre-wrap">{streamingText}</span>}
                             </div>
                         ) : (
                             <span className="inline-flex items-center gap-[3px] align-middle">

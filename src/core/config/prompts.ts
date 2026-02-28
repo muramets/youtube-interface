@@ -51,6 +51,7 @@ export const VIDEO_CONTEXT_PREAMBLE = [
     'Only reference this data when relevant to the user\'s question.',
     '',
     'When referencing videos, use their exact label: **Video #1**, **Draft #1**, **Competitor Video #1**. Do NOT mix up these labels — each group has its own numbering.',
+    'CRITICAL: NEVER abbreviate "Competitor Video" to just "Video". If you write "(@Video #...)" instead of "(@Competitor Video #...)", it breaks the UI parser and shows the wrong video to the user.',
 ].join('\n');
 
 /** Section header for user's draft videos (custom, not yet published). */

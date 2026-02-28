@@ -6,6 +6,7 @@
 // =============================================================================
 
 import { REFERENCE_PATTERNS } from '../../../core/config/referencePatterns';
+import type { VideoCardContext } from '../../../core/types/appContext';
 
 /** Compiled patterns — built once from the config. */
 const COMPILED_PATTERNS = REFERENCE_PATTERNS.map(({ type, pattern }) => ({
@@ -13,7 +14,8 @@ const COMPILED_PATTERNS = REFERENCE_PATTERNS.map(({ type, pattern }) => ({
     // Unicode-safe boundary: \\b only works for ASCII, breaks Cyrillic.
     // Negative lookbehind ensures the match isn't preceded by a letter, digit,
     // or '[' (prevents double-wrapping if Gemini already outputs markdown links).
-    regex: new RegExp(`(?<![\\p{L}\\d\\[])${pattern}`, 'giu'),
+    // Allow `@` prefix for explicit mentions.
+    regex: new RegExp(`(?<![\\p{L}\\d\\[])_?@?${pattern}`, 'giu'),
 }));
 
 /**
@@ -26,61 +28,106 @@ const REF_TYPES_RE = REFERENCE_PATTERNS.map(p => p.type).join('|');
  * Pre-process markdown text: replace "Draft #3" with `[Draft #3](draft-ref://3)`,
  * "Video #N" with `[Video #N](video-ref://N)`, etc.
  *
- * The custom markdown `a` renderer in ChatMessageList detects these special
- * schemes and renders interactive tooltip components instead of regular links.
+ * It uses Contextual Fallback Resolution: if Gemini abbreviates "Competitor Video 4"
+ * as "Video 4", the parser checks `videoMap` (Ground Truth). If `video-4` doesn't exist
+ * but `competitor-4` does, it auto-corrects the type to `competitor`.
  *
  * @param text - Raw markdown text from Gemini
+ * @param videoMap - Local context dictionary to resolve dropped prefixes (Ground Truth)
+ * @param overrides - Tier 3 overrides set by the user (e.g., { "4": "competitor-4" })
  * @returns Processed markdown with reference links injected
  */
-export function injectVideoReferenceLinks(text: string): string {
+export function injectVideoReferenceLinks(text: string, videoMap?: Map<string, VideoCardContext>, overrides?: Record<string, string>): string {
     let result = text;
+
+    // Helper: Contextual Fallback Resolution
+    // Resolves AI Hallucinations where Gemini drops prefixes (e.g. writes "Video #4" instead of "Competitor Video #4").
+    const resolveContextualFallback = (type: string, num: string, fullText: string): string => {
+        // Tier 3: Human-in-the-Loop Override. Always wins.
+        if (overrides && overrides[num]) {
+            // Override value is a reference key like "competitor-4" or "draft-2".
+            // Split on the last hyphen to get the type portion.
+            const lastDash = overrides[num].lastIndexOf('-');
+            if (lastDash > 0) {
+                const overrideType = overrides[num].substring(0, lastDash);
+                return `[${fullText}](${overrideType}-ref://${num})`;
+            }
+        }
+
+        let finalType = type;
+
+        // Tier 2: Safe Auto-Fallback (only if type is generic 'video')
+        if (videoMap && type === 'video') {
+            const hasVideo = videoMap.has(`video-${num}`);
+            if (!hasVideo) {
+                // If it's not a standard video, see what else exists with this number in the context
+                const alternatives = [];
+                if (videoMap.has(`competitor-${num}`)) alternatives.push('competitor');
+                if (videoMap.has(`draft-${num}`)) alternatives.push('draft');
+                if (videoMap.has(`suggested-${num}`)) alternatives.push('suggested');
+
+                // MATHEMATICALLY SAFE: Only auto-correct if exactly ONE alternative exists.
+                // If 0, do nothing (maybe it's completely hallucinated).
+                // If >1, it's a collision. Do nothing and let Tier 3 (user override) handle it if needed.
+                if (alternatives.length === 1) {
+                    finalType = alternatives[0];
+                }
+            }
+        }
+
+        return `[${fullText}](${finalType}-ref://${num})`;
+    };
+
+    const savedLinks: string[] = [];
 
     // Pass 1: Standard patterns (e.g. "Видео №5", "Video #3", "Draft 1")
     for (const { type, regex } of COMPILED_PATTERNS) {
         regex.lastIndex = 0;
         result = result.replace(regex, (_match, fullText: string, num: string) => {
-            return `[${fullText}](${type}-ref://${num})`;
+            const resolved = resolveContextualFallback(type, num, fullText);
+            savedLinks.push(resolved);
+            return `\uFFF0REF${savedLinks.length - 1}\uFFF0`;
         });
     }
 
-    // Protect Pass 1 links from Pass 2/3 re-wrapping.
-    // Without this, Pass 2 catches "#9" inside "[Video #9](...)" because it's
-    // within 30 chars of a previous ref, creating nested brackets that break markdown.
-    const savedLinks: string[] = [];
-    result = result.replace(/\[[^\]]+\]\([^)]*-ref:\/\/\d+\)/g, (match) => {
-        savedLinks.push(match);
-        return `\uFFF0REF${savedLinks.length - 1}\uFFF0`;
-    });
+    // Helper to safely get the reference type from the nearest preceding saved link
+    const getPrecedingRefType = (currentStr: string, offset: number): string => {
+        const preceding = currentStr.substring(Math.max(0, offset - 80), offset);
+        const refMatch = preceding.match(/\uFFF0REF(\d+)\uFFF0/g);
+        if (refMatch) {
+            const lastRefIdx = parseInt(refMatch[refMatch.length - 1].replace(/[^\d]/g, ''), 10);
+            const originalLink = savedLinks[lastRefIdx];
+            const typeMatch = originalLink?.match(/\(([^)]+)-ref:\/\//);
+            if (typeMatch) return typeMatch[1];
+        }
+        return 'video'; // Default fallback
+    };
 
     // Pass 2: Contextual catch-up — orphaned №N / #N near an already-injected ref.
     // Inherits the ref type from the nearest preceding reference (e.g. draft-ref stays draft).
     result = result.replace(
-        new RegExp(`(?<=(?:${REF_TYPES_RE})-ref:\\/\\/\\d+\\).{0,30})([#№](\\d+))`, 'gi'),
+        new RegExp(`(?<=\\uFFF0REF\\d+\\uFFF0.{0,30})([#№](\\d+))`, 'gi'),
         (_match, fullText: string, num: string, offset: number) => {
-            const preceding = result.substring(Math.max(0, offset - 80), offset);
-            const typeMatches = preceding.match(new RegExp(`(${REF_TYPES_RE})-ref://`, 'g'));
-            const refType = typeMatches
-                ? typeMatches[typeMatches.length - 1].replace('-ref://', '')
-                : 'video';
-            return `[${fullText}](${refType}-ref://${num})`;
+            const refType = getPrecedingRefType(result, offset);
+            return `\uFFF0REF${savedLinks.push(`[${fullText}](${refType}-ref://${num})`) - 1}\uFFF0`;
         }
     );
 
     // Pass 3: Bare numbers after conjunction (и/and/,) near an already-injected ref.
     // Inherits the ref type from the nearest preceding reference.
-    // Loop handles chains: "Драфт 1, 2 и 3" → each pass catches the next bare number.
-    const bareNumPattern = new RegExp(`(?<=(?:${REF_TYPES_RE})-ref:\\/\\/\\d+\\)\\s*(?:и|and|,)\\s*)(\\d+)(?![\\d.%])`, 'gi');
+    // Captures optional # or № prefix included with commas to handle ", #6, #7".
+    // Loop handles chains: "Драфт 1, 2 и #3" → each pass catches the next sequential number.
+    const bareNumPattern = new RegExp(`(?<=\\uFFF0REF\\d+\\uFFF0\\s*(?:и|and|,| и | and | , )\\s*)([#№]?\\s*\\d+)(?![\\d.%])`, 'gi');
     let prev = '';
     while (prev !== result) {
         prev = result;
         const currentResult = result; // capture for closure safety
-        result = result.replace(bareNumPattern, (_match, num: string, offset: number) => {
-            const preceding = currentResult.substring(Math.max(0, offset - 80), offset);
-            const typeMatches = preceding.match(new RegExp(`(${REF_TYPES_RE})-ref://`, 'g'));
-            const refType = typeMatches
-                ? typeMatches[typeMatches.length - 1].replace('-ref://', '')
-                : 'video';
-            return `[${num}](${refType}-ref://${num})`;
+        result = result.replace(bareNumPattern, (_match, numWithPrefix: string, offset: number) => {
+            const numMatch = numWithPrefix.match(/\d+/);
+            const num = numMatch ? numMatch[0] : '';
+            const refType = getPrecedingRefType(currentResult, offset);
+
+            return `\uFFF0REF${savedLinks.push(`[${numWithPrefix}](${refType}-ref://${num})`) - 1}\uFFF0`;
         });
     }
 

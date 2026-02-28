@@ -275,13 +275,8 @@ export const ChatService = {
         return { ...msg, id };
     },
 
-    async updateMessage(
-        userId: string,
-        channelId: string,
-        conversationId: string,
-        messageId: string,
-        updates: Partial<Pick<ChatMessage, 'attachments'>>
-    ) {
+    /** Update specific message fields (e.g. attachments after upload completes, overrides) */
+    async updateMessage(userId: string, channelId: string, conversationId: string, messageId: string, updates: Partial<Pick<ChatMessage, 'attachments' | 'overrides'>>): Promise<void> {
         await updateDocument(messagesPath(userId, channelId, conversationId), messageId, updates);
     },
 

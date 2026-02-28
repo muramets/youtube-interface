@@ -26,9 +26,10 @@ interface VideoCardChipProps {
     index?: number;
     /** Short prefix for the badge, e.g. 'D' for Draft, 'P' for Published, 'C' for Competitor */
     badgePrefix?: string;
+    onSelect?: () => void;
 }
 
-export const VideoCardChip: React.FC<VideoCardChipProps> = React.memo(({ video, onRemove, compact, index, badgePrefix }) => {
+export const VideoCardChip: React.FC<VideoCardChipProps> = React.memo(({ video, onRemove, compact, index, badgePrefix, onSelect }) => {
     const formattedDate = video.publishedAt
         ? new Date(video.publishedAt).toLocaleDateString()
         : undefined;
@@ -56,8 +57,10 @@ export const VideoCardChip: React.FC<VideoCardChipProps> = React.memo(({ video, 
                     ? 'bg-white/[0.04] w-[140px]'
                     : 'bg-white/[0.05] w-[160px] hover:bg-purple-500/[0.06]'
                 }
+                ${onSelect ? 'cursor-pointer hover:border-accent-primary hover:bg-white/10 transition-colors' : ''}
             `}
             onPointerEnter={handlePointerEnter}
+            onClick={onSelect}
         >
             {/* Remove button — overlayed top-right */}
             {onRemove && !compact && (
