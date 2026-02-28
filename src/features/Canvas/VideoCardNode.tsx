@@ -6,13 +6,9 @@
 // =============================================================================
 
 import React, { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowUpRight, RefreshCw, Play } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { ArrowUpRight, Play } from 'lucide-react';
 import type { VideoCardContext } from '../../core/types/appContext';
-import type { VideoDetails } from '../../core/utils/youtubeApi';
 import { useChannelStore } from '../../core/stores/channelStore';
-import { useAuth } from '../../core/hooks/useAuth';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 import { formatDuration } from '../../core/utils/formatUtils';
 import { ColorPickerPopover } from '../../components/ui/molecules/ColorPickerPopover';
@@ -48,13 +44,9 @@ function formatPublishDate(raw?: string): string | null {
 const VideoCardNodeInner: React.FC<VideoCardNodeProps> = ({ data, nodeId }) => {
     const views = formatViewCount(data.viewCount);
     const date = formatPublishDate(data.publishedAt);
-    const navigate = useNavigate();
-    const { user } = useAuth();
     const { currentChannel } = useChannelStore();
-    const setOpen = useCanvasStore((s) => s.setOpen);
     const updateNodeData = useCanvasStore((s) => s.updateNodeData);
     const bringToFront = useCanvasStore((s) => s.bringToFront);
-    const queryClient = useQueryClient();
 
     const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
 
@@ -66,32 +58,15 @@ const VideoCardNodeInner: React.FC<VideoCardNodeProps> = ({ data, nodeId }) => {
     const { minimize, activeVideoId, isMinimized } = useVideoPlayer();
     const isNowPlaying = isMinimized && !!playableId && activeVideoId === playableId;
 
-    const handleOpenDetails = (e: React.MouseEvent) => {
+    /** Own videos → traffic tab (new tab), competitor → YouTube (new tab) */
+    const handleNavigate = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!currentChannel?.id) return;
-        navigate(`/video/${currentChannel.id}/${data.videoId}/details`);
-        setOpen(false);
+        if (isOwnVideo && currentChannel?.id) {
+            window.open(`/video/${currentChannel.id}/${data.videoId}/details?tab=traffic`, '_blank');
+        } else if (data.publishedVideoId) {
+            window.open(`https://www.youtube.com/watch?v=${data.publishedVideoId}`, '_blank');
+        }
     };
-
-    const handleRefresh = useCallback((e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (!user?.uid || !currentChannel?.id) return;
-        const cached = queryClient.getQueryData<VideoDetails[]>(
-            ['videos', user.uid, currentChannel.id]
-        );
-        const fresh = cached?.find((v) => v.id === data.videoId);
-        if (!fresh) return;
-
-        updateNodeData(nodeId, {
-            viewCount: fresh.mergedVideoData?.viewCount || fresh.viewCount || data.viewCount,
-            publishedAt: fresh.mergedVideoData?.publishedAt || fresh.publishedAt || data.publishedAt,
-            duration: fresh.mergedVideoData?.duration || data.duration,
-            thumbnailUrl: fresh.customImage || fresh.thumbnail || data.thumbnailUrl,
-            title: fresh.title || data.title,
-            // Pull published YouTube ID so play button works after refresh
-            ...(fresh.publishedVideoId ? { publishedVideoId: fresh.publishedVideoId } : {}),
-        });
-    }, [user, currentChannel, data, nodeId, queryClient, updateNodeData]);
 
     const handleColorChange = useCallback((color: string) => {
         updateNodeData(nodeId, { color });
@@ -126,28 +101,17 @@ const VideoCardNodeInner: React.FC<VideoCardNodeProps> = ({ data, nodeId }) => {
                     </div>
                 )}
 
-                {/* Action buttons — appear on hover */}
+                {/* Navigate button — appears on hover */}
                 <div className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-20">
                     <button
                         style={{ pointerEvents: 'auto' }}
                         onMouseDown={(e) => e.stopPropagation()}
-                        onClick={handleRefresh}
+                        onClick={handleNavigate}
                         className="w-6 h-6 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/80 border-none cursor-pointer transition-colors"
-                        title="Refresh data"
+                        title={isOwnVideo ? 'Open traffic tab' : 'Open on YouTube'}
                     >
-                        <RefreshCw size={11} strokeWidth={2.5} />
+                        <ArrowUpRight size={12} strokeWidth={2.5} />
                     </button>
-                    {isOwnVideo && (
-                        <button
-                            style={{ pointerEvents: 'auto' }}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={handleOpenDetails}
-                            className="w-6 h-6 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/80 border-none cursor-pointer transition-colors"
-                            title="Open details"
-                        >
-                            <ArrowUpRight size={12} strokeWidth={2.5} />
-                        </button>
-                    )}
                 </div>
 
                 {/* Duration badge */}

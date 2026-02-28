@@ -18,6 +18,8 @@ import type { CanvasNode } from '../../core/types/canvas';
 import type { TrafficSourceCardData } from '../../core/types/appContext';
 import { NODE_WIDTH } from '../../core/stores/canvas/constants';
 import { usePointerDrag } from './hooks/usePointerDrag';
+import { useSnap } from './utils/SnapContext';
+import { getNodeWidth, getNodeHeight } from './utils/snapEngine';
 import { debug } from '../../core/utils/debug';
 
 export type LodLevel = 'full' | 'medium' | 'minimal';
@@ -29,9 +31,11 @@ interface CanvasNodeWrapperProps {
     lodLevel?: LodLevel;
     /** Measured height from nodeSizes store, for LOD rendering */
     measuredHeight?: number;
+    /** Channel ID for own-video navigation in medium LOD */
+    channelId?: string;
 }
 
-const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, children, lodLevel = 'full', measuredHeight }) => {
+const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, children, lodLevel = 'full', measuredHeight, channelId }) => {
     debug.canvas('⟳ render', node.type, node.id.slice(0, 8));
     const {
         moveNode, moveNodes, deleteNode, updateNodeSize, resizeNode,
@@ -82,6 +86,9 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
         startClientY: number;
         zoom: number;
         nodeStartPositions: { id: string; x: number; y: number }[];
+        nodeWidth: number;  // primary node width for snap rect
+        nodeHeight: number; // primary node height for snap rect
+        excludeIds: Set<string>; // IDs to exclude from snap targets
     } | null>(null);
 
     // resizeRef stores start info for resize drag
@@ -90,6 +97,8 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
         startClientY: number;
         startWidth: number;
         startHeight: number;
+        startX: number;     // node x (stays fixed during resize)
+        startY: number;     // node y (stays fixed during resize)
         mode: 'corner' | 'right' | 'bottom';
         zoom: number;
     } | null>(null);
@@ -105,42 +114,83 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
         return () => ro.disconnect();
     }, [node.id, updateNodeSize]);
 
-    // --- Drag to move (rAF-throttled) ---
+    const { applySnap, clearGuides } = useSnap();
+
+    // --- Drag to move (rAF-throttled, with snap-to-align) ---
     const [isDragging, startDrag] = usePointerDrag({
         onMove: (clientX, clientY) => {
             const d = dragRef.current;
             if (!d) return;
             const dx = (clientX - d.startClientX) / d.zoom;
             const dy = (clientY - d.startClientY) / d.zoom;
+
+            // Build dragged rect for snap (using primary node)
+            const primary = d.nodeStartPositions[0];
+            const rawRect = {
+                x: primary.x + dx,
+                y: primary.y + dy,
+                w: d.nodeWidth,
+                h: d.nodeHeight,
+            };
+            const snapped = applySnap(rawRect, d.excludeIds);
+            const snapDx = snapped.x - rawRect.x;
+            const snapDy = snapped.y - rawRect.y;
+
             if (d.nodeStartPositions.length === 1) {
-                const { id, x, y } = d.nodeStartPositions[0];
-                moveNode(id, { x: x + dx, y: y + dy });
+                moveNode(primary.id, { x: snapped.x, y: snapped.y });
             } else {
                 moveNodes(d.nodeStartPositions.map(({ id, x, y }) => ({
                     id,
-                    position: { x: x + dx, y: y + dy },
+                    position: { x: x + dx + snapDx, y: y + dy + snapDy },
                 })));
             }
         },
+        onEnd: () => clearGuides(),
     });
 
-    // --- Resize (rAF-throttled) ---
+    // --- Resize (rAF-throttled, with snap-to-align) ---
     const [isResizing, startResize] = usePointerDrag({
         onMove: (clientX, clientY) => {
             const r = resizeRef.current;
             if (!r) return;
             const dx = (clientX - r.startClientX) / r.zoom;
             const dy = (clientY - r.startClientY) / r.zoom;
+
+            let newW = r.startWidth;
+            let newH = r.startHeight;
+
             if (r.mode === 'corner') {
-                resizeNode(node.id, r.startWidth + dx, r.startHeight + dy);
+                newW = r.startWidth + dx;
+                newH = r.startHeight + dy;
             } else if (r.mode === 'right') {
-                // Width-only: pass height=0 for non-sticky to reset to auto
-                resizeNode(node.id, r.startWidth + dx, isSticky ? undefined : 0);
+                newW = r.startWidth + dx;
+                newH = isSticky ? r.startHeight : 0; // auto-height for non-sticky
             } else if (r.mode === 'bottom') {
-                resizeNode(node.id, r.startWidth, r.startHeight + dy);
+                newH = r.startHeight + dy;
+            }
+
+            // Snap the resized rect edges against other nodes
+            const rawRect = {
+                x: r.startX,
+                y: r.startY,
+                w: newW,
+                h: newH > 0 ? newH : r.startHeight,
+            };
+            const excludeIds = new Set([node.id]);
+            const snapped = applySnap(rawRect, excludeIds);
+            // Only apply snap delta to the dimension being changed (right/bottom edge)
+            const snapW = newW + (snapped.x - rawRect.x);
+            const snapH = newH > 0 ? newH + (snapped.y - rawRect.y) : newH;
+
+            if (r.mode === 'corner') {
+                resizeNode(node.id, snapW, snapH);
+            } else if (r.mode === 'right') {
+                resizeNode(node.id, snapW, isSticky ? undefined : 0);
+            } else if (r.mode === 'bottom') {
+                resizeNode(node.id, r.startWidth, snapH);
             }
         },
-        onEnd: () => setResizeMode(null),
+        onEnd: () => { setResizeMode(null); clearGuides(); },
     });
 
     const handleDragStart = useCallback((e: React.MouseEvent) => {
@@ -186,14 +236,22 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
             return { id, x: n?.position?.x ?? 0, y: n?.position?.y ?? 0 };
         });
 
+        // Compute primary node dimensions for snap
+        const { nodeSizes } = useCanvasStore.getState();
+        const nodeWidth = getNodeWidth(node);
+        const nodeHeight = getNodeHeight(node, nodeSizes);
+
         dragRef.current = {
             startClientX: e.clientX,
             startClientY: e.clientY,
             zoom: liveZoom.current,
             nodeStartPositions,
+            nodeWidth,
+            nodeHeight,
+            excludeIds: new Set(ids),
         };
         startDrag();
-    }, [node.id, selectNode, startDrag, markPlaced, duplicateNodes]);
+    }, [node.id, node.type, node.size, selectNode, startDrag, markPlaced, duplicateNodes, applySnap, clearGuides]);
 
     const isSticky = node.type === 'sticky-note';
     const isTrafficSource = node.type === 'traffic-source';
@@ -213,6 +271,8 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
                 startClientY: e.clientY,
                 startWidth: node.size?.w ?? NODE_WIDTH,
                 startHeight: el?.offsetHeight ?? 100,
+                startX: node.position?.x ?? 0,
+                startY: node.position?.y ?? 0,
                 mode,
                 zoom: liveZoom.current,
             };
@@ -326,7 +386,7 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
                 {lodLevel === 'minimal' ? (
                     <SimplifiedNode node={node} measuredHeight={measuredHeight} />
                 ) : lodLevel === 'medium' ? (
-                    <MediumLodNode node={node} />
+                    <MediumLodNode node={node} channelId={channelId} />
                 ) : (
                     children
                 )}

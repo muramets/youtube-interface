@@ -12,6 +12,10 @@ import { useCanvasPlacement } from './hooks/useCanvasPlacement';
 import { useCanvasKeyboard } from './hooks/useCanvasKeyboard';
 import { useCanvasNicheSync } from './hooks/useCanvasNicheSync';
 import { useCanvasContextBridge } from './hooks/useCanvasContextBridge';
+import { useCanvasDataSync } from './hooks/useCanvasDataSync';
+import { useSnapGuides } from './hooks/useSnapGuides';
+import { SnapContext } from './utils/SnapContext';
+import { SnapGuides } from './SnapGuides';
 import { CanvasFloatingBar } from './CanvasFloatingBar';
 import { CanvasToolbar } from './CanvasToolbar';
 import { CanvasBoard, type CanvasBoardHandle } from './CanvasBoard';
@@ -28,6 +32,7 @@ import { deriveFrameBounds } from './utils/frameLayout';
 import type { CanvasViewport, StickyNoteData, ImageNodeData } from '../../core/types/canvas';
 import type { VideoCardContext, TrafficSourceCardData } from '../../core/types/appContext';
 import { debug } from '../../core/utils/debug';
+import { useChannelStore } from '../../core/stores/channelStore';
 import { CanvasPageHeader } from './CanvasPageHeader';
 import './Canvas.css';
 
@@ -87,6 +92,8 @@ export const CanvasOverlay: React.FC = () => {
         }))
     );
 
+    const { currentChannel } = useChannelStore();
+
     const boardRef = useRef<CanvasBoardHandle>(null);
     const overlayRef = useRef<HTMLDivElement>(null);
     const liveZoomRef = useRef(viewport.zoom);
@@ -106,6 +113,10 @@ export const CanvasOverlay: React.FC = () => {
     useCanvasKeyboard(isOpen, boardRef);
     useCanvasNicheSync(isOpen);
     useCanvasContextBridge(isOpen);
+    useCanvasDataSync(isOpen);
+
+    // Snap-to-align guides (shared between CanvasNodeWrapper + SnapshotFrame)
+    const snap = useSnapGuides();
 
     // Sync liveZoom and cullingViewport when viewport changes externally
     React.useEffect(() => {
@@ -199,6 +210,11 @@ export const CanvasOverlay: React.FC = () => {
         [placedNodes, nodeSizes],
     );
 
+    // Feed frame bounds into snap engine as additional snap targets
+    React.useEffect(() => {
+        snap.setExtraRects(frameBounds.map((fb) => ({ x: fb.x, y: fb.y, w: fb.w, h: fb.h })));
+    }, [frameBounds, snap]);
+
     debug.fps('canvas', `CanvasOverlay (zoom=${viewport.zoom.toFixed(2)}, nodes=${placedNodes.length}, visible=${visibleNodes.length}, lod=${lodLevel}, frames=${frameBounds.length})`);
 
     if (!isOpen) return null;
@@ -245,41 +261,47 @@ export const CanvasOverlay: React.FC = () => {
                     onCursorMove={setLastCanvasWorldPos}
                     onDblClick={handleCanvasDblClick}
                 >
-                    {/* EdgeLayer behind nodes so cards appear on top of edge lines */}
-                    <EdgeLayer />
+                    <SnapContext.Provider value={snap}>
+                        {/* EdgeLayer behind nodes so cards appear on top of edge lines */}
+                        <EdgeLayer />
 
-                    {/* Snapshot frames: rendered below nodes (visual grouping)
-                        — not selectable, not draggable */}
-                    {frameBounds.map((fb) => (
-                        <SnapshotFrame
-                            key={fb.key}
-                            label={fb.snapshotLabel}
-                            x={fb.x}
-                            y={fb.y}
-                            w={fb.w}
-                            h={fb.h}
-                        />
-                    ))}
+                        {/* Snap alignment guides — rendered during drag */}
+                        <SnapGuides guidesRef={snap.guidesRef} subscribe={snap.subscribe} />
 
-                    {visibleNodes.map((node) => (
-                        <CanvasNodeWrapper key={node.id} node={node} lodLevel={lodLevel} measuredHeight={nodeSizes[node.id]}>
-                            {node.type === 'video-card' && (
-                                <VideoCardNode data={node.data as VideoCardContext} nodeId={node.id} />
-                            )}
-                            {node.type === 'traffic-source' && (
-                                <TrafficSourceNode data={node.data as TrafficSourceCardData} />
-                            )}
-                            {node.type === 'sticky-note' && (
-                                <StickyNoteNode data={node.data as StickyNoteData} nodeId={node.id} />
-                            )}
-                            {node.type === 'image' && (
-                                <ImageNode data={node.data as ImageNodeData} nodeId={node.id} />
-                            )}
-                        </CanvasNodeWrapper>
-                    ))}
+                        {/* Snapshot frames: rendered below nodes (visual grouping)
+                        — draggable via title bar */}
+                        {frameBounds.map((fb) => (
+                            <SnapshotFrame
+                                key={fb.key}
+                                frameKey={fb.key}
+                                label={fb.snapshotLabel}
+                                x={fb.x}
+                                y={fb.y}
+                                w={fb.w}
+                                h={fb.h}
+                            />
+                        ))}
 
-                    {/* EdgeHandles AFTER nodes — re-wire circles render above node cards */}
-                    <EdgeHandles />
+                        {visibleNodes.map((node) => (
+                            <CanvasNodeWrapper key={node.id} node={node} lodLevel={lodLevel} measuredHeight={nodeSizes[node.id]} channelId={currentChannel?.id}>
+                                {node.type === 'video-card' && (
+                                    <VideoCardNode data={node.data as VideoCardContext} nodeId={node.id} />
+                                )}
+                                {node.type === 'traffic-source' && (
+                                    <TrafficSourceNode data={node.data as TrafficSourceCardData} />
+                                )}
+                                {node.type === 'sticky-note' && (
+                                    <StickyNoteNode data={node.data as StickyNoteData} nodeId={node.id} />
+                                )}
+                                {node.type === 'image' && (
+                                    <ImageNode data={node.data as ImageNodeData} nodeId={node.id} />
+                                )}
+                            </CanvasNodeWrapper>
+                        ))}
+
+                        {/* EdgeHandles AFTER nodes — re-wire circles render above node cards */}
+                        <EdgeHandles />
+                    </SnapContext.Provider>
                 </CanvasBoard>
 
                 {/* Empty state — outside transform layer, stays centered */}

@@ -4,6 +4,7 @@
 
 import type { CanvasNode } from '../../../types/canvas';
 import { getVideoId, getSourceVideoId, getNodeDataType } from '../../../types/canvas';
+import { debug } from '../../../utils/debug';
 import type { TrafficSourceCardData } from '../../../types/appContext';
 import {
     NODE_WIDTH, NODE_HEIGHT_FALLBACK, PLACEMENT_GAP,
@@ -214,6 +215,92 @@ export const createLayoutSlice: CanvasSlice<LayoutSlice> = (set, get) => ({
             }
         }
 
+        // ---------------------------------------------------------------
+        // Reflow pass: auto-width parents + uniform displacement
+        // After frame placements are computed, expand parent nodes to
+        // span all frame columns, then shift all unrelated nodes right
+        // of each parent by the width delta.
+        // ---------------------------------------------------------------
+        const parentWidthUpdates = new Map<string, number>(); // nodeId → new width
+        const nodeDisplacements = new Map<string, number>();  // nodeId → cumulative dx
+
+        // Collect all child IDs per parent (for exclusion from displacement)
+        const childIdsPerParent = new Map<string, Set<string>>();
+        for (const [nodeId] of framePlacementMap) {
+            const node = nodes.find((n) => n.id === nodeId);
+            if (!node) continue;
+            const srcVid = getSourceVideoId(node.data);
+            if (!srcVid) continue;
+            let set = childIdsPerParent.get(srcVid);
+            if (!set) { set = new Set(); childIdsPerParent.set(srcVid, set); }
+            set.add(nodeId);
+        }
+        // Also include already-placed children of each parent
+        for (const n of placed) {
+            const srcVid = getSourceVideoId(n.data);
+            if (srcVid && parentsSeen.has(srcVid)) {
+                let set = childIdsPerParent.get(srcVid);
+                if (!set) { set = new Set(); childIdsPerParent.set(srcVid, set); }
+                set.add(n.id);
+            }
+        }
+
+        // Sort parents left-to-right so cascading displacements accumulate correctly
+        const sortedParents = Array.from(parentsSeen)
+            .map((vid) => videoIdToNode.get(vid)!)
+            .filter((p) => p?.position)
+            .sort((a, b) => a.position!.x - b.position!.x);
+
+        for (const parent of sortedParents) {
+            const srcVid = getVideoId(parent.data);
+            if (!srcVid) continue;
+
+            // Compute the rightmost edge of all frame columns under this parent
+            // (both new placements and existing placed children)
+            const oldParentW = parent.size?.w ?? NODE_WIDTH;
+            let frameMaxRight = parent.position!.x; // at minimum, parent's left edge
+
+            // From pending frame placements
+            const childIds = childIdsPerParent.get(srcVid);
+            if (childIds) {
+                for (const cid of childIds) {
+                    const pos = framePlacementMap.get(cid);
+                    if (pos) {
+                        frameMaxRight = Math.max(frameMaxRight, pos.x + TRAFFIC_NODE_WIDTH);
+                    }
+                }
+            }
+            // From already-placed frame children
+            for (const n of placed) {
+                const sv = getSourceVideoId(n.data);
+                if (sv !== srcVid || !n.position) continue;
+                const nw = n.size?.w ?? TRAFFIC_NODE_WIDTH;
+                frameMaxRight = Math.max(frameMaxRight, n.position.x + nw);
+            }
+
+            // Add frame padding to get the total visual span
+            const totalFrameSpan = frameMaxRight - parent.position!.x + FRAME_PADDING;
+            const newParentW = Math.max(oldParentW, totalFrameSpan);
+            const deltaX = newParentW - oldParentW;
+
+            if (deltaX > 0) {
+                debug.canvas('Reflow: parent %s width %d → %d (delta: +%d)',
+                    srcVid.slice(0, 8), oldParentW, newParentW, deltaX);
+
+                parentWidthUpdates.set(parent.id, newParentW);
+
+                // Displace all nodes right of this parent (excluding parent + its children)
+                for (const n of placed) {
+                    if (n.id === parent.id) continue;
+                    if (childIds?.has(n.id)) continue;
+                    if (n.position!.x > parent.position!.x) {
+                        const prev = nodeDisplacements.get(n.id) ?? 0;
+                        nodeDisplacements.set(n.id, prev + deltaX);
+                    }
+                }
+            }
+        }
+
         // Fallback offset tracker for non-framed children
         const sourceChildOffsets = new Map<string, number>();
 
@@ -223,10 +310,12 @@ export const createLayoutSlice: CanvasSlice<LayoutSlice> = (set, get) => ({
         let minY = Infinity;
         let maxRight = -Infinity; // rightmost edge of any placed node (for own-channel lane)
         for (const n of placed) {
-            minX = Math.min(minX, n.position!.x);
+            // Account for displacement when computing shelf/right-lane baselines
+            const dx = nodeDisplacements.get(n.id) ?? 0;
+            minX = Math.min(minX, n.position!.x + dx);
             minY = Math.min(minY, n.position!.y);
-            const nodeW = n.size?.w ?? NODE_WIDTH;
-            maxRight = Math.max(maxRight, n.position!.x + nodeW);
+            const nodeW = parentWidthUpdates.get(n.id) ?? n.size?.w ?? NODE_WIDTH;
+            maxRight = Math.max(maxRight, n.position!.x + dx + nodeW);
         }
 
         const hasPlaced = placed.length > 0;
@@ -245,7 +334,19 @@ export const createLayoutSlice: CanvasSlice<LayoutSlice> = (set, get) => ({
 
         set((s) => ({
             nodes: s.nodes.map((n) => {
-                if (n.position !== null) return n;
+                // Apply reflow: parent width updates + displacement for already-placed nodes
+                if (n.position !== null) {
+                    const newW = parentWidthUpdates.get(n.id);
+                    const dx = nodeDisplacements.get(n.id);
+                    if (newW || dx) {
+                        return {
+                            ...n,
+                            ...(newW ? { size: { w: newW, h: n.size?.h ?? 0 } } : {}),
+                            ...(dx ? { position: { x: n.position.x + dx, y: n.position.y } } : {}),
+                        };
+                    }
+                    return n;
+                }
 
                 // Frame-placed nodes: use pre-computed positions
                 const framePos = framePlacementMap.get(n.id);
@@ -332,7 +433,7 @@ export const createLayoutSlice: CanvasSlice<LayoutSlice> = (set, get) => ({
                 return { ...n, position: pos };
             }),
         }));
-        if (shelfPending > 0 || rightPending > 0 || stickyPending > 0 || sourceChildOffsets.size > 0) get()._save();
+        if (shelfPending > 0 || rightPending > 0 || stickyPending > 0 || sourceChildOffsets.size > 0 || parentWidthUpdates.size > 0) get()._save();
     },
 
     relayoutChildren: () => {
@@ -442,12 +543,95 @@ export const createLayoutSlice: CanvasSlice<LayoutSlice> = (set, get) => ({
             }
         }
 
+        // ---------------------------------------------------------------
+        // Pass 3: Parent auto-width reflow
+        // Ensure parent nodes are wide enough to span all frame columns.
+        // Displace unrelated nodes right of each parent by the width delta.
+        // ---------------------------------------------------------------
+        const parentWidthUpdates = new Map<string, number>();
+        const nodeDisplacements = new Map<string, number>();
+
+        // Collect all child IDs per parent for exclusion from displacement
+        const allChildIds = new Map<string, Set<string>>();
+        for (const [, column] of frameColumns) {
+            let cids = allChildIds.get(column.srcVid);
+            if (!cids) { cids = new Set(); allChildIds.set(column.srcVid, cids); }
+            for (const cn of column.nodes) cids.add(cn.id);
+        }
+        for (const [srcVid, children] of childrenByParent) {
+            let cids = allChildIds.get(srcVid);
+            if (!cids) { cids = new Set(); allChildIds.set(srcVid, cids); }
+            for (const cn of children) cids.add(cn.id);
+        }
+
+        // Collect unique parent videoIds that have frame columns
+        const parentVids = new Set<string>();
+        for (const [, column] of frameColumns) parentVids.add(column.srcVid);
+
+        const sortedParents = Array.from(parentVids)
+            .map((vid) => videoIdToNode.get(vid)!)
+            .filter((p) => p?.position)
+            .sort((a, b) => a.position!.x - b.position!.x);
+
+        for (const parent of sortedParents) {
+            const srcVid = getVideoId(parent.data);
+            if (!srcVid) continue;
+
+            const oldParentW = parent.size?.w ?? NODE_WIDTH;
+            let frameMaxRight = parent.position!.x;
+
+            // Compute rightmost edge from frame column nodes (using corrected positions)
+            for (const n of nodes) {
+                if (!n.position) continue;
+                const sv = getSourceVideoId(n.data);
+                if (sv !== srcVid) continue;
+                const correctedPos = updates.get(n.id);
+                const nx = correctedPos?.x ?? n.position.x;
+                const nw = n.size?.w ?? TRAFFIC_NODE_WIDTH;
+                frameMaxRight = Math.max(frameMaxRight, nx + nw);
+            }
+
+            const totalFrameSpan = frameMaxRight - parent.position!.x + FRAME_PADDING;
+            const newParentW = Math.max(oldParentW, totalFrameSpan);
+            const deltaX = newParentW - oldParentW;
+
+            if (deltaX > 0) {
+                parentWidthUpdates.set(parent.id, newParentW);
+                const childIds = allChildIds.get(srcVid);
+
+                for (const n of nodes) {
+                    if (!n.position || n.id === parent.id) continue;
+                    if (childIds?.has(n.id)) continue;
+                    if (n.position.x > parent.position!.x) {
+                        const prev = nodeDisplacements.get(n.id) ?? 0;
+                        nodeDisplacements.set(n.id, prev + deltaX);
+                    }
+                }
+                changed = true;
+            }
+        }
+
         if (!changed) return;
 
         set((s) => ({
             nodes: s.nodes.map((n) => {
                 const newPos = updates.get(n.id);
-                return newPos ? { ...n, position: newPos } : n;
+                const newW = parentWidthUpdates.get(n.id);
+                const dx = nodeDisplacements.get(n.id);
+
+                if (!newPos && !newW && !dx) return n;
+
+                return {
+                    ...n,
+                    ...(newPos ? { position: newPos } : {}),
+                    ...(newW ? { size: { w: newW, h: n.size?.h ?? 0 } } : {}),
+                    ...(dx && n.position ? {
+                        position: {
+                            x: (newPos?.x ?? n.position.x) + dx,
+                            y: newPos?.y ?? n.position.y,
+                        },
+                    } : {}),
+                };
             }),
         }));
         get()._save();
