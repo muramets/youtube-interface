@@ -70,6 +70,7 @@ export interface TokenUsage {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
+    cachedTokens?: number;
 }
 
 // --- Gemini URI TTL ---
@@ -434,13 +435,17 @@ export async function streamChat(
                     promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
                     completionTokens: chunk.usageMetadata.candidatesTokenCount ?? 0,
                     totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+                    cachedTokens: (chunk.usageMetadata as Record<string, unknown>).cachedContentTokenCount as number | undefined,
                 };
             }
         }
 
         const tEnd = Date.now();
         console.log(`[streamChat] ✅ Done — ${chunkCount} chunks, ${fullText.length} chars, ${tEnd - t0}ms total`);
-        if (tokenUsage) console.log(`[streamChat] Tokens: prompt=${tokenUsage.promptTokens}, completion=${tokenUsage.completionTokens}, total=${tokenUsage.totalTokens}`);
+        if (tokenUsage) {
+            const cached = tokenUsage.cachedTokens ? ` cached=${tokenUsage.cachedTokens}` : ' cached=0';
+            console.log(`[streamChat] Tokens: prompt=${tokenUsage.promptTokens}, completion=${tokenUsage.completionTokens}, total=${tokenUsage.totalTokens}${cached}`);
+        }
         return { text: fullText, tokenUsage, updatedThumbnailCache };
     } catch (err) {
         // Map AbortError caused by our timeout to GeminiTimeoutError
