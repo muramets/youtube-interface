@@ -8,7 +8,7 @@
 // to this layer — they produce the Markdown that Gemini reads.
 // =============================================================================
 
-import type { AppContextItem, VideoCardContext, SuggestedTrafficContext, CanvasSelectionContext, VideoContextNode, TrafficSourceContextNode, StickyNoteContextNode, ImageContextNode } from '../../types/appContext';
+import type { AppContextItem, VideoCardContext, SuggestedTrafficContext, CanvasSelectionContext, VideoContextNode, TrafficSourceContextNode, StickyNoteContextNode, ImageContextNode, SnapshotFrameContextNode, TrafficDiscrepancy } from '../../types/appContext';
 import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../types/appContext';
 import { OWNERSHIP_CONFIG } from '../../config/referencePatterns';
 import { buildReferenceMap } from '../../utils/buildReferenceMap';
@@ -169,7 +169,56 @@ function formatSuggestedTrafficContext(ctx: SuggestedTrafficContext): string {
         lines.push('');
     });
 
+    // Discrepancy block (only if cumulative Long Tail data is present)
+    if (ctx.discrepancy) {
+        lines.push(...formatDiscrepancyBlock(ctx.discrepancy));
+    }
+
     return lines.join('\n');
+}
+
+// =============================================================================
+// Discrepancy helper (shared between traffic and canvas formatters)
+// =============================================================================
+
+/** Format a compact number: 1200 → "1.2K" */
+function compact(n: number): string {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+    return n.toLocaleString();
+}
+
+/** Render the discrepancy block as Markdown lines — adapts prompt text based on mode. */
+function formatDiscrepancyBlock(d: TrafficDiscrepancy): string[] {
+    const impPct = d.reportTotal.impressions > 0
+        ? Math.round((d.longTail.impressions / d.reportTotal.impressions) * 100)
+        : 0;
+    const viewsPct = d.reportTotal.views > 0
+        ? Math.round((d.longTail.views / d.reportTotal.views) * 100)
+        : 0;
+
+    const isDelta = d.mode === 'delta';
+    const header = isDelta
+        ? '### ⚠️ Traffic Discrepancy — Delta (vs Previous Snapshot)'
+        : '### ⚠️ Traffic Discrepancy (Long Tail)';
+
+    const explanation = isDelta
+        ? 'The *change* in YouTube\'s reported totals between snapshots is larger than the sum of individual source changes. This means some traffic sources appeared, disappeared, or changed outside the visible list.'
+        : 'YouTube reports higher totals than the sum of individual sources in the table. The Long Tail represents aggregated traffic from minor sources and privacy-protected views hidden by YouTube. A large percentage often signals the algorithm is in exploration phase.';
+
+    const totalLabel = isDelta ? 'Delta Total' : 'Report Total';
+    const sumLabel = isDelta ? 'Visible Changes Sum' : 'Top Videos Sum';
+    const tailLabel = isDelta ? 'Hidden Changes' : 'Long Tail (hidden)';
+
+    return [
+        header,
+        '',
+        explanation,
+        `- **${totalLabel}:** ${compact(d.reportTotal.impressions)} impressions / ${compact(d.reportTotal.views)} views`,
+        `- **${sumLabel}:** ${compact(d.tableSum.impressions)} impressions / ${compact(d.tableSum.views)} views`,
+        `- **${tailLabel}:** +${compact(d.longTail.impressions)} (${impPct}%) / +${compact(d.longTail.views)} (${viewsPct}%)`,
+        '',
+    ];
 }
 
 /** Format canvas selection context — grouped nodes from the visual canvas board. */
@@ -240,6 +289,20 @@ function formatCanvasContext(ctx: CanvasSelectionContext, refMap: Map<string, Vi
             lines.push(n.content || '');
             lines.push('');
         });
+    }
+
+    // Snapshot frame context (frame-level metadata with discrepancy)
+    const frames = ctx.nodes.filter((n): n is SnapshotFrameContextNode => n.nodeType === 'snapshot-frame');
+    if (frames.length > 0) {
+        for (const frame of frames) {
+            lines.push(`### Snapshot: "${frame.sourceVideoTitle}" \u2014 "${frame.snapshotLabel}"`);
+            lines.push('');
+            if (frame.discrepancy) {
+                lines.push(...formatDiscrepancyBlock(frame.discrepancy));
+            }
+            lines.push(`- **Selected:** ${frame.nodeCount} traffic sources from this snapshot`);
+            lines.push('');
+        }
     }
 
     // Images (just mention they're attached visually — actual images go via thumbnailUrls)

@@ -130,6 +130,7 @@
     height: 32px;
     display: flex;
     align-items: center;
+    gap: 6px;
     padding: 0 12px;
     font-size: 11px;
     font-weight: 600;
@@ -140,6 +141,42 @@
     overflow: hidden;
     text-overflow: ellipsis;
     user-select: none;
+}
+
+/* --- Frame Discrepancy Content (inside PortalTooltip) --- */
+
+.frame-discrepancy-content__title {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+    font-size: 11.5px;
+    margin-bottom: 6px;
+    color: var(--amber-400, #fbbf24);
+}
+
+.frame-discrepancy-content__row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 2px 0;
+}
+
+.frame-discrepancy-content__row--highlight {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin-top: 4px;
+    padding-top: 4px;
+    font-weight: 600;
+    color: var(--amber-300, #fcd34d);
+}
+
+.frame-discrepancy-content__label {
+    opacity: 0.7;
+}
+
+.frame-discrepancy-content__value {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
 }
 
 /* --- Sticky Note: markdown prose --- */

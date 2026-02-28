@@ -13,10 +13,13 @@ import { useEffect, useRef } from 'react';
 import { useCanvasStore } from '../../../core/stores/canvas/canvasStore';
 import { useAppContextStore } from '../../../core/stores/appContextStore';
 import { useChatStore } from '../../../core/stores/chatStore';
-import type { CanvasContextNode, VideoContextNode, TrafficSourceContextNode, StickyNoteContextNode, ImageContextNode } from '../../../core/types/appContext';
+import type { CanvasContextNode, VideoContextNode, TrafficSourceContextNode, StickyNoteContextNode, ImageContextNode, SnapshotFrameContextNode } from '../../../core/types/appContext';
 import type { CanvasNode } from '../../../core/types/canvas';
+import { getSourceVideoId, getNodeDataType } from '../../../core/types/canvas';
 import type { VideoCardContext, TrafficSourceCardData } from '../../../core/types/appContext';
 import type { StickyNoteData, ImageNodeData } from '../../../core/types/canvas';
+import type { SnapshotMeta } from '../../../core/stores/canvas/types';
+import { frameKey } from '../utils/frameLayout';
 import { debug } from '../../../core/utils/debug';
 
 /**
@@ -102,7 +105,54 @@ function getNodeKey(node: CanvasContextNode): string {
         case 'traffic-source': return `traffic:${node.videoId}`;
         case 'sticky-note': return `sticky:${node.content}`;
         case 'image': return `image:${node.imageUrl}`;
+        case 'snapshot-frame': return `frame:${node.snapshotId}`;
     }
+}
+
+/**
+ * Synthesize SnapshotFrameContextNode entries from traffic-source nodes.
+ * Groups traffic nodes by frame key, looks up snapshotMeta for each frame.
+ */
+function synthesizeFrameNodes(
+    selectedCanvasNodes: CanvasNode[],
+    snapshotMeta: Record<string, SnapshotMeta>,
+): SnapshotFrameContextNode[] {
+    if (Object.keys(snapshotMeta).length === 0) return [];
+
+    // Group selected traffic-source canvas nodes by frame key
+    const frameCounts = new Map<string, { snapshotId: string; snapshotLabel: string; count: number }>();
+    for (const cn of selectedCanvasNodes) {
+        if (getNodeDataType(cn.data) !== 'traffic-source') continue;
+        const data = cn.data as TrafficSourceCardData;
+        const srcVid = getSourceVideoId(cn.data);
+        if (!srcVid || !data.snapshotId) continue;
+        const key = frameKey(srcVid, data.snapshotId);
+        const existing = frameCounts.get(key);
+        if (existing) {
+            existing.count++;
+        } else {
+            frameCounts.set(key, {
+                snapshotId: data.snapshotId,
+                snapshotLabel: data.snapshotLabel || data.snapshotId.slice(0, 8),
+                count: 1,
+            });
+        }
+    }
+
+    const result: SnapshotFrameContextNode[] = [];
+    for (const [key, info] of frameCounts) {
+        const meta = snapshotMeta[key];
+        if (!meta) continue; // No discrepancy data for this frame
+        result.push({
+            nodeType: 'snapshot-frame',
+            snapshotId: info.snapshotId,
+            snapshotLabel: info.snapshotLabel,
+            sourceVideoTitle: meta.sourceVideoTitle,
+            discrepancy: meta.discrepancy,
+            nodeCount: info.count,
+        });
+    }
+    return result;
 }
 
 /**
@@ -117,6 +167,7 @@ function getNodeKey(node: CanvasContextNode): string {
 export function useCanvasContextBridge(isOpen: boolean): void {
     const selectedNodeIds = useCanvasStore((s) => s.selectedNodeIds);
     const nodes = useCanvasStore((s) => s.nodes);
+    const snapshotMeta = useCanvasStore((s) => s.snapshotMeta);
     const setSlot = useAppContextStore((s) => s.setSlot);
     const chatIsOpen = useChatStore((s) => s.isOpen);
     const isBridgePaused = useAppContextStore((s) => s.isBridgePaused);
@@ -156,7 +207,11 @@ export function useCanvasContextBridge(isOpen: boolean): void {
             .map(mapNodeToContext)
             .filter((n): n is CanvasContextNode => n !== null);
 
-        if (contextNodes.length === 0) return;
+        // Synthesize frame-level context nodes (snapshot discrepancy)
+        const frameNodes = synthesizeFrameNodes(selectedNodes, snapshotMeta);
+        const allContextNodes = [...frameNodes, ...contextNodes];
+
+        if (allContextNodes.length === 0) return;
 
         // Merge into a single flat group with dedup by node identity
         const currentCanvasItems = useAppContextStore.getState().slots.canvas;
@@ -164,12 +219,12 @@ export function useCanvasContextBridge(isOpen: boolean): void {
             (item) => item.type === 'canvas-selection' ? item.nodes : [],
         );
         const existingKeys = new Set(existingNodes.map(getNodeKey));
-        const newNodes = contextNodes.filter((n) => !existingKeys.has(getNodeKey(n)));
+        const newNodes = allContextNodes.filter((n) => !existingKeys.has(getNodeKey(n)));
 
         if (newNodes.length === 0) return; // all already in context
 
         const merged = [...existingNodes, ...newNodes];
         debug.context(`🎨 CanvasBridge: ${newNodes.length} new nodes (${merged.length} total)`);
         setSlot('canvas', [{ type: 'canvas-selection', nodes: merged }]);
-    }, [isOpen, chatIsOpen, isBridgePaused, selectedNodeIds, nodes, setSlot]);
+    }, [isOpen, chatIsOpen, isBridgePaused, selectedNodeIds, nodes, snapshotMeta, setSlot]);
 }

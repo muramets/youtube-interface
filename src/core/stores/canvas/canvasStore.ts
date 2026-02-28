@@ -22,7 +22,7 @@ import { doc, onSnapshot, setDoc, getDoc, deleteDoc, serverTimestamp } from 'fir
 import { db } from '../../../config/firebase';
 import type { CanvasNode, CanvasViewport, CanvasEdge } from '../../types/canvas';
 import { SAVE_DEBOUNCE_MS, MAX_UNDO_LEVELS, IMAGE_NODE_WIDTH, NODE_HEIGHT_FALLBACK } from './constants';
-import type { CanvasState, CanvasPageMeta } from './types';
+import type { CanvasState, CanvasPageMeta, SnapshotMeta } from './types';
 import { stripUndefined } from './stripUndefined';
 import { createNodesSlice, createCanvasNode } from './slices/nodesSlice';
 import { createEdgesSlice } from './slices/edgesSlice';
@@ -175,10 +175,12 @@ export const useCanvasStore = create<CanvasState>((...a) => {
         if (!userId || !channelId || !activePageId) return;
         const ref = doc(db, canvasPageDocPath(userId, channelId, activePageId));
         try {
+            const meta = get().snapshotMeta;
             await setDoc(ref, {
                 nodes: stripUndefined(nodes),
                 edges: stripUndefined(edges),
                 viewport,
+                snapshotMeta: meta,
                 updatedAt: serverTimestamp(),
             }, { merge: true });
             _dirtyNodeIds.clear();
@@ -217,6 +219,9 @@ export const useCanvasStore = create<CanvasState>((...a) => {
         channelId: null,
         isOpen: false,
         hasSynced: false,
+
+        // --- Snapshot metadata ---
+        snapshotMeta: {},
 
         // --- Pages ---
         pages: [],
@@ -264,6 +269,7 @@ export const useCanvasStore = create<CanvasState>((...a) => {
                     pages: [], activePageId: null, // intentionally not clearing clipboard
                     nodes: [], edges: [], viewport: DEFAULT_VIEWPORT,
                     selectedNodeIds: new Set(), nodeSizes: {},
+                    snapshotMeta: {},
                     _undoStack: [], _redoStack: [], canUndo: false, canRedo: false,
                 });
             }
@@ -284,7 +290,7 @@ export const useCanvasStore = create<CanvasState>((...a) => {
         setEditingNodeId: (id) => set({ editingNodeId: id }),
 
         // --- Cross-page insert ---
-        addNodeToPage: async (dataArr, pageId) => {
+        addNodeToPage: async (dataArr, pageId, snapshotMetaEntries) => {
             const { userId, channelId, activePageId } = get();
             if (!userId || !channelId) return;
 
@@ -293,6 +299,18 @@ export const useCanvasStore = create<CanvasState>((...a) => {
                 for (const data of dataArr) {
                     get().addNode(data);
                 }
+                // Write snapshot metadata in-memory (same page = live state)
+                if (snapshotMetaEntries) {
+                    for (const [key, meta] of Object.entries(snapshotMetaEntries)) {
+                        get().setSnapshotMeta(key, meta);
+                    }
+                }
+                // Flush debounced save immediately — critical for cross-tab sync.
+                // addNode() schedules a debounced save, but if the user switches
+                // browser tabs before it fires, the save gets throttled and other
+                // tabs never see the new nodes via onSnapshot.
+                if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+                doSave();
                 return;
             }
 
@@ -304,8 +322,14 @@ export const useCanvasStore = create<CanvasState>((...a) => {
 
                 const newNodes = dataArr.map((data) => createCanvasNode(data, null, existing));
 
+                // Merge snapshot metadata into existing Firestore doc
+                const mergedSnapshotMeta = snapshotMetaEntries
+                    ? { ...(snap.exists() ? (snap.data().snapshotMeta ?? {}) : {}), ...snapshotMetaEntries }
+                    : undefined;
+
                 await setDoc(ref, {
                     nodes: stripUndefined([...existing, ...newNodes]),
+                    ...(mergedSnapshotMeta ? { snapshotMeta: mergedSnapshotMeta } : {}),
                     updatedAt: serverTimestamp(),
                 }, { merge: true });
 
@@ -392,6 +416,7 @@ export const useCanvasStore = create<CanvasState>((...a) => {
                 hasSynced: false,
                 selectedNodeIds: new Set(),
                 nodeSizes: {},
+                snapshotMeta: {},
                 _undoStack: [],
                 _redoStack: [],
                 canUndo: false,
@@ -665,10 +690,16 @@ export const useCanvasStore = create<CanvasState>((...a) => {
                 debug.canvas('🔄 Firestore sync:', liveFirestoreNodes.length, 'nodes,', reused, 'reused,', liveFirestoreNodes.length - reused, 'changed');
 
                 if (!hasSyncedOnce) {
+                    // Merge Firestore snapshotMeta with in-memory entries:
+                    // in-memory entries (from setSnapshotMeta before save flushed) take precedence.
+                    const firestoreMeta = (data.snapshotMeta ?? {}) as Record<string, SnapshotMeta>;
+                    const localMeta = get().snapshotMeta;
+                    const mergedMeta = { ...firestoreMeta, ...localMeta };
                     set({
                         nodes: [...mergedFirestore, ...localUnsaved],
                         edges: firestoreEdges,
                         viewport: (data.viewport ?? DEFAULT_VIEWPORT) as CanvasViewport,
+                        snapshotMeta: mergedMeta,
                         hasSynced: true,
                     });
                     hasSyncedOnce = true;
@@ -716,6 +747,23 @@ export const useCanvasStore = create<CanvasState>((...a) => {
         _saveMeta: () => {
             if (metaSaveTimer) clearTimeout(metaSaveTimer);
             metaSaveTimer = setTimeout(doSaveMeta, 300);
+        },
+
+        // --- Snapshot Metadata (frame-level context from traffic CSV total row) ---
+        setSnapshotMeta: (key, meta) => {
+            set((s) => ({
+                snapshotMeta: { ...s.snapshotMeta, [key]: meta },
+            }));
+            get()._save();
+        },
+
+        deleteSnapshotMeta: (key) => {
+            set((s) => {
+                const next = { ...s.snapshotMeta };
+                delete next[key];
+                return { snapshotMeta: next };
+            });
+            get()._save();
         },
 
         // --- Undo/Redo ---

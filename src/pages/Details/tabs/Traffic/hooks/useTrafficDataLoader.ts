@@ -257,10 +257,11 @@ export const useTrafficDataLoader = ({
 };
 
 /**
- * Find the previous snapshot for delta calculation.
+ * Find the previous snapshot in the global timeline for delta calculation.
+ * Searches across ALL versions, sorted by timestamp.
  * Returns null if no previous snapshot exists.
  */
-const findPreviousSnapshot = (
+export const findPreviousSnapshot = (
     currentSnapshotId: string,
     snapshots: TrafficSnapshot[]
 ): TrafficSnapshot | null => {

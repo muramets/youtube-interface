@@ -34,6 +34,22 @@ export interface VideoCardContext {
  * Used when the user selects rows in the Suggested Traffic table.
  * Contains ALL available data: CSV metrics + YouTube API enrichment + Smart Assistant labels.
  */
+/**
+ * Traffic discrepancy — Long Tail difference.
+ * YouTube's reported total vs. sum of visible top sources in the table.
+ * `mode` distinguishes cumulative (absolute totals) from delta (change vs previous snapshot).
+ */
+export interface TrafficDiscrepancy {
+    /** Whether these numbers are absolute totals or a delta vs previous snapshot */
+    mode: 'cumulative' | 'delta';
+    /** YouTube-reported totals from the CSV Total Row */
+    reportTotal: { impressions: number; views: number };
+    /** Sum of individual sources visible in the table */
+    tableSum: { impressions: number; views: number };
+    /** Difference: reportTotal − tableSum (hidden minor sources) */
+    longTail: { impressions: number; views: number };
+}
+
 export interface SuggestedTrafficContext {
     type: 'suggested-traffic';
     /** Snapshot ID for dedup — same source video + different snapshots are kept separately */
@@ -55,6 +71,8 @@ export interface SuggestedTrafficContext {
     };
     /** Selected suggested videos from the traffic table */
     suggestedVideos: SuggestedVideoItem[];
+    /** Cumulative Long Tail discrepancy (present when Total Row exists and discrepancy > 0) */
+    discrepancy?: TrafficDiscrepancy;
 }
 
 /** Single suggested video with all available enriched data */
@@ -182,7 +200,21 @@ export interface ImageContextNode {
     alt?: string;
 }
 
-export type CanvasContextNode = VideoContextNode | TrafficSourceContextNode | StickyNoteContextNode | ImageContextNode;
+export interface SnapshotFrameContextNode {
+    nodeType: 'snapshot-frame';
+    /** Snapshot ID this frame represents */
+    snapshotId: string;
+    /** Display label: user-defined or auto-generated date */
+    snapshotLabel: string;
+    /** Title of the source video this traffic is suggested alongside */
+    sourceVideoTitle: string;
+    /** Cumulative Long Tail discrepancy (if Total Row was present in CSV) */
+    discrepancy?: TrafficDiscrepancy;
+    /** Number of traffic source cards in this frame */
+    nodeCount: number;
+}
+
+export type CanvasContextNode = VideoContextNode | TrafficSourceContextNode | StickyNoteContextNode | ImageContextNode | SnapshotFrameContextNode;
 
 /**
  * Canvas selection context — all selected nodes grouped as a single context item.

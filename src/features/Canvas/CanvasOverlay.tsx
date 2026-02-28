@@ -205,9 +205,10 @@ export const CanvasOverlay: React.FC = () => {
     );
 
     // --- Snapshot Frames: compute bounds from placed node positions ---
+    const snapshotMeta = useCanvasStore((s) => s.snapshotMeta);
     const frameBounds = useMemo(
-        () => deriveFrameBounds(placedNodes, nodeSizes),
-        [placedNodes, nodeSizes],
+        () => deriveFrameBounds(placedNodes, nodeSizes, snapshotMeta),
+        [placedNodes, nodeSizes, snapshotMeta],
     );
 
     // Feed frame bounds into snap engine as additional snap targets
@@ -279,6 +280,7 @@ export const CanvasOverlay: React.FC = () => {
                                 y={fb.y}
                                 w={fb.w}
                                 h={fb.h}
+                                discrepancy={fb.discrepancy}
                             />
                         ))}
 

@@ -7,10 +7,11 @@
 import React, { useRef, useCallback } from 'react';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 import { getSourceVideoId, getNodeDataType } from '../../core/types/canvas';
-import type { TrafficSourceCardData } from '../../core/types/appContext';
+import type { TrafficSourceCardData, TrafficDiscrepancy } from '../../core/types/appContext';
 import { liveZoom } from './utils/liveZoom';
 import { usePointerDrag } from './hooks/usePointerDrag';
 import { useSnap } from './utils/SnapContext';
+import { FrameDiscrepancyTooltip } from './FrameDiscrepancyTooltip';
 
 interface SnapshotFrameProps {
     /** Frame key: "sourceVideoId::snapshotId" */
@@ -20,13 +21,15 @@ interface SnapshotFrameProps {
     y: number;
     w: number;
     h: number;
+    /** Cumulative Long Tail discrepancy (from snapshot Total Row) */
+    discrepancy?: TrafficDiscrepancy;
 }
 
 /**
  * Renders a labeled frame rectangle on the canvas.
  * Title bar is draggable — drags all child nodes in the frame group.
  */
-const SnapshotFrameInner: React.FC<SnapshotFrameProps> = ({ frameKey, label, x, y, w, h }) => {
+const SnapshotFrameInner: React.FC<SnapshotFrameProps> = ({ frameKey, label, x, y, w, h, discrepancy }) => {
     const moveNodes = useCanvasStore((s) => s.moveNodes);
 
     // Parse sourceVideoId and snapshotId from the frame key
@@ -136,6 +139,7 @@ const SnapshotFrameInner: React.FC<SnapshotFrameProps> = ({ frameKey, label, x, 
                     onMouseDown={handleDragStart}
                 >
                     {label}
+                    {discrepancy && <FrameDiscrepancyTooltip discrepancy={discrepancy} />}
                 </div>
             </div>
         </>

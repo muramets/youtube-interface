@@ -7,6 +7,7 @@ import type {
     CanvasNode, CanvasViewport, CanvasNodeData,
     CanvasEdge, HandlePosition, InsightCategory,
 } from '../../types/canvas';
+import type { TrafficDiscrepancy } from '../../types/appContext';
 
 // --- Canvas page metadata (stored in canvas/meta doc) ---
 export interface CanvasPageMeta {
@@ -19,6 +20,15 @@ export interface CanvasPageMeta {
 export interface CanvasSnapshot {
     nodes: CanvasNode[];
     edges: CanvasEdge[];
+}
+
+// --- Snapshot metadata — per-frame context from traffic CSV total row ---
+// Keyed by frameKey (sourceVideoId::snapshotId) in CanvasState.snapshotMeta
+export interface SnapshotMeta {
+    /** Title of the source video this traffic is suggested alongside */
+    sourceVideoTitle: string;
+    /** Cumulative discrepancy: YouTube's reportTotal vs. table sum */
+    discrepancy?: TrafficDiscrepancy;
 }
 
 // --- Pending edge (rubber-band while dragging from a handle) ---
@@ -54,6 +64,8 @@ export interface CanvasState {
     viewport: CanvasViewport;
     /** Measured node heights from ResizeObserver — not persisted */
     nodeSizes: Record<string, number>;
+    /** Snapshot-level metadata, keyed by frameKey (sourceVideoId::snapshotId) */
+    snapshotMeta: Record<string, SnapshotMeta>;
 
     // Clipboard (in-memory, survives page switches)
     clipboard: { nodes: CanvasNode[]; edges: CanvasEdge[]; sourcePageId: string; sourceChannelId?: string } | null;
@@ -104,7 +116,7 @@ export interface CanvasState {
     addNode: (data: CanvasNodeData) => void;
     /** Add node(s) to a specific canvas page. If pageId === activePageId, delegates to addNode.
      *  Otherwise, writes directly to Firestore (cross-page insert, no in-memory mutation). */
-    addNodeToPage: (data: CanvasNodeData[], pageId: string) => Promise<void>;
+    addNodeToPage: (data: CanvasNodeData[], pageId: string, snapshotMetaEntries?: Record<string, SnapshotMeta>) => Promise<void>;
     /** Place a node immediately at the given world position (skips pending placement). */
     addNodeAt: (data: CanvasNodeData, position: { x: number; y: number }) => string;
     updateNodeData: (id: string, data: Partial<CanvasNodeData>) => void;
@@ -143,6 +155,10 @@ export interface CanvasState {
     completePendingEdge: (targetNodeId: string, targetHandle: HandlePosition) => void;
     cancelPendingEdge: () => void;
     updateNodeSize: (id: string, height: number) => void;
+
+    // Snapshot Metadata (frame-level context from traffic CSV)
+    setSnapshotMeta: (key: string, meta: SnapshotMeta) => void;
+    deleteSnapshotMeta: (key: string) => void;
 
     // Actions: Viewport
     setViewport: (viewport: CanvasViewport) => void;

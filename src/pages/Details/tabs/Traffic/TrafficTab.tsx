@@ -9,13 +9,15 @@ import { TrafficErrorState } from './components/TrafficErrorState';
 import { TrafficFloatingBar } from './components/TrafficFloatingBar';
 // MissingTitlesModal is now wrapped in TrafficModals
 import { useMissingTitles, repairTrafficSources } from './hooks/useMissingTitles';
+import { findPreviousSnapshot } from './hooks/useTrafficDataLoader';
 import { generateTrafficCsv } from './utils/csvGenerator';
 import { exportTrafficCsv, downloadCsv, generateExportFilename, generateDiscrepancyReport } from './utils/exportTrafficCsv';
 import { useApiKey } from '../../../../core/hooks/useApiKey';
 import { useSuggestedVideoLookup } from './hooks/useSuggestedVideoLookup';
 import { useAppContextStore } from '../../../../core/stores/appContextStore';
-import type { SuggestedTrafficContext, SuggestedVideoItem, TrafficSourceCardData } from '../../../../core/types/appContext';
+import type { SuggestedTrafficContext, SuggestedVideoItem, TrafficSourceCardData, TrafficDiscrepancy } from '../../../../core/types/appContext';
 import { useCanvasStore } from '../../../../core/stores/canvas/canvasStore';
+import { frameKey } from '../../../../features/Canvas/utils/frameLayout';
 import { useUIStore } from '../../../../core/stores/uiStore';
 
 
@@ -269,31 +271,18 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
     } = useVideoReactionStore();
 
     // Check if this is the first snapshot of a version (for specific message)
-    const isFirstSnapshot = React.useMemo(() => {
-        // 1. Specific Snapshot Selection
-        if (selectedSnapshot) {
-            const snapshots = trafficData?.snapshots || [];
-            const versionSnapshots = snapshots
+    // True when the current snapshot has no predecessor in the global timeline.
+    // Uses the same scope as the delta loader (findPreviousSnapshot) — single source of truth.
+    const isFirstSnapshot = useMemo(() => {
+        const snapshotId = selectedSnapshot ?? (() => {
+            const snaps = (trafficData?.snapshots || [])
                 .filter((s: import('../../../../core/types/traffic').TrafficSnapshot) => s.version === viewingVersion)
-                .sort((a: import('../../../../core/types/traffic').TrafficSnapshot, b: import('../../../../core/types/traffic').TrafficSnapshot) => a.timestamp - b.timestamp);
-            return versionSnapshots.length > 0 && versionSnapshots[0].id === selectedSnapshot;
-        }
-
-        // 2. Viewing a Version (History Mode)
-        if (viewingVersion !== 'draft' && packagingHistory.length > 0) {
-            // Sort history to find the absolute oldest version
-            const sortedHistory = [...packagingHistory].sort((a, b) => a.versionNumber - b.versionNumber);
-            const isOldestVersion = sortedHistory[0].versionNumber === viewingVersion;
-
-            // If we are viewing the oldest version AND the first period (start of time)
-            // Then this is effectively the "First Snapshot" state
-            if (isOldestVersion && (!viewingPeriodIndex || viewingPeriodIndex === 0)) {
-                return true;
-            }
-        }
-
-        return false;
-    }, [selectedSnapshot, viewingVersion, trafficData?.snapshots, packagingHistory, viewingPeriodIndex]);
+                .sort((a: import('../../../../core/types/traffic').TrafficSnapshot, b: import('../../../../core/types/traffic').TrafficSnapshot) => b.timestamp - a.timestamp);
+            return snaps[0]?.id ?? null;
+        })();
+        if (!snapshotId) return false;
+        return findPreviousSnapshot(snapshotId, trafficData?.snapshots || []) === null;
+    }, [selectedSnapshot, viewingVersion, trafficData?.snapshots]);
 
     // Compute effective snapshot ID for per-snapshot edge storage
     // Uses selectedSnapshot if available, otherwise finds latest snapshot for current version/period
@@ -391,6 +380,25 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
         return sources;
     }, [displayedSources, applyFilters, groups, allNiches, allAssignments, viewMode, isFirstSnapshot, filters, trafficEdges, viewerEdges, allVideos]);
+
+    // Cumulative Long Tail discrepancy (reportTotal vs. tableSum)
+    const computedDiscrepancy: TrafficDiscrepancy | undefined = useMemo(() => {
+        if (!actualTotalRow) return undefined;
+        const tableSum = filteredSources.reduce(
+            (acc, s) => ({ impressions: acc.impressions + s.impressions, views: acc.views + s.views }),
+            { impressions: 0, views: 0 },
+        );
+        const longTailImp = actualTotalRow.impressions - tableSum.impressions;
+        const longTailViews = actualTotalRow.views - tableSum.views;
+        // Only meaningful if there's a positive difference
+        if (longTailImp <= 0 && longTailViews <= 0) return undefined;
+        return {
+            mode: viewMode,
+            reportTotal: { impressions: actualTotalRow.impressions, views: actualTotalRow.views },
+            tableSum,
+            longTail: { impressions: Math.max(0, longTailImp), views: Math.max(0, longTailViews) },
+        };
+    }, [actualTotalRow, filteredSources, viewMode]);
 
     // Handle Traffic Type Toggle
     const handleToggleTrafficType = useCallback((videoId: string, currentType?: import('../../../../core/types/videoTrafficType').TrafficType) => {
@@ -652,6 +660,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 ...(sourceDuration ? { duration: sourceDuration } : {}),
             },
             suggestedVideos,
+            ...(computedDiscrepancy ? { discrepancy: computedDiscrepancy } : {}),
         };
 
         // Accumulative: replace same source+snapshot combo, keep others
@@ -664,7 +673,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
         debug.context(`🚏 TrafficBridge: ${selectedIds.size} selected, ${suggestedVideos.length} enriched (${filtered.length} existing kept)`);
         setSlot('traffic', [...filtered, context]);
-    }, [selectedIds, filteredSources, allVideos, allAssignments, allNiches, trafficEdges, viewerEdges, _video, setSlot, isBridgePaused, trafficData?.snapshots, effectiveSnapshotId]);
+    }, [selectedIds, filteredSources, allVideos, allAssignments, allNiches, trafficEdges, viewerEdges, _video, setSlot, isBridgePaused, trafficData?.snapshots, effectiveSnapshotId, computedDiscrepancy]);
 
     // OPTIMIZATION: Memoize array props to prevent TrafficTable re-renders.
     // Without memoization, `|| []` creates a new array reference each render.
@@ -996,7 +1005,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                     type: 'traffic-source',
                     videoId: s.videoId!,
                     title: s.sourceTitle,
-                    thumbnailUrl: s.thumbnail || cachedVideo?.thumbnail,
+                    thumbnailUrl: s.thumbnail || cachedVideo?.thumbnail || (s.videoId ? `https://i.ytimg.com/vi/${s.videoId}/mqdefault.jpg` : undefined),
                     channelTitle: s.channelTitle || cachedVideo?.channelTitle,
                     channelId: s.channelId || cachedVideo?.channelId,
                     publishedAt: s.publishedAt || cachedVideo?.publishedAt,
@@ -1030,7 +1039,13 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 return data;
             });
 
-        addNodeToPage(dataArr, pageId);
+        // Build snapshot-level metadata (Long Tail discrepancy) for frame display + AI context
+        const snapshotMetaEntries = (effectiveSnapshotId && computedDiscrepancy)
+            ? { [frameKey(_video.id, effectiveSnapshotId)]: { sourceVideoTitle: _video.title, discrepancy: computedDiscrepancy } }
+            : undefined;
+
+        addNodeToPage(dataArr, pageId, snapshotMetaEntries);
+
         showToast(
             selectedVideos.length === 1
                 ? `Added to ${pageTitle} \u2014 click to open`
@@ -1043,7 +1058,7 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
                 store.setOpen(true);
             },
         );
-    }, [allVideos, allAssignments, allNiches, trafficEdges, viewerEdges, ctrRules, _video.id, _video.title, viewMode, addNodeToPage, showToast, effectiveSnapshotId, trafficData?.snapshots]);
+    }, [allVideos, allAssignments, allNiches, trafficEdges, viewerEdges, ctrRules, _video.id, _video.title, viewMode, addNodeToPage, showToast, effectiveSnapshotId, trafficData?.snapshots, computedDiscrepancy]);
 
     /**
      * BUSINESS LOGIC: Check if current viewing context has a snapshot with data

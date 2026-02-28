@@ -9,7 +9,8 @@
 
 import type { CanvasNode } from '../../../core/types/canvas';
 import { getSourceVideoId, getNodeDataType } from '../../../core/types/canvas';
-import type { TrafficSourceCardData } from '../../../core/types/appContext';
+import type { TrafficSourceCardData, TrafficDiscrepancy } from '../../../core/types/appContext';
+import type { SnapshotMeta } from '../../../core/stores/canvas/types';
 import {
     TRAFFIC_NODE_WIDTH,
     TRAFFIC_NODE_HEIGHT_ESTIMATE,
@@ -156,6 +157,147 @@ export function computeFramePlacements(
 }
 
 // ---------------------------------------------------------------------------
+// Relayout correction — recalculate Y positions for placed frame columns
+// ---------------------------------------------------------------------------
+
+export interface FrameColumn {
+    srcVid: string;
+    nodes: CanvasNode[];
+}
+
+export interface CorrectionResult {
+    updates: Map<string, { x: number; y: number }>;
+    framedNodeIds: Set<string>;
+    frameColumns: Map<string, FrameColumn>;
+    changed: boolean;
+}
+
+/**
+ * Correct positions of placed frame-column children.
+ * Recalculates Y from parent's measured height to handle resized parents.
+ *
+ * @param nodes           All canvas nodes
+ * @param nodeSizes       Measured heights: nodeId → height
+ * @param videoIdToNode   Lookup: videoId → parent CanvasNode
+ */
+export function correctFrameColumns(
+    nodes: CanvasNode[],
+    nodeSizes: Record<string, number>,
+    videoIdToNode: Map<string, CanvasNode>,
+): CorrectionResult {
+    const updates = new Map<string, { x: number; y: number }>();
+    const framedNodeIds = new Set<string>();
+    const frameColumns = new Map<string, FrameColumn>();
+    let changed = false;
+
+    // Group placed traffic-source nodes by (sourceVideoId, snapshotId)
+    for (const n of nodes) {
+        if (!n.position) continue;
+        if (getNodeDataType(n.data) !== 'traffic-source') continue;
+        const srcVid = getSourceVideoId(n.data);
+        if (!srcVid || !videoIdToNode.has(srcVid)) continue;
+        const data = n.data as TrafficSourceCardData;
+        if (!data.snapshotId) continue;
+
+        const key = frameKey(srcVid, data.snapshotId);
+        let entry = frameColumns.get(key);
+        if (!entry) {
+            entry = { srcVid, nodes: [] };
+            frameColumns.set(key, entry);
+        }
+        entry.nodes.push(n);
+        framedNodeIds.add(n.id);
+    }
+
+    for (const [, column] of frameColumns) {
+        if (column.nodes.length === 0) continue;
+
+        const parent = videoIdToNode.get(column.srcVid);
+        if (!parent?.position) continue;
+
+        const parentH = nodeSizes[parent.id];
+        if (parentH === undefined) continue; // Wait for measurement
+
+        // All nodes in a frame column share the same X
+        const refX = column.nodes[0].position!.x;
+
+        column.nodes.sort((a, b) => a.position!.y - b.position!.y);
+
+        // Compute content Y from parent's measured height
+        const contentStartY = parent.position.y + parentH + PLACEMENT_GAP
+            + FRAME_TITLE_HEIGHT + FRAME_PADDING;
+
+        let cumulativeY = contentStartY;
+        for (const child of column.nodes) {
+            if (child.position!.x !== refX || Math.abs(child.position!.y - cumulativeY) > 1) {
+                updates.set(child.id, { x: refX, y: cumulativeY });
+                changed = true;
+            }
+            const childH = nodeSizes[child.id] ?? TRAFFIC_NODE_HEIGHT_ESTIMATE;
+            cumulativeY += childH + PLACEMENT_GAP;
+        }
+    }
+
+    return { updates, framedNodeIds, frameColumns, changed };
+}
+
+/**
+ * Correct positions of non-framed children (legacy stacking below parent).
+ *
+ * @param nodes            All canvas nodes
+ * @param nodeSizes        Measured node heights
+ * @param videoIdToNode    Parent lookup
+ * @param framedNodeIds    IDs to exclude (already handled by correctFrameColumns)
+ * @param updates          Map to accumulate position updates into
+ */
+export function correctNonFramedChildren(
+    nodes: CanvasNode[],
+    nodeSizes: Record<string, number>,
+    videoIdToNode: Map<string, CanvasNode>,
+    framedNodeIds: Set<string>,
+    updates: Map<string, { x: number; y: number }>,
+    nodeWidth: number,
+): { childrenByParent: Map<string, CanvasNode[]>; changed: boolean } {
+    const childrenByParent = new Map<string, CanvasNode[]>();
+    let changed = false;
+
+    for (const n of nodes) {
+        if (!n.position) continue;
+        if (framedNodeIds.has(n.id)) continue;
+        const srcVid = getSourceVideoId(n.data);
+        if (srcVid && videoIdToNode.has(srcVid)) {
+            const parent = videoIdToNode.get(srcVid)!;
+            const parentW = parent.size?.w ?? nodeWidth;
+            if (Math.abs(n.position.x - parent.position!.x) > parentW * 0.5) continue;
+            const arr = childrenByParent.get(srcVid) || [];
+            arr.push(n);
+            childrenByParent.set(srcVid, arr);
+        }
+    }
+
+    for (const [srcVid, children] of childrenByParent) {
+        const parent = videoIdToNode.get(srcVid)!;
+        const parentH = nodeSizes[parent.id];
+        if (parentH === undefined) continue;
+
+        children.sort((a, b) => a.position!.y - b.position!.y);
+
+        let cumulativeY = parent.position!.y + parentH + PLACEMENT_GAP;
+        for (const child of children) {
+            const expectedX = parent.position!.x;
+            if (child.position!.x !== expectedX || Math.abs(child.position!.y - cumulativeY) > 1) {
+                updates.set(child.id, { x: expectedX, y: cumulativeY });
+                changed = true;
+            }
+            const childH = nodeSizes[child.id] ?? TRAFFIC_NODE_HEIGHT_ESTIMATE;
+            cumulativeY += childH + PLACEMENT_GAP;
+        }
+    }
+
+    return { childrenByParent, changed };
+}
+
+// ---------------------------------------------------------------------------
 // Derive frame bounds from already-placed nodes (for rendering)
 // ---------------------------------------------------------------------------
 
@@ -166,6 +308,8 @@ export interface FrameBounds {
     y: number;
     w: number;
     h: number;
+    /** Cumulative Long Tail discrepancy from snapshot Total Row (if available) */
+    discrepancy?: TrafficDiscrepancy;
 }
 
 /**
@@ -175,6 +319,7 @@ export interface FrameBounds {
 export function deriveFrameBounds(
     nodes: CanvasNode[],
     nodeHeights: Record<string, number>,
+    snapshotMeta?: Record<string, SnapshotMeta>,
 ): FrameBounds[] {
     // Group placed traffic-source nodes by (sourceVideoId, snapshotId)
     const groups = new Map<string, {
@@ -223,6 +368,7 @@ export function deriveFrameBounds(
             maxY = Math.max(maxY, ny + nh);
         }
 
+        const disc = snapshotMeta?.[key]?.discrepancy;
         result.push({
             key,
             snapshotLabel: group.snapshotLabel,
@@ -230,6 +376,7 @@ export function deriveFrameBounds(
             y: minY - FRAME_PADDING - FRAME_TITLE_HEIGHT,
             w: (maxX - minX) + FRAME_PADDING * 2,
             h: (maxY - minY) + FRAME_PADDING * 2 + FRAME_TITLE_HEIGHT,
+            discrepancy: disc,
         });
     }
 

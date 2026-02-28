@@ -3,10 +3,40 @@
 // =============================================================================
 
 import type { CanvasNode, CanvasNodeData } from '../../../types/canvas';
+import { getSourceVideoId, getNodeDataType } from '../../../types/canvas';
 import { Timestamp } from 'firebase/firestore';
 import { TRAFFIC_NODE_WIDTH, IMAGE_NODE_WIDTH, STICKY_NOTE_HEIGHT_ESTIMATE, NODE_HEIGHT_FALLBACK } from '../constants';
 import type { CanvasSlice, CanvasState } from '../types';
+import type { TrafficSourceCardData } from '../../../types/appContext';
 import { deleteCanvasImage } from '../../../services/storageService';
+import { frameKey } from '../../../../features/Canvas/utils/frameLayout';
+
+// ---------------------------------------------------------------------------
+// Orphan snapshotMeta cleanup — remove frame metadata when all cards
+// in that frame have been deleted. Called after deleteNode/deleteNodes.
+// ---------------------------------------------------------------------------
+function cleanupOrphanMeta(get: () => CanvasState): void {
+    const { nodes, snapshotMeta } = get();
+    if (Object.keys(snapshotMeta).length === 0) return;
+
+    // Collect all active frame keys from remaining traffic-source nodes
+    const activeKeys = new Set<string>();
+    for (const n of nodes) {
+        if (getNodeDataType(n.data) !== 'traffic-source') continue;
+        const data = n.data as TrafficSourceCardData;
+        const srcVid = getSourceVideoId(n.data);
+        if (srcVid && data.snapshotId) {
+            activeKeys.add(frameKey(srcVid, data.snapshotId));
+        }
+    }
+
+    // Delete any snapshotMeta entries with no remaining cards
+    for (const key of Object.keys(snapshotMeta)) {
+        if (!activeKeys.has(key)) {
+            get().deleteSnapshotMeta(key);
+        }
+    }
+}
 
 // Default widths per node type (height=0 means auto-sized by content)
 const DEFAULT_NODE_WIDTHS: Partial<Record<CanvasNode['type'], number>> = {
@@ -143,17 +173,24 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
             edges: s.edges.filter((e) => e.sourceNodeId !== id && e.targetNodeId !== id),
         }));
         get()._markDeleted([id]);
+        // Orphan cleanup: remove snapshotMeta if this was the last card in its frame
+        if (target && getNodeDataType(target.data) === 'traffic-source') {
+            cleanupOrphanMeta(get);
+        }
         get()._save();
     },
 
     deleteNodes: (ids) => {
         // Fire-and-forget Storage cleanup for image nodes
         const idSet = new Set(ids);
+        let hadTraffic = false;
         for (const n of get().nodes) {
-            if (idSet.has(n.id) && n.type === 'image' && 'storagePath' in n.data) {
+            if (!idSet.has(n.id)) continue;
+            if (n.type === 'image' && 'storagePath' in n.data) {
                 const sp = (n.data as { storagePath?: string }).storagePath;
                 if (sp) deleteCanvasImage(sp);
             }
+            if (getNodeDataType(n.data) === 'traffic-source') hadTraffic = true;
         }
         get()._pushUndo();
         set((s) => ({
@@ -162,6 +199,7 @@ export const createNodesSlice: CanvasSlice<NodesSlice> = (set, get) => ({
             selectedNodeIds: new Set<string>(),
         }));
         get()._markDeleted(ids);
+        if (hadTraffic) cleanupOrphanMeta(get);
         get()._save();
     },
 
