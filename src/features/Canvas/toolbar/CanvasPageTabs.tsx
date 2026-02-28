@@ -9,7 +9,7 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
-import type { CanvasPageMeta } from '../../core/stores/canvas/types';
+import type { CanvasPageMeta } from '../../../core/stores/canvas/types';
 
 /** Minimal page shape for the tabs view (subset of CanvasPageMeta) */
 export type CanvasPage = Pick<CanvasPageMeta, 'id' | 'title'>;

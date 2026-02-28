@@ -9,16 +9,16 @@
 
 import React, { useState, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
-import type { CanvasEdge, CanvasNode, EdgeLineStyle } from '../../core/types/canvas';
-import { NODE_HEIGHT_FALLBACK } from '../../core/stores/canvas/constants';
+import { useCanvasStore } from '../../../core/stores/canvas/canvasStore';
+import type { CanvasEdge, CanvasNode, EdgeLineStyle } from '../../../core/types/canvas';
+import { NODE_HEIGHT_FALLBACK } from '../../../core/stores/canvas/constants';
 import {
     getAnchorPoint, getLineTarget, getBezierPath,
     getMidPoint, getArrowPath, getControlOffset,
     type Point,
-} from './geometry/edgeGeometry';
-import { isNodeVisible } from './geometry/viewportCulling';
-import { startRewire } from './geometry/rewireLogic';
+} from '../geometry/edgeGeometry';
+import { isNodeVisible } from '../geometry/viewportCulling';
+import { startRewire } from '../geometry/rewireLogic';
 
 // --- Constants ---
 const DASH_ARRAYS: Record<EdgeLineStyle, string> = {

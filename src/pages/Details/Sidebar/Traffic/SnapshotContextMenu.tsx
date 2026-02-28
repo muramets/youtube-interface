@@ -42,6 +42,7 @@ export const SnapshotContextMenu: React.FC<SnapshotContextMenuProps> = ({
     currentVersion
 }) => {
     const [showVersionSubmenu, setShowVersionSubmenu] = useState(false);
+    const [submenuPos, setSubmenuPos] = useState<{ left: number; top: number } | null>(null);
     const submenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const moveToVersionRef = useRef<HTMLDivElement>(null);
 
@@ -57,6 +58,16 @@ export const SnapshotContextMenu: React.FC<SnapshotContextMenuProps> = ({
         submenuTimerRef.current = setTimeout(() => {
             setShowVersionSubmenu(false);
         }, 150);
+    }, [clearSubmenuTimer]);
+
+    const openSubmenu = useCallback(() => {
+        clearSubmenuTimer();
+        const el = moveToVersionRef.current;
+        if (el) {
+            const rect = el.getBoundingClientRect();
+            setSubmenuPos({ left: rect.right + 4, top: rect.top });
+        }
+        setShowVersionSubmenu(true);
     }, [clearSubmenuTimer]);
 
     // Reset submenu state when context menu closes
@@ -121,7 +132,7 @@ export const SnapshotContextMenu: React.FC<SnapshotContextMenuProps> = ({
                     <div
                         className="relative"
                         ref={moveToVersionRef}
-                        onMouseEnter={() => { clearSubmenuTimer(); setShowVersionSubmenu(true); }}
+                        onMouseEnter={openSubmenu}
                         onMouseLeave={startSubmenuCloseTimer}
                     >
                         <button
@@ -133,13 +144,10 @@ export const SnapshotContextMenu: React.FC<SnapshotContextMenuProps> = ({
                         </button>
 
                         {/* Submenu — portal to escape parent stacking context for backdrop-blur */}
-                        {showVersionSubmenu && moveToVersionRef.current && createPortal(
+                        {showVersionSubmenu && submenuPos && createPortal(
                             <div
                                 className="fixed z-popover bg-bg-secondary/95 backdrop-blur-md border border-white/10 rounded-lg py-1 shadow-xl min-w-[100px] animate-fade-in"
-                                style={{
-                                    left: moveToVersionRef.current.getBoundingClientRect().right + 4,
-                                    top: moveToVersionRef.current.getBoundingClientRect().top,
-                                }}
+                                style={submenuPos}
                                 onMouseEnter={clearSubmenuTimer}
                                 onMouseLeave={startSubmenuCloseTimer}
                             >

@@ -22,6 +22,7 @@ import { computeAllFramePlacements } from '../../../../features/Canvas/utils/fra
 export interface LayoutSlice {
     nodeSizes: Record<string, number>;
     updateNodeSize: CanvasState['updateNodeSize'];
+    onNextSizeFlush: CanvasState['onNextSizeFlush'];
     placePendingNodes: CanvasState['placePendingNodes'];
     relayoutChildren: CanvasState['relayoutChildren'];
 }
@@ -29,10 +30,18 @@ export interface LayoutSlice {
 import { SizeBatcher } from '../../../../features/Canvas/utils/SizeBatcher';
 
 export const createLayoutSlice: CanvasSlice<LayoutSlice> = (set, get) => {
+    // Flag: only compute grow-up displacements after placement, not on scroll/LOD
+    let growUpPending = false;
+
     // Create batcher with closure access to get/set
     const sizeBatcher = new SizeBatcher((batch) => {
-        const { nodes, nodeSizes: oldSizes } = get();
-        const positionUpdates = computeGrowUpDisplacements(batch, oldSizes, nodes);
+        // Grow-up: only compute when flagged by placePendingNodes
+        let positionUpdates = new Map<string, { x: number; y: number }>();
+        if (growUpPending) {
+            growUpPending = false;
+            const { nodes, nodeSizes: oldSizes } = get();
+            positionUpdates = computeGrowUpDisplacements(batch, oldSizes, nodes);
+        }
 
         if (positionUpdates.size > 0) {
             set((s) => ({
@@ -52,9 +61,13 @@ export const createLayoutSlice: CanvasSlice<LayoutSlice> = (set, get) => {
         nodeSizes: {},
 
         updateNodeSize: (id, height) => {
+            // Ignore 0-height: ResizeObserver fires 0 during mount/unmount
+            if (height <= 0) return;
             if (get().nodeSizes[id] === height) return;
             sizeBatcher.schedule(id, height);
         },
+
+        onNextSizeFlush: (cb) => sizeBatcher.onNextFlush(cb),
 
         placePendingNodes: (viewportCenter) => {
             const nodes = get().nodes;
@@ -76,6 +89,9 @@ export const createLayoutSlice: CanvasSlice<LayoutSlice> = (set, get) => {
             const pendingNodes = nodes.filter((n) => n.position === null);
             const { placements: framePlacementMap, parentsSeen } =
                 computeAllFramePlacements(pendingNodes, placed, nodeSizes, videoIdToNode, nodeH);
+
+            // Flag grow-up for the next SizeBatcher flush (parent may grow taller from width reflow)
+            if (parentsSeen.size > 0) growUpPending = true;
 
             // ---------------------------------------------------------------
             // Reflow pass: auto-width parents + uniform displacement

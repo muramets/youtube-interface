@@ -49,6 +49,7 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
     const channelId = ownerChannelId || currentChannel?.id || '';
 
     const [showGroupSubmenu, setShowGroupSubmenu] = useState(false);
+    const [submenuPos, setSubmenuPos] = useState<{ left: number; top: number } | null>(null);
     const [newGroupName, setNewGroupName] = useState('');
     const [showNewGroupInput, setShowNewGroupInput] = useState(false);
     const newGroupInputRef = useRef<HTMLInputElement>(null);
@@ -70,13 +71,23 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
         }, 150);
     }, [clearSubmenuTimer]);
 
+    const openSubmenu = useCallback(() => {
+        clearSubmenuTimer();
+        const el = moveToGroupRef.current;
+        if (el) {
+            const rect = el.getBoundingClientRect();
+            setSubmenuPos({ left: rect.right + 4, top: rect.top });
+        }
+        setShowGroupSubmenu(true);
+    }, [clearSubmenuTimer]);
+
     useEffect(() => {
         if (showNewGroupInput) {
             requestAnimationFrame(() => newGroupInputRef.current?.focus());
         }
     }, [showNewGroupInput]);
 
-    // Reset submenu state when context menu closes — legitimate prop-driven reset
+    // Reset submenu state when context menu closes
     /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         if (!isOpen) {
@@ -147,7 +158,7 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
                     <div
                         className="relative"
                         ref={moveToGroupRef}
-                        onMouseEnter={() => { clearSubmenuTimer(); setShowGroupSubmenu(true); }}
+                        onMouseEnter={openSubmenu}
                         onMouseLeave={startSubmenuCloseTimer}
                     >
                         <button
@@ -159,13 +170,10 @@ export const MusicPlaylistContextMenu: React.FC<MusicPlaylistContextMenuProps> =
                         </button>
 
                         {/* Submenu — portal to escape parent stacking context for backdrop-blur */}
-                        {showGroupSubmenu && moveToGroupRef.current && createPortal(
+                        {showGroupSubmenu && submenuPos && createPortal(
                             <div
                                 className="fixed z-popover bg-bg-secondary/95 backdrop-blur-md border border-black/10 dark:border-white/10 rounded-lg py-1 shadow-xl min-w-[140px] animate-fade-in"
-                                style={{
-                                    left: moveToGroupRef.current.getBoundingClientRect().right + 4,
-                                    top: moveToGroupRef.current.getBoundingClientRect().top,
-                                }}
+                                style={submenuPos}
                                 onMouseEnter={clearSubmenuTimer}
                                 onMouseLeave={startSubmenuCloseTimer}
                             >

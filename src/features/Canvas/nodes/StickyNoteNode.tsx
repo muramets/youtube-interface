@@ -12,8 +12,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import type { StickyNoteData, NoteColor } from '../../core/types/canvas';
-import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
+import type { StickyNoteData, NoteColor } from '../../../core/types/canvas';
+import { useCanvasStore } from '../../../core/stores/canvas/canvasStore';
 import { StickyNoteEditor } from './StickyNoteEditor/StickyNoteEditor';
 
 // --- Color palette ---

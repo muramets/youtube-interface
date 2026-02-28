@@ -7,12 +7,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LayoutGrid } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
-import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
-import { useFloatingBottomOffset } from '../../core/hooks/useFloatingBottomOffset';
-import { useAuth } from '../../core/hooks/useAuth';
-import { useAppContextStore, selectAllItems } from '../../core/stores/appContextStore';
-import { useUIStore } from '../../core/stores/uiStore';
-import './Canvas.css';
+import { useCanvasStore } from '../../../core/stores/canvas/canvasStore';
+import { useFloatingBottomOffset } from '../../../core/hooks/useFloatingBottomOffset';
+import { useAuth } from '../../../core/hooks/useAuth';
+import { useAppContextStore, selectAllItems } from '../../../core/stores/appContextStore';
+import { useUIStore } from '../../../core/stores/uiStore';
+import "../Canvas.css";
 
 // Canvas FAB sits 56px to the left of Chat Bubble (48px button + 8px gap)
 const CANVAS_FAB_OFFSET = 56;

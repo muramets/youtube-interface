@@ -155,6 +155,8 @@ export interface CanvasState {
     completePendingEdge: (targetNodeId: string, targetHandle: HandlePosition) => void;
     cancelPendingEdge: () => void;
     updateNodeSize: (id: string, height: number) => void;
+    /** Register a one-shot callback for when the next size batch flush completes */
+    onNextSizeFlush: (cb: () => void) => () => void;
 
     // Snapshot Metadata (frame-level context from traffic CSV)
     setSnapshotMeta: (key: string, meta: SnapshotMeta) => void;

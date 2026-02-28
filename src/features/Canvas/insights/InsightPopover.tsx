@@ -5,8 +5,8 @@
 
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import { Pin, PinOff } from 'lucide-react';
-import type { InsightCategory, NodeInsight } from '../../core/types/canvas';
-import { INSIGHT_CATEGORY_MAP as CATEGORY_META } from './constants/insightCategories';
+import type { InsightCategory, NodeInsight } from '../../../core/types/canvas';
+import { INSIGHT_CATEGORY_MAP as CATEGORY_META } from '../constants/insightCategories';
 
 interface InsightPopoverProps {
     category: InsightCategory;

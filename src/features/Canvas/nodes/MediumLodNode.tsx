@@ -6,14 +6,17 @@
 
 import React from 'react';
 import { ArrowUpRight } from 'lucide-react';
-import type { CanvasNode } from '../../core/types/canvas';
-import type { VideoCardContext, TrafficSourceCardData } from '../../core/types/appContext';
-import type { StickyNoteData, ImageNodeData } from '../../core/types/canvas';
+import type { CanvasNode } from '../../../core/types/canvas';
+import type { VideoCardContext, TrafficSourceCardData } from '../../../core/types/appContext';
+import type { StickyNoteData, ImageNodeData } from '../../../core/types/canvas';
+import { VideoCardUI } from './VideoCardUI';
 
 interface MediumLodNodeProps {
     node: CanvasNode;
     /** Channel ID for own-video navigation (traffic tab) */
     channelId?: string;
+    /** Measured full-size height — used as minHeight to prevent LOD shift */
+    measuredHeight?: number;
 }
 
 /* ── Note‑color map (must match StickyNoteNode) ── */
@@ -66,57 +69,19 @@ function navTitle(data: VideoCardContext | TrafficSourceCardData): string {
     return isOwn ? 'Open traffic tab' : 'Open on YouTube';
 }
 
-/* ── Video Card ── */
-const VideoMedium: React.FC<{ data: VideoCardContext; channelId?: string }> = ({ data, channelId }) => {
+/* ── Video Card — delegates to shared VideoCardUI ── */
+const VideoMedium: React.FC<{ data: VideoCardContext; channelId?: string; measuredHeight?: number }> = ({ data, channelId, measuredHeight }) => {
     const url = navUrl(data, channelId);
-    return (
-        <div
-            className="group/medium"
-            style={{
-                width: '100%',
-                background: data.color
-                    ? `color-mix(in srgb, var(--card-bg) 85%, ${data.color} 15%)`
-                    : 'var(--card-bg)',
-                border: '1px solid var(--border)',
-                borderRadius: 12,
-                overflow: 'hidden',
-            }}
-        >
-            {/* Thumbnail 16:9 */}
-            <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', background: 'var(--bg-secondary)', overflow: 'hidden' }}>
-                {data.thumbnailUrl && (
-                    <img
-                        src={data.thumbnailUrl}
-                        alt=""
-                        draggable={false}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                    />
-                )}
-                {url && <NavButton href={url} title={navTitle(data)} />}
-            </div>
-            {/* Title */}
-            <div
-                style={{
-                    padding: '6px 8px',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    lineHeight: 1.3,
-                    color: 'var(--text-primary)',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                }}
-            >
-                {data.title}
-            </div>
-        </div>
-    );
+    // Medium LOD: simple navigate link as thumbnail overlay, no footer extras
+    const thumbnailOverlay = url ? (
+        <NavButton href={url} title={navTitle(data)} />
+    ) : null;
+
+    return <VideoCardUI data={data} thumbnailOverlay={thumbnailOverlay} minHeight={measuredHeight} />;
 };
 
 /* ── Traffic Source Card ── */
-const TrafficMedium: React.FC<{ data: TrafficSourceCardData }> = ({ data }) => {
+const TrafficMedium: React.FC<{ data: TrafficSourceCardData; measuredHeight?: number }> = ({ data, measuredHeight }) => {
     const accent = data.nicheColor || '#6d28d9';
     const url = navUrl(data);
     return (
@@ -131,6 +96,7 @@ const TrafficMedium: React.FC<{ data: TrafficSourceCardData }> = ({ data }) => {
                 border: `1px solid color-mix(in srgb, var(--border) 60%, ${accent} 40%)`,
                 borderRadius: 12,
                 overflow: 'hidden',
+                ...(measuredHeight ? { minHeight: measuredHeight } : {}),
             }}
         >
             {/* Thumbnail */}
@@ -219,9 +185,9 @@ const ImageMedium: React.FC<{ data: ImageNodeData }> = ({ data }) => (
 );
 
 /* ── Main component ── */
-const MediumLodNode: React.FC<MediumLodNodeProps> = ({ node, channelId }) => {
-    if (node.type === 'video-card') return <VideoMedium data={node.data as VideoCardContext} channelId={channelId} />;
-    if (node.type === 'traffic-source') return <TrafficMedium data={node.data as TrafficSourceCardData} />;
+const MediumLodNode: React.FC<MediumLodNodeProps> = ({ node, channelId, measuredHeight }) => {
+    if (node.type === 'video-card') return <VideoMedium data={node.data as VideoCardContext} channelId={channelId} measuredHeight={measuredHeight} />;
+    if (node.type === 'traffic-source') return <TrafficMedium data={node.data as TrafficSourceCardData} measuredHeight={measuredHeight} />;
     if (node.type === 'sticky-note') return <StickyMedium data={node.data as StickyNoteData} />;
     if (node.type === 'image') return <ImageMedium data={node.data as ImageNodeData} />;
     return null;

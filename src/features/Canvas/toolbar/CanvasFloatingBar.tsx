@@ -1,7 +1,7 @@
 import React from 'react';
 import { Trash2, AlignStartHorizontal, AlignCenterHorizontal, BringToFront, SendToBack } from 'lucide-react';
-import { FloatingBar } from '../../components/ui/organisms/FloatingBar';
-import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
+import { FloatingBar } from '../../../components/ui/organisms/FloatingBar';
+import { useCanvasStore } from '../../../core/stores/canvas/canvasStore';
 import { useShallow } from 'zustand/react/shallow';
 
 export const CanvasFloatingBar: React.FC = () => {

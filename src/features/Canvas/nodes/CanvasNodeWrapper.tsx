@@ -7,20 +7,20 @@
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { X } from 'lucide-react';
-import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
-import { liveZoom } from './utils/liveZoom';
+import { useCanvasStore } from '../../../core/stores/canvas/canvasStore';
+import { liveZoom } from '../utils/liveZoom';
 import { useShallow } from 'zustand/react/shallow';
-import { ConnectionHandles } from './ConnectionHandles';
+import { ConnectionHandles } from '../edges/ConnectionHandles';
 import SimplifiedNode from './SimplifiedNode';
 import MediumLodNode from './MediumLodNode';
-import { InsightButtons } from './InsightButtons';
-import type { CanvasNode } from '../../core/types/canvas';
-import type { TrafficSourceCardData } from '../../core/types/appContext';
-import { NODE_WIDTH } from '../../core/stores/canvas/constants';
-import { usePointerDrag } from './hooks/usePointerDrag';
-import { useSnap } from './utils/SnapContext';
-import { getNodeWidth, getNodeHeight } from './utils/snapEngine';
-import { debug } from '../../core/utils/debug';
+import { InsightButtons } from '../insights/InsightButtons';
+import type { CanvasNode } from '../../../core/types/canvas';
+import type { TrafficSourceCardData } from '../../../core/types/appContext';
+import { NODE_WIDTH } from '../../../core/stores/canvas/constants';
+import { usePointerDrag } from '../hooks/usePointerDrag';
+import { useSnap } from '../utils/SnapContext';
+import { getNodeWidth, getNodeHeight } from '../utils/snapEngine';
+import { debug } from '../../../core/utils/debug';
 
 export type LodLevel = 'full' | 'medium' | 'minimal';
 
@@ -251,7 +251,7 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
             excludeIds: new Set(ids),
         };
         startDrag();
-    }, [node.id, node.type, node.size, selectNode, startDrag, markPlaced, duplicateNodes, applySnap, clearGuides]);
+    }, [node, selectNode, startDrag, markPlaced, duplicateNodes]);
 
     const isSticky = node.type === 'sticky-note';
     const isTrafficSource = node.type === 'traffic-source';
@@ -279,7 +279,7 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
             setResizeMode(mode);
             startResize();
         }
-        , [node.size, startResize]);
+        , [node.size, node.position?.x, node.position?.y, startResize]);
 
     // For non-sticky nodes, corner handle acts as width-only resize.
     // For expanded sticky notes, also width-only (height is auto from content).
@@ -386,7 +386,7 @@ const CanvasNodeWrapperInner: React.FC<CanvasNodeWrapperProps> = ({ node, childr
                 {lodLevel === 'minimal' ? (
                     <SimplifiedNode node={node} measuredHeight={measuredHeight} />
                 ) : lodLevel === 'medium' ? (
-                    <MediumLodNode node={node} channelId={channelId} />
+                    <MediumLodNode node={node} channelId={channelId} measuredHeight={measuredHeight} />
                 ) : (
                     children
                 )}

@@ -4,12 +4,12 @@
 // =============================================================================
 
 import React from 'react';
-import type { CanvasNode } from '../../core/types/canvas';
+import type { CanvasNode } from '../../../core/types/canvas';
 import {
     NODE_HEIGHT_FALLBACK,
     TRAFFIC_NODE_HEIGHT_ESTIMATE,
     STICKY_NOTE_HEIGHT_ESTIMATE,
-} from '../../core/stores/canvas/constants';
+} from '../../../core/stores/canvas/constants';
 
 /** Colors per node type — visually distinct but muted */
 const TYPE_COLORS: Record<string, string> = {

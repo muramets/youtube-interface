@@ -7,9 +7,9 @@
 
 import React, { useState, useCallback, useRef } from 'react';
 import { ImageOff } from 'lucide-react';
-import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
-import { refreshCanvasImageUrl } from '../../core/services/storageService';
-import type { ImageNodeData } from '../../core/types/canvas';
+import { useCanvasStore } from '../../../core/stores/canvas/canvasStore';
+import { refreshCanvasImageUrl } from '../../../core/services/storageService';
+import type { ImageNodeData } from '../../../core/types/canvas';
 
 interface ImageNodeProps {
     data: ImageNodeData;

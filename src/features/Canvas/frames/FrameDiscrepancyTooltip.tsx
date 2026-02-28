@@ -5,8 +5,8 @@
 
 import React from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
-import type { TrafficDiscrepancy } from '../../core/types/appContext';
+import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
+import type { TrafficDiscrepancy } from '../../../core/types/appContext';
 
 interface Props {
     discrepancy: TrafficDiscrepancy;

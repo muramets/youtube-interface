@@ -6,7 +6,7 @@
 // =============================================================================
 
 import React, { useSyncExternalStore } from 'react';
-import type { GuideLine, SnapGuideState } from './utils/snapEngine';
+import type { GuideLine, SnapGuideState } from '../utils/snapEngine';
 
 interface SnapGuidesProps {
     guidesRef: React.RefObject<SnapGuideState>;

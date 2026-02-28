@@ -5,12 +5,12 @@
 // =============================================================================
 
 import React, { useRef, useCallback } from 'react';
-import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
-import { getSourceVideoId, getNodeDataType } from '../../core/types/canvas';
-import type { TrafficSourceCardData, TrafficDiscrepancy } from '../../core/types/appContext';
-import { liveZoom } from './utils/liveZoom';
-import { usePointerDrag } from './hooks/usePointerDrag';
-import { useSnap } from './utils/SnapContext';
+import { useCanvasStore } from '../../../core/stores/canvas/canvasStore';
+import { getSourceVideoId, getNodeDataType } from '../../../core/types/canvas';
+import type { TrafficSourceCardData, TrafficDiscrepancy } from '../../../core/types/appContext';
+import { liveZoom } from '../utils/liveZoom';
+import { usePointerDrag } from '../hooks/usePointerDrag';
+import { useSnap } from '../utils/SnapContext';
 import { FrameDiscrepancyTooltip } from './FrameDiscrepancyTooltip';
 
 interface SnapshotFrameProps {
@@ -112,7 +112,7 @@ const SnapshotFrameInner: React.FC<SnapshotFrameProps> = ({ frameKey, label, x, 
             excludeIds: new Set(frameNodes.map((n) => n.id)),
         };
         startDrag();
-    }, [sourceVideoId, snapshotId, x, y, w, h, startDrag, moveNodes, applySnap, clearGuides]);
+    }, [sourceVideoId, snapshotId, x, y, w, h, startDrag]);
 
     return (
         <>

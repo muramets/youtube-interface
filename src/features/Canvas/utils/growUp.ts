@@ -7,6 +7,9 @@
 // shifts upward. All nodes above the parent are displaced upward by the
 // same delta.
 //
+// This function is ONLY called after placePendingNodes (flag-gated),
+// never on normal scroll/LOD transitions.
+//
 // Pure function — no side effects, no Zustand, no DOM.
 // =============================================================================
 

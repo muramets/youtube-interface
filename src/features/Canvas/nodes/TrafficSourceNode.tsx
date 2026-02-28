@@ -7,9 +7,9 @@
 
 import React from 'react';
 import { ArrowUpRight, Play } from 'lucide-react';
-import type { TrafficSourceCardData } from '../../core/types/appContext';
-import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
-import { useVideoPlayer } from '../../core/hooks/useVideoPlayer';
+import type { TrafficSourceCardData } from '../../../core/types/appContext';
+import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
+import { useVideoPlayer } from '../../../core/hooks/useVideoPlayer';
 
 interface TrafficSourceNodeProps {
     data: TrafficSourceCardData;

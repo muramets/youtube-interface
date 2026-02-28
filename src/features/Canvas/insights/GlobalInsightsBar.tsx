@@ -1,10 +1,10 @@
 import React, { useMemo } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { useCanvasStore, type CanvasState } from '../../core/stores/canvas/canvasStore';
-import type { TrafficSourceCardData } from '../../core/types/appContext';
-import type { InsightCategory } from '../../core/types/canvas';
-import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
-import { INSIGHT_CATEGORY_MAP } from './constants/insightCategories';
+import { useCanvasStore, type CanvasState } from '../../../core/stores/canvas/canvasStore';
+import type { TrafficSourceCardData } from '../../../core/types/appContext';
+import type { InsightCategory } from '../../../core/types/canvas';
+import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
+import { INSIGHT_CATEGORY_MAP } from '../constants/insightCategories';
 
 export const GlobalInsightsBar: React.FC = () => {
     const nodes = useCanvasStore((s: CanvasState) => s.nodes);

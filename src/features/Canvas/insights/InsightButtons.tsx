@@ -11,11 +11,11 @@
 
 import React, { useState, useCallback, useRef } from 'react';
 import { Sparkles } from 'lucide-react';
-import type { InsightCategory } from '../../core/types/canvas';
-import type { TrafficSourceCardData } from '../../core/types/appContext';
+import type { InsightCategory } from '../../../core/types/canvas';
+import type { TrafficSourceCardData } from '../../../core/types/appContext';
 import { InsightPopover } from './InsightPopover';
-import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
-import { INSIGHT_CATEGORIES as CATEGORIES } from './constants/insightCategories';
+import { useCanvasStore } from '../../../core/stores/canvas/canvasStore';
+import { INSIGHT_CATEGORIES as CATEGORIES } from '../constants/insightCategories';
 
 const BTN_SIZE = 28;
 const GAP = 4;

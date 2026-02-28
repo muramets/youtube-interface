@@ -7,8 +7,9 @@
 // "Maximum update depth exceeded" when many ResizeObservers fire
 // synchronously (e.g. on initial mount or page switch).
 //
-// Encapsulates what was previously module-level mutable state
-// (_pendingSizes, _sizeFlushId) in layoutSlice.ts.
+// Supports one-shot flush listeners for event-driven pipelines:
+// after placement, callers can await the next size flush instead of
+// guessing timing with nested rAF chains.
 // =============================================================================
 
 export type FlushCallback = (batch: Record<string, number>) => void;
@@ -17,6 +18,7 @@ export class SizeBatcher {
     private _pending: Record<string, number> = {};
     private _rafId: number | null = null;
     private _onFlush: FlushCallback;
+    private _afterFlushListeners: Array<() => void> = [];
 
     constructor(onFlush: FlushCallback) {
         this._onFlush = onFlush;
@@ -32,19 +34,35 @@ export class SizeBatcher {
             this._rafId = requestAnimationFrame(() => {
                 this._rafId = null;
                 const batch = { ...this._pending };
-                // Clear pending before callback to avoid stale reads
                 for (const k of Object.keys(this._pending)) delete this._pending[k];
                 this._onFlush(batch);
+
+                // Fire and clear one-shot listeners
+                const listeners = this._afterFlushListeners.splice(0);
+                for (const cb of listeners) cb();
             });
         }
     }
 
-    /** Cancel any pending rAF. Call on component unmount or store teardown. */
+    /**
+     * Register a one-shot callback that fires after the next flush completes.
+     * Auto-removed after firing. Returns a cleanup function to cancel.
+     */
+    onNextFlush(cb: () => void): () => void {
+        this._afterFlushListeners.push(cb);
+        return () => {
+            const idx = this._afterFlushListeners.indexOf(cb);
+            if (idx >= 0) this._afterFlushListeners.splice(idx, 1);
+        };
+    }
+
+    /** Cancel any pending rAF and listeners. */
     destroy(): void {
         if (this._rafId !== null) {
             cancelAnimationFrame(this._rafId);
             this._rafId = null;
         }
         this._pending = {};
+        this._afterFlushListeners.length = 0;
     }
 }

@@ -15,25 +15,25 @@ import { useCanvasContextBridge } from './hooks/useCanvasContextBridge';
 import { useCanvasDataSync } from './hooks/useCanvasDataSync';
 import { useSnapGuides } from './hooks/useSnapGuides';
 import { SnapContext } from './utils/SnapContext';
-import { SnapGuides } from './SnapGuides';
-import { CanvasFloatingBar } from './CanvasFloatingBar';
-import { CanvasToolbar } from './CanvasToolbar';
+import { SnapGuides } from './edges/SnapGuides';
+import { CanvasFloatingBar } from './toolbar/CanvasFloatingBar';
+import { CanvasToolbar } from './toolbar/CanvasToolbar';
 import { CanvasBoard, type CanvasBoardHandle } from './CanvasBoard';
-import { CanvasNodeWrapper } from './CanvasNodeWrapper';
-import { VideoCardNode } from './VideoCardNode';
-import { TrafficSourceNode } from './TrafficSourceNode';
-import { StickyNoteNode } from './StickyNoteNode';
-import { ImageNode } from './ImageNode';
-import { GlobalInsightsBar } from './GlobalInsightsBar';
-import { EdgeLayer, EdgeHandles } from './EdgeLayer';
-import { SnapshotFrame } from './SnapshotFrame';
+import { CanvasNodeWrapper } from './nodes/CanvasNodeWrapper';
+import { VideoCardNode } from './nodes/VideoCardNode';
+import { TrafficSourceNode } from './nodes/TrafficSourceNode';
+import { StickyNoteNode } from './nodes/StickyNoteNode';
+import { ImageNode } from './nodes/ImageNode';
+import { GlobalInsightsBar } from './insights/GlobalInsightsBar';
+import { EdgeLayer, EdgeHandles } from './edges/EdgeLayer';
+import { SnapshotFrame } from './frames/SnapshotFrame';
 import { isNodeVisible } from './geometry/viewportCulling';
 import { deriveFrameBounds } from './utils/frameLayout';
 import type { CanvasViewport, StickyNoteData, ImageNodeData } from '../../core/types/canvas';
 import type { VideoCardContext, TrafficSourceCardData } from '../../core/types/appContext';
 import { debug } from '../../core/utils/debug';
 import { useChannelStore } from '../../core/stores/channelStore';
-import { CanvasPageHeader } from './CanvasPageHeader';
+import { CanvasPageHeader } from './toolbar/CanvasPageHeader';
 import './Canvas.css';
 
 
@@ -43,7 +43,7 @@ const LOD_FULL_DOWN = 0.47;  // zoom-out: switch FROM full
 const LOD_MIN_UP = 0.28;  // zoom-in: switch TO medium
 const LOD_MIN_DOWN = 0.22;  // zoom-out: switch FROM medium
 
-type LodLevel = import('./CanvasNodeWrapper').LodLevel;
+type LodLevel = import('./nodes/CanvasNodeWrapper').LodLevel;
 
 const computeLod = (zoom: number, prev: LodLevel): LodLevel => {
     if (prev === 'full') return zoom < LOD_FULL_DOWN ? (zoom < LOD_MIN_DOWN ? 'minimal' : 'medium') : 'full';

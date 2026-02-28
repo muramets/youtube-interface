@@ -7,9 +7,9 @@
 
 import React, { useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
-import type { CanvasNode, HandlePosition } from '../../core/types/canvas';
-import { startEdgeAutoPan } from './utils/edgeAutoPan';
+import { useCanvasStore } from '../../../core/stores/canvas/canvasStore';
+import type { CanvasNode, HandlePosition } from '../../../core/types/canvas';
+import { startEdgeAutoPan } from '../utils/edgeAutoPan';
 
 interface ConnectionHandlesProps {
     node: CanvasNode;
