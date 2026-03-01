@@ -36,7 +36,7 @@ interface UseVersionManagementProps {
     updateVideo: (params: { videoId: string; updates: Partial<VideoDetails> }) => Promise<void>;
     showToast: (message: string, type: 'success' | 'error') => void;
     setSelectedSnapshot: (id: string | null) => void;
-    activeTab: 'packaging' | 'traffic' | 'gallery' | 'editing';
+    activeTab: 'packaging' | 'trafficSource' | 'traffic' | 'gallery' | 'editing';
     selectedSnapshot: string | null;
     trafficState: TrafficHookState;
     onOpenSwitchConfirm: (targetVersion: number | 'draft') => void;

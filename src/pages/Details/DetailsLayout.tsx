@@ -4,6 +4,7 @@ import { type VideoDetails } from '../../core/utils/youtubeApi';
 import type { GalleryItem } from '../../core/types/gallery';
 import { DetailsSidebar } from './Sidebar/DetailsSidebar';
 import { PackagingTab } from './tabs/Packaging/PackagingTab';
+import { TrafficSourceTab } from './tabs/TrafficSource/TrafficSourceTab';
 import { TrafficTab } from './tabs/Traffic/TrafficTab';
 import { GalleryTab } from './tabs/Gallery/GalleryTab';
 import { EditingTab } from './tabs/Editing';
@@ -26,6 +27,8 @@ import { useModalState } from './hooks/useModalState';
 import { DetailsModals } from './components/DetailsModals';
 import { useTrafficNicheStore } from '../../core/stores/trends/useTrafficNicheStore';
 import { TrafficSnapshotService } from '../../core/services/traffic';
+import { TrafficSourceService } from '../../core/services/TrafficSourceService';
+import { useTrafficSourceData } from './tabs/TrafficSource/hooks/useTrafficSourceData';
 import { VersionService } from './services/VersionService';
 
 // Static wrapper component to prevent re-mounting issues
@@ -71,17 +74,36 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
 
     // URL as Single Source of Truth for Tab State
     // No useState, no useEffect sync - just derive from URL
-    const urlTab = searchParams.get('tab') as 'packaging' | 'traffic' | 'gallery' | 'editing' | null;
-    const activeTab: 'packaging' | 'traffic' | 'gallery' | 'editing' =
-        (urlTab && ['packaging', 'traffic', 'gallery', 'editing'].includes(urlTab)) ? urlTab : 'packaging';
+    const urlTab = searchParams.get('tab') as 'packaging' | 'trafficSource' | 'traffic' | 'gallery' | 'editing' | null;
+    const activeTab: 'packaging' | 'trafficSource' | 'traffic' | 'gallery' | 'editing' =
+        (urlTab && ['packaging', 'trafficSource', 'traffic', 'gallery', 'editing'].includes(urlTab)) ? urlTab : 'packaging';
 
     // URL-based tab navigation (replacement for setActiveTab)
-    const navigateToTab = useCallback((tab: 'packaging' | 'traffic' | 'gallery' | 'editing') => {
+    const navigateToTab = useCallback((tab: 'packaging' | 'trafficSource' | 'traffic' | 'gallery' | 'editing') => {
         setSearchParams(prev => {
             prev.set('tab', tab);
             return prev;
         }, { replace: true });
     }, [setSearchParams]);
+
+    // ── Traffic Source state ──
+    const trafficSourceState = useTrafficSourceData({
+        userId: user?.uid || '',
+        channelId: currentChannel?.id || '',
+        video,
+    });
+    const trafficSourceSnapshotStorageKey = `traffic-source-snapshot:${video.id}`;
+    const [selectedTrafficSourceSnapshot, setSelectedTrafficSourceSnapshotRaw] = useState<string | null>(() => {
+        try { return sessionStorage.getItem(trafficSourceSnapshotStorageKey); } catch { return null; }
+    });
+    const setSelectedTrafficSourceSnapshot = useCallback((id: string | null) => {
+        setSelectedTrafficSourceSnapshotRaw(id);
+        try {
+            if (id) sessionStorage.setItem(trafficSourceSnapshotStorageKey, id);
+            else sessionStorage.removeItem(trafficSourceSnapshotStorageKey);
+        } catch { /* quota exceeded */ }
+    }, [trafficSourceSnapshotStorageKey]);
+    const [trafficSourceViewMode, setTrafficSourceViewMode] = useState<'cumulative' | 'delta'>('cumulative');
 
     const [isFormDirty, setIsFormDirty] = useState(false);
 
@@ -301,7 +323,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
         closeModal();
         try {
             await packagingActionsRef.current?.save();
-            navigateToTab(targetTab as 'packaging' | 'traffic' | 'gallery' | 'editing');
+            navigateToTab(targetTab as 'packaging' | 'trafficSource' | 'traffic' | 'gallery' | 'editing');
         } catch {
             /* Save failed — stay on tab */
         }
@@ -312,7 +334,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
         if (modalState.type !== 'SWITCH_CONFIRM') return;
         if (modalState.targetTab) {
             // Tab-navigation context: discard form, navigate
-            const targetTab = modalState.targetTab as 'packaging' | 'traffic' | 'gallery' | 'editing';
+            const targetTab = modalState.targetTab as 'packaging' | 'trafficSource' | 'traffic' | 'gallery' | 'editing';
             packagingActionsRef.current?.discard();
             navigateToTab(targetTab);
         } else {
@@ -360,7 +382,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
 
     // Auto-switch to active version when switching tabs
     // Using direct closure values (simpler, React Compiler compatible)
-    const handleTabChange = useCallback((newTab: 'packaging' | 'traffic' | 'gallery' | 'editing') => {
+    const handleTabChange = useCallback((newTab: 'packaging' | 'trafficSource' | 'traffic' | 'gallery' | 'editing') => {
         // Skip if same tab (activeTab is derived from URL)
         if (newTab === activeTab) return;
 
@@ -394,6 +416,15 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
             }
         }
 
+        // When entering TrafficSource tab → auto-select latest snapshot if none selected
+        if (newTab === 'trafficSource' && !selectedTrafficSourceSnapshot) {
+            const snaps = trafficSourceState.trafficSourceData?.snapshots;
+            if (snaps && snaps.length > 0) {
+                const latest = [...snaps].sort((a, b) => b.timestamp - a.timestamp)[0];
+                setSelectedTrafficSourceSnapshot(latest.id);
+            }
+        }
+
         // Gallery and Editing tabs don't need version switching
 
         // Update URL
@@ -401,7 +432,7 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
             prev.set('tab', newTab);
             return prev;
         }, { replace: true });
-    }, [activeTab, isFormDirty, versions, setSearchParams, getLatestSnapshotId, setSelectedSnapshot, snapshotStorageKey, openSwitchConfirm]);
+    }, [activeTab, isFormDirty, versions, setSearchParams, getLatestSnapshotId, setSelectedSnapshot, snapshotStorageKey, openSwitchConfirm, selectedTrafficSourceSnapshot, setSelectedTrafficSourceSnapshot, trafficSourceState.trafficSourceData?.snapshots]);
 
     // Handle draft deletion
     // Latest Ref Pattern: refs for stable handleDeleteDraft callback
@@ -698,6 +729,34 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
                     onVersionClick={versionMgmt.handleVersionClick}
                     onDeleteVersion={versionMgmt.handleDeleteVersion}
                     onDeleteDraft={handleDeleteDraft}
+                    // Traffic Source props
+                    trafficSourceSnapshots={trafficSourceState.trafficSourceData?.snapshots || []}
+                    selectedTrafficSourceSnapshot={selectedTrafficSourceSnapshot}
+                    onTrafficSourceSnapshotClick={(id) => {
+                        setSelectedTrafficSourceSnapshot(id);
+                    }}
+                    onDeleteTrafficSourceSnapshot={trafficSourceState.handleDeleteSnapshot}
+                    onRenameTrafficSourceSnapshot={async (id, label) => {
+                        // Optimistic: update local state
+                        if (trafficSourceState.trafficSourceData) {
+                            const updatedSnapshots = trafficSourceState.trafficSourceData.snapshots.map(s =>
+                                s.id === id ? { ...s, label } : s
+                            );
+                            trafficSourceState.updateLocalData({
+                                ...trafficSourceState.trafficSourceData,
+                                snapshots: updatedSnapshots,
+                            });
+                        }
+                        // Persist
+                        try {
+                            await TrafficSourceService.updateSnapshotMetadata(
+                                user?.uid || '', currentChannel?.id || '', video.id, id, { label }
+                            );
+                        } catch {
+                            trafficSourceState.refetch();
+                        }
+                    }}
+                    // Suggested Traffic props
                     snapshots={stableSnapshots}
                     selectedSnapshot={selectedSnapshot}
                     onSnapshotClick={handleSnapshotClickWrapped}
@@ -734,6 +793,19 @@ export const DetailsLayout: React.FC<DetailsLayoutProps> = ({ video, playlistId 
                             trafficData={trafficState.trafficData}
                             playlistId={playlistId}
                             onRegisterActions={(a) => { packagingActionsRef.current = a; }}
+                        />
+                    )}
+                    {activeTab === 'trafficSource' && (
+                        <TrafficSourceTab
+                            video={video}
+                            trafficSourceData={trafficSourceState.trafficSourceData}
+                            isLoading={trafficSourceState.isLoading}
+                            isSaving={trafficSourceState.isSaving}
+                            selectedSnapshot={selectedTrafficSourceSnapshot}
+                            viewMode={trafficSourceViewMode}
+                            onViewModeChange={setTrafficSourceViewMode}
+                            onSnapshotUploaded={setSelectedTrafficSourceSnapshot}
+                            handleCsvUpload={trafficSourceState.handleCsvUpload}
                         />
                     )}
                     {activeTab === 'traffic' && (

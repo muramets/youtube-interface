@@ -323,6 +323,53 @@ export const deleteCsvSnapshot = async (storagePath: string): Promise<void> => {
     }
 }
 
+// ============================================================================
+// TRAFFIC SOURCE CSV STORAGE
+// ============================================================================
+
+/**
+ * Upload a Traffic Source CSV to its own dedicated path.
+ *
+ * Storage path: users/{uid}/channels/{cid}/videos/{vid}/trafficSources/{snapshotId}.csv
+ */
+export const uploadTrafficSourceCsv = async (
+    userId: string,
+    channelId: string,
+    videoId: string,
+    snapshotId: string,
+    file: File
+): Promise<{ storagePath: string; downloadUrl: string }> => {
+    const storagePath = `users/${userId}/channels/${channelId}/videos/${videoId}/trafficSources/${snapshotId}.csv`;
+    const storageRef = ref(storage, storagePath);
+
+    await uploadBytes(storageRef, file, {
+        contentType: 'text/csv',
+        customMetadata: {
+            snapshotId,
+            uploadedAt: new Date().toISOString(),
+        },
+    });
+
+    const downloadUrl = await getDownloadURL(storageRef);
+    return { storagePath, downloadUrl };
+};
+
+/**
+ * Delete a Traffic Source CSV from Cloud Storage.
+ */
+export const deleteTrafficSourceCsv = async (storagePath: string): Promise<void> => {
+    try {
+        const storageRef = ref(storage, storagePath);
+        await deleteObject(storageRef);
+    } catch (error: unknown) {
+        if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === 'storage/object-not-found') {
+            return;
+        }
+        console.error('Error deleting Traffic Source CSV:', error);
+        throw error;
+    }
+};
+
 
 /**
  * Get download URL for a CSV file without downloading it.

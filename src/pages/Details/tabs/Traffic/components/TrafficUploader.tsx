@@ -1,10 +1,11 @@
 import React, { useRef, useState } from 'react';
-import { Upload, FileText, AlertCircle, Loader2, Check } from 'lucide-react';
+import { Upload, AlertCircle, Loader2, Check } from 'lucide-react';
 import { parseTrafficCsv } from '../utils/csvParser';
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import { Button } from '../../../../../components/ui/atoms/Button/Button';
 import { SplitButton } from '../../../../../components/ui/atoms/SplitButton/SplitButton';
 import { Badge } from '../../../../../components/ui/atoms/Badge/Badge';
+import { CsvDropZone } from '../../../../../components/ui/molecules/CsvDropZone';
 import { formatPremiumPeriod } from '../utils/dateUtils';
 import { useUIStore } from '../../../../../core/stores/uiStore';
 import { UX_DELAYS } from '../utils/constants';
@@ -41,7 +42,6 @@ export const TrafficUploader: React.FC<TrafficUploaderProps> = ({
     onTargetVersionChange
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const [isDragging, setIsDragging] = useState(false);
     const [isInputProcessing, setIsInputProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { showToast } = useUIStore();
@@ -85,24 +85,6 @@ export const TrafficUploader: React.FC<TrafficUploaderProps> = ({
         } finally {
             setIsInputProcessing(false);
         }
-    };
-
-    const handleDragOver = (e: React.DragEvent) => {
-        if (isBusy) return;
-        e.preventDefault();
-        setIsDragging(true);
-    };
-
-    const handleDragLeave = () => {
-        setIsDragging(false);
-    };
-
-    const handleDrop = async (e: React.DragEvent) => {
-        if (isBusy) return;
-        e.preventDefault();
-        setIsDragging(false);
-        const file = e.dataTransfer.files[0];
-        if (file) await processFile(file);
     };
 
     const triggerFileInput = () => {
@@ -203,73 +185,22 @@ export const TrafficUploader: React.FC<TrafficUploaderProps> = ({
         );
     }
 
-    // Full Mode (Drag & Drop Area)
+    // Full Mode — shared CsvDropZone molecule
     return (
-        <div
-            className={`
-                relative h-[200px] flex flex-col items-center justify-center text-center transition-all duration-300
-                border rounded-xl
-                ${isBusy
-                    ? 'border-transparent bg-bg-secondary/50 cursor-wait'
-                    : `cursor-pointer border-dashed ${isDragging ? 'border-accent-blue bg-accent-blue/5' : 'border-white/10 hover:border-white bg-transparent'}`
-                }
-            `}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            onClick={triggerFileInput}
-        >
-            {fileInput}
-
-            <div className="flex flex-col items-center gap-3">
-                {isBusy ? (
-                    <>
-                        <div className="w-12 h-12 rounded-full bg-accent-blue/10 flex items-center justify-center text-accent-blue mb-1">
-                            <Loader2 className="animate-spin" size={24} />
-                        </div>
-                        <div className="space-y-1 animate-pulse">
-                            <h3 className="text-sm font-medium text-text-primary">
-                                {isInputProcessing ? 'Structuring Traffic Data...' : 'Saving to Database...'}
-                            </h3>
-                            <p className="text-xs text-text-secondary">
-                                This may take a few seconds
-                            </p>
-                        </div>
-                    </>
-                ) : (
-                    <>
-                        <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-text-secondary transition-colors group-hover:bg-white/10">
-                            <FileText size={24} />
-                        </div>
-
-                        <div className="space-y-1">
-                            <h3 className="text-sm font-medium text-text-primary">
-                                {hasExistingSnapshot ? 'Update Suggested Traffic CSV' : 'Upload Suggested Traffic CSV'}
-                            </h3>
-                            <p className="text-xs text-text-secondary">
-                                Drag and drop your file here, or{' '}
-                                <span
-                                    className="text-accent-blue hover:underline font-medium"
-                                >
-                                    browse
-                                </span>
-                            </p>
-                            {targetVersion && (
-                                <p className="text-[10px] text-text-tertiary mt-1">
-                                    → v.{targetVersion}
-                                </p>
-                            )}
-                        </div>
-                    </>
-                )}
-
-                {error && !isBusy && (
-                    <div className="flex items-center gap-2 text-red-400 text-xs bg-red-400/10 px-3 py-2 rounded-lg mt-2 absolute bottom-4">
-                        <AlertCircle size={14} />
-                        {error}
-                    </div>
-                )}
-            </div>
+        <div>
+            <CsvDropZone
+                onFileSelect={processFile}
+                isProcessing={isBusy}
+                processingLabel={isInputProcessing ? 'Structuring Traffic Data...' : 'Saving to Database...'}
+                title={hasExistingSnapshot ? 'Update Suggested Traffic CSV' : 'Upload Suggested Traffic CSV'}
+                subtitle={targetVersion ? `→ v.${targetVersion}` : undefined}
+            />
+            {error && !isBusy && (
+                <div className="flex items-center gap-2 text-red-400 text-xs bg-red-400/10 px-3 py-2 rounded-lg mt-2">
+                    <AlertCircle size={14} />
+                    {error}
+                </div>
+            )}
         </div>
     );
 };

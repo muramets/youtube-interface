@@ -1,6 +1,7 @@
 import type { TrafficSource } from '../../../../../core/types/traffic';
 import { logger } from '../../../../../core/utils/logger';
 import { debug } from '../../../../../core/utils/debug';
+import { parseCsvLine, detectColumnMapping, cleanCsvField } from '../../../../../core/utils/csvUtils';
 
 export interface CsvMapping {
     sourceId: number;
@@ -69,13 +70,13 @@ export const parseTrafficCsv = async (
 
                 // 1. Header Analysis
                 const headerLine = lines[0].trim();
-                const headers = parseLine(headerLine).map(h => h.toLowerCase().replace(/['"]/g, '').trim());
+                const headers = parseCsvLine(headerLine).map(h => h.toLowerCase().replace(/['"]/g, '').trim());
 
                 let activeMapping = userMapping;
 
                 // If no user mapping is provided, try to auto-detect from headers
                 if (!activeMapping) {
-                    const detectedMapping = detectMapping(headers);
+                    const detectedMapping = detectColumnMapping(headers, HEADER_KEYWORDS);
 
                     // DEBUG: Log detected mapping in detail
                     debug.traffic('CSV auto-detect', { headers, detectedMapping });
@@ -110,14 +111,14 @@ export const parseTrafficCsv = async (
                 const sources: TrafficSource[] = [];
                 let totalRow: TrafficSource | undefined;
 
-                const clean = (s: string) => s?.replace(/^"|"$/g, '').trim();
+                const clean = (s: string) => cleanCsvField(s);
 
                 // Start from line 1 (skip header)
                 for (let i = 1; i < lines.length; i++) {
                     const line = lines[i].trim();
                     if (!line) continue;
 
-                    const cols = parseLine(line);
+                    const cols = parseCsvLine(line);
 
                     // Skip simple incomplete lines
                     if (cols.length < 2) continue;
@@ -196,53 +197,4 @@ export const parseTrafficCsv = async (
         reader.onerror = () => reject(new Error("Failed to read file"));
         reader.readAsText(file);
     });
-};
-
-// Helper: Parse CSV line respecting quotes
-const parseLine = (str: string) => {
-    const result = [];
-    let current = '';
-    let inQuote = false;
-    for (let i = 0; i < str.length; i++) {
-        const char = str[i];
-        if (char === '"') {
-            inQuote = !inQuote;
-        } else if (char === ',' && !inQuote) {
-            result.push(current);
-            current = '';
-        } else {
-            current += char;
-        }
-    }
-    result.push(current);
-    return result;
-};
-
-// Helper: Detect mapping from header names
-const detectMapping = (headers: string[]): CsvMapping | null => {
-    // Initialize with all required keys set to -1
-    const mapping: Record<keyof CsvMapping, number> = {
-        sourceId: -1,
-        sourceType: -1,
-        sourceTitle: -1,
-        impressions: -1,
-        ctr: -1,
-        views: -1,
-        avgDuration: -1,
-        watchTime: -1,
-        channelId: -1,
-    };
-    let foundCount = 0;
-
-    // Iterate over required keys and find matching index in headers
-    (Object.keys(HEADER_KEYWORDS) as Array<keyof CsvMapping>).forEach(key => {
-        const keywords = HEADER_KEYWORDS[key];
-        const index = headers.findIndex(h => keywords.some(k => h.includes(k.toLowerCase())));
-        mapping[key] = index;
-        if (index !== -1) foundCount++;
-    });
-
-    if (foundCount === 0) return null;
-
-    return mapping as CsvMapping;
 };
