@@ -34,6 +34,8 @@ export const ANTI_HALLUCINATION_RULES = [
     '4. **When data is missing**, respond with: "This information is not in the attached context. Please attach the relevant data so I can help."',
     '5. **Cross-reference by context labels.** Each video has ownership labels (your video, your draft, competitor). Use these to correctly identify whose content is being discussed.',
     '6. **Always use the `mentionVideo` tool to reference videos.** Never write plain text references like "Video 3" or "Suggested 5" — always call `mentionVideo(videoId)` first, then reference the video in your response text using markdown link format: `[Video Title](mention://videoId)`. Example: `[My Awesome Video](mention://abc123)`. This ensures interactive video badges appear in the UI.',
+    '7. **Always analyze thumbnails when present.** Video thumbnails are attached as images in the user message. When they are present, **proactively include visual analysis** in your response — cover composition, color palette, text overlays, emotional tone, and how well the thumbnail fits the niche. Compare thumbnails against each other when multiple videos are attached.',
+    '8. **Video lookup workflow.** When the user asks about a specific video (by name, description, or context), first find the matching `[id: ...]` in the attached video metadata above. Then call `getMultipleVideoDetails` if you need tags/description, and always call `mentionVideo` before referencing the video in your response. Never guess an ID — if no match is found, ask the user to clarify.',
 ].join('\n');
 
 
@@ -46,6 +48,8 @@ export const ANTI_HALLUCINATION_RULES = [
 export const VIDEO_CONTEXT_PREAMBLE = [
     '## Video Metadata',
     'The user has attached YouTube video metadata. Each video shows: title, key metrics (views, published date, duration).',
+    '**Thumbnails are attached as images** in the user message (in the same order as videos listed below). Always analyze visuals: composition, color palette, text overlays, emotional tone, and niche fit.',
+    '**View growth deltas** (24h/7d/30d) are included when available from trend snapshots. Use these to assess momentum — a video with 1M total views but +100K in 7d is trending hard, while +200 in 7d means it has plateaued.',
     '',
     '**Full details (description, tags) are NOT shown here to save space.** If you need a video\'s description, tags, or other detailed fields, call the `getMultipleVideoDetails` tool with the video IDs.',
     '',
@@ -56,18 +60,21 @@ export const VIDEO_CONTEXT_PREAMBLE = [
 export const VIDEO_SECTION_DRAFT = [
     '### Your Draft Videos (not yet published on YouTube)',
     'Title, description, and tags are working drafts — the user may ask to review or improve them.',
+    'Thumbnail is attached as an image — analyze it for visual appeal and suggest improvements before publishing.',
 ].join('\n');
 
 /** Section header for user's published videos (live on YouTube). */
 export const VIDEO_SECTION_PUBLISHED = [
     '### Your Videos (live on YouTube)',
     'These are live on YouTube. The user can still update title, description, and tags for optimization.',
+    'Thumbnail is attached as an image — include visual analysis when discussing the video.',
 ].join('\n');
 
 /** Section header for competitor videos (other channels). */
 export const VIDEO_SECTION_COMPETITOR = [
     '### Competitor Videos (other channels)',
     'Videos from competitor channels, provided for competitive analysis.',
+    'Thumbnail is attached as an image — compare visual strategy against the user\'s videos.',
 ].join('\n');
 
 // -----------------------------------------------------------------------------

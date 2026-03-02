@@ -1,5 +1,8 @@
 // =============================================================================
-// AI CHAT: Zustand Store
+// Chat Store (Zustand) — client-side state for the AI chat panel.
+//
+// Session-only thinking cache: thinkingText survives streaming end but
+// clears on page reload. Keyed by conversationId → thinkingText.
 // =============================================================================
 
 import { create } from 'zustand';
@@ -23,6 +26,20 @@ import { useAppContextStore, selectAllItems } from './appContextStore';
 import { Timestamp } from 'firebase/firestore';
 import { debug, DEBUG_ENABLED } from '../utils/debug';
 import { buildSystemPrompt } from '../ai/systemPrompt';
+import { enrichContextWithDeltas } from '../ai/enrichContextWithDeltas';
+
+// --- Session-only thinking cache (ephemeral, clears on page reload) ---
+// Keyed by messageId → { text, elapsedMs }. Populated after AI response is persisted.
+interface SessionThinkingEntry { text: string; elapsedMs: number; }
+const sessionThinkingCache = new Map<string, SessionThinkingEntry>();
+
+/** Get cached thinking data for a specific message (session-only, not persisted). */
+export function getSessionThinking(messageId: string): SessionThinkingEntry | null {
+    return sessionThinkingCache.get(messageId) ?? null;
+}
+
+/** Timestamp when the current streaming response started (for thinking elapsed calc). */
+let streamStartMs = 0;
 
 interface ChatState {
     // Context (set once via setContext)
@@ -608,6 +625,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         activeAbortController = myAbortController;
         const myNonce = ++streamingNonce;
         set({ isStreaming: true, streamingText: '', activeToolCalls: [], thinkingText: '', error: null, lastFailedRequest: null });
+        streamStartMs = Date.now();
 
         try {
             // 0. Lazy-create conversation if needed (first message in a new chat)
@@ -626,9 +644,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 // so the subscription won't race with us and reset messages to []
             }
 
-            // Snapshot app context at send time
-            const contextItems = selectAllItems(useAppContextStore.getState());
-            const appContext = contextItems.length > 0 ? contextItems : undefined;
+            // Snapshot app context at send time + enrich with delta views
+            const rawContextItems = selectAllItems(useAppContextStore.getState());
+            const enrichedItems = rawContextItems.length > 0
+                ? await enrichContextWithDeltas(rawContextItems, userId)
+                : rawContextItems;
+            const appContext = enrichedItems.length > 0 ? enrichedItems : undefined;
 
             // Merge with existing persistent context from this conversation
             const existingConv = get().conversations.find(c => c.id === convId);
@@ -721,7 +742,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
                             const ownerLabel = v.ownership === 'own-draft' ? 'Draft' : v.ownership === 'own-published' ? 'Video' : 'Competitor';
                             console.log(`  #${videoIdx} 🎬 [${ownerLabel}] ${v.title}`);
                             console.log(`      views: ${v.viewCount ?? '—'} | dur: ${v.duration ?? '—'} | pub: ${v.publishedAt ?? '—'} | ch: ${v.channelTitle ?? '—'}`);
-                            console.log(`      desc: ${v.description ? `✓ (${v.description.length}ch)` : '—'} | tags: ${v.tags && v.tags.length > 0 ? `${v.tags.length} [${v.tags.slice(0, 3).join(', ')}${v.tags.length > 3 ? '…' : ''}]` : '—'}`);
+                            const deltaParts: string[] = [];
+                            if (v.delta24h != null) deltaParts.push(`24h: ${v.delta24h >= 0 ? '+' : ''}${v.delta24h}`);
+                            if (v.delta7d != null) deltaParts.push(`7d: ${v.delta7d >= 0 ? '+' : ''}${v.delta7d}`);
+                            if (v.delta30d != null) deltaParts.push(`30d: ${v.delta30d >= 0 ? '+' : ''}${v.delta30d}`);
+                            console.log(`      desc: ${v.description ? `✓ (${v.description.length}ch)` : '—'} | tags: ${v.tags && v.tags.length > 0 ? `${v.tags.length} [${v.tags.slice(0, 3).join(', ')}${v.tags.length > 3 ? '…' : ''}]` : '—'}${deltaParts.length > 0 ? ` | Δ: ${deltaParts.join(' / ')}` : ''}`);
 
                         } else if (item.type === 'suggested-traffic') {
                             const sv = item.sourceVideo;
@@ -823,13 +848,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
             // Layer 3: Summarization status
             debug.chat(`📝 Layer 3: ${usedSummary ? '✓ summary used (older messages were compressed)' : '— full history (no summarization needed)'}`);
 
-            // 4. Clear streaming UI BEFORE persisting — Firestore's latency compensation
+            // 4. Capture thinking text before clearing streaming state.
+            const finalThinkingText = get().thinkingText;
+
+            // 5. Clear streaming UI BEFORE persisting — Firestore's latency compensation
             // delivers the snapshot immediately, so the model message would appear in the
             // messages array while the streaming bubble is still visible (duplication glitch).
             if (streamingNonce === myNonce) set({ isStreaming: false, streamingText: '' });
 
-            // 5. Persist AI response (subscription fires immediately via latency compensation)
+            // 6. Persist AI response (subscription fires immediately via latency compensation)
             await persistAiResponse(userId, channelId, convId, responseText, model, tokenUsage, toolCalls);
+
+            // 7. Save thinking text keyed by the new message's ID (post-persist).
+            // Firestore latency compensation has already added the message to messages[].
+            if (finalThinkingText) {
+                const msgs = get().messages;
+                const lastModel = [...msgs].reverse().find(m => m.role === 'model');
+                if (lastModel) {
+                    sessionThinkingCache.set(lastModel.id, {
+                        text: finalThinkingText,
+                        elapsedMs: Date.now() - streamStartMs,
+                    });
+                }
+            }
 
             // 6. Auto-title (fire-and-forget)
             maybeAutoTitle(userId, channelId, convId, text, model, messages.length === 0);

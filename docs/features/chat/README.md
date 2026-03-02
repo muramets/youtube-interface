@@ -68,14 +68,16 @@ Gemini ссылается на конкретные видео, пользова
 - [x] Regex Cleanup — удалён `injectVideoReferenceLinks` и regex fallback (~200 строк)
 - [x] **Token Optimization** — compact L1 prompt (description+tags убраны, ~75% экономии)
 - [x] Batch tool `getMultipleVideoDetails(videoIds[])` — on-demand fetch из двух коллекций (`videos/` + `cached_suggested_traffic_videos/`)
+- [x] Consolidated ToolCallSummary — группировка pills по типу + expandable video preview
 
 ### Стадия 6 — RAG + Visual Context ← YOU ARE HERE
 **Архитектурный переход:** compact prompt UЖЕ сделан. Осталось: visual context (обложки) + vector search.
 
-**Что уже сделано (в рамках Stage 5):**
+**Что уже сделано (в рамках Stage 5-6):**
 - ✅ Compact L1: system prompt содержит только title + key metrics (views, published, duration)
 - ✅ On-demand details: `getMultipleVideoDetails` возвращает description, tags и пр. по запросу
 - ✅ Dual-collection lookup: поиск в `videos/` и `cached_suggested_traffic_videos/`
+- ✅ **Delta Enrichment Middleware**: `enrichContextWithDeltas()` автоматически дополняет видео данными о росте просмотров (24h/7d/30d) из trend snapshots перед отправкой в Gemini. Gemini видит формат `Views: 111K | 24h: +1.2K / 7d: +5.3K / 30d: +12K`
 
 **Что осталось:**
 
@@ -123,3 +125,4 @@ Gemini ссылается на конкретные видео, пользова
 **Backend:** `functions/src/services/gemini.ts` (agentic loop), `tools/` (definitions, executor, handlers), `memory.ts` (4 layers)
 **Types:** `appContext.ts` (VideoCardContext, SuggestedTrafficContext, CanvasSelectionContext)
 **Bridges:** useSelectionContextBridge (Home+Playlists), TrafficTab (traffic), useCanvasContextBridge, useTrendsContextBridge
+**Enrichment:** `enrichContextWithDeltas.ts` (middleware), `computeVideoDeltas.ts` (pure function), `useVideoDeltaMap.ts` (React hook wrapper)

@@ -6,6 +6,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Brain, ChevronDown } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 /** Abbreviate thinking text to a short summary for collapsed display */
 function abbreviateThought(text: string, maxLen = 60): string {
@@ -22,13 +23,15 @@ interface ThinkingBubbleProps {
     text: string;
     /** Whether the response is still streaming */
     isStreaming: boolean;
+    /** Pre-computed elapsed time (from session cache, used for persisted messages) */
+    initialElapsedMs?: number;
 }
 
-export const ThinkingBubble: React.FC<ThinkingBubbleProps> = ({ text, isStreaming }) => {
+export const ThinkingBubble: React.FC<ThinkingBubbleProps> = ({ text, isStreaming, initialElapsedMs }) => {
     const [expanded, setExpanded] = useState(false);
     const contentRef = useRef<HTMLDivElement>(null);
     const startTimeRef = useRef<number>(0);
-    const [elapsedMs, setElapsedMs] = useState(0);
+    const [elapsedMs, setElapsedMs] = useState(initialElapsedMs ?? 0);
 
     // Initialize start time on mount (outside render to satisfy React Compiler purity)
     useEffect(() => {
@@ -38,14 +41,17 @@ export const ThinkingBubble: React.FC<ThinkingBubbleProps> = ({ text, isStreamin
     // Track elapsed time while streaming
     useEffect(() => {
         if (!isStreaming) {
-            setElapsedMs(Date.now() - startTimeRef.current);
+            // Don't overwrite pre-computed elapsed from session cache
+            if (initialElapsedMs == null) {
+                setElapsedMs(Date.now() - startTimeRef.current);
+            }
             return;
         }
         const interval = setInterval(() => {
             setElapsedMs(Date.now() - startTimeRef.current);
         }, 100);
         return () => clearInterval(interval);
-    }, [isStreaming]);
+    }, [isStreaming, initialElapsedMs]);
 
     // No auto-collapse: if user expanded thinking, they want to keep reading it
 
@@ -70,12 +76,12 @@ export const ThinkingBubble: React.FC<ThinkingBubbleProps> = ({ text, isStreamin
                     size={13}
                     className={`shrink-0 text-text-tertiary ${isStreaming ? 'animate-stream-pulse' : 'opacity-50'}`}
                 />
-                <span className={`flex-1 text-[11px] leading-tight truncate ${isStreaming ? 'text-text-tertiary italic' : 'text-text-tertiary/60'}`}>
+                <span className={`flex-1 text-[11px] leading-tight truncate ${isStreaming ? 'text-shimmer italic' : 'text-text-tertiary/60'}`}>
                     {summary}
                 </span>
                 <ChevronDown
                     size={10}
-                    className={`shrink-0 text-text-tertiary/40 transition-transform duration-200 group-hover:text-text-tertiary/70 ${expanded ? 'rotate-180' : ''}`}
+                    className={`shrink-0 text-text-tertiary opacity-40 transition-transform duration-200 group-hover:opacity-70 ${expanded ? 'rotate-180' : ''}`}
                 />
                 {/* Shimmer bar during streaming */}
                 {isStreaming && (
@@ -83,17 +89,32 @@ export const ThinkingBubble: React.FC<ThinkingBubbleProps> = ({ text, isStreamin
                 )}
             </button>
 
-            {/* Expandable content */}
+            {/* Expandable content — lightweight markdown */}
             {expanded && (
                 <div
                     ref={contentRef}
-                    className="mt-1 pl-[22px] border-l-2 border-text-tertiary/15 max-h-[200px] overflow-y-auto animate-slide-down"
+                    className="thinking-bubble-content mt-1 pl-[22px] border-l-2 border-text-tertiary/15 max-h-[200px] overflow-y-auto animate-slide-down"
                 >
-                    <pre className="text-[11px] leading-relaxed text-text-tertiary/70 font-[inherit] whitespace-pre-wrap break-words m-0">
+                    <ReactMarkdown
+                        components={{
+                            p: ({ children }) => <p className="text-[11px] leading-relaxed text-text-tertiary/70 m-0 mb-1 last:mb-0">{children}</p>,
+                            strong: ({ children }) => <strong className="text-text-tertiary/90 font-semibold">{children}</strong>,
+                            em: ({ children }) => <em>{children}</em>,
+                            ul: ({ children }) => <ul className="text-[11px] text-text-tertiary/70 pl-4 my-0.5 list-disc">{children}</ul>,
+                            ol: ({ children }) => <ol className="text-[11px] text-text-tertiary/70 pl-4 my-0.5 list-decimal">{children}</ol>,
+                            li: ({ children }) => <li className="my-0.5">{children}</li>,
+                            code: ({ children }) => <code className="text-[10px] bg-white/[0.04] px-1 py-0.5 rounded">{children}</code>,
+                            pre: ({ children }) => <pre className="text-[11px] text-text-tertiary/70 whitespace-pre-wrap break-words m-0 my-1">{children}</pre>,
+                            h1: ({ children }) => <p className="text-[11px] font-semibold text-text-tertiary/80 m-0 mb-1">{children}</p>,
+                            h2: ({ children }) => <p className="text-[11px] font-semibold text-text-tertiary/80 m-0 mb-1">{children}</p>,
+                            h3: ({ children }) => <p className="text-[11px] font-semibold text-text-tertiary/80 m-0 mb-1">{children}</p>,
+                        }}
+                    >
                         {text}
-                    </pre>
+                    </ReactMarkdown>
                 </div>
             )}
         </div>
     );
 };
+

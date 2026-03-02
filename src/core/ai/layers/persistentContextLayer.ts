@@ -101,10 +101,25 @@ function formatSingleVideo(lines: string[], v: VideoCardContext): void {
     const channel = v.channelTitle ? ` (Channel: ${v.channelTitle})` : '';
     const metrics: string[] = [];
     if (v.viewCount) metrics.push(`Views: ${v.viewCount}`);
+    // Delta views from trend snapshots (enriched by middleware)
+    const deltas: string[] = [];
+    if (v.delta24h != null) deltas.push(`24h: ${formatDeltaCompact(v.delta24h)}`);
+    if (v.delta7d != null) deltas.push(`7d: ${formatDeltaCompact(v.delta7d)}`);
+    if (v.delta30d != null) deltas.push(`30d: ${formatDeltaCompact(v.delta30d)}`);
+    if (deltas.length > 0) metrics.push(deltas.join(' / '));
     if (v.publishedAt) metrics.push(`Published: ${v.publishedAt}`);
     if (v.duration) metrics.push(`Duration: ${v.duration}`);
     const metricsStr = metrics.length > 0 ? ` — ${metrics.join(' | ')}` : '';
     lines.push(`- ${prefix}: "${v.title}" [id: ${v.videoId}]${channel}${metricsStr}`);
+}
+
+/** Compact delta formatting: +1200 → "+1.2K", -300 → "-300" */
+function formatDeltaCompact(value: number): string {
+    const abs = Math.abs(value);
+    const sign = value >= 0 ? '+' : '-';
+    if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M`;
+    if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(1)}K`;
+    return `${sign}${abs}`;
 }
 
 /** Format suggested traffic context — source video + selected suggested videos. */

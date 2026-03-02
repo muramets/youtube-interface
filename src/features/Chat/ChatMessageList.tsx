@@ -61,8 +61,8 @@ import { CanvasSelectionChip } from './CanvasSelectionChip';
 import { debug } from '../../core/utils/debug';
 import { SelectionToolbar } from './components/SelectionToolbar';
 import { ThinkingBubble } from './components/ThinkingBubble';
-import { ToolCallBadge } from './components/ToolCallBadge';
-import type { ToolCallRecord } from '../../core/types/chat';
+import { ToolCallSummary } from './components/ToolCallSummary';
+import { getSessionThinking } from '../../core/stores/chatStore';
 
 /** Regex to detect mention:// URIs in markdown links */
 const MENTION_RE = /^mention:\/\/(.+)$/;
@@ -231,9 +231,11 @@ interface MessageItemProps {
     onRetry?: () => void;
     onEdit?: (msg: ChatMessage) => void;
     videoMap?: Map<string, VideoCardContext>;
+    /** Session-only thinking data (not persisted, shown only for last model msg) */
+    sessionThinking?: { text: string; elapsedMs: number } | null;
 }
 
-const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing, skipAnimation, isFailed, isStreaming, onRetry, onEdit, videoMap }) => {
+const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing, skipAnimation, isFailed, isStreaming, onRetry, onEdit, videoMap, sessionThinking }) => {
     const itemRef = useRef<HTMLDivElement>(null);
     const isVisibleRef = useRef(false);
     const [timestamp, setTimestamp] = useState(() => formatRelativeTime(msg.createdAt));
@@ -309,13 +311,13 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
             )}
 
             <div className={`${msg.role === 'user' ? MSG_BUBBLE_USER : MSG_BUBBLE_MODEL} ${isFailed ? 'border border-red-500/40' : ''}`}>
-                {/* Tool call badges for persisted model messages */}
+                {/* Session-only thinking bubble (not persisted to Firestore) */}
+                {msg.role === 'model' && sessionThinking && (
+                    <ThinkingBubble text={sessionThinking.text} isStreaming={false} initialElapsedMs={sessionThinking.elapsedMs} />
+                )}
+                {/* Tool call summary for persisted model messages */}
                 {msg.role === 'model' && msg.toolCalls && msg.toolCalls.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                        {msg.toolCalls.map((tc: ToolCallRecord, i: number) => (
-                            <ToolCallBadge key={`${tc.name}-${i}`} record={tc} />
-                        ))}
-                    </div>
+                    <ToolCallSummary toolCalls={msg.toolCalls} videoMap={videoMap} />
                 )}
                 {msg.role === 'model' ? <MarkdownMessage text={msg.text} videoMap={videoMap} /> : msg.text}
             </div>
@@ -688,6 +690,11 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                                 onRetry={retryLastMessage}
                                 onEdit={setEditingMessage}
                                 videoMap={referenceVideoMap}
+                                sessionThinking={
+                                    msg.role === 'model'
+                                        ? getSessionThinking(msg.id)
+                                        : null
+                                }
                             />
                         </MessageErrorBoundary>
                     </React.Fragment>
@@ -720,13 +727,9 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                             <ThinkingBubble text={thinkingText} isStreaming={isStreaming} />
                         )}
 
-                        {/* Tool call badges — between thinking and text */}
+                        {/* Tool call summary — between thinking and text */}
                         {activeToolCalls.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mb-2">
-                                {activeToolCalls.map((tc, i) => (
-                                    <ToolCallBadge key={`${tc.name}-${i}`} record={tc} />
-                                ))}
-                            </div>
+                            <ToolCallSummary toolCalls={activeToolCalls} videoMap={referenceVideoMap} isStreaming />
                         )}
 
                         {streamingText ? (

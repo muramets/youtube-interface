@@ -48,10 +48,10 @@ export const ToolCallBadge: React.FC<ToolCallBadgeProps> = ({ record }) => {
 
     // Color scheme based on state
     const stateClasses = isError
-        ? 'border-red-500/30 bg-red-500/[0.06] text-red-400'
+        ? 'bg-red-500/[0.06] text-red-400'
         : isResolved
-            ? 'border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-400'
-            : 'border-blue-400/20 bg-blue-400/[0.06] text-blue-400';
+            ? 'bg-emerald-500/[0.06] text-emerald-400'
+            : 'bg-blue-400/[0.06] text-blue-400';
 
     const isDev = import.meta.env.DEV;
 
@@ -59,7 +59,7 @@ export const ToolCallBadge: React.FC<ToolCallBadgeProps> = ({ record }) => {
         <div className="inline-flex flex-col max-w-full">
             <button
                 type="button"
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] leading-tight transition-colors duration-200 ${stateClasses} ${isDev ? 'cursor-pointer hover:brightness-125' : 'cursor-default'} ${!isResolved ? 'animate-stream-pulse' : ''}`}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] leading-tight transition-colors duration-200 ${stateClasses} ${isDev ? 'cursor-pointer hover:brightness-125' : 'cursor-default'} ${!isResolved ? 'animate-stream-pulse' : ''}`}
                 onClick={() => isDev && setExpanded(v => !v)}
                 disabled={!isDev}
             >
