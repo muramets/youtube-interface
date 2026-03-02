@@ -51,9 +51,9 @@ export const TrafficSourceNav = React.memo<TrafficSourceNavProps>(({
 
     const hasContent = snapshots.length > 0;
 
-    // Sort by timestamp ascending (oldest first = timeline order)
+    // Sort by timestamp descending (newest first)
     const sorted = useMemo(
-        () => [...snapshots].sort((a, b) => a.timestamp - b.timestamp),
+        () => [...snapshots].sort((a, b) => b.timestamp - a.timestamp),
         [snapshots]
     );
 

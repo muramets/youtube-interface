@@ -7,7 +7,7 @@
 // =============================================================================
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { ArrowUp, ArrowDown, TrendingUp, TrendingDown } from 'lucide-react';
+import { ArrowUp, ArrowDown } from 'lucide-react';
 import type { TrafficSourceDeltaMetric } from '../utils/trafficSourceDelta';
 
 interface TrafficSourceTableProps {
@@ -29,33 +29,38 @@ const COLUMNS: { key: SortKey; label: string; align: 'left' | 'right' }[] = [
 ];
 
 /**
- * Delta badge — shows percentage change with icon.
- * Format: ↑ +519% (+4,360)
+ * Delta cell — absolute change as primary text, percentage as secondary.
+ * Used in delta mode: replaces the original CSV value as the main display.
  */
-const DeltaBadge: React.FC<{
-    value: number | undefined;
+const DeltaCell: React.FC<{
+    delta: number | undefined;
     pct?: number | undefined;
     suffix?: string;
-}> = ({ value, pct, suffix = '' }) => {
-    if (value === undefined || value === 0) return null;
-    const isPositive = value > 0;
-    const Icon = isPositive ? TrendingUp : TrendingDown;
-
-    const absFormatted = `${isPositive ? '+' : ''}${typeof value === 'number' && Number.isInteger(value) ? value.toLocaleString() : value}${suffix}`;
-    const pctFormatted = pct !== undefined ? `${isPositive ? '+' : ''}${pct}%` : null;
+    original?: string;
+}> = ({ delta, pct, suffix = '', original }) => {
+    const isEmpty = delta === undefined || delta === 0;
+    const isPositive = !isEmpty && delta > 0;
+    const sign = isPositive ? '+' : '';
+    const primaryStr = isEmpty ? '–' : (() => {
+        const absStr = Number.isInteger(delta)
+            ? Math.abs(delta!).toLocaleString()
+            : Math.abs(delta!).toFixed(2);
+        return `${sign}${isPositive ? absStr : `-${absStr}`}${suffix}`;
+    })();
 
     return (
-        <span className={`inline-flex items-center gap-0.5 text-[11px] ml-1.5 ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-            <Icon size={10} />
-            {pctFormatted ? (
-                <>
-                    <span className="font-semibold">{pctFormatted}</span>
-                    <span className="opacity-70 text-[10px]">({absFormatted})</span>
-                </>
-            ) : (
-                absFormatted
-            )}
-        </span>
+        <div className={`flex flex-col items-end transition-colors duration-[350ms] group-hover:duration-75 ${!isEmpty ? (isPositive ? 'text-emerald-500/60 group-hover:text-emerald-400' : 'text-red-500/60 group-hover:text-red-400') : ''}`}>
+            <span className={`font-medium ${isEmpty ? 'opacity-25' : ''}`}>{primaryStr}</span>
+            {/* Always render secondary line to keep row height consistent */}
+            <span className="flex items-center gap-1.5 text-[10px]">
+                <span className={pct !== undefined && !isEmpty ? 'opacity-70' : 'invisible'}>
+                    {pct !== undefined ? `${sign}${pct}%` : '–'}
+                </span>
+                <span className={original !== undefined && !isEmpty ? 'text-white/30 group-hover:text-white/55 transition-colors duration-[350ms] group-hover:duration-75' : 'invisible'}>
+                    {original ?? '–'}
+                </span>
+            </span>
+        </div>
     );
 };
 
@@ -133,7 +138,7 @@ export const TrafficSourceTable = React.memo<TrafficSourceTableProps>(({
 
     /** Returns 'font-bold text-text-primary' when value equals column max */
     const boldIf = (key: string, value: number) =>
-        metrics.length > 1 && value > 0 && value === maxValues.values[key] ? 'font-bold text-text-primary' : '';
+        metrics.length > 1 && value > 0 && value === maxValues.values[key] ? 'font-bold' : '';
 
     const renderHeaderCell = (col: typeof COLUMNS[number]) => {
         const isSorted = sortKey === col.key;
@@ -171,25 +176,29 @@ export const TrafficSourceTable = React.memo<TrafficSourceTableProps>(({
                 {/* Total Row */}
                 {totalRow && (
                     <div className={`sticky top-0 z-10 grid ${gridCols} gap-2 px-4 py-3 border-b border-white/10 bg-video-edit-bg backdrop-blur-md font-bold text-text-primary text-xs select-none shadow-sm`}>
-                        <div>{totalRow.source}</div>
-                        <div className="text-right">
-                            {totalRow.impressions.toLocaleString()}
-                            {showDelta && <DeltaBadge value={totalRow.deltaImpressions} pct={totalRow.pctImpressions} />}
+                        <div className="self-center">{totalRow.source}</div>
+                        <div className="flex flex-col items-end">
+                            {showDelta
+                                ? <DeltaCell delta={totalRow.deltaImpressions} pct={totalRow.pctImpressions} original={totalRow.impressions.toLocaleString()} />
+                                : <span>{totalRow.impressions.toLocaleString()}</span>}
                         </div>
-                        <div className="text-right">
-                            {totalRow.ctr}%
-                            {showDelta && <DeltaBadge value={totalRow.deltaCtr} suffix="%" />}
+                        <div className="flex flex-col items-end">
+                            {showDelta
+                                ? <DeltaCell delta={totalRow.deltaCtr} pct={totalRow.pctCtr} suffix="%" original={`${totalRow.ctr}%`} />
+                                : <span>{totalRow.ctr}%</span>}
                         </div>
-                        <div className="text-right">
-                            {totalRow.views.toLocaleString()}
-                            {showDelta && <DeltaBadge value={totalRow.deltaViews} pct={totalRow.pctViews} />}
+                        <div className="flex flex-col items-end">
+                            {showDelta
+                                ? <DeltaCell delta={totalRow.deltaViews} pct={totalRow.pctViews} original={totalRow.views.toLocaleString()} />
+                                : <span>{totalRow.views.toLocaleString()}</span>}
                         </div>
-                        <div className="text-right">
-                            {totalRow.avgViewDuration}
+                        <div className="flex flex-col items-end">
+                            <span>{totalRow.avgViewDuration}</span>
                         </div>
-                        <div className="text-right">
-                            {totalRow.watchTimeHours.toFixed(2)}h
-                            {showDelta && <DeltaBadge value={totalRow.deltaWatchTimeHours} pct={totalRow.pctWatchTimeHours} suffix="h" />}
+                        <div className="flex flex-col items-end">
+                            {showDelta
+                                ? <DeltaCell delta={totalRow.deltaWatchTimeHours} pct={totalRow.pctWatchTimeHours} suffix="h" original={`${totalRow.watchTimeHours.toFixed(2)}h`} />
+                                : <span>{totalRow.watchTimeHours.toFixed(2)}h</span>}
                         </div>
                     </div>
                 )}
@@ -198,27 +207,31 @@ export const TrafficSourceTable = React.memo<TrafficSourceTableProps>(({
                 {sorted.map((metric) => (
                     <div
                         key={metric.source}
-                        className={`grid ${gridCols} gap-2 px-4 py-2.5 text-xs text-text-secondary border-b border-white/[0.03] hover:bg-white/5 transition-colors`}
+                        className={`group grid ${gridCols} gap-2 px-4 ${showDelta ? 'py-3' : 'py-2.5'} text-xs text-text-secondary border-b border-white/[0.03] hover:bg-white/5 hover:text-text-primary transition-colors duration-[350ms] hover:duration-75`}
                     >
-                        <div className="text-text-primary truncate">{metric.source}</div>
-                        <div className={`text-right ${boldIf('impressions', metric.impressions)}`}>
-                            {metric.impressions.toLocaleString()}
-                            {showDelta && <DeltaBadge value={metric.deltaImpressions} pct={metric.pctImpressions} />}
+                        <div className="text-text-primary truncate self-center group-hover:text-white transition-colors duration-[350ms] group-hover:duration-75">{metric.source}</div>
+                        <div className={`flex flex-col items-end ${showDelta ? '' : boldIf('impressions', metric.impressions)}`}>
+                            {showDelta
+                                ? <DeltaCell delta={metric.deltaImpressions} pct={metric.pctImpressions} original={metric.impressions.toLocaleString()} />
+                                : <span>{metric.impressions.toLocaleString()}</span>}
                         </div>
-                        <div className={`text-right ${boldIf('ctr', metric.ctr)}`}>
-                            {metric.ctr}%
-                            {showDelta && <DeltaBadge value={metric.deltaCtr} suffix="%" />}
+                        <div className={`flex flex-col items-end ${showDelta ? '' : boldIf('ctr', metric.ctr)}`}>
+                            {showDelta
+                                ? <DeltaCell delta={metric.deltaCtr} pct={metric.pctCtr} suffix="%" original={`${metric.ctr}%`} />
+                                : <span>{metric.ctr}%</span>}
                         </div>
-                        <div className={`text-right ${boldIf('views', metric.views)}`}>
-                            {metric.views.toLocaleString()}
-                            {showDelta && <DeltaBadge value={metric.deltaViews} pct={metric.pctViews} />}
+                        <div className={`flex flex-col items-end ${showDelta ? '' : boldIf('views', metric.views)}`}>
+                            {showDelta
+                                ? <DeltaCell delta={metric.deltaViews} pct={metric.pctViews} original={metric.views.toLocaleString()} />
+                                : <span>{metric.views.toLocaleString()}</span>}
                         </div>
-                        <div className={`text-right ${boldIf('avgViewDuration', maxValues.parseDuration(metric.avgViewDuration))}`}>
-                            {metric.avgViewDuration || '–'}
+                        <div className={`flex flex-col items-end ${showDelta ? '' : boldIf('avgViewDuration', maxValues.parseDuration(metric.avgViewDuration))}`}>
+                            <span>{metric.avgViewDuration || '–'}</span>
                         </div>
-                        <div className={`text-right ${boldIf('watchTimeHours', metric.watchTimeHours)}`}>
-                            {metric.watchTimeHours > 0 ? `${metric.watchTimeHours.toFixed(2)}h` : '–'}
-                            {showDelta && <DeltaBadge value={metric.deltaWatchTimeHours} pct={metric.pctWatchTimeHours} suffix="h" />}
+                        <div className={`flex flex-col items-end ${showDelta ? '' : boldIf('watchTimeHours', metric.watchTimeHours)}`}>
+                            {showDelta
+                                ? <DeltaCell delta={metric.deltaWatchTimeHours} pct={metric.pctWatchTimeHours} suffix="h" original={metric.watchTimeHours > 0 ? `${metric.watchTimeHours.toFixed(2)}h` : undefined} />
+                                : <span>{metric.watchTimeHours > 0 ? `${metric.watchTimeHours.toFixed(2)}h` : '–'}</span>}
                         </div>
                     </div>
                 ))}
