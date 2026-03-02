@@ -50,6 +50,7 @@ export const VIDEO_CONTEXT_PREAMBLE = [
     'The user has attached YouTube video metadata. Each video shows: title, key metrics (views, published date, duration).',
     '**Thumbnails are attached as images** in the user message (in the same order as videos listed below). Always analyze visuals: composition, color palette, text overlays, emotional tone, and niche fit.',
     '**View growth deltas** (24h/7d/30d) are included when available from trend snapshots. Use these to assess momentum — a video with 1M total views but +100K in 7d is trending hard, while +200 in 7d means it has plateaued.',
+    '**Traffic Sources** may be included for user\'s own videos (when toggled on). These show aggregate traffic breakdown (Suggested, Browse, Search, etc.) across historical snapshots in baseline + delta format. Use this to understand WHERE views come from and how each traffic source evolved over time.',
     '',
     '**Full details (description, tags) are NOT shown here to save space.** If you need a video\'s description, tags, or other detailed fields, call the `getMultipleVideoDetails` tool with the video IDs.',
     '',

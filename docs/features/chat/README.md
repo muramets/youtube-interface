@@ -78,6 +78,7 @@ Gemini ссылается на конкретные видео, пользова
 - ✅ On-demand details: `getMultipleVideoDetails` возвращает description, tags и пр. по запросу
 - ✅ Dual-collection lookup: поиск в `videos/` и `cached_suggested_traffic_videos/`
 - ✅ **Delta Enrichment Middleware**: `enrichContextWithDeltas()` автоматически дополняет видео данными о росте просмотров (24h/7d/30d) из trend snapshots перед отправкой в Gemini. Gemini видит формат `Views: 111K | 24h: +1.2K / 7d: +5.3K / 30d: +12K`
+- ✅ **Traffic Sources Enrichment**: per-video toggle 📊 на VideoCardChip → `enrichContextWithTrafficSources()` загружает CSV snapshots из Cloud Storage, формирует baseline + deltas текст. Gemini видит историю по каждому traffic source (Suggested, Browse, Search).
 
 **Что осталось:**
 
@@ -125,4 +126,5 @@ Gemini ссылается на конкретные видео, пользова
 **Backend:** `functions/src/services/gemini.ts` (agentic loop), `tools/` (definitions, executor, handlers), `memory.ts` (4 layers)
 **Types:** `appContext.ts` (VideoCardContext, SuggestedTrafficContext, CanvasSelectionContext)
 **Bridges:** useSelectionContextBridge (Home+Playlists), TrafficTab (traffic), useCanvasContextBridge, useTrendsContextBridge
-**Enrichment:** `enrichContextWithDeltas.ts` (middleware), `computeVideoDeltas.ts` (pure function), `useVideoDeltaMap.ts` (React hook wrapper)
+**Enrichment:** `enrichContextWithDeltas.ts` (delta views middleware), `enrichContextWithTrafficSources.ts` (traffic sources middleware), `core/ai/utils/formatTrafficSources.ts` (pure formatter)
+**Shared Utils:** `core/utils/trafficSource/` (delta.ts, parser.ts, snapshotLoader.ts) — shared between UI table и AI enrichment

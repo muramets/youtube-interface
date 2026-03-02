@@ -31,6 +31,10 @@ export interface VideoCardContext {
     delta24h?: number | null;
     delta7d?: number | null;
     delta30d?: number | null;
+    /** Toggle: include Traffic Sources data in AI context (per-video, own videos only) */
+    includeTrafficSources?: boolean;
+    /** Pre-formatted Traffic Sources summary (enriched by middleware before sending to AI) */
+    trafficSourcesSummary?: string;
 }
 
 /**
@@ -260,3 +264,26 @@ export function getContextItemKey(item: AppContextItem): string {
             return `cs:${item.nodes.map(n => n.nodeType === 'video' || n.nodeType === 'traffic-source' ? n.videoId : n.nodeType).join(',')}`;
     }
 }
+
+// --- Context merging (deduplication by type-specific key) ---
+
+/** Merge incoming items into existing, skipping duplicates by video/source ID. */
+export function mergeContextItems(
+    existing: AppContextItem[],
+    incoming: AppContextItem[],
+): AppContextItem[] {
+    const result = [...existing];
+    for (const item of incoming) {
+        const isDuplicate = result.some(e => {
+            if (e.type !== item.type) return false;
+            if (item.type === 'video-card' && e.type === 'video-card')
+                return item.videoId === e.videoId;
+            if (item.type === 'suggested-traffic' && e.type === 'suggested-traffic')
+                return item.sourceVideo.videoId === e.sourceVideo.videoId;
+            return false; // canvas-selection: always add as new group
+        });
+        if (!isDuplicate) result.push(item);
+    }
+    return result;
+}
+

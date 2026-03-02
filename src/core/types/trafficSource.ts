@@ -64,3 +64,9 @@ export interface TrafficSourceData {
     /** Ordered list of snapshots (newest first) */
     snapshots: TrafficSourceSnapshot[];
 }
+
+/** A snapshot paired with its loaded CSV metrics — used by enrichment pipeline. */
+export interface SnapshotWithMetrics {
+    snapshot: TrafficSourceSnapshot;
+    metrics: TrafficSourceMetric[];
+}

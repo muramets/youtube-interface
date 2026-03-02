@@ -8,11 +8,11 @@
 // Reads trendChannels from Zustand store, computes deltas via pure function.
 // =============================================================================
 
-import type { AppContextItem, VideoCardContext } from '../types/appContext';
-import { computeVideoDeltas } from '../utils/computeVideoDeltas';
-import { useTrendStore } from '../stores/trends/trendStore';
-import { useChannelStore } from '../stores/channelStore';
-import { debug } from '../utils/debug';
+import type { AppContextItem, VideoCardContext } from '../../types/appContext';
+import { computeVideoDeltas } from '../../utils/computeVideoDeltas';
+import { useTrendStore } from '../../stores/trends/trendStore';
+import { useChannelStore } from '../../stores/channelStore';
+import { debug } from '../../utils/debug';
 
 /**
  * Enrich VideoCardContext items with delta view stats from Trend Snapshots.

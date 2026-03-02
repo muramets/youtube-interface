@@ -11,9 +11,9 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { TrafficSourceData, TrafficSourceMetric } from '../../../../../core/types/trafficSource';
-import { loadTrafficSourceSnapshot } from '../utils/trafficSourceSnapshotLoader';
-import { calculateDelta, calculateTotalDelta } from '../utils/trafficSourceDelta';
-import type { TrafficSourceDeltaMetric } from '../utils/trafficSourceDelta';
+import { loadTrafficSourceSnapshot } from '../../../../../core/utils/trafficSource/snapshotLoader';
+import { calculateDelta, calculateTotalDelta } from '../../../../../core/utils/trafficSource/delta';
+import type { TrafficSourceDeltaMetric } from '../../../../../core/utils/trafficSource/delta';
 
 // Re-export for consumers
 export type { TrafficSourceDeltaMetric };

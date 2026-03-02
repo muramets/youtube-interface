@@ -1,13 +1,9 @@
-// =============================================================================
-// VIDEO CARD CHIP: Mini video card for chat input & message history
-// Vertical layout mirrors the full VideoCard: thumbnail on top, info below
-// =============================================================================
-
 import React, { useCallback, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, BarChart3 } from 'lucide-react';
 import type { VideoCardContext } from '../../core/types/appContext';
 import { formatDuration, formatViewCount } from '../../core/utils/formatUtils';
 import { PortalTooltip } from '../../components/ui/atoms/PortalTooltip';
+import { useAppContextStore } from '../../core/stores/appContextStore';
 
 // ---------------------------------------------------------------------------
 // Module-level state for cross-chip tooltip handoff.
@@ -49,6 +45,19 @@ export const VideoCardChip: React.FC<VideoCardChipProps> = React.memo(({ video, 
         setEnterDelay(elapsed < HANDOFF_WINDOW_MS ? 0 : 500);
     }, []);
 
+    // Traffic sources toggle — only for own videos
+    const isOwnVideo = video.ownership === 'own-published' || video.ownership === 'own-draft';
+    const updateItem = useAppContextStore(s => s.updateItem);
+
+    const handleToggleTrafficSources = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        const newValue = !video.includeTrafficSources;
+        updateItem(
+            (item): item is VideoCardContext => item.type === 'video-card' && item.videoId === video.videoId,
+            { includeTrafficSources: newValue },
+        );
+    }, [video.videoId, video.includeTrafficSources, updateItem]);
+
     return (
         <div
             className={`
@@ -62,15 +71,40 @@ export const VideoCardChip: React.FC<VideoCardChipProps> = React.memo(({ video, 
             onPointerEnter={handlePointerEnter}
             onClick={onSelect}
         >
-            {/* Remove button — overlayed top-right */}
-            {onRemove && !compact && (
-                <button
-                    className="absolute top-1 right-1 z-10 w-5 h-5 rounded-full bg-black/60 text-white/70 flex items-center justify-center opacity-0 group-hover/chip:opacity-100 transition-opacity hover:text-red-400 hover:bg-black/80 border-none cursor-pointer"
-                    onClick={(e) => { e.stopPropagation(); onRemove(); }}
-                    title="Remove from context"
-                >
-                    <X size={10} />
-                </button>
+            {/* Action buttons — overlayed top-right */}
+            {!compact && (
+                <div className="absolute top-1 right-1 z-10 flex gap-0.5 opacity-0 group-hover/chip:opacity-100 transition-opacity">
+                    {/* Traffic sources toggle — own videos only */}
+                    {isOwnVideo && (
+                        <button
+                            className={`w-5 h-5 rounded-full flex items-center justify-center border-none cursor-pointer transition-colors ${video.includeTrafficSources
+                                ? 'bg-emerald-500/90 text-white'
+                                : 'bg-black/60 text-white/70 hover:text-emerald-400 hover:bg-black/80'
+                                }`}
+                            onClick={handleToggleTrafficSources}
+                            title={video.includeTrafficSources ? 'Traffic Sources: included in context' : 'Include Traffic Sources in AI context'}
+                        >
+                            <BarChart3 size={10} />
+                        </button>
+                    )}
+                    {/* Remove button */}
+                    {onRemove && (
+                        <button
+                            className="w-5 h-5 rounded-full bg-black/60 text-white/70 flex items-center justify-center hover:text-red-400 hover:bg-black/80 border-none cursor-pointer"
+                            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+                            title="Remove from context"
+                        >
+                            <X size={10} />
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {/* Traffic sources active indicator — always visible when toggle is on */}
+            {!compact && video.includeTrafficSources && (
+                <div className="absolute top-1 right-1 z-[5] w-5 h-5 rounded-full bg-emerald-500/90 flex items-center justify-center group-hover/chip:opacity-0 transition-opacity">
+                    <BarChart3 size={10} className="text-white" />
+                </div>
             )}
 
             {/* Thumbnail with duration badge */}

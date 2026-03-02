@@ -21,12 +21,14 @@ import { AiService } from '../services/aiService';
 import * as AiProxy from '../services/aiProxyService';
 import type { ReadyAttachment } from '../types/chatAttachment';
 import type { AppContextItem } from '../types/appContext';
-import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../types/appContext';
+import { getVideoCards, getTrafficContexts, getCanvasContexts, mergeContextItems } from '../types/appContext';
+import { prepareContext } from '../ai/pipeline/prepareContext';
+import { extractThumbnails } from '../ai/pipeline/extractThumbnails';
+import { debugSendLog } from '../ai/pipeline/debugSendLog';
 import { useAppContextStore, selectAllItems } from './appContextStore';
 import { Timestamp } from 'firebase/firestore';
-import { debug, DEBUG_ENABLED } from '../utils/debug';
+import { debug } from '../utils/debug';
 import { buildSystemPrompt } from '../ai/systemPrompt';
-import { enrichContextWithDeltas } from '../ai/enrichContextWithDeltas';
 
 // --- Session-only thinking cache (ephemeral, clears on page reload) ---
 // Keyed by messageId → { text, elapsedMs }. Populated after AI response is persisted.
@@ -68,6 +70,7 @@ interface ChatState {
     hasMoreMessages: boolean;
     hasMoreConversations: boolean;
     lastFailedRequest: { text: string; attachments?: ReadyAttachment[]; messageId?: string } | null;
+    enrichmentWarning: EnrichmentWarning | null;
     pendingModel: string | null; // model override for not-yet-created conversations
     pendingThinkingOptionId: string | null; // thinking depth override (resets on model change)
     editingMessage: ChatMessage | null; // message being edited (user clicks pencil)
@@ -111,6 +114,8 @@ interface ChatState {
     // Actions — AI
     sendMessage: (text: string, attachments?: ReadyAttachment[], conversationId?: string) => Promise<void>;
     retryLastMessage: () => Promise<void>;
+    retryEnrichment: () => Promise<void>;
+    dismissEnrichment: () => Promise<void>;
     stopGeneration: () => void;
     saveAiSettings: (settings: Partial<AiAssistantSettings>) => Promise<void>;
     memorizeConversation: (guidance?: string) => Promise<{ memoryId: string; content: string }>;
@@ -125,6 +130,24 @@ interface ChatState {
     startReferenceSelection: (messageId: string, num: string) => void;
     cancelReferenceSelection: () => void;
     saveReferenceOverride: (messageId: string, originalNum: string, newReferenceKey: string) => Promise<void>;
+}
+
+/** Pending send data — stashed when enrichment fails so retry/dismiss can resume. */
+interface PendingSend {
+    text: string;
+    attachments: ReadyAttachment[] | undefined;
+    convId: string;
+    rawContextItems: AppContextItem[];
+    existingPersisted: AppContextItem[];
+    nonce: number;
+    abortController: AbortController;
+}
+
+/** Warning shown when traffic sources enrichment fails. */
+interface EnrichmentWarning {
+    message: string;
+    failedVideos: string[];
+    pendingSend: PendingSend;
 }
 
 // AbortController lives outside Zustand (non-serializable)
@@ -164,24 +187,7 @@ function resolveModel(
  * Merge incoming context items into an existing set, deduplicating by type + key.
  * Pure function — used by both sendMessage (append new) and editMessage (rebuild).
  */
-function mergeContextItems(
-    existing: AppContextItem[],
-    incoming: AppContextItem[],
-): AppContextItem[] {
-    const result = [...existing];
-    for (const item of incoming) {
-        const isDuplicate = result.some(e => {
-            if (e.type !== item.type) return false;
-            if (item.type === 'video-card' && e.type === 'video-card')
-                return item.videoId === e.videoId;
-            if (item.type === 'suggested-traffic' && e.type === 'suggested-traffic')
-                return item.sourceVideo.videoId === e.sourceVideo.videoId;
-            return false; // canvas-selection: always add as new group
-        });
-        if (!isDuplicate) result.push(item);
-    }
-    return result;
-}
+// mergeContextItems → moved to core/types/appContext.ts (shared with pipeline)
 
 /** Rebuild persistedContext from surviving messages' appContext fields. */
 function rebuildPersistedContext(survivingMessages: ChatMessage[]): AppContextItem[] {
@@ -276,6 +282,73 @@ function maybeAutoTitle(
         .catch(() => { });
 }
 
+/**
+ * Post-enrichment flow — build prompt, stream from Gemini, persist response.
+ * Shared by sendMessage (happy path), retryEnrichment (after successful retry),
+ * and dismissEnrichment (skip enrichment data).
+ */
+async function resumeSendFlow(
+    get: () => ChatState,
+    set: (partial: Partial<ChatState>) => void,
+    convId: string,
+    text: string,
+    attachments: ReadyAttachment[] | undefined,
+    appContext: AppContextItem[] | undefined,
+    persistedContext: AppContextItem[] | undefined,
+    nonce: number,
+    abortController: AbortController,
+): Promise<void> {
+    const { aiSettings, projects, activeProjectId, messages, memories } = get();
+
+    // Re-activate streaming UI (may have been paused by enrichment warning)
+    set({ isStreaming: true, streamingText: '', enrichmentWarning: null });
+
+    const thumbnailUrls = extractThumbnails(persistedContext ?? appContext);
+    const activeConv = get().conversations.find(c => c.id === convId);
+    const model = resolveModel(aiSettings, projects, activeProjectId, activeConv?.model, get().pendingModel);
+    const systemPrompt = buildSystemPrompt(aiSettings, projects, activeProjectId, persistedContext, memories);
+
+    debugSendLog({ model, aiSettings, projects, activeProjectId, persistedContext, appContext, messages, memories, thumbnailUrls, systemPrompt });
+
+    const contextMeta = persistedContext ? {
+        videoCards: getVideoCards(persistedContext).length,
+        trafficSources: getTrafficContexts(persistedContext).length,
+        canvasNodes: getCanvasContexts(persistedContext).reduce((sum, cc) => sum + cc.nodes.length, 0),
+        totalItems: persistedContext.length,
+    } : undefined;
+
+    const { userId, channelId } = requireContext(get);
+    const scopedSet = (partial: Partial<ChatState>) => {
+        if (streamingNonce === nonce) set(partial);
+    };
+
+    const { text: responseText, tokenUsage, toolCalls, usedSummary } = await streamAiResponse(
+        channelId, convId, model, systemPrompt,
+        text, attachments, thumbnailUrls, contextMeta, scopedSet, abortController.signal,
+        get().pendingThinkingOptionId,
+    );
+
+    debug.chat(`📝 Layer 3: ${usedSummary ? '✓ summary used (older messages were compressed)' : '— full history (no summarization needed)'}`);
+
+    const finalThinkingText = get().thinkingText;
+    if (streamingNonce === nonce) set({ isStreaming: false, streamingText: '' });
+
+    await persistAiResponse(userId, channelId, convId, responseText, model, tokenUsage, toolCalls);
+
+    if (finalThinkingText) {
+        const msgs = get().messages;
+        const lastModel = [...msgs].reverse().find(m => m.role === 'model');
+        if (lastModel) {
+            sessionThinkingCache.set(lastModel.id, {
+                text: finalThinkingText,
+                elapsedMs: Date.now() - streamStartMs,
+            });
+        }
+    }
+
+    maybeAutoTitle(userId, channelId, convId, text, model, messages.length === 0);
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
     // Initial state
     userId: null,
@@ -301,6 +374,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     hasMoreMessages: false,
     hasMoreConversations: false,
     lastFailedRequest: null,
+    enrichmentWarning: null,
     pendingModel: null,
     pendingThinkingOptionId: null,
     editingMessage: null,
@@ -615,7 +689,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     sendMessage: async (text, attachments, conversationId) => {
         const { userId, channelId } = requireContext(get);
-        const { activeConversationId, pendingConversationId, activeProjectId, messages, aiSettings, projects, memories, isStreaming } = get();
+        const { activeConversationId, pendingConversationId, activeProjectId, messages, aiSettings, projects, isStreaming } = get();
         let convId = conversationId || activeConversationId;
 
         if (isStreaming) return;
@@ -644,236 +718,43 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 // so the subscription won't race with us and reset messages to []
             }
 
-            // Snapshot app context at send time + enrich with delta views
+            // 1. Snapshot context + clear input immediately (optimistic UX)
             const rawContextItems = selectAllItems(useAppContextStore.getState());
-            const enrichedItems = rawContextItems.length > 0
-                ? await enrichContextWithDeltas(rawContextItems, userId)
-                : rawContextItems;
-            const appContext = enrichedItems.length > 0 ? enrichedItems : undefined;
+            const hasContext = rawContextItems.length > 0;
+            if (hasContext) useAppContextStore.getState().consumeAll();
 
-            // Merge with existing persistent context from this conversation
+            // 2. Optimistic UI — show user message + dots BEFORE enrichment
+            const rawAppContext = hasContext ? rawContextItems : undefined;
+            await persistUserMessage(userId, channelId, convId, text, attachments, rawAppContext, messages, set);
+            if (!activeConversationId) set({ activeConversationId: convId });
+
+            // 3. Context pipeline: enrich → merge → persist (user sees dots)
             const existingConv = get().conversations.find(c => c.id === convId);
             const existingPersisted = existingConv?.persistedContext ?? [];
-            const mergedContext = appContext
-                ? mergeContextItems(existingPersisted, appContext)
-                : existingPersisted;
-            const persistedContext = mergedContext.length > 0 ? mergedContext : undefined;
-
-            // Persist merged context to conversation doc (fire-and-forget, errors logged).
-            if (persistedContext && appContext) {
-                ChatService.updateConversation(userId, channelId, convId, { persistedContext })
-                    .catch(err => debug.chat('⚠️ Failed to persist context:', err));
-            }
-
-            // Extract thumbnail URLs from PERSISTED context (all accumulated)
-            // so Gemini can visually compare covers across the entire conversation.
-            const thumbnailUrlsRaw: string[] = [];
-            const thumbnailSource = persistedContext ?? appContext;
-            if (thumbnailSource) {
-                // Video cards
-                getVideoCards(thumbnailSource)
-                    .forEach(c => { if (c.thumbnailUrl) thumbnailUrlsRaw.push(c.thumbnailUrl); });
-                // Suggested traffic: source video + suggested videos
-                getTrafficContexts(thumbnailSource)
-                    .forEach(tc => {
-                        if (tc.sourceVideo.thumbnailUrl) thumbnailUrlsRaw.push(tc.sourceVideo.thumbnailUrl);
-                        tc.suggestedVideos.forEach(sv => {
-                            if (sv.thumbnailUrl) thumbnailUrlsRaw.push(sv.thumbnailUrl);
-                        });
-                    });
-                // Canvas selection: video thumbnails + image downloadUrls
-                getCanvasContexts(thumbnailSource)
-                    .forEach(cc => {
-                        cc.nodes.forEach(node => {
-                            if (node.nodeType === 'video' || node.nodeType === 'traffic-source') {
-                                if (node.thumbnailUrl) thumbnailUrlsRaw.push(node.thumbnailUrl);
-                            }
-                            if (node.nodeType === 'image') {
-                                if (node.imageUrl) thumbnailUrlsRaw.push(node.imageUrl);
-                            }
-                        });
-                    });
-            }
-            // Deduplicate — same video can appear in multiple context sources
-            const thumbnailUrls = [...new Set(thumbnailUrlsRaw)];
-
-            // 1. Optimistic UI + persist user message
-            // Clear consumed context from input (snapshot already captured above)
-            if (appContext) useAppContextStore.getState().consumeAll();
-            await persistUserMessage(userId, channelId, convId, text, attachments, appContext, messages, set);
-
-            // Now safe to set activeConversationId — optimistic message is already in state
-            if (!activeConversationId) {
-                set({ activeConversationId: convId });
-            }
-
-            // 2. Resolve config — use PERSISTED context (full history) for systemPrompt
-            const activeConv = get().conversations.find(c => c.id === convId);
-            const model = resolveModel(aiSettings, projects, activeProjectId, activeConv?.model, get().pendingModel);
-            const systemPrompt = buildSystemPrompt(aiSettings, projects, activeProjectId, persistedContext, memories);
-
-            // Debug: log what's being sent to Gemini (layered view)
-            // Uses direct console.group/groupCollapsed (not through wrapper) so Chrome
-            // DevTools renders the expand-triangle correctly.
-            if (import.meta.env.DEV && DEBUG_ENABLED.chat) {
-                console.group('🤖 Sending to Gemini | Model:', model);
-
-                // Settings layer
-                console.groupCollapsed('⚙️ Settings Layer');
-                console.log('  Language:', aiSettings.responseLanguage || 'auto', '| Style:', aiSettings.responseStyle || 'default');
-                console.log('  Global prompt:', aiSettings.globalSystemPrompt ? `✓ (${aiSettings.globalSystemPrompt.length} chars)` : '—');
-                const activeProject = projects.find(p => p.id === activeProjectId);
-                console.log('  Project prompt:', activeProject?.systemPrompt ? `✓ (${activeProject.systemPrompt.length} chars)` : '—');
-                console.groupEnd();
-
-                // Layer 1: Persistent Context
-                if (persistedContext && persistedContext.length > 0) {
-                    const vcCount = getVideoCards(persistedContext).length;
-                    const tcCount = getTrafficContexts(persistedContext).length;
-                    const ccList = getCanvasContexts(persistedContext);
-                    const nodeCount = ccList.reduce((sum, cc) => sum + cc.nodes.length, 0);
-                    console.groupCollapsed(`📎 Layer 1: Persistent Context (${vcCount} videos, ${tcCount} traffic, ${ccList.length} canvas / ${nodeCount} nodes)`);
-
-                    let videoIdx = 0;
-                    persistedContext.forEach(item => {
-                        if (item.type === 'video-card') {
-                            const v = item;
-                            videoIdx++;
-                            const ownerLabel = v.ownership === 'own-draft' ? 'Draft' : v.ownership === 'own-published' ? 'Video' : 'Competitor';
-                            console.log(`  #${videoIdx} 🎬 [${ownerLabel}] ${v.title}`);
-                            console.log(`      views: ${v.viewCount ?? '—'} | dur: ${v.duration ?? '—'} | pub: ${v.publishedAt ?? '—'} | ch: ${v.channelTitle ?? '—'}`);
-                            const deltaParts: string[] = [];
-                            if (v.delta24h != null) deltaParts.push(`24h: ${v.delta24h >= 0 ? '+' : ''}${v.delta24h}`);
-                            if (v.delta7d != null) deltaParts.push(`7d: ${v.delta7d >= 0 ? '+' : ''}${v.delta7d}`);
-                            if (v.delta30d != null) deltaParts.push(`30d: ${v.delta30d >= 0 ? '+' : ''}${v.delta30d}`);
-                            console.log(`      desc: ${v.description ? `✓ (${v.description.length}ch)` : '—'} | tags: ${v.tags && v.tags.length > 0 ? `${v.tags.length} [${v.tags.slice(0, 3).join(', ')}${v.tags.length > 3 ? '…' : ''}]` : '—'}${deltaParts.length > 0 ? ` | Δ: ${deltaParts.join(' / ')}` : ''}`);
-
-                        } else if (item.type === 'suggested-traffic') {
-                            const sv = item.sourceVideo;
-                            console.log(`  📊 [Traffic] ${sv.title} → ${item.suggestedVideos.length} suggested`);
-                            console.log(`      snapshot: ${item.snapshotDate ?? '—'} | label: ${item.snapshotLabel ?? '—'}`);
-                            console.log(`      source: views ${sv.viewCount ?? '—'} | dur: ${sv.duration ?? '—'} | pub: ${sv.publishedAt ?? '—'}`);
-                            item.suggestedVideos.forEach((sg, i) => {
-                                console.log(`      [${i + 1}] ${sg.title}`);
-                                console.log(`          impr: ${sg.impressions.toLocaleString()} | CTR: ${(sg.ctr * 100).toFixed(1)}% | views: ${sg.views.toLocaleString()} | dur: ${sg.avgViewDuration} | watch: ${sg.watchTimeHours.toFixed(1)}h`);
-                                console.log(`          ch: ${sg.channelTitle ?? '—'} | traffic: ${sg.trafficType ?? '—'} | viewer: ${sg.viewerType ?? '—'} | niche: ${sg.niche ?? '—'}`);
-                                console.log(`          desc: ${sg.description ? `✓ (${sg.description.length}ch)` : '—'} | tags: ${sg.tags && sg.tags.length > 0 ? sg.tags.length : '—'}`);
-                            });
-
-                        } else if (item.type === 'canvas-selection') {
-                            console.log(`  🖼️ Canvas (${item.nodes.length} nodes)`);
-                            item.nodes.forEach((node, i) => {
-                                if (node.nodeType === 'video') {
-                                    videoIdx++;
-                                    const nodeLabel = node.ownership === 'own-draft' ? 'Draft' : node.ownership === 'own-published' ? 'Video' : 'Competitor';
-                                    console.log(`      [${i + 1}] 🎬 #${videoIdx} [${nodeLabel}] ${node.title}`);
-                                    console.log(`          views: ${node.viewCount ?? '—'} | dur: ${node.duration ?? '—'} | ch: ${node.channelTitle ?? '—'}`);
-                                    console.log(`          desc: ${node.description ? `✓ (${node.description.length}ch)` : '—'} | tags: ${node.tags && node.tags.length > 0 ? `${node.tags.length} [${node.tags.slice(0, 3).join(', ')}${node.tags.length > 3 ? '…' : ''}]` : '—'}`);
-                                } else if (node.nodeType === 'traffic-source') {
-                                    console.log(`      [${i + 1}] 📊 ${node.title} — impr: ${node.impressions?.toLocaleString() ?? '—'} | CTR: ${node.ctr != null ? (node.ctr * 100).toFixed(1) + '%' : '—'} | views: ${node.views?.toLocaleString() ?? '—'}`);
-                                    console.log(`          desc: ${node.description ? `✓ (${node.description.length}ch)` : '—'} | tags: ${node.tags && node.tags.length > 0 ? `${node.tags.length} [${node.tags.slice(0, 3).join(', ')}${node.tags.length > 3 ? '…' : ''}]` : '—'}`);
-                                } else if (node.nodeType === 'sticky-note') {
-                                    console.log(`      [${i + 1}] 📝 ${(node.content || '').slice(0, 80)}${(node.content || '').length > 80 ? '…' : ''}`);
-                                } else if (node.nodeType === 'image') {
-                                    console.log(`      [${i + 1}] 🖼 ${node.alt || '(no alt)'} | url: ${node.imageUrl ? '✓' : '—'}`);
-                                }
-                            });
-                        }
-                    });
-                    console.log('  Thumbnails:', thumbnailUrls.length, 'URLs');
-                    console.groupEnd(); // Layer 1
-                } else {
-                    console.log('📎 Layer 1: Persistent Context — empty');
-                }
-
-                // Layer 2: Per-message context binding
-                const countByType = (ctx: AppContextItem[]) => {
-                    const vc = ctx.filter(c => c.type === 'video-card').length;
-                    const tcItems = ctx.filter(c => c.type === 'suggested-traffic');
-                    const tcVideos = tcItems.reduce((sum, c) => sum + (c.type === 'suggested-traffic' ? c.suggestedVideos.length : 0), 0);
-                    const ccItems = ctx.filter(c => c.type === 'canvas-selection');
-                    const ccNodes = ccItems.reduce((sum, c) => sum + (c.type === 'canvas-selection' ? c.nodes.length : 0), 0);
-                    return [
-                        vc && `${vc} video`,
-                        tcItems.length && `${tcItems.length} traffic / ${tcVideos} videos`,
-                        ccItems.length && `${ccItems.length} canvas / ${ccNodes} nodes`,
-                    ].filter(Boolean).join(', ');
-                };
-                const msgsWithContext = messages.filter(m => m.appContext && m.appContext.length > 0);
-                console.groupCollapsed(`🔗 Layer 2: ${msgsWithContext.length}/${messages.length} messages have appContext`);
-                msgsWithContext.forEach(m => {
-                    const idx = messages.indexOf(m) + 1;
-                    const snippet = m.text.slice(0, 40) + (m.text.length > 40 ? '…' : '');
-                    console.log(`  msg #${idx} (${m.role}): "${snippet}" → ${m.appContext!.length} items (${countByType(m.appContext!)})`);
-                });
-                if (appContext && appContext.length > 0) {
-                    console.log(`  📤 current msg: ${appContext.length} items (${countByType(appContext)})`);
-                } else {
-                    console.log('  📤 current msg: 0 items');
-                }
-                console.groupEnd(); // Layer 2
-
-                // Layer 4: Cross-conversation memory
-                const memTokens = memories.reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0);
-                console.log(`🧠 Layer 4: ${memories.length} memories (~${memTokens} tokens)`);
-
-                // System prompt size summary
-                if (systemPrompt) {
-                    const chars = systemPrompt.length;
-                    const tokens = Math.ceil(chars / 4);
-                    console.log(`📏 System prompt: ~${chars.toLocaleString()} chars (~${tokens.toLocaleString()} tokens)`);
-                }
-
-                console.groupEnd(); // 🤖 Sending to Gemini
-            }
-
-            // Build contextMeta for production CF logging
-            const contextMeta = persistedContext ? {
-                videoCards: getVideoCards(persistedContext).length,
-                trafficSources: getTrafficContexts(persistedContext).length,
-                canvasNodes: getCanvasContexts(persistedContext).reduce((sum, cc) => sum + cc.nodes.length, 0),
-                totalItems: persistedContext.length,
-            } : undefined;
-
-            // 3. Stream AI response (nonce-guarded: only update UI if this stream is still current)
-            const scopedSet = (partial: Partial<ChatState>) => {
-                if (streamingNonce === myNonce) set(partial);
-            };
-            const { text: responseText, tokenUsage, toolCalls, usedSummary } = await streamAiResponse(
-                channelId, convId, model, systemPrompt,
-                text, attachments, thumbnailUrls, contextMeta, scopedSet, myAbortController.signal,
-                get().pendingThinkingOptionId,
+            const { appContext, persistedContext, failedTrafficVideos } = await prepareContext(
+                rawContextItems, userId, channelId, convId,
+                existingPersisted,
             );
 
-            // Layer 3: Summarization status
-            debug.chat(`📝 Layer 3: ${usedSummary ? '✓ summary used (older messages were compressed)' : '— full history (no summarization needed)'}`);
-
-            // 4. Capture thinking text before clearing streaming state.
-            const finalThinkingText = get().thinkingText;
-
-            // 5. Clear streaming UI BEFORE persisting — Firestore's latency compensation
-            // delivers the snapshot immediately, so the model message would appear in the
-            // messages array while the streaming bubble is still visible (duplication glitch).
-            if (streamingNonce === myNonce) set({ isStreaming: false, streamingText: '' });
-
-            // 6. Persist AI response (subscription fires immediately via latency compensation)
-            await persistAiResponse(userId, channelId, convId, responseText, model, tokenUsage, toolCalls);
-
-            // 7. Save thinking text keyed by the new message's ID (post-persist).
-            // Firestore latency compensation has already added the message to messages[].
-            if (finalThinkingText) {
-                const msgs = get().messages;
-                const lastModel = [...msgs].reverse().find(m => m.role === 'model');
-                if (lastModel) {
-                    sessionThinkingCache.set(lastModel.id, {
-                        text: finalThinkingText,
-                        elapsedMs: Date.now() - streamStartMs,
-                    });
-                }
+            // 3a. Enrichment failed? → pause and show warning
+            if (failedTrafficVideos.length > 0) {
+                const pending: PendingSend = {
+                    text, attachments, convId, rawContextItems, existingPersisted,
+                    nonce: myNonce, abortController: myAbortController,
+                };
+                set({
+                    enrichmentWarning: {
+                        message: `Traffic Sources failed to load for: ${failedTrafficVideos.join(', ')}`,
+                        failedVideos: failedTrafficVideos,
+                        pendingSend: pending,
+                    },
+                    isStreaming: false, streamingText: '',
+                });
+                return; // Paused — user chooses Retry or Dismiss
             }
 
-            // 6. Auto-title (fire-and-forget)
-            maybeAutoTitle(userId, channelId, convId, text, model, messages.length === 0);
+            // 4. Continue to Gemini
+            await resumeSendFlow(get, set, convId, text, attachments, appContext, persistedContext, myNonce, myAbortController);
         } catch (err) {
             if (err instanceof DOMException && err.name === 'AbortError') {
                 // User stopped generation — save partial text if available
@@ -944,6 +825,61 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (activeAbortController) {
             activeAbortController.abort();
             activeAbortController = null;
+        }
+    },
+
+    retryEnrichment: async () => {
+        const warning = get().enrichmentWarning;
+        if (!warning) return;
+
+        const { text, attachments, convId, rawContextItems, existingPersisted, nonce, abortController } = warning.pendingSend;
+        const { userId, channelId } = requireContext(get);
+
+        set({ enrichmentWarning: null, isStreaming: true, streamingText: '' });
+
+        try {
+            const { appContext, persistedContext, failedTrafficVideos } = await prepareContext(
+                rawContextItems, userId, channelId, convId, existingPersisted,
+            );
+
+            // Still failing? Show warning again
+            if (failedTrafficVideos.length > 0) {
+                set({
+                    enrichmentWarning: {
+                        message: `Traffic Sources still failing for: ${failedTrafficVideos.join(', ')}`,
+                        failedVideos: failedTrafficVideos,
+                        pendingSend: warning.pendingSend,
+                    },
+                    isStreaming: false, streamingText: '',
+                });
+                return;
+            }
+
+            await resumeSendFlow(get, set, convId, text, attachments, appContext, persistedContext, nonce, abortController);
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Enrichment retry failed';
+            set({ error: errorMessage, isStreaming: false, streamingText: '', enrichmentWarning: null });
+        } finally {
+            if (streamingNonce === nonce) set({ isStreaming: false });
+        }
+    },
+
+    dismissEnrichment: async () => {
+        const warning = get().enrichmentWarning;
+        if (!warning) return;
+
+        const { text, attachments, convId, existingPersisted, nonce, abortController } = warning.pendingSend;
+
+        // Skip enrichment — use existing persisted context only (no new enriched data)
+        const persistedContext = existingPersisted.length > 0 ? existingPersisted : undefined;
+
+        try {
+            await resumeSendFlow(get, set, convId, text, attachments, undefined, persistedContext, nonce, abortController);
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to send message';
+            set({ error: errorMessage, isStreaming: false, streamingText: '', enrichmentWarning: null });
+        } finally {
+            if (streamingNonce === nonce) set({ isStreaming: false });
         }
     },
 

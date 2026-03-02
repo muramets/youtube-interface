@@ -8,7 +8,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { ArrowUp, ArrowDown } from 'lucide-react';
-import type { TrafficSourceDeltaMetric } from '../utils/trafficSourceDelta';
+import type { TrafficSourceDeltaMetric } from '../../../../../core/utils/trafficSource/delta';
 
 interface TrafficSourceTableProps {
     metrics: TrafficSourceDeltaMetric[];

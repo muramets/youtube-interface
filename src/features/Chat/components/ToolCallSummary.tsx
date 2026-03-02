@@ -61,7 +61,7 @@ const GroupPill: React.FC<{
         <div className="flex flex-col items-start max-w-full">
             <button
                 type="button"
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] leading-tight transition-colors duration-200 ${stateClasses} ${expandable ? 'cursor-pointer hover:brightness-125' : 'cursor-default'} ${!group.allResolved ? 'animate-stream-pulse' : ''}`}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] leading-tight max-w-full overflow-hidden transition-colors duration-200 ${stateClasses} ${expandable ? 'cursor-pointer hover:brightness-125' : 'cursor-default'} ${!group.allResolved ? 'animate-stream-pulse' : ''}`}
                 onClick={() => expandable && setExpanded(v => !v)}
                 disabled={!expandable}
             >

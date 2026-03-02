@@ -111,6 +111,13 @@ function formatSingleVideo(lines: string[], v: VideoCardContext): void {
     if (v.duration) metrics.push(`Duration: ${v.duration}`);
     const metricsStr = metrics.length > 0 ? ` — ${metrics.join(' | ')}` : '';
     lines.push(`- ${prefix}: "${v.title}" [id: ${v.videoId}]${channel}${metricsStr}`);
+    // Traffic Sources summary (enriched by middleware, per-video toggle)
+    if (v.trafficSourcesSummary) {
+        // Indent each line under the video entry
+        v.trafficSourcesSummary.split('\n').forEach(line => {
+            lines.push(`  ${line}`);
+        });
+    }
 }
 
 /** Compact delta formatting: +1200 → "+1.2K", -300 → "-300" */

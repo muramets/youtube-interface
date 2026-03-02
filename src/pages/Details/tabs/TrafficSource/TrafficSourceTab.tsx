@@ -8,8 +8,8 @@
 import React, { useCallback, useState, useMemo, useRef } from 'react';
 import { Upload, Loader2, AlertCircle } from 'lucide-react';
 import { TrafficSourceTable } from './components/TrafficSourceTable';
-import { parseTrafficSourceCsv } from './utils/trafficSourceParser';
-import type { TrafficSourceCsvMapping } from './utils/trafficSourceParser';
+import { parseTrafficSourceCsv } from '../../../../core/utils/trafficSource/parser';
+import type { TrafficSourceCsvMapping } from '../../../../core/utils/trafficSource/parser';
 import { TrafficSourceColumnMapperModal } from './modals/TrafficSourceColumnMapperModal';
 import { useTrafficSourceDataLoader } from './hooks/useTrafficSourceDataLoader';
 import { CsvDropZone } from '../../../../components/ui/molecules/CsvDropZone';

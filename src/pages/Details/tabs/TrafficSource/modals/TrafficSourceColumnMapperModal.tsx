@@ -10,7 +10,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '../../../../../components/ui/atoms/Button';
 import { X } from 'lucide-react';
 import { parseCsvLine } from '../../../../../core/utils/csvUtils';
-import type { TrafficSourceCsvMapping } from '../utils/trafficSourceParser';
+import type { TrafficSourceCsvMapping } from '../../../../../core/utils/trafficSource/parser';
 
 interface TrafficSourceColumnMapperModalProps {
     isOpen: boolean;

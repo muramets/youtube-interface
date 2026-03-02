@@ -58,6 +58,12 @@ interface AppContextState {
     /** Remove a specific item from whatever slot it belongs to. */
     removeItem: (predicate: (item: AppContextItem) => boolean) => void;
 
+    /** Patch a specific item in-place (for toggles like includeTrafficSources). */
+    updateItem: <T extends AppContextItem>(
+        predicate: (item: AppContextItem) => item is T,
+        patch: Partial<T>,
+    ) => void;
+
     /** Toggle global bridge pause (link/unlink selection from chat). */
     toggleBridgePause: () => void;
 }
@@ -128,6 +134,25 @@ export const useAppContextStore = create<AppContextState>((set) => ({
             }
         }
         return changed ? { slots: newSlots, slotTimestamps: newTs } : s;
+    }),
+
+    updateItem: (predicate, patch) => set((s) => {
+        const newSlots = { ...s.slots };
+        let changed = false;
+        for (const key of Object.keys(newSlots) as ContextSource[]) {
+            const updated = newSlots[key].map((item) => {
+                if (predicate(item)) {
+                    changed = true;
+                    return { ...item, ...patch };
+                }
+                return item;
+            });
+            if (changed) {
+                newSlots[key] = updated;
+                break; // Item found — stop searching other slots
+            }
+        }
+        return changed ? { slots: newSlots } : s;
     }),
 
     toggleBridgePause: () => set((s) => {

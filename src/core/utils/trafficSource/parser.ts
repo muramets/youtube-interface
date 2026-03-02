@@ -11,10 +11,10 @@
 // - No enrichment needed — data is self-contained
 // =============================================================================
 
-import type { TrafficSourceMetric } from '../../../../../core/types/trafficSource';
-import { parseCsvLine, detectColumnMapping, cleanCsvField, parseNumericField, parseIntField } from '../../../../../core/utils/csvUtils';
-import { logger } from '../../../../../core/utils/logger';
-import { debug } from '../../../../../core/utils/debug';
+import type { TrafficSourceMetric } from '../../types/trafficSource';
+import { parseCsvLine, detectColumnMapping, cleanCsvField, parseNumericField, parseIntField } from '../csvUtils';
+import { logger } from '../logger';
+import { debug } from '../debug';
 
 // Column mapping for Traffic Source CSV
 export interface TrafficSourceCsvMapping {

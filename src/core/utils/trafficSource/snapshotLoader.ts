@@ -5,10 +5,10 @@
 // Mirrors the pattern from Traffic/utils/snapshotLoader.ts.
 // =============================================================================
 
-import type { TrafficSourceSnapshot, TrafficSourceMetric } from '../../../../../core/types/trafficSource';
-import { downloadCsvSnapshot } from '../../../../../core/services/storageService';
-import { parseTrafficSourceCsv } from './trafficSourceParser';
-import { logger } from '../../../../../core/utils/logger';
+import type { TrafficSourceSnapshot, TrafficSourceMetric } from '../../types/trafficSource';
+import { downloadCsvSnapshot } from '../../services/storageService';
+import { parseTrafficSourceCsv } from './parser';
+import { logger } from '../logger';
 
 // Simple in-memory cache for immutable snapshots
 const cache = new Map<string, { metrics: TrafficSourceMetric[]; totalRow?: TrafficSourceMetric }>();
