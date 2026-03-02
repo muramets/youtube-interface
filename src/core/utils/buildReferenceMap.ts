@@ -137,3 +137,17 @@ export function buildVideoBadgeMap(ctx: AppContextItem[]): Map<string, VideoBadg
 
     return badgeMap;
 }
+
+/**
+ * Builds a flat Map<videoId, VideoCardContext> from context items.
+ * Used by MarkdownMessage to resolve `mention://videoId` links to VideoReferenceTooltip.
+ * Reuses buildReferenceMap to avoid duplicating type-narrowing logic.
+ */
+export function buildVideoIdMap(ctx: AppContextItem[]): Map<string, VideoCardContext> {
+    const refMap = buildReferenceMap(ctx);
+    const idMap = new Map<string, VideoCardContext>();
+    for (const video of refMap.values()) {
+        if (video.videoId) idMap.set(video.videoId, video);
+    }
+    return idMap;
+}

@@ -6,9 +6,10 @@ import { defineSecret } from "firebase-functions/params";
 import { admin, db } from "../shared/db.js";
 import { verifyAuthToken, verifyChannelAccess } from "../shared/auth.js";
 import { logAiUsage, MAX_TEXT_LENGTH } from "./helpers.js";
-import { ALLOWED_MODEL_IDS, DEFAULT_MODEL_ID } from "../config/models.js";
+import { ALLOWED_MODEL_IDS, DEFAULT_MODEL_ID, validateThinkingOptionId, resolveModelId } from "../config/models.js";
 import type { AiChatRequest } from "../types.js";
-import type { ThumbnailCache } from "../services/gemini.js";
+import type { ThumbnailCache } from "../services/gemini/index.js";
+import { writeSSE } from "./sseWriter.js";
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
@@ -52,11 +53,12 @@ export const aiChat = onRequest(
             res.status(400).json({ error: `Text exceeds maximum length (${MAX_TEXT_LENGTH} chars).` });
             return;
         }
-        const model = body.model || DEFAULT_MODEL_ID;
+        const model = resolveModelId(body.model || '') || DEFAULT_MODEL_ID;
         if (!ALLOWED_MODEL_IDS.has(model)) {
-            res.status(400).json({ error: `Unsupported model: ${model}` });
+            res.status(400).json({ error: `Unsupported model: ${body.model}` });
             return;
         }
+        const thinkingOptionId = validateThinkingOptionId(model, body.thinkingOptionId);
 
         // Verify channel ownership
         try {
@@ -109,7 +111,7 @@ export const aiChat = onRequest(
             const convData = convDoc.data();
 
             // Build optimal memory: full history or summary + recent window
-            const { buildMemory, streamChat } = await import("../services/gemini.js");
+            const { buildMemory, streamChat } = await import("../services/gemini/index.js");
             const memory = await buildMemory({
                 apiKey,
                 model,
@@ -118,7 +120,7 @@ export const aiChat = onRequest(
                 existingSummarizedUpTo: convData?.summarizedUpTo,
             });
 
-            const { text: responseText, tokenUsage, updatedThumbnailCache } = await streamChat({
+            const { text: responseText, tokenUsage, toolCalls, updatedThumbnailCache } = await streamChat({
                 apiKey,
                 model,
                 systemPrompt: body.systemPrompt,
@@ -127,8 +129,19 @@ export const aiChat = onRequest(
                 attachments: body.attachments,
                 thumbnailUrls: body.thumbnailUrls,
                 thumbnailCache: convData?.thumbnailCache as ThumbnailCache | undefined,
+                toolContext: { userId, channelId: body.channelId },
+                thinkingOptionId,
                 onChunk: (fullText) => {
-                    res.write(`data: ${JSON.stringify({ type: "chunk", text: fullText })}\n\n`);
+                    writeSSE(res, { type: "chunk", text: fullText });
+                },
+                onToolCall: (name, args) => {
+                    writeSSE(res, { type: "toolCall", name, args });
+                },
+                onToolResult: (name, result) => {
+                    writeSSE(res, { type: "toolResult", name, result });
+                },
+                onThought: (text) => {
+                    writeSSE(res, { type: "thought", text });
                 },
                 onAttachmentUpdate: async (messageId, attachmentIndex, geminiFileUri, geminiFileExpiry) => {
                     // Persist re-uploaded Gemini URI back to Firestore
@@ -160,19 +173,19 @@ export const aiChat = onRequest(
             console.info(`[aiChat] ── Response ── conv=${body.conversationId}` +
                 ` prompt=${tokenUsage?.promptTokens ?? '?'} completion=${tokenUsage?.completionTokens ?? '?'} total=${tokenUsage?.totalTokens ?? '?'}` +
                 ` context=${contextPercent}%` +
+                ` toolCalls=${toolCalls?.length ?? 0}` +
                 ` historyLen=${allMessages.length} usedSummary=${memory.usedSummary} newSummary=${!!memory.newSummary}` +
                 ` duration=${durationMs}ms`);
 
             // Final event with complete response + token usage + summary status
-            res.write(
-                `data: ${JSON.stringify({
-                    type: "done",
-                    text: responseText,
-                    tokenUsage,
-                    usedSummary: memory.usedSummary,
-                    summary: memory.newSummary,
-                })}\n\n`
-            );
+            writeSSE(res, {
+                type: "done",
+                text: responseText,
+                tokenUsage,
+                toolCalls,
+                usedSummary: memory.usedSummary,
+                summary: memory.newSummary,
+            });
 
             // Cache summary + log usage + clear error BEFORE ending response
             // (CF runtime may be deallocated after res.end())
@@ -199,6 +212,11 @@ export const aiChat = onRequest(
                     logAiUsage(userId, body.channelId, body.conversationId, model, tokenUsage, "chat").catch(err => console.warn('[aiChat] Failed to log usage', err))
                 );
             }
+            if (memory.summaryTokenUsage) {
+                afterTasks.push(
+                    logAiUsage(userId, body.channelId, body.conversationId, model, memory.summaryTokenUsage, "summarize").catch(err => console.warn('[aiChat] Failed to log summary usage', err))
+                );
+            }
             await Promise.allSettled(afterTasks);
             res.end();
         } catch (err) {
@@ -221,7 +239,7 @@ export const aiChat = onRequest(
                 console.warn('[aiChat] Failed to persist lastError (non-fatal):', persistErr);
             }
 
-            res.write(`data: ${JSON.stringify({ type: "error", error: message })}\n\n`);
+            writeSSE(res, { type: "error", error: message });
             res.end();
         }
     }

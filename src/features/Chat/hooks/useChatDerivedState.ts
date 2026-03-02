@@ -4,8 +4,8 @@
 
 import { useMemo } from 'react';
 import type { ChatProject, ChatConversation, ChatMessage } from '../../../core/types/chat';
-import { MODEL_REGISTRY, DEFAULT_MODEL, DEFAULT_CONTEXT_LIMIT } from '../../../core/types/chat';
-import { estimateCostEur, type ModelPricing } from '../../../../shared/models';
+import { MODEL_REGISTRY, DEFAULT_MODEL, DEFAULT_CONTEXT_LIMIT, resolveModelId } from '../../../core/types/chat';
+import { estimateCostEur, type ModelPricing } from '../../../core/types/chat';
 
 interface UseChatDerivedStateOpts {
     projects: ChatProject[];
@@ -53,7 +53,7 @@ export function useChatDerivedState(opts: UseChatDerivedStateOpts): UseChatDeriv
     else if (view === 'chat' && activeConversation) headerTitle = activeConversation.title;
 
     // Model pricing
-    const activeModel = pendingModel || activeConversation?.model || activeProject?.model || defaultModel || DEFAULT_MODEL;
+    const activeModel = resolveModelId(pendingModel || activeConversation?.model || activeProject?.model || defaultModel || DEFAULT_MODEL, MODEL_REGISTRY);
     const modelConfig = MODEL_REGISTRY.find(m => m.id === activeModel) ?? MODEL_REGISTRY[0];
     const contextLimit = modelConfig.contextLimit ?? DEFAULT_CONTEXT_LIMIT;
 

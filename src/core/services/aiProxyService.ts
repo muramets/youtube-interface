@@ -4,6 +4,8 @@
 
 import { httpsCallable } from 'firebase/functions';
 import { functions, auth } from '../../config/firebase';
+import type { ToolCallRecord } from '../types/sseEvents';
+import { parseSSEEvent } from '../types/sseEvents';
 
 // --- Types ---
 
@@ -17,6 +19,14 @@ interface StreamChatOpts {
     thumbnailUrls?: string[];
     contextMeta?: { videoCards?: number; trafficSources?: number; canvasNodes?: number; totalItems?: number };
     onStream: (fullText: string) => void;
+    /** Called when Gemini initiates a tool call (before execution). */
+    onToolCall?: (name: string, args: Record<string, unknown>) => void;
+    /** Called after a tool finishes executing with its result. */
+    onToolResult?: (name: string, result: Record<string, unknown>) => void;
+    /** Called when Gemini emits thinking tokens. */
+    onThought?: (text: string) => void;
+    /** Thinking depth option id (matches model's thinkingOptions). */
+    thinkingOptionId?: string;
     signal?: AbortSignal;
 }
 
@@ -27,6 +37,7 @@ interface StreamChatResult {
         completionTokens: number;
         totalTokens: number;
     };
+    toolCalls?: ToolCallRecord[];
     summary?: string;
     usedSummary?: boolean;
 }
@@ -61,6 +72,10 @@ export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult
         thumbnailUrls,
         contextMeta,
         onStream,
+        onToolCall,
+        onToolResult,
+        onThought,
+        thinkingOptionId,
         signal,
     } = opts;
 
@@ -79,6 +94,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult
         attachments,
         thumbnailUrls,
         contextMeta,
+        thinkingOptionId,
     };
 
     // --- Fetch with automatic retry for transient failures ---
@@ -183,22 +199,33 @@ export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult
                 if (dataLines.length === 0) continue;
 
                 const payload = dataLines.join('\n');
+                const sseEvent = parseSSEEvent(payload);
+                if (!sseEvent) continue;
 
-                try {
-                    const data = JSON.parse(payload);
-
-                    if (data.type === 'chunk') {
-                        onStream(data.text);
-                    } else if (data.type === 'done') {
-                        result = { text: data.text, tokenUsage: data.tokenUsage, summary: data.summary, usedSummary: data.usedSummary };
-                    } else if (data.type === 'error') {
-                        throw new SSEDataError(data.error);
-                    }
-                } catch (parseErr) {
-                    // Propagate server errors; skip malformed JSON events
-                    if (parseErr instanceof SSEDataError) {
-                        throw parseErr;
-                    }
+                switch (sseEvent.type) {
+                    case 'chunk':
+                        onStream(sseEvent.text);
+                        break;
+                    case 'toolCall':
+                        onToolCall?.(sseEvent.name, sseEvent.args);
+                        break;
+                    case 'toolResult':
+                        onToolResult?.(sseEvent.name, sseEvent.result);
+                        break;
+                    case 'thought':
+                        onThought?.(sseEvent.text);
+                        break;
+                    case 'done':
+                        result = {
+                            text: sseEvent.text,
+                            tokenUsage: sseEvent.tokenUsage,
+                            toolCalls: sseEvent.toolCalls,
+                            summary: sseEvent.summary,
+                            usedSummary: sseEvent.usedSummary,
+                        };
+                        break;
+                    case 'error':
+                        throw new SSEDataError(sseEvent.error);
                 }
             }
         }

@@ -46,27 +46,26 @@ SyntaxHighlighter.registerLanguage('svg', markup);
 import type { ChatMessage } from '../../core/types/chat';
 import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../core/types/appContext';
 import type { VideoCardContext } from '../../core/types/appContext';
-import { buildReferenceMap } from '../../core/utils/buildReferenceMap';
-import type { ModelPricing } from '../../../shared/models';
-import { estimateCostEur } from '../../../shared/models';
+import { buildVideoIdMap } from '../../core/utils/buildReferenceMap';
+import { estimateCostEur, type ModelPricing } from '../../core/types/chat';
 import { MemoryCheckpoint } from './components/MemoryCheckpoint';
 import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, Zap, MessageCircle, Pencil } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 import { useChatStore } from '../../core/stores/chatStore';
-import { injectVideoReferenceLinks, parseReferenceHref, parseReferenceText } from './utils/videoReferenceUtils';
-import type { ReferenceType } from './utils/videoReferenceUtils';
-import { REFERENCE_PATTERNS } from '../../core/config/referencePatterns';
 import { VideoReferenceTooltip } from './components/VideoReferenceTooltip';
 import { formatRelativeTime, STATIC_AGE } from './formatRelativeTime';
 import { MessageErrorBoundary } from './components/ChatBoundaries';
 import { VideoCardChip } from './VideoCardChip';
 import { SuggestedTrafficChip } from './SuggestedTrafficChip';
 import { CanvasSelectionChip } from './CanvasSelectionChip';
-import { debug, DEBUG_ENABLED } from '../../core/utils/debug';
+import { debug } from '../../core/utils/debug';
 import { SelectionToolbar } from './components/SelectionToolbar';
+import { ThinkingBubble } from './components/ThinkingBubble';
+import { ToolCallBadge } from './components/ToolCallBadge';
+import type { ToolCallRecord } from '../../core/types/chat';
 
-/** Dynamic URL scheme whitelist derived from REFERENCE_PATTERNS — stays in sync automatically. */
-const REF_URL_RE = new RegExp(`^(?:${REFERENCE_PATTERNS.map(p => p.type).join('|')})-ref://`);
+/** Regex to detect mention:// URIs in markdown links */
+const MENTION_RE = /^mention:\/\/(.+)$/;
 
 // --- Code Block with Copy + Language Label ---
 
@@ -115,21 +114,15 @@ interface ChatMessageListProps {
     modelPricing?: ModelPricing;
 }
 
-const MarkdownMessage: React.FC<{ text: string; msgId: string; videoMap?: Map<string, VideoCardContext>; overrides?: Record<string, string> }> = React.memo(({ text, msgId, videoMap, overrides }) => {
-    const hasVideos = videoMap && videoMap.size > 0;
-    const processedText = hasVideos && !DEBUG_ENABLED.rawChatOutput
-        ? injectVideoReferenceLinks(text, videoMap, overrides)
-        : text;
-
+const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoCardContext> }> = React.memo(({ text, videoMap }) => {
 
     return (
         <ReactMarkdown
             remarkPlugins={[remarkGfm]}
-            // Preserve custom *-ref:// URI schemes for video/image references.
-            // Default sanitizer strips non-standard protocols — this whitelists ours.
+            // Allow mention:// URIs through the URL sanitizer
             urlTransform={(url) => {
-                if (REF_URL_RE.test(url)) return url;
-                return url; // pass through all other URLs unchanged
+                if (MENTION_RE.test(url)) return url;
+                return url;
             }}
             components={{
                 code({ className, children, ...props }) {
@@ -140,35 +133,24 @@ const MarkdownMessage: React.FC<{ text: string; msgId: string; videoMap?: Map<st
                     }
                     return <code {...props}>{children}</code>;
                 },
-                a({ href, children, ...props }) {
+                a({ href, children }) {
                     const childText = String(children);
 
-                    // Shared renderer for both primary and defense-in-depth paths (DRY).
-                    const renderBadge = (ref: { type: ReferenceType; index: number }) => {
-                        const key = `${ref.type}-${ref.index}`;
-                        const video = videoMap!.get(key) ?? null;
-                        const handleBadgeClick = () => {
-                            useChatStore.getState().startReferenceSelection(msgId, String(ref.index));
-                        };
-                        return <VideoReferenceTooltip label={childText} video={video} refType={ref.type} index={ref.index} onBadgeClick={handleBadgeClick} />;
-                    };
-
-                    // Primary path: parse the structured *-ref:// href
+                    // Structured mention: mention://videoId
                     if (href && videoMap) {
-                        const ref = parseReferenceHref(href);
-                        if (ref) return renderBadge(ref);
+                        const mentionMatch = MENTION_RE.exec(href);
+                        if (mentionMatch) {
+                            const videoId = mentionMatch[1];
+                            const video = videoMap.get(videoId) ?? null;
+                            return <VideoReferenceTooltip label={childText} video={video} refType="video" index={0} />;
+                        }
                     }
-                    // Defense-in-depth: Gemini may write [Video 3]() with empty href,
-                    // or standalone [№4]() from contextual catch-up injection.
-                    if (videoMap && videoMap.size > 0 && (!href || href === '')) {
-                        const ref = parseReferenceText(childText);
-                        if (ref) return renderBadge(ref);
-                    }
-                    return <a href={href} target="_blank" rel="noreferrer" {...props}>{children}</a>;
+
+                    return <a href={href} target="_blank" rel="noreferrer">{children}</a>;
                 },
             }}
         >
-            {processedText}
+            {text}
         </ReactMarkdown>
     );
 });
@@ -327,7 +309,15 @@ const MessageItem: React.FC<MessageItemProps> = React.memo(({ msg, modelPricing,
             )}
 
             <div className={`${msg.role === 'user' ? MSG_BUBBLE_USER : MSG_BUBBLE_MODEL} ${isFailed ? 'border border-red-500/40' : ''}`}>
-                {msg.role === 'model' ? <MarkdownMessage text={msg.text} msgId={msg.id} videoMap={videoMap} overrides={msg.overrides} /> : msg.text}
+                {/* Tool call badges for persisted model messages */}
+                {msg.role === 'model' && msg.toolCalls && msg.toolCalls.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                        {msg.toolCalls.map((tc: ToolCallRecord, i: number) => (
+                            <ToolCallBadge key={`${tc.name}-${i}`} record={tc} />
+                        ))}
+                    </div>
+                )}
+                {msg.role === 'model' ? <MarkdownMessage text={msg.text} videoMap={videoMap} /> : msg.text}
             </div>
 
             {/* Failed message indicator */}
@@ -382,6 +372,8 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 }) => {
     const streamingText = useChatStore(s => s.streamingText);
     const isStreaming = useChatStore(s => s.isStreaming);
+    const activeToolCalls = useChatStore(s => s.activeToolCalls);
+    const thinkingText = useChatStore(s => s.thinkingText);
 
     // Build video lookup from persisted context for inline reference tooltips.
     // Keyed by "{type}-{index}" to match reference URIs (e.g. "video-3", "draft-1").
@@ -391,7 +383,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
         const conv = conversations.find(c => c.id === activeConversationId);
         const ctx = conv?.persistedContext;
         if (!ctx || ctx.length === 0) return new Map();
-        return buildReferenceMap(ctx);
+        return buildVideoIdMap(ctx);
     }, [activeConversationId, conversations]);
 
     // Layer 4: Memory checkpoints for this conversation
@@ -723,9 +715,23 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
             {isStreaming && (
                 <div className="chat-message flex flex-col max-w-[85%] self-start animate-message-in mb-2">
                     <div className={MSG_BUBBLE_MODEL}>
+                        {/* Thinking bubble — collapsible, before tool calls and text */}
+                        {thinkingText && (
+                            <ThinkingBubble text={thinkingText} isStreaming={isStreaming} />
+                        )}
+
+                        {/* Tool call badges — between thinking and text */}
+                        {activeToolCalls.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mb-2">
+                                {activeToolCalls.map((tc, i) => (
+                                    <ToolCallBadge key={`${tc.name}-${i}`} record={tc} />
+                                ))}
+                            </div>
+                        )}
+
                         {streamingText ? (
                             <div className="animate-fade-in">
-                                {debouncedStreamingText ? <MarkdownMessage text={debouncedStreamingText} msgId="streaming-temp-id" videoMap={referenceVideoMap} /> : <span className="whitespace-pre-wrap">{streamingText}</span>}
+                                {debouncedStreamingText ? <MarkdownMessage text={debouncedStreamingText} videoMap={referenceVideoMap} /> : <span className="whitespace-pre-wrap">{streamingText}</span>}
                             </div>
                         ) : (
                             <span className="inline-flex items-center gap-[3px] align-middle">

@@ -1,7 +1,7 @@
 // =============================================================================
 // Model Config — Server-side derived helpers
-// Imports the canonical MODEL_REGISTRY from shared/ (via symlink)
-// and derives server-specific constants.
+// Imports the canonical MODEL_REGISTRY from shared/models.ts (auto-copied by
+// scripts/copy-shared.mjs) and derives server-specific constants.
 // =============================================================================
 
 import { MODEL_REGISTRY } from '../shared/models.js';
@@ -13,6 +13,20 @@ export { MODEL_REGISTRY } from '../shared/models.js';
 /** Set of allowed model IDs for input validation. */
 export const ALLOWED_MODEL_IDS = new Set(MODEL_REGISTRY.map(m => m.id));
 
+/** Map deprecated model IDs → their replacement. */
+const DEPRECATED_MODEL_MAP: Record<string, string> = {
+    'gemini-3-pro-preview': 'gemini-3.1-pro-preview',
+};
+
+/**
+ * Resolve a model ID, mapping deprecated IDs to their replacements.
+ * Returns the resolved model ID or undefined if completely unknown.
+ */
+export function resolveModelId(modelId: string): string | undefined {
+    if (ALLOWED_MODEL_IDS.has(modelId)) return modelId;
+    return DEPRECATED_MODEL_MAP[modelId];
+}
+
 /** Default model ID (first entry marked isDefault, or first entry). */
 export const DEFAULT_MODEL_ID =
     MODEL_REGISTRY.find(m => m.isDefault)?.id ?? MODEL_REGISTRY[0].id;
@@ -21,3 +35,15 @@ export const DEFAULT_MODEL_ID =
 export const MODEL_CONTEXT_LIMITS: Record<string, number> = Object.fromEntries(
     MODEL_REGISTRY.map(m => [m.id, m.contextLimit])
 );
+
+/**
+ * Validate that a thinkingOptionId is valid for the given model.
+ * Returns the validated option id, or undefined if invalid/missing.
+ */
+export function validateThinkingOptionId(modelId: string, thinkingOptionId?: string): string | undefined {
+    if (!thinkingOptionId) return undefined;
+    const modelConfig = MODEL_REGISTRY.find(m => m.id === modelId);
+    if (!modelConfig) return undefined;
+    const valid = modelConfig.thinkingOptions.some(o => o.id === thinkingOptionId);
+    return valid ? thinkingOptionId : undefined;
+}

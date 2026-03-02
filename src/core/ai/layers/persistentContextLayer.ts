@@ -11,7 +11,7 @@
 import type { AppContextItem, VideoCardContext, SuggestedTrafficContext, CanvasSelectionContext, VideoContextNode, TrafficSourceContextNode, StickyNoteContextNode, ImageContextNode, SnapshotFrameContextNode, TrafficDiscrepancy } from '../../types/appContext';
 import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../types/appContext';
 import { OWNERSHIP_CONFIG } from '../../config/referencePatterns';
-import { buildReferenceMap } from '../../utils/buildReferenceMap';
+
 import {
     VIDEO_CONTEXT_PREAMBLE,
     VIDEO_SECTION_DRAFT,
@@ -37,12 +37,11 @@ export function buildPersistentContextLayer(appContext?: AppContextItem[]): stri
     if (!appContext || appContext.length === 0) return [];
 
     const sections: string[] = [];
-    // Build reference map once — single source of truth for numbering
-    const refMap = buildReferenceMap(appContext);
+
 
     const videoCards = getVideoCards(appContext);
     if (videoCards.length > 0) {
-        sections.push(formatVideoContext(videoCards, refMap));
+        sections.push(formatVideoContext(videoCards));
     }
     const trafficContexts = getTrafficContexts(appContext);
     if (trafficContexts.length > 0) {
@@ -51,7 +50,7 @@ export function buildPersistentContextLayer(appContext?: AppContextItem[]): stri
     const canvasContexts = getCanvasContexts(appContext);
     if (canvasContexts.length > 0) {
         canvasContexts.forEach(cc => {
-            sections.push(formatCanvasContext(cc, refMap));
+            sections.push(formatCanvasContext(cc));
         });
     }
 
@@ -63,15 +62,8 @@ export function buildPersistentContextLayer(appContext?: AppContextItem[]): stri
 // =============================================================================
 
 /** Format video card context items as Markdown, grouped by ownership. */
-function formatVideoContext(items: VideoCardContext[], refMap: Map<string, VideoCardContext>): string {
+function formatVideoContext(items: VideoCardContext[]): string {
     const lines: string[] = [];
-
-    // Build reverse lookup: videoId → reference index
-    const videoIndexMap = new Map<string, number>();
-    for (const [key, video] of refMap) {
-        const match = key.match(/-(\d+)$/);
-        if (match) videoIndexMap.set(video.videoId, parseInt(match[1]));
-    }
 
     // Preamble — explain field semantics
     lines.push(VIDEO_CONTEXT_PREAMBLE);
@@ -85,38 +77,34 @@ function formatVideoContext(items: VideoCardContext[], refMap: Map<string, Video
     if (drafts.length > 0) {
         lines.push(VIDEO_SECTION_DRAFT);
         lines.push('');
-        drafts.forEach(v => formatSingleVideo(lines, v, videoIndexMap.get(v.videoId) ?? 0));
+        drafts.forEach(v => formatSingleVideo(lines, v));
     }
 
     if (published.length > 0) {
         lines.push(VIDEO_SECTION_PUBLISHED);
         lines.push('');
-        published.forEach(v => formatSingleVideo(lines, v, videoIndexMap.get(v.videoId) ?? 0));
+        published.forEach(v => formatSingleVideo(lines, v));
     }
 
     if (competitors.length > 0) {
         lines.push(VIDEO_SECTION_COMPETITOR);
         lines.push('');
-        competitors.forEach(v => formatSingleVideo(lines, v, videoIndexMap.get(v.videoId) ?? 0));
+        competitors.forEach(v => formatSingleVideo(lines, v));
     }
 
     return lines.join('\n');
 }
 
-/** Format a single video's metadata into prompt lines. */
-function formatSingleVideo(lines: string[], v: VideoCardContext, index: number): void {
+/** Format a single video's metadata into compact prompt lines (no description/tags). */
+function formatSingleVideo(lines: string[], v: VideoCardContext): void {
     const prefix = OWNERSHIP_CONFIG[v.ownership ?? '']?.label || 'Video';
-    const header = v.channelTitle
-        ? `${prefix} #${index} (Channel: ${v.channelTitle})`
-        : `${prefix} #${index}`;
-    lines.push(`#### ${header}`);
-    lines.push(`- **Title:** ${v.title}`);
-    if (v.viewCount) lines.push(`- **Views:** ${v.viewCount}`);
-    if (v.publishedAt) lines.push(`- **Published:** ${v.publishedAt}`);
-    if (v.duration) lines.push(`- **Duration:** ${v.duration}`);
-    lines.push(`- **Description:** ${v.description || '(no description)'}`);
-    lines.push(`- **Tags:** ${v.tags && v.tags.length > 0 ? v.tags.join(', ') : '(no tags)'}`);
-    lines.push('');
+    const channel = v.channelTitle ? ` (Channel: ${v.channelTitle})` : '';
+    const metrics: string[] = [];
+    if (v.viewCount) metrics.push(`Views: ${v.viewCount}`);
+    if (v.publishedAt) metrics.push(`Published: ${v.publishedAt}`);
+    if (v.duration) metrics.push(`Duration: ${v.duration}`);
+    const metricsStr = metrics.length > 0 ? ` — ${metrics.join(' | ')}` : '';
+    lines.push(`- ${prefix}: "${v.title}" [id: ${v.videoId}]${channel}${metricsStr}`);
 }
 
 /** Format suggested traffic context — source video + selected suggested videos. */
@@ -133,40 +121,26 @@ function formatSuggestedTrafficContext(ctx: SuggestedTrafficContext): string {
     }
     lines.push('');
 
-    // Source video (user's video)
+    // Source video (user's video) — compact format
     const sv = ctx.sourceVideo;
     lines.push(TRAFFIC_SOURCE_HEADER);
-    lines.push(`- **Title:** ${sv.title}`);
-    if (sv.viewCount) lines.push(`- **Views:** ${sv.viewCount}`);
-    if (sv.publishedAt) lines.push(`- **Published:** ${sv.publishedAt}`);
-    if (sv.duration) lines.push(`- **Duration:** ${sv.duration}`);
-    lines.push(`- **Description:** ${sv.description || '(no description)'}`);
-    lines.push(`- **Tags:** ${sv.tags.length > 0 ? sv.tags.join(', ') : '(no tags)'}`);
+    const svMetrics: string[] = [];
+    if (sv.viewCount) svMetrics.push(`Views: ${sv.viewCount}`);
+    if (sv.publishedAt) svMetrics.push(`Published: ${sv.publishedAt}`);
+    if (sv.duration) svMetrics.push(`Duration: ${sv.duration}`);
+    const svStr = svMetrics.length > 0 ? ` — ${svMetrics.join(' | ')}` : '';
+    lines.push(`- "${sv.title}" [id: ${sv.videoId}]${svStr}`);
 
     lines.push('');
 
     // Selected suggested videos
     lines.push(TRAFFIC_SUGGESTED_HEADER);
     lines.push('');
-    ctx.suggestedVideos.forEach((v, i) => {
-        lines.push(`#### Suggested ${i + 1}: "${v.title}"`);
-        // Traffic metrics (always available from CSV)
-        lines.push(`- **Impressions:** ${v.impressions.toLocaleString()} | **CTR:** ${(v.ctr * 100).toFixed(1)}% | **Views:** ${v.views.toLocaleString()}`);
-        lines.push(`- **Avg View Duration:** ${v.avgViewDuration} | **Watch Time:** ${v.watchTimeHours.toFixed(1)}h`);
-        // Enriched metadata (may be unavailable)
-        if (v.channelTitle) lines.push(`- **Channel:** ${v.channelTitle}`);
-        if (v.publishedAt) lines.push(`- **Published:** ${v.publishedAt}`);
-        if (v.duration) lines.push(`- **Duration:** ${v.duration}`);
-        if (v.viewCount) lines.push(`- **Total Views:** ${v.viewCount}`);
-        if (v.likeCount) lines.push(`- **Likes:** ${v.likeCount}`);
-        if (v.subscriberCount) lines.push(`- **Channel Subscribers:** ${v.subscriberCount}`);
-        if (v.trafficType) lines.push(`- **Traffic Type:** ${v.trafficType}`);
-        if (v.viewerType) lines.push(`- **Viewer Type:** ${v.viewerType}`);
-        if (v.niche) lines.push(`- **Niche:** ${v.niche}${v.nicheProperty ? ` (${v.nicheProperty})` : ''}`);
-        lines.push(`- **Description:** ${v.description || '(not enriched)'}`);
-        lines.push(`- **Tags:** ${v.tags && v.tags.length > 0 ? v.tags.join(', ') : '(not enriched)'}`);
-
-        lines.push('');
+    ctx.suggestedVideos.forEach((v) => {
+        // Traffic metrics (always available from CSV) — compact format
+        const metrics = `Imp: ${v.impressions.toLocaleString()} | CTR: ${(v.ctr * 100).toFixed(1)}% | Views: ${v.views.toLocaleString()} | AvgDur: ${v.avgViewDuration} | WatchTime: ${v.watchTimeHours.toFixed(1)}h`;
+        const channel = v.channelTitle ? ` (${v.channelTitle})` : '';
+        lines.push(`- Suggested: "${v.title}" [id: ${v.videoId}]${channel} — ${metrics}`);
     });
 
     // Discrepancy block (only if cumulative Long Tail data is present)
@@ -222,15 +196,8 @@ function formatDiscrepancyBlock(d: TrafficDiscrepancy): string[] {
 }
 
 /** Format canvas selection context — grouped nodes from the visual canvas board. */
-function formatCanvasContext(ctx: CanvasSelectionContext, refMap: Map<string, VideoCardContext>): string {
+function formatCanvasContext(ctx: CanvasSelectionContext): string {
     const lines = [CANVAS_CONTEXT_HEADER, '', CANVAS_CONTEXT_PREAMBLE, ''];
-
-    // Build reverse lookup: videoId → reference index
-    const videoIndexMap = new Map<string, number>();
-    for (const [key, video] of refMap) {
-        const match = key.match(/-(\d+)$/);
-        if (match) videoIndexMap.set(video.videoId, parseInt(match[1]));
-    }
 
     const videos = ctx.nodes.filter((n): n is VideoContextNode => n.nodeType === 'video');
     const trafficSources = ctx.nodes.filter((n): n is TrafficSourceContextNode => n.nodeType === 'traffic-source');
@@ -242,19 +209,14 @@ function formatCanvasContext(ctx: CanvasSelectionContext, refMap: Map<string, Vi
         lines.push('### Videos');
         lines.push('');
         videos.forEach(v => {
-            const num = videoIndexMap.get(v.videoId) ?? 0;
             const prefix = OWNERSHIP_CONFIG[v.ownership ?? '']?.label || 'Video';
-            const header = v.channelTitle
-                ? `${prefix} #${num} (Channel: ${v.channelTitle})`
-                : `${prefix} #${num}`;
-            lines.push(`#### ${header}`);
-            lines.push(`- **Title:** ${v.title || '(untitled)'}`);
-            if (v.viewCount) lines.push(`- **Views:** ${v.viewCount}`);
-            if (v.publishedAt) lines.push(`- **Published:** ${v.publishedAt}`);
-            if (v.duration) lines.push(`- **Duration:** ${v.duration}`);
-            lines.push(`- **Description:** ${v.description || '(no description)'}`);
-            lines.push(`- **Tags:** ${v.tags && v.tags.length > 0 ? v.tags.join(', ') : '(no tags)'}`);
-            lines.push('');
+            const channel = v.channelTitle ? ` (Channel: ${v.channelTitle})` : '';
+            const metrics: string[] = [];
+            if (v.viewCount) metrics.push(`Views: ${v.viewCount}`);
+            if (v.publishedAt) metrics.push(`Published: ${v.publishedAt}`);
+            if (v.duration) metrics.push(`Duration: ${v.duration}`);
+            const metricsStr = metrics.length > 0 ? ` — ${metrics.join(' | ')}` : '';
+            lines.push(`- ${prefix}: "${v.title || '(untitled)'}" [id: ${v.videoId}]${channel}${metricsStr}`);
         });
     }
 

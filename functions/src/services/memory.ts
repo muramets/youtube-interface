@@ -5,7 +5,7 @@
 // memory management (Layer 3: Summarization).
 // =============================================================================
 
-import type { HistoryMessage } from "./gemini.js";
+import type { HistoryMessage } from "./gemini/client.js";
 import { MODEL_CONTEXT_LIMITS } from "../config/models.js";
 
 // --- Token estimation ---
@@ -122,9 +122,9 @@ export async function generateSummary(
     messages: HistoryMessage[],
     existingSummary: string | undefined,
     model: string
-): Promise<string> {
+): Promise<{ text: string; tokenUsage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
     // Lazy-load to avoid CF cold-start overhead
-    const { getClient } = await import("./gemini.js");
+    const { getClient } = await import("./gemini/index.js");
 
     const ai = await getClient(apiKey);
 
@@ -151,7 +151,13 @@ export async function generateSummary(
         },
     });
 
-    return response.text?.trim() || existingSummary || "";
+    const tokenUsage = {
+        promptTokens: response.usageMetadata?.promptTokenCount ?? 0,
+        completionTokens: response.usageMetadata?.candidatesTokenCount ?? 0,
+        totalTokens: response.usageMetadata?.totalTokenCount ?? 0,
+    };
+
+    return { text: response.text?.trim() || existingSummary || "", tokenUsage };
 }
 
 // --- Build memory (decides full history vs summary + recent) ---
@@ -165,6 +171,8 @@ export interface MemoryResult {
     summarizedUpTo?: string;
     /** Whether summary was used (for logging). */
     usedSummary: boolean;
+    /** Token usage from summarization call (only present when a new summary was generated). */
+    summaryTokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number };
 }
 
 export async function buildMemory(opts: {
@@ -219,6 +227,7 @@ export async function buildMemory(opts: {
     let summary = existingSummary || "";
     let newSummary: string | undefined;
     let newSummarizedUpTo: string | undefined;
+    let summaryTokenUsage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
 
     if (messagesToSummarize.length > 0) {
         const lastSummarizedMsg = messagesToSummarize[messagesToSummarize.length - 1];
@@ -231,7 +240,9 @@ export async function buildMemory(opts: {
                 : messagesToSummarize;
 
             if (newMessages.length > 0) {
-                summary = await generateSummary(apiKey, newMessages, existingSummary, model);
+                const result = await generateSummary(apiKey, newMessages, existingSummary, model);
+                summary = result.text;
+                summaryTokenUsage = result.tokenUsage;
                 newSummary = summary;
                 newSummarizedUpTo = lastSummarizedMsg.id;
             }
@@ -250,6 +261,7 @@ export async function buildMemory(opts: {
         newSummary,
         summarizedUpTo: newSummarizedUpTo,
         usedSummary: true,
+        summaryTokenUsage,
     };
 }
 
@@ -294,7 +306,7 @@ export async function generateConcludeSummary(
     guidance: string | undefined,
     model: string
 ): Promise<{ text: string; tokenUsage: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
-    const { getClient } = await import("./gemini.js");
+    const { getClient } = await import("./gemini/index.js");
     const ai = await getClient(apiKey);
 
     const conversationText = messages

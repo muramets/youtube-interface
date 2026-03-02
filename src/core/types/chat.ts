@@ -4,6 +4,9 @@
 
 import { Timestamp } from 'firebase/firestore';
 import type { AppContextItem } from './appContext';
+import type { ToolCallRecord } from './sseEvents';
+
+export type { ToolCallRecord } from './sseEvents';
 
 // --- Firestore Models ---
 
@@ -55,6 +58,7 @@ export interface ChatMessage {
         completionTokens: number;
         totalTokens: number;
     };
+    toolCalls?: ToolCallRecord[];   // Structured tool calls from agentic mode (Stage 5+)
     overrides?: Record<string, string>; // Tier 3: Manual overrides for hallucinated references (e.g. { "4": "competitor-4" })
     createdAt: Timestamp;
 }
@@ -83,12 +87,12 @@ export type ChatView = 'projects' | 'conversations' | 'chat';
 
 // --- Model config (imported from shared SSOT) ---
 
-export type { ModelConfig } from '../../../shared/models';
-export { MODEL_REGISTRY } from '../../../shared/models';
+export type { ModelConfig, ModelPricing } from '../../../shared/models';
+export { MODEL_REGISTRY, estimateCostEur, resolveModelId, type ThinkingOption } from '../../../shared/models';
 import { MODEL_REGISTRY } from '../../../shared/models';
 
 export const DEFAULT_MODEL = MODEL_REGISTRY.find(m => m.isDefault)?.id ?? MODEL_REGISTRY[0].id;
-export const DEFAULT_CONTEXT_LIMIT = 1_000_000;
+export const DEFAULT_CONTEXT_LIMIT = (MODEL_REGISTRY.find(m => m.isDefault) ?? MODEL_REGISTRY[0]).contextLimit;
 
 export const RESPONSE_LANGUAGES = [
     { id: 'auto', label: 'Auto (match user language)' },

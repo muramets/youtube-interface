@@ -10,6 +10,7 @@ import type {
     AiAssistantSettings,
     ChatView,
     ConversationMemory,
+    ToolCallRecord,
 } from '../types/chat';
 import { DEFAULT_AI_SETTINGS } from '../types/chat';
 import { ChatService, MESSAGE_PAGE_SIZE, CONVERSATION_PAGE_SIZE } from '../services/chatService';
@@ -44,11 +45,14 @@ interface ChatState {
     isLoading: boolean;
     isStreaming: boolean;
     streamingText: string;
+    activeToolCalls: ToolCallRecord[]; // tool calls in current streaming response (transient)
+    thinkingText: string; // thinking text in current streaming response (transient)
     error: string | null;
     hasMoreMessages: boolean;
     hasMoreConversations: boolean;
     lastFailedRequest: { text: string; attachments?: ReadyAttachment[]; messageId?: string } | null;
     pendingModel: string | null; // model override for not-yet-created conversations
+    pendingThinkingOptionId: string | null; // thinking depth override (resets on model change)
     editingMessage: ChatMessage | null; // message being edited (user clicks pencil)
     referenceSelectionMode: { active: boolean; messageId: string | null; originalNum: string | null }; // Tier 3: Manual override selection state
 
@@ -83,6 +87,7 @@ interface ChatState {
     moveConversation: (conversationId: string, projectId: string | null) => Promise<void>;
     setConversationModel: (conversationId: string, model: string) => Promise<void>;
     setPendingModel: (model: string | null) => void;
+    setPendingThinkingOptionId: (level: string | null) => void;
     clearPersistedContext: (conversationId: string) => Promise<void>;
     updatePersistedContext: (conversationId: string, items: AppContextItem[]) => Promise<void>;
 
@@ -192,7 +197,6 @@ async function persistUserMessage(
     await ChatService.addMessage(userId, channelId, convId, { role: 'user', text, attachments, appContext });
 }
 
-/** Stream AI response from CF. Returns response text + token usage. */
 async function streamAiResponse(
     channelId: string, convId: string,
     model: string, systemPrompt: string | undefined,
@@ -201,7 +205,8 @@ async function streamAiResponse(
     contextMeta: { videoCards?: number; trafficSources?: number; canvasNodes?: number; totalItems?: number } | undefined,
     set: (partial: Partial<ChatState>) => void,
     signal?: AbortSignal,
-): Promise<{ text: string; tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number }; usedSummary?: boolean }> {
+    thinkingOptionId?: string | null,
+): Promise<{ text: string; tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number }; toolCalls?: ToolCallRecord[]; usedSummary?: boolean }> {
     return AiService.sendMessage({
         channelId,
         conversationId: convId,
@@ -211,7 +216,24 @@ async function streamAiResponse(
         attachments: attachments?.map(a => ({ geminiFileUri: a.geminiFileUri!, mimeType: a.mimeType })),
         thumbnailUrls,
         contextMeta,
+        thinkingOptionId: thinkingOptionId || undefined,
         onStream: (chunk) => set({ streamingText: chunk }),
+        onToolCall: (name, args) => {
+            const prev = useChatStore.getState().activeToolCalls;
+            set({ activeToolCalls: [...prev, { name, args }] });
+        },
+        onToolResult: (name, result) => {
+            const prev = useChatStore.getState().activeToolCalls;
+            set({
+                activeToolCalls: prev.map(tc =>
+                    tc.name === name && !tc.result ? { ...tc, result } : tc
+                )
+            });
+        },
+        onThought: (thought) => {
+            const prev = useChatStore.getState().thinkingText;
+            set({ thinkingText: prev + thought });
+        },
         signal,
     });
 }
@@ -219,9 +241,11 @@ async function streamAiResponse(
 /** Persist model response to Firestore. */
 async function persistAiResponse(
     userId: string, channelId: string, convId: string,
-    responseText: string, model: string, tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number },
+    responseText: string, model: string,
+    tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number },
+    toolCalls?: ToolCallRecord[],
 ): Promise<void> {
-    await ChatService.addMessage(userId, channelId, convId, { role: 'model', text: responseText, model, tokenUsage });
+    await ChatService.addMessage(userId, channelId, convId, { role: 'model', text: responseText, model, tokenUsage, toolCalls });
 }
 
 /** Auto-generate title for the first exchange (fire-and-forget). */
@@ -254,11 +278,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     isLoading: false,
     isStreaming: false,
     streamingText: '',
+    activeToolCalls: [],
+    thinkingText: '',
     error: null,
     hasMoreMessages: false,
     hasMoreConversations: false,
     lastFailedRequest: null,
     pendingModel: null,
+    pendingThinkingOptionId: null,
     editingMessage: null,
     referenceSelectionMode: { active: false, messageId: null, originalNum: null },
 
@@ -281,10 +308,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
             activeConversationId: id,
             pendingConversationId: null,
             pendingModel: null,
+            pendingThinkingOptionId: null,
             view: id ? 'chat' : 'conversations',
             messages: [],
             isStreaming: false,
             streamingText: '',
+            activeToolCalls: [],
+            thinkingText: '',
             error: null,
             hasMoreMessages: false,
         });
@@ -441,6 +471,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             activeConversationId: null,
             pendingConversationId: crypto.randomUUID(),
             pendingModel: null,
+            pendingThinkingOptionId: null,
             view: 'chat',
             messages: [],
             isStreaming: false,
@@ -494,7 +525,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         await ChatService.updateConversation(userId, channelId, conversationId, { model });
     },
 
-    setPendingModel: (model) => set({ pendingModel: model }),
+    setPendingModel: (model) => set({ pendingModel: model, pendingThinkingOptionId: null }),
+    setPendingThinkingOptionId: (level) => set({ pendingThinkingOptionId: level }),
 
     // --- Edit ---
 
@@ -575,7 +607,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const myAbortController = new AbortController();
         activeAbortController = myAbortController;
         const myNonce = ++streamingNonce;
-        set({ isStreaming: true, streamingText: '', error: null, lastFailedRequest: null });
+        set({ isStreaming: true, streamingText: '', activeToolCalls: [], thinkingText: '', error: null, lastFailedRequest: null });
 
         try {
             // 0. Lazy-create conversation if needed (first message in a new chat)
@@ -782,9 +814,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const scopedSet = (partial: Partial<ChatState>) => {
                 if (streamingNonce === myNonce) set(partial);
             };
-            const { text: responseText, tokenUsage, usedSummary } = await streamAiResponse(
+            const { text: responseText, tokenUsage, toolCalls, usedSummary } = await streamAiResponse(
                 channelId, convId, model, systemPrompt,
                 text, attachments, thumbnailUrls, contextMeta, scopedSet, myAbortController.signal,
+                get().pendingThinkingOptionId,
             );
 
             // Layer 3: Summarization status
@@ -796,7 +829,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             if (streamingNonce === myNonce) set({ isStreaming: false, streamingText: '' });
 
             // 5. Persist AI response (subscription fires immediately via latency compensation)
-            await persistAiResponse(userId, channelId, convId, responseText, model, tokenUsage);
+            await persistAiResponse(userId, channelId, convId, responseText, model, tokenUsage, toolCalls);
 
             // 6. Auto-title (fire-and-forget)
             maybeAutoTitle(userId, channelId, convId, text, model, messages.length === 0);

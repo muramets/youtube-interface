@@ -39,7 +39,7 @@ export const geminiUpload = onCall(
         }
 
         try {
-            const { uploadFromStoragePath } = await import("../services/gemini.js");
+            const { uploadFromStoragePath } = await import("../services/gemini/index.js");
             const result = await uploadFromStoragePath(apiKey, storagePath, mimeType, displayName || "attachment");
             return { uri: result.uri, expiryMs: result.expiryMs };
         } catch (err) {

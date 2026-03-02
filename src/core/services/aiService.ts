@@ -6,6 +6,7 @@
 
 import type { ChatAttachment } from '../types/chat';
 import { DEFAULT_MODEL } from '../types/chat';
+import type { ToolCallRecord } from '../types/sseEvents';
 import * as AiProxy from './aiProxyService';
 
 // --- File validation utilities (client-side only) ---
@@ -62,6 +63,7 @@ export type AiSendResult = {
         completionTokens: number;
         totalTokens: number;
     };
+    toolCalls?: ToolCallRecord[];
     summary?: string;
     usedSummary?: boolean;
 };
@@ -97,6 +99,10 @@ export const AiService = {
         thumbnailUrls?: string[];
         contextMeta?: { videoCards?: number; trafficSources?: number; canvasNodes?: number; totalItems?: number };
         onStream?: (chunk: string) => void;
+        onToolCall?: (name: string, args: Record<string, unknown>) => void;
+        onToolResult?: (name: string, result: Record<string, unknown>) => void;
+        onThought?: (text: string) => void;
+        thinkingOptionId?: string;
         signal?: AbortSignal;
     }): Promise<AiSendResult> {
         return AiProxy.streamChat({
@@ -109,6 +115,10 @@ export const AiService = {
             thumbnailUrls: opts.thumbnailUrls,
             contextMeta: opts.contextMeta,
             onStream: opts.onStream || (() => { }),
+            onToolCall: opts.onToolCall,
+            onToolResult: opts.onToolResult,
+            onThought: opts.onThought,
+            thinkingOptionId: opts.thinkingOptionId,
             signal: opts.signal,
         });
     },

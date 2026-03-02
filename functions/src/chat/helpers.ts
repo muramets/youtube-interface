@@ -16,14 +16,16 @@ export async function logAiUsage(
     conversationId: string,
     model: string,
     tokenUsage: { promptTokens: number; completionTokens: number; totalTokens: number },
-    type: "chat" | "title" | "memorize"
+    type: "chat" | "title" | "memorize" | "summarize"
 ): Promise<void> {
     const log: AiUsageLog = {
         userId,
         channelId,
         conversationId,
         model,
-        ...tokenUsage,
+        promptTokens: tokenUsage.promptTokens,
+        completionTokens: tokenUsage.completionTokens,
+        totalTokens: tokenUsage.totalTokens,
         timestamp: admin.firestore.FieldValue.serverTimestamp(),
         type,
     };

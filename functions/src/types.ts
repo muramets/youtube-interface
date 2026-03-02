@@ -103,6 +103,8 @@ export interface AiChatRequest {
     systemPrompt?: string;
     attachments?: Array<{ geminiFileUri: string; mimeType: string }>;
     thumbnailUrls?: string[];
+    /** Thinking depth option id (matches model's thinkingOptions) */
+    thinkingOptionId?: string;
     /** Lightweight metadata about attached context items — for server-side logging only */
     contextMeta?: {
         videoCards?: number;
@@ -132,5 +134,5 @@ export interface AiUsageLog {
     completionTokens: number;
     totalTokens: number;
     timestamp: FirebaseFirestore.FieldValue;
-    type: "chat" | "title" | "memorize";
+    type: "chat" | "title" | "memorize" | "summarize";
 }

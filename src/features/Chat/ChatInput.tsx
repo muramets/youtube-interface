@@ -2,9 +2,9 @@
 // AI CHAT: Chat Input Component
 // =============================================================================
 
-import React, { useState, useRef, useCallback, useLayoutEffect } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useLayoutEffect } from 'react';
 import { Plus, Send, X, FileAudio, FileVideo, File, Image, Square, Loader2, Check, AlertCircle, ChevronUp, Pencil, Link, Unlink, Brain } from 'lucide-react';
-import { MODEL_REGISTRY } from '../../core/types/chat';
+import { MODEL_REGISTRY, type ThinkingOption } from '../../core/types/chat';
 import { getAttachmentType } from '../../core/services/aiService';
 import type { StagedFile, ReadyAttachment } from '../../core/types/chatAttachment';
 import { useChatStore } from '../../core/stores/chatStore';
@@ -72,7 +72,22 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const modelMenuRef = useRef<HTMLDivElement>(null);
+    const thinkingMenuRef = useRef<HTMLDivElement>(null);
     const prevEditingRef = useRef(editingMessage);
+
+    // Thinking level state from store
+    const pendingThinkingOptionId = useChatStore(s => s.pendingThinkingOptionId);
+    const setPendingThinkingOptionId = useChatStore(s => s.setPendingThinkingOptionId);
+    const [isThinkingMenuOpen, setIsThinkingMenuOpen] = useState(false);
+
+    // Resolve thinking options for the active model
+    const thinkingConfig = useMemo(() => {
+        const model = MODEL_REGISTRY.find(m => m.id === activeModel);
+        if (!model) return null;
+        const activeOptionId = pendingThinkingOptionId ?? model.thinkingDefault;
+        const activeOption = model.thinkingOptions.find(o => o.id === activeOptionId) ?? model.thinkingOptions[0];
+        return { options: model.thinkingOptions, activeOption, defaultId: model.thinkingDefault };
+    }, [activeModel, pendingThinkingOptionId]);
 
     // Memorize mode state
     const [isMemorizing, setIsMemorizing] = useState(false);
@@ -328,6 +343,45 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                             >
                                                 <span className="flex-1">{m.label}</span>
                                                 {m.id === activeModel && <Check size={13} className="text-green-400" />}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Thinking level toggle */}
+                    {thinkingConfig && (
+                        <div className="relative" ref={thinkingMenuRef}>
+                            <button
+                                className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer transition-colors hover:text-text-secondary hover:bg-white/[0.05]"
+                                onClick={() => setIsThinkingMenuOpen(v => !v)}
+                                type="button"
+                                title={`Thinking: ${thinkingConfig.activeOption.label}`}
+                            >
+                                <Brain size={12} className={thinkingConfig.activeOption.id === 'off' ? 'opacity-40' : ''} />
+                                <span>{thinkingConfig.activeOption.label}</span>
+                            </button>
+
+                            {isThinkingMenuOpen && (
+                                <>
+                                    <div className="fixed inset-0 z-[299]" onClick={() => setIsThinkingMenuOpen(false)} />
+                                    <div className="absolute bottom-full left-0 mb-1 z-popover min-w-[140px] bg-[#1F1F1F] border border-white/10 rounded-lg shadow-xl py-1 animate-in fade-in slide-in-from-bottom-1 duration-150">
+                                        {thinkingConfig.options.map((opt: ThinkingOption) => (
+                                            <button
+                                                key={opt.id}
+                                                className={`w-full text-left px-3 py-1.5 text-[12px] bg-transparent border-none cursor-pointer flex items-center gap-2 transition-colors ${opt.id === thinkingConfig.activeOption.id
+                                                    ? 'text-text-primary bg-white/[0.08]'
+                                                    : 'text-text-secondary hover:text-text-primary hover:bg-white/[0.05]'
+                                                    }`}
+                                                onClick={() => {
+                                                    setPendingThinkingOptionId(opt.id === thinkingConfig.defaultId ? null : opt.id);
+                                                    setIsThinkingMenuOpen(false);
+                                                }}
+                                            >
+                                                <span className="flex-1">{opt.label}</span>
+                                                {opt.id === thinkingConfig.activeOption.id && <Check size={13} className="text-green-400" />}
                                             </button>
                                         ))}
                                     </div>

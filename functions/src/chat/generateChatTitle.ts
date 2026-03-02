@@ -34,7 +34,7 @@ export const generateChatTitle = onCall(
             throw new HttpsError("internal", "Gemini API key is not configured on the server.");
         }
 
-        const { generateTitle } = await import("../services/gemini.js");
+        const { generateTitle } = await import("../services/gemini/index.js");
         const title = await generateTitle(apiKey, firstMessage, resolvedModel);
         return { title };
     }
