@@ -45,6 +45,7 @@ export function debugSendLog(params: DebugSendLogParams): void {
     console.log('  Global prompt:', aiSettings.globalSystemPrompt ? `✓ (${aiSettings.globalSystemPrompt.length} chars)` : '—');
     const activeProject = projects.find(p => p.id === activeProjectId);
     console.log('  Project prompt:', activeProject?.systemPrompt ? `✓ (${activeProject.systemPrompt.length} chars)` : '—');
+    console.log('  Thinking discipline: ✓ | Anti-hallucination: ✓');
     console.groupEnd();
 
     // Layer 1: Persistent Context
