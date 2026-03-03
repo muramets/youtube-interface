@@ -29,6 +29,7 @@ import type { HistoryMessage, TokenUsage, ToolCallRecord } from "./client.js";
 import type { ThumbnailCache } from "./thumbnails.js";
 import { reuploadFromStorage } from "./fileUpload.js";
 import { fetchThumbnailParts, buildUserParts } from "./thumbnails.js";
+import { enhanceWithThumbnails } from "./thumbnailMiddleware.js";
 import { formatContextLabel } from "../memory.js";
 import { TOOL_DECLARATIONS, executeTool } from "../tools/index.js";
 import type { ToolContext } from "../tools/index.js";
@@ -54,6 +55,10 @@ export interface StreamChatOpts {
     onThought?: (thought: string) => void;
     /** Called during tool execution to report intermediate progress steps. */
     onToolProgress?: (toolName: string, message: string, toolCallIndex: number) => void;
+    /** Called when thumbnail middleware blocks a large batch pending user confirmation. */
+    onLargePayloadBlocked?: (count: number) => void;
+    /** User confirmed loading a large batch of thumbnails (≥15) via the confirmation UI. */
+    largePayloadApproved?: boolean;
     signal?: AbortSignal;
     /** Callback to persist re-uploaded Gemini URIs back to Firestore */
     onAttachmentUpdate?: (
@@ -152,6 +157,8 @@ export async function streamChat(
         onToolResult,
         onThought,
         onToolProgress,
+        onLargePayloadBlocked,
+        largePayloadApproved,
         signal,
         onAttachmentUpdate,
         toolContext,
@@ -168,11 +175,12 @@ export async function streamChat(
 
     // Upload thumbnail images to Files API with caching (graceful degradation)
     let thumbnailParts: Part[] | undefined;
-    let updatedThumbnailCache: ThumbnailCache | undefined;
+    // Single mutable cache that accumulates entries across the entire call (initial + agentic loop)
+    let currentThumbnailCache: ThumbnailCache = thumbnailCache ?? {};
     if (thumbnailUrls && thumbnailUrls.length > 0) {
-        const result = await fetchThumbnailParts(apiKey, thumbnailUrls, thumbnailCache);
+        const result = await fetchThumbnailParts(apiKey, thumbnailUrls, currentThumbnailCache);
         thumbnailParts = result.parts;
-        updatedThumbnailCache = result.updatedCache;
+        currentThumbnailCache = result.updatedCache;
     }
     const t2 = Date.now();
     console.log(`[streamChat] fetchThumbnails (Files API): ${t2 - t1}ms — ${thumbnailParts?.length ?? 0} parts`);
@@ -380,16 +388,40 @@ export async function streamChat(
                 const fc = functionCalls[i];
                 const callIndex = batchStartIndex + i;
 
-                onToolResult?.(result.name, result.response, callIndex);
+                // Run thumbnail middleware on every tool response (no-op if no visualContextUrls)
+                const { imageParts, updatedCache, cleanedResponse, blockedCount } =
+                    await enhanceWithThumbnails(
+                        result.response,
+                        largePayloadApproved ?? false,
+                        apiKey,
+                        currentThumbnailCache,
+                        (msg) => onToolProgress?.(result.name, msg, callIndex),
+                    );
+                currentThumbnailCache = updatedCache;
+
+                if (blockedCount) {
+                    onLargePayloadBlocked?.(blockedCount);
+                }
+
+                // Strip internal Gemini hints before exposing to UI / persisting to Firestore.
+                // The full cleanedResponse (with _systemNote) still goes to Gemini via createFR.
+                const uiResponse: Record<string, unknown> = { ...cleanedResponse };
+                delete uiResponse._systemNote;
+                delete uiResponse._failedThumbnails;
+
+                onToolResult?.(result.name, uiResponse, callIndex);
                 allToolCalls.push({
                     name: result.name,
                     args: fc.args,
-                    result: result.response,
+                    result: uiResponse,
                 });
 
                 functionResponseParts.push(
-                    createFR("", result.name, result.response),
+                    createFR("", result.name, cleanedResponse),
                 );
+                if (imageParts.length > 0) {
+                    functionResponseParts.push(...imageParts);
+                }
             }
 
             // Append function responses for next iteration
@@ -410,7 +442,8 @@ export async function streamChat(
             text: fullText,
             tokenUsage,
             toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
-            updatedThumbnailCache,
+            // Return the fully accumulated cache (initial upload + any mid-conversation fetches)
+            updatedThumbnailCache: currentThumbnailCache,
         };
     } catch (err) {
         // Map AbortError caused by our timeout to GeminiTimeoutError

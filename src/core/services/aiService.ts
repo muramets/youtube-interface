@@ -103,7 +103,9 @@ export const AiService = {
         onToolResult?: (name: string, result: Record<string, unknown>, toolCallIndex: number) => void;
         onToolProgress?: (toolName: string, message: string, toolCallIndex: number) => void;
         onThought?: (text: string) => void;
+        onConfirmLargePayload?: (count: number) => void;
         thinkingOptionId?: string;
+        largePayloadApproved?: boolean;
         signal?: AbortSignal;
     }): Promise<AiSendResult> {
         return AiProxy.streamChat({
@@ -120,7 +122,9 @@ export const AiService = {
             onToolResult: opts.onToolResult,
             onToolProgress: opts.onToolProgress,
             onThought: opts.onThought,
+            onConfirmLargePayload: opts.onConfirmLargePayload,
             thinkingOptionId: opts.thinkingOptionId,
+            largePayloadApproved: opts.largePayloadApproved,
             signal: opts.signal,
         });
     },

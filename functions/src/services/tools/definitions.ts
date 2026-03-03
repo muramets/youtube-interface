@@ -19,6 +19,7 @@ export const TOOL_NAMES = {
     MENTION_VIDEO: "mentionVideo",
     GET_MULTIPLE_VIDEO_DETAILS: "getMultipleVideoDetails",
     ANALYZE_SUGGESTED_TRAFFIC: "analyzeSuggestedTraffic",
+    VIEW_THUMBNAILS: "viewThumbnails",
 } as const;
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];
@@ -28,17 +29,19 @@ export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];
 const mentionVideo: FunctionDeclaration = {
     name: TOOL_NAMES.MENTION_VIDEO,
     description:
-        "Reference a specific video in your response. Call this tool whenever you want to " +
-        "mention or discuss a video from the attached context. Pass the video's ID so the " +
-        "UI can render an interactive badge. Do NOT write plain text references like " +
-        "'Video #3' — always use this tool instead.",
+        "Reference a specific video in your response. Call this tool whenever you mention " +
+        "or discuss a video — the UI renders an interactive badge the user can click. " +
+        "Works for ANY video you know the ID of: from attached context, from previous tool " +
+        "results (e.g. analyzeSuggestedTraffic topSources), or from conversation history. " +
+        "Do NOT write plain text references like 'Video #3' — always use this tool instead.",
     parametersJsonSchema: {
         type: "object",
         properties: {
             videoId: {
                 type: "string",
                 description:
-                    "The unique ID of the video to reference (from the [id: ...] annotation in context).",
+                    "The unique ID of the video to reference. Can come from [id: ...] in context, " +
+                    "from videoId fields in previous tool results, or from conversation history.",
             },
         },
         required: ["videoId"],
@@ -74,7 +77,9 @@ const analyzeSuggestedTraffic: FunctionDeclaration = {
         "identifies pool transitions (new/dropped sources per period), and optionally analyzes " +
         "tag/keyword overlap. Returns structured findings for strategic interpretation. " +
         "Use when the user asks about suggested traffic, algorithmic neighbors, " +
-        "or which videos appear alongside theirs.",
+        "or which videos appear alongside theirs. " +
+        "After analysis, use mentionVideo to reference key competitor videos from topSources " +
+        "so the user sees interactive badges instead of plain text names.",
     parametersJsonSchema: {
         type: "object",
         properties: {
@@ -107,10 +112,40 @@ const analyzeSuggestedTraffic: FunctionDeclaration = {
     },
 };
 
+const viewThumbnails: FunctionDeclaration = {
+    name: TOOL_NAMES.VIEW_THUMBNAILS,
+    description:
+        "View actual video thumbnails as images. Call this when you need to visually analyze, " +
+        "compare, or describe the cover art of specific videos. Works for BOTH own AND " +
+        "competitor/suggested traffic videos. Returns the images so you can see them directly. " +
+        "Use videoIds from any source: attached context, previous tool results " +
+        "(e.g. analyzeSuggestedTraffic topSources), or conversation history. " +
+        "If you only know video titles but not IDs, pass them in the titles parameter — " +
+        "the system will look them up. You can request up to 50 videos in a single call.",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            videoIds: {
+                type: "array",
+                items: { type: "string" },
+                description: "Array of video IDs to load thumbnails for.",
+            },
+            titles: {
+                type: "array",
+                items: { type: "string" },
+                description:
+                    "Optional fallback: exact video titles to look up when videoIds are unknown. " +
+                    "Use exact titles as they appeared in previous tool results.",
+            },
+        },
+    },
+};
+
 // --- Exported registry ---
 
 export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
     mentionVideo,
     getMultipleVideoDetails,
     analyzeSuggestedTraffic,
+    viewThumbnails,
 ];

@@ -84,6 +84,13 @@ export async function fetchThumbnailParts(
         if (failed.length > 0) {
             console.warn(`[thumbnails] ⚠️ ${failed.length}/${needsUpload.length} uploads failed:`,
                 failed.map(r => (r as PromiseRejectedResult).reason?.message));
+            // Evict failed URLs from cache so middleware can detect the failure
+            // (otherwise expired-but-not-re-uploaded entries linger from the spread copy)
+            for (let i = 0; i < results.length; i++) {
+                if (results[i].status === 'rejected') {
+                    delete updatedCache[needsUpload[i]];
+                }
+            }
         }
     }
 

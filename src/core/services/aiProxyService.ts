@@ -29,6 +29,10 @@ interface StreamChatOpts {
     onThought?: (text: string) => void;
     /** Thinking depth option id (matches model's thinkingOptions). */
     thinkingOptionId?: string;
+    /** User confirmed loading a large batch of thumbnails (≥15) via the confirmation UI. */
+    largePayloadApproved?: boolean;
+    /** Called when the server blocks a large thumbnail batch and needs user confirmation. */
+    onConfirmLargePayload?: (count: number) => void;
     signal?: AbortSignal;
 }
 
@@ -79,6 +83,8 @@ export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult
         onToolProgress,
         onThought,
         thinkingOptionId,
+        largePayloadApproved,
+        onConfirmLargePayload,
         signal,
     } = opts;
 
@@ -98,6 +104,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult
         thumbnailUrls,
         contextMeta,
         thinkingOptionId,
+        largePayloadApproved,
     };
 
     // --- Fetch with automatic retry for transient failures ---
@@ -229,6 +236,9 @@ export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult
                             summary: sseEvent.summary,
                             usedSummary: sseEvent.usedSummary,
                         };
+                        break;
+                    case 'confirmLargePayload':
+                        onConfirmLargePayload?.(sseEvent.count);
                         break;
                     case 'error':
                         throw new SSEDataError(sseEvent.error);

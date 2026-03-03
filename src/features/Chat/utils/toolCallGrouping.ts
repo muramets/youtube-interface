@@ -39,7 +39,9 @@ export function groupToolCalls(toolCalls: ToolCallRecord[]): ToolCallGroup[] {
             ? extractMentionVideoIds(records)
             : toolName === 'getMultipleVideoDetails'
                 ? extractDetailVideoIds(records)
-                : [];
+                : toolName === 'viewThumbnails'
+                    ? extractViewThumbnailVideoIds(records)
+                    : [];
 
         groups.push({
             toolName,
@@ -61,6 +63,20 @@ export function extractMentionVideoIds(records: ToolCallRecord[]): string[] {
     for (const r of records) {
         const id = r.args.videoId as string | undefined;
         if (id && !ids.includes(id)) ids.push(id);
+    }
+    return ids;
+}
+
+/** Extract unique video IDs from viewThumbnails tool call records. */
+export function extractViewThumbnailVideoIds(records: ToolCallRecord[]): string[] {
+    const ids: string[] = [];
+    for (const r of records) {
+        const videoIds = r.args.videoIds as string[] | undefined;
+        if (videoIds) {
+            for (const id of videoIds) {
+                if (!ids.includes(id)) ids.push(id);
+            }
+        }
     }
     return ids;
 }
@@ -113,6 +129,13 @@ export function getGroupLabel(group: ToolCallGroup): string {
             : 'Analyzing suggested traffic...';
     }
 
+    if (group.toolName === 'viewThumbnails') {
+        if (group.hasErrors) return "Couldn't load thumbnails";
+        return group.allResolved
+            ? `Viewed ${count} ${pluralVideos(count)}`
+            : `Loading thumbnails...`;
+    }
+
     // Fallback for unknown tools
     return group.allResolved ? group.toolName : `Running ${group.toolName}...`;
 }
@@ -123,6 +146,11 @@ export function isExpandable(group: ToolCallGroup): boolean {
     // Analysis tools are expandable when resolved (show summary stats)
     if (group.toolName === 'analyzeSuggestedTraffic' && group.allResolved) return true;
     return false;
+}
+
+/** Whether a group is thumbnail-related (drives amber color scheme). */
+export function isThumbnailTool(group: ToolCallGroup): boolean {
+    return group.toolName === 'viewThumbnails';
 }
 
 // --- Helpers ---

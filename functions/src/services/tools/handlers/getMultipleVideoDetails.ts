@@ -57,7 +57,7 @@ export async function handleGetMultipleVideoDetails(
             likeCount: data.likeCount || undefined,
             publishedAt: data.publishedAt || undefined,
             duration: data.duration || undefined,
-            thumbnailUrl: data.thumbnailUrl || undefined,
+            thumbnailUrl: data.thumbnail || undefined,
         });
     }
 

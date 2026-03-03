@@ -82,6 +82,19 @@ interface ChatState {
     pendingThinkingOptionId: string | null; // thinking depth override (resets on model change)
     editingMessage: ChatMessage | null; // message being edited (user clicks pencil)
     referenceSelectionMode: { active: boolean; messageId: string | null; originalNum: string | null }; // Tier 3: Manual override selection state
+    /**
+     * Set when middleware blocks a large thumbnail batch — drives ConfirmLargePayloadBanner UI.
+     * Stores the full send context so confirmLargePayload can re-run the AI call without
+     * persisting a duplicate user message.
+     */
+    pendingLargePayloadConfirmation: {
+        count: number;
+        text: string;
+        attachments: ReadyAttachment[] | undefined;
+        convId: string;
+        appContext: AppContextItem[] | undefined;
+        persistedContext: AppContextItem[] | undefined;
+    } | null;
 
     // Actions — Context
     setContext: (userId: string | null, channelId: string | null) => void;
@@ -119,7 +132,9 @@ interface ChatState {
     updatePersistedContext: (conversationId: string, items: AppContextItem[]) => Promise<void>;
 
     // Actions — AI
-    sendMessage: (text: string, attachments?: ReadyAttachment[], conversationId?: string) => Promise<void>;
+    sendMessage: (text: string, attachments?: ReadyAttachment[], conversationId?: string, largePayloadApproved?: boolean) => Promise<void>;
+    confirmLargePayload: () => Promise<void>;
+    dismissLargePayload: () => void;
     retryLastMessage: () => Promise<void>;
     retryEnrichment: () => Promise<void>;
     dismissEnrichment: () => Promise<void>;
@@ -164,6 +179,22 @@ let activeAbortController: AbortController | null = null;
 // When the user switches conversations mid-stream, we increment this so that
 // the old stream's callbacks become no-ops (UI-only; the stream itself finishes).
 let streamingNonce = 0;
+
+/**
+ * Start a new streaming session — creates AbortController, increments nonce,
+ * resets all transient streaming state. Single source of truth for both
+ * sendMessage and confirmLargePayload.
+ */
+function startStreamingSession(
+    set: (partial: Partial<ChatState>) => void,
+): { nonce: number; controller: AbortController } {
+    const controller = new AbortController();
+    activeAbortController = controller;
+    const nonce = ++streamingNonce;
+    set({ isStreaming: true, streamingText: '', activeToolCalls: [], thinkingText: '', error: null, lastFailedRequest: null });
+    streamStartMs = Date.now();
+    return { nonce, controller };
+}
 
 /** Helper: get context or throw */
 function requireContext(get: () => ChatState): { userId: string; channelId: string } {
@@ -236,6 +267,8 @@ async function streamAiResponse(
     set: (partial: Partial<ChatState>) => void,
     signal?: AbortSignal,
     thinkingOptionId?: string | null,
+    largePayloadApproved?: boolean,
+    onConfirmLargePayload?: (count: number) => void,
 ): Promise<{ text: string; tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number }; toolCalls?: ToolCallRecord[]; usedSummary?: boolean }> {
     return AiService.sendMessage({
         channelId,
@@ -274,6 +307,8 @@ async function streamAiResponse(
             const prev = useChatStore.getState().thinkingText;
             set({ thinkingText: prev + thought });
         },
+        onConfirmLargePayload,
+        largePayloadApproved,
         signal,
     });
 }
@@ -314,6 +349,7 @@ async function resumeSendFlow(
     persistedContext: AppContextItem[] | undefined,
     nonce: number,
     abortController: AbortController,
+    largePayloadApproved?: boolean,
 ): Promise<void> {
     const { aiSettings, projects, activeProjectId, messages, memories } = get();
 
@@ -343,6 +379,8 @@ async function resumeSendFlow(
         channelId, convId, model, systemPrompt,
         text, attachments, thumbnailUrls, contextMeta, scopedSet, abortController.signal,
         get().pendingThinkingOptionId,
+        largePayloadApproved,
+        (count) => scopedSet({ pendingLargePayloadConfirmation: { count, text, attachments, convId, appContext, persistedContext } }),
     );
 
     debug.chat(`📝 Layer 3: ${usedSummary ? '✓ summary used (older messages were compressed)' : '— full history (no summarization needed)'}`);
@@ -396,6 +434,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     pendingThinkingOptionId: null,
     editingMessage: null,
     referenceSelectionMode: { active: false, messageId: null, originalNum: null },
+    pendingLargePayloadConfirmation: null,
 
     // --- Context ---
     setContext: (userId, channelId) => set({ userId, channelId }),
@@ -425,6 +464,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             thinkingText: '',
             error: null,
             hasMoreMessages: false,
+            pendingLargePayloadConfirmation: null,
         });
     },
 
@@ -584,6 +624,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             messages: [],
             isStreaming: false,
             streamingText: '',
+            pendingLargePayloadConfirmation: null,
         });
     },
 
@@ -704,7 +745,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     // --- AI ---
 
-    sendMessage: async (text, attachments, conversationId) => {
+    sendMessage: async (text, attachments, conversationId, largePayloadApproved) => {
         const { userId, channelId } = requireContext(get);
         const { activeConversationId, pendingConversationId, activeProjectId, messages, aiSettings, projects, isStreaming } = get();
         let convId = conversationId || activeConversationId;
@@ -712,11 +753,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (isStreaming) return;
 
         // Lock immediately — before any await — prevents double-send
-        const myAbortController = new AbortController();
-        activeAbortController = myAbortController;
-        const myNonce = ++streamingNonce;
-        set({ isStreaming: true, streamingText: '', activeToolCalls: [], thinkingText: '', error: null, lastFailedRequest: null });
-        streamStartMs = Date.now();
+        const { nonce: myNonce, controller: myAbortController } = startStreamingSession(set);
 
         try {
             // 0. Lazy-create conversation if needed (first message in a new chat)
@@ -771,7 +808,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
 
             // 4. Continue to Gemini
-            await resumeSendFlow(get, set, convId, text, attachments, appContext, persistedContext, myNonce, myAbortController);
+            await resumeSendFlow(get, set, convId, text, attachments, appContext, persistedContext, myNonce, myAbortController, largePayloadApproved);
         } catch (err) {
             if (err instanceof DOMException && err.name === 'AbortError') {
                 // User stopped generation — save partial text if available
@@ -816,6 +853,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
         }
     },
+
+    confirmLargePayload: async () => {
+        const pending = get().pendingLargePayloadConfirmation;
+        if (!pending || get().isStreaming) return;
+        const { text, attachments, convId, appContext, persistedContext } = pending;
+        set({ pendingLargePayloadConfirmation: null });
+
+        // Re-run the AI call with largePayloadApproved:true — bypasses user message
+        // persistence so no duplicate message appears in history.
+        const { nonce: myNonce, controller: myAbortController } = startStreamingSession(set);
+
+        try {
+            await resumeSendFlow(get, set, convId, text, attachments, appContext, persistedContext, myNonce, myAbortController, true);
+        } catch (err) {
+            if (!(err instanceof DOMException && err.name === 'AbortError')) {
+                const errorMessage = err instanceof Error ? err.message : 'Failed to get AI response';
+                if (streamingNonce === myNonce) set({ error: errorMessage });
+            }
+        } finally {
+            if (activeAbortController === myAbortController) activeAbortController = null;
+            if (streamingNonce === myNonce) set({ isStreaming: false, streamingText: '' });
+        }
+    },
+
+    dismissLargePayload: () => set({ pendingLargePayloadConfirmation: null }),
 
     retryLastMessage: async () => {
         const { lastFailedRequest } = get();

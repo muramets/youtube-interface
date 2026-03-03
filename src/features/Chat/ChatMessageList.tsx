@@ -62,6 +62,7 @@ import { debug } from '../../core/utils/debug';
 import { SelectionToolbar } from './components/SelectionToolbar';
 import { ThinkingBubble } from './components/ThinkingBubble';
 import { ToolCallSummary } from './components/ToolCallSummary';
+import { ConfirmLargePayloadBanner } from './components/ConfirmLargePayloadBanner';
 import { getSessionThinking } from '../../core/stores/chatStore';
 
 /** Regex to detect mention:// URIs in markdown links */
@@ -376,6 +377,9 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     const isStreaming = useChatStore(s => s.isStreaming);
     const activeToolCalls = useChatStore(s => s.activeToolCalls);
     const thinkingText = useChatStore(s => s.thinkingText);
+    const pendingLargePayloadConfirmation = useChatStore(s => s.pendingLargePayloadConfirmation);
+    const confirmLargePayload = useChatStore(s => s.confirmLargePayload);
+    const dismissLargePayload = useChatStore(s => s.dismissLargePayload);
 
     // Build video lookup from persisted context for inline reference tooltips.
     // Keyed by "{type}-{index}" to match reference URIs (e.g. "video-3", "draft-1").
@@ -744,6 +748,17 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                             </span>
                         )}
                     </div>
+                </div>
+            )}
+
+            {/* Thumbnail batch confirmation — shown below streaming message when middleware blocks */}
+            {pendingLargePayloadConfirmation && (
+                <div className="self-start max-w-[85%] mb-2 animate-fade-in">
+                    <ConfirmLargePayloadBanner
+                        count={pendingLargePayloadConfirmation.count}
+                        onConfirm={confirmLargePayload}
+                        onDismiss={dismissLargePayload}
+                    />
                 </div>
             )}
 

@@ -23,6 +23,7 @@ type SSEDoneEvent = {
 };
 type SSEToolProgressEvent = { type: "toolProgress"; toolName: string; message: string; toolCallIndex: number };
 type SSEErrorEvent = { type: "error"; error: string };
+type SSEConfirmLargePayloadEvent = { type: "confirmLargePayload"; count: number };
 
 export type SSEEvent =
     | SSEChunkEvent
@@ -31,7 +32,8 @@ export type SSEEvent =
     | SSEThoughtEvent
     | SSEDoneEvent
     | SSEToolProgressEvent
-    | SSEErrorEvent;
+    | SSEErrorEvent
+    | SSEConfirmLargePayloadEvent;
 
 // --- Writer ---
 

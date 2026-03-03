@@ -131,6 +131,7 @@ export const aiChat = onRequest(
                 thumbnailCache: convData?.thumbnailCache as ThumbnailCache | undefined,
                 toolContext: { userId, channelId: body.channelId },
                 thinkingOptionId,
+                largePayloadApproved: body.largePayloadApproved,
                 onChunk: (fullText) => {
                     writeSSE(res, { type: "chunk", text: fullText });
                 },
@@ -145,6 +146,9 @@ export const aiChat = onRequest(
                 },
                 onToolProgress: (toolName, message, toolCallIndex) => {
                     writeSSE(res, { type: "toolProgress", toolName, message, toolCallIndex });
+                },
+                onLargePayloadBlocked: (count) => {
+                    writeSSE(res, { type: "confirmLargePayload", count });
                 },
                 onAttachmentUpdate: async (messageId, attachmentIndex, geminiFileUri, geminiFileExpiry) => {
                     // Persist re-uploaded Gemini URI back to Firestore

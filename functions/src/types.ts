@@ -112,6 +112,8 @@ export interface AiChatRequest {
         canvasNodes?: number;
         totalItems?: number;
     };
+    /** User confirmed loading a large batch of thumbnails (≥15) via the confirmation UI. */
+    largePayloadApproved?: boolean;
 }
 
 export interface GeminiUploadRequest {

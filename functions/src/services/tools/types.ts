@@ -16,7 +16,9 @@ export interface FunctionCallInput {
 
 export interface FunctionCallResult {
     name: string;
-    response: Record<string, unknown>;
+    response: Record<string, unknown> & {
+        visualContextUrls?: string[];
+    };
 }
 
 /** Signature for all tool handlers */

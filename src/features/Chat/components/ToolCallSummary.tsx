@@ -11,10 +11,10 @@
 // =============================================================================
 
 import React, { useState } from 'react';
-import { Loader2, Check, AlertCircle, ChevronDown, BarChart3, TrendingUp } from 'lucide-react';
+import { Loader2, Check, AlertCircle, ChevronDown, BarChart3, TrendingUp, Images } from 'lucide-react';
 import type { ToolCallRecord } from '../../../core/types/chat';
 import type { VideoCardContext } from '../../../core/types/appContext';
-import { groupToolCalls, getGroupLabel, isExpandable } from '../utils/toolCallGrouping';
+import { groupToolCalls, getGroupLabel, isExpandable, isThumbnailTool } from '../utils/toolCallGrouping';
 import type { ToolCallGroup } from '../utils/toolCallGrouping';
 import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import { VideoTooltipContent } from './VideoTooltipContent';
@@ -116,6 +116,36 @@ const AnalysisStats: React.FC<{ result: Record<string, unknown> }> = ({ result }
     return statsContent;
 };
 
+/** Compact thumbnail grid for viewThumbnails expanded view. */
+const ThumbnailGrid: React.FC<{ group: ToolCallGroup }> = ({ group }) => {
+    type ThumbnailEntry = { videoId: string; title: string; thumbnailUrl: string };
+    const videos: ThumbnailEntry[] = [];
+    for (const record of group.records) {
+        const list = record.result?.videos as ThumbnailEntry[] | undefined;
+        if (list) {
+            for (const v of list) {
+                if (!videos.find(x => x.videoId === v.videoId)) videos.push(v);
+            }
+        }
+    }
+    if (videos.length === 0) return null;
+    return (
+        <div className="mt-1.5 grid grid-cols-4 gap-1">
+            {videos.map(v => (
+                <div key={v.videoId} className="flex flex-col gap-0.5 min-w-0">
+                    <img
+                        src={v.thumbnailUrl}
+                        alt=""
+                        className="w-full aspect-video object-cover rounded"
+                        loading="lazy"
+                    />
+                    <span className="text-[10px] text-text-tertiary truncate leading-tight">{v.title}</span>
+                </div>
+            ))}
+        </div>
+    );
+};
+
 /** Single consolidated pill for a tool call group. */
 const GroupPill: React.FC<{
     group: ToolCallGroup;
@@ -129,15 +159,20 @@ const GroupPill: React.FC<{
     const label = (!group.allResolved && progressMessage) ? progressMessage : getGroupLabel(group);
     const expandable = isExpandable(group);
 
-    // Color scheme — mentionVideo uses indigo (matching inline mention highlight),
-    // getMultipleVideoDetails uses emerald (audit trail)
+    // Color scheme:
+    //   mentionVideo     → indigo  (matches inline mention highlight)
+    //   viewThumbnails   → amber   (visual / image tool)
+    //   everything else  → emerald (data/audit)
     const isMention = group.toolName === 'mentionVideo';
+    const isThumbnail = isThumbnailTool(group);
     const stateClasses = group.hasErrors
         ? 'bg-red-500/[0.06] text-red-400'
         : group.allResolved
             ? isMention
                 ? 'bg-indigo-400/[0.08] text-indigo-400'
-                : 'bg-emerald-500/[0.06] text-emerald-400'
+                : isThumbnail
+                    ? 'bg-amber-400/[0.08] text-amber-400'
+                    : 'bg-emerald-500/[0.06] text-emerald-400'
             : 'bg-blue-400/[0.06] text-blue-400';
 
     // Status icon
@@ -155,9 +190,11 @@ const GroupPill: React.FC<{
                 onClick={() => expandable && setExpanded(v => !v)}
                 disabled={!expandable}
             >
-                {/* Status icon — @ for mentions, standard icons for others */}
+                {/* Status icon — @ for mentions, Images for thumbnails, standard icons for others */}
                 {isMention && group.allResolved && !group.hasErrors ? (
                     <span className="text-[12px] font-semibold shrink-0">@</span>
+                ) : isThumbnail && group.allResolved && !group.hasErrors ? (
+                    <Images size={12} className="shrink-0" />
                 ) : (
                     <StatusIcon
                         size={12}
@@ -180,6 +217,8 @@ const GroupPill: React.FC<{
                     {group.toolName === 'analyzeSuggestedTraffic' && group.records[0]?.result && (
                         <AnalysisStats result={group.records[0].result} />
                     )}
+                    {/* Thumbnail tool: image grid */}
+                    {isThumbnail && <ThumbnailGrid group={group} />}
                     {/* Video-based tools: video preview list */}
                     {group.videoIds.map(videoId => {
                         const video = videoMap?.get(videoId);
