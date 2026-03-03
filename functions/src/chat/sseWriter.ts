@@ -24,6 +24,7 @@ type SSEDoneEvent = {
 type SSEToolProgressEvent = { type: "toolProgress"; toolName: string; message: string; toolCallIndex: number };
 type SSEErrorEvent = { type: "error"; error: string };
 type SSEConfirmLargePayloadEvent = { type: "confirmLargePayload"; count: number };
+type SSERetryEvent = { type: "retry"; attempt: number };
 
 export type SSEEvent =
     | SSEChunkEvent
@@ -33,7 +34,8 @@ export type SSEEvent =
     | SSEDoneEvent
     | SSEToolProgressEvent
     | SSEErrorEvent
-    | SSEConfirmLargePayloadEvent;
+    | SSEConfirmLargePayloadEvent
+    | SSERetryEvent;
 
 // --- Writer ---
 

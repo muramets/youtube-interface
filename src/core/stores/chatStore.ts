@@ -71,6 +71,7 @@ interface ChatState {
     isLoading: boolean;
     isStreaming: boolean;
     streamingText: string;
+    retryAttempt: number; // 0 = normal, 1+ = server retrying
     activeToolCalls: ActiveToolCall[]; // tool calls in current streaming response (transient)
     thinkingText: string; // thinking text in current streaming response (transient)
     error: string | null;
@@ -191,7 +192,7 @@ function startStreamingSession(
     const controller = new AbortController();
     activeAbortController = controller;
     const nonce = ++streamingNonce;
-    set({ isStreaming: true, streamingText: '', activeToolCalls: [], thinkingText: '', error: null, lastFailedRequest: null });
+    set({ isStreaming: true, streamingText: '', retryAttempt: 0, activeToolCalls: [], thinkingText: '', error: null, lastFailedRequest: null });
     streamStartMs = Date.now();
     return { nonce, controller };
 }
@@ -269,6 +270,7 @@ async function streamAiResponse(
     thinkingOptionId?: string | null,
     largePayloadApproved?: boolean,
     onConfirmLargePayload?: (count: number) => void,
+    onRetry?: (attempt: number) => void,
 ): Promise<{ text: string; tokenUsage?: { promptTokens: number; completionTokens: number; totalTokens: number }; toolCalls?: ToolCallRecord[]; usedSummary?: boolean }> {
     return AiService.sendMessage({
         channelId,
@@ -308,6 +310,7 @@ async function streamAiResponse(
             set({ thinkingText: prev + thought });
         },
         onConfirmLargePayload,
+        onRetry,
         largePayloadApproved,
         signal,
     });
@@ -382,6 +385,7 @@ async function resumeSendFlow(
         get().pendingThinkingOptionId,
         largePayloadApproved,
         (count) => scopedSet({ pendingLargePayloadConfirmation: { count, text, attachments, convId, appContext, persistedContext } }),
+        (attempt) => scopedSet({ retryAttempt: attempt, streamingText: '', thinkingText: '' }),
     );
 
     debug.chat(`📝 Layer 3: ${usedSummary ? '✓ summary used (older messages were compressed)' : '— full history (no summarization needed)'}`);
@@ -424,6 +428,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     isLoading: false,
     isStreaming: false,
     streamingText: '',
+    retryAttempt: 0,
     activeToolCalls: [],
     thinkingText: '',
     error: null,

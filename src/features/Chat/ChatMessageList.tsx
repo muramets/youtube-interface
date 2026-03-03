@@ -63,6 +63,7 @@ import { SelectionToolbar } from './components/SelectionToolbar';
 import { ThinkingBubble } from './components/ThinkingBubble';
 import { ToolCallSummary } from './components/ToolCallSummary';
 import { ConfirmLargePayloadBanner } from './components/ConfirmLargePayloadBanner';
+import { StreamingStatusMessage } from './components/StreamingStatusMessage';
 import { getSessionThinking } from '../../core/stores/chatStore';
 
 /** Regex to detect mention:// URIs in markdown links */
@@ -759,6 +760,9 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
             {isStreaming && (
                 <div className="chat-message flex flex-col max-w-[85%] self-start animate-message-in mb-2">
                     <div className={MSG_BUBBLE_MODEL}>
+                        {/* Progressive status — shown when no text or thinking has arrived yet */}
+                        <StreamingStatusMessage />
+
                         {/* Thinking bubble — collapsible, before tool calls and text */}
                         {thinkingText && (
                             <ThinkingBubble text={thinkingText} isStreaming={isStreaming} />

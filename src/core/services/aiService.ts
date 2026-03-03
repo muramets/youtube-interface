@@ -104,6 +104,7 @@ export const AiService = {
         onToolProgress?: (toolName: string, message: string, toolCallIndex: number) => void;
         onThought?: (text: string) => void;
         onConfirmLargePayload?: (count: number) => void;
+        onRetry?: (attempt: number) => void;
         thinkingOptionId?: string;
         largePayloadApproved?: boolean;
         signal?: AbortSignal;
@@ -123,6 +124,7 @@ export const AiService = {
             onToolProgress: opts.onToolProgress,
             onThought: opts.onThought,
             onConfirmLargePayload: opts.onConfirmLargePayload,
+            onRetry: opts.onRetry,
             thinkingOptionId: opts.thinkingOptionId,
             largePayloadApproved: opts.largePayloadApproved,
             signal: opts.signal,

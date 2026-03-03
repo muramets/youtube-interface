@@ -33,6 +33,8 @@ interface StreamChatOpts {
     largePayloadApproved?: boolean;
     /** Called when the server blocks a large thumbnail batch and needs user confirmation. */
     onConfirmLargePayload?: (count: number) => void;
+    /** Called when the server retries a failed Gemini request. attempt is 1-based. */
+    onRetry?: (attempt: number) => void;
     signal?: AbortSignal;
 }
 
@@ -85,6 +87,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult
         thinkingOptionId,
         largePayloadApproved,
         onConfirmLargePayload,
+        onRetry,
         signal,
     } = opts;
 
@@ -160,8 +163,11 @@ export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult
     let result: StreamChatResult = { text: '' };
     let receivedAnyData = false;
 
-    // --- Inactivity timeout: abort reader if no data arrives (must match server-side STREAM_INACTIVITY_TIMEOUT_MS) ---
-    const STREAM_TIMEOUT_MS = 90_000;
+    // --- Inactivity timeout: abort reader if no data arrives.
+    // Set to 120s (not 90s) to give the server guaranteed time to send the retry SSE event
+    // before the client gives up. Server timeout is 90s — the extra 30s covers network lag
+    // between server iterationAbort → SSE write → client receive. ---
+    const STREAM_TIMEOUT_MS = 120_000;
     let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
     const inactivityController = new AbortController();
 
@@ -240,6 +246,9 @@ export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult
                     case 'confirmLargePayload':
                         onConfirmLargePayload?.(sseEvent.count);
                         break;
+                    case 'retry':
+                        onRetry?.(sseEvent.attempt);
+                        break;
                     case 'error':
                         throw new SSEDataError(sseEvent.error);
                 }
@@ -248,7 +257,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult
     } catch (err) {
         // If the reader was cancelled by our inactivity timer, throw a clear timeout error
         if (inactivityController.signal.aborted) {
-            throw new Error('AI response timed out — no data received for 90 seconds. Please try again.');
+            throw new Error('AI response timed out — no data received for 120 seconds. Please try again.');
         }
         throw err;
     } finally {

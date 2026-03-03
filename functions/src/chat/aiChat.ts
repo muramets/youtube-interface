@@ -150,6 +150,9 @@ export const aiChat = onRequest(
                 onLargePayloadBlocked: (count) => {
                     writeSSE(res, { type: "confirmLargePayload", count });
                 },
+                onRetry: (attempt) => {
+                    writeSSE(res, { type: "retry", attempt });
+                },
                 onAttachmentUpdate: async (messageId, attachmentIndex, geminiFileUri, geminiFileExpiry) => {
                     // Persist re-uploaded Gemini URI back to Firestore
                     try {

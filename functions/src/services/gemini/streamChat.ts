@@ -57,6 +57,8 @@ export interface StreamChatOpts {
     onToolProgress?: (toolName: string, message: string, toolCallIndex: number) => void;
     /** Called when thumbnail middleware blocks a large batch pending user confirmation. */
     onLargePayloadBlocked?: (count: number) => void;
+    /** Called when an inactivity timeout triggers automatic retry. */
+    onRetry?: (attempt: number) => void;
     /** User confirmed loading a large batch of thumbnails (≥15) via the confirmation UI. */
     largePayloadApproved?: boolean;
     signal?: AbortSignal;
@@ -138,6 +140,9 @@ const STREAM_INACTIVITY_TIMEOUT_MS = 90_000;
 /** Maximum agentic loop iterations to prevent infinite tool-calling loops. */
 const MAX_AGENTIC_ITERATIONS = 10;
 
+/** Maximum number of automatic retries after an inactivity timeout. */
+const MAX_STREAM_RETRIES = 2;
+
 // --- Main streaming function ---
 
 export async function streamChat(
@@ -159,6 +164,7 @@ export async function streamChat(
         onToolProgress,
         onLargePayloadBlocked,
         largePayloadApproved,
+        onRetry,
         signal,
         onAttachmentUpdate,
         toolContext,
@@ -207,28 +213,6 @@ export async function streamChat(
         console.log(`[streamChat] System prompt: ${systemPrompt.length} chars`);
     }
 
-    // --- Inactivity timeout: abort if Gemini doesn't respond within 60s ---
-    const timeoutController = new AbortController();
-    let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const resetTimer = () => {
-        if (inactivityTimer) clearTimeout(inactivityTimer);
-        inactivityTimer = setTimeout(() => {
-            console.error(`[streamChat] ⏰ Inactivity timeout — no chunks for ${STREAM_INACTIVITY_TIMEOUT_MS / 1000}s`);
-            timeoutController.abort();
-        }, STREAM_INACTIVITY_TIMEOUT_MS);
-    };
-
-    // Combine caller's signal with our timeout signal
-    const combinedAbort = new AbortController();
-    signal?.addEventListener("abort", () => combinedAbort.abort(signal.reason));
-    timeoutController.signal.addEventListener("abort", () =>
-        combinedAbort.abort(new GeminiTimeoutError())
-    );
-
-    // Start the timer before the API call (covers initial response wait)
-    resetTimer();
-
     // --- Tool definitions (only if context is available for execution) ---
     const toolConfig = TOOL_DECLARATIONS.length > 0 && toolContext
         ? { tools: [{ functionDeclarations: TOOL_DECLARATIONS }] }
@@ -253,208 +237,252 @@ export async function streamChat(
     };
     const thinkingConfig = buildThinkingConfig();
 
-    try {
-        // === Agentic loop: iterate until Gemini returns text (not function calls) ===
-        let fullText = "";
-        let tokenUsage: TokenUsage | undefined;
-        const allToolCalls: ToolCallRecord[] = [];
-        let iteration = 0;
+    // === Agentic loop: iterate until Gemini returns text (not function calls) ===
+    let fullText = "";
+    let tokenUsage: TokenUsage | undefined;
+    const allToolCalls: ToolCallRecord[] = [];
+    let iteration = 0;
 
-        // Mutable contents — we append function responses within the loop
-        const agenticContents = [...contents];
+    // Mutable contents — we append function responses within the loop
+    const agenticContents = [...contents];
 
-        while (iteration < MAX_AGENTIC_ITERATIONS) {
-            iteration++;
-            console.log(`[streamChat] Iteration ${iteration}/${MAX_AGENTIC_ITERATIONS} — calling generateContentStream...`);
+    while (iteration < MAX_AGENTIC_ITERATIONS) {
+        iteration++;
+        console.log(`[streamChat] Iteration ${iteration}/${MAX_AGENTIC_ITERATIONS} — calling generateContentStream...`);
 
-            const response = await ai.models.generateContentStream({
-                model,
-                contents: agenticContents,
-                config: {
-                    systemInstruction: systemPrompt || undefined,
-                    abortSignal: combinedAbort.signal,
-                    ...toolConfig,
-                    ...thinkingConfig,
-                },
-            });
+        // Variables declared outside the retry loop so tool-call execution can access them after break
+        let iterationText = "";
+        let chunkCount = 0;
+        const functionCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
+        // Collect raw parts from model response to preserve thought_signature
+        const rawModelParts: Part[] = [];
 
-            let iterationText = "";
-            let chunkCount = 0;
-            const functionCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
-            // Collect raw parts from model response to preserve thought_signature
-            const rawModelParts: Part[] = [];
+        // Checkpoint: save fullText before this iteration so we can restore on retry
+        const fullTextCheckpoint = fullText;
 
-            for await (const chunk of response) {
-                // Reset inactivity timer on each chunk
-                resetTimer();
-                chunkCount++;
+        // --- Per-iteration retry loop for inactivity timeouts ---
+        for (let attempt = 1; attempt <= MAX_STREAM_RETRIES + 1; attempt++) {
+            // Reset per-attempt state
+            iterationText = "";
+            chunkCount = 0;
+            functionCalls.length = 0;
+            rawModelParts.length = 0;
 
-                // Collect function calls and thoughts from this chunk
-                if (chunk.candidates?.[0]?.content?.parts) {
-                    for (const part of chunk.candidates[0].content.parts) {
-                        if (part.functionCall) {
-                            const fc = part.functionCall;
-                            functionCalls.push({
-                                name: fc.name!,
-                                args: (fc.args ?? {}) as Record<string, unknown>,
-                            });
-                            // Preserve original part (includes thought_signature)
-                            rawModelParts.push(part);
-                        } else if (part.thought && part.text) {
-                            // Extract thinking/reasoning tokens (not included in chunk.text)
-                            onThought?.(part.text);
-                            // Preserve thought parts for signature continuity
-                            rawModelParts.push(part);
-                        }
-                    }
-                }
+            // Restore fullText to checkpoint (no-op on first attempt)
+            fullText = fullTextCheckpoint;
 
-                // Collect text
-                const chunkText = chunk.text ?? "";
-                if (chunkText) {
-                    iterationText += chunkText;
-                    fullText += chunkText;
-                    onChunk(fullText);
+            // Fresh per-attempt abort controller
+            const iterationAbort = new AbortController();
+            let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
 
-                    if (chunkCount <= 3 || chunkCount % 10 === 0) {
-                        console.log(`[streamChat] chunk #${chunkCount}: +${chunkText.length} chars (total: ${fullText.length})`);
-                    }
-                }
+            // Propagate caller cancel to this iteration
+            const handleCallerAbort = () => iterationAbort.abort(signal?.reason);
+            signal?.addEventListener("abort", handleCallerAbort);
 
-                if (combinedAbort.signal.aborted) {
-                    const reason = combinedAbort.signal.reason;
-                    if (reason instanceof GeminiTimeoutError) throw reason;
-                    throw new DOMException("Generation stopped", "AbortError");
-                }
+            // Inactivity timer — aborts only this attempt
+            const resetTimer = () => {
+                if (inactivityTimer) clearTimeout(inactivityTimer);
+                inactivityTimer = setTimeout(() => {
+                    console.error(`[streamChat] ⏰ Inactivity timeout — no chunks for ${STREAM_INACTIVITY_TIMEOUT_MS / 1000}s (attempt ${attempt})`);
+                    iterationAbort.abort(new GeminiTimeoutError());
+                }, STREAM_INACTIVITY_TIMEOUT_MS);
+            };
 
-                if (chunk.usageMetadata) {
-                    tokenUsage = {
-                        promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-                        completionTokens: chunk.usageMetadata.candidatesTokenCount ?? 0,
-                        totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
-                        cachedTokens: (chunk.usageMetadata as Record<string, unknown>).cachedContentTokenCount as number | undefined,
-                    };
-                }
-            }
+            try {
+                resetTimer(); // start timer before API call
 
-            console.log(`[streamChat] Iteration ${iteration} done — ${chunkCount} chunks, ${iterationText.length} chars text, ${functionCalls.length} function calls`);
-
-            // If no function calls, we're done — Gemini returned a final text response
-            if (functionCalls.length === 0) {
-                break;
-            }
-
-            // --- Execute function calls ---
-            if (!toolContext) {
-                console.warn(`[streamChat] Gemini returned function calls but no toolContext — skipping`);
-                break;
-            }
-
-            // Append Gemini's original response (preserves thought_signature in functionCall parts)
-            const { createFR } = await getPartFactories();
-            const modelParts: Part[] = [];
-            if (iterationText) {
-                modelParts.push({ text: iterationText });
-            }
-            // Use raw parts from model response — they contain thought_signature
-            modelParts.push(...rawModelParts);
-            agenticContents.push({ role: "model", parts: modelParts });
-
-            // Execute all tools in parallel and collect responses
-            // Emit toolCall SSE events immediately so UI shows pending badges
-            const batchStartIndex = allToolCalls.length;
-            for (let i = 0; i < functionCalls.length; i++) {
-                const fc = functionCalls[i];
-                onToolCall?.(fc.name, fc.args, batchStartIndex + i);
-            }
-
-            const results = await Promise.all(
-                functionCalls.map((fc, i) => {
-                    const callIndex = batchStartIndex + i;
-                    console.log(`[streamChat] Executing tool: ${fc.name}(${JSON.stringify(fc.args)})`);
-                    const toolCtxWithProgress: ToolContext = {
-                        ...toolContext,
-                        reportProgress: (message: string) => {
-                            onToolProgress?.(fc.name, message, callIndex);
-                        },
-                    };
-                    return executeTool({ name: fc.name, args: fc.args }, toolCtxWithProgress);
-                }),
-            );
-
-            const functionResponseParts: Part[] = [];
-            for (let i = 0; i < results.length; i++) {
-                const result = results[i];
-                const fc = functionCalls[i];
-                const callIndex = batchStartIndex + i;
-
-                // Run thumbnail middleware on every tool response (no-op if no visualContextUrls)
-                const { imageParts, updatedCache, cleanedResponse, blockedCount } =
-                    await enhanceWithThumbnails(
-                        result.response,
-                        largePayloadApproved ?? false,
-                        apiKey,
-                        currentThumbnailCache,
-                        (msg) => onToolProgress?.(result.name, msg, callIndex),
-                    );
-                currentThumbnailCache = updatedCache;
-
-                if (blockedCount) {
-                    onLargePayloadBlocked?.(blockedCount);
-                }
-
-                // Strip internal Gemini hints before exposing to UI / persisting to Firestore.
-                // The full cleanedResponse (with _systemNote) still goes to Gemini via createFR.
-                const uiResponse: Record<string, unknown> = { ...cleanedResponse };
-                delete uiResponse._systemNote;
-                delete uiResponse._failedThumbnails;
-
-                onToolResult?.(result.name, uiResponse, callIndex);
-                allToolCalls.push({
-                    name: result.name,
-                    args: fc.args,
-                    result: uiResponse,
+                const response = await ai.models.generateContentStream({
+                    model,
+                    contents: agenticContents,
+                    config: {
+                        systemInstruction: systemPrompt || undefined,
+                        abortSignal: iterationAbort.signal,
+                        ...toolConfig,
+                        ...thinkingConfig,
+                    },
                 });
 
-                functionResponseParts.push(
-                    createFR("", result.name, cleanedResponse),
-                );
-                if (imageParts.length > 0) {
-                    functionResponseParts.push(...imageParts);
+                for await (const chunk of response) {
+                    resetTimer(); // reset on each chunk
+                    chunkCount++;
+
+                    // Collect function calls and thoughts from this chunk
+                    if (chunk.candidates?.[0]?.content?.parts) {
+                        for (const part of chunk.candidates[0].content.parts) {
+                            if (part.functionCall) {
+                                const fc = part.functionCall;
+                                functionCalls.push({
+                                    name: fc.name!,
+                                    args: (fc.args ?? {}) as Record<string, unknown>,
+                                });
+                                // Preserve original part (includes thought_signature)
+                                rawModelParts.push(part);
+                            } else if (part.thought && part.text) {
+                                // Extract thinking/reasoning tokens (not included in chunk.text)
+                                onThought?.(part.text);
+                                // Preserve thought parts for signature continuity
+                                rawModelParts.push(part);
+                            }
+                        }
+                    }
+
+                    // Collect text
+                    const chunkText = chunk.text ?? "";
+                    if (chunkText) {
+                        iterationText += chunkText;
+                        fullText += chunkText;
+                        onChunk(fullText);
+
+                        if (chunkCount <= 3 || chunkCount % 10 === 0) {
+                            console.log(`[streamChat] chunk #${chunkCount}: +${chunkText.length} chars (total: ${fullText.length})`);
+                        }
+                    }
+
+                    if (iterationAbort.signal.aborted) {
+                        const reason = iterationAbort.signal.reason;
+                        if (reason instanceof GeminiTimeoutError) throw reason;
+                        throw new DOMException("Generation stopped", "AbortError");
+                    }
+
+                    if (chunk.usageMetadata) {
+                        tokenUsage = {
+                            promptTokens: chunk.usageMetadata.promptTokenCount ?? 0,
+                            completionTokens: chunk.usageMetadata.candidatesTokenCount ?? 0,
+                            totalTokens: chunk.usageMetadata.totalTokenCount ?? 0,
+                            cachedTokens: (chunk.usageMetadata as Record<string, unknown>).cachedContentTokenCount as number | undefined,
+                        };
+                    }
                 }
+
+                console.log(`[streamChat] Iteration ${iteration} done — ${chunkCount} chunks, ${iterationText.length} chars text, ${functionCalls.length} function calls`);
+                // Success — exit retry loop
+                break;
+
+            } catch (err) {
+                if (err instanceof GeminiTimeoutError) {
+                    // If the caller cancelled, don't retry — propagate immediately
+                    if (signal?.aborted) throw err;
+
+                    if (attempt <= MAX_STREAM_RETRIES) {
+                        console.log(`[streamChat] Retry attempt ${attempt}/${MAX_STREAM_RETRIES} after timeout — iteration ${iteration}`);
+                        onRetry?.(attempt);
+                        continue; // next attempt
+                    }
+                    // Exhausted all retries — propagate
+                    throw err;
+                }
+                // Non-timeout errors propagate immediately
+                throw err;
+            } finally {
+                if (inactivityTimer) clearTimeout(inactivityTimer);
+                signal?.removeEventListener("abort", handleCallerAbort);
+            }
+        }
+
+        // If no function calls, we're done — Gemini returned a final text response
+        if (functionCalls.length === 0) {
+            break;
+        }
+
+        // --- Execute function calls ---
+        if (!toolContext) {
+            console.warn(`[streamChat] Gemini returned function calls but no toolContext — skipping`);
+            break;
+        }
+
+        // Append Gemini's original response (preserves thought_signature in functionCall parts)
+        const { createFR } = await getPartFactories();
+        const modelParts: Part[] = [];
+        if (iterationText) {
+            modelParts.push({ text: iterationText });
+        }
+        // Use raw parts from model response — they contain thought_signature
+        modelParts.push(...rawModelParts);
+        agenticContents.push({ role: "model", parts: modelParts });
+
+        // Execute all tools in parallel and collect responses
+        // Emit toolCall SSE events immediately so UI shows pending badges
+        const batchStartIndex = allToolCalls.length;
+        for (let i = 0; i < functionCalls.length; i++) {
+            const fc = functionCalls[i];
+            onToolCall?.(fc.name, fc.args, batchStartIndex + i);
+        }
+
+        const results = await Promise.all(
+            functionCalls.map((fc, i) => {
+                const callIndex = batchStartIndex + i;
+                console.log(`[streamChat] Executing tool: ${fc.name}(${JSON.stringify(fc.args)})`);
+                const toolCtxWithProgress: ToolContext = {
+                    ...toolContext,
+                    reportProgress: (message: string) => {
+                        onToolProgress?.(fc.name, message, callIndex);
+                    },
+                };
+                return executeTool({ name: fc.name, args: fc.args }, toolCtxWithProgress);
+            }),
+        );
+
+        const functionResponseParts: Part[] = [];
+        for (let i = 0; i < results.length; i++) {
+            const result = results[i];
+            const fc = functionCalls[i];
+            const callIndex = batchStartIndex + i;
+
+            // Run thumbnail middleware on every tool response (no-op if no visualContextUrls)
+            const { imageParts, updatedCache, cleanedResponse, blockedCount } =
+                await enhanceWithThumbnails(
+                    result.response,
+                    largePayloadApproved ?? false,
+                    apiKey,
+                    currentThumbnailCache,
+                    (msg) => onToolProgress?.(result.name, msg, callIndex),
+                );
+            currentThumbnailCache = updatedCache;
+
+            if (blockedCount) {
+                onLargePayloadBlocked?.(blockedCount);
             }
 
-            // Append function responses for next iteration
-            agenticContents.push({ role: "user", parts: functionResponseParts });
+            // Strip internal Gemini hints before exposing to UI / persisting to Firestore.
+            // The full cleanedResponse (with _systemNote) still goes to Gemini via createFR.
+            const uiResponse: Record<string, unknown> = { ...cleanedResponse };
+            delete uiResponse._systemNote;
+            delete uiResponse._failedThumbnails;
+
+            onToolResult?.(result.name, uiResponse, callIndex);
+            allToolCalls.push({
+                name: result.name,
+                args: fc.args,
+                result: uiResponse,
+            });
+
+            functionResponseParts.push(
+                createFR("", result.name, cleanedResponse),
+            );
+            if (imageParts.length > 0) {
+                functionResponseParts.push(...imageParts);
+            }
         }
 
-        if (iteration >= MAX_AGENTIC_ITERATIONS) {
-            console.warn(`[streamChat] ⚠️ Reached max iterations (${MAX_AGENTIC_ITERATIONS}) — stopping agentic loop`);
-        }
-
-        const tEnd = Date.now();
-        console.log(`[streamChat] ✅ Done — ${iteration} iteration(s), ${allToolCalls.length} tool calls, ${fullText.length} chars, ${tEnd - t0}ms total`);
-        if (tokenUsage) {
-            const cached = tokenUsage.cachedTokens ? ` cached=${tokenUsage.cachedTokens}` : ' cached=0';
-            console.log(`[streamChat] Tokens: prompt=${tokenUsage.promptTokens}, completion=${tokenUsage.completionTokens}, total=${tokenUsage.totalTokens}${cached}`);
-        }
-        return {
-            text: fullText,
-            tokenUsage,
-            toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
-            // Return the fully accumulated cache (initial upload + any mid-conversation fetches)
-            updatedThumbnailCache: currentThumbnailCache,
-        };
-    } catch (err) {
-        // Map AbortError caused by our timeout to GeminiTimeoutError
-        if (
-            timeoutController.signal.aborted &&
-            !(err instanceof GeminiTimeoutError)
-        ) {
-            throw new GeminiTimeoutError();
-        }
-        throw err;
-    } finally {
-        if (inactivityTimer) clearTimeout(inactivityTimer);
+        // Append function responses for next iteration
+        agenticContents.push({ role: "user", parts: functionResponseParts });
     }
+
+    if (iteration >= MAX_AGENTIC_ITERATIONS) {
+        console.warn(`[streamChat] ⚠️ Reached max iterations (${MAX_AGENTIC_ITERATIONS}) — stopping agentic loop`);
+    }
+
+    const tEnd = Date.now();
+    console.log(`[streamChat] ✅ Done — ${iteration} iteration(s), ${allToolCalls.length} tool calls, ${fullText.length} chars, ${tEnd - t0}ms total`);
+    if (tokenUsage) {
+        const cached = tokenUsage.cachedTokens ? ` cached=${tokenUsage.cachedTokens}` : ' cached=0';
+        console.log(`[streamChat] Tokens: prompt=${tokenUsage.promptTokens}, completion=${tokenUsage.completionTokens}, total=${tokenUsage.totalTokens}${cached}`);
+    }
+    return {
+        text: fullText,
+        tokenUsage,
+        toolCalls: allToolCalls.length > 0 ? allToolCalls : undefined,
+        // Return the fully accumulated cache (initial upload + any mid-conversation fetches)
+        updatedThumbnailCache: currentThumbnailCache,
+    };
 }
