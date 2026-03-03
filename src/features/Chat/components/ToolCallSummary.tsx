@@ -2,15 +2,16 @@
 // ToolCallSummary — consolidated pill display for tool calls in AI responses
 //
 // Replaces individual ToolCallBadge mapping. Groups tool calls by type and
-// renders 1-2 consolidated pills with expandable video previews.
+// renders consolidated pills with expandable details.
 //
-// Two pill types:
-//   1. mentionVideo  → "Based on N videos" — which videos Gemini references
-//   2. getMultipleVideoDetails → "Fetched details for N videos" — audit trail
+// Pill types:
+//   1. mentionVideo  → "Mentioned N videos" — which videos Gemini references
+//   2. getMultipleVideoDetails → "Loaded details for N videos" — audit trail
+//   3. analyzeSuggestedTraffic → "Suggested Traffic Analysis" — expandable stats
 // =============================================================================
 
 import React, { useState } from 'react';
-import { Loader2, Check, AlertCircle, ChevronDown } from 'lucide-react';
+import { Loader2, Check, AlertCircle, ChevronDown, BarChart3, TrendingUp } from 'lucide-react';
 import type { ToolCallRecord } from '../../../core/types/chat';
 import type { VideoCardContext } from '../../../core/types/appContext';
 import { groupToolCalls, getGroupLabel, isExpandable } from '../utils/toolCallGrouping';
@@ -19,24 +20,60 @@ import { PortalTooltip } from '../../../components/ui/atoms/PortalTooltip';
 import { VideoTooltipContent } from './VideoTooltipContent';
 import { formatViewCount } from '../../../core/utils/formatUtils';
 
+// --- Types ---
+
+/** ToolCallRecord extended with optional real-time progress (mirrors ActiveToolCall in chatStore). */
+type ToolCallWithProgress = ToolCallRecord & { progressMessage?: string };
+
 // --- Props ---
 
 interface ToolCallSummaryProps {
-    toolCalls: ToolCallRecord[];
+    toolCalls: ToolCallWithProgress[];
     videoMap?: Map<string, VideoCardContext>;
     isStreaming?: boolean;
 }
 
 // --- Sub-components ---
 
+/** Compact stats for analyzeSuggestedTraffic expanded view. */
+const AnalysisStats: React.FC<{ result: Record<string, unknown> }> = ({ result }) => {
+    const timeline = result.snapshotTimeline as Array<{ date: string; totalSources: number }> | undefined;
+    const topSources = result.topSources as unknown[] | undefined;
+    const newEntries = result.newEntries as unknown[] | undefined;
+    const droppedEntries = result.droppedEntries as unknown[] | undefined;
+    const tail = result.tail as { count: number } | undefined;
+
+    const snapshotCount = timeline?.length ?? 0;
+    const totalSources = (topSources?.length ?? 0) + (tail?.count ?? 0);
+    const topCount = topSources?.length ?? 0;
+    const newCount = newEntries?.length ?? 0;
+    const droppedCount = droppedEntries?.length ?? 0;
+
+    return (
+        <div className="flex flex-col gap-1.5 px-2 py-1.5 rounded-md bg-white/[0.03] text-[11px] text-text-secondary">
+            <span className="inline-flex items-center gap-1.5">
+                <BarChart3 size={11} className="shrink-0 opacity-60" />
+                {snapshotCount} {snapshotCount === 1 ? 'snapshot' : 'snapshots'} · {totalSources} sources
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+                <TrendingUp size={11} className="shrink-0 opacity-60" />
+                Top {topCount} analyzed{newCount > 0 && ` · ${newCount} new`}{droppedCount > 0 && ` · ${droppedCount} dropped`}
+            </span>
+        </div>
+    );
+};
+
 /** Single consolidated pill for a tool call group. */
 const GroupPill: React.FC<{
     group: ToolCallGroup;
     videoMap?: Map<string, VideoCardContext>;
-}> = ({ group, videoMap }) => {
+    /** Real-time progress message for the first unresolved call in this group. */
+    progressMessage?: string;
+}> = ({ group, videoMap, progressMessage }) => {
     const [expanded, setExpanded] = useState(false);
 
-    const label = getGroupLabel(group);
+    // Show progressMessage when the group is still pending (not all resolved) and one is available
+    const label = (!group.allResolved && progressMessage) ? progressMessage : getGroupLabel(group);
     const expandable = isExpandable(group);
 
     // Color scheme — mentionVideo uses indigo (matching inline mention highlight),
@@ -83,9 +120,14 @@ const GroupPill: React.FC<{
                 )}
             </button>
 
-            {/* Expanded video preview list */}
+            {/* Expanded content */}
             {expanded && group.allResolved && (
                 <div className="mt-1.5 flex flex-col gap-1 w-full">
+                    {/* Analysis tool: compact stats summary */}
+                    {group.toolName === 'analyzeSuggestedTraffic' && group.records[0]?.result && (
+                        <AnalysisStats result={group.records[0].result} />
+                    )}
+                    {/* Video-based tools: video preview list */}
                     {group.videoIds.map(videoId => {
                         const video = videoMap?.get(videoId);
                         const fallbackTitle = getFallbackTitle(group, videoId);
@@ -171,6 +213,14 @@ export const ToolCallSummary: React.FC<ToolCallSummaryProps> = React.memo(({
 
     const groups = groupToolCalls(toolCalls);
 
+    // Build a map from toolName → first progressMessage from unresolved calls
+    const progressMap = new Map<string, string>();
+    for (const tc of toolCalls) {
+        if (!tc.result && tc.progressMessage && !progressMap.has(tc.name)) {
+            progressMap.set(tc.name, tc.progressMessage);
+        }
+    }
+
     // Render order: getMultipleVideoDetails first (data fetch), then mentionVideo (references)
     const sorted = [...groups].sort((a, b) => {
         if (a.toolName === 'getMultipleVideoDetails') return -1;
@@ -185,6 +235,7 @@ export const ToolCallSummary: React.FC<ToolCallSummaryProps> = React.memo(({
                     key={group.toolName}
                     group={group}
                     videoMap={videoMap}
+                    progressMessage={progressMap.get(group.toolName)}
                 />
             ))}
         </div>

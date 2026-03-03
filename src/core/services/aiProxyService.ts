@@ -20,9 +20,11 @@ interface StreamChatOpts {
     contextMeta?: { videoCards?: number; trafficSources?: number; canvasNodes?: number; totalItems?: number };
     onStream: (fullText: string) => void;
     /** Called when Gemini initiates a tool call (before execution). */
-    onToolCall?: (name: string, args: Record<string, unknown>) => void;
+    onToolCall?: (name: string, args: Record<string, unknown>, toolCallIndex: number) => void;
     /** Called after a tool finishes executing with its result. */
-    onToolResult?: (name: string, result: Record<string, unknown>) => void;
+    onToolResult?: (name: string, result: Record<string, unknown>, toolCallIndex: number) => void;
+    /** Called when a tool emits a progress update during execution. */
+    onToolProgress?: (toolName: string, message: string, toolCallIndex: number) => void;
     /** Called when Gemini emits thinking tokens. */
     onThought?: (text: string) => void;
     /** Thinking depth option id (matches model's thinkingOptions). */
@@ -74,6 +76,7 @@ export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult
         onStream,
         onToolCall,
         onToolResult,
+        onToolProgress,
         onThought,
         thinkingOptionId,
         signal,
@@ -207,10 +210,13 @@ export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult
                         onStream(sseEvent.text);
                         break;
                     case 'toolCall':
-                        onToolCall?.(sseEvent.name, sseEvent.args);
+                        onToolCall?.(sseEvent.name, sseEvent.args, sseEvent.toolCallIndex);
                         break;
                     case 'toolResult':
-                        onToolResult?.(sseEvent.name, sseEvent.result);
+                        onToolResult?.(sseEvent.name, sseEvent.result, sseEvent.toolCallIndex);
+                        break;
+                    case 'toolProgress':
+                        onToolProgress?.(sseEvent.toolName, sseEvent.message, sseEvent.toolCallIndex);
                         break;
                     case 'thought':
                         onThought?.(sseEvent.text);

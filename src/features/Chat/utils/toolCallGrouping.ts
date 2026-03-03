@@ -106,13 +106,23 @@ export function getGroupLabel(group: ToolCallGroup): string {
             : `Loading video details...`;
     }
 
+    if (group.toolName === 'analyzeSuggestedTraffic') {
+        if (group.hasErrors) return "Couldn't analyze suggested traffic";
+        return group.allResolved
+            ? 'Suggested Traffic Analysis'
+            : 'Analyzing suggested traffic...';
+    }
+
     // Fallback for unknown tools
     return group.allResolved ? group.toolName : `Running ${group.toolName}...`;
 }
 
-/** Whether a group should be expandable (has video previews to show). */
+/** Whether a group should be expandable (has video previews to show, or has result details). */
 export function isExpandable(group: ToolCallGroup): boolean {
-    return group.videoIds.length > 0;
+    if (group.videoIds.length > 0) return true;
+    // Analysis tools are expandable when resolved (show summary stats)
+    if (group.toolName === 'analyzeSuggestedTraffic' && group.allResolved) return true;
+    return false;
 }
 
 // --- Helpers ---

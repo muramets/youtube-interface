@@ -18,6 +18,7 @@ import type { FunctionDeclaration } from "@google/genai";
 export const TOOL_NAMES = {
     MENTION_VIDEO: "mentionVideo",
     GET_MULTIPLE_VIDEO_DETAILS: "getMultipleVideoDetails",
+    ANALYZE_SUGGESTED_TRAFFIC: "analyzeSuggestedTraffic",
 } as const;
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];
@@ -65,9 +66,53 @@ const getMultipleVideoDetails: FunctionDeclaration = {
     },
 };
 
+const analyzeSuggestedTraffic: FunctionDeclaration = {
+    name: TOOL_NAMES.ANALYZE_SUGGESTED_TRAFFIC,
+    description:
+        "Analyze suggested traffic data for a video. Downloads all CSV snapshots, " +
+        "calculates view/impression deltas between snapshots, identifies biggest movers, " +
+        "new entries, dropped entries, and optionally analyzes tag/keyword overlap with " +
+        "suggested videos. Returns pre-computed structured findings for strategic " +
+        "interpretation. Use when the user asks about suggested traffic, algorithmic " +
+        "neighbors, or which videos appear alongside theirs.",
+    parametersJsonSchema: {
+        type: "object",
+        properties: {
+            videoId: {
+                type: "string",
+                description: "The video ID to analyze suggested traffic for",
+            },
+            limit: {
+                type: "number",
+                description: "Max number of top sources to return (default 20, max 500)",
+            },
+            minImpressions: {
+                type: "number",
+                description: "Filter out sources with fewer impressions",
+            },
+            minViews: {
+                type: "number",
+                description: "Filter out sources with fewer views",
+            },
+            sortBy: {
+                type: "string",
+                enum: ["views", "impressions", "deltaViews", "deltaImpressions"],
+                description: "Sort top sources by this metric (default: views)",
+            },
+            includeContentAnalysis: {
+                type: "boolean",
+                description:
+                    "Include tag/keyword/channel analysis (default true, heavier operation)",
+            },
+        },
+        required: ["videoId"],
+    },
+};
+
 // --- Exported registry ---
 
 export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
     mentionVideo,
     getMultipleVideoDetails,
+    analyzeSuggestedTraffic,
 ];

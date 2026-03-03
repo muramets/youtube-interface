@@ -102,3 +102,48 @@ UI listens for status changes via Firestore `onSnapshot`. Download links come fr
 - TypeScript strict mode is on
 - Vite config splits vendor chunks: firebase, ai, vendor, app (see `vite.config.ts`)
 - PWA is configured via `vite-plugin-pwa` with workbox caching and auto-update
+
+## Working Rules
+
+### Language
+- Think and reason internally in English.
+- All responses to the user must be in Russian with English technical terminology preserved (component names, library names, CLI commands, etc.).
+
+### Before Editing Code
+- Always provide a brief, user-friendly overview in Russian before touching any code: what the bug is, why it exists, what changes will be made, and any potential negative side effects.
+- **Never commit or push without explicit user instruction. Ever.**
+- Required "long term vision" discussion before editing: for a feature — discuss its final state in the market-ready product and how it integrates with existing functionality; for a refactor — discuss how it fits the overall app and where else the data/logic is used.
+- The codeword to begin editing the codebase is **"ебашим"**. Do not touch code until this word is received.
+
+### After Editing Code
+- Always run `npm run lint` from the project root (not `tsc` directly). Lint includes type-aware checks + hooks rules.
+- When creating new files or refactoring imports — additionally run `npm run typecheck`.
+- Fix all lint errors and warnings following industry best practices — no hacks or workarounds. If a fix requires an architectural change, make it.
+
+### Communication Style
+- The user is a product director / orchestra conductor with no assumed technical background. Always accompany technical explanations with plain, everyday Russian language analogies.
+- Present solutions following industry best practices: clean code, separation of concerns, no anti-patterns, clear placement within the project structure.
+
+### Design System
+- Always prioritize existing design tokens from `src/components/ui/` and Tailwind config for new features.
+- If existing tokens are insufficient, extend the global design system — never hardcode values.
+- All new UI must use CSS variables that respond to theme changes.
+
+### Feature Documentation (`docs/features/`)
+- Before changing any file in `src/features/` or `src/pages/` — read its doc in `docs/features/`.
+- After changes — update "Текущее состояние", move the `← YOU ARE HERE` marker, and update cross-feature links if integrations changed. If another feature is affected, update both docs.
+- If no doc exists — create one from the template below and send it for review before proceeding.
+- Send the updated doc to the user in chat after every update.
+- **Doc template (Russian, compact)**:
+  - `current state` — ≤10 lines; business logic in plain language; separate technical details from business logic.
+  - `roadmap` — per-stage description of user flow + checklist; final stage = market-ready vision (architecture, cost, storage, API usage).
+
+### Separation of Concerns
+- When creating a new hook or component, immediately extract pure logic (calculations, transformations, formatting) into a separate `utils` file.
+- Hooks = I/O + orchestration only. Components = presentation only. Pure functions = separate files in `utils/`.
+- Never "write everything together and refactor later" — that is an anti-pattern.
+
+### Domain-Driven File Organization
+- When new functionality contains 2+ files of the same domain (e.g. definitions + executor + handlers) — immediately place them in a dedicated folder.
+- One handler / hook / util = one file. Dispatcher / registry = separate file.
+- Every new file must have a single responsibility (SRP). If a file mixes routing and business logic — split immediately, not in a future refactor.

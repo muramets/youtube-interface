@@ -5,6 +5,8 @@
 export interface ToolContext {
     userId: string;
     channelId: string;
+    /** Optional: emit a mid-execution progress message to the client via SSE. */
+    reportProgress?: (message: string) => void;
 }
 
 export interface FunctionCallInput {

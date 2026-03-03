@@ -99,8 +99,9 @@ export const AiService = {
         thumbnailUrls?: string[];
         contextMeta?: { videoCards?: number; trafficSources?: number; canvasNodes?: number; totalItems?: number };
         onStream?: (chunk: string) => void;
-        onToolCall?: (name: string, args: Record<string, unknown>) => void;
-        onToolResult?: (name: string, result: Record<string, unknown>) => void;
+        onToolCall?: (name: string, args: Record<string, unknown>, toolCallIndex: number) => void;
+        onToolResult?: (name: string, result: Record<string, unknown>, toolCallIndex: number) => void;
+        onToolProgress?: (toolName: string, message: string, toolCallIndex: number) => void;
         onThought?: (text: string) => void;
         thinkingOptionId?: string;
         signal?: AbortSignal;
@@ -117,6 +118,7 @@ export const AiService = {
             onStream: opts.onStream || (() => { }),
             onToolCall: opts.onToolCall,
             onToolResult: opts.onToolResult,
+            onToolProgress: opts.onToolProgress,
             onThought: opts.onThought,
             thinkingOptionId: opts.thinkingOptionId,
             signal: opts.signal,

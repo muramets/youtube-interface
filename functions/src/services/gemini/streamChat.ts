@@ -47,11 +47,13 @@ export interface StreamChatOpts {
     thumbnailCache?: ThumbnailCache;
     onChunk: (fullText: string) => void;
     /** Called when Gemini initiates a tool call (before execution). */
-    onToolCall?: (name: string, args: Record<string, unknown>) => void;
+    onToolCall?: (name: string, args: Record<string, unknown>, toolCallIndex: number) => void;
     /** Called after a tool finishes executing with its result. */
-    onToolResult?: (name: string, result: Record<string, unknown>) => void;
+    onToolResult?: (name: string, result: Record<string, unknown>, toolCallIndex: number) => void;
     /** Called when Gemini emits thinking/reasoning tokens. */
     onThought?: (thought: string) => void;
+    /** Called during tool execution to report intermediate progress steps. */
+    onToolProgress?: (toolName: string, message: string, toolCallIndex: number) => void;
     signal?: AbortSignal;
     /** Callback to persist re-uploaded Gemini URIs back to Firestore */
     onAttachmentUpdate?: (
@@ -149,6 +151,7 @@ export async function streamChat(
         onToolCall,
         onToolResult,
         onThought,
+        onToolProgress,
         signal,
         onAttachmentUpdate,
         toolContext,
@@ -270,6 +273,8 @@ export async function streamChat(
             let iterationText = "";
             let chunkCount = 0;
             const functionCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
+            // Collect raw parts from model response to preserve thought_signature
+            const rawModelParts: Part[] = [];
 
             for await (const chunk of response) {
                 // Reset inactivity timer on each chunk
@@ -285,10 +290,13 @@ export async function streamChat(
                                 name: fc.name!,
                                 args: (fc.args ?? {}) as Record<string, unknown>,
                             });
-                        }
-                        // Extract thinking/reasoning tokens (not included in chunk.text)
-                        if (part.thought && part.text) {
+                            // Preserve original part (includes thought_signature)
+                            rawModelParts.push(part);
+                        } else if (part.thought && part.text) {
+                            // Extract thinking/reasoning tokens (not included in chunk.text)
                             onThought?.(part.text);
+                            // Preserve thought parts for signature continuity
+                            rawModelParts.push(part);
                         }
                     }
                 }
@@ -334,27 +342,35 @@ export async function streamChat(
                 break;
             }
 
-            // Append Gemini's response (with function calls) to contents
-            const { createFC, createFR } = await getPartFactories();
+            // Append Gemini's original response (preserves thought_signature in functionCall parts)
+            const { createFR } = await getPartFactories();
             const modelParts: Part[] = [];
             if (iterationText) {
                 modelParts.push({ text: iterationText });
             }
-            for (const fc of functionCalls) {
-                modelParts.push(createFC(fc.name, fc.args));
-            }
+            // Use raw parts from model response — they contain thought_signature
+            modelParts.push(...rawModelParts);
             agenticContents.push({ role: "model", parts: modelParts });
 
             // Execute all tools in parallel and collect responses
             // Emit toolCall SSE events immediately so UI shows pending badges
-            for (const fc of functionCalls) {
-                onToolCall?.(fc.name, fc.args);
+            const batchStartIndex = allToolCalls.length;
+            for (let i = 0; i < functionCalls.length; i++) {
+                const fc = functionCalls[i];
+                onToolCall?.(fc.name, fc.args, batchStartIndex + i);
             }
 
             const results = await Promise.all(
-                functionCalls.map(fc => {
+                functionCalls.map((fc, i) => {
+                    const callIndex = batchStartIndex + i;
                     console.log(`[streamChat] Executing tool: ${fc.name}(${JSON.stringify(fc.args)})`);
-                    return executeTool({ name: fc.name, args: fc.args }, toolContext);
+                    const toolCtxWithProgress: ToolContext = {
+                        ...toolContext,
+                        reportProgress: (message: string) => {
+                            onToolProgress?.(fc.name, message, callIndex);
+                        },
+                    };
+                    return executeTool({ name: fc.name, args: fc.args }, toolCtxWithProgress);
                 }),
             );
 
@@ -362,8 +378,9 @@ export async function streamChat(
             for (let i = 0; i < results.length; i++) {
                 const result = results[i];
                 const fc = functionCalls[i];
+                const callIndex = batchStartIndex + i;
 
-                onToolResult?.(result.name, result.response);
+                onToolResult?.(result.name, result.response, callIndex);
                 allToolCalls.push({
                     name: result.name,
                     args: fc.args,

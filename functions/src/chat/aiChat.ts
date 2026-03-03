@@ -134,14 +134,17 @@ export const aiChat = onRequest(
                 onChunk: (fullText) => {
                     writeSSE(res, { type: "chunk", text: fullText });
                 },
-                onToolCall: (name, args) => {
-                    writeSSE(res, { type: "toolCall", name, args });
+                onToolCall: (name, args, toolCallIndex) => {
+                    writeSSE(res, { type: "toolCall", name, args, toolCallIndex });
                 },
-                onToolResult: (name, result) => {
-                    writeSSE(res, { type: "toolResult", name, result });
+                onToolResult: (name, result, toolCallIndex) => {
+                    writeSSE(res, { type: "toolResult", name, result, toolCallIndex });
                 },
                 onThought: (text) => {
                     writeSSE(res, { type: "thought", text });
+                },
+                onToolProgress: (toolName, message, toolCallIndex) => {
+                    writeSSE(res, { type: "toolProgress", toolName, message, toolCallIndex });
                 },
                 onAttachmentUpdate: async (messageId, attachmentIndex, geminiFileUri, geminiFileExpiry) => {
                     // Persist re-uploaded Gemini URI back to Firestore

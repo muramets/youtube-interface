@@ -12,6 +12,7 @@ import type { ToolCallRecord } from '../../../core/types/chat';
 const TOOL_LABELS: Record<string, { pending: string; resolved: string }> = {
     mentionVideo: { pending: 'Looking up video...', resolved: 'Video found' },
     getMultipleVideoDetails: { pending: 'Fetching video details...', resolved: 'Details loaded' },
+    analyzeSuggestedTraffic: { pending: 'Analyzing suggested traffic', resolved: 'Suggested traffic analyzed' },
 };
 
 function getToolLabel(name: string, resolved: boolean): string {
@@ -31,9 +32,11 @@ function getResultTitle(record: ToolCallRecord): string | null {
 
 interface ToolCallBadgeProps {
     record: ToolCallRecord;
+    /** Optional real-time progress message emitted during tool execution (toolProgress SSE event). */
+    progressMessage?: string;
 }
 
-export const ToolCallBadge: React.FC<ToolCallBadgeProps> = ({ record }) => {
+export const ToolCallBadge: React.FC<ToolCallBadgeProps> = ({ record, progressMessage }) => {
     const [expanded, setExpanded] = useState(false);
 
     const isResolved = record.result !== undefined;
@@ -44,7 +47,9 @@ export const ToolCallBadge: React.FC<ToolCallBadgeProps> = ({ record }) => {
         ? String(record.result?.error)
         : title
             ? `${getToolLabel(record.name, true)}: "${title}"`
-            : getToolLabel(record.name, isResolved);
+            : (!isResolved && progressMessage)
+                ? progressMessage
+                : getToolLabel(record.name, isResolved);
 
     // Color scheme based on state
     const stateClasses = isError

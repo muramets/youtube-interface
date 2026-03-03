@@ -30,6 +30,7 @@ export type SSEEvent =
     | SSEToolResultEvent
     | SSEThoughtEvent
     | SSEDoneEvent
+    | SSEToolProgressEvent
     | SSEErrorEvent;
 
 export interface SSEChunkEvent {
@@ -41,12 +42,14 @@ export interface SSEToolCallEvent {
     type: 'toolCall';
     name: string;
     args: Record<string, unknown>;
+    toolCallIndex: number;
 }
 
 export interface SSEToolResultEvent {
     type: 'toolResult';
     name: string;
     result: Record<string, unknown>;
+    toolCallIndex: number;
 }
 
 export interface SSEThoughtEvent {
@@ -61,6 +64,13 @@ export interface SSEDoneEvent {
     toolCalls?: ToolCallRecord[];
     summary?: string;
     usedSummary?: boolean;
+}
+
+export interface SSEToolProgressEvent {
+    type: 'toolProgress';
+    toolName: string;
+    message: string;
+    toolCallIndex: number;
 }
 
 export interface SSEErrorEvent {
@@ -87,12 +97,14 @@ export function parseSSEEvent(data: string): SSEEvent | null {
                     type: 'toolCall',
                     name: parsed.name as string,
                     args: (parsed.args as Record<string, unknown>) ?? {},
+                    toolCallIndex: (parsed.toolCallIndex as number) ?? 0,
                 };
             case 'toolResult':
                 return {
                     type: 'toolResult',
                     name: parsed.name as string,
                     result: (parsed.result as Record<string, unknown>) ?? {},
+                    toolCallIndex: (parsed.toolCallIndex as number) ?? 0,
                 };
             case 'thought':
                 return { type: 'thought', text: parsed.text as string };
@@ -104,6 +116,13 @@ export function parseSSEEvent(data: string): SSEEvent | null {
                     toolCalls: parsed.toolCalls as ToolCallRecord[] | undefined,
                     summary: parsed.summary as string | undefined,
                     usedSummary: parsed.usedSummary as boolean | undefined,
+                };
+            case 'toolProgress':
+                return {
+                    type: 'toolProgress',
+                    toolName: String(parsed.toolName ?? ''),
+                    message: String(parsed.message ?? ''),
+                    toolCallIndex: (parsed.toolCallIndex as number) ?? 0,
                 };
             case 'error':
                 return { type: 'error', error: parsed.error as string };

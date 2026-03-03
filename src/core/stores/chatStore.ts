@@ -15,6 +15,13 @@ import type {
     ConversationMemory,
     ToolCallRecord,
 } from '../types/chat';
+
+/** Transient tool call entry tracked during streaming — extends ToolCallRecord with optional progress. */
+interface ActiveToolCall extends ToolCallRecord {
+    progressMessage?: string;
+    /** Unique index assigned per tool call within a streaming response — used for precise matching. */
+    _callIndex: number;
+}
 import { DEFAULT_AI_SETTINGS } from '../types/chat';
 import { ChatService, MESSAGE_PAGE_SIZE, CONVERSATION_PAGE_SIZE } from '../services/chatService';
 import { AiService } from '../services/aiService';
@@ -64,7 +71,7 @@ interface ChatState {
     isLoading: boolean;
     isStreaming: boolean;
     streamingText: string;
-    activeToolCalls: ToolCallRecord[]; // tool calls in current streaming response (transient)
+    activeToolCalls: ActiveToolCall[]; // tool calls in current streaming response (transient)
     thinkingText: string; // thinking text in current streaming response (transient)
     error: string | null;
     hasMoreMessages: boolean;
@@ -241,16 +248,26 @@ async function streamAiResponse(
         contextMeta,
         thinkingOptionId: thinkingOptionId || undefined,
         onStream: (chunk) => set({ streamingText: chunk }),
-        onToolCall: (name, args) => {
+        onToolCall: (name, args, toolCallIndex) => {
             const prev = useChatStore.getState().activeToolCalls;
-            set({ activeToolCalls: [...prev, { name, args }] });
+            set({ activeToolCalls: [...prev, { name, args, _callIndex: toolCallIndex }] });
         },
-        onToolResult: (name, result) => {
+        onToolResult: (_name, result, toolCallIndex) => {
             const prev = useChatStore.getState().activeToolCalls;
             set({
                 activeToolCalls: prev.map(tc =>
-                    tc.name === name && !tc.result ? { ...tc, result } : tc
+                    tc._callIndex === toolCallIndex ? { ...tc, result } : tc
                 )
+            });
+        },
+        onToolProgress: (_name, message, toolCallIndex) => {
+            const prev = useChatStore.getState().activeToolCalls;
+            set({
+                activeToolCalls: prev.map(tc =>
+                    tc._callIndex === toolCallIndex && !tc.result
+                        ? { ...tc, progressMessage: message }
+                        : tc
+                ),
             });
         },
         onThought: (thought) => {

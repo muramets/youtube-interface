@@ -9,12 +9,14 @@ import { TOOL_NAMES, type ToolName } from "./definitions.js";
 import type { ToolContext, FunctionCallInput, FunctionCallResult, ToolHandler } from "./types.js";
 import { handleMentionVideo } from "./handlers/mentionVideo.js";
 import { handleGetMultipleVideoDetails } from "./handlers/getMultipleVideoDetails.js";
+import { handleAnalyzeSuggestedTraffic } from "./handlers/analyzeSuggestedTraffic.js";
 
 // --- Handler registry ---
 
 const HANDLERS: Record<ToolName, ToolHandler> = {
     [TOOL_NAMES.MENTION_VIDEO]: handleMentionVideo,
     [TOOL_NAMES.GET_MULTIPLE_VIDEO_DETAILS]: handleGetMultipleVideoDetails,
+    [TOOL_NAMES.ANALYZE_SUGGESTED_TRAFFIC]: handleAnalyzeSuggestedTraffic,
 };
 
 // --- Dispatcher ---

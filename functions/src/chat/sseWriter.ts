@@ -10,8 +10,8 @@ import type { ToolCallRecord, TokenUsage } from "../services/gemini/index.js";
 // --- SSE event types (server-side mirror of client SSEEvent union) ---
 
 type SSEChunkEvent = { type: "chunk"; text: string };
-type SSEToolCallEvent = { type: "toolCall"; name: string; args: Record<string, unknown> };
-type SSEToolResultEvent = { type: "toolResult"; name: string; result: Record<string, unknown> };
+type SSEToolCallEvent = { type: "toolCall"; name: string; args: Record<string, unknown>; toolCallIndex: number };
+type SSEToolResultEvent = { type: "toolResult"; name: string; result: Record<string, unknown>; toolCallIndex: number };
 type SSEThoughtEvent = { type: "thought"; text: string };
 type SSEDoneEvent = {
     type: "done";
@@ -21,6 +21,7 @@ type SSEDoneEvent = {
     summary?: string;
     usedSummary?: boolean;
 };
+type SSEToolProgressEvent = { type: "toolProgress"; toolName: string; message: string; toolCallIndex: number };
 type SSEErrorEvent = { type: "error"; error: string };
 
 export type SSEEvent =
@@ -29,6 +30,7 @@ export type SSEEvent =
     | SSEToolResultEvent
     | SSEThoughtEvent
     | SSEDoneEvent
+    | SSEToolProgressEvent
     | SSEErrorEvent;
 
 // --- Writer ---
