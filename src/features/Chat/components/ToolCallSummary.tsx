@@ -219,8 +219,8 @@ const GroupPill: React.FC<{
                     )}
                     {/* Thumbnail tool: image grid */}
                     {isThumbnail && <ThumbnailGrid group={group} />}
-                    {/* Video-based tools: video preview list */}
-                    {group.videoIds.map(videoId => {
+                    {/* Video-based tools: video preview list (skip for thumbnails — ThumbnailGrid above already shows them) */}
+                    {!isThumbnail && group.videoIds.map(videoId => {
                         const video = videoMap?.get(videoId);
                         const fallbackTitle = getFallbackTitle(group, videoId);
 

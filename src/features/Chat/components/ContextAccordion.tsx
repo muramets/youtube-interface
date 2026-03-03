@@ -18,10 +18,10 @@ import { CanvasSelectionChip } from '../CanvasSelectionChip';
 interface ContextAccordionProps {
     /** All context items to display */
     items: AppContextItem[];
-    /** Called when a single item is removed */
-    onRemoveItem: (item: AppContextItem) => void;
-    /** Called when all items are cleared */
-    onClearAll: () => void;
+    /** Called when a single item is removed (omit for read-only mode) */
+    onRemoveItem?: (item: AppContextItem) => void;
+    /** Called when all items are cleared (omit for read-only mode) */
+    onClearAll?: () => void;
     /** Whether the accordion starts expanded (default: true for pre-send) */
     defaultExpanded?: boolean;
     /** Optional label prefix (e.g. "Memory" for persisted context) */
@@ -81,7 +81,7 @@ export const ContextAccordion: React.FC<ContextAccordionProps> = ({
 
     const handleRemoveVideo = useCallback((videoId: string) => {
         const item = items.find(c => c.type === 'video-card' && (c as VideoCardContext).videoId === videoId);
-        if (item) onRemoveItem(item);
+        if (item) onRemoveItem?.(item);
     }, [items, onRemoveItem]);
 
     /** DRY helper: saves override if selection mode data is valid. */
@@ -122,15 +122,17 @@ export const ContextAccordion: React.FC<ContextAccordionProps> = ({
                         {label ? <span className="text-text-tertiary">{label}: </span> : null}
                         {summary}
                     </span>
-                    <span
-                        role="button"
-                        tabIndex={0}
-                        className="context-accordion-clear"
-                        onClick={(e) => { e.stopPropagation(); onClearAll(); }}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onClearAll(); } }}
-                    >
-                        <X size={12} />
-                    </span>
+                    {onClearAll && (
+                        <span
+                            role="button"
+                            tabIndex={0}
+                            className="context-accordion-clear"
+                            onClick={(e) => { e.stopPropagation(); onClearAll(); }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onClearAll(); } }}
+                        >
+                            <X size={12} />
+                        </span>
+                    )}
                     <ChevronUp size={12} className={`interactive-text shrink-0 transition-transform duration-150 ${(invertChevron ? !isExpanded : isExpanded) ? 'rotate-180' : ''}`} />
                 </button>
             )}
@@ -165,7 +167,7 @@ export const ContextAccordion: React.FC<ContextAccordionProps> = ({
                                                     <VideoCardChip
                                                         key={v.videoId}
                                                         video={v}
-                                                        onRemove={() => handleRemoveVideo(v.videoId)}
+                                                        onRemove={onRemoveItem ? () => handleRemoveVideo(v.videoId) : undefined}
                                                         index={badge?.index ?? 1}
                                                         badgePrefix={badge?.prefix}
                                                         onSelect={isSelecting ? () => {
@@ -184,7 +186,7 @@ export const ContextAccordion: React.FC<ContextAccordionProps> = ({
                                                 <SuggestedTrafficChip
                                                     key={`traffic-${gi}-${i}`}
                                                     context={tc as SuggestedTrafficContext}
-                                                    onRemove={() => onRemoveItem(tc)}
+                                                    onRemove={onRemoveItem ? () => onRemoveItem(tc) : undefined}
                                                     onSelect={isSelecting ? () => commitOverride(`suggested-${gi + 1}`) : undefined}
                                                 />
                                             ))}
@@ -202,7 +204,7 @@ export const ContextAccordion: React.FC<ContextAccordionProps> = ({
                                                     <CanvasSelectionChip
                                                         key={`canvas-${gi}-${i}`}
                                                         context={ctx}
-                                                        onRemove={() => onRemoveItem(cc)}
+                                                        onRemove={onRemoveItem ? () => onRemoveItem(cc) : undefined}
                                                         videoStartIndex={offset}
                                                         onSelect={isSelecting ? () => commitOverride(`video-${offset + 1}`) : undefined}
                                                     />

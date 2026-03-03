@@ -262,7 +262,9 @@ CRITICAL RULES:
 - "channelDistribution" = which channels appear most in your suggested traffic.
 - DO NOT recalculate any numbers. Interpret and explain what the findings mean strategically.
 - If timelines have only 1 point (single snapshot), note that trend data requires at least 2 snapshots.
-- If you need deeper content analysis for specific videos — call getMultipleVideoDetails with their IDs. Do this selectively for the most interesting movers.`;
+- If you need deeper content analysis for specific videos — call getMultipleVideoDetails with their IDs. Do this selectively for the most interesting movers.
+- When referencing specific videos from topSources, ALWAYS call the mentionVideo tool with the real videoId from the data. Then write [Video Title](mention://videoId) in your response text. NEVER invent video IDs — use exactly the videoId field from topSources.
+- When your analysis leads to thumbnail/CTR recommendations, ALWAYS call viewThumbnails with the relevant videoIds to perform visual analysis yourself. Never tell the user to "look at thumbnails" — you have the tool to do it.`;
 
     // --- Step 8: Return structured result -----------------------------------
 

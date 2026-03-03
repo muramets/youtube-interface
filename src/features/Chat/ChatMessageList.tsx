@@ -143,7 +143,10 @@ const MarkdownMessage: React.FC<{ text: string; videoMap?: Map<string, VideoCard
                         if (mentionMatch) {
                             const videoId = mentionMatch[1];
                             const video = videoMap.get(videoId) ?? null;
-                            return <VideoReferenceTooltip label={childText} video={video} refType="video" index={0} />;
+                            // Gemini sometimes writes [videoId](mention://videoId) instead of [Title](mention://videoId).
+                            // Prefer the real title from videoMap when the link text looks like a raw ID.
+                            const label = (video?.title && childText === videoId) ? video.title : childText;
+                            return <VideoReferenceTooltip label={label} video={video} refType="video" index={0} />;
                         }
                     }
 
@@ -388,9 +391,39 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     const referenceVideoMap = useMemo<Map<string, VideoCardContext>>(() => {
         const conv = conversations.find(c => c.id === activeConversationId);
         const ctx = conv?.persistedContext;
-        if (!ctx || ctx.length === 0) return new Map();
-        return buildVideoIdMap(ctx);
-    }, [activeConversationId, conversations]);
+        const baseMap = ctx && ctx.length > 0 ? buildVideoIdMap(ctx) : new Map<string, VideoCardContext>();
+
+        // Close data loop: supplement from mentionVideo tool call results.
+        // Videos discovered dynamically by Gemini (e.g. via analyzeSuggestedTraffic)
+        // live in msg.toolCalls[] — without this merge, their mention:// links
+        // would degrade to plain text because buildVideoIdMap only knows about
+        // user-attached persistedContext.
+        for (const msg of messages) {
+            if (!msg.toolCalls) continue;
+            for (const tc of msg.toolCalls) {
+                if (tc.name !== 'mentionVideo' || !tc.result) continue;
+                const r = tc.result as {
+                    found?: boolean;
+                    videoId?: string;
+                    title?: string;
+                    ownership?: string;
+                    channelTitle?: string;
+                    thumbnailUrl?: string;
+                };
+                if (!r.found || !r.videoId || baseMap.has(r.videoId)) continue;
+                baseMap.set(r.videoId, {
+                    type: 'video-card',
+                    videoId: r.videoId,
+                    title: r.title || '(untitled)',
+                    thumbnailUrl: r.thumbnailUrl || '',
+                    ownership: (r.ownership as VideoCardContext['ownership']) || 'competitor',
+                    channelTitle: r.channelTitle,
+                });
+            }
+        }
+
+        return baseMap;
+    }, [activeConversationId, conversations, messages]);
 
     // Layer 4: Memory checkpoints for this conversation
     const memories = useChatStore(s => s.memories);

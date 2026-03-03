@@ -33,9 +33,10 @@ export const ANTI_HALLUCINATION_RULES = [
     '3. **Distinguish between facts and opinions.** When providing analysis based on the attached data, state it as fact. When giving general advice not tied to specific data, explicitly mark it: *"[General insight, not based on your data]"*.',
     '4. **When data is missing**, respond with: "This information is not in the attached context. Please attach the relevant data so I can help."',
     '5. **Cross-reference by context labels.** Each video has ownership labels (your video, your draft, competitor). Use these to correctly identify whose content is being discussed.',
-    '6. **Always use the `mentionVideo` tool to reference videos.** Never write plain text references like "Video 3" or "Suggested 5" — always call `mentionVideo(videoId)` first, then reference the video in your response text using markdown link format: `[Video Title](mention://videoId)`. Example: `[My Awesome Video](mention://abc123)`. This ensures interactive video badges appear in the UI.',
+    '6. **Always use the `mentionVideo` tool to reference videos.** Two separate steps required: (a) make a real function call to `mentionVideo` with the videoId, (b) in your response text, write `[Video Title](mention://videoId)`. NEVER write the tool name as plain text (e.g. `mentionVideo("id")` or `Source: mentionVideo(...)`) — that does nothing, only a real function call works. videoId must be the exact ID from the `[id: ...]` annotation in the attached context or from previous tool results (e.g. `topSources[].videoId`) — never invent IDs.',
     '7. **Always analyze thumbnails when present.** Video thumbnails are attached as images in the user message. When they are present, **proactively include visual analysis** in your response — cover composition, color palette, text overlays, emotional tone, and how well the thumbnail fits the niche. Compare thumbnails against each other when multiple videos are attached.',
     '8. **Video lookup workflow.** When the user asks about a specific video (by name, description, or context), first find the matching `[id: ...]` in the attached video metadata above. Then call `getMultipleVideoDetails` if you need tags/description, and always call `mentionVideo` before referencing the video in your response. Never guess an ID — if no match is found, ask the user to clarify.',
+    '9. **Proactive thumbnail analysis.** When your analysis leads to recommendations about CTR, click-through rates, or cover art — ALWAYS call `viewThumbnails` with the relevant video IDs to perform visual comparison yourself. Never tell the user to "look at thumbnails" or "analyze covers" — you have the `viewThumbnails` tool to do this proactively.',
 ].join('\n');
 
 
@@ -53,8 +54,6 @@ export const VIDEO_CONTEXT_PREAMBLE = [
     '**Traffic Sources** may be included for user\'s own videos (when toggled on). These show aggregate traffic breakdown (Suggested, Browse, Search, etc.) across historical snapshots in baseline + delta format. Use this to understand WHERE views come from and how each traffic source evolved over time.',
     '',
     '**Full details (description, tags) are NOT shown here to save space.** If you need a video\'s description, tags, or other detailed fields, call the `getMultipleVideoDetails` tool with the video IDs.',
-    '',
-    'When referencing any video, first call the `mentionVideo` tool with the video\'s ID (found in the `[id: ...]` annotation next to each video\'s title), then reference it in your text using markdown link format: `[Video Title](mention://videoId)`. **Do NOT write plain text references like "Video #3" — always use the tool + mention link.**',
 ].join('\n');
 
 /** Section header for user's draft videos (custom, not yet published). */
@@ -94,7 +93,6 @@ export const TRAFFIC_SUGGESTED_HEADER = [
     '### Selected Suggested Videos (YouTube shows your video alongside these)',
     '',
     'Each suggested video shows traffic metrics (impressions, CTR, views). Full metadata (description, tags) is available via `getMultipleVideoDetails` tool.',
-    'When referencing these videos, first call the `mentionVideo` tool with their ID, then use markdown link format in your text: `[Video Title](mention://videoId)`. **Do NOT write "Suggested 1" or "Video N" — always use the tool + mention link.**',
 ].join('\n');
 
 /** Explanation of what the snapshot data represents — gives Gemini domain awareness. */

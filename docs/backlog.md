@@ -58,3 +58,20 @@
 - `src/core/services/aiProxyService.ts`, `src/core/services/aiService.ts`
 - `src/core/stores/chatStore.ts`, `src/features/Chat/ChatInput.tsx`
 
+---
+
+## Streaming Dots пропадают при навигации назад-вперёд
+**Приоритет:** Medium  
+**Статус:** Backlog  
+**Фича:** Chat
+
+### Контекст
+`setActiveConversation` в `chatStore.ts` сбрасывает `isStreaming + streamingNonce` при **любом** переключении — даже при возврате в тот же чат. Stream продолжает бежать на сервере, ответ появится через Firestore subscription, но streaming dots пропадают.
+
+### Задача
+Не сбрасывать streaming state при возврате в тот же conversation. Отвязать `streamingNonce` от navigation — nonce должен инвалидироваться только при переключении на **другой** conversation или при явном `stopGeneration`.
+
+### Затронутые файлы
+- `src/core/stores/chatStore.ts` — `setActiveConversation`, `handleBack`
+
+

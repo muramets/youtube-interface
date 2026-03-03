@@ -78,8 +78,6 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
     const stopGeneration = useChatStore(s => s.stopGeneration);
     const setConversationModel = useChatStore(s => s.setConversationModel);
     const setPendingModel = useChatStore(s => s.setPendingModel);
-    const clearPersistedContext = useChatStore(s => s.clearPersistedContext);
-    const updatePersistedContext = useChatStore(s => s.updatePersistedContext);
     const pendingModel = useChatStore(s => s.pendingModel);
     const editingMessage = useChatStore(s => s.editingMessage);
     const setEditingMessage = useChatStore(s => s.setEditingMessage);
@@ -218,8 +216,6 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
                 {activePersistedContext.length > 0 && activeConversationId && (
                     <PersistedContextBar
                         items={activePersistedContext}
-                        onRemoveItem={(updatedItems) => updatePersistedContext(activeConversationId, updatedItems)}
-                        onClear={() => clearPersistedContext(activeConversationId)}
                     />
                 )}
 

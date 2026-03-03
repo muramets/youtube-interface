@@ -33,7 +33,10 @@ const mentionVideo: FunctionDeclaration = {
         "or discuss a video — the UI renders an interactive badge the user can click. " +
         "Works for ANY video you know the ID of: from attached context, from previous tool " +
         "results (e.g. analyzeSuggestedTraffic topSources), or from conversation history. " +
-        "Do NOT write plain text references like 'Video #3' — always use this tool instead.",
+        "Do NOT write plain text references like 'Video #3' — always use this tool instead. " +
+        "IMPORTANT: videoId must be the exact ID from the [id: ...] annotation in the context " +
+        "or from previous tool results. Never invent IDs. " +
+        "After calling this tool, write [Title](mention://videoId) in your response text.",
     parametersJsonSchema: {
         type: "object",
         properties: {
@@ -79,7 +82,9 @@ const analyzeSuggestedTraffic: FunctionDeclaration = {
         "Use when the user asks about suggested traffic, algorithmic neighbors, " +
         "or which videos appear alongside theirs. " +
         "After analysis, use mentionVideo to reference key competitor videos from topSources " +
-        "so the user sees interactive badges instead of plain text names.",
+        "so the user sees interactive badges instead of plain text names. " +
+        "If your findings lead to CTR or thumbnail recommendations, also call viewThumbnails " +
+        "with the relevant videoIds to visually compare covers before advising.",
     parametersJsonSchema: {
         type: "object",
         properties: {
@@ -115,7 +120,9 @@ const analyzeSuggestedTraffic: FunctionDeclaration = {
 const viewThumbnails: FunctionDeclaration = {
     name: TOOL_NAMES.VIEW_THUMBNAILS,
     description:
-        "View actual video thumbnails as images. Call this when you need to visually analyze, " +
+        "View actual video thumbnails as images. Call this PROACTIVELY when your analysis " +
+        "leads to thumbnail, CTR, or cover art recommendations — do the visual comparison yourself " +
+        "instead of asking the user to look. Also use when you need to visually analyze, " +
         "compare, or describe the cover art of specific videos. Works for BOTH own AND " +
         "competitor/suggested traffic videos. Returns the images so you can see them directly. " +
         "Use videoIds from any source: attached context, previous tool results " +

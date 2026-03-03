@@ -132,7 +132,7 @@ export function getGroupLabel(group: ToolCallGroup): string {
     if (group.toolName === 'viewThumbnails') {
         if (group.hasErrors) return "Couldn't load thumbnails";
         return group.allResolved
-            ? `Viewed ${count} ${pluralVideos(count)}`
+            ? `Viewed ${count} ${count === 1 ? 'thumbnail' : 'thumbnails'}`
             : `Loading thumbnails...`;
     }
 

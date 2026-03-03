@@ -350,6 +350,7 @@ async function resumeSendFlow(
     nonce: number,
     abortController: AbortController,
     largePayloadApproved?: boolean,
+    isFirstExchange?: boolean,
 ): Promise<void> {
     const { aiSettings, projects, activeProjectId, messages, memories } = get();
 
@@ -401,7 +402,7 @@ async function resumeSendFlow(
         }
     }
 
-    maybeAutoTitle(userId, channelId, convId, text, model, messages.length === 0);
+    maybeAutoTitle(userId, channelId, convId, text, model, isFirstExchange ?? false);
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -778,6 +779,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             if (hasContext) useAppContextStore.getState().consumeAll();
 
             // 2. Optimistic UI — show user message + dots BEFORE enrichment
+            const isFirstExchange = messages.length === 0;
             const rawAppContext = hasContext ? rawContextItems : undefined;
             await persistUserMessage(userId, channelId, convId, text, attachments, rawAppContext, messages, set);
             if (!activeConversationId) set({ activeConversationId: convId });
@@ -808,7 +810,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
 
             // 4. Continue to Gemini
-            await resumeSendFlow(get, set, convId, text, attachments, appContext, persistedContext, myNonce, myAbortController, largePayloadApproved);
+            await resumeSendFlow(get, set, convId, text, attachments, appContext, persistedContext, myNonce, myAbortController, largePayloadApproved, isFirstExchange);
         } catch (err) {
             if (err instanceof DOMException && err.name === 'AbortError') {
                 // User stopped generation — save partial text if available

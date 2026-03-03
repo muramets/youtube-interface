@@ -27,11 +27,15 @@ export async function handleMentionVideo(
     }
 
     const data = snap.data()!;
+    // Build standard YouTube thumbnail URL from videoId as fallback
+    const thumbnailUrl = data.thumbnailUrl
+        || (videoId.startsWith('custom-') ? '' : `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`);
     return {
         found: true,
         videoId,
         title: data.title || "(untitled)",
         ownership: data.ownership || "own-published",
         channelTitle: data.channelTitle || undefined,
+        thumbnailUrl,
     };
 }
