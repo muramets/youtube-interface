@@ -129,11 +129,13 @@ UI listens for status changes via Firestore `onSnapshot`. Download links come fr
 - Always prioritize existing design tokens from `src/components/ui/` and Tailwind config for new features.
 - If existing tokens are insufficient, extend the global design system — never hardcode values.
 - All new UI must use CSS variables that respond to theme changes.
+- **All user-facing text in the application (labels, buttons, placeholders, tooltips, error messages, empty states) must be in English.** Never use Russian in the UI — it is a product for an international audience.
 
 ### Feature Documentation (`docs/features/`)
-- Before changing any file in `src/features/` or `src/pages/` — read its doc in `docs/features/`.
+- **Every feature implementation or change — frontend or backend — must have a doc in `docs/features/`.** This is non-negotiable.
+- Before changing any file in `src/features/`, `src/pages/`, or `functions/src/` — read its doc in `docs/features/`.
+- If no doc exists — create one from the template below **before writing any code** and send it for review.
 - After changes — update "Текущее состояние", move the `← YOU ARE HERE` marker, and update cross-feature links if integrations changed. If another feature is affected, update both docs.
-- If no doc exists — create one from the template below and send it for review before proceeding.
 - Send the updated doc to the user in chat after every update.
 - **Doc template (Russian, compact)**:
   - `current state` — ≤10 lines; business logic in plain language; separate technical details from business logic.
