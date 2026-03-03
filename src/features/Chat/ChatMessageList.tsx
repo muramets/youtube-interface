@@ -51,7 +51,7 @@ import { estimateCostEur, type ModelPricing } from '../../core/types/chat';
 import { MemoryCheckpoint } from './components/MemoryCheckpoint';
 import { FileAudio, FileVideo, File, Copy, Check, ArrowDown, RotateCcw, Zap, MessageCircle, Pencil } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
-import { useChatStore } from '../../core/stores/chatStore';
+import { useChatStore } from '../../core/stores/chat/chatStore';
 import { VideoReferenceTooltip } from './components/VideoReferenceTooltip';
 import { formatRelativeTime, STATIC_AGE } from './formatRelativeTime';
 import { MessageErrorBoundary } from './components/ChatBoundaries';
@@ -64,7 +64,7 @@ import { ThinkingBubble } from './components/ThinkingBubble';
 import { ToolCallSummary } from './components/ToolCallSummary';
 import { ConfirmLargePayloadBanner } from './components/ConfirmLargePayloadBanner';
 import { StreamingStatusMessage } from './components/StreamingStatusMessage';
-import { getSessionThinking } from '../../core/stores/chatStore';
+import { getSessionThinking } from '../../core/stores/chat/chatStore';
 
 /** Regex to detect mention:// URIs in markdown links */
 const MENTION_RE = /^mention:\/\/(.+)$/;

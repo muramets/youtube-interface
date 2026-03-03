@@ -12,7 +12,7 @@
 import { useEffect, useRef } from 'react';
 import { useCanvasStore } from '../../../core/stores/canvas/canvasStore';
 import { useAppContextStore } from '../../../core/stores/appContextStore';
-import { useChatStore } from '../../../core/stores/chatStore';
+import { useChatStore } from '../../../core/stores/chat/chatStore';
 import type { CanvasContextNode, VideoContextNode, TrafficSourceContextNode, StickyNoteContextNode, ImageContextNode, SnapshotFrameContextNode } from '../../../core/types/appContext';
 import type { CanvasNode } from '../../../core/types/canvas';
 import { getSourceVideoId, getNodeDataType } from '../../../core/types/canvas';

@@ -9,7 +9,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Loader } from 'lucide-react';
-import { useChatStore } from '../../../core/stores/chatStore';
+import { useChatStore } from '../../../core/stores/chat/chatStore';
 
 function getProgressiveMessage(elapsedSecs: number): string | null {
     if (elapsedSecs < 10) return null;

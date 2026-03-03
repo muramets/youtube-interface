@@ -10,7 +10,7 @@ import { useShallow } from 'zustand/react/shallow';
 import type { AppContextItem, VideoCardContext, SuggestedTrafficContext, CanvasSelectionContext } from '../../../core/types/appContext';
 import { getVideoCards, getTrafficContexts, getCanvasContexts } from '../../../core/types/appContext';
 import { buildVideoBadgeMap } from '../../../core/utils/buildReferenceMap';
-import { useChatStore } from '../../../core/stores/chatStore';
+import { useChatStore } from '../../../core/stores/chat/chatStore';
 import { VideoCardChip } from '../VideoCardChip';
 import { SuggestedTrafficChip } from '../SuggestedTrafficChip';
 import { CanvasSelectionChip } from '../CanvasSelectionChip';

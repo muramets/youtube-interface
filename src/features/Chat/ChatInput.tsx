@@ -7,7 +7,7 @@ import { Plus, Send, X, FileAudio, FileVideo, File, Image, Square, Loader2, Chec
 import { MODEL_REGISTRY, type ThinkingOption } from '../../core/types/chat';
 import { getAttachmentType } from '../../core/services/aiService';
 import type { StagedFile, ReadyAttachment } from '../../core/types/chatAttachment';
-import { useChatStore } from '../../core/stores/chatStore';
+import { useChatStore } from '../../core/stores/chat/chatStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppContextStore, selectAllItems } from '../../core/stores/appContextStore';
 import { ContextAccordion } from './components/ContextAccordion';

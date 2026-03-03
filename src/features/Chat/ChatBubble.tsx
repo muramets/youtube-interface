@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { MessageCircle } from 'lucide-react';
-import { useChatStore } from '../../core/stores/chatStore';
+import { useChatStore } from '../../core/stores/chat/chatStore';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
 import { useFloatingBottomOffset } from '../../core/hooks/useFloatingBottomOffset';
 import { useAuth } from '../../core/hooks/useAuth';

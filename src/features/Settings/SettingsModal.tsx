@@ -9,7 +9,7 @@ import { NotificationService } from '../../core/services/notificationService';
 import type { GeneralSettings, SyncSettings, CloneSettings as CloneSettingsType, PackagingSettings, UploadDefaults, PickerSettings } from '../../core/services/settingsService';
 import type { PackagingCheckin } from '../../core/types/versioning';
 import type { AiAssistantSettings as AiSettingsType } from '../../core/types/chat';
-import { useChatStore } from '../../core/stores/chatStore';
+import { useChatStore } from '../../core/stores/chat/chatStore';
 
 import { Button } from '../../components/ui/atoms/Button/Button';
 

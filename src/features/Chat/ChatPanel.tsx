@@ -5,7 +5,7 @@
 import React, { useEffect, useCallback, useRef, useMemo } from 'react';
 import { ChevronUp } from 'lucide-react';
 import { ConfirmationModal } from '../../components/ui/organisms/ConfirmationModal';
-import { useChatStore } from '../../core/stores/chatStore';
+import { useChatStore } from '../../core/stores/chat/chatStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useFileAttachments } from './hooks/useFileAttachments';
 import { usePanelGeometry, TRANSITION_MS } from './hooks/usePanelGeometry';

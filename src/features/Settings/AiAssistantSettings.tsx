@@ -10,7 +10,7 @@ import { Dropdown } from '../../components/ui/molecules/Dropdown';
 import { SegmentedControl } from '../../components/ui/molecules/SegmentedControl';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
-import { useChatStore } from '../../core/stores/chatStore';
+import { useChatStore } from '../../core/stores/chat/chatStore';
 import { MODEL_REGISTRY, RESPONSE_LANGUAGES, RESPONSE_STYLES } from '../../core/types/chat';
 import type { AiAssistantSettings as AiSettings } from '../../core/types/chat';
 
