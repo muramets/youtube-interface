@@ -7,6 +7,7 @@ import type { AiAssistantSettings, ChatProject } from '../../types/chat';
 import {
     STYLE_CONCISE,
     STYLE_DETAILED,
+    THINKING_DISCIPLINE,
     ANTI_HALLUCINATION_RULES,
 } from '../../config/prompts';
 
@@ -36,6 +37,9 @@ export function buildSettingsLayer(
     } else if (aiSettings.responseStyle === 'detailed') {
         sections.push(STYLE_DETAILED);
     }
+
+    // Thinking discipline — prevent chain-of-thought leaking into response text
+    sections.push(THINKING_DISCIPLINE);
 
     // Global + project prompts
     if (aiSettings.globalSystemPrompt) sections.push(aiSettings.globalSystemPrompt);

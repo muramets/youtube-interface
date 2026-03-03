@@ -24,7 +24,9 @@ mkdirSync(TARGET_DIR, { recursive: true });
 for (const file of SHARED_FILES) {
     const src = resolve(SHARED_ROOT, file);
     const dest = resolve(TARGET_DIR, file);
-    const content = readFileSync(src, 'utf-8');
+    const raw = readFileSync(src, 'utf-8');
+    // Strip any existing auto-generated headers to prevent accumulation
+    const content = raw.replace(/^(\/\/ ⚠️ AUTO-GENERATED[^\n]*\n\/\/ Source of truth:[^\n]*\n\/\/ Copied by:[^\n]*\n\n)+/g, '');
     writeFileSync(dest, HEADER + content);
     console.log(`[copy-shared] ${file} → src/shared/${file}`);
 }

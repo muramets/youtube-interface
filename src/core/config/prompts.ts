@@ -16,6 +16,9 @@ export const STYLE_CONCISE = 'Be concise and to the point. Prefer short answers.
 /** Instruction appended when user selects "detailed" response style. */
 export const STYLE_DETAILED = 'Provide thorough, detailed responses with explanations and examples.';
 
+/** Prevents models from leaking chain-of-thought reasoning into the visible response. */
+export const THINKING_DISCIPLINE = 'Your response must contain ONLY the final answer. Never include: planning steps, self-corrections, draft outlines, or meta-commentary about how you will structure the response. All reasoning belongs in the thinking phase.';
+
 // -----------------------------------------------------------------------------
 // Anti-Hallucination Rules — grounding instructions for data integrity
 // Injected at the end of Settings Layer, before any context data.
