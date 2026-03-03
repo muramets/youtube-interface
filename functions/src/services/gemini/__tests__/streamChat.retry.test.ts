@@ -152,6 +152,47 @@ describe('streamChat — retry logic', () => {
         expect(result.text).toBe('hello world');
     });
 
+    it('retries when SDK throws DOMException on abort (real-world timeout behavior)', async () => {
+        // In production, @google/genai does NOT throw our GeminiTimeoutError.
+        // It throws DOMException("The operation was aborted") — our error is only
+        // in iterationAbort.signal.reason. This test verifies the signal.reason path.
+        vi.useFakeTimers();
+        const onRetry = vi.fn();
+
+        const mockGenerateContentStream = vi.fn()
+            // First call: simulate SDK behavior — hang until abort, then throw DOMException
+            .mockImplementationOnce(async ({ config }: { config: { abortSignal: AbortSignal } }) => {
+                async function* hangUntilAbort() {
+                    await new Promise<void>((resolve) => {
+                        config.abortSignal.addEventListener('abort', () => resolve(), { once: true });
+                    });
+                    throw new DOMException('The operation was aborted', 'AbortError');
+                    yield undefined as never;
+                }
+                return hangUntilAbort();
+            })
+            // Second call succeeds
+            .mockImplementationOnce(async () => makeChunkIterator('recovered'));
+
+        mockGetClient.mockResolvedValue({
+            models: { generateContentStream: mockGenerateContentStream },
+        } as never);
+
+        // Start streamChat but DON'T await yet — we need to advance timers first
+        const resultPromise = streamChat(makeOpts({ onRetry }));
+
+        // Advance past the 90s inactivity timeout to trigger abort
+        await vi.advanceTimersByTimeAsync(91_000);
+
+        const result = await resultPromise;
+
+        expect(onRetry).toHaveBeenCalledTimes(1);
+        expect(onRetry).toHaveBeenCalledWith(1);
+        expect(result.text).toBe('recovered');
+
+        vi.useRealTimers();
+    });
+
     it('does NOT retry when the caller aborts (user cancel)', async () => {
         const onRetry = vi.fn();
         const controller = new AbortController();
@@ -199,3 +240,4 @@ describe('streamChat — retry logic', () => {
         expect(mockGenerateContentStream).toHaveBeenCalledTimes(3);
     });
 });
+

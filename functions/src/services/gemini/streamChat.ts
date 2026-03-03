@@ -57,7 +57,7 @@ export interface StreamChatOpts {
     onToolProgress?: (toolName: string, message: string, toolCallIndex: number) => void;
     /** Called when thumbnail middleware blocks a large batch pending user confirmation. */
     onLargePayloadBlocked?: (count: number) => void;
-    /** Called when an inactivity timeout triggers automatic retry. */
+    /** Called when a transient error (inactivity timeout or 503 UNAVAILABLE) triggers automatic retry. */
     onRetry?: (attempt: number) => void;
     /** User confirmed loading a large batch of thumbnails (≥15) via the confirmation UI. */
     largePayloadApproved?: boolean;
@@ -132,6 +132,25 @@ export class GeminiTimeoutError extends Error {
     }
 }
 
+// --- Transient error detection ---
+
+/**
+ * Returns true for transient Gemini API errors that are safe to retry:
+ * - GeminiTimeoutError: stream stalled (no chunks for 90s)
+ * - 503 UNAVAILABLE: API overloaded, rejects immediately
+ */
+function isTransientApiError(err: unknown): boolean {
+    if (err instanceof GeminiTimeoutError) return true;
+    if (err instanceof Error) {
+        const anyErr = err as unknown as Record<string, unknown>;
+        // Structural check — covers most SDK versions (.status or .code, numeric)
+        if (anyErr.status === 503 || anyErr.code === 503) return true;
+        // Fallback: SDK embeds JSON error payload in message string
+        if (err.message.includes('503') && err.message.includes('UNAVAILABLE')) return true;
+    }
+    return false;
+}
+
 // --- Constants ---
 
 /** Inactivity timeout: abort if no chunk arrives within this window. */
@@ -140,8 +159,11 @@ const STREAM_INACTIVITY_TIMEOUT_MS = 90_000;
 /** Maximum agentic loop iterations to prevent infinite tool-calling loops. */
 const MAX_AGENTIC_ITERATIONS = 10;
 
-/** Maximum number of automatic retries after an inactivity timeout. */
+/** Maximum number of automatic retries per iteration (covers both timeout and 503). */
 const MAX_STREAM_RETRIES = 2;
+
+/** Delay before retrying a 503 UNAVAILABLE error — gives the overloaded server a moment. */
+const RETRY_503_DELAY_MS = 2_000;
 
 // --- Main streaming function ---
 
@@ -359,19 +381,31 @@ export async function streamChat(
                 break;
 
             } catch (err) {
-                if (err instanceof GeminiTimeoutError) {
+                // The SDK throws DOMException("This operation was aborted") on abort —
+                // it does NOT propagate our abort reason. Check the SIGNAL's reason instead.
+                const abortReason = iterationAbort.signal.reason;
+                const isInactivityTimeout = abortReason instanceof GeminiTimeoutError;
+
+                if (isInactivityTimeout || isTransientApiError(err)) {
                     // If the caller cancelled, don't retry — propagate immediately
                     if (signal?.aborted) throw err;
 
                     if (attempt <= MAX_STREAM_RETRIES) {
-                        console.log(`[streamChat] Retry attempt ${attempt}/${MAX_STREAM_RETRIES} after timeout — iteration ${iteration}`);
+                        const label = isInactivityTimeout ? 'timeout' : '503 UNAVAILABLE';
+                        console.log(`[streamChat] Retry attempt ${attempt}/${MAX_STREAM_RETRIES} after ${label} — iteration ${iteration}`);
+                        if (!isInactivityTimeout) {
+                            // Brief delay before retrying 503: give the overloaded server a moment
+                            await new Promise(r => setTimeout(r, RETRY_503_DELAY_MS));
+                        }
                         onRetry?.(attempt);
                         continue; // next attempt
                     }
                     // Exhausted all retries — propagate
-                    throw err;
+                    throw isInactivityTimeout
+                        ? abortReason  // throw the original GeminiTimeoutError (clear message for user)
+                        : err;
                 }
-                // Non-timeout errors propagate immediately
+                // Non-transient errors propagate immediately
                 throw err;
             } finally {
                 if (inactivityTimer) clearTimeout(inactivityTimer);

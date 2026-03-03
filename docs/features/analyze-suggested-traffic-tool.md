@@ -265,5 +265,5 @@ src/
 
 - [ ] Scheduled analysis (автоматический отчёт при новом снапшоте)
 - [ ] Cost: ~$0.05-0.10 per analysis (pre-computed JSON vs raw CSV tokens)
-- [ ] API: Gemini 2.5 Pro, Cloud Functions 2nd Gen
+- [ ] API: Gemini 3.1 Pro by default, Cloud Functions 2nd Gen
 - [ ] Storage: Firestore (metadata) + Cloud Storage (CSV bodies)
