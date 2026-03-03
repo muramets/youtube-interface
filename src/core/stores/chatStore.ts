@@ -246,7 +246,7 @@ async function persistUserMessage(
     appContext: AppContextItem[] | undefined,
     currentMessages: ChatMessage[],
     set: (partial: Partial<ChatState>) => void,
-): Promise<void> {
+): Promise<string> {
     const optimisticMsg: ChatMessage = {
         id: `optimistic-${crypto.randomUUID()}`,
         role: 'user',
@@ -256,7 +256,8 @@ async function persistUserMessage(
         createdAt: Timestamp.now(),
     };
     set({ messages: [...currentMessages, optimisticMsg] });
-    await ChatService.addMessage(userId, channelId, convId, { role: 'user', text, attachments, appContext });
+    const persisted = await ChatService.addMessage(userId, channelId, convId, { role: 'user', text, attachments, appContext });
+    return persisted.id;
 }
 
 async function streamAiResponse(
@@ -761,6 +762,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // Lock immediately — before any await — prevents double-send
         const { nonce: myNonce, controller: myAbortController } = startStreamingSession(set);
 
+        let userMessageId: string | undefined;
+
         try {
             // 0. Lazy-create conversation if needed (first message in a new chat)
             if (!convId) {
@@ -786,7 +789,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             // 2. Optimistic UI — show user message + dots BEFORE enrichment
             const isFirstExchange = messages.length === 0;
             const rawAppContext = hasContext ? rawContextItems : undefined;
-            await persistUserMessage(userId, channelId, convId, text, attachments, rawAppContext, messages, set);
+            userMessageId = await persistUserMessage(userId, channelId, convId, text, attachments, rawAppContext, messages, set);
             if (!activeConversationId) set({ activeConversationId: convId });
 
             // 3. Context pipeline: enrich → merge → persist (user sees dots)
@@ -836,7 +839,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
                 // Only update UI if this stream is still the current one
                 if (streamingNonce === myNonce) {
-                    set({ error: displayMessage, lastFailedRequest: { text, attachments } });
+                    set({ error: displayMessage, lastFailedRequest: { text, attachments, messageId: userMessageId } });
                 }
 
                 // Ensure the user stays on the conversation (especially for first-message failures)
@@ -892,19 +895,42 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const { text, attachments, messageId } = lastFailedRequest;
         set({ lastFailedRequest: null, error: null });
 
-        // Clean up the failed state before resending
-        if (messageId) {
-            const { userId, channelId } = requireContext(get);
-            const convId = get().activeConversationId;
-            if (convId) {
-                // Delete the old failed message from Firestore
-                ChatService.deleteMessage(userId, channelId, convId, messageId).catch(() => { });
-                // Clear server-side lastError signal from conversation doc
-                ChatService.clearLastError(userId, channelId, convId).catch(() => { });
-            }
-        }
+        const { userId, channelId } = requireContext(get);
+        const convId = get().activeConversationId;
+        if (!convId) return;
 
-        await get().sendMessage(text, attachments);
+        // Clear server-side error signal (fire-and-forget — pure metadata, no race risk)
+        ChatService.clearLastError(userId, channelId, convId).catch(() => {});
+
+        // The user message already lives in Firestore — do NOT delete/re-add it.
+        // Start a new streaming session and re-run only the AI step.
+        const { nonce: myNonce, controller: myAbortController } = startStreamingSession(set);
+
+        try {
+            const existingConv = get().conversations.find(c => c.id === convId);
+            const persistedContext = existingConv?.persistedContext;
+            const isFirstExchange = get().messages.length <= 1;
+
+            await resumeSendFlow(
+                get, set, convId, text, attachments,
+                undefined,
+                persistedContext?.length ? persistedContext : undefined,
+                myNonce, myAbortController,
+                undefined,
+                isFirstExchange,
+            );
+        } catch (err) {
+            if (!(err instanceof DOMException && err.name === 'AbortError')) {
+                const errorMessage = err instanceof Error ? err.message : 'Failed to get AI response';
+                if (streamingNonce === myNonce) {
+                    set({ error: errorMessage, lastFailedRequest: { text, attachments, messageId } });
+                    ChatService.setLastError(userId, channelId, convId, errorMessage, text).catch(() => {});
+                }
+            }
+        } finally {
+            if (activeAbortController === myAbortController) activeAbortController = null;
+            if (streamingNonce === myNonce) set({ isStreaming: false, streamingText: '' });
+        }
     },
 
     stopGeneration: () => {
