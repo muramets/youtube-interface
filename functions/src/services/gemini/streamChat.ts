@@ -331,6 +331,11 @@ export async function streamChat(
                     // Collect function calls and thoughts from this chunk
                     if (chunk.candidates?.[0]?.content?.parts) {
                         for (const part of chunk.candidates[0].content.parts) {
+                            // Log only thought-flagged parts (diagnostic for thinking leak)
+                            if (part.thought) {
+                                console.log(`[streamChat] 🧠 thought part: ${part.text?.length ?? 0}ch`);
+                            }
+
                             if (part.functionCall) {
                                 const fc = part.functionCall;
                                 functionCalls.push({
@@ -340,7 +345,7 @@ export async function streamChat(
                                 // Preserve original part (includes thought_signature)
                                 rawModelParts.push(part);
                             } else if (part.thought && part.text) {
-                                // Extract thinking/reasoning tokens (not included in chunk.text)
+                                // Extract thinking/reasoning tokens
                                 onThought?.(part.text);
                                 // Preserve thought parts for signature continuity
                                 rawModelParts.push(part);
@@ -348,8 +353,17 @@ export async function streamChat(
                         }
                     }
 
-                    // Collect text
-                    const chunkText = chunk.text ?? "";
+                    // Collect text — manually extract from parts, skipping thought-flagged ones.
+                    // DO NOT use chunk.text: it's a convenience accessor that concatenates ALL
+                    // part.text values including thoughts, causing them to leak into the response.
+                    let chunkText = "";
+                    if (chunk.candidates?.[0]?.content?.parts) {
+                        for (const part of chunk.candidates[0].content.parts) {
+                            if (part.text && !part.thought && !part.functionCall) {
+                                chunkText += part.text;
+                            }
+                        }
+                    }
                     if (chunkText) {
                         iterationText += chunkText;
                         fullText += chunkText;

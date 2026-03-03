@@ -1,3 +1,7 @@
+// ⚠️ AUTO-GENERATED — DO NOT EDIT DIRECTLY.
+// Source of truth: /shared/models.ts
+// Copied by: functions/scripts/copy-shared.mjs
+
 export interface ModelPricing {
     /** USD per 1M tokens for prompts ≤ 200K tokens */
     inputPerMillion: number;
