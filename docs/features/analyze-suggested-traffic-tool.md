@@ -2,9 +2,13 @@
 
 ## Текущее состояние
 
-**Реализовано.** Gemini может самостоятельно вызвать инструмент `analyzeSuggestedTraffic` в ходе чата, передать `videoId`, получить структурированный аналитический отчёт по Suggested Traffic и интерпретировать его стратегически.
+**Реализовано (v2).** Gemini вызывает `analyzeSuggestedTraffic` в чате, передаёт `videoId` + `depth`, получает **per-video timeline по всем снапшотам** с pre-computed дельтами и transitions между периодами. AI интерпретирует trajectory, а не считает.
 
-**Ключевой принцип:** весь расчёт — на сервере (детерминированный код), Gemini только интерпретирует. AI не оценивает цифры, не занимается арифметикой.
+**Ключевые принципы (Elite Senior Dev Lens):**
+1. **Deterministic API** — `depth` enum вместо свободного числа
+2. **Code = math, LLM = patterns** — handler считает дельты, Gemini видит trajectory
+3. **Full trajectory** — ни один снапшот не выбрасывается
+4. **No bias** — AVD передаётся как raw метрика без навязанной классификации
 
 ---
 
@@ -16,187 +20,136 @@
 
 ## User flow
 
-Пользователь в чате спрашивает: *"Какие видео конкурентов YouTube ставит рядом с моим роликом? Что изменилось за последнюю неделю?"*
+Пользователь в чате спрашивает: *"Проведи глубокий анализ suggested traffic — почему мои видео показываются рядом с нерелевантным контентом?"*
 
-Gemini понимает, что нужны данные, и вызывает инструмент автономно — пользователь ничего не прикрепляет вручную.
+Gemini понимает контекст, выбирает `depth: "detailed"` (топ 100) и вызывает инструмент автономно.
 
 Пока инструмент работает, в UI появляется анимированный статус:
 ```
 ⟳ Загружаю CSV снапшоты...
-⟳ Считаю дельту между снапшотами...
+⟳ Строю timeline по всем снапшотам...
 ⟳ Анализирую теги и ключевые слова...
 ```
 
-Затем Gemini отвечает — с конкретными цифрами, названиями видео и стратегическими выводами.
+Под tool pill:
+```
+📊 3 snapshots
+📈 495 active sources (detailed analysis: top 100)
+```
+
+При ховере на pill — PortalTooltip с расшифровкой:
+```
+Timeline:
+Jan 15 (24h after publish): 59 sources
+Jan 22 (1 week): 498 sources (+439 new)
+Feb 15 (1 month): 495 sources (+20 new, -23 dropped)
+```
 
 ---
 
 ## Как собираются данные: шаг за шагом
 
-### Шаг 1 — Что вообще есть в базе?
+### Шаг 1 — Firestore: metadata + source video
 
 Из Firestore читается два документа:
 
-**`trafficData/main`** — список снапшотов:
+**`traffic/main`** — список снапшотов:
 ```
 snapshots: [
-  { timestamp: 1706000000, storagePath: "users/.../snapshot_1.csv", label: "13 hours" },
-  { timestamp: 1706300000, storagePath: "users/.../snapshot_2.csv", label: "3 days" },
+  { timestamp: 1706000000, storagePath: "users/.../snapshot_1.csv", label: "24h" },
+  { timestamp: 1706300000, storagePath: "users/.../snapshot_2.csv", label: "1 week" },
 ]
 ```
 
-**`videos/{videoId}`** — данные самого ролика автора:
-```
-{ title: "Peaceful Morning Lofi", tags: ["lofi", "study", "chill"], description: "..." }
-```
-
-Теги source video нужны для сравнения с тегами suggested видео на шаге 6.
+**`videos/{videoId}`** — данные ролика автора (title, tags, description).
 
 ---
 
 ### Шаг 2 — Скачиваем все CSV параллельно
 
-Каждый снапшот — это CSV-файл в Cloud Storage. Все скачиваются одновременно. Если файл недоступен — возвращается пустая строка, обработка не падает.
+Каждый снапшот — CSV-файл в Cloud Storage. Все скачиваются одновременно. Если файл недоступен — возвращается пустая строка, обработка не падает.
 
 ---
 
 ### Шаг 3 — Парсим CSV
 
-Один снапшот — один CSV. Пример строки:
+Парсер извлекает из `YT_RELATED.{videoId}` → videoId, читает метрики. CTR = `null` если impressions = 0.
+
+Каждый снапшот → `VideoSnapshotEntry[]`:
 ```
-YT_RELATED.dQw4w9WgXcQ,"Never Gonna Give You Up - Official",5000,10000,2.5,0:04:32,833
+[{ videoId, sourceTitle, views, impressions, ctr, avgViewDuration, watchTimeHours }]
 ```
 
-Парсер извлекает из `YT_RELATED.dQw4w9WgXcQ` → `videoId = "dQw4w9WgXcQ"`, читает метрики. CTR выставляется в `null` если impressions = 0 (YouTube не считает CTR без показов).
+---
 
-На выходе каждый снапшот = массив `SuggestedVideoRow[]`:
+### Шаг 4 — buildVideoTimeline()
+
+Для каждого видео, которое было в **любом** снапшоте, строит timeline — значения в каждой точке + pre-computed delta от предыдущей точки:
+
+```typescript
+// Видео "Lofi beats" — было во всех 3 снапшотах:
+timeline: [
+    { date: "2026-01-15", views: 200,  impressions: 3000,  deltaViews: null },    // baseline
+    { date: "2026-01-22", views: 2800, impressions: 45000, deltaViews: +2600 },   // рост
+    { date: "2026-02-15", views: 5000, impressions: 80000, deltaViews: +2200 },   // замедление
+]
 ```
-[
-  { videoId, sourceTitle, views, impressions, ctr, avgViewDuration, watchTimeHours },
-  ...
+
+**Если видео пропущено в среднем снапшоте** — timeline содержит только точки присутствия (2 вместо 3). Delta считается от предыдущей реальной точки.
+
+---
+
+### Шаг 5 — Сортировка и отсечение
+
+Все видео сортируются по **impressions** (descending) из последнего снапшота. Берётся топ N (зависит от `depth`):
+
+| depth | limit | use case |
+|-------|-------|----------|
+| `quick` | 20 | Быстрый обзор |
+| `standard` | 50 | Обычный анализ (default) |
+| `detailed` | 100 | Углублённый анализ |
+| `deep` | 500 | Полное исследование |
+
+Остальные сворачиваются в `tail` (count + totals).
+
+---
+
+### Шаг 6 — getTransitions()
+
+Для каждой пары последовательных снапшотов считает:
+- `newCount` / `droppedCount` — масштаб ротации пула
+- `topNew` / `topDropped` — топ 10 примеров по impressions
+
+```typescript
+transitions: [
+    { periodFromDate: "2026-01-15", periodToDate: "2026-01-22",
+      newCount: 439, droppedCount: 0, topNew: [...], topDropped: [] },
+    { periodFromDate: "2026-01-22", periodToDate: "2026-02-15",
+      newCount: 20, droppedCount: 23, topNew: [...], topDropped: [...] },
 ]
 ```
 
 ---
 
-### Шаг 4 — Считаем дельту между снапшотами
+### Шаг 7 — Content analysis (опционально)
 
-Сравниваем **последний** снапшот с **предпоследним**. Видео, которое есть в обоих — получает дельту. Видео только в одном — идёт в `newEntries` или `droppedEntries`.
-
-```
-snapshot_2: { "dQw4w9WgXcQ": views=8000, impressions=15000 }
-snapshot_1: { "dQw4w9WgXcQ": views=3000, impressions=10000 }
-
-→ deltaViews = +5000 (+167%)
-→ deltaImpressions = +5000 (+50%)
-```
-
-Процент изменения округляется до 1 знака. Если в предыдущем снапшоте было 0 — процент = `null` (деление на ноль недопустимо).
-
----
-
-### Шаг 5 — Агрегируем топ-источники
-
-Из последнего снапшота берём топ N видео по выбранному критерию (`views`, `impressions`, `deltaViews`, `deltaImpressions`). Остальные сворачиваются в `tail` — агрегированная сводка по хвосту.
-
-Каждый TopSource содержит:
-- метрики из CSV (views, impressions, ctr, avgViewDuration, watchTimeHours)
-- дельту, если есть второй снапшот (deltaViews, deltaImpressions, pctViews, pctImpressions)
-
-`biggestChanges` — отдельный список из топ 10 видео по абсолютному изменению (и рост, и падение).
-
----
-
-### Шаг 6 — Обогащаем данные из кэша
-
-CSV содержит только метрики и title. Для анализа содержания нужны **теги** и **channelTitle** suggested видео.
-
-Они уже есть в Firestore — были сохранены при загрузке CSV (YouTube API enrichment). Читаем батчем (до 30 видео из топа):
-
-```
-cached_suggested_traffic_videos/{videoId}:
-  { tags: ["lofi", "study", "piano"], channelTitle: "ChillBeats Studio" }
-```
-
-Если видео нет в кэше — оно не ломает анализ, просто `sharedTags = []`.
-
----
-
-### Шаг 7 — Анализируем контентное пересечение
-
-Для каждого suggested видео из топа считаем:
-
-**Shared tags** — какие теги совпадают с тегами source video (кейс-нечувствительно):
-```
-source video tags: ["lofi", "peaceful", "relax"]
-suggested video tags: ["lofi", "chill", "morning"]
-→ sharedTags: ["lofi"]
-```
-
-**Shared keywords** — какие слова из title suggested видео встречаются в title source video (токенизация, stop words убраны):
-```
-source title: "peaceful morning lofi playlist"
-suggested title: "peaceful lofi study music"
-→ sharedKeywords: ["peaceful", "lofi"]
-```
-
-**Агрегаты:**
-- `mostFrequentSharedTags` — какие теги source video чаще всего совпадают с suggested → понять, по каким тегам YouTube тебя ставит
-- `topKeywordsInSuggestedTitles` — самые частые слова во всех title suggested видео → понять нишу/тематику окружения
-- `channelDistribution` — какие каналы встречаются чаще всего → понять конкурентное окружение
+Анализирует теги и ключевые слова для топ 30 видео из кэша Firestore:
+- `sharedTags` — совпадающие теги с source video
+- `topKeywordsInSuggestedTitles` — частые слова в заголовках → тематика окружения
+- `channelDistribution` — какие каналы чаще появляются
 
 ---
 
 ### Что получает Gemini
 
-Все предыдущие шаги сворачиваются в структурированный JSON. Gemini получает **готовые ответы**, а не сырые данные:
-
 | Вопрос | Ответ в JSON |
 |---|---|
-| Кто чаще всего появляется рядом? | `topSources` — топ N по views/impressions |
-| Что изменилось? | `biggestChanges` — абсолютные муверы с % |
-| Кто появился впервые? | `newEntries` — новые видео в последнем снапшоте |
-| Кто исчез? | `droppedEntries` — были, больше нет |
-| По каким тегам YouTube меня ставит? | `mostFrequentSharedTags` |
-| Какие каналы-конкуренты? | `channelDistribution` |
-| Какова тематика рядом стоящих видео? | `topKeywordsInSuggestedTitles` |
-| История снапшотов | `snapshotTimeline` |
-
-Gemini **не пересчитывает** — только интерпретирует. `analysisGuidance` в ответе явно это предписывает.
-
----
-
-## Архитектура
-
-```
-Chat UI
-  └─ SSE stream ←──────────────────────────────── Cloud Function: aiChat
-                                                       │
-                                          streamChat (Gemini loop)
-                                                       │
-                                            Gemini вызывает tool
-                                                       │
-                                          executeTool → handler
-                                                       │
-                               ┌───────────────────────┴────────────────────────┐
-                               │         analyzeSuggestedTraffic handler          │
-                               │                                                  │
-                               │  1. Firestore: snapshot metadata + source video  │
-                               │  2. Cloud Storage: parallel CSV download         │
-                               │  3. csvParser: pure parse → SuggestedVideoRow[]  │
-                               │  4. delta: calculateSnapshotDeltas               │
-                               │  5. suggestedAnalysis: aggregateTopSources       │
-                               │                        findBiggestChanges        │
-                               │  6. Firestore: cached_suggested_traffic_videos   │
-                               │     (tags, channelTitle для content analysis)    │
-                               │  7. analyzeContent: shared tags, keywords        │
-                               └───────────────────────┬────────────────────────┘
-                                                       │
-                                          Structured JSON → Gemini
-                                                       │
-                                         SSE: toolProgress events
-                                         SSE: final text response
-```
+| Кто чаще всего рядом? | `topSources` — топ N по impressions с полным timeline |
+| Как менялась динамика? | `timeline[]` — trajectory каждого видео по всем снапшотам |
+| Как менялся пул? | `transitions` — newCount/droppedCount + примеры за каждый период |
+| По каким тегам ставят? | `contentAnalysis.mostFrequentSharedTags` |
+| Какие каналы-конкуренты? | `contentAnalysis.channelDistribution` |
+| Тематика окружения? | `contentAnalysis.topKeywordsInSuggestedTitles` |
 
 ---
 
@@ -205,15 +158,10 @@ Chat UI
 | Параметр | Тип | Default | Описание |
 |---|---|---|---|
 | `videoId` | string | — | ID видео (required) |
-| `limit` | number | 20 | Топ N источников (max 500) |
-| `sortBy` | enum | `"views"` | `views` / `impressions` / `deltaViews` / `deltaImpressions` |
+| `depth` | enum | `"standard"` | `quick` (20) / `standard` (50) / `detailed` (100) / `deep` (500) |
 | `minImpressions` | number | — | Фильтр по минимуму impressions |
 | `minViews` | number | — | Фильтр по минимуму views |
 | `includeContentAnalysis` | boolean | true | Включить анализ тегов и ключевых слов |
-
-**Валидация `videoId`:** проверяется тип + regex `^[\w-]{1,64}$` (защита от path traversal).
-
-**Fallback:** если `sortBy` = `deltaViews`/`deltaImpressions`, но снапшот только один — автоматически падает до `"views"`.
 
 ---
 
@@ -221,34 +169,34 @@ Chat UI
 
 ```typescript
 {
-  sourceVideo: {
-    videoId, title, description, tags
-  },
-  snapshotTimeline: [
-    { date, label, totalSources }  // все снапшоты по порядку
-  ],
-  topSources: TopSource[],       // топ N по sortBy, с delta если есть
-  biggestChanges: BiggestChanger[], // топ 10 абсолютных муверов (|deltaViews| desc)
-  newEntries: [                   // появились в последнем снапшоте (max 20)
-    { videoId, title, views, impressions }
-  ],
-  droppedEntries: [               // были, исчезли из последнего снапшота (max 20)
-    { videoId, title, lastViews }
-  ],
-  tail: {                         // агрегат строк за пределами topN
-    count, totalImpressions, totalViews, avgCtr
-  },
-  contentAnalysis?: {             // если includeContentAnalysis=true
-    perVideoOverlap: [
-      { videoId, sourceTitle, sharedTags, sharedKeywords }
-    ],
-    aggregate: {
-      mostFrequentSharedTags,       // теги, совпадающие с source video
-      topKeywordsInSuggestedTitles, // частые слова в title'ах suggested видео
-      channelDistribution           // какие каналы чаще всего появляются
-    }
-  },
-  analysisGuidance: string        // инструкция для Gemini (не показывается пользователю)
+    sourceVideo: { videoId, title, description, tags },
+    snapshotTimeline: [{ date, label, totalSources }],
+    topSources: [{
+        videoId, sourceTitle,
+        views, impressions, ctr, avgViewDuration, watchTimeHours,
+        timeline: [
+            { date, views, impressions, ctr, avgViewDuration, watchTimeHours,
+              deltaViews: null, deltaImpressions: null },
+            { date, views, impressions, ctr, avgViewDuration, watchTimeHours,
+              deltaViews, deltaImpressions },
+        ]
+    }],
+    transitions: [{
+        periodFromDate, periodToDate,
+        newCount, droppedCount,
+        topNew: VideoSnapshotEntry[],
+        topDropped: VideoSnapshotEntry[]
+    }],
+    tail: { count, totalViews, totalImpressions },
+    contentAnalysis?: {
+        perVideoOverlap: [{ videoId, sourceTitle, sharedTags, sharedKeywords }],
+        aggregate: {
+            mostFrequentSharedTags,
+            topKeywordsInSuggestedTitles,
+            channelDistribution
+        }
+    },
+    analysisGuidance: string
 }
 ```
 
@@ -256,60 +204,11 @@ Chat UI
 
 ## Pure утилиты (unit-tested)
 
-Вся бизнес-логика вынесена в чистые функции без side effects:
-
 | Файл | Экспорты | Тесты |
 |---|---|---|
-| `utils/csvParser.ts` | `parseSuggestedTrafficCsv` | `__tests__/csvParser.test.ts` (12 тестов) |
-| `utils/delta.ts` | `calculateSnapshotDeltas`, `findNewEntries`, `findDroppedEntries` | `__tests__/delta.test.ts` (12 тестов) |
-| `utils/suggestedAnalysis.ts` | `aggregateTopSources`, `findBiggestChanges`, `analyzeContent`, `tokenizeTitle`, `findSharedTags` | `__tests__/suggestedAnalysis.test.ts` (20+ тестов) |
-
-**CSV формат:** `YT_RELATED.{videoId}` как Source, RFC 4180 (quoted commas), CTR = `null` когда impressions = 0.
-
-**Keyword tokenization:** Unicode-aware (`\p{L}\p{N}`), ~60 stop words (EN), min длина 3 символа.
-
----
-
-## SSE: toolProgress events
-
-Во время работы инструмент эмитит промежуточные прогресс-события через SSE:
-
-```
-"Загружаю CSV снапшоты..."    ← перед скачиванием из Cloud Storage
-"Считаю дельту..."            ← перед delta calculation
-"Анализирую теги..."          ← перед content analysis (если включён)
-```
-
-Клиент рендерит это как анимированный статус внутри `ToolCallSummary`.
-
----
-
-## Хранение данных
-
-| Что | Где |
-|---|---|
-| CSV тела снапшотов | Cloud Storage: `storagePath` из Firestore |
-| Snapshot metadata | Firestore: `users/{uid}/channels/{ch}/videos/{id}/trafficData/main` → `snapshots[]` |
-| Source video (title, tags) | Firestore: `users/{uid}/channels/{ch}/videos/{id}` |
-| Enrichment (tags, channelTitle) | Firestore: `users/{uid}/channels/{ch}/cached_suggested_traffic_videos/{videoId}` |
-
-`cached_suggested_traffic_videos` заполняется при загрузке CSV через YouTube API enrichment (см. [suggested-traffic.md](./suggested-traffic.md)).
-
----
-
-## Ключевые технические решения
-
-**Почему не передавать CSV напрямую в Gemini:**
-500 строк CSV ≈ 140K токенов ≈ $2.80. Предварительный расчёт на сервере сжимает данные до ~5K токенов с потерей только длинного хвоста.
-
-**Почему delta на стороне сервера:**
-Gemini не умеет надёжно сравнивать массивы числовых данных. Детерминированный код даёт точные числа, AI только интерпретирует результат.
-
-**biggestChanges по абсолютному значению:**
-Включает и рост, и падение — Gemini знает об этом из `analysisGuidance`.
-
-**db.getAll ограничен до 30 refs:**
-Content analysis берёт не более 30 топ-источников, чтобы не упереться в лимиты Firestore.
+| `utils/csvParser.ts` | `parseSuggestedTrafficCsv` | 12 тестов |
+| `utils/delta.ts` | `calculateSnapshotDeltas`, `findNewEntries`, `findDroppedEntries`, `buildVideoTimeline`, `getTransitions` | 17 тестов |
+| `utils/suggestedAnalysis.ts` | `aggregateTopSources`, `analyzeContent`, `tokenizeTitle`, `findSharedTags` | 20+ тестов |
 
 ---
 
@@ -321,24 +220,18 @@ functions/src/
     handlers/analyzeSuggestedTraffic.ts   ← main handler
     utils/
       csvParser.ts                        ← RFC 4180 parser
-      delta.ts                            ← snapshot diffing
+      delta.ts                            ← timeline builder + transitions + snapshot diffing
       suggestedAnalysis.ts                ← aggregation + content analysis
       __tests__/
         csvParser.test.ts
         delta.test.ts
         suggestedAnalysis.test.ts
-    definitions.ts                        ← tool declaration (FunctionDeclaration)
+    definitions.ts                        ← tool declaration (depth enum)
     executor.ts                           ← tool routing
 
 src/
-  core/
-    types/sseEvents.ts                    ← SSEToolProgressEvent
-    services/aiProxyService.ts            ← SSE toolProgress handler
-    services/aiService.ts                 ← onToolProgress thread-through
-    stores/chatStore.ts                   ← ActiveToolCall + progressMessage
   features/Chat/
-    components/ToolCallSummary.tsx        ← рендер прогресс-статуса
-    components/ToolCallBadge.tsx          ← метка инструмента
+    components/ToolCallSummary.tsx        ← AnalysisStats + PortalTooltip
     utils/toolCallGrouping.ts             ← getGroupLabel для analyzeSuggestedTraffic
 ```
 
@@ -348,3 +241,29 @@ src/
 
 - [Suggested Traffic UI](./suggested-traffic.md) — откуда берутся CSV и данные enrichment
 - [Chat](./chat/) — SSE streaming, tool call pipeline, ToolCallSummary UI
+
+---
+
+## ← YOU ARE HERE → v2: timeline + depth + transitions
+
+## Roadmap
+
+### Stage 3 — Multi-snapshot comparison UI
+**Бизнес-цель:** пользователь видит ротацию пула suggested видео визуально на странице Traffic, не только через AI.
+
+- [ ] Визуализация transitions на Suggested Traffic page
+- [ ] Timeline view для отдельного source видео
+
+### Stage 4 — Niche correlation
+**Бизнес-цель:** связать suggested traffic с нишами пользователя, показать какие ниши приносят трафик.
+
+- [ ] Передать niche assignments в handler
+- [ ] Агрегат impressions/views по нишам
+
+### Stage 5 — Market-ready
+**Бизнес-цель:** полная автоматизация аналитики для YouTube-каналов.
+
+- [ ] Scheduled analysis (автоматический отчёт при новом снапшоте)
+- [ ] Cost: ~$0.05-0.10 per analysis (pre-computed JSON vs raw CSV tokens)
+- [ ] API: Gemini 2.5 Pro, Cloud Functions 2nd Gen
+- [ ] Storage: Firestore (metadata) + Cloud Storage (CSV bodies)
