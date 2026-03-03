@@ -70,11 +70,11 @@ const analyzeSuggestedTraffic: FunctionDeclaration = {
     name: TOOL_NAMES.ANALYZE_SUGGESTED_TRAFFIC,
     description:
         "Analyze suggested traffic data for a video. Downloads all CSV snapshots, " +
-        "calculates view/impression deltas between snapshots, identifies biggest movers, " +
-        "new entries, dropped entries, and optionally analyzes tag/keyword overlap with " +
-        "suggested videos. Returns pre-computed structured findings for strategic " +
-        "interpretation. Use when the user asks about suggested traffic, algorithmic " +
-        "neighbors, or which videos appear alongside theirs.",
+        "builds per-video timeline trajectories across all snapshots with pre-computed deltas, " +
+        "identifies pool transitions (new/dropped sources per period), and optionally analyzes " +
+        "tag/keyword overlap. Returns structured findings for strategic interpretation. " +
+        "Use when the user asks about suggested traffic, algorithmic neighbors, " +
+        "or which videos appear alongside theirs.",
     parametersJsonSchema: {
         type: "object",
         properties: {
@@ -82,9 +82,12 @@ const analyzeSuggestedTraffic: FunctionDeclaration = {
                 type: "string",
                 description: "The video ID to analyze suggested traffic for",
             },
-            limit: {
-                type: "number",
-                description: "Max number of top sources to return (default 20, max 500)",
+            depth: {
+                type: "string",
+                enum: ["quick", "standard", "detailed", "deep"],
+                description:
+                    "Analysis depth: quick=top 20, standard=top 50 (default), " +
+                    "detailed=top 100, deep=all sources",
             },
             minImpressions: {
                 type: "number",
@@ -93,11 +96,6 @@ const analyzeSuggestedTraffic: FunctionDeclaration = {
             minViews: {
                 type: "number",
                 description: "Filter out sources with fewer views",
-            },
-            sortBy: {
-                type: "string",
-                enum: ["views", "impressions", "deltaViews", "deltaImpressions"],
-                description: "Sort top sources by this metric (default: views)",
             },
             includeContentAnalysis: {
                 type: "boolean",

@@ -119,6 +119,7 @@ UI listens for status changes via Firestore `onSnapshot`. Download links come fr
 - Always run `npm run lint` from the project root (not `tsc` directly). Lint includes type-aware checks + hooks rules.
 - When creating new files or refactoring imports — additionally run `npm run typecheck`.
 - Fix all lint errors and warnings following industry best practices — no hacks or workarounds. If a fix requires an architectural change, make it.
+- **Always run existing tests before deploying** (`npm run test:run` for frontend, `npx vitest run --project functions` for backend — both from project root). "Lint/typecheck pass" is NOT a substitute for passing tests. If test runner itself fails (timeout, worker crash, config issue) — fix the test infrastructure first, do not deploy with broken tests.
 
 ### Communication Style
 - The user is a product director / orchestra conductor with no assumed technical background. Always accompany technical explanations with plain, everyday Russian language analogies.
@@ -147,3 +148,9 @@ UI listens for status changes via Firestore `onSnapshot`. Download links come fr
 - When new functionality contains 2+ files of the same domain (e.g. definitions + executor + handlers) — immediately place them in a dedicated folder.
 - One handler / hook / util = one file. Dispatcher / registry = separate file.
 - Every new file must have a single responsibility (SRP). If a file mixes routing and business logic — split immediately, not in a future refactor.
+
+### Elite Senior Dev Lens (New Feature Design)
+Before implementing any new feature or extending existing functionality, challenge every design decision by asking:
+1. **Deterministic vs magic.** Is the API contract explicit and predictable, or does it rely on the caller (LLM or human) guessing the right value? Prefer enums and structured options over free-form numeric parameters.
+2. **Computation vs interpretation.** Code does math (precise, deterministic). LLMs do pattern recognition and explanation. Never make an LLM compute deltas, percentages, or arithmetic — pre-compute and pass as structured data. Give raw data for pattern recognition AND pre-computed results for citation.
+3. **Data trajectory.** When temporal data exists (snapshots, versions, history), never reduce it to "latest + one delta". Preserve the full timeline so the consumer sees the shape of change over time, not just the last step. Each data point in a timeline should include its delta from the previous point (pre-computed by code, not the consumer).

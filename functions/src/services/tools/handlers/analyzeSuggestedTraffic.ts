@@ -1,32 +1,41 @@
 // =============================================================================
-// analyzeSuggestedTraffic handler — compute structured analytics from
-// YouTube Suggested Traffic CSV snapshots stored in Cloud Storage.
+// analyzeSuggestedTraffic handler v2 — per-video timeline + transitions
 //
 // Steps:
-//   1. Read snapshot metadata + source video from Firestore
-//   2. Download all CSVs from Cloud Storage in parallel
-//   3. Parse CSVs using the pure csvParser utility
-//   4. Calculate deltas between the two most recent snapshots
-//   5. Aggregate top sources with optional filters
-//   6. Optionally enrich with cached Firestore video data for content analysis
-//   7. Return structured JSON for Gemini to interpret
+//   1. Parse depth → concrete limit via DEPTH_LIMITS map
+//   2. Read snapshot metadata + source video from Firestore
+//   3. Download all CSVs from Cloud Storage in parallel
+//   4. Parse CSVs into VideoSnapshotEntry arrays
+//   5. buildVideoTimeline() — per-video trajectory across ALL snapshots
+//   6. Sort by impressions (last snapshot), take top N → attach timeline
+//   7. getTransitions() — new/dropped counts + top examples per period
+//   8. Optionally enrich with cached Firestore video data for content analysis
+//   9. Return structured JSON for Gemini to interpret
 // =============================================================================
 
 import { db, admin } from "../../../shared/db.js";
 import { parseSuggestedTrafficCsv } from "../utils/csvParser.js";
 import {
-    calculateSnapshotDeltas,
-    findNewEntries,
-    findDroppedEntries,
+    buildVideoTimeline,
+    getTransitions,
 } from "../utils/delta.js";
 import {
-    aggregateTopSources,
-    findBiggestChanges,
     analyzeContent,
 } from "../utils/suggestedAnalysis.js";
 import type { ToolContext } from "../types.js";
 import type { VideoSnapshotEntry } from "../utils/delta.js";
 import type { EnrichedVideoData } from "../utils/suggestedAnalysis.js";
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const DEPTH_LIMITS: Record<string, number> = {
+    quick: 20,
+    standard: 50,
+    detailed: 100,
+    deep: 500,
+} as const;
 
 // ---------------------------------------------------------------------------
 // Internal types
@@ -54,19 +63,15 @@ export async function handleAnalyzeSuggestedTraffic(
     const videoId = args.videoId;
     if (!/^[\w-]{1,64}$/.test(videoId)) return { error: "Invalid videoId format" };
 
-    const limit = Math.min(
-        typeof args.limit === "number" ? args.limit : 20,
-        500,
-    );
+    const depth = typeof args.depth === "string" && args.depth in DEPTH_LIMITS
+        ? args.depth
+        : "standard";
+    const limit = DEPTH_LIMITS[depth];
+
     const minImpressions =
         typeof args.minImpressions === "number" ? args.minImpressions : undefined;
     const minViews =
         typeof args.minViews === "number" ? args.minViews : undefined;
-    const sortBy = (
-        ["views", "impressions", "deltaViews", "deltaImpressions"] as const
-    ).includes(args.sortBy as never)
-        ? (args.sortBy as "views" | "impressions" | "deltaViews" | "deltaImpressions")
-        : "views";
     const includeContentAnalysis = args.includeContentAnalysis !== false; // default true
 
     // --- Step 1: Firestore — read snapshot metadata + source video ----------
@@ -116,7 +121,6 @@ export async function handleAnalyzeSuggestedTraffic(
                 console.warn(
                     `[analyzeSuggestedTraffic] Failed to download ${snap.storagePath}: ${msg}`,
                 );
-                // Return an empty CSV so parsing produces an empty snapshot rather than crashing
                 return "";
             }
         }),
@@ -128,7 +132,6 @@ export async function handleAnalyzeSuggestedTraffic(
         parseSuggestedTrafficCsv(csv),
     );
 
-    // Build VideoSnapshotEntry arrays
     const snapshotEntries: VideoSnapshotEntry[][] = parsedSnapshots.map(
         (snap) =>
             snap.rows.map(
@@ -138,53 +141,60 @@ export async function handleAnalyzeSuggestedTraffic(
                     views: row.views,
                     impressions: row.impressions,
                     ctr: row.ctr,
+                    avgViewDuration: row.avgViewDuration,
                     watchTimeHours: row.watchTimeHours,
                 }),
             ),
     );
 
-    // --- Step 4: Calculate deltas -------------------------------------------
+    // --- Step 4: Build per-video timelines ----------------------------------
 
-    ctx.reportProgress?.("Считаю дельту между снапшотами...");
+    ctx.reportProgress?.("Строю timeline по всем снапшотам...");
 
-    const latestEntries = snapshotEntries[snapshotEntries.length - 1];
-    const previousEntries =
-        snapshotEntries.length >= 2
-            ? snapshotEntries[snapshotEntries.length - 2]
-            : [];
-
-    const deltas =
-        snapshotEntries.length >= 2
-            ? calculateSnapshotDeltas(latestEntries, previousEntries)
-            : new Map();
-
-    const newEntries =
-        snapshotEntries.length >= 2
-            ? findNewEntries(latestEntries, previousEntries)
-            : [];
-    const droppedEntries =
-        snapshotEntries.length >= 2
-            ? findDroppedEntries(latestEntries, previousEntries)
-            : [];
-
-    // --- Step 5: Aggregate --------------------------------------------------
-
-    // When there is only one snapshot, delta-based sorts have no data — fall back to views
-    const effectiveSortBy =
-        (sortBy === "deltaViews" || sortBy === "deltaImpressions") &&
-            snapshotEntries.length < 2
-            ? "views"
-            : sortBy;
-
-    const { topSources, tail } = aggregateTopSources(
-        parsedSnapshots[parsedSnapshots.length - 1].rows,
-        deltas,
-        { limit, sortBy: effectiveSortBy, minImpressions, minViews },
+    const snapshotDates = snapshots.map(
+        (snap) => new Date(snap.timestamp).toISOString().split("T")[0],
     );
 
-    const biggestChanges = findBiggestChanges(deltas, 10);
+    const timelineMap = buildVideoTimeline(snapshotEntries, snapshotDates);
 
-    // --- Step 6: Content analysis (conditional) -----------------------------
+    // --- Step 5: Sort by impressions, apply filters, take top N -------------
+
+    let allTimelines = [...timelineMap.values()];
+
+    // Apply filters
+    if (minImpressions !== undefined && minImpressions > 0) {
+        allTimelines = allTimelines.filter(t => t.impressions >= minImpressions);
+    }
+    if (minViews !== undefined && minViews > 0) {
+        allTimelines = allTimelines.filter(t => t.views >= minViews);
+    }
+
+    // Sort by impressions in latest snapshot (descending)
+    allTimelines.sort((a, b) => b.impressions - a.impressions);
+
+    const topSources = allTimelines.slice(0, limit).map(t => ({
+        videoId: t.videoId,
+        sourceTitle: t.sourceTitle,
+        views: t.views,
+        impressions: t.impressions,
+        ctr: t.ctr,
+        avgViewDuration: t.avgViewDuration,
+        watchTimeHours: t.watchTimeHours,
+        timeline: t.timeline,
+    }));
+
+    const tailSlice = allTimelines.slice(limit);
+    const tail = {
+        count: tailSlice.length,
+        totalViews: tailSlice.reduce((sum, t) => sum + t.views, 0),
+        totalImpressions: tailSlice.reduce((sum, t) => sum + t.impressions, 0),
+    };
+
+    // --- Step 6: Compute transitions ----------------------------------------
+
+    const transitions = getTransitions(snapshotEntries, snapshotDates);
+
+    // --- Step 7: Content analysis (conditional) -----------------------------
 
     let contentAnalysis: ReturnType<typeof analyzeContent> | undefined =
         undefined;
@@ -211,10 +221,21 @@ export async function handleAnalyzeSuggestedTraffic(
             }
         }
 
+        // Adapt topSources to TopSource interface expected by analyzeContent
+        const topSourcesForAnalysis = topSources.map(s => ({
+            videoId: s.videoId,
+            sourceTitle: s.sourceTitle,
+            views: s.views,
+            impressions: s.impressions,
+            ctr: s.ctr,
+            avgViewDuration: s.avgViewDuration,
+            watchTimeHours: s.watchTimeHours,
+        }));
+
         contentAnalysis = analyzeContent(
             sourceVideo.tags,
             sourceVideo.title,
-            topSources,
+            topSourcesForAnalysis,
             enrichedData,
         );
     }
@@ -232,36 +253,24 @@ export async function handleAnalyzeSuggestedTraffic(
     const analysisGuidance = `You have received pre-computed analytics from YouTube Suggested Traffic data.
 
 CRITICAL RULES:
-- All numbers are deterministic — calculated by code, never estimated
-- "deltaViews: +5000 (167%)" means +5000 more views in latest vs previous snapshot
-- "biggestChanges" are sorted by |deltaViews| — includes both gainers and losers (biggest absolute movers)
-- "sharedTags" = exact tag match between your video and the suggested video
-- "topKeywordsInSuggestedTitles" = most frequent words from ALL suggested video titles (not just shared) — useful for niche/topic discovery
-- "newEntries" = appeared in latest snapshot, absent in the previous one
-- "droppedEntries" = were recommended before, gone from latest snapshot
-- "channelDistribution" = which channels appear most in your suggested traffic
+- All numbers are deterministic — calculated by code, never estimated.
+- Each video in topSources has a "timeline" array: raw metric values at each snapshot where the video was present, plus pre-computed deltas vs the previous point. Use timelines for trajectory analysis (growth/decline/stability over time).
+- "transitions" shows how the source pool changed between consecutive snapshots: newCount/droppedCount for scale, topNew/topDropped for notable examples.
+- "avgViewDuration" = how long viewers from this source watched YOUR video on average (format "H:MM:SS"). Compare with the source video's total duration for engagement depth insight.
+- "sharedTags" = exact tag match between your video and the suggested video.
+- "topKeywordsInSuggestedTitles" = most frequent words from ALL suggested video titles — useful for niche/topic discovery.
+- "channelDistribution" = which channels appear most in your suggested traffic.
 - DO NOT recalculate any numbers. Interpret and explain what the findings mean strategically.
-- If deltas are absent (single snapshot), note that trend data requires at least 2 snapshots.
-- If you need deeper content analysis (full description, detailed tags) for specific videos — call getMultipleVideoDetails with their IDs. Do this selectively for the most interesting movers, not for all videos.`;
+- If timelines have only 1 point (single snapshot), note that trend data requires at least 2 snapshots.
+- If you need deeper content analysis for specific videos — call getMultipleVideoDetails with their IDs. Do this selectively for the most interesting movers.`;
 
-    // --- Step 7: Return structured result -----------------------------------
+    // --- Step 8: Return structured result -----------------------------------
 
     return {
         sourceVideo,
         snapshotTimeline,
         topSources,
-        biggestChanges,
-        newEntries: newEntries.slice(0, 20).map((e) => ({
-            videoId: e.videoId,
-            title: e.sourceTitle,
-            views: e.views,
-            impressions: e.impressions,
-        })),
-        droppedEntries: droppedEntries.slice(0, 20).map((e) => ({
-            videoId: e.videoId,
-            title: e.sourceTitle,
-            lastViews: e.views,
-        })),
+        transitions,
         tail,
         ...(contentAnalysis ? { contentAnalysis } : {}),
         analysisGuidance,

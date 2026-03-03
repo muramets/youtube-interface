@@ -29,6 +29,7 @@ const makeDelta = (videoId: string, deltaViews: number, deltaImpressions: number
     views: 100,
     impressions: 200,
     ctr: null,
+    avgViewDuration: '0:05:00',
     watchTimeHours: 10,
     deltaViews,
     deltaImpressions,
@@ -137,10 +138,10 @@ describe('findSharedTags', () => {
 describe('aggregateTopSources', () => {
     const rows = [
         makeRow('v1', 1000, 5000, 2.0),
-        makeRow('v2', 500,  3000, 1.5),
-        makeRow('v3', 300,  2000, 1.0),
-        makeRow('v4', 100,  800,  0.5),
-        makeRow('v5', 50,   200,  null),
+        makeRow('v2', 500, 3000, 1.5),
+        makeRow('v3', 300, 2000, 1.0),
+        makeRow('v4', 100, 800, 0.5),
+        makeRow('v5', 50, 200, null),
     ];
     const emptyDeltas = new Map<string, VideoDelta>();
 
@@ -242,7 +243,7 @@ describe('findBiggestChanges', () => {
     it('deduplicates when same video appears in both top-by-views and top-by-impressions', () => {
         const deltas = new Map([
             ['star', makeDelta('star', 2000, 3000)], // top both
-            ['v2',   makeDelta('v2', 100, 200)],
+            ['v2', makeDelta('v2', 100, 200)],
         ]);
         const changes = findBiggestChanges(deltas, 10);
         const starCount = changes.filter(c => c.videoId === 'star').length;

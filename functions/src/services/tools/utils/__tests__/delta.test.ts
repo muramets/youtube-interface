@@ -3,6 +3,8 @@ import {
     calculateSnapshotDeltas,
     findNewEntries,
     findDroppedEntries,
+    buildVideoTimeline,
+    getTransitions,
     type VideoSnapshotEntry,
 } from '../delta.js';
 
@@ -12,12 +14,13 @@ const makeEntry = (videoId: string, views: number, impressions: number, ctr: num
     views,
     impressions,
     ctr,
+    avgViewDuration: '0:03:00',
     watchTimeHours: views * 0.1,
 });
 
 describe('calculateSnapshotDeltas', () => {
     it('calculates positive delta correctly', () => {
-        const latest   = [makeEntry('abc', 8000, 5000, 2.5)];
+        const latest = [makeEntry('abc', 8000, 5000, 2.5)];
         const previous = [makeEntry('abc', 3000, 2000, 1.5)];
         const deltas = calculateSnapshotDeltas(latest, previous);
         const d = deltas.get('abc')!;
@@ -27,7 +30,7 @@ describe('calculateSnapshotDeltas', () => {
     });
 
     it('calculates negative delta correctly', () => {
-        const latest   = [makeEntry('abc', 100, 200)];
+        const latest = [makeEntry('abc', 100, 200)];
         const previous = [makeEntry('abc', 500, 800)];
         const deltas = calculateSnapshotDeltas(latest, previous);
         const d = deltas.get('abc')!;
@@ -36,7 +39,7 @@ describe('calculateSnapshotDeltas', () => {
     });
 
     it('calculates percentage change correctly (1 decimal)', () => {
-        const latest   = [makeEntry('abc', 8000, 5000)];
+        const latest = [makeEntry('abc', 8000, 5000)];
         const previous = [makeEntry('abc', 3000, 2000)];
         const deltas = calculateSnapshotDeltas(latest, previous);
         const d = deltas.get('abc')!;
@@ -47,21 +50,21 @@ describe('calculateSnapshotDeltas', () => {
     });
 
     it('returns null pctViews when previous views = 0', () => {
-        const latest   = [makeEntry('abc', 5, 100)];
+        const latest = [makeEntry('abc', 5, 100)];
         const previous = [makeEntry('abc', 0, 100)];
         const deltas = calculateSnapshotDeltas(latest, previous);
         expect(deltas.get('abc')!.pctViews).toBeNull();
     });
 
     it('returns null pctImpressions when previous impressions = 0', () => {
-        const latest   = [makeEntry('abc', 5, 100)];
+        const latest = [makeEntry('abc', 5, 100)];
         const previous = [makeEntry('abc', 5, 0)];
         const deltas = calculateSnapshotDeltas(latest, previous);
         expect(deltas.get('abc')!.pctImpressions).toBeNull();
     });
 
     it('excludes videos only in latest (they are newEntries)', () => {
-        const latest   = [makeEntry('abc', 100, 200), makeEntry('new', 50, 100)];
+        const latest = [makeEntry('abc', 100, 200), makeEntry('new', 50, 100)];
         const previous = [makeEntry('abc', 50, 100)];
         const deltas = calculateSnapshotDeltas(latest, previous);
         expect(deltas.has('abc')).toBe(true);
@@ -69,7 +72,7 @@ describe('calculateSnapshotDeltas', () => {
     });
 
     it('excludes videos only in previous (they are droppedEntries)', () => {
-        const latest   = [makeEntry('abc', 100, 200)];
+        const latest = [makeEntry('abc', 100, 200)];
         const previous = [makeEntry('abc', 50, 100), makeEntry('old', 200, 500)];
         const deltas = calculateSnapshotDeltas(latest, previous);
         expect(deltas.has('abc')).toBe(true);
@@ -77,7 +80,7 @@ describe('calculateSnapshotDeltas', () => {
     });
 
     it('returns null deltaCtr when either ctr is null', () => {
-        const latest   = [makeEntry('abc', 100, 200, null)];
+        const latest = [makeEntry('abc', 100, 200, null)];
         const previous = [makeEntry('abc', 50, 100, 2.5)];
         const deltas = calculateSnapshotDeltas(latest, previous);
         expect(deltas.get('abc')!.deltaCtr).toBeNull();
@@ -90,7 +93,7 @@ describe('calculateSnapshotDeltas', () => {
 
 describe('findNewEntries', () => {
     it('finds videos in latest not in previous', () => {
-        const latest   = [makeEntry('abc', 100, 200), makeEntry('new1', 50, 100), makeEntry('new2', 10, 20)];
+        const latest = [makeEntry('abc', 100, 200), makeEntry('new1', 50, 100), makeEntry('new2', 10, 20)];
         const previous = [makeEntry('abc', 50, 100)];
         const newEntries = findNewEntries(latest, previous);
         expect(newEntries).toHaveLength(2);
@@ -100,7 +103,7 @@ describe('findNewEntries', () => {
     });
 
     it('returns empty array when latest has no new videos', () => {
-        const latest   = [makeEntry('abc', 100, 200)];
+        const latest = [makeEntry('abc', 100, 200)];
         const previous = [makeEntry('abc', 50, 100), makeEntry('xyz', 10, 20)];
         expect(findNewEntries(latest, previous)).toHaveLength(0);
     });
@@ -113,7 +116,7 @@ describe('findNewEntries', () => {
 
 describe('findDroppedEntries', () => {
     it('finds videos in previous not in latest', () => {
-        const latest   = [makeEntry('abc', 100, 200)];
+        const latest = [makeEntry('abc', 100, 200)];
         const previous = [makeEntry('abc', 50, 100), makeEntry('gone1', 200, 500), makeEntry('gone2', 10, 30)];
         const dropped = findDroppedEntries(latest, previous);
         expect(dropped).toHaveLength(2);
@@ -123,7 +126,7 @@ describe('findDroppedEntries', () => {
     });
 
     it('returns empty array when all previous are still in latest', () => {
-        const latest   = [makeEntry('abc', 100, 200), makeEntry('xyz', 50, 100)];
+        const latest = [makeEntry('abc', 100, 200), makeEntry('xyz', 50, 100)];
         const previous = [makeEntry('abc', 50, 100)];
         expect(findDroppedEntries(latest, previous)).toHaveLength(0);
     });
@@ -131,5 +134,90 @@ describe('findDroppedEntries', () => {
     it('returns all previous when latest is empty', () => {
         const previous = [makeEntry('abc', 100, 200), makeEntry('def', 50, 100)];
         expect(findDroppedEntries([], previous)).toHaveLength(2);
+    });
+});
+
+describe('buildVideoTimeline', () => {
+    it('builds 3-point timeline for video present in all snapshots', () => {
+        const s1 = [makeEntry('abc', 200, 3000)];
+        const s2 = [makeEntry('abc', 2800, 45000)];
+        const s3 = [makeEntry('abc', 5000, 80000)];
+        const result = buildVideoTimeline([s1, s2, s3], ['2026-01-15', '2026-01-22', '2026-02-15']);
+        const t = result.get('abc')!;
+
+        expect(t.timeline).toHaveLength(3);
+        // First point: no delta
+        expect(t.timeline[0].deltaViews).toBeNull();
+        expect(t.timeline[0].deltaImpressions).toBeNull();
+        expect(t.timeline[0].views).toBe(200);
+        // Second point: delta from first
+        expect(t.timeline[1].deltaViews).toBe(2600);
+        expect(t.timeline[1].deltaImpressions).toBe(42000);
+        // Third point: delta from second
+        expect(t.timeline[2].deltaViews).toBe(2200);
+        expect(t.timeline[2].deltaImpressions).toBe(35000);
+        // Latest values match last snapshot
+        expect(t.views).toBe(5000);
+        expect(t.impressions).toBe(80000);
+    });
+
+    it('handles gap: video in s1 and s3 but not s2 → 2 points, delta from s1', () => {
+        const s1 = [makeEntry('abc', 200, 3000)];
+        const s2: VideoSnapshotEntry[] = []; // abc not present
+        const s3 = [makeEntry('abc', 5000, 80000)];
+        const result = buildVideoTimeline([s1, s2, s3], ['2026-01-15', '2026-01-22', '2026-02-15']);
+        const t = result.get('abc')!;
+
+        expect(t.timeline).toHaveLength(2);
+        expect(t.timeline[0].date).toBe('2026-01-15');
+        expect(t.timeline[0].deltaViews).toBeNull(); // first appearance
+        expect(t.timeline[1].date).toBe('2026-02-15');
+        expect(t.timeline[1].deltaViews).toBe(4800); // delta from s1, not s2
+    });
+
+    it('single snapshot → 1 point, no delta', () => {
+        const s1 = [makeEntry('abc', 500, 10000)];
+        const result = buildVideoTimeline([s1], ['2026-01-15']);
+        const t = result.get('abc')!;
+
+        expect(t.timeline).toHaveLength(1);
+        expect(t.timeline[0].deltaViews).toBeNull();
+        expect(t.views).toBe(500);
+    });
+});
+
+describe('getTransitions', () => {
+    it('computes 2 transitions for 3 snapshots', () => {
+        const s1 = [makeEntry('abc', 200, 3000)];
+        const s2 = [makeEntry('abc', 2800, 45000), makeEntry('new1', 100, 500), makeEntry('new2', 50, 200)];
+        const s3 = [makeEntry('abc', 5000, 80000), makeEntry('new1', 200, 800)]; // new2 dropped
+
+        const transitions = getTransitions([s1, s2, s3], ['2026-01-15', '2026-01-22', '2026-02-15']);
+
+        expect(transitions).toHaveLength(2);
+        // Transition 1: s1 → s2
+        expect(transitions[0].newCount).toBe(2);       // new1, new2 appeared
+        expect(transitions[0].droppedCount).toBe(0);    // nothing dropped
+        expect(transitions[0].periodFromDate).toBe('2026-01-15');
+        expect(transitions[0].periodToDate).toBe('2026-01-22');
+        // Transition 2: s2 → s3
+        expect(transitions[1].newCount).toBe(0);
+        expect(transitions[1].droppedCount).toBe(1);    // new2 dropped
+        expect(transitions[1].topDropped[0].videoId).toBe('new2');
+    });
+
+    it('topNew is sorted by impressions and capped at 10', () => {
+        const s1: VideoSnapshotEntry[] = [];
+        // Create 15 new entries with varying impressions
+        const s2 = Array.from({ length: 15 }, (_, i) =>
+            makeEntry(`v${i}`, i * 10, (15 - i) * 100),
+        );
+
+        const transitions = getTransitions([s1, s2], ['2026-01-15', '2026-01-22']);
+
+        expect(transitions[0].newCount).toBe(15);        // full count
+        expect(transitions[0].topNew).toHaveLength(10);  // capped at 10
+        // Sorted by impressions desc: v0 has 1500 (highest)
+        expect(transitions[0].topNew[0].videoId).toBe('v0');
     });
 });
