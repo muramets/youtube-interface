@@ -80,8 +80,8 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   const viewMode = video.publishedVideoId ? (videoViewModes[video.id] || 'youtube') : 'custom';
   const [isFlipping, setIsFlipping] = useState(false);
 
-  // Determine which video data to display
-  let displayVideo = viewMode === 'youtube' && video.mergedVideoData ? video.mergedVideoData : video;
+  // Display data comes from root fields (single source of truth)
+  let displayVideo = video;
 
   // LINKED CLONE LOGIC: If this is a linked clone, override with parent's live A/B test data
   const { data: parentVideo } = useQuery({
@@ -125,7 +125,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
     e.stopPropagation();
     handleMenuClose();
 
-    if (!video.mergedVideoData && !video.publishedVideoId) return;
+    if (!video.publishedVideoId) return;
 
     setIsFlipping(true);
     setTimeout(() => {
@@ -291,8 +291,7 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
   // Also check if we have ANY valid thumbnail (e.g., from Trends import)
   const hasValidThumbnail = !!(video.thumbnail || video.customImage);
   const isYouTubeLinkUnavailable = video.fetchStatus === 'failed' || hasSyncError;
-  // In YouTube View, also show unavailable if we have a publishedVideoId but no mergedVideoData (fetch pending/failed)
-  const isMissingYouTubeData = viewMode === 'youtube' && video.publishedVideoId && !video.mergedVideoData;
+  const isMissingYouTubeData = viewMode === 'youtube' && video.publishedVideoId && video.fetchStatus !== 'success';
   // In YouTube View, ignore thumbnail presence for unavailability - if the data is missing/failed, it is unavailable
   const isUnavailable = (viewMode === 'youtube'
     ? (isYouTubeLinkUnavailable || isMissingYouTubeData)
@@ -373,7 +372,9 @@ export const VideoCard: React.FC<VideoCardProps> = ({ video, playlistId, onMenuO
               : undefined;
 
             const thumbnailUrl = abTestThumbnail || (displayVideo.isCustom
-              ? (displayVideo.customImage || displayVideo.thumbnail)
+              ? (viewMode === 'youtube'
+                ? (displayVideo.thumbnail || displayVideo.customImage)
+                : (displayVideo.customImage || displayVideo.thumbnail))
               : displayVideo.thumbnail);
 
             // Show "No Thumbnail" placeholder for custom videos without a cover

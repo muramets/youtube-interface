@@ -63,19 +63,19 @@ export function useCanvasDataSync(isOpen: boolean) {
                 let hasChanges = false;
 
                 // Compare fields and collect diffs
-                const newViewCount = fresh.mergedVideoData?.viewCount || fresh.viewCount;
+                const newViewCount = fresh.viewCount;
                 if (newViewCount && newViewCount !== current.viewCount) {
                     freshData.viewCount = newViewCount;
                     hasChanges = true;
                 }
 
-                const newPublishedAt = fresh.mergedVideoData?.publishedAt || fresh.publishedAt;
+                const newPublishedAt = fresh.publishedAt;
                 if (newPublishedAt && newPublishedAt !== current.publishedAt) {
                     freshData.publishedAt = newPublishedAt;
                     hasChanges = true;
                 }
 
-                const newDuration = fresh.mergedVideoData?.duration || fresh.duration;
+                const newDuration = fresh.duration;
                 if (newDuration && newDuration !== current.duration) {
                     freshData.duration = newDuration;
                     hasChanges = true;

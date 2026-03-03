@@ -60,8 +60,8 @@ export const HomePage: React.FC = () => {
     const handleAddToCanvas = React.useCallback((ids: string[], pageId: string, pageTitle: string) => {
         const videosToAdd = videos.filter((v) => ids.includes(v.id))
             .sort((a, b) => {
-                const da = a.mergedVideoData?.publishedAt || a.publishedAt || '';
-                const db = b.mergedVideoData?.publishedAt || b.publishedAt || '';
+                const da = a.publishedAt || '';
+                const db = b.publishedAt || '';
                 return da < db ? -1 : da > db ? 1 : 0; // oldest first → leftmost on canvas
             });
         const dataArr = videosToAdd.map((v) => videoToCardContext(v, currentChannel?.name));

@@ -54,8 +54,8 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
     const [viewMode, setViewMode] = useState<'custom' | 'youtube'>('custom');
     const [isFlipping, setIsFlipping] = useState(false);
 
-    // Determine which video data to display
-    const displayVideo = viewMode === 'youtube' && video.mergedVideoData ? video.mergedVideoData : video;
+    // Display data comes from root fields (single source of truth)
+    const displayVideo = video;
 
     // Timer for cloned videos
     React.useEffect(() => {
@@ -89,7 +89,7 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
         e.stopPropagation();
         handleCloseMenu();
 
-        if (!video.mergedVideoData && !video.publishedVideoId) return;
+        if (!video.publishedVideoId) return;
 
         setIsFlipping(true);
         setTimeout(() => {
@@ -223,7 +223,11 @@ export const RecommendationCard: React.FC<RecommendationCardProps> = ({ video, p
                 {/* Thumbnail Container */}
                 <div className="relative w-[168px] h-[94px] flex-shrink-0 bg-bg-secondary rounded-lg overflow-hidden">
                     <img
-                        src={displayVideo.isCustom ? (displayVideo.customImage || displayVideo.thumbnail) : displayVideo.thumbnail}
+                        src={displayVideo.isCustom
+                            ? (viewMode === 'youtube'
+                                ? (displayVideo.thumbnail || displayVideo.customImage)
+                                : (displayVideo.customImage || displayVideo.thumbnail))
+                            : displayVideo.thumbnail}
                         alt={displayVideo.title}
                         className="w-full h-full object-cover"
                     />

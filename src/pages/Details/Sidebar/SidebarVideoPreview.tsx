@@ -80,9 +80,9 @@ export const SidebarVideoPreview: React.FC<SidebarVideoPreviewProps> = ({
                     </div>
                 )}
                 {(() => {
-                    // Mirror VideoCard: use YouTube duration (mergedVideoData) for published videos,
+                    // Root-level duration (single source of truth)
                     // fallback to draft duration for unpublished custom videos.
-                    const duration = video.mergedVideoData?.duration || video.duration;
+                    const duration = video.duration;
                     return duration ? (
                         <span className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/80 text-white text-xs font-medium rounded z-20">
                             {formatDuration(duration)}

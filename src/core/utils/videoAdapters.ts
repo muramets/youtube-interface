@@ -60,9 +60,9 @@ export const videoToCardContext = (
     else if (ownChannelName && video.channelTitle === ownChannelName) ownership = 'own-published';
     else ownership = 'competitor';
 
-    const publishedAt = video.mergedVideoData?.publishedAt || video.publishedAt || null;
-    const viewCount = video.mergedVideoData?.viewCount || video.viewCount || null;
-    const duration = video.mergedVideoData?.duration || video.duration || null;
+    const publishedAt = video.publishedAt || null;
+    const viewCount = video.viewCount || null;
+    const duration = video.duration || null;
 
     return {
         type: 'video-card',

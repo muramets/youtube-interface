@@ -150,41 +150,46 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
 
             if (updates) {
                 const finalUpdates = { ...updates };
-                // Merged video logic
+                // Published URL linking: fetch YouTube data → write to root fields
                 if (updates.publishedVideoId && apiKey) {
                     try {
                         const cleanVideoId = extractVideoId(updates.publishedVideoId) || updates.publishedVideoId;
-                        const mergedDetails = await fetchVideoDetails(cleanVideoId, apiKey);
+                        const youtubeData = await fetchVideoDetails(cleanVideoId, apiKey);
 
-                        if (mergedDetails) {
-                            finalUpdates.mergedVideoData = mergedDetails;
-                            // Clear retry state on success
+                        if (youtubeData) {
+                            // Write YouTube data to root fields (single source of truth)
+                            finalUpdates.viewCount = youtubeData.viewCount;
+                            finalUpdates.publishedAt = youtubeData.publishedAt;
+                            finalUpdates.duration = youtubeData.duration;
+                            finalUpdates.thumbnail = youtubeData.thumbnail;
+                            finalUpdates.description = youtubeData.description;
+                            finalUpdates.tags = youtubeData.tags;
+                            // Delete legacy field if it somehow exists in Firestore
+                            (finalUpdates as Record<string, unknown>).mergedVideoData = deleteField();
                             finalUpdates.fetchStatus = 'success';
                             finalUpdates.fetchRetryCount = deleteField() as unknown as number;
                             finalUpdates.lastFetchAttempt = deleteField() as unknown as number;
                         } else {
-                            // Failed to fetch - clear data and initialize retry state
+                            // Failed to fetch - initialize retry state
                             console.error("Fetch returned null for video:", cleanVideoId);
                             showToast(`Failed to load video: ${cleanVideoId}`, 'error');
-                            finalUpdates.mergedVideoData = deleteField() as unknown as VideoDetails['mergedVideoData'];
                             finalUpdates.fetchStatus = 'failed';
                             finalUpdates.fetchRetryCount = 0;
                             finalUpdates.lastFetchAttempt = Date.now();
                         }
                     } catch (error) {
-                        console.error("Failed to fetch merged video details:", error);
+                        console.error("Failed to fetch video details:", error);
                         if (error instanceof Error) {
                             showToast(`Error fetching video: ${error.message}`, 'error');
                         }
-                        // Clear data and initialize retry state on error
-                        finalUpdates.mergedVideoData = deleteField() as unknown as VideoDetails['mergedVideoData'];
+                        // Initialize retry state on error
                         finalUpdates.fetchStatus = 'failed';
                         finalUpdates.fetchRetryCount = 0;
                         finalUpdates.lastFetchAttempt = Date.now();
                     }
                 } else if (updates.publishedVideoId === '') {
-                    // Clearing publishedVideoId - reset all related fields
-                    delete finalUpdates.mergedVideoData;
+                    // Clearing publishedVideoId - reset YouTube-origin fields + retry state
+                    (finalUpdates as Record<string, unknown>).mergedVideoData = deleteField();
                     finalUpdates.fetchStatus = deleteField() as unknown as 'pending' | 'success' | 'failed';
                     finalUpdates.fetchRetryCount = deleteField() as unknown as number;
                     finalUpdates.lastFetchAttempt = deleteField() as unknown as number;
@@ -211,14 +216,13 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
                         // 1. Special handling for publishedVideoId
                         if (updates.publishedVideoId !== undefined) {
                             if (updates.publishedVideoId === '') {
-                                const { mergedVideoData: _1, fetchStatus: _2, fetchRetryCount: _3, lastFetchAttempt: _4, ...rest } = v;
+                                const { mergedVideoData: _1, fetchStatus: _2, fetchRetryCount: _3, lastFetchAttempt: _4, ...rest } = v as VideoDetails & { mergedVideoData?: unknown };
                                 void _1; void _2; void _3; void _4;
                                 return { ...rest, ...updates, publishedVideoId: '' };
                             }
                             return {
                                 ...v,
                                 ...updates,
-                                mergedVideoData: undefined,
                                 fetchStatus: 'pending' as const
                             };
                         }
@@ -308,7 +312,7 @@ export const useVideos = (userId: string, channelId: string): UseVideosResult =>
             // Create a shallow copy and remove fields that should NOT be in the clone
             // (to avoid undefined errors in Firestore and ensure clean state)
             const baseVideo = { ...originalVideo };
-            delete baseVideo.mergedVideoData;
+            delete (baseVideo as Record<string, unknown>).mergedVideoData;
             delete baseVideo.publishedVideoId;
             delete baseVideo.fetchStatus;
             delete baseVideo.lastFetchAttempt;

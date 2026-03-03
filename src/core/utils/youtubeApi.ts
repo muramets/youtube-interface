@@ -33,7 +33,7 @@ export interface VideoDetails {
     fileVersionMap?: Record<string, number>;
     historyCount?: number;
     publishedVideoId?: string;
-    mergedVideoData?: VideoDetails;
+
     videoRender?: string;
     audioRender?: string;
     isDraft?: boolean;

@@ -15,7 +15,7 @@ const RETRY_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 /**
  * Hook to handle retry logic for fetching private/unavailable videos.
  * 
- * - Checks for videos with publishedVideoId but no mergedVideoData
+ * - Checks for videos with publishedVideoId but failed/missing fetchStatus
  * - Retries up to 7 times with 24h intervals
  * - Shows toast for first immediate failure
  * - Shows notifications for subsequent retry failures
@@ -43,7 +43,6 @@ export const useVideoFetchRetry = () => {
             const videosNeedingRetry = videos.filter(v =>
                 v.isCustom &&
                 v.publishedVideoId &&
-                !v.mergedVideoData &&
                 v.fetchStatus !== 'success' &&
                 v.fetchStatus !== 'pending' && // Don't interfere with active user updates
                 (v.fetchRetryCount ?? 0) < MAX_RETRY_ATTEMPTS
@@ -69,14 +68,19 @@ export const useVideoFetchRetry = () => {
                     const details = await fetchVideoDetails(cleanVideoId, generalSettings.apiKey!);
 
                     if (details) {
-                        // Immediately update cache with new data
+                        // Immediately update cache with YouTube data in root fields
                         queryClient.setQueryData<VideoDetails[]>(['videos', user.uid, currentChannel.id], (old) => {
                             if (!old) return old;
                             return old.map(v => {
                                 if (v.id === video.id) {
                                     return {
                                         ...v,
-                                        mergedVideoData: details,
+                                        viewCount: details.viewCount,
+                                        publishedAt: details.publishedAt,
+                                        duration: details.duration,
+                                        thumbnail: details.thumbnail,
+                                        description: details.description,
+                                        tags: details.tags,
                                         fetchStatus: 'success' as const,
                                         fetchRetryCount: undefined,
                                         lastFetchAttempt: undefined
@@ -86,15 +90,22 @@ export const useVideoFetchRetry = () => {
                             });
                         });
 
-                        // Success! Update video with fetched data
+                        // Persist: YouTube data to root + delete legacy mergedVideoData
+                        const retryUpdates: Record<string, unknown> = {
+                            viewCount: details.viewCount,
+                            publishedAt: details.publishedAt,
+                            duration: details.duration,
+                            thumbnail: details.thumbnail,
+                            description: details.description,
+                            tags: details.tags,
+                            mergedVideoData: deleteField(),
+                            fetchStatus: 'success',
+                            fetchRetryCount: deleteField(),
+                            lastFetchAttempt: deleteField()
+                        };
                         await updateVideo({
                             videoId: video.id,
-                            updates: {
-                                mergedVideoData: details,
-                                fetchStatus: 'success',
-                                fetchRetryCount: deleteField() as unknown as number,
-                                lastFetchAttempt: deleteField() as unknown as number
-                            }
+                            updates: retryUpdates as Partial<VideoDetails>
                         });
                     } else {
                         // Failed to fetch (null return) - treat as failure
@@ -103,16 +114,13 @@ export const useVideoFetchRetry = () => {
                 } catch (error) {
                     console.error(`Failed to fetch video ${video.id}:`, error);
 
-                    // Immediately update cache to clear mergedVideoData
+                    // Update cache: mark as failed
                     queryClient.setQueryData<VideoDetails[]>(['videos', user.uid, currentChannel.id], (old) => {
                         if (!old) return old;
                         return old.map(v => {
                             if (v.id === video.id) {
-                                // Omit mergedVideoData from the object
-                                const { mergedVideoData: _, ...rest } = v;
-                                void _; // Explicitly mark as intentionally unused
                                 return {
-                                    ...rest,
+                                    ...v,
                                     fetchStatus: 'failed' as const,
                                     fetchRetryCount: retryCount + 1,
                                     lastFetchAttempt: now
@@ -129,7 +137,6 @@ export const useVideoFetchRetry = () => {
                     await updateVideo({
                         videoId: video.id,
                         updates: {
-                            mergedVideoData: deleteField() as unknown as VideoDetails['mergedVideoData'],
                             fetchStatus: 'failed',
                             fetchRetryCount: newRetryCount,
                             lastFetchAttempt: now

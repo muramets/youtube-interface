@@ -33,7 +33,7 @@ export const useSmartViewerTypeAutoApply = (
         if (!isAssistantEnabled) return;
 
         // Ensure we have duration to work with
-        const videoDurationStr = mainVideo.mergedVideoData?.duration || mainVideo.duration;
+        const videoDurationStr = mainVideo.duration;
         if (!videoDurationStr) return;
 
         const totalDurationSeconds = durationToSeconds(videoDurationStr);

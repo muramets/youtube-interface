@@ -22,8 +22,7 @@ export const useCheckinScheduler = () => {
             const customVideos = videos.filter(v => v.isCustom && v.publishedVideoId);
 
             for (const video of customVideos) {
-                // Use YouTube's publishedAt from mergedVideoData if available, fallback to video.publishedAt
-                const publishedAt = video.mergedVideoData?.publishedAt || video.publishedAt;
+                const publishedAt = video.publishedAt;
                 if (!publishedAt) continue;
 
                 for (const rule of packagingSettings.checkinRules) {

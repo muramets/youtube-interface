@@ -23,7 +23,12 @@ export const useVideoSync = (userId: string, channelId: string) => {
 
             if (details) {
                 const updates = video.publishedVideoId ? {
-                    mergedVideoData: details,
+                    viewCount: details.viewCount,
+                    publishedAt: details.publishedAt,
+                    duration: details.duration,
+                    thumbnail: details.thumbnail,
+                    description: details.description,
+                    tags: details.tags,
                     lastUpdated: Date.now(),
                     fetchStatus: 'success' as const,
                     lastFetchAttempt: Date.now()

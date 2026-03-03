@@ -276,8 +276,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
         const avgDurationSeconds = totalViews > 0 ? totalWatchTimeSeconds / totalViews : 0;
 
         // For custom videos, publishedAt is the app creation date.
-        // Use mergedVideoData?.publishedAt (actual YouTube date) when available.
-        const myVideoPublishDate = currentVideo?.mergedVideoData?.publishedAt || currentVideo?.publishedAt;
+        const myVideoPublishDate = currentVideo?.publishedAt;
         let avgPublishDelta: string | null = null;
         if (myVideoPublishDate && showPublishDateColumn) {
             avgPublishDelta = computeAverageDelta(
@@ -293,7 +292,7 @@ export const TrafficTable = memo<TrafficTableProps>(({
             avgViewDuration: Math.round(avgDurationSeconds).toString(),
             avgPublishDelta,
         };
-    }, [data, currentVideo?.mergedVideoData?.publishedAt, currentVideo?.publishedAt, showPublishDateColumn]);
+    }, [data, currentVideo?.publishedAt, showPublishDateColumn]);
 
     const renderHeaderCell = (label: string, sortKey?: TrafficSortKey, align: 'left' | 'right' | 'center' = 'right') => {
         const isSorted = sortConfig?.key === sortKey;

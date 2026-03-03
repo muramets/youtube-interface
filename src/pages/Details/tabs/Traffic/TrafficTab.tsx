@@ -628,13 +628,13 @@ export const TrafficTab: React.FC<TrafficTabProps> = ({
 
         // Resolve source video YouTube metrics (only for published videos — drafts have no real stats)
         const sourceViewCount = _video.publishedVideoId
-            ? (_video.mergedVideoData?.viewCount || _video.viewCount)
+            ? (_video.viewCount)
             : undefined;
         const sourcePublishedAt = _video.publishedVideoId
-            ? (_video.mergedVideoData?.publishedAt || _video.publishedAt)
+            ? (_video.publishedAt)
             : undefined;
         const sourceDuration = _video.publishedVideoId
-            ? (_video.mergedVideoData?.duration || _video.duration)
+            ? (_video.duration)
             : undefined;
 
         // Resolve snapshot metadata

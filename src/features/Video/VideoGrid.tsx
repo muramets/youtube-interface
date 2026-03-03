@@ -351,8 +351,8 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
           if (v.isCustom && mode === 'custom') {
             return parseViewCount(v.viewCount);
           }
-          // Otherwise use the Merged (Live) stats if available, fall back to base viewCount
-          return parseViewCount(v.mergedVideoData?.viewCount || v.viewCount);
+          // Regular video — use root viewCount
+          return parseViewCount(v.viewCount);
         };
 
         const viewsA = getEffectiveViews(a, modeA);

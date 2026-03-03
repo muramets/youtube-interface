@@ -579,8 +579,7 @@ export const TrafficRow = ({
                         <>
                             {(() => {
                                 // For custom videos, publishedAt is the app creation date.
-                                // Use mergedVideoData?.publishedAt (actual YouTube date) when available.
-                                const myVideoDate = currentVideo?.mergedVideoData?.publishedAt || currentVideo?.publishedAt;
+                                const myVideoDate = currentVideo?.publishedAt;
                                 if (!myVideoDate) return null;
                                 const delta = formatDateDelta(item.publishedAt!, myVideoDate);
                                 if (!delta) return null;
