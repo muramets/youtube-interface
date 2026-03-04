@@ -1,12 +1,13 @@
 // =============================================================================
 // AI CHAT: AI Service — Client-side facade
-// Delegates all Gemini API calls to Cloud Functions via aiProxyService.
+// Delegates all AI API calls to Cloud Functions via aiProxyService.
 // Retains only file validation utilities.
 // =============================================================================
 
 import type { ChatAttachment } from '../types/chat';
 import { DEFAULT_MODEL } from '../types/chat';
 import type { ToolCallRecord } from '../types/sseEvents';
+import type { AttachmentSupport } from '../../../shared/models';
 import * as AiProxy from './aiProxyService';
 
 // --- File validation utilities (client-side only) ---
@@ -54,6 +55,16 @@ export function isAllowedMimeType(file: File): boolean {
         file.type.startsWith('text/');
 }
 
+/** Check if a file is supported by a specific model's attachment capabilities. */
+export function isAllowedMimeTypeForModel(file: File, support: AttachmentSupport): boolean {
+    if (file.type.startsWith('image/')) return support.image;
+    if (file.type === 'application/pdf') return support.pdf;
+    if (file.type.startsWith('audio/')) return support.audio;
+    if (file.type.startsWith('video/')) return support.video;
+    if (file.type.startsWith('text/')) return support.text;
+    return false;
+}
+
 // --- Types ---
 
 export type AiSendResult = {
@@ -72,21 +83,21 @@ export type AiSendResult = {
 
 export const AiService = {
     /**
-     * Upload file to Gemini via Cloud Function.
+     * Upload file to AI provider via Cloud Function.
      * @param storagePath Firebase Storage path (e.g. "chatAttachments/userId/filename.png")
      * @param mimeType MIME type of the file
      * @param displayName Human-readable file name
      */
-    async uploadToGemini(
+    async uploadFile(
         storagePath: string,
         mimeType: string,
         displayName?: string
     ): Promise<{ uri: string; expiryMs: number }> {
-        return AiProxy.uploadToGemini(storagePath, mimeType, displayName || 'attachment');
+        return AiProxy.uploadFile(storagePath, mimeType, displayName || 'attachment');
     },
 
     /**
-     * Send a message to Gemini via Cloud Function (SSE streaming).
+     * Send a message to AI via Cloud Function (SSE streaming).
      * API key is handled server-side — not needed from client.
      */
     async sendMessage(opts: {
@@ -95,7 +106,7 @@ export const AiService = {
         model?: string;
         systemPrompt?: string;
         text: string;
-        attachments?: Array<{ geminiFileUri: string; mimeType: string }>;
+        attachments?: Array<{ type: string; url: string; name: string; mimeType: string; fileRef?: string }>;
         thumbnailUrls?: string[];
         contextMeta?: { videoCards?: number; trafficSources?: number; canvasNodes?: number; totalItems?: number };
         onStream?: (chunk: string) => void;

@@ -16,6 +16,7 @@ import { useChatNavigation } from './hooks/useChatNavigation';
 import { useAuth } from '../../core/hooks/useAuth';
 import { useChannelStore } from '../../core/stores/channelStore';
 import { useCanvasStore } from '../../core/stores/canvas/canvasStore';
+import { MODEL_REGISTRY } from '../../core/types/chat';
 import { ChatMessageList } from './ChatMessageList';
 import { ChatInput } from './ChatInput';
 import { ChatHeader } from './components/ChatHeader';
@@ -85,8 +86,16 @@ export const ChatPanel: React.FC<{ onClose?: () => void; anchorBottomPx?: number
 
     // --- Custom hooks ---
     const conversationIdForUpload = activeConversationId ?? pendingConversationId ?? undefined;
-    const { stagedFiles, addFiles, removeFile, clearAll, clearAndCleanup, isAnyUploading } = useFileAttachments(userId ?? undefined, channelId ?? undefined, conversationIdForUpload);
     const { panelRect, isInteracting, isMaximized, isTransitioning, dragTransform, handleDragStart, handleResizeStart, toggleMaximize } = usePanelGeometry(anchorBottomPx, anchorRightPx);
+
+    // Compute provider early (before useChatDerivedState) to break circular hook dependency:
+    // useChatDerivedState needs editingProject → useChatNavigation needs clearAndCleanup → useFileAttachments needs provider
+    const activeModelProvider = useMemo(() => {
+        const activeConv = conversations.find(c => c.id === activeConversationId);
+        const modelId = pendingModel || activeConv?.model;
+        return modelId ? MODEL_REGISTRY.find(m => m.id === modelId)?.provider : undefined;
+    }, [pendingModel, conversations, activeConversationId]);
+    const { stagedFiles, addFiles, removeFile, clearAll, clearAndCleanup, isAnyUploading } = useFileAttachments(userId ?? undefined, channelId ?? undefined, conversationIdForUpload, activeModelProvider);
     const { isDragOver, handleDragEnter, handleDragLeave, handleDragOver, handleDrop } = useChatDragDrop(addFiles);
 
     const {

@@ -114,17 +114,23 @@ Frontend парсит mention://abc123 → VideoReferenceTooltip
 
 ## Thinking (мышление)
 
-Gemini может "думать вслух" перед ответом. Уровень мышления настраивается:
+AI может "думать вслух" перед ответом. Уровень мышления настраивается per-model:
 
-| Модель | Параметр | Опции |
-|--------|----------|-------|
-| Gemini 3 Pro/Flash | `thinkingLevel` | Minimal · Medium · High |
-| Gemini 2.5 Pro | `thinkingBudget` | 1K · 8K · Auto · 24K tokens |
-| Gemini 2.5 Flash | `thinkingBudget` | Off · 1K · Auto · 24K tokens |
+| Модель | Провайдер | Параметр | Опции |
+|--------|-----------|----------|-------|
+| Gemini 3.1 Pro / 3 Flash | Gemini | `thinkingLevel` | Low · Medium · High |
+| Gemini 2.5 Pro | Gemini | `thinkingBudget` | Auto · 1K · 8K · 24K tokens |
+| Gemini 2.5 Flash | Gemini | `thinkingBudget` | Off · Auto · 1K · 8K · 24K tokens |
+| Claude Sonnet 4.6 | Anthropic | `budget_tokens` | Off · Auto · 4K · 10K · 32K tokens |
+| Claude Haiku 4.5 | Anthropic | — | Только Off (thinking не поддерживается) |
+
+UI dropdown адаптируется автоматически: опции читаются из `MODEL_REGISTRY.thinkingOptions`. Подробнее: [Multi-Provider Architecture](./multi-provider.md).
 
 Мысли отображаются в **ThinkingBubble** — свёрнутый блок с иконкой мозга. Кликнул → развернулась полная цепочка рассуждений.
 
 > **Мысли не сохраняются** — это временные данные стриминга. После перезагрузки страницы thinking bubble исчезнет.
+>
+> **Claude thinking leak protection:** Claude иногда "протекает" thinking content в text blocks (обёрнутый в `<think>` теги). Бэкенд автоматически фильтрует такие утечки и перенаправляет в `onThought` callback.
 
 ---
 

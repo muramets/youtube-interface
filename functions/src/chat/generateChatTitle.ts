@@ -3,7 +3,8 @@
  */
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
-import { ALLOWED_MODEL_IDS, DEFAULT_MODEL_ID } from "../config/models.js";
+/** Utility model for title generation — always use the cheapest available. */
+const TITLE_MODEL = 'gemini-2.5-flash';
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
@@ -17,16 +18,11 @@ export const generateChatTitle = onCall(
             throw new HttpsError("unauthenticated", "Authentication required.");
         }
 
-        const { firstMessage, model } = request.data as {
+        const { firstMessage } = request.data as {
             firstMessage: string;
-            model?: string;
         };
         if (!firstMessage) {
             throw new HttpsError("invalid-argument", "firstMessage is required.");
-        }
-        const resolvedModel = model || DEFAULT_MODEL_ID;
-        if (!ALLOWED_MODEL_IDS.has(resolvedModel)) {
-            throw new HttpsError("invalid-argument", `Unsupported model: ${resolvedModel}`);
         }
 
         const apiKey = geminiApiKey.value();
@@ -35,7 +31,7 @@ export const generateChatTitle = onCall(
         }
 
         const { generateTitle } = await import("../services/gemini/index.js");
-        const title = await generateTitle(apiKey, firstMessage, resolvedModel);
+        const title = await generateTitle(apiKey, firstMessage, TITLE_MODEL);
         return { title };
     }
 );

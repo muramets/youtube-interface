@@ -42,8 +42,8 @@ export interface ChatAttachment {
     url: string;
     name: string;
     mimeType: string;
-    geminiFileUri?: string;   // Gemini File API URI (e.g., "files/abc123")
-    geminiFileExpiry?: number; // Expiration timestamp (ms since epoch)
+    fileRef?: string;          // AI provider file reference (e.g., Gemini "files/abc123")
+    fileRefExpiry?: number;    // Expiration timestamp (ms since epoch)
 }
 
 export interface ChatMessage {
@@ -87,8 +87,8 @@ export type ChatView = 'projects' | 'conversations' | 'chat';
 
 // --- Model config (imported from shared SSOT) ---
 
-export type { ModelConfig, ModelPricing } from '../../../shared/models';
-export { MODEL_REGISTRY, estimateCostEur, resolveModelId, type ThinkingOption } from '../../../shared/models';
+export type { ModelConfig, ModelPricing, AttachmentSupport } from '../../../shared/models';
+export { MODEL_REGISTRY, estimateCostEur, resolveModelId, getAcceptedMimeTypes, type ThinkingOption } from '../../../shared/models';
 import { MODEL_REGISTRY } from '../../../shared/models';
 
 export const DEFAULT_MODEL = MODEL_REGISTRY.find(m => m.isDefault)?.id ?? MODEL_REGISTRY[0].id;

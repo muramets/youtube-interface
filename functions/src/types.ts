@@ -79,15 +79,27 @@ export interface ProcessStats {
 
 // --- AI Chat Proxy Types ---
 
+/**
+ * Firestore-stored attachment shape. Extends the provider-agnostic AttachmentRef
+ * with Gemini-specific cached upload fields that are persisted to Firestore.
+ * See also: services/ai/types.ts → AttachmentRef (provider-agnostic).
+ */
 export interface ChatAttachmentData {
     type: "image" | "audio" | "video" | "file";
     url: string;
     name: string;
     mimeType: string;
+    /** Cached Gemini File API URI (provider-specific, persisted to Firestore). */
     geminiFileUri?: string;
+    /** Expiry timestamp for the cached Gemini URI (ms since epoch). */
     geminiFileExpiry?: number;
 }
 
+/**
+ * Firestore-stored message shape. Similar to HistoryMessage from ai/types.ts
+ * but retains Firestore-specific ChatAttachmentData (with gemini cache fields).
+ * See also: services/ai/types.ts → HistoryMessage (provider-agnostic).
+ */
 export interface HistoryMessageData {
     id: string;
     role: "user" | "model";
@@ -101,7 +113,14 @@ export interface AiChatRequest {
     text: string;
     model?: string;
     systemPrompt?: string;
-    attachments?: Array<{ geminiFileUri: string; mimeType: string }>;
+    attachments?: Array<{
+        type: 'image' | 'audio' | 'video' | 'file';
+        url: string;
+        name: string;
+        mimeType: string;
+        /** Gemini File URI — present only when client pre-uploaded to Gemini Files API. */
+        fileRef?: string;
+    }>;
     thumbnailUrls?: string[];
     /** Thinking depth option id (matches model's thinkingOptions) */
     thinkingOptionId?: string;
@@ -116,11 +135,19 @@ export interface AiChatRequest {
     largePayloadApproved?: boolean;
 }
 
-export interface GeminiUploadRequest {
+/**
+ * Request payload for uploading a Firebase Storage file to an AI provider's
+ * file API (e.g. Gemini File API). Provider-agnostic name; the upload handler
+ * routes to the correct provider internally.
+ */
+export interface FileUploadRequest {
     storagePath: string;
     mimeType: string;
     displayName: string;
 }
+
+/** @deprecated Use FileUploadRequest instead. Alias kept for backward compatibility. */
+export type GeminiUploadRequest = FileUploadRequest;
 
 export interface GenerateTitleRequest {
     firstMessage: string;

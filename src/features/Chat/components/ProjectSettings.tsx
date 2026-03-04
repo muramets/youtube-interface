@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, Fragment } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Button } from '../../../components/ui/atoms/Button/Button';
 import { MODEL_REGISTRY } from '../../../core/types/chat';
@@ -65,15 +65,26 @@ export const ProjectSettings: React.FC<ProjectSettingsProps> = ({ project, onClo
                             >
                                 Use global default
                             </div>
-                            {MODEL_REGISTRY.map((m) => (
-                                <div
-                                    key={m.id}
-                                    className={`py-2 px-3 text-[13px] cursor-pointer text-text-secondary transition-colors duration-100 hover:bg-hover-bg hover:text-text-primary ${m.id === model ? 'text-text-primary font-medium' : ''}`}
-                                    onClick={() => { setModel(m.id); setIsModelOpen(false); }}
-                                >
-                                    {m.label}
-                                </div>
-                            ))}
+                            {(['gemini', 'anthropic'] as const).map(provider => {
+                                const group = MODEL_REGISTRY.filter(m => m.provider === provider);
+                                if (group.length === 0) return null;
+                                return (
+                                    <Fragment key={provider}>
+                                        <div className="px-3 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-text-tertiary select-none pointer-events-none">
+                                            {provider === 'gemini' ? 'Gemini' : 'Claude'}
+                                        </div>
+                                        {group.map((m) => (
+                                            <div
+                                                key={m.id}
+                                                className={`py-2 px-3 text-[13px] cursor-pointer text-text-secondary transition-colors duration-100 hover:bg-hover-bg hover:text-text-primary ${m.id === model ? 'text-text-primary font-medium' : ''}`}
+                                                onClick={() => { setModel(m.id); setIsModelOpen(false); }}
+                                            >
+                                                {m.label}
+                                            </div>
+                                        ))}
+                                    </Fragment>
+                                );
+                            })}
                         </div>
                     )}
                 </div>

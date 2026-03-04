@@ -2,11 +2,11 @@
 
 ## Текущее состояние ← YOU ARE HERE
 
-**Реализовано (v1).** Gemini preview-модели могут зависнуть посреди стрима — перестать отправлять чанки на 90+ секунд без явной ошибки. Без защиты Cloud Function просто висит до таймаута в 300 секунд, пользователь видит вечный спиннер.
+**Реализовано (v1).** Preview-модели (Gemini, Claude) могут зависнуть посреди стрима — перестать отправлять чанки на 90+ секунд без явной ошибки. Без защиты Cloud Function просто висит до таймаута в 300 секунд, пользователь видит вечный спиннер.
 
 **Два уровня защиты:**
 
-1. **Server-side retry (functions/src/services/gemini/streamChat.ts):** внутри каждой итерации agentic-цикла обёрнут `for (attempt = 1..MAX_STREAM_RETRIES+1)`. Таймер 90 секунд сбрасывается на каждом чанке. Нет чанков 90 секунд → `AbortController` получает `GeminiTimeoutError` → попытка повторяется автоматически (до 2 раз). Если пользователь сам отменил запрос — retry не происходит.
+1. **Server-side retry (`withStreamRetry()` — shared utility):** каждая итерация agentic loop обёрнута в `withStreamRetry()` (файл `services/ai/retry.ts`). Таймер 90 секунд сбрасывается на каждом чанке. Нет чанков 90 секунд → таймаут → попытка повторяется автоматически (до 2 раз). Используется обоими провайдерами (Gemini и Claude). Если пользователь сам отменил запрос — retry не происходит.
 
 2. **Client-side inactivity guard (src/core/services/aiProxyService.ts):** аналогичный 90-секундный таймер на стороне браузера — защита от ситуации, когда SSE-соединение зависло раньше, чем сервер обнаружил проблему.
 
@@ -81,8 +81,8 @@ User sends message
 
 | Константа | Значение | Где определена |
 |---|---|---|
-| `STREAM_INACTIVITY_TIMEOUT_MS` | 90 000 ms (90 сек) | `functions/src/services/gemini/streamChat.ts` |
-| `MAX_STREAM_RETRIES` | 2 (итого 3 попытки) | `functions/src/services/gemini/streamChat.ts` |
+| `INACTIVITY_TIMEOUT_MS` | 90 000 ms (90 сек) | `functions/src/services/ai/retry.ts` (shared) |
+| `MAX_RETRIES` | 2 (итого 3 попытки) | `functions/src/services/ai/retry.ts` (shared) |
 | `STREAM_TIMEOUT_MS` | 90 000 ms (клиент) | `src/core/services/aiProxyService.ts` |
 
 ---
@@ -92,8 +92,8 @@ User sends message
 ```
 functions/src/
   services/
-    gemini/
-      streamChat.ts                       ← retry loop, GeminiTimeoutError, inactivity timer
+    ai/
+      retry.ts                            ← withStreamRetry() — shared by Gemini & Claude
       __tests__/
         streamChat.retry.test.ts          ← 3 unit tests (retry logic, cancel, exhaustion)
 

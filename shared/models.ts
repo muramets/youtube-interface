@@ -20,9 +20,18 @@ export interface ThinkingOption {
     value: string | number;
 }
 
+export interface AttachmentSupport {
+    image: boolean;
+    pdf: boolean;
+    audio: boolean;
+    video: boolean;
+    text: boolean;
+}
+
 export interface ModelConfig {
     id: string;
     label: string;
+    provider: 'gemini' | 'anthropic';
     contextLimit: number;
     isDefault?: boolean;
     pricing: ModelPricing;
@@ -30,8 +39,10 @@ export interface ModelConfig {
     thinkingOptions: ThinkingOption[];
     /** Default thinking option id */
     thinkingDefault: string;
-    /** Which Gemini API param to use: 'thinkingLevel' (enum) or 'thinkingBudget' (token count) */
-    thinkingParam: 'thinkingLevel' | 'thinkingBudget';
+    /** Thinking API parameter style: 'level' (enum string) or 'budget' (token count) */
+    thinkingMode: 'level' | 'budget';
+    /** Which attachment types this model supports natively */
+    attachmentSupport: AttachmentSupport;
 }
 
 // Fixed EUR/USD rate — approximate, updated manually as needed
@@ -73,9 +84,31 @@ export function resolveModelId(modelId: string, registry: ModelConfig[]): string
     return DEPRECATED_MODEL_MAP[modelId] ?? modelId;
 }
 
+const GEMINI_ATTACHMENT_SUPPORT: AttachmentSupport = {
+    image: true, pdf: true, audio: true, video: true, text: true,
+};
+
+const CLAUDE_ATTACHMENT_SUPPORT: AttachmentSupport = {
+    image: true, pdf: true, audio: false, video: false, text: false,
+};
+
+/**
+ * Build an `accept` attribute string from attachment support flags.
+ * E.g. `"image/*,application/pdf"` for Claude models.
+ */
+export function getAcceptedMimeTypes(support: AttachmentSupport): string {
+    const types: string[] = [];
+    if (support.image) types.push('image/*');
+    if (support.pdf) types.push('application/pdf');
+    if (support.audio) types.push('audio/*');
+    if (support.video) types.push('video/*');
+    if (support.text) types.push('text/*');
+    return types.join(',');
+}
+
 export const MODEL_REGISTRY: ModelConfig[] = [
     {
-        id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro', contextLimit: 1_000_000,
+        id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro', provider: 'gemini', contextLimit: 1_000_000,
         pricing: { inputPerMillion: 2.00, outputPerMillion: 12.00, inputPerMillionLong: 4.00, outputPerMillionLong: 18.00 },
         thinkingOptions: [
             { id: 'low', label: 'Low', value: 'low' },
@@ -83,10 +116,11 @@ export const MODEL_REGISTRY: ModelConfig[] = [
             { id: 'high', label: 'High', value: 'high' },
         ],
         thinkingDefault: 'high',
-        thinkingParam: 'thinkingLevel',
+        thinkingMode: 'level',
+        attachmentSupport: GEMINI_ATTACHMENT_SUPPORT,
     },
     {
-        id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash', contextLimit: 1_000_000,
+        id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash', provider: 'gemini', contextLimit: 1_000_000,
         pricing: { inputPerMillion: 0.50, outputPerMillion: 3.00 },
         thinkingOptions: [
             { id: 'minimal', label: 'Minimal', value: 'minimal' },
@@ -95,10 +129,11 @@ export const MODEL_REGISTRY: ModelConfig[] = [
             { id: 'high', label: 'High', value: 'high' },
         ],
         thinkingDefault: 'low',
-        thinkingParam: 'thinkingLevel',
+        thinkingMode: 'level',
+        attachmentSupport: GEMINI_ATTACHMENT_SUPPORT,
     },
     {
-        id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', contextLimit: 1_000_000, isDefault: true,
+        id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'gemini', contextLimit: 1_000_000, isDefault: true,
         pricing: { inputPerMillion: 1.25, outputPerMillion: 10.00, inputPerMillionLong: 2.50, outputPerMillionLong: 15.00 },
         thinkingOptions: [
             { id: 'auto', label: 'Auto', value: -1 },
@@ -107,10 +142,11 @@ export const MODEL_REGISTRY: ModelConfig[] = [
             { id: 'high', label: 'High', value: 24576 },
         ],
         thinkingDefault: 'auto',
-        thinkingParam: 'thinkingBudget',
+        thinkingMode: 'budget',
+        attachmentSupport: GEMINI_ATTACHMENT_SUPPORT,
     },
     {
-        id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', contextLimit: 1_000_000,
+        id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'gemini', contextLimit: 1_000_000,
         pricing: { inputPerMillion: 0.30, outputPerMillion: 2.50 },
         thinkingOptions: [
             { id: 'off', label: 'Off', value: 0 },
@@ -120,6 +156,31 @@ export const MODEL_REGISTRY: ModelConfig[] = [
             { id: 'high', label: 'High', value: 24576 },
         ],
         thinkingDefault: 'auto',
-        thinkingParam: 'thinkingBudget',
+        thinkingMode: 'budget',
+        attachmentSupport: GEMINI_ATTACHMENT_SUPPORT,
+    },
+    {
+        id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', provider: 'anthropic', contextLimit: 200_000,
+        pricing: { inputPerMillion: 3.00, outputPerMillion: 15.00 },
+        thinkingOptions: [
+            { id: 'off', label: 'Off', value: 0 },
+            { id: 'auto', label: 'Auto', value: -1 },
+            { id: 'low', label: 'Low', value: 4096 },
+            { id: 'medium', label: 'Medium', value: 10240 },
+            { id: 'high', label: 'High', value: 32768 },
+        ],
+        thinkingDefault: 'auto',
+        thinkingMode: 'budget',
+        attachmentSupport: CLAUDE_ATTACHMENT_SUPPORT,
+    },
+    {
+        id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', provider: 'anthropic', contextLimit: 200_000,
+        pricing: { inputPerMillion: 1.00, outputPerMillion: 5.00 },
+        thinkingOptions: [
+            { id: 'off', label: 'Off', value: 0 },
+        ],
+        thinkingDefault: 'off',
+        thinkingMode: 'budget',
+        attachmentSupport: CLAUDE_ATTACHMENT_SUPPORT,
     },
 ];

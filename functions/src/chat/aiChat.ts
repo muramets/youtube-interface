@@ -1,17 +1,28 @@
 /**
  * chat/aiChat.ts — SSE streaming endpoint for AI conversation.
+ *
+ * Uses the provider router to dispatch to the correct AI provider
+ * (Gemini, Anthropic, etc.) based on the selected model.
  */
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { admin, db } from "../shared/db.js";
 import { verifyAuthToken, verifyChannelAccess } from "../shared/auth.js";
 import { logAiUsage, MAX_TEXT_LENGTH } from "./helpers.js";
-import { ALLOWED_MODEL_IDS, DEFAULT_MODEL_ID, validateThinkingOptionId, resolveModelId } from "../config/models.js";
+import { ALLOWED_MODEL_IDS, DEFAULT_MODEL_ID, validateThinkingOptionId, resolveModelId, MODEL_REGISTRY } from "../config/models.js";
 import type { AiChatRequest } from "../types.js";
 import type { ThumbnailCache } from "../services/gemini/index.js";
+import { createProviderRouter } from "../services/ai/providerRouter.js";
+import { geminiFactory } from "../services/gemini/factory.js";
+import { geminiContext } from "../services/gemini/context.js";
+import { claudeFactory } from "../services/claude/factory.js";
+import { TOOL_DECLARATIONS } from "../services/tools/definitions.js";
+import type { StreamCallbacks, AttachmentRef } from "../services/ai/types.js";
 import { writeSSE } from "./sseWriter.js";
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
+// NOTE: buildMemory always uses Gemini Flash for summarization. GEMINI_API_KEY required regardless of provider.
+const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY");
 
 /**
  * AI Chat — SSE streaming endpoint.
@@ -20,7 +31,7 @@ const geminiApiKey = defineSecret("GEMINI_API_KEY");
  */
 export const aiChat = onRequest(
     {
-        secrets: [geminiApiKey],
+        secrets: [geminiApiKey, anthropicApiKey],
         maxInstances: 3,
         timeoutSeconds: 300,
         memory: "512MiB",
@@ -68,9 +79,21 @@ export const aiChat = onRequest(
             return;
         }
 
+        // Resolve model config for context limit logging and provider routing
+        const modelConfig = MODEL_REGISTRY.find(m => m.id === model);
+
+        // Gemini API key is always required: buildMemory uses Gemini Flash for summarization,
+        // and it's the primary provider.
         const apiKey = geminiApiKey.value();
         if (!apiKey) {
             res.status(500).json({ error: "Gemini API key is not configured on the server." });
+            return;
+        }
+        // Anthropic API key is required when using a Claude model.
+        const isAnthropicModel = modelConfig?.provider === "anthropic";
+        const anthropicKey = anthropicApiKey.value();
+        if (isAnthropicModel && !anthropicKey) {
+            res.status(500).json({ error: "Anthropic API key is not configured on the server." });
             return;
         }
 
@@ -111,27 +134,37 @@ export const aiChat = onRequest(
             const convData = convDoc.data();
 
             // Build optimal memory: full history or summary + recent window
-            const { buildMemory, streamChat } = await import("../services/gemini/index.js");
+            // NOTE: buildMemory always uses Gemini Flash for summarization,
+            // regardless of which provider handles the main chat.
+            const { buildMemory } = await import("../services/memory.js");
+            const { UTILITY_MODEL_ID } = await import("../config/models.js");
             const memory = await buildMemory({
                 apiKey,
-                model,
+                model: UTILITY_MODEL_ID,
                 allMessages,
                 existingSummary: convData?.summary,
                 existingSummarizedUpTo: convData?.summarizedUpTo,
             });
 
-            const { text: responseText, tokenUsage, toolCalls, updatedThumbnailCache } = await streamChat({
-                apiKey,
-                model,
-                systemPrompt: body.systemPrompt,
-                history: memory.history,
-                text: body.text,
-                attachments: body.attachments,
-                thumbnailUrls: body.thumbnailUrls,
-                thumbnailCache: convData?.thumbnailCache as ThumbnailCache | undefined,
-                toolContext: { userId, channelId: body.channelId },
-                thinkingOptionId,
-                largePayloadApproved: body.largePayloadApproved,
+            // --- Provider router: model → provider dispatch ---
+            const router = createProviderRouter({
+                registry: {
+                    gemini: {
+                        factory: geminiFactory,
+                        config: { apiKey },
+                    },
+                    anthropic: {
+                        factory: claudeFactory,
+                        config: { apiKey: anthropicKey },
+                    },
+                },
+                modelToProvider: Object.fromEntries(
+                    MODEL_REGISTRY.map(m => [m.id, m.provider]),
+                ),
+            });
+
+            // --- Callbacks: SSE streaming events ---
+            const callbacks: StreamCallbacks = {
                 onChunk: (fullText) => {
                     writeSSE(res, { type: "chunk", text: fullText });
                 },
@@ -147,38 +180,76 @@ export const aiChat = onRequest(
                 onToolProgress: (toolName, message, toolCallIndex) => {
                     writeSSE(res, { type: "toolProgress", toolName, message, toolCallIndex });
                 },
-                onLargePayloadBlocked: (count) => {
-                    writeSSE(res, { type: "confirmLargePayload", count });
-                },
                 onRetry: (attempt) => {
                     writeSSE(res, { type: "retry", attempt });
                 },
-                onAttachmentUpdate: async (messageId, attachmentIndex, geminiFileUri, geminiFileExpiry) => {
-                    // Persist re-uploaded Gemini URI back to Firestore
-                    try {
-                        const msgRef = db.doc(`${messagesPath}/${messageId}`);
-                        const msgDoc = await msgRef.get();
-                        if (msgDoc.exists) {
-                            const data = msgDoc.data();
-                            if (data?.attachments) {
-                                const updated = [...data.attachments];
-                                updated[attachmentIndex] = {
-                                    ...updated[attachmentIndex],
-                                    geminiFileUri,
-                                    geminiFileExpiry,
-                                };
-                                await msgRef.update({ attachments: updated });
+            };
+
+            // --- Provider-agnostic attachments from request ---
+            const currentAttachments: AttachmentRef[] | undefined = body.attachments?.map(a => ({
+                type: a.type,
+                url: a.url,
+                mimeType: a.mimeType,
+                name: a.name,
+            }));
+
+            // --- Provider context: only Gemini needs extra context ---
+            const providerContext = isAnthropicModel
+                ? undefined
+                : geminiContext({
+                    thumbnailCache: convData?.thumbnailCache as ThumbnailCache | undefined,
+                    largePayloadApproved: body.largePayloadApproved,
+                    currentMessageGeminiRefs: body.attachments
+                        ?.filter(a => a.fileRef)
+                        .map(a => ({ geminiFileUri: a.fileRef!, mimeType: a.mimeType })),
+                    onLargePayloadBlocked: (count) => {
+                        writeSSE(res, { type: "confirmLargePayload", count });
+                    },
+                    onAttachmentUpdate: async (messageId, attachmentIndex, geminiFileUri, geminiFileExpiry) => {
+                        // Persist re-uploaded Gemini URI back to Firestore
+                        try {
+                            const msgRef = db.doc(`${messagesPath}/${messageId}`);
+                            const msgDoc = await msgRef.get();
+                            if (msgDoc.exists) {
+                                const data = msgDoc.data();
+                                if (data?.attachments) {
+                                    const updated = [...data.attachments];
+                                    updated[attachmentIndex] = {
+                                        ...updated[attachmentIndex],
+                                        geminiFileUri,
+                                        geminiFileExpiry,
+                                    };
+                                    await msgRef.update({ attachments: updated });
+                                }
                             }
+                        } catch (err) {
+                            console.warn(`[aiChat] Failed to update attachment URI for message ${messageId}`, err);
                         }
-                    } catch (err) {
-                        console.warn(`[aiChat] Failed to update attachment URI for message ${messageId}`, err);
-                    }
-                },
+                    },
+                });
+
+            // --- Provider-agnostic stream call via router ---
+            const result = await router.streamChat({
+                model,
+                systemPrompt: body.systemPrompt,
+                history: memory.history,
+                text: body.text,
+                attachments: currentAttachments,
+                imageUrls: body.thumbnailUrls,
+                tools: TOOL_DECLARATIONS,
+                toolContext: { userId, channelId: body.channelId },
+                thinkingOptionId,
+                callbacks,
+                providerContext,
             });
+
+            // Unpack provider-agnostic result
+            const { text: responseText, tokenUsage, toolCalls, providerMeta } = result;
+            const updatedThumbnailCache = providerMeta?.updatedThumbnailCache as ThumbnailCache | undefined;
 
             // --- Production logging: response metrics ---
             const durationMs = Date.now() - requestStart;
-            const contextLimit = 1_000_000; // default Gemini context window
+            const contextLimit = modelConfig?.contextLimit ?? 1_000_000;
             const contextPercent = tokenUsage ? ((tokenUsage.promptTokens / contextLimit) * 100).toFixed(1) : '?';
             console.info(`[aiChat] ── Response ── conv=${body.conversationId}` +
                 ` prompt=${tokenUsage?.promptTokens ?? '?'} completion=${tokenUsage?.completionTokens ?? '?'} total=${tokenUsage?.totalTokens ?? '?'}` +

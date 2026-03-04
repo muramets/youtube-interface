@@ -1,0 +1,740 @@
+// =============================================================================
+// streamChat — contract tests (characterization)
+//
+// Lock down the EXISTING behavior of streamChat() before wrapping in AiProvider.
+// Tests verify behavior through the public interface only:
+//   - Suite A: Happy path — single-turn text response
+//   - Suite B: Agentic loop — tool calling, chaining, MAX_AGENTIC_ITERATIONS
+//   - Suite C: Thinking — thought extraction and leak protection
+//
+// All external dependencies are mocked — no live Gemini API key needed.
+// =============================================================================
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { streamChat } from '../streamChat.js';
+import type { TokenUsage } from '../../ai/types.js';
+
+// ---------------------------------------------------------------------------
+// Chunk helpers
+// ---------------------------------------------------------------------------
+
+type ChunkShape = {
+    candidates?: Array<{
+        content?: {
+            parts?: Array<Record<string, unknown>>;
+        };
+    }>;
+    usageMetadata?: {
+        promptTokenCount?: number;
+        candidatesTokenCount?: number;
+        totalTokenCount?: number;
+        cachedContentTokenCount?: number;
+    };
+};
+
+/** Build an async iterable that yields the given chunks in order. */
+async function* makeChunks(...chunks: ChunkShape[]) {
+    for (const chunk of chunks) {
+        yield chunk;
+    }
+}
+
+/** Build a single text chunk with optional usage metadata. */
+function textChunk(
+    text: string,
+    usage?: ChunkShape['usageMetadata'],
+): ChunkShape {
+    return {
+        candidates: [{ content: { parts: [{ text }] } }],
+        ...(usage ? { usageMetadata: usage } : {}),
+    };
+}
+
+/** Build a chunk with a functionCall part. */
+function functionCallChunk(
+    name: string,
+    args: Record<string, unknown>,
+): ChunkShape {
+    return {
+        candidates: [{ content: { parts: [{ functionCall: { name, args } }] } }],
+    };
+}
+
+/** Build a chunk with a thought part (thinking token). */
+function thoughtChunk(text: string): ChunkShape {
+    return {
+        candidates: [{ content: { parts: [{ thought: true, text }] } }],
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Module mocks (same pattern as streamChat.retry.test.ts)
+// ---------------------------------------------------------------------------
+
+vi.mock('../client.js', () => ({
+    getClient: vi.fn(),
+    isGeminiUriValid: vi.fn(() => false),
+}));
+
+vi.mock('../thumbnails.js', () => ({
+    fetchThumbnailParts: vi.fn().mockResolvedValue({ parts: [], updatedCache: {} }),
+    buildUserParts: vi.fn((_text: string) => [{ text: _text }]),
+}));
+
+vi.mock('../thumbnailMiddleware.js', () => ({
+    enhanceWithThumbnails: vi.fn().mockReturnValue({
+        imageUrls: [],
+        cleanedResponse: {},
+        blockedCount: undefined,
+    }),
+}));
+
+vi.mock('../../memory.js', () => ({
+    formatContextLabel: vi.fn().mockReturnValue('[context]'),
+}));
+
+vi.mock('../../tools/index.js', () => ({
+    TOOL_DECLARATIONS: [{ name: 'testTool' }],
+}));
+
+// executeTool is now imported by executeToolBatch from tools/executor.js
+vi.mock('../../tools/executor.js', () => ({
+    executeTool: vi.fn(),
+}));
+
+vi.mock('../../../config/models.js', () => ({
+    MODEL_REGISTRY: [
+        {
+            id: 'test-model',
+            thinkingMode: 'budget',
+            thinkingOptions: [{ id: 'default', value: 1024 }],
+            thinkingDefault: 'default',
+        },
+    ],
+}));
+
+vi.mock('../fileUpload.js', () => ({
+    reuploadFromStorage: vi.fn(),
+    uploadToGemini: vi.fn(),
+    uploadFromStoragePath: vi.fn(),
+}));
+
+vi.mock('@google/genai', () => ({
+    GoogleGenAI: vi.fn(),
+    createPartFromFunctionCall: vi.fn(
+        (name: string, args: Record<string, unknown>) => ({ functionCall: { name, args } }),
+    ),
+    createPartFromFunctionResponse: vi.fn(
+        (_id: string, name: string, response: Record<string, unknown>) => ({
+            functionResponse: { name, response },
+        }),
+    ),
+}));
+
+// ---------------------------------------------------------------------------
+// Import mocked modules
+// ---------------------------------------------------------------------------
+
+import { getClient } from '../client.js';
+import { executeTool } from '../../tools/executor.js';
+import { enhanceWithThumbnails } from '../thumbnailMiddleware.js';
+
+const mockGetClient = vi.mocked(getClient);
+const mockExecuteTool = vi.mocked(executeTool);
+const mockEnhance = vi.mocked(enhanceWithThumbnails);
+
+// ---------------------------------------------------------------------------
+// Shared opts factory
+// ---------------------------------------------------------------------------
+
+function makeOpts(
+    overrides: Partial<Parameters<typeof streamChat>[0]> = {},
+): Parameters<typeof streamChat>[0] {
+    return {
+        apiKey: 'test-key',
+        model: 'test-model',
+        history: [],
+        text: 'hello',
+        onChunk: vi.fn(),
+        ...overrides,
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Mock helpers
+// ---------------------------------------------------------------------------
+
+function mockStreamResponse(
+    ...calls: Array<() => ReturnType<typeof makeChunks>>
+) {
+    const mockGenerateContentStream = vi.fn();
+    for (let i = 0; i < calls.length; i++) {
+        mockGenerateContentStream.mockImplementationOnce(async () => calls[i]());
+    }
+    mockGetClient.mockResolvedValue({
+        models: { generateContentStream: mockGenerateContentStream },
+    } as never);
+    return mockGenerateContentStream;
+}
+
+// ---------------------------------------------------------------------------
+// Setup
+// ---------------------------------------------------------------------------
+
+beforeEach(() => {
+    vi.clearAllMocks();
+    // Reset enhanceWithThumbnails to default passthrough
+    mockEnhance.mockReturnValue({
+        imageUrls: [],
+        cleanedResponse: {},
+        blockedCount: undefined,
+    });
+});
+
+// ===========================================================================
+// Suite A: Happy path — single-turn text response
+// ===========================================================================
+
+describe('streamChat — happy path (single-turn text)', () => {
+    it('returns accumulated text from a stream of text chunks', async () => {
+        const onChunk = vi.fn();
+
+        mockStreamResponse(
+            () => makeChunks(
+                textChunk('Hello'),
+                textChunk(' world'),
+            ),
+        );
+
+        const result = await streamChat(makeOpts({ onChunk }));
+
+        expect(result.text).toBe('Hello world');
+    });
+
+    it('calls onChunk with accumulated text after each chunk', async () => {
+        const onChunk = vi.fn();
+
+        mockStreamResponse(
+            () => makeChunks(
+                textChunk('Hello'),
+                textChunk(' world'),
+            ),
+        );
+
+        await streamChat(makeOpts({ onChunk }));
+
+        // onChunk is called with the full accumulated text each time
+        expect(onChunk).toHaveBeenCalledTimes(2);
+        expect(onChunk).toHaveBeenNthCalledWith(1, 'Hello');
+        expect(onChunk).toHaveBeenNthCalledWith(2, 'Hello world');
+    });
+
+    it('extracts tokenUsage from usageMetadata', async () => {
+        mockStreamResponse(
+            () => makeChunks(
+                textChunk('Hi', {
+                    promptTokenCount: 100,
+                    candidatesTokenCount: 50,
+                    totalTokenCount: 150,
+                }),
+            ),
+        );
+
+        const result = await streamChat(makeOpts());
+
+        expect(result.tokenUsage).toEqual<TokenUsage>({
+            promptTokens: 100,
+            completionTokens: 50,
+            totalTokens: 150,
+            cachedTokens: undefined,
+        });
+    });
+
+    it('extracts cachedContentTokenCount into cachedTokens', async () => {
+        mockStreamResponse(
+            () => makeChunks(
+                textChunk('Hi', {
+                    promptTokenCount: 200,
+                    candidatesTokenCount: 80,
+                    totalTokenCount: 280,
+                    cachedContentTokenCount: 120,
+                }),
+            ),
+        );
+
+        const result = await streamChat(makeOpts());
+
+        expect(result.tokenUsage?.cachedTokens).toBe(120);
+    });
+
+    it('uses the LAST usageMetadata when multiple chunks have it', async () => {
+        mockStreamResponse(
+            () => makeChunks(
+                textChunk('A', {
+                    promptTokenCount: 10,
+                    candidatesTokenCount: 5,
+                    totalTokenCount: 15,
+                }),
+                textChunk('B', {
+                    promptTokenCount: 100,
+                    candidatesTokenCount: 50,
+                    totalTokenCount: 150,
+                }),
+            ),
+        );
+
+        const result = await streamChat(makeOpts());
+
+        // Last chunk's metadata wins
+        expect(result.tokenUsage).toEqual<TokenUsage>({
+            promptTokens: 100,
+            completionTokens: 50,
+            totalTokens: 150,
+            cachedTokens: undefined,
+        });
+    });
+
+    it('does not call onToolCall when no function calls are returned', async () => {
+        const onToolCall = vi.fn();
+
+        mockStreamResponse(
+            () => makeChunks(textChunk('Just text')),
+        );
+
+        await streamChat(makeOpts({ onToolCall }));
+
+        expect(onToolCall).not.toHaveBeenCalled();
+    });
+
+    it('returns undefined toolCalls when no tools were called', async () => {
+        mockStreamResponse(
+            () => makeChunks(textChunk('No tools')),
+        );
+
+        const result = await streamChat(makeOpts());
+
+        expect(result.toolCalls).toBeUndefined();
+    });
+
+    it('returns tokenUsage as undefined when no usageMetadata is present', async () => {
+        mockStreamResponse(
+            () => makeChunks(
+                { candidates: [{ content: { parts: [{ text: 'bare' }] } }] },
+            ),
+        );
+
+        const result = await streamChat(makeOpts());
+
+        expect(result.tokenUsage).toBeUndefined();
+    });
+});
+
+// ===========================================================================
+// Suite B: Agentic loop — tool calling
+// ===========================================================================
+
+describe('streamChat — agentic loop (tool calling)', () => {
+    const toolContext = { userId: 'u1', channelId: 'c1' };
+
+    it('fires onToolCall when model returns a functionCall', async () => {
+        const onToolCall = vi.fn();
+
+        // First call: model returns functionCall; second call: model returns text
+        mockStreamResponse(
+            () => makeChunks(functionCallChunk('mentionVideo', { videoId: 'v1' })),
+            () => makeChunks(textChunk('Done')),
+        );
+        mockExecuteTool.mockResolvedValue({
+            name: 'mentionVideo',
+            response: { success: true },
+        });
+        mockEnhance.mockReturnValue({
+            imageUrls: [],
+            cleanedResponse: { success: true },
+            blockedCount: undefined,
+        });
+
+        await streamChat(makeOpts({ onToolCall, toolContext }));
+
+        expect(onToolCall).toHaveBeenCalledTimes(1);
+        expect(onToolCall).toHaveBeenCalledWith('mentionVideo', { videoId: 'v1' }, 0);
+    });
+
+    it('fires onToolResult after tool execution', async () => {
+        const onToolResult = vi.fn();
+
+        mockStreamResponse(
+            () => makeChunks(functionCallChunk('mentionVideo', { videoId: 'v1' })),
+            () => makeChunks(textChunk('Done')),
+        );
+        mockExecuteTool.mockResolvedValue({
+            name: 'mentionVideo',
+            response: { success: true },
+        });
+        mockEnhance.mockReturnValue({
+            imageUrls: [],
+            cleanedResponse: { success: true },
+            blockedCount: undefined,
+        });
+
+        await streamChat(makeOpts({ onToolResult, toolContext }));
+
+        expect(onToolResult).toHaveBeenCalledTimes(1);
+        // onToolResult receives the cleaned response (without _systemNote)
+        expect(onToolResult).toHaveBeenCalledWith('mentionVideo', { success: true }, 0);
+    });
+
+    it('calls the model again with tool result appended and returns final text', async () => {
+        const mockGenerate = mockStreamResponse(
+            () => makeChunks(functionCallChunk('mentionVideo', { videoId: 'v1' })),
+            () => makeChunks(textChunk('Video mentioned successfully')),
+        );
+        mockExecuteTool.mockResolvedValue({
+            name: 'mentionVideo',
+            response: { success: true },
+        });
+        mockEnhance.mockReturnValue({
+            imageUrls: [],
+            cleanedResponse: { success: true },
+            blockedCount: undefined,
+        });
+
+        const result = await streamChat(makeOpts({ toolContext }));
+
+        // Model was called twice: once for initial, once after tool result
+        expect(mockGenerate).toHaveBeenCalledTimes(2);
+        // Final text is from the second model call
+        expect(result.text).toBe('Video mentioned successfully');
+    });
+
+    it('returns toolCalls array with recorded tool calls', async () => {
+        mockStreamResponse(
+            () => makeChunks(functionCallChunk('mentionVideo', { videoId: 'v1' })),
+            () => makeChunks(textChunk('Done')),
+        );
+        mockExecuteTool.mockResolvedValue({
+            name: 'mentionVideo',
+            response: { title: 'My Video' },
+        });
+        mockEnhance.mockReturnValue({
+            imageUrls: [],
+            cleanedResponse: { title: 'My Video' },
+            blockedCount: undefined,
+        });
+
+        const result = await streamChat(makeOpts({ toolContext }));
+
+        expect(result.toolCalls).toEqual([
+            {
+                name: 'mentionVideo',
+                args: { videoId: 'v1' },
+                result: { title: 'My Video' },
+            },
+        ]);
+    });
+
+    it('handles chained tool calls: tool A → result → tool B → result → final text', async () => {
+        const onToolCall = vi.fn();
+        const onToolResult = vi.fn();
+
+        mockStreamResponse(
+            // Iteration 1: model calls tool A
+            () => makeChunks(functionCallChunk('analyzeSuggestedTraffic', { videoId: 'v1' })),
+            // Iteration 2: model calls tool B based on tool A result
+            () => makeChunks(functionCallChunk('viewThumbnails', { videoIds: ['v2', 'v3'] })),
+            // Iteration 3: model returns final text
+            () => makeChunks(textChunk('Analysis complete')),
+        );
+
+        // Tool A result
+        mockExecuteTool
+            .mockResolvedValueOnce({
+                name: 'analyzeSuggestedTraffic',
+                response: { topSources: [{ videoId: 'v2' }, { videoId: 'v3' }] },
+            })
+            // Tool B result
+            .mockResolvedValueOnce({
+                name: 'viewThumbnails',
+                response: { thumbnails: ['url1', 'url2'] },
+            });
+
+        mockEnhance
+            .mockReturnValueOnce({
+                imageUrls: [],
+                cleanedResponse: { topSources: [{ videoId: 'v2' }, { videoId: 'v3' }] },
+                blockedCount: undefined,
+            })
+            .mockReturnValueOnce({
+                imageUrls: [],
+                cleanedResponse: { thumbnails: ['url1', 'url2'] },
+                blockedCount: undefined,
+            });
+
+        const result = await streamChat(makeOpts({ onToolCall, onToolResult, toolContext }));
+
+        // Two tool calls across two iterations
+        expect(onToolCall).toHaveBeenCalledTimes(2);
+        expect(onToolCall).toHaveBeenNthCalledWith(1, 'analyzeSuggestedTraffic', { videoId: 'v1' }, 0);
+        expect(onToolCall).toHaveBeenNthCalledWith(2, 'viewThumbnails', { videoIds: ['v2', 'v3'] }, 1);
+
+        expect(onToolResult).toHaveBeenCalledTimes(2);
+        expect(result.text).toBe('Analysis complete');
+
+        // toolCalls records both calls in order
+        expect(result.toolCalls).toHaveLength(2);
+        expect(result.toolCalls![0].name).toBe('analyzeSuggestedTraffic');
+        expect(result.toolCalls![1].name).toBe('viewThumbnails');
+    });
+
+    it('stops after MAX_AGENTIC_ITERATIONS when model always returns function calls', async () => {
+        // Model always returns a function call — should stop after 10 iterations
+        const mockGenerate = vi.fn().mockImplementation(
+            async () => makeChunks(functionCallChunk('mentionVideo', { videoId: 'v1' })),
+        );
+        mockGetClient.mockResolvedValue({
+            models: { generateContentStream: mockGenerate },
+        } as never);
+
+        mockExecuteTool.mockResolvedValue({
+            name: 'mentionVideo',
+            response: { success: true },
+        });
+        mockEnhance.mockReturnValue({
+            imageUrls: [],
+            cleanedResponse: { success: true },
+            blockedCount: undefined,
+        });
+
+        const result = await streamChat(makeOpts({ toolContext }));
+
+        // MAX_AGENTIC_ITERATIONS = 10: model called 10 times
+        expect(mockGenerate).toHaveBeenCalledTimes(10);
+        // The loop should return whatever text accumulated (empty in this case)
+        expect(result.text).toBe('');
+        // 10 tool calls recorded
+        expect(result.toolCalls).toHaveLength(10);
+    });
+
+    it('skips tool execution when no toolContext is provided', async () => {
+        mockStreamResponse(
+            () => makeChunks(functionCallChunk('mentionVideo', { videoId: 'v1' })),
+        );
+
+        const result = await streamChat(makeOpts({ toolContext: undefined }));
+
+        // executeTool should not be called
+        expect(mockExecuteTool).not.toHaveBeenCalled();
+        // Should break out of the loop without further iterations
+        expect(result.text).toBe('');
+    });
+
+    it('handles multiple function calls in a single chunk batch', async () => {
+        const onToolCall = vi.fn();
+
+        // Model returns two function calls in the same iteration (separate chunks)
+        mockStreamResponse(
+            () => makeChunks(
+                functionCallChunk('mentionVideo', { videoId: 'v1' }),
+                functionCallChunk('mentionVideo', { videoId: 'v2' }),
+            ),
+            () => makeChunks(textChunk('Both referenced')),
+        );
+
+        mockExecuteTool.mockResolvedValue({
+            name: 'mentionVideo',
+            response: { success: true },
+        });
+        mockEnhance.mockReturnValue({
+            imageUrls: [],
+            cleanedResponse: { success: true },
+            blockedCount: undefined,
+        });
+
+        const result = await streamChat(makeOpts({ onToolCall, toolContext }));
+
+        // Both tool calls emitted with sequential indices
+        expect(onToolCall).toHaveBeenCalledTimes(2);
+        expect(onToolCall).toHaveBeenNthCalledWith(1, 'mentionVideo', { videoId: 'v1' }, 0);
+        expect(onToolCall).toHaveBeenNthCalledWith(2, 'mentionVideo', { videoId: 'v2' }, 1);
+        expect(result.text).toBe('Both referenced');
+    });
+
+    it('strips _systemNote from tool result before passing to onToolResult', async () => {
+        const onToolResult = vi.fn();
+
+        mockStreamResponse(
+            () => makeChunks(functionCallChunk('mentionVideo', { videoId: 'v1' })),
+            () => makeChunks(textChunk('Done')),
+        );
+        mockExecuteTool.mockResolvedValue({
+            name: 'mentionVideo',
+            response: { success: true },
+        });
+        // enhanceWithThumbnails returns a response with _systemNote
+        mockEnhance.mockReturnValue({
+            imageUrls: [],
+            cleanedResponse: { success: true, _systemNote: 'internal hint', _failedThumbnails: ['x'] },
+            blockedCount: undefined,
+        });
+
+        await streamChat(makeOpts({ onToolResult, toolContext }));
+
+        // _systemNote and _failedThumbnails should be stripped from the UI response
+        expect(onToolResult).toHaveBeenCalledWith('mentionVideo', { success: true }, 0);
+    });
+});
+
+// ===========================================================================
+// Suite C: Thinking — thought extraction and leak protection
+// ===========================================================================
+
+describe('streamChat — thinking (thought leak protection)', () => {
+    it('calls onThought when a chunk has a thought-flagged part', async () => {
+        const onThought = vi.fn();
+
+        mockStreamResponse(
+            () => makeChunks(
+                thoughtChunk('Let me think about this...'),
+                textChunk('Here is my answer'),
+            ),
+        );
+
+        await streamChat(makeOpts({ onThought }));
+
+        expect(onThought).toHaveBeenCalledTimes(1);
+        expect(onThought).toHaveBeenCalledWith('Let me think about this...');
+    });
+
+    it('does NOT include thought text in the final response text', async () => {
+        const onThought = vi.fn();
+
+        mockStreamResponse(
+            () => makeChunks(
+                thoughtChunk('Internal reasoning here'),
+                textChunk('Visible response'),
+            ),
+        );
+
+        const result = await streamChat(makeOpts({ onThought }));
+
+        // Thought text must not leak into the response
+        expect(result.text).toBe('Visible response');
+        expect(result.text).not.toContain('Internal reasoning');
+    });
+
+    it('includes normal text parts (no thought flag) in the response', async () => {
+        mockStreamResponse(
+            () => makeChunks(
+                textChunk('First part'),
+                textChunk(' second part'),
+            ),
+        );
+
+        const result = await streamChat(makeOpts());
+
+        expect(result.text).toBe('First part second part');
+    });
+
+    it('correctly separates thoughts and text when mixed in a single chunk', async () => {
+        const onThought = vi.fn();
+
+        // Single chunk with both thought and text parts
+        mockStreamResponse(
+            () => makeChunks({
+                candidates: [{
+                    content: {
+                        parts: [
+                            { thought: true, text: 'Hmm, I should analyze this' },
+                            { text: 'Based on my analysis...' },
+                        ],
+                    },
+                }],
+            }),
+        );
+
+        const result = await streamChat(makeOpts({ onThought }));
+
+        // Thought goes to callback
+        expect(onThought).toHaveBeenCalledWith('Hmm, I should analyze this');
+        // Text goes to response
+        expect(result.text).toBe('Based on my analysis...');
+        // No leak
+        expect(result.text).not.toContain('Hmm');
+    });
+
+    it('handles multiple thought chunks across the stream', async () => {
+        const onThought = vi.fn();
+
+        mockStreamResponse(
+            () => makeChunks(
+                thoughtChunk('Step 1: Understand the question'),
+                thoughtChunk('Step 2: Formulate answer'),
+                textChunk('Here is the answer'),
+            ),
+        );
+
+        const result = await streamChat(makeOpts({ onThought }));
+
+        expect(onThought).toHaveBeenCalledTimes(2);
+        expect(onThought).toHaveBeenNthCalledWith(1, 'Step 1: Understand the question');
+        expect(onThought).toHaveBeenNthCalledWith(2, 'Step 2: Formulate answer');
+        expect(result.text).toBe('Here is the answer');
+    });
+
+    it('does not crash when onThought is not provided', async () => {
+        mockStreamResponse(
+            () => makeChunks(
+                thoughtChunk('Some thought'),
+                textChunk('Response'),
+            ),
+        );
+
+        // No onThought callback — should not throw
+        const result = await streamChat(makeOpts({ onThought: undefined }));
+
+        expect(result.text).toBe('Response');
+    });
+
+    it('handles thought parts with functionCall in the same iteration', async () => {
+        const onThought = vi.fn();
+        const onToolCall = vi.fn();
+        const toolContext = { userId: 'u1', channelId: 'c1' };
+
+        mockStreamResponse(
+            // Iteration 1: thought + function call
+            () => makeChunks(
+                thoughtChunk('I need to look up this video'),
+                functionCallChunk('mentionVideo', { videoId: 'v1' }),
+            ),
+            // Iteration 2: thought + text response
+            () => makeChunks(
+                thoughtChunk('Now I can respond'),
+                textChunk('Here is the video'),
+            ),
+        );
+        mockExecuteTool.mockResolvedValue({
+            name: 'mentionVideo',
+            response: { success: true },
+        });
+        mockEnhance.mockReturnValue({
+            imageUrls: [],
+            cleanedResponse: { success: true },
+            blockedCount: undefined,
+        });
+
+        const result = await streamChat(
+            makeOpts({ onThought, onToolCall, toolContext }),
+        );
+
+        // Thoughts from both iterations
+        expect(onThought).toHaveBeenCalledTimes(2);
+        expect(onThought).toHaveBeenNthCalledWith(1, 'I need to look up this video');
+        expect(onThought).toHaveBeenNthCalledWith(2, 'Now I can respond');
+
+        // Tool call still fired
+        expect(onToolCall).toHaveBeenCalledTimes(1);
+
+        // Final text has no thought leaks
+        expect(result.text).toBe('Here is the video');
+    });
+});

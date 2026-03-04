@@ -15,6 +15,7 @@
   },
   "main": "lib/index.js",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
     "@aws-sdk/client-s3": "^3.991.0",
     "@aws-sdk/s3-request-presigner": "^3.991.0",
     "@ffmpeg-installer/ffmpeg": "^1.1.0",

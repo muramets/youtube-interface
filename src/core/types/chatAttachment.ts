@@ -24,6 +24,6 @@ export interface ReadyAttachment {
     storagePath: string;
     name: string;
     mimeType: string;
-    geminiFileUri: string;
-    geminiFileExpiry: number;
+    fileRef?: string;
+    fileRefExpiry?: number;
 }

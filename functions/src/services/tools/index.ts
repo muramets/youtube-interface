@@ -2,7 +2,7 @@
 // Tools — barrel export
 // =============================================================================
 
-// Definitions (for Gemini API config)
+// Definitions (provider-agnostic tool declarations)
 export { TOOL_DECLARATIONS, TOOL_NAMES, type ToolName } from "./definitions.js";
 
 // Executor (for agentic loop)

@@ -5,7 +5,7 @@
 // memory management (Layer 3: Summarization).
 // =============================================================================
 
-import type { HistoryMessage } from "./gemini/client.js";
+import type { HistoryMessage } from "./ai/types.js";
 import { MODEL_CONTEXT_LIMITS } from "../config/models.js";
 
 // --- Token estimation ---

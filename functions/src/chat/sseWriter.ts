@@ -5,7 +5,7 @@
 // MIRROR: src/core/types/sseEvents.ts — event types must stay in sync.
 // =============================================================================
 
-import type { ToolCallRecord, TokenUsage } from "../services/gemini/index.js";
+import type { ToolCallRecord, TokenUsage } from "../services/ai/types.js";
 
 // --- SSE event types (server-side mirror of client SSEEvent union) ---
 

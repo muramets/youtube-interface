@@ -1,5 +1,5 @@
 // =============================================================================
-// Gemini Client — SDK singleton + shared types
+// Gemini Client — SDK singleton + Gemini-specific types
 // =============================================================================
 
 // --- Lazy-loaded SDK types ---
@@ -17,8 +17,12 @@ export async function getClient(apiKey: string): Promise<GoogleGenAI> {
     return cachedClient;
 }
 
-// --- Types ---
+// --- Gemini-specific attachment type ---
 
+/**
+ * Gemini-specific attachment — extends the provider-agnostic AttachmentRef
+ * with cached Gemini Files API URI and expiry.
+ */
 export interface ChatAttachment {
     type: "image" | "audio" | "video" | "file";
     url: string;
@@ -28,34 +32,9 @@ export interface ChatAttachment {
     geminiFileExpiry?: number;
 }
 
-export interface HistoryMessage {
-    id: string;
-    role: "user" | "model";
-    text: string;
-    attachments?: ChatAttachment[];
-    /**
-     * Per-message context items attached by the user (Layer 2).
-     * Each item has `type` ('video-card' | 'suggested-traffic' | 'canvas-selection')
-     * plus type-specific fields (title, ownership, nodes, sourceVideo, etc.).
-     * Untyped on server because CF cannot import client-side AppContextItem types.
-     */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    appContext?: any[];
-}
-
-export interface TokenUsage {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-    cachedTokens?: number;
-}
-
-// MIRROR: src/core/types/sseEvents.ts:ToolCallRecord — keep in sync
-export interface ToolCallRecord {
-    name: string;
-    args: Record<string, unknown>;
-    result?: Record<string, unknown>;
-}
+// --- Re-exports from ai/types (canonical source of truth) ---
+// TODO: remove after all consumers migrated to import from '../ai/types.js'
+export type { HistoryMessage, TokenUsage, ToolCallRecord } from "../ai/types.js";
 
 // --- Gemini URI TTL ---
 

@@ -9,12 +9,54 @@ import { getAttachmentType, isAllowedMimeType, isFileWithinLimit, getFileSizeLab
 import { uploadChatAttachment, deleteStagingAttachment } from '../../../core/services/storageService';
 import { useUIStore } from '../../../core/stores/uiStore';
 
-export function useFileAttachments(userId?: string, channelId?: string, conversationId?: string) {
+export function useFileAttachments(userId?: string, channelId?: string, conversationId?: string, modelProvider?: 'gemini' | 'anthropic') {
     const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
     const stagedFilesRef = useRef(stagedFiles);
     stagedFilesRef.current = stagedFiles;
 
     const { showToast } = useUIStore();
+
+    /**
+     * Upload a single file: first to Firebase Storage, then conditionally to Gemini via CF.
+     */
+    const uploadFile = useCallback(async (id: string, file: File, uid: string, chId: string, convId: string) => {
+        try {
+            // Step 1: Upload to Firebase Storage (conversation-scoped path)
+            const { storagePath, downloadUrl } = await uploadChatAttachment(uid, chId, convId, file);
+
+            // Step 2: Conditionally upload to Gemini Files API
+            // Claude reads files directly from Storage URL — no Gemini upload needed.
+            let fileRef: string | undefined;
+            let fileRefExpiry: number | undefined;
+            if (modelProvider !== 'anthropic') {
+                const uploaded = await AiService.uploadFile(storagePath, file.type, file.name);
+                fileRef = uploaded.uri;
+                fileRefExpiry = uploaded.expiryMs;
+            }
+
+            const result: ReadyAttachment = {
+                type: getAttachmentType(file.type),
+                url: downloadUrl,
+                storagePath,
+                name: file.name,
+                mimeType: file.type,
+                fileRef,
+                fileRefExpiry,
+            };
+
+            setStagedFiles((prev) =>
+                prev.map((f) => (f.id === id ? { ...f, status: 'ready' as const, result } : f))
+            );
+        } catch (err) {
+            setStagedFiles((prev) =>
+                prev.map((f) =>
+                    f.id === id
+                        ? { ...f, status: 'error' as const, error: err instanceof Error ? err.message : 'Upload failed' }
+                        : f
+                )
+            );
+        }
+    }, [modelProvider]);
 
     /**
      * Validate, stage, and start uploading files immediately.
@@ -53,42 +95,7 @@ export function useFileAttachments(userId?: string, channelId?: string, conversa
         for (const entry of newEntries) {
             uploadFile(entry.id, entry.file, userId, channelId, conversationId);
         }
-    }, [userId, channelId, conversationId, showToast]);
-
-    /**
-     * Upload a single file: first to Firebase Storage, then to Gemini via CF.
-     */
-    const uploadFile = async (id: string, file: File, uid: string, chId: string, convId: string) => {
-        try {
-            // Step 1: Upload to Firebase Storage (conversation-scoped path)
-            const { storagePath, downloadUrl } = await uploadChatAttachment(uid, chId, convId, file);
-
-            // Step 2: Upload to Gemini via Cloud Function (uses storagePath)
-            const gemini = await AiService.uploadToGemini(storagePath, file.type, file.name);
-
-            const result: ReadyAttachment = {
-                type: getAttachmentType(file.type),
-                url: downloadUrl,
-                storagePath,
-                name: file.name,
-                mimeType: file.type,
-                geminiFileUri: gemini.uri,
-                geminiFileExpiry: gemini.expiryMs,
-            };
-
-            setStagedFiles((prev) =>
-                prev.map((f) => (f.id === id ? { ...f, status: 'ready' as const, result } : f))
-            );
-        } catch (err) {
-            setStagedFiles((prev) =>
-                prev.map((f) =>
-                    f.id === id
-                        ? { ...f, status: 'error' as const, error: err instanceof Error ? err.message : 'Upload failed' }
-                        : f
-                )
-            );
-        }
-    };
+    }, [userId, channelId, conversationId, showToast, uploadFile]);
 
     /**
      * Remove a staged file. Cleans up from Firebase Storage if already uploaded.

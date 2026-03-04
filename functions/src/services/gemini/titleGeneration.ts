@@ -25,7 +25,8 @@ export async function generateTitle(
             ],
         });
         return response.text?.trim() || "New Chat";
-    } catch {
+    } catch (err) {
+        console.warn(`[generateTitle] Failed to generate title via ${model}:`, err);
         return "New Chat";
     }
 }

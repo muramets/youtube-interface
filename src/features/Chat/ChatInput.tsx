@@ -4,8 +4,8 @@
 
 import React, { useState, useMemo, useRef, useCallback, useLayoutEffect } from 'react';
 import { Plus, Send, X, FileAudio, FileVideo, File, Image, Square, Loader2, Check, AlertCircle, ChevronUp, Pencil, Link, Unlink, Brain } from 'lucide-react';
-import { MODEL_REGISTRY, type ThinkingOption } from '../../core/types/chat';
-import { getAttachmentType } from '../../core/services/aiService';
+import { MODEL_REGISTRY, getAcceptedMimeTypes, type ThinkingOption } from '../../core/types/chat';
+import { getAttachmentType, isAllowedMimeTypeForModel } from '../../core/services/aiService';
 import type { StagedFile, ReadyAttachment } from '../../core/types/chatAttachment';
 import { useChatStore } from '../../core/stores/chat/chatStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -89,6 +89,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         return { options: model.thinkingOptions, activeOption, defaultId: model.thinkingDefault };
     }, [activeModel, pendingThinkingOptionId]);
 
+    // Attachment support for active model
+    const activeModelConfig = useMemo(() => MODEL_REGISTRY.find(m => m.id === activeModel), [activeModel]);
+    const acceptedFileTypes = useMemo(
+        () => activeModelConfig ? getAcceptedMimeTypes(activeModelConfig.attachmentSupport) : 'image/*,audio/*,video/*,application/pdf,text/*',
+        [activeModelConfig],
+    );
+    const hasUnsupportedFiles = useMemo(() => {
+        if (!activeModelConfig || stagedFiles.length === 0) return false;
+        const support = activeModelConfig.attachmentSupport;
+        return stagedFiles.some(f => f.result && !isAllowedMimeTypeForModel(f.file, support));
+    }, [activeModelConfig, stagedFiles]);
+
     // Memorize mode state
     const [isMemorizing, setIsMemorizing] = useState(false);
     const [isMemorizeSaving, setIsMemorizeSaving] = useState(false);
@@ -105,7 +117,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }
     }
 
-    const canSend = (text.trim() || stagedFiles.length > 0) && !isAnyUploading;
+    const canSend = (text.trim() || stagedFiles.length > 0) && !isAnyUploading && !hasUnsupportedFiles;
 
     // Auto-resize and focus textarea when editing starts
     useLayoutEffect(() => {
@@ -285,6 +297,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 </div>
             )}
 
+            {/* Unsupported files warning */}
+            {hasUnsupportedFiles && activeModelConfig && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 mb-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400">
+                    <AlertCircle size={12} />
+                    <span>Some files are not supported by {activeModelConfig.label}. Remove them to send.</span>
+                </div>
+            )}
+
             {/* Unified input container */}
             <div
                 className={`border rounded-xl transition-colors duration-200 ${isMemorizing ? 'border-accent' : 'border-border bg-input-bg focus-within:border-text-tertiary'}`}
@@ -325,34 +345,45 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                                 title={modelLabel}
                             >
                                 <ChevronUp size={12} className={`transition-transform duration-150 ${isModelMenuOpen ? 'rotate-180' : ''}`} />
-                                <span>{modelLabel.replace(/^Gemini\s*/i, '')}</span>
+                                <span>{modelLabel.replace(/^(?:Gemini|Claude)\s*/i, '')}</span>
                             </button>
 
                             {isModelMenuOpen && (
                                 <>
                                     <div className="fixed inset-0 z-[299]" onClick={() => setIsModelMenuOpen(false)} />
                                     <div className="absolute bottom-full left-0 mb-1 z-popover min-w-[180px] bg-[#1F1F1F] border border-white/10 rounded-lg shadow-xl py-1 animate-in fade-in slide-in-from-bottom-1 duration-150">
-                                        {MODEL_REGISTRY.map(m => (
-                                            <button
-                                                key={m.id}
-                                                className={`w-full text-left px-3 py-1.5 text-[12px] bg-transparent border-none cursor-pointer flex items-center gap-2 transition-colors ${m.id === activeModel
-                                                    ? 'text-text-primary bg-white/[0.08]'
-                                                    : 'text-text-secondary hover:text-text-primary hover:bg-white/[0.05]'
-                                                    }`}
-                                                onClick={() => { onModelChange(m.id); setIsModelMenuOpen(false); }}
-                                            >
-                                                <span className="flex-1">{m.label}</span>
-                                                {m.id === activeModel && <Check size={13} className="text-green-400" />}
-                                            </button>
-                                        ))}
+                                        {(['gemini', 'anthropic'] as const).map(provider => {
+                                            const group = MODEL_REGISTRY.filter(m => m.provider === provider);
+                                            if (group.length === 0) return null;
+                                            return (
+                                                <React.Fragment key={provider}>
+                                                    <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-text-tertiary select-none pointer-events-none">
+                                                        {provider === 'gemini' ? 'Gemini' : 'Claude'}
+                                                    </div>
+                                                    {group.map(m => (
+                                                        <button
+                                                            key={m.id}
+                                                            className={`w-full text-left px-3 py-1.5 text-[12px] bg-transparent border-none cursor-pointer flex items-center gap-2 transition-colors ${m.id === activeModel
+                                                                ? 'text-text-primary bg-white/[0.08]'
+                                                                : 'text-text-secondary hover:text-text-primary hover:bg-white/[0.05]'
+                                                                }`}
+                                                            onClick={() => { onModelChange(m.id); setIsModelMenuOpen(false); }}
+                                                        >
+                                                            <span className="flex-1">{m.label}</span>
+                                                            {m.id === activeModel && <Check size={13} className="text-green-400" />}
+                                                        </button>
+                                                    ))}
+                                                </React.Fragment>
+                                            );
+                                        })}
                                     </div>
                                 </>
                             )}
                         </div>
                     )}
 
-                    {/* Thinking level toggle */}
-                    {thinkingConfig && (
+                    {/* Thinking level toggle — hidden when model has no thinking support (single 'off' option) */}
+                    {thinkingConfig && thinkingConfig.options.length > 1 && (
                         <div className="relative" ref={thinkingMenuRef}>
                             <button
                                 className="flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] text-text-tertiary bg-transparent border-none cursor-pointer transition-colors hover:text-text-secondary hover:bg-white/[0.05]"
@@ -451,7 +482,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept="image/*,audio/*,video/*,application/pdf,text/*"
+                accept={acceptedFileTypes}
                 style={{ display: 'none' }}
                 onChange={(e) => handleFileSelect(e.target.files)}
             />

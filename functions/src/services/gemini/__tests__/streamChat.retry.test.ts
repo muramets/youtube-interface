@@ -50,9 +50,8 @@ vi.mock('../thumbnails.js', () => ({
 
 // Mock thumbnailMiddleware
 vi.mock('../thumbnailMiddleware.js', () => ({
-    enhanceWithThumbnails: vi.fn().mockResolvedValue({
-        imageParts: [],
-        updatedCache: {},
+    enhanceWithThumbnails: vi.fn().mockReturnValue({
+        imageUrls: [],
         cleanedResponse: {},
         blockedCount: undefined,
     }),
@@ -66,6 +65,10 @@ vi.mock('../../memory.js', () => ({
 // Mock tools — empty declarations means no tool-calling path
 vi.mock('../../tools/index.js', () => ({
     TOOL_DECLARATIONS: [],
+}));
+
+// executeTool is now imported by executeToolBatch from tools/executor.js
+vi.mock('../../tools/executor.js', () => ({
     executeTool: vi.fn(),
 }));
 
@@ -74,7 +77,7 @@ vi.mock('../../../config/models.js', () => ({
     MODEL_REGISTRY: [
         {
             id: 'test-model',
-            thinkingParam: 'thinkingBudget',
+            thinkingMode: 'budget',
             thinkingOptions: [{ id: 'default', value: 1024 }],
             thinkingDefault: 'default',
         },
@@ -150,7 +153,7 @@ describe('streamChat — retry logic', () => {
 
         // Text came from the successful second attempt
         expect(result.text).toBe('hello world');
-    });
+    }, 10_000);
 
     it('retries when SDK throws DOMException on abort (real-world timeout behavior)', async () => {
         // In production, @google/genai does NOT throw our GeminiTimeoutError.
@@ -181,8 +184,8 @@ describe('streamChat — retry logic', () => {
         // Start streamChat but DON'T await yet — we need to advance timers first
         const resultPromise = streamChat(makeOpts({ onRetry }));
 
-        // Advance past the 90s inactivity timeout to trigger abort
-        await vi.advanceTimersByTimeAsync(91_000);
+        // Advance past the 90s inactivity timeout + 2s retry delay
+        await vi.advanceTimersByTimeAsync(93_000);
 
         const result = await resultPromise;
 
@@ -238,6 +241,6 @@ describe('streamChat — retry logic', () => {
 
         // Total calls: 1 initial + 2 retries = 3
         expect(mockGenerateContentStream).toHaveBeenCalledTimes(3);
-    });
+    }, 15_000);
 });
 

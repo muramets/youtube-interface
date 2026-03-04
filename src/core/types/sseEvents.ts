@@ -7,7 +7,7 @@
 
 // --- Tool call record (persisted in ChatMessage) ---
 
-// MIRROR: functions/src/services/gemini/client.ts:ToolCallRecord — keep in sync
+// MIRROR: functions/src/services/ai/types.ts:ToolCallRecord — keep in sync
 export interface ToolCallRecord {
     name: string;
     args: Record<string, unknown>;

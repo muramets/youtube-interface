@@ -1,17 +1,19 @@
 // =============================================================================
-// Tool Definitions — Gemini Function Calling declarations
+// Tool Definitions — Provider-agnostic tool declarations
 //
 // Single source of truth for all tools available to the AI agent.
-// Each tool has a FunctionDeclaration (for Gemini API) and metadata.
+// Each tool has a ToolDefinition (provider-agnostic) and metadata.
+// Provider-specific adapters (e.g. gemini/toolAdapter.ts) convert these
+// to the native format (e.g. Gemini FunctionDeclaration) at call time.
 //
 // To add a new tool:
 //   1. Add the name to TOOL_NAMES
-//   2. Create a FunctionDeclaration below
+//   2. Create a ToolDefinition below
 //   3. Add a handler in handlers/ directory
 //   4. Register the handler in executor.ts HANDLERS map
 // =============================================================================
 
-import type { FunctionDeclaration } from "@google/genai";
+import type { ToolDefinition } from "../ai/types.js";
 
 // --- Tool name constants (used by executor for routing) ---
 
@@ -24,9 +26,9 @@ export const TOOL_NAMES = {
 
 export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];
 
-// --- Declarations for Gemini Function Calling API ---
+// --- Provider-agnostic tool declarations ---
 
-const mentionVideo: FunctionDeclaration = {
+const mentionVideo: ToolDefinition = {
     name: TOOL_NAMES.MENTION_VIDEO,
     description:
         "Reference a specific video in your response. Call this tool whenever you mention " +
@@ -51,7 +53,7 @@ const mentionVideo: FunctionDeclaration = {
     },
 };
 
-const getMultipleVideoDetails: FunctionDeclaration = {
+const getMultipleVideoDetails: ToolDefinition = {
     name: TOOL_NAMES.GET_MULTIPLE_VIDEO_DETAILS,
     description:
         "Fetch full metadata (description, tags, etc.) for one or more videos by their IDs. " +
@@ -72,7 +74,7 @@ const getMultipleVideoDetails: FunctionDeclaration = {
     },
 };
 
-const analyzeSuggestedTraffic: FunctionDeclaration = {
+const analyzeSuggestedTraffic: ToolDefinition = {
     name: TOOL_NAMES.ANALYZE_SUGGESTED_TRAFFIC,
     description:
         "Analyze suggested traffic data for a video. Downloads all CSV snapshots, " +
@@ -117,7 +119,7 @@ const analyzeSuggestedTraffic: FunctionDeclaration = {
     },
 };
 
-const viewThumbnails: FunctionDeclaration = {
+const viewThumbnails: ToolDefinition = {
     name: TOOL_NAMES.VIEW_THUMBNAILS,
     description:
         "View actual video thumbnails as images. Call this PROACTIVELY when your analysis " +
@@ -150,7 +152,7 @@ const viewThumbnails: FunctionDeclaration = {
 
 // --- Exported registry ---
 
-export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
+export const TOOL_DECLARATIONS: ToolDefinition[] = [
     mentionVideo,
     getMultipleVideoDetails,
     analyzeSuggestedTraffic,

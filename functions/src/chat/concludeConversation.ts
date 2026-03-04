@@ -10,7 +10,7 @@ import { defineSecret } from "firebase-functions/params";
 import { admin, db } from "../shared/db.js";
 import { verifyChannelAccess } from "../shared/auth.js";
 import { logAiUsage } from "./helpers.js";
-import { ALLOWED_MODEL_IDS, DEFAULT_MODEL_ID } from "../config/models.js";
+import { resolveUtilityModel } from "../config/models.js";
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
@@ -38,10 +38,8 @@ export const concludeConversation = onCall(
             throw new HttpsError("invalid-argument", "channelId and conversationId are required.");
         }
 
-        const resolvedModel = model || DEFAULT_MODEL_ID;
-        if (!ALLOWED_MODEL_IDS.has(resolvedModel)) {
-            throw new HttpsError("invalid-argument", `Unsupported model: ${resolvedModel}`);
-        }
+        // Resolve utility model: Gemini users keep their model, Claude users fallback to Flash
+        const resolvedModel = resolveUtilityModel(model || 'gemini-2.5-flash');
 
         const apiKey = geminiApiKey.value();
         if (!apiKey) {

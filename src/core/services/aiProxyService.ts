@@ -1,5 +1,5 @@
 // =============================================================================
-// AI Proxy Service — Client-side caller for Gemini CF endpoints
+// AI Proxy Service — Client-side caller for AI Cloud Function endpoints
 // =============================================================================
 
 import { httpsCallable } from 'firebase/functions';
@@ -15,17 +15,17 @@ interface StreamChatOpts {
     model: string;
     systemPrompt?: string;
     text: string;
-    attachments?: Array<{ geminiFileUri: string; mimeType: string }>;
+    attachments?: Array<{ type: string; url: string; name: string; mimeType: string; fileRef?: string }>;
     thumbnailUrls?: string[];
     contextMeta?: { videoCards?: number; trafficSources?: number; canvasNodes?: number; totalItems?: number };
     onStream: (fullText: string) => void;
-    /** Called when Gemini initiates a tool call (before execution). */
+    /** Called when the AI model initiates a tool call (before execution). */
     onToolCall?: (name: string, args: Record<string, unknown>, toolCallIndex: number) => void;
     /** Called after a tool finishes executing with its result. */
     onToolResult?: (name: string, result: Record<string, unknown>, toolCallIndex: number) => void;
     /** Called when a tool emits a progress update during execution. */
     onToolProgress?: (toolName: string, message: string, toolCallIndex: number) => void;
-    /** Called when Gemini emits thinking tokens. */
+    /** Called when the AI model emits thinking tokens. */
     onThought?: (text: string) => void;
     /** Thinking depth option id (matches model's thinkingOptions). */
     thinkingOptionId?: string;
@@ -33,7 +33,7 @@ interface StreamChatOpts {
     largePayloadApproved?: boolean;
     /** Called when the server blocks a large thumbnail batch and needs user confirmation. */
     onConfirmLargePayload?: (count: number) => void;
-    /** Called when the server retries a failed Gemini request. attempt is 1-based. */
+    /** Called when the server retries a failed AI request. attempt is 1-based. */
     onRetry?: (attempt: number) => void;
     signal?: AbortSignal;
 }
@@ -272,9 +272,9 @@ export async function streamChat(opts: StreamChatOpts): Promise<StreamChatResult
     return result;
 }
 
-// --- Upload to Gemini (via CF) ---
+// --- Upload file (via CF) ---
 
-export async function uploadToGemini(
+export async function uploadFile(
     storagePath: string,
     mimeType: string,
     displayName: string

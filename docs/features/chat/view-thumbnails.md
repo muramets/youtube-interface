@@ -2,7 +2,9 @@
 
 ## Текущее состояние
 
-**Реализовано (v1.1).** Gemini может вызвать `viewThumbnails` в чате, чтобы визуально увидеть обложки видео (свои и чужие). Поддерживается поиск по `videoIds` и по `titles` (exact match fallback). Средний batch (< 15) загружается автоматически. Большой batch (≥ 15) требует подтверждения пользователя. Tool descriptions обновлены — Gemini знает, что может работать с конкурентными видео из suggested traffic.
+**Реализовано (v1.1).** AI может вызвать `viewThumbnails` в чате, чтобы визуально увидеть обложки видео (свои и чужие). Поддерживается поиск по `videoIds` и по `titles` (exact match fallback). Средний batch (< 15) загружается автоматически. Большой batch (≥ 15) требует подтверждения пользователя. Tool descriptions обновлены — AI знает, что может работать с конкурентными видео из suggested traffic.
+
+> **Multi-provider note:** `viewThumbnails` tool использует **Gemini Files API** для загрузки изображений — это Gemini-specific flow. Для Claude thumbnails из контекста передаются как inline image URL блоки (без Files API upload). Claude видит обложки в контексте автоматически через `imageUrls` → `{ type: "image", source: { type: "url", url } }`.
 
 ---
 
